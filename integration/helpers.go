@@ -67,10 +67,10 @@ import (
 // work faster but consuming more CPU (useful for integration testing)
 func SetTestTimeouts(t time.Duration) {
 	defaults.ReverseTunnelAgentHeartbeatPeriod = t
-	defaults.ServerAnnounceTTL = t
 	defaults.ServerKeepAliveTTL = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t
+	defaults.CachePollPeriod = t
 }
 
 // TeleInstance represents an in-memory instance of a teleport
@@ -444,6 +444,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	}
 	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
+	tconf.CachePolicy.Enabled = true
 	tconf.Auth.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
@@ -451,7 +452,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 		return nil, trace.Wrap(err)
 	}
 	tconf.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionToken{
+		StaticTokens: []services.ProvisionTokenV1{
 			{
 				Roles: []teleport.Role{teleport.RoleNode, teleport.RoleProxy, teleport.RoleTrustedCluster},
 				Token: "token",
@@ -506,7 +507,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
 		Type:   lite.GetName(),
-		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir},
+		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
 	}
 
 	tconf.Keygen = testauthority.New()

@@ -557,7 +557,7 @@ type Auth struct {
 
 	// KeepAliveCountMax set the number of keep-alive messages that can be
 	// missed before the server disconnects the client.
-	KeepAliveCountMax int `yaml:"keep_alive_count_max"`
+	KeepAliveCountMax int64 `yaml:"keep_alive_count_max"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -585,14 +585,14 @@ func (c ClusterName) Parse() (services.ClusterName, error) {
 type StaticTokens []StaticToken
 
 func (t StaticTokens) Parse() (services.StaticTokens, error) {
-	staticTokens := []services.ProvisionToken{}
+	staticTokens := []services.ProvisionTokenV1{}
 
 	for _, token := range t {
 		st, err := token.Parse()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		staticTokens = append(staticTokens, st)
+		staticTokens = append(staticTokens, *st)
 	}
 
 	return services.NewStaticTokens(services.StaticTokensSpecV2{
@@ -605,18 +605,18 @@ type StaticToken string
 // Parse is applied to a string in "role,role,role:token" format. It breaks it
 // apart and constructs a services.ProvisionToken which contains the token,
 // role, and expiry (infinite).
-func (t StaticToken) Parse() (services.ProvisionToken, error) {
+func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
 	parts := strings.Split(string(t), ":")
 	if len(parts) != 2 {
-		return services.ProvisionToken{}, trace.BadParameter("invalid static token spec: %q", t)
+		return nil, trace.BadParameter("invalid static token spec: %q", t)
 	}
 
 	roles, err := teleport.ParseRoles(parts[0])
 	if err != nil {
-		return services.ProvisionToken{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return services.ProvisionToken{
+	return &services.ProvisionTokenV1{
 		Token:   parts[1],
 		Roles:   roles,
 		Expires: time.Unix(0, 0).UTC(),

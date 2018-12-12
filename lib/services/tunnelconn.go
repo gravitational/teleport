@@ -1,7 +1,22 @@
+/*
+Copyright 2015-2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -79,6 +94,7 @@ func MustCreateTunnelConnection(name string, spec TunnelConnectionSpecV2) Tunnel
 func NewTunnelConnection(name string, spec TunnelConnectionSpecV2) (TunnelConnection, error) {
 	conn := &TunnelConnectionV2{
 		Kind:    KindTunnelConnection,
+		SubKind: spec.ClusterName,
 		Version: V2,
 		Metadata: Metadata{
 			Name:      name,
@@ -92,16 +108,24 @@ func NewTunnelConnection(name string, spec TunnelConnectionSpecV2) (TunnelConnec
 	return conn, nil
 }
 
-// TunnelConnectionV2 is version 1 resource spec of the reverse tunnel
-type TunnelConnectionV2 struct {
-	// Kind is a resource kind
-	Kind string `json:"kind"`
-	// Version is a resource version
-	Version string `json:"version"`
-	// Metadata is Role metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains user specification
-	Spec TunnelConnectionSpecV2 `json:"spec"`
+// GetVersion returns resource version
+func (r *TunnelConnectionV2) GetVersion() string {
+	return r.Version
+}
+
+// GetKind returns resource kind
+func (r *TunnelConnectionV2) GetKind() string {
+	return r.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (r *TunnelConnectionV2) GetSubKind() string {
+	return r.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (r *TunnelConnectionV2) SetSubKind(s string) {
+	r.SubKind = s
 }
 
 // GetResourceID returns resource ID
@@ -210,16 +234,6 @@ func (r *TunnelConnectionV2) Check() error {
 	return nil
 }
 
-// TunnelConnectionSpecV2 is a specification for V2 tunnel connection
-type TunnelConnectionSpecV2 struct {
-	// ClusterName is a name of the cluster
-	ClusterName string `json:"cluster_name"`
-	// ProxyName is the name of the proxy server
-	ProxyName string `json:"proxy_name"`
-	// LastHeartbeat is a time of the last heartbeat
-	LastHeartbeat time.Time `json:"last_heartbeat,omitempty"`
-}
-
 // TunnelConnectionSpecV2Schema is JSON schema for reverse tunnel spec
 const TunnelConnectionSpecV2Schema = `{
   "type": "object",
@@ -270,6 +284,9 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 		if err := r.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if cfg.ID != 0 {
+			r.SetResourceID(cfg.ID)
+		}
 
 		return &r, nil
 	}
@@ -278,5 +295,21 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 
 // MarshalTunnelConnection marshals tunnel connection
 func MarshalTunnelConnection(rt TunnelConnection, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(rt)
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch resource := rt.(type) {
+	case *TunnelConnectionV2:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *resource
+			copy.SetResourceID(0)
+			resource = &copy
+		}
+		return utils.FastMarshal(resource)
+	default:
+		return nil, trace.BadParameter("unrecognized resource version %T", rt)
+	}
 }

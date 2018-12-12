@@ -82,8 +82,43 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 			},
 		},
 		GetIdentifier: ctx.GetIdentifier,
-		GetProperty:   predicate.GetStringMapValue,
+		GetProperty:   GetStringMapValue,
 	})
+}
+
+// GetStringMapValue is a helper function that returns property
+// from map[string]string or map[string][]string
+// the function returns empty value in case if key not found
+// In case if map is nil, returns empty value as well
+func GetStringMapValue(mapVal, keyVal interface{}) (interface{}, error) {
+	key, ok := keyVal.(string)
+	if !ok {
+		return nil, trace.BadParameter("only string keys are supported")
+	}
+	switch m := mapVal.(type) {
+	case map[string][]string:
+		if len(m) == 0 {
+			// to return nil with a proper type
+			var n []string
+			return n, nil
+		}
+		return m[key], nil
+	case Traits:
+		if len(m) == 0 {
+			// to return nil with a proper type
+			var n []string
+			return n, nil
+		}
+		return m[key], nil
+	case map[string]string:
+		if len(m) == 0 {
+			return "", nil
+		}
+		return m[key], nil
+	default:
+		_, ok := mapVal.(map[string][]string)
+		return nil, trace.BadParameter("type %T is not supported, but %v %#v", m, ok, mapVal)
+	}
 }
 
 // NewActionsParser returns standard parser for 'actions' section in access rules
@@ -237,10 +272,32 @@ var emptyUser = &UserV2{}
 type EmptyResource struct {
 	// Kind is a resource kind
 	Kind string `json:"kind"`
+	// SubKind is a resource sub kind
+	SubKind string `json:"sub_kind,omitempty"`
 	// Version is a resource version
 	Version string `json:"version"`
 	// Metadata is Role metadata
 	Metadata Metadata `json:"metadata"`
+}
+
+// GetVersion returns resource version
+func (r *EmptyResource) GetVersion() string {
+	return r.Version
+}
+
+// GetSubKind returns resource sub kind
+func (r *EmptyResource) GetSubKind() string {
+	return r.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (r *EmptyResource) SetSubKind(s string) {
+	r.SubKind = s
+}
+
+// GetKind returns resource kind
+func (r *EmptyResource) GetKind() string {
+	return r.Kind
 }
 
 // GetResourceID returns resource ID

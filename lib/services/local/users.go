@@ -68,7 +68,7 @@ func (s *IdentityService) GetUsers() ([]services.User, error) {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			continue
 		}
-		u, err := services.GetUserMarshaler().UnmarshalUser(item.Value)
+		u, err := services.GetUserMarshaler().UnmarshalUser(item.Value, services.WithResourceID(item.ID))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -111,6 +111,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: user.Expiry(),
+		ID:      user.GetResourceID(),
 	}
 	_, err = s.Put(context.TODO(), item)
 	if err != nil {
@@ -128,7 +129,7 @@ func (s *IdentityService) GetUser(user string) (services.User, error) {
 	if err != nil {
 		return nil, trace.NotFound("user %q is not found", user)
 	}
-	u, err := services.GetUserMarshaler().UnmarshalUser(item.Value)
+	u, err := services.GetUserMarshaler().UnmarshalUser(item.Value, services.WithResourceID(item.ID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -752,6 +753,7 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector) 
 		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
+		ID:      connector.GetResourceID(),
 	}
 	_, err = s.Put(context.TODO(), item)
 	if err != nil {
@@ -1025,6 +1027,7 @@ func (s *IdentityService) UpsertGithubConnector(connector services.GithubConnect
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
+		ID:      connector.GetResourceID(),
 	}
 	_, err = s.Put(context.TODO(), item)
 	if err != nil {

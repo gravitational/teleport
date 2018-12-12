@@ -46,7 +46,7 @@ type KeepAliveParams struct {
 
 	// MaxCount is the number of keep-alive messages that can be missed before
 	// the connection is disconnected.
-	MaxCount int
+	MaxCount int64
 
 	// CloseContext is used by the server to notify the keep-alive loop to stop.
 	CloseContext context.Context
@@ -57,7 +57,7 @@ type KeepAliveParams struct {
 
 // StartKeepAliveLoop starts the keep-alive loop.
 func StartKeepAliveLoop(p KeepAliveParams) {
-	var missedCount int
+	var missedCount int64
 
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentKeepAlive,

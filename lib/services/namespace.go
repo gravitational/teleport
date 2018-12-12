@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,23 +19,13 @@ package services
 import (
 	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
-
-// Namespace represents namespace resource specification
-type Namespace struct {
-	// Kind is a resource kind - always namespace
-	Kind string `json:"kind"`
-	// Version is a resource version
-	Version string `json:"version"`
-	// Metadata is Role metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains namespace specification
-	Spec NamespaceSpec `json:"spec"`
-}
 
 // Check checks validity of all parameters and sets defaults
 func (n *Namespace) CheckAndSetDefaults() error {
@@ -50,8 +40,64 @@ func (n *Namespace) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NamespaceSpec is namespace spec
-type NamespaceSpec struct {
+// GetVersion returns resource version
+func (n *Namespace) GetVersion() string {
+	return n.Version
+}
+
+// GetKind returns resource kind
+func (n *Namespace) GetKind() string {
+	return n.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (n *Namespace) GetSubKind() string {
+	return n.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (n *Namespace) SetSubKind(sk string) {
+	n.SubKind = sk
+}
+
+// GetResourceID returns resource ID
+func (n *Namespace) GetResourceID() int64 {
+	return n.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (n *Namespace) SetResourceID(id int64) {
+	n.Metadata.ID = id
+}
+
+// GetName returns the name of the cluster.
+func (n *Namespace) GetName() string {
+	return n.Metadata.Name
+}
+
+// SetName sets the name of the cluster.
+func (n *Namespace) SetName(e string) {
+	n.Metadata.Name = e
+}
+
+// Expires returns object expiry setting
+func (n *Namespace) Expiry() time.Time {
+	return n.Metadata.Expiry()
+}
+
+// SetExpiry sets expiry time for the object
+func (n *Namespace) SetExpiry(expires time.Time) {
+	n.Metadata.SetExpiry(expires)
+}
+
+// SetTTL sets Expires header using realtime clock
+func (n *Namespace) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	n.Metadata.SetTTL(clock, ttl)
+}
+
+// GetMetadata returns object metadata
+func (n *Namespace) GetMetadata() Metadata {
+	return n.Metadata
 }
 
 const NamespaceSpecSchema = `{
@@ -79,15 +125,31 @@ func GetNamespaceSchema() string {
 }
 
 // MarshalNamespace marshals namespace to JSON
-func MarshalNamespace(ns Namespace) ([]byte, error) {
-	return utils.FastMarshal(ns)
+func MarshalNamespace(resource Namespace, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !cfg.PreserveResourceID {
+		// avoid modifying the original object
+		// to prevent unexpected data races
+		copy := resource
+		copy.SetResourceID(0)
+		resource = copy
+	}
+	return utils.FastMarshal(resource)
 }
 
 // UnmarshalNamespace unmarshals role from JSON or YAML,
 // sets defaults and checks the schema
-func UnmarshalNamespace(data []byte) (*Namespace, error) {
+func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*Namespace, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing namespace data")
+	}
+
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// always skip schema validation on namespaces unmarshal
@@ -99,6 +161,10 @@ func UnmarshalNamespace(data []byte) (*Namespace, error) {
 
 	if err := namespace.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.ID != 0 {
+		namespace.Metadata.ID = cfg.ID
 	}
 
 	return &namespace, nil

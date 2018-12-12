@@ -235,7 +235,6 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 
 			// Override user passed in cluster name with what is in the backend.
 			cfg.ClusterName = cn
-			asrv.clusterName = cn
 		}
 	}
 	log.Debugf("Cluster configuration: %v.", cfg.ClusterName)
@@ -409,11 +408,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 }
 
 func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
-	err := migrateUsers(asrv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = migrateRemoteClusters(asrv)
+	err := migrateRemoteClusters(asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -461,38 +456,6 @@ func migrateIdentity(role teleport.Role, dataDir string, storage *ProcessStorage
 		}
 	}
 	log.Infof("Identity %v has been migrated to new on-disk format.", role)
-	return nil
-}
-
-func migrateUsers(asrv *AuthServer) error {
-	users, err := asrv.GetUsers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for i := range users {
-		user := users[i]
-		raw, ok := (user.GetRawObject()).(services.UserV1)
-		if !ok {
-			continue
-		}
-		log.Infof("Migrating legacy user: %v.", user.GetName())
-
-		// create role for user and upsert to backend
-		role := services.RoleForUser(user)
-		role.SetLogins(services.Allow, raw.AllowedLogins)
-		err = asrv.UpsertRole(role)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// upsert new user to backend
-		user.AddRole(role.GetName())
-		if err := asrv.UpsertUser(user); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
 }
 
@@ -582,6 +545,34 @@ func (i *Identity) String() string {
 		}
 	}
 	return fmt.Sprintf("Identity(%v, %v)", i.ID.Role, strings.Join(out, ","))
+}
+
+// CertInfo returns diagnostic information about certificate
+func CertInfo(cert *x509.Certificate) string {
+	return fmt.Sprintf("cert(%v issued by %v:%v)", cert.Subject.CommonName, cert.Issuer.CommonName, cert.Issuer.SerialNumber)
+}
+
+// TLSCertInfo returns diagnostic information about certificate
+func TLSCertInfo(cert *tls.Certificate) string {
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return err.Error()
+	}
+	return CertInfo(x509cert)
+}
+
+// CertAuthorityInfo returns debugging information about certificate authority
+func CertAuthorityInfo(ca services.CertAuthority) string {
+	var out []string
+	for _, keyPair := range ca.GetTLSKeyPairs() {
+		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+		if err != nil {
+			out = append(out, err.Error())
+		} else {
+			out = append(out, fmt.Sprintf("trust root(%v:%v)", cert.Subject.CommonName, cert.Subject.SerialNumber))
+		}
+	}
+	return fmt.Sprintf("cert authority(state: %v, phase: %v, roots: %v)", ca.GetRotation().State, ca.GetRotation().Phase, strings.Join(out, ", "))
 }
 
 // HasTSLConfig returns true if this identity has TLS certificate and private key

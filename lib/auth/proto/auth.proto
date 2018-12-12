@@ -11,10 +11,13 @@ option (gogoproto.goproto_getters_all) = false;
 
 // Operation identifies type of operation
 enum Operation {
+    // INIT is sent as a first sentinel event
+    // on the watch channel
+    INIT   = 0;
     // PUT identifies created or updated object
-    PUT    = 0;
+    PUT    = 1;
     // DELETE identifies deleted object
-    DELETE = 1;
+    DELETE = 2;
 }
 
 // Event returns cluster event
@@ -29,13 +32,41 @@ message Event {
         services.ResourceHeader ResourceHeader = 2 [(gogoproto.jsontag) = "resource,omitempty"];
         // CertAuthority is filled in certificate-authority related events
         services.CertAuthorityV2 CertAuthority = 3 [(gogoproto.jsontag) = "cert_authority,omitempty"];
+        // StaticTokens is filled in static-tokens related events
+        services.StaticTokensV2 StaticTokens = 4 [(gogoproto.jsontag) = "static_tokens,omitempty"];
+        // ProvisionToken is filled in provision-token related events
+        services.ProvisionTokenV2 ProvisionToken = 5 [(gogoproto.jsontag) = "provision_token,omitempty"];
+        // ClusterNameV2 is a cluster name resource
+        services.ClusterNameV2 ClusterName = 6 [(gogoproto.jsontag) = "cluster_name,omitempty"];
+        // ClusterConfig is a cluster configuration resource
+        services.ClusterConfigV3 ClusterConfig = 7 [(gogoproto.jsontag) = "cluster_config,omitempty"];
+        // User is a user resource
+        services.UserV2 User = 8 [(gogoproto.jsontag) = "user,omitempty"];
+        // Role is a role resource
+        services.RoleV3 Role = 9 [(gogoproto.jsontag) = "role,omitempty"];
+        // Namespace is a namespace resource
+        services.Namespace Namespace = 10 [(gogoproto.jsontag) = "namespace,omitempty"];
+        // Server is a node or proxy resource
+        services.ServerV2 Server = 11 [(gogoproto.jsontag) = "server,omitempty"];
+        // ReverseTunnel is a resource with reverse tunnel
+        services.ReverseTunnelV2 ReverseTunnel = 12 [(gogoproto.jsontag) = "reverse_tunnel,omitempty"];
+        // TunnelConnection is a resource for tunnel connnections
+        services.TunnelConnectionV2 TunnelConnection = 13 [(gogoproto.jsontag) = "tunnel_connection,omitempty"];
     }
 }
 
 // Watch specifies watch parameters
 message Watch {
     // Kinds specifies object kinds to watch
-    repeated string Kinds = 1 [(gogoproto.jsontag) = "kinds,omitempty"];
+    repeated WatchKind Kinds = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "kinds,omitempty"];
+}
+
+// WatchKind specifies resource kind to watch
+message WatchKind {
+    // Kind is a resource kind to watch
+    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    // LoadSecrets specifies whether to load secrets
+    bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
 }
 
 // AuthService is authentication/authorization service implementation

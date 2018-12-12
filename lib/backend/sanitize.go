@@ -1,3 +1,19 @@
+/*
+Copyright 2015-2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package backend
 
 import (
@@ -17,9 +33,12 @@ const errorMessage = "special characters are not allowed in resource names, plea
 // the path.
 var whitelistPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/]*$`)
 
+// blacklistPattern matches some unallowed combinations
+var blacklistPattern = regexp.MustCompile(`//`)
+
 // isKeySafe checks if the passed in key conforms to whitelist
 func isKeySafe(s []byte) bool {
-	return whitelistPattern.Match(s)
+	return whitelistPattern.Match(s) && !blacklistPattern.Match(s)
 }
 
 // Sanitizer wraps a Backend implementation to make sure all values requested
@@ -126,8 +145,10 @@ func (s *Sanitizer) KeepAlive(ctx context.Context, lease Lease, expires time.Tim
 
 // NewWatcher returns a new event watcher
 func (s *Sanitizer) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
-	if !isKeySafe(watch.Prefix) {
-		return nil, trace.BadParameter(errorMessage)
+	for _, prefix := range watch.Prefixes {
+		if !isKeySafe(prefix) {
+			return nil, trace.BadParameter(errorMessage)
+		}
 	}
 	return s.backend.NewWatcher(ctx, watch)
 }

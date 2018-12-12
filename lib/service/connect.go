@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -31,6 +32,37 @@ import (
 
 	"github.com/gravitational/trace"
 )
+
+// reconnectToAuthService continuously attempts to reconnect to the auth
+// service until succeeds or process gets shut down
+func (process *TeleportProcess) reconnectToAuthService(role teleport.Role) (*Connector, error) {
+	retryTime := defaults.HighResPollingPeriod
+	for {
+		connector, err := process.connectToAuthService(role)
+		if err == nil {
+			// if connected and client is present, make sure the connector's
+			// client works, by using call that should succeed at all times
+			if connector.Client != nil {
+				_, err = connector.Client.GetNamespace(defaults.Namespace)
+				if err == nil {
+					return connector, nil
+				}
+				process.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, err)
+				if err := connector.Client.Close(); err != nil {
+					process.Debugf("Failed to close the client: %v.", err)
+				}
+			}
+		}
+		process.Infof("%v failed attempt connecting to auth server: %v.", role, err)
+		// Wait in between attempts, but return if teleport is shutting down
+		select {
+		case <-time.After(retryTime):
+		case <-process.ExitContext().Done():
+			process.Infof("%v stopping connection attempts, teleport is shutting down.", role)
+			return nil, ErrTeleportExited
+		}
+	}
+}
 
 // connectToAuthService attempts to login into the auth servers specified in the
 // configuration and receive credentials.
@@ -42,6 +74,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	process.Debugf("Connected client: %v", connector.ClientIdentity)
 	process.Debugf("Connected server: %v", connector.ServerIdentity)
 	process.addConnector(connector)
+
 	return connector, nil
 }
 
@@ -255,7 +288,7 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id services.Ce
 // reRegister receives new identity credentials for proxy, node and auth.
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
-func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string) (*auth.Identity, error) {
+func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string, rotation services.Rotation) (*auth.Identity, error) {
 	if conn.ClientIdentity.ID.Role == teleport.RoleAdmin || conn.ClientIdentity.ID.Role == teleport.RoleAuth {
 		return auth.GenerateIdentity(process.localAuth, conn.ClientIdentity.ID, additionalPrincipals)
 	}
@@ -271,6 +304,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 		PrivateKey:           keyPair.PrivateKey,
 		PublicTLSKey:         keyPair.PublicTLSKey,
 		PublicSSHKey:         keyPair.PublicSSHKey,
+		Rotation:             rotation,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -428,7 +462,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 		return nil
 	}
 
-	watcher, err := process.newWatcher(conn, services.Watch{Kinds: []string{services.KindCertAuthority}})
+	watcher, err := process.newWatcher(conn, services.Watch{Kinds: []services.WatchKind{{Kind: services.KindCertAuthority}}})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -439,6 +473,9 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	for {
 		select {
 		case event := <-watcher.Events():
+			if event.Type == backend.OpInit || event.Type == backend.OpDelete {
+				continue
+			}
 			ca, ok := event.Resource.(services.CertAuthority)
 			if !ok {
 				process.Debugf("Skipping event %v for %v", event.Type, event.Resource.GetName())
@@ -601,7 +638,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		case "", services.RotationStateStandby:
 			if principalsChanged {
 				process.Infof("Service %v has updated principals to %q, going to request new principals and update.", id.Role, additionalPrincipals)
-				identity, err := process.reRegister(conn, additionalPrincipals)
+				identity, err := process.reRegister(conn, additionalPrincipals, remote)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -618,7 +655,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if local.Phase != services.RotationPhaseRollback && local.CurrentID != remote.CurrentID {
 				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
-			identity, err := process.reRegister(conn, additionalPrincipals)
+			identity, err := process.reRegister(conn, additionalPrincipals, remote)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -654,10 +691,11 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if local.Phase != services.RotationPhaseInit && local.CurrentID != remote.CurrentID {
 				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
-			identity, err := process.reRegister(conn, additionalPrincipals)
+			identity, err := process.reRegister(conn, additionalPrincipals, remote)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			process.Debugf("Re-registered, received new identity %v.", identity)
 			err = writeStateAndIdentity(auth.IdentityReplacement, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -686,7 +724,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			// because it will be widely used to recover cluster state to
 			// the previously valid state, client will re-register to receive
 			// credentials signed by the "old" CA.
-			identity, err := process.reRegister(conn, additionalPrincipals)
+			identity, err := process.reRegister(conn, additionalPrincipals, remote)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

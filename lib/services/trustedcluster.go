@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -85,6 +84,9 @@ func NewTrustedCluster(name string, spec TrustedClusterSpecV2) (TrustedCluster, 
 type TrustedClusterV2 struct {
 	// Kind is a resource kind - always resource.
 	Kind string `json:"kind"`
+
+	// SubKind is a resource sub kind
+	SubKind string `json:"sub_kind,omitempty"`
 
 	// Version is a resource version.
 	Version string `json:"version"`
@@ -270,6 +272,26 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetVersion returns resource version
+func (c *TrustedClusterV2) GetVersion() string {
+	return c.Version
+}
+
+// GetKind returns resource kind
+func (c *TrustedClusterV2) GetKind() string {
+	return c.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (c *TrustedClusterV2) GetSubKind() string {
+	return c.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (c *TrustedClusterV2) SetSubKind(s string) {
+	c.SubKind = s
 }
 
 // GetResourceID returns resource ID
@@ -469,7 +491,7 @@ func GetTrustedClusterSchema(extensionSchema string) string {
 // mostly adds support for extended versions.
 type TrustedClusterMarshaler interface {
 	Marshal(c TrustedCluster, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte) (TrustedCluster, error)
+	Unmarshal(bytes []byte, opts ...MarshalOption) (TrustedCluster, error)
 }
 
 var trustedClusterMarshaler TrustedClusterMarshaler = &TeleportTrustedClusterMarshaler{}
@@ -489,16 +511,26 @@ func GetTrustedClusterMarshaler() TrustedClusterMarshaler {
 type TeleportTrustedClusterMarshaler struct{}
 
 // Unmarshal unmarshals role from JSON or YAML.
-func (t *TeleportTrustedClusterMarshaler) Unmarshal(bytes []byte) (TrustedCluster, error) {
+func (t *TeleportTrustedClusterMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (TrustedCluster, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var trustedCluster TrustedClusterV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	err := utils.UnmarshalWithSchema(GetTrustedClusterSchema(""), &trustedCluster, bytes)
-	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(bytes, &trustedCluster); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	} else {
+		err := utils.UnmarshalWithSchema(GetTrustedClusterSchema(""), &trustedCluster, bytes)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
 	}
 
 	err = trustedCluster.CheckAndSetDefaults()
@@ -511,7 +543,23 @@ func (t *TeleportTrustedClusterMarshaler) Unmarshal(bytes []byte) (TrustedCluste
 
 // Marshal marshals role to JSON or YAML.
 func (t *TeleportTrustedClusterMarshaler) Marshal(c TrustedCluster, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(c)
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch resource := c.(type) {
+	case *TrustedClusterV2:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *resource
+			copy.SetResourceID(0)
+			resource = &copy
+		}
+		return utils.FastMarshal(resource)
+	default:
+		return nil, trace.BadParameter("unrecognized resource version %T", c)
+	}
 }
 
 // SortedTrustedCluster sorts clusters by name

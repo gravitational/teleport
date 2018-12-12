@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package local
 import (
 	"bytes"
 	"context"
+	"sort"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -28,7 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// EventsService provides events
+// EventsService implements service to watch for events
 type EventsService struct {
 	*logrus.Entry
 	backend backend.Backend
@@ -47,25 +48,53 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 	if len(watch.Kinds) == 0 {
 		return nil, trace.BadParameter("global watches are not supported yet")
 	}
-	if len(watch.Kinds) > 1 {
-		return nil, trace.BadParameter("watches on multiple objects are not supported yet")
-	}
-	switch watch.Kinds[0] {
-	case services.KindCertAuthority:
-		prefix := []byte(backend.Key(authoritiesPrefix))
-		w, err := e.backend.NewWatcher(ctx, backend.Watch{
-			Prefix: prefix,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
+	var parsers []resourceParser
+	var prefixes [][]byte
+	for _, kind := range watch.Kinds {
+		var parser resourceParser
+		switch kind.Kind {
+		case services.KindCertAuthority:
+			parser = newCertAuthorityParser(kind.LoadSecrets)
+		case services.KindToken:
+			parser = newProvisionTokenParser()
+		case services.KindStaticTokens:
+			parser = newStaticTokensParser()
+		case services.KindClusterConfig:
+			parser = newClusterConfigParser()
+		case services.KindClusterName:
+			parser = newClusterNameParser()
+		case services.KindNamespace:
+			parser = newNamespaceParser()
+		case services.KindRole:
+			parser = newRoleParser()
+		case services.KindUser:
+			parser = newUserParser()
+		case services.KindNode:
+			parser = newNodeParser()
+		case services.KindProxy:
+			parser = newProxyParser()
+		case services.KindTunnelConnection:
+			parser = newTunnelConnectionParser()
+		case services.KindReverseTunnel:
+			parser = newReverseTunnelParser()
+		default:
+			return nil, trace.BadParameter("watcher on object kind %v is not supported", kind)
 		}
-		return newWatcher(w, e.Entry, []parser{{prefix: prefix, parser: parseCertAuthority}}), nil
-	default:
-		return nil, trace.BadParameter("watcher on object kind %q is not supported", watch.Kinds[0])
+		prefixes = append(prefixes, parser.prefix())
+		parsers = append(parsers, parser)
 	}
+	// sort so that longer prefixes get first
+	sort.Slice(parsers, func(i, j int) bool { return len(parsers[i].prefix()) > len(parsers[j].prefix()) })
+	w, err := e.backend.NewWatcher(ctx, backend.Watch{
+		Prefixes: prefixes,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newWatcher(w, e.Entry, parsers), nil
 }
 
-func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []parser) *watcher {
+func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resourceParser) *watcher {
 	w := &watcher{
 		backendWatcher: backendWatcher,
 		Entry:          l,
@@ -76,14 +105,9 @@ func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []parse
 	return w
 }
 
-type parser struct {
-	prefix []byte
-	parser parserFunc
-}
-
 type watcher struct {
 	*logrus.Entry
-	parsers        []parser
+	parsers        []resourceParser
 	backendWatcher backend.Watcher
 	eventsC        chan services.Event
 }
@@ -94,15 +118,18 @@ func (w *watcher) Error() error {
 
 func (w *watcher) parseEvent(e backend.Event) (*services.Event, error) {
 	for _, p := range w.parsers {
-		if bytes.HasPrefix(e.Item.Key, p.prefix) {
-			resource, err := p.parser(e)
+		if e.Type == backend.OpInit {
+			return &services.Event{Type: e.Type}, nil
+		}
+		if p.match(e.Item.Key) {
+			resource, err := p.parse(e)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &services.Event{Type: e.Type, Resource: resource}, nil
 		}
 	}
-	return nil, trace.NotFound("no match found for %v", e.Type)
+	return nil, trace.NotFound("no match found for %v %v", e.Type, string(e.Item.Key))
 }
 
 func (w *watcher) forwardEvents() {
@@ -113,7 +140,13 @@ func (w *watcher) forwardEvents() {
 		case event := <-w.backendWatcher.Events():
 			converted, err := w.parseEvent(event)
 			if err != nil {
-				w.Warning(err)
+				// not found errors are expected, for example
+				// when namespace prefix is watched, it captures
+				// node events as well, and there could be no
+				// handler registered for nodes, only for namespaces
+				if !trace.IsNotFound(err) {
+					w.Warning(trace.DebugReport(err))
+				}
 				continue
 			}
 			select {
@@ -141,18 +174,50 @@ func (w *watcher) Close() error {
 	return w.backendWatcher.Close()
 }
 
-func parseCertAuthority(event backend.Event) (services.Resource, error) {
+// resourceParser is an interface
+// for parsing resource from backend byte event stream
+type resourceParser interface {
+	// parse parses resource from the backend event
+	parse(event backend.Event) (services.Resource, error)
+	// match returns true if event key matches
+	match(key []byte) bool
+	// prefix returns prefix to watch
+	prefix() []byte
+}
+
+func newCertAuthorityParser(loadSecrets bool) *certAuthorityParser {
+	return &certAuthorityParser{
+		loadSecrets: loadSecrets,
+		matchPrefix: backend.Key(authoritiesPrefix),
+	}
+}
+
+type certAuthorityParser struct {
+	loadSecrets bool
+	matchPrefix []byte
+}
+
+func (p *certAuthorityParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *certAuthorityParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *certAuthorityParser) parse(event backend.Event) (services.Resource, error) {
 	switch event.Type {
 	case backend.OpDelete:
-		name, err := base(event.Item.Key)
+		caType, name, err := baseTwoKeys(event.Item.Key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &services.ResourceHeader{
 			Kind:    services.KindCertAuthority,
-			Version: services.V3,
+			SubKind: caType,
+			Version: services.V2,
 			Metadata: services.Metadata{
-				Name:      string(name),
+				Name:      name,
 				Namespace: defaults.Namespace,
 			},
 		}, nil
@@ -161,21 +226,447 @@ func parseCertAuthority(event backend.Event) (services.Resource, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// never send private signing keys over event stream
-		setSigningKeys(ca, false)
+		// never send private signing keys over event stream?
+		// this might not be true
+		setSigningKeys(ca, p.loadSecrets)
 		return ca, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
 
-// base returns last element delimited by separator
-func base(key []byte) ([]byte, error) {
-	parts := bytes.Split(key, []byte{backend.Separator})
-	if len(parts) == 0 {
-		return nil, trace.NotFound("failed parsing %v", string(key))
+func newProvisionTokenParser() *provisionTokenParser {
+	return &provisionTokenParser{
+		matchPrefix: backend.Key(tokensPrefix),
 	}
-	return parts[len(parts)-1], nil
 }
 
-type parserFunc func(i backend.Event) (services.Resource, error)
+type provisionTokenParser struct {
+	matchPrefix []byte
+}
+
+func (p *provisionTokenParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *provisionTokenParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *provisionTokenParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindToken, services.V2, 0)
+	case backend.OpPut:
+		token, err := services.UnmarshalProvisionToken(event.Item.Value,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return token, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newStaticTokensParser() *staticTokensParser {
+	return &staticTokensParser{
+		matchPrefix: backend.Key(clusterConfigPrefix, staticTokensPrefix),
+	}
+}
+
+type staticTokensParser struct {
+	matchPrefix []byte
+}
+
+func (p *staticTokensParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *staticTokensParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *staticTokensParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		h, err := resourceHeader(event, services.KindStaticTokens, services.V2, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(services.MetaNameStaticTokens)
+		return h, nil
+	case backend.OpPut:
+		tokens, err := services.GetStaticTokensMarshaler().Unmarshal(event.Item.Value,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tokens, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newClusterConfigParser() *clusterConfigParser {
+	return &clusterConfigParser{
+		matchPrefix: backend.Key(clusterConfigPrefix, generalPrefix),
+	}
+}
+
+type clusterConfigParser struct {
+	matchPrefix []byte
+}
+
+func (p *clusterConfigParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *clusterConfigParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *clusterConfigParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		h, err := resourceHeader(event, services.KindClusterConfig, services.V3, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(services.MetaNameClusterConfig)
+		return h, nil
+	case backend.OpPut:
+		clusterConfig, err := services.GetClusterConfigMarshaler().Unmarshal(event.Item.Value,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clusterConfig, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newClusterNameParser() *clusterNameParser {
+	return &clusterNameParser{
+		matchPrefix: backend.Key(clusterConfigPrefix, namePrefix),
+	}
+}
+
+type clusterNameParser struct {
+	matchPrefix []byte
+}
+
+func (p *clusterNameParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *clusterNameParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *clusterNameParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		h, err := resourceHeader(event, services.KindClusterName, services.V2, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(services.MetaNameClusterName)
+		return h, nil
+	case backend.OpPut:
+		clusterName, err := services.GetClusterNameMarshaler().Unmarshal(event.Item.Value,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clusterName, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newNamespaceParser() *namespaceParser {
+	return &namespaceParser{
+		matchPrefix: backend.Key(namespacesPrefix),
+	}
+}
+
+type namespaceParser struct {
+	matchPrefix []byte
+}
+
+func (p *namespaceParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *namespaceParser) match(key []byte) bool {
+	// namespaces are stored under key '/namespaces/<namespace-name>/params'
+	// and this code matches similar pattern
+	return bytes.HasPrefix(key, p.matchPrefix) &&
+		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
+		bytes.Count(key, []byte{backend.Separator}) == 3
+}
+
+func (p *namespaceParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindNamespace, services.V2, 1)
+	case backend.OpPut:
+		namespace, err := services.UnmarshalNamespace(event.Item.Value,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return namespace, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newRoleParser() *roleParser {
+	return &roleParser{
+		matchPrefix: backend.Key(rolesPrefix),
+	}
+}
+
+type roleParser struct {
+	matchPrefix []byte
+}
+
+func (p *roleParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *roleParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *roleParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindRole, services.V3, 1)
+	case backend.OpPut:
+		resource, err := services.GetRoleMarshaler().UnmarshalRole(event.Item.Value,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUserParser() *userParser {
+	return &userParser{
+		matchPrefix: backend.Key(webPrefix, usersPrefix),
+	}
+}
+
+type userParser struct {
+	matchPrefix []byte
+}
+
+func (p *userParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *userParser) match(key []byte) bool {
+	// users are stored under key '/web/users/<username>/params'
+	// and this code matches similar pattern
+	return bytes.HasPrefix(key, p.matchPrefix) &&
+		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
+		bytes.Count(key, []byte{backend.Separator}) == 4
+}
+
+func (p *userParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindUser, services.V2, 1)
+	case backend.OpPut:
+		resource, err := services.GetUserMarshaler().UnmarshalUser(event.Item.Value,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newNodeParser() *nodeParser {
+	return &nodeParser{
+		matchPrefix: backend.Key(namespacesPrefix, defaults.Namespace, nodesPrefix),
+	}
+}
+
+type nodeParser struct {
+	matchPrefix []byte
+}
+
+func (p *nodeParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *nodeParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *nodeParser) parse(event backend.Event) (services.Resource, error) {
+	return parseServer(event, services.KindNode)
+}
+
+func newProxyParser() *proxyParser {
+	return &proxyParser{
+		matchPrefix: backend.Key(proxiesPrefix),
+	}
+}
+
+type proxyParser struct {
+	matchPrefix []byte
+}
+
+func (p *proxyParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *proxyParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *proxyParser) parse(event backend.Event) (services.Resource, error) {
+	return parseServer(event, services.KindProxy)
+}
+
+func newTunnelConnectionParser() *tunnelConnectionParser {
+	return &tunnelConnectionParser{
+		matchPrefix: backend.Key(tunnelConnectionsPrefix),
+	}
+}
+
+type tunnelConnectionParser struct {
+	matchPrefix []byte
+}
+
+func (p *tunnelConnectionParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *tunnelConnectionParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *tunnelConnectionParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		clusterName, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &services.ResourceHeader{
+			Kind:    services.KindTunnelConnection,
+			SubKind: clusterName,
+			Version: services.V2,
+			Metadata: services.Metadata{
+				Name:      name,
+				Namespace: defaults.Namespace,
+			},
+		}, nil
+	case backend.OpPut:
+		resource, err := services.UnmarshalTunnelConnection(event.Item.Value,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newReverseTunnelParser() *reverseTunnelParser {
+	return &reverseTunnelParser{
+		matchPrefix: backend.Key(reverseTunnelsPrefix),
+	}
+}
+
+type reverseTunnelParser struct {
+	matchPrefix []byte
+}
+
+func (p *reverseTunnelParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *reverseTunnelParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *reverseTunnelParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindReverseTunnel, services.V2, 0)
+	case backend.OpPut:
+		resource, err := services.UnmarshalReverseTunnel(event.Item.Value,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func parseServer(event backend.Event, kind string) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, kind, services.V2, 0)
+	case backend.OpPut:
+		resource, err := services.GetServerMarshaler().UnmarshalServer(event.Item.Value,
+			kind,
+			services.WithResourceID(event.Item.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func resourceHeader(event backend.Event, kind, version string, offset int) (services.Resource, error) {
+	name, err := base(event.Item.Key, offset)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &services.ResourceHeader{
+		Kind:    kind,
+		Version: version,
+		Metadata: services.Metadata{
+			Name:      string(name),
+			Namespace: defaults.Namespace,
+		},
+	}, nil
+}
+
+// base returns last element delimited by separator, index is
+// is an index of the key part to get counting from the end
+func base(key []byte, offset int) ([]byte, error) {
+	parts := bytes.Split(key, []byte{backend.Separator})
+	if len(parts) < offset+1 {
+		return nil, trace.NotFound("failed parsing %v", string(key))
+	}
+	return parts[len(parts)-offset-1], nil
+}
+
+// baseTwoKeys returns two last keys
+func baseTwoKeys(key []byte) (string, string, error) {
+	parts := bytes.Split(key, []byte{backend.Separator})
+	if len(parts) < 2 {
+		return "", "", trace.NotFound("failed parsing %v", string(key))
+	}
+	return string(parts[len(parts)-2]), string(parts[len(parts)-1]), nil
+}

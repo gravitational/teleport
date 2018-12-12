@@ -22,10 +22,19 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 )
 
-// Watch sets up watch on the evnet
+// Watch sets up watch on the event
 type Watch struct {
 	// Kinds specifies kinds of objects to watch
-	Kinds []string
+	// and whether to load secret data for them
+	Kinds []WatchKind
+}
+
+// WatchKind specifies resource kind to watch
+type WatchKind struct {
+	// Kind is a resource kind to watch
+	Kind string
+	// LoadSecrets specifies whether to load secrets
+	LoadSecrets bool
 }
 
 // Event represents an event that happened in the backend

@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
@@ -229,9 +230,6 @@ type Role interface {
 	// ApplyTraits applies the passed in traits to any variables within the role
 	// and returns itself.
 	ApplyTraits(map[string][]string) Role
-	// GetRawObject returns the raw object stored in the backend without any
-	// conversions applied, used in migrations.
-	GetRawObject() interface{}
 
 	// GetOptions gets role options.
 	GetOptions() RoleOptions
@@ -374,19 +372,24 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 	return append([]string{}, variableValues...), nil
 }
 
-// RoleV3 represents role resource specification
-type RoleV3 struct {
-	// Kind is the type of resource.
-	Kind string `json:"kind"`
-	// Version is the resource version.
-	Version string `json:"version"`
-	// Metadata is resource metadata.
-	Metadata Metadata `json:"metadata"`
-	// Spec contains resource specification.
-	Spec RoleSpecV3 `json:"spec"`
-	// rawObject is the raw object stored in the backend without any
-	// conversions applied, used in migrations.
-	rawObject interface{}
+// GetVersion returns resource version
+func (r *RoleV3) GetVersion() string {
+	return r.Version
+}
+
+// GetKind returns resource kind
+func (r *RoleV3) GetKind() string {
+	return r.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (r *RoleV3) GetSubKind() string {
+	return r.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (r *RoleV3) SetSubKind(s string) {
+	r.SubKind = s
 }
 
 // GetResourceID returns resource ID
@@ -428,18 +431,6 @@ func (r *RoleV3) Equals(other Role) bool {
 // and returns itself.
 func (r *RoleV3) ApplyTraits(traits map[string][]string) Role {
 	return ApplyTraits(r, traits)
-}
-
-// SetRawObject sets raw object as it was stored in the database
-// used for migrations and should not be modifed
-func (r *RoleV3) SetRawObject(raw interface{}) {
-	r.rawObject = raw
-}
-
-// GetRawObject returns the raw object stored in the backend without any
-// conversions applied, used in migrations.
-func (r *RoleV3) GetRawObject() interface{} {
-	return r.rawObject
 }
 
 // SetExpiry sets expiry time for the object.
@@ -651,70 +642,14 @@ func (r *RoleV3) String() string {
 		r.GetName(), r.Spec.Options, r.Spec.Allow, r.Spec.Deny)
 }
 
-// RoleSpecV3 is role specification for RoleV3.
-type RoleSpecV3 struct {
-	// Options is for OpenSSH options like agent forwarding.
-	Options RoleOptions `json:"options,omitempty"`
-	// Allow is the set of conditions evaluated to grant access.
-	Allow RoleConditions `json:"allow,omitempty"`
-	// Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.
-	Deny RoleConditions `json:"deny,omitempty"`
-}
-
-// RoleOptions is a set of role options
-type RoleOptions struct {
-	// ForwardAgent is SSH agent forwarding.
-	ForwardAgent Bool `json:"forward_agent"`
-
-	// MaxSessionTTL defines how long a SSH session can last for.
-	MaxSessionTTL Duration `json:"max_session_ttl"`
-
-	// PortForwarding defines if the certificate will have "permit-port-forwarding"
-	// in the certificate. PortForwarding is "yes" if not set,
-	// that's why this is a pointer
-	PortForwarding *Bool `json:"port_forwarding,omitempty"`
-
-	// CertificateFormat defines the format of the user certificate to allow
-	// compatibility with older versions of OpenSSH.
-	CertificateFormat string `json:"cert_format"`
-
-	// ClientIdleTimeout sets disconnect clients on idle timeout behavior,
-	// if set to 0 means do not disconnect, otherwise is set to the idle
-	// duration.
-	ClientIdleTimeout Duration `json:"client_idle_timeout"`
-
-	// DisconnectExpiredCert sets disconnect clients on expired certificates.
-	DisconnectExpiredCert Bool `json:"disconnect_expired_cert"`
-}
-
 // Equals checks if all the key/values in the RoleOptions map match.
 func (o RoleOptions) Equals(other RoleOptions) bool {
 	return (o.ForwardAgent.Value() == other.ForwardAgent.Value() &&
 		o.MaxSessionTTL.Value() == other.MaxSessionTTL.Value() &&
-		BoolOption(o.PortForwarding).Value() == BoolOption(other.PortForwarding).Value() &&
+		BoolDefaultTrue(o.PortForwarding) == BoolDefaultTrue(other.PortForwarding) &&
 		o.CertificateFormat == other.CertificateFormat &&
 		o.ClientIdleTimeout.Value() == other.ClientIdleTimeout.Value() &&
 		o.DisconnectExpiredCert.Value() == other.DisconnectExpiredCert.Value())
-}
-
-// RoleConditions is a set of conditions that must all match to be allowed or
-// denied access.
-type RoleConditions struct {
-	// Logins is a list of *nix system logins.
-	Logins []string `json:"logins,omitempty"`
-	// Namespaces is a list of namespaces (used to partition a cluster). The
-	// field should be called "namespaces" when it returns in Teleport 2.4.
-	Namespaces []string `json:"-"`
-
-	// NodeLabels is a map of node labels (used to dynamically grant access to nodes).
-	NodeLabels Labels `json:"node_labels,omitempty"`
-
-	// Rules is a list of rules and their access levels. Rules are a high level
-	// construct used for access control.
-	Rules []Rule `json:"rules,omitempty"`
-
-	// KubeGroups is a list of kubernetes groups
-	KubeGroups []string `json:"kubernetes_groups,omitempty"`
 }
 
 // Equals returns true if the role conditions (logins, namespaces, labels,
@@ -746,19 +681,6 @@ func NewRule(resource string, verbs []string) Rule {
 		Resources: []string{resource},
 		Verbs:     verbs,
 	}
-}
-
-// Rule represents allow or deny rule that is executed to check
-// if user or service have access to resource
-type Rule struct {
-	// Resources is a list of resources
-	Resources []string `json:"resources"`
-	// Verbs is a list of verbs
-	Verbs []string `json:"verbs"`
-	// Where specifies optional advanced matcher
-	Where string `json:"where,omitempty"`
-	// Actions specifies optional actions taken when this rule matches
-	Actions []string `json:"actions,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults for this rule
@@ -1015,12 +937,34 @@ func RuleSlicesEqual(a, b []Rule) bool {
 type RoleV2 struct {
 	// Kind is a resource kind - always resource
 	Kind string `json:"kind"`
+	// SubKind is a resource subkind
+	SubKind string `json:"sub_kind,omitempty"`
 	// Version is a resource version
 	Version string `json:"version"`
 	// Metadata is Role metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains role specification
 	Spec RoleSpecV2 `json:"spec"`
+}
+
+// GetVersion returns resource version
+func (r *RoleV2) GetVersion() string {
+	return r.Version
+}
+
+// GetKind returns resource kind
+func (r *RoleV2) GetKind() string {
+	return r.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (r *RoleV2) GetSubKind() string {
+	return r.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (r *RoleV2) SetSubKind(s string) {
+	r.SubKind = s
 }
 
 // GetResourceID returns resource ID
@@ -1202,7 +1146,6 @@ func (r *RoleV2) V3() *RoleV3 {
 				NodeLabels: scalarLabels(r.GetNodeLabels()).labels(),
 			},
 		},
-		rawObject: *r,
 	}
 
 	// translate old v2 agent forwarding to a v3 option
@@ -1641,7 +1584,7 @@ func (set RoleSet) CanForwardAgents() bool {
 // CanPortForward returns true if a role in the RoleSet allows port forwarding.
 func (set RoleSet) CanPortForward() bool {
 	for _, role := range set {
-		if BoolOption(role.GetOptions().PortForwarding).Value() {
+		if BoolDefaultTrue(role.GetOptions().PortForwarding) {
 			return true
 		}
 	}
@@ -1789,27 +1732,74 @@ func NewDuration(d time.Duration) Duration {
 
 // NewBool returns Bool struct based on bool value
 func NewBool(b bool) Bool {
-	return Bool{bool: b}
+	return Bool(b)
 }
 
 // NewBoolOption returns Bool struct based on bool value
-func NewBoolOption(b bool) *Bool {
-	return &Bool{bool: b}
+func NewBoolOption(b bool) *BoolOption {
+	v := BoolOption{Value: b}
+	return &v
 }
 
-// BoolOption converts bool pointer to Bool value
-// returns equivalent of false if not set
-func BoolOption(v *Bool) Bool {
+// BoolDefaultTrue returns true if v is not set (pointer is nil)
+// otherwise returns real boolean value
+func BoolDefaultTrue(v *BoolOption) bool {
 	if v == nil {
-		return Bool{}
+		return true
 	}
-	return *v
+	return v.Value
 }
 
 // Labels is a wrapper around map
 // that can marshal and unmarshal itself
 // from scalar and list values
 type Labels map[string]utils.Strings
+
+func (l Labels) protoType() *LabelValues {
+	v := &LabelValues{
+		Values: make(map[string]StringValues, len(l)),
+	}
+	for key, vals := range l {
+		stringValues := StringValues{
+			Values: make([]string, len(vals)),
+		}
+		copy(stringValues.Values, vals)
+		v.Values[key] = stringValues
+	}
+	return v
+}
+
+// Marshal marshals value into protobuf representation
+func (l Labels) Marshal() ([]byte, error) {
+	return proto.Marshal(l.protoType())
+}
+
+// MarshalTo marshals value to the array
+func (l Labels) MarshalTo(data []byte) (int, error) {
+	return l.protoType().MarshalTo(data)
+}
+
+// Unmarshal unmarshals value from protobuf
+func (l *Labels) Unmarshal(data []byte) error {
+	protoValues := &LabelValues{}
+	err := proto.Unmarshal(data, protoValues)
+	if err != nil {
+		return err
+	}
+	if protoValues.Values == nil {
+		return nil
+	}
+	*l = make(map[string]utils.Strings, len(protoValues.Values))
+	for key := range protoValues.Values {
+		(*l)[key] = protoValues.Values[key].Values
+	}
+	return nil
+}
+
+// Size returns protobuf size
+func (l Labels) Size() int {
+	return l.protoType().Size()
+}
 
 // Clone returns non-shallow copy of the labels set
 func (l Labels) Clone() Labels {
@@ -1851,18 +1841,16 @@ func (l scalarLabels) labels() Labels {
 }
 
 // Bool is a wrapper around boolean values
-type Bool struct {
-	bool
-}
+type Bool bool
 
 // Value returns boolean value of the wrapper
 func (b Bool) Value() bool {
-	return b.bool
+	return bool(b)
 }
 
 // MarshalJSON marshals boolean value.
 func (b Bool) MarshalJSON() ([]byte, error) {
-	return json.Marshal(b.bool)
+	return json.Marshal(b.Value())
 }
 
 // UnmarshalJSON unmarshals JSON from string or bool,
@@ -1871,8 +1859,10 @@ func (b *Bool) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
+	var boolVal bool
 	// check if it's a bool variable
-	if err := json.Unmarshal(data, &b.bool); err == nil {
+	if err := json.Unmarshal(data, &boolVal); err == nil {
+		*b = Bool(boolVal)
 		return nil
 	}
 	// also support string variables
@@ -1882,22 +1872,22 @@ func (b *Bool) UnmarshalJSON(data []byte) error {
 	}
 	v, err := utils.ParseBool(stringVar)
 	if err != nil {
-		b.bool = false
+		*b = false
 		return nil
 	}
-	b.bool = v
+	*b = Bool(v)
 	return nil
 }
 
 // MarshalYAML marshals bool into yaml value
 func (b Bool) MarshalYAML() (interface{}, error) {
-	return b.bool, nil
+	return bool(b), nil
 }
 
 func (b *Bool) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var boolVar bool
 	if err := unmarshal(&boolVar); err == nil {
-		b.bool = boolVar
+		*b = Bool(boolVar)
 		return nil
 	}
 	var stringVar string
@@ -1906,10 +1896,81 @@ func (b *Bool) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	v, err := utils.ParseBool(stringVar)
 	if err != nil {
-		b.bool = v
+		*b = Bool(v)
 		return nil
 	}
-	b.bool = v
+	*b = Bool(v)
+	return nil
+}
+
+// BoolOption is a wrapper around bool
+// that can take multiple values:
+// * true, false and non-set (when pointer is nil)
+// and can marshal itself to protobuf equivalent BoolValue
+type BoolOption struct {
+	// Value is a value of the option
+	Value bool
+}
+
+func (b *BoolOption) protoType() *BoolValue {
+	return &BoolValue{
+		Value: b.Value,
+	}
+}
+
+// MarshalTo marshals value to the slice
+func (b BoolOption) MarshalTo(data []byte) (int, error) {
+	return b.protoType().MarshalTo(data)
+}
+
+// Marshal marshals value into protobuf representation
+func (b BoolOption) Marshal() ([]byte, error) {
+	return proto.Marshal(b.protoType())
+}
+
+// Unmarshal unmarshals value from protobuf
+func (b *BoolOption) Unmarshal(data []byte) error {
+	protoValue := &BoolValue{}
+	err := proto.Unmarshal(data, protoValue)
+	if err != nil {
+		return err
+	}
+	b.Value = protoValue.Value
+	return nil
+}
+
+// Size returns protobuf size
+func (b BoolOption) Size() int {
+	return b.protoType().Size()
+}
+
+// MarshalJSON marshals boolean value.
+func (b BoolOption) MarshalJSON() ([]byte, error) {
+	return json.Marshal(b.Value)
+}
+
+// UnmarshalJSON unmarshals JSON from string or bool,
+// in case if value is missing or not recognized, defaults to false
+func (b *BoolOption) UnmarshalJSON(data []byte) error {
+	var val Bool
+	if err := val.UnmarshalJSON(data); err != nil {
+		return err
+	}
+	b.Value = val.Value()
+	return nil
+}
+
+// MarshalYAML marshals bool into yaml value
+func (b *BoolOption) MarshalYAML() (interface{}, error) {
+	return bool(b.Value), nil
+}
+
+func (b *BoolOption) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val Bool
+	if err := val.UnmarshalYAML(unmarshal); err != nil {
+		return err
+	}
+	b.Value = val.Value()
 	return nil
 }
 
@@ -2103,11 +2164,16 @@ func GetRoleSchema(version string, extensionSchema string) string {
 }
 
 // UnmarshalRole unmarshals role from JSON, sets defaults, and checks schema.
-func UnmarshalRole(data []byte) (*RoleV3, error) {
+func UnmarshalRole(data []byte, opts ...MarshalOption) (*RoleV3, error) {
 	var h ResourceHeader
 	err := json.Unmarshal(data, &h)
 	if err != nil {
 		h.Version = V2
+	}
+
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	switch h.Version {
@@ -2122,17 +2188,26 @@ func UnmarshalRole(data []byte) (*RoleV3, error) {
 		}
 
 		roleV3 := role.V3()
-		roleV3.rawObject = role
-
+		roleV3.SetResourceID(cfg.ID)
 		return roleV3, nil
 	case V3:
 		var role RoleV3
-		if err := utils.UnmarshalWithSchema(GetRoleSchema(V3, ""), &role, data); err != nil {
-			return nil, trace.BadParameter(err.Error())
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(data, &role); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetRoleSchema(V3, ""), &role, data); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
 		}
 
 		if err := role.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if cfg.ID != 0 {
+			role.SetResourceID(cfg.ID)
 		}
 
 		return &role, nil
@@ -2159,7 +2234,7 @@ func GetRoleMarshaler() RoleMarshaler {
 // mostly adds support for extended versions
 type RoleMarshaler interface {
 	// UnmarshalRole from binary representation
-	UnmarshalRole(bytes []byte) (Role, error)
+	UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error)
 	// MarshalRole to binary representation
 	MarshalRole(u Role, opts ...MarshalOption) ([]byte, error)
 }
@@ -2167,13 +2242,29 @@ type RoleMarshaler interface {
 type TeleportRoleMarshaler struct{}
 
 // UnmarshalRole unmarshals role from JSON.
-func (*TeleportRoleMarshaler) UnmarshalRole(bytes []byte) (Role, error) {
-	return UnmarshalRole(bytes)
+func (*TeleportRoleMarshaler) UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
+	return UnmarshalRole(bytes, opts...)
 }
 
 // MarshalRole marshalls role into JSON.
-func (*TeleportRoleMarshaler) MarshalRole(u Role, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(u)
+func (*TeleportRoleMarshaler) MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch role := r.(type) {
+	case *RoleV3:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *role
+			copy.SetResourceID(0)
+			role = &copy
+		}
+		return utils.FastMarshal(role)
+	default:
+		return nil, trace.BadParameter("unrecognized role version %T", r)
+	}
 }
 
 // SortedRoles sorts roles by name

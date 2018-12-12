@@ -346,7 +346,7 @@ func (m *AgentPool) reportStats() {
 			agentStateDisconnected: 0,
 		}
 		for _, a := range agents {
-			countPerState[a.getState()] += 1
+			countPerState[a.getState()]++
 		}
 		for state, count := range countPerState {
 			gauge, err := trustedClustersStats.GetMetricWithLabelValues(key.domainName, state)

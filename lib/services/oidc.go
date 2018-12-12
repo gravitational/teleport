@@ -121,7 +121,7 @@ func GetOIDCConnectorMarshaler() OIDCConnectorMarshaler {
 // mostly adds support for extended versions
 type OIDCConnectorMarshaler interface {
 	// UnmarshalOIDCConnector unmarshals connector from binary representation
-	UnmarshalOIDCConnector(bytes []byte) (OIDCConnector, error)
+	UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector, error)
 	// MarshalOIDCConnector marshals connector to binary representation
 	MarshalOIDCConnector(c OIDCConnector, opts ...MarshalOption) ([]byte, error)
 }
@@ -134,9 +134,13 @@ func GetOIDCConnectorSchema() string {
 type TeleportOIDCConnectorMarshaler struct{}
 
 // UnmarshalOIDCConnector unmarshals connector from
-func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte) (OIDCConnector, error) {
+func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var h ResourceHeader
-	err := json.Unmarshal(bytes, &h)
+	err = utils.FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,8 +154,14 @@ func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte) (OID
 		return c.V2(), nil
 	case V2:
 		var c OIDCConnectorV2
-		if err := utils.UnmarshalWithSchema(GetOIDCConnectorSchema(), &c, bytes); err != nil {
-			return nil, trace.BadParameter(err.Error())
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(bytes, &c); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetOIDCConnectorSchema(), &c, bytes); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
 		}
 
 		if err := c.CheckAndSetDefaults(); err != nil {
@@ -190,7 +200,15 @@ func (*TeleportOIDCConnectorMarshaler) MarshalOIDCConnector(c OIDCConnector, opt
 		if !ok {
 			return nil, trace.BadParameter("don't know how to marshal %v", V2)
 		}
-		return json.Marshal(v.V2())
+		v2 := v.V2()
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *v2
+			copy.SetResourceID(0)
+			v2 = &copy
+		}
+		return utils.FastMarshal(v2)
 	default:
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}
@@ -200,12 +218,34 @@ func (*TeleportOIDCConnectorMarshaler) MarshalOIDCConnector(c OIDCConnector, opt
 type OIDCConnectorV2 struct {
 	// Kind is a resource kind
 	Kind string `json:"kind"`
+	// SubKind is a resource sub kind
+	SubKind string `json:"sub_kind,omitempty"`
 	// Version is version
 	Version string `json:"version"`
 	// Metadata is connector metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains connector specification
 	Spec OIDCConnectorSpecV2 `json:"spec"`
+}
+
+// GetVersion returns resource version
+func (o *OIDCConnectorV2) GetVersion() string {
+	return o.Version
+}
+
+// GetSubKind returns resource sub kind
+func (o *OIDCConnectorV2) GetSubKind() string {
+	return o.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (o *OIDCConnectorV2) SetSubKind(s string) {
+	o.SubKind = s
+}
+
+// GetKind returns resource kind
+func (o *OIDCConnectorV2) GetKind() string {
+	return o.Kind
 }
 
 // GetResourceID returns resource ID

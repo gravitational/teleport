@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -230,6 +230,10 @@ type MarshalConfig struct {
 
 	// ID is a record ID to assign
 	ID int64
+
+	// PreserveResourceID preserves resource IDs in resource
+	// specs when marshaling
+	PreserveResourceID bool
 }
 
 // GetVersion returns explicitly provided version or sets latest as default
@@ -271,6 +275,15 @@ func WithVersion(v string) MarshalOption {
 	}
 }
 
+// PreserveResourceID preserves resource ID when
+// marshaling value
+func PreserveResourceID() MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.PreserveResourceID = true
+		return nil
+	}
+}
+
 // SkipValidation is used to disable schema validation.
 func SkipValidation() MarshalOption {
 	return func(c *MarshalConfig) error {
@@ -289,6 +302,7 @@ const V2SchemaTemplate = `{
   "required": ["kind", "spec", "metadata", "version"],
   "properties": {
     "kind": {"type": "string"},
+    "sub_kind": {"type": "string"},
     "version": {"type": "string", "default": "v2"},
     "metadata": %v,
     "spec": %v
@@ -325,6 +339,11 @@ type UnknownResource struct {
 	ResourceHeader
 	// Raw is raw representation of the resource
 	Raw []byte
+}
+
+// GetVersion returns resource version
+func (h *ResourceHeader) GetVersion() string {
+	return h.Version
 }
 
 // GetResourceID returns resource ID
@@ -367,6 +386,21 @@ func (h *ResourceHeader) GetMetadata() Metadata {
 	return h.Metadata
 }
 
+// GetKind returns resource kind
+func (h *ResourceHeader) GetKind() string {
+	return h.Kind
+}
+
+// GetSubKind returns resource subkind
+func (h *ResourceHeader) GetSubKind() string {
+	return h.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (h *ResourceHeader) SetSubKind(s string) {
+	h.SubKind = s
+}
+
 // UnmarshalJSON unmarshals header and captures raw state
 func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 	var h ResourceHeader
@@ -381,6 +415,14 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 
 // Resource represents common properties for resources
 type Resource interface {
+	// GetKind returns resource kind
+	GetKind() string
+	// GetSubKind returns resource subkind
+	GetSubKind() string
+	// SetSubKind sets resource subkind
+	SetSubKind(string)
+	// GetVersion returns resource version
+	GetVersion() string
 	// GetName returns the name of the resource
 	GetName() string
 	// SetName sets the name of the resource

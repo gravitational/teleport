@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2018 Gravitational, Inc.
+Copyright 2016-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ func (s *IntSuite) SetUpTest(c *check.C) {
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	var err error
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
@@ -699,7 +699,7 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 	select {
 	case <-shutdownContext.Done():
 	case <-time.After(5 * time.Second):
-		c.Fatalf("failed to shut down the server")
+		c.Fatalf("Failed to shut down the server.")
 	}
 }
 
@@ -888,7 +888,7 @@ func (s *IntSuite) TestInvalidLogins(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "cluster wrong-site not found")
 }
 
-// TestTwoClusters creates two teleport clusters: "a" and "b" and creates a
+// TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
 // tunnel from A to B.
 //
 // Two tests are run, first is when both A and B record sessions at nodes. It
@@ -898,7 +898,7 @@ func (s *IntSuite) TestInvalidLogins(c *check.C) {
 // In the second test, sessions are recorded at B. All sessions still show up on
 // A (they are Teleport nodes) but in addition, two show up on B when connecting
 // over the B<->A tunnel because sessions are recorded at the proxy.
-func (s *IntSuite) TestTwoClusters(c *check.C) {
+func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 	now := time.Now().In(time.UTC).Round(time.Second)
 
 	var tests = []struct {
@@ -973,7 +973,7 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 		for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
 			time.Sleep(time.Millisecond * 200)
 			if time.Now().After(abortTime) {
-				c.Fatalf("two sites do not see each other: tunnels are not working")
+				c.Fatalf("Two clusters do not see each other: tunnels are not working.")
 			}
 		}
 
@@ -992,7 +992,7 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 		// directly:
 		tc, err := a.NewClient(ClientConfig{
 			Login:        username,
-			Cluster:      "site-A",
+			Cluster:      a.Secrets.SiteName,
 			Host:         Host,
 			Port:         sshPort,
 			ForwardAgent: true,
@@ -1022,10 +1022,13 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 		c.Assert(ok, check.Equals, true)
 		c.Assert(roots.Subjects(), check.HasLen, 2)
 
+		// wait for active tunnel connections to be established
+		waitForActiveTunnelConnections(c, b, a.Secrets.SiteName, 1)
+
 		// via tunnel b->a:
 		tc, err = b.NewClient(ClientConfig{
 			Login:        username,
-			Cluster:      "site-A",
+			Cluster:      a.Secrets.SiteName,
 			Host:         Host,
 			Port:         sshPort,
 			ForwardAgent: true,
@@ -1040,7 +1043,7 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 		a.Stop(false)
 		err = tc.SSH(context.TODO(), cmd, false)
 		// debug mode will add more lines, so this check has to be flexible
-		c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Matches, `.*site-A is offline.*`)
+		c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Matches, fmt.Sprintf(`.*%v is offline.*`, a.Secrets.SiteName))
 
 		// Reset and start "Site-A" again
 		a.Reset()
@@ -1084,11 +1087,11 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 			}
 		}
 
-		siteA := a.GetSiteAPI("site-A")
+		siteA := a.GetSiteAPI(a.Secrets.SiteName)
 		err = searchAndAssert(siteA, tt.outExecCountSiteA)
 		c.Assert(err, check.IsNil)
 
-		siteB := b.GetSiteAPI("site-B")
+		siteB := b.GetSiteAPI(b.Secrets.SiteName)
 		err = searchAndAssert(siteB, tt.outExecCountSiteB)
 		c.Assert(err, check.IsNil)
 
@@ -1259,8 +1262,9 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = aux.Process.GetAuthServer().UpsertRole(role)
 	c.Assert(err, check.IsNil)
-	trustedClusterToken := "trusted-clsuter-token"
-	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
+	trustedClusterToken := "trusted-cluster-token"
+	err = main.Process.GetAuthServer().UpsertToken(
+		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
@@ -1277,22 +1281,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// try and upsert a trusted cluster
-	var upsertSuccess bool
-	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
-		if err != nil {
-			if trace.IsConnectionProblem(err) {
-				log.Debugf("retrying on connection problem: %v", err)
-				continue
-			}
-			c.Fatalf("got non connection problem %v", err)
-		}
-		upsertSuccess = true
-		break
-	}
-	// make sure we upsert a trusted cluster
-	c.Assert(upsertSuccess, check.Equals, true)
+	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
 
 	nodePorts := s.getPorts(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
@@ -1419,6 +1408,31 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	c.Assert(aux.Stop(true), check.IsNil)
 }
 
+// tryCreateTrustedCluster performs several attempts to create a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+func tryCreateTrustedCluster(c *check.C, authServer *auth.AuthServer, trustedCluster services.TrustedCluster) {
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
+		_, err := authServer.UpsertTrustedCluster(trustedCluster)
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		c.Fatalf("Terminating on unexpected problem %v.", err)
+	}
+	c.Fatalf("Timeout creating trusted cluster")
+}
+
 // TestTrustedClusters tests remote clusters scenarios
 // using trusted clusters feature
 func (s *IntSuite) TestTrustedClusters(c *check.C) {
@@ -1478,8 +1492,9 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	c.Assert(err, check.IsNil)
 	err = aux.Process.GetAuthServer().UpsertRole(role)
 	c.Assert(err, check.IsNil)
-	trustedClusterToken := "trusted-clsuter-token"
-	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
+	trustedClusterToken := "trusted-cluster-token"
+	err = main.Process.GetAuthServer().UpsertToken(
+		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
@@ -1496,22 +1511,7 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	c.Assert(err, check.IsNil)
 
 	// try and upsert a trusted cluster
-	var upsertSuccess bool
-	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
-		if err != nil {
-			if trace.IsConnectionProblem(err) {
-				log.Debugf("retrying on connection problem: %v", err)
-				continue
-			}
-			c.Fatalf("got non connection problem %v", err)
-		}
-		upsertSuccess = true
-		break
-	}
-	// make sure we upsert a trusted cluster
-	c.Assert(upsertSuccess, check.Equals, true)
+	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
 
 	nodePorts := s.getPorts(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
@@ -1657,9 +1657,9 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	// add second proxy as a backend to the load balancer
 	lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
 
-	// At this point the remote cluster should be connected to two proxies in
-	// the main cluster.
-	waitForProxyCount(remote, "cluster-main", 2)
+	// At this point the main cluster should observe two tunnels
+	// connected to it from remote cluster
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), remote.Secrets.SiteName, 2)
 
 	// execute the connection via first proxy
 	cfg := ClientConfig{
@@ -1720,6 +1720,25 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(main.Stop(true), check.IsNil)
 }
 
+// waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
+func waitForActiveTunnelConnections(c *check.C, t *TeleInstance, clusterName string, expectedCount int) {
+	var lastCount int
+	var lastErr error
+	for i := 0; i < 20; i++ {
+		cluster, err := t.Tunnel.GetSite(clusterName)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		lastCount = cluster.GetTunnelsCount()
+		if lastCount >= expectedCount {
+			return
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	c.Fatalf("Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
+}
+
 // waitForProxyCount waits a set time for the proxy count in clusterName to
 // reach some value.
 func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
@@ -1735,6 +1754,22 @@ func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	}
 
 	return trace.BadParameter("proxy count on %v: %v", clusterName, counts[clusterName])
+}
+
+// waitForTunnelConnections waits for remote tunnels connections
+func waitForTunnelConnections(c *check.C, authServer *auth.AuthServer, clusterName string, expectedCount int) {
+	var conns []services.TunnelConnection
+	for i := 0; i < 20; i++ {
+		conns, err := authServer.Presence.GetTunnelConnections(clusterName)
+		if err != nil {
+			c.Fatal(err)
+		}
+		if len(conns) >= expectedCount {
+			return
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	c.Fatalf("proxy count on %v: %v, expected %v", clusterName, len(conns), expectedCount)
 }
 
 // TestExternalClient tests if we can connect to a node in a Teleport
@@ -2236,12 +2271,6 @@ func (s *IntSuite) TestPAM(c *check.C) {
 
 // TestRotateSuccess tests full cycle cert authority rotation
 func (s *IntSuite) TestRotateSuccess(c *check.C) {
-	for i := 0; i < getIterations(); i++ {
-		s.rotateSuccess(c)
-	}
-}
-
-func (s *IntSuite) rotateSuccess(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2290,6 +2319,10 @@ func (s *IntSuite) rotateSuccess(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
+	hostCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+	c.Assert(err, check.IsNil)
+	l.Debugf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
+
 	// wait until service phase update to be broadcasted (init phase does not trigger reload)
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	c.Assert(err, check.IsNil)
@@ -2326,6 +2359,10 @@ func (s *IntSuite) rotateSuccess(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
+	hostCA, err = svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+	c.Assert(err, check.IsNil)
+	l.Debugf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
+
 	// wait until service reloaded
 	svc, err = waitForReload(serviceC, svc)
 	c.Assert(err, check.IsNil)
@@ -2349,6 +2386,10 @@ func (s *IntSuite) rotateSuccess(c *check.C) {
 		Mode:        services.RotationModeManual,
 	})
 	c.Assert(err, check.IsNil)
+
+	hostCA, err = svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+	c.Assert(err, check.IsNil)
+	l.Debugf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
 	// wait until service reloaded
 	svc, err = waitForReload(serviceC, svc)
@@ -2374,12 +2415,6 @@ func (s *IntSuite) rotateSuccess(c *check.C) {
 
 // TestRotateRollback tests cert authority rollback
 func (s *IntSuite) TestRotateRollback(c *check.C) {
-	for i := 0; i < getIterations(); i++ {
-		s.rotateRollback(c)
-	}
-}
-
-func (s *IntSuite) rotateRollback(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2500,30 +2535,8 @@ func (s *IntSuite) rotateRollback(c *check.C) {
 	}
 }
 
-// getIterations provides a simple way to add iterations to the test
-// by setting environment variable "ITERATIONS", by default it returns 1
-func getIterations() int {
-	out := os.Getenv("ITERATIONS")
-	if out == "" {
-		return 1
-	}
-	iter, err := strconv.Atoi(out)
-	if err != nil {
-		panic(err)
-	}
-	log.Debugf("Starting tests with %v iterations.", iter)
-	return iter
-}
-
 // TestRotateTrustedClusters tests CA rotation support for trusted clusters
 func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
-	for i := 0; i < getIterations(); i++ {
-		s.rotateTrustedClusters(c)
-	}
-}
-
-// rotateTrustedClusters tests CA rotation support for trusted clusters
-func (s *IntSuite) rotateTrustedClusters(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2588,7 +2601,8 @@ func (s *IntSuite) rotateTrustedClusters(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
-	err = svc.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
+	err = svc.GetAuthServer().UpsertToken(
+		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
@@ -2598,22 +2612,9 @@ func (s *IntSuite) rotateTrustedClusters(c *check.C) {
 	// try and upsert a trusted cluster
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
-	var upsertSuccess bool
-	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
-		if err != nil {
-			if trace.IsConnectionProblem(err) {
-				log.Debugf("retrying on connection problem: %v", err)
-				continue
-			}
-			c.Fatalf("got non connection problem %v", err)
-		}
-		upsertSuccess = true
-		break
-	}
-	// make sure we upsert a trusted cluster
-	c.Assert(upsertSuccess, check.Equals, true)
+
+	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
 
 	// capture credentials before has reload started to simulate old client
 	initialCreds, err := GenerateUserCreds(svc, s.me.Username)

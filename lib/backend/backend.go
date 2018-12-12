@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -108,8 +108,8 @@ func (l *Lease) IsEmpty() bool {
 
 // Watch specifies watcher parameters
 type Watch struct {
-	// Prefix specifies prefix to watch
-	Prefix []byte
+	// Prefixes specifies prefixes to watch
+	Prefixes [][]byte
 }
 
 // Watcher returns watcher
@@ -135,17 +135,30 @@ type GetResult struct {
 type OpType int
 
 const (
-	OpPut    OpType = iota
+	// OpInit is returned by the system whenever the system
+	// is initialized, init operation is always sent
+	// as a first event over the channel, so the client
+	// can verify that watch has been established.
+	OpInit OpType = iota
+	// OpPut is returned for Put events
+	OpPut OpType = iota
+	// OpDelete is returned for Delete events
 	OpDelete OpType = iota
+	// OpGet is used for tracking, not present in the event stream
+	OpGet OpType = iota
 )
 
 // String returns user-friendly description of the operation
 func (o OpType) String() string {
 	switch o {
+	case OpInit:
+		return "Init"
 	case OpPut:
 		return "Put"
 	case OpDelete:
 		return "Delete"
+	case OpGet:
+		return "Get"
 	default:
 		return "unknown"
 	}

@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -61,26 +60,24 @@ func NewClusterName(spec ClusterNameSpecV2) (ClusterName, error) {
 	return &cn, nil
 }
 
-// ClusterNameV2 implements the ClusterName interface.
-type ClusterNameV2 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Spec is the specification of the resource.
-	Spec ClusterNameSpecV2 `json:"spec"`
+// GetVersion returns resource version
+func (c *ClusterNameV2) GetVersion() string {
+	return c.Version
 }
 
-// ClusterNameSpecV2 is the actual data we care about for ClusterName.
-type ClusterNameSpecV2 struct {
-	// ClusterName is the name of the cluster. Changing this value once the
-	// cluster is setup can and will cause catastrophic problems.
-	ClusterName string `json:"cluster_name"`
+// GetKind returns resource kind
+func (c *ClusterNameV2) GetKind() string {
+	return c.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (c *ClusterNameV2) GetSubKind() string {
+	return c.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (c *ClusterNameV2) SetSubKind(sk string) {
+	c.SubKind = sk
 }
 
 // GetResourceID returns resource ID
@@ -180,7 +177,7 @@ func GetClusterNameSchema(extensionSchema string) string {
 // mostly adds support for extended versions.
 type ClusterNameMarshaler interface {
 	Marshal(c ClusterName, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte) (ClusterName, error)
+	Unmarshal(bytes []byte, opts ...MarshalOption) (ClusterName, error)
 }
 
 var clusterNameMarshaler ClusterNameMarshaler = &TeleportClusterNameMarshaler{}
@@ -203,16 +200,27 @@ func GetClusterNameMarshaler() ClusterNameMarshaler {
 type TeleportClusterNameMarshaler struct{}
 
 // Unmarshal unmarshals ClusterName from JSON.
-func (t *TeleportClusterNameMarshaler) Unmarshal(bytes []byte) (ClusterName, error) {
+func (t *TeleportClusterNameMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (ClusterName, error) {
 	var clusterName ClusterNameV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	err := utils.UnmarshalWithSchema(GetClusterNameSchema(""), &clusterName, bytes)
+	cfg, err := collectOptions(opts)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(bytes, &clusterName); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	} else {
+		err = utils.UnmarshalWithSchema(GetClusterNameSchema(""), &clusterName, bytes)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
 	}
 
 	err = clusterName.CheckAndSetDefaults()
@@ -220,10 +228,28 @@ func (t *TeleportClusterNameMarshaler) Unmarshal(bytes []byte) (ClusterName, err
 		return nil, trace.Wrap(err)
 	}
 
+	clusterName.SetResourceID(cfg.ID)
+
 	return &clusterName, nil
 }
 
 // Marshal marshals ClusterName to JSON.
 func (t *TeleportClusterNameMarshaler) Marshal(c ClusterName, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(c)
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch resource := c.(type) {
+	case *ClusterNameV2:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *resource
+			copy.SetResourceID(0)
+			resource = &copy
+		}
+		return utils.FastMarshal(resource)
+	default:
+		return nil, trace.BadParameter("unrecognized resource version %T", c)
+	}
 }

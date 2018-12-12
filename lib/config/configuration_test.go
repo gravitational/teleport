@@ -377,7 +377,7 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	c.Assert(err, check.IsNil)
-	c.Assert(cfg.Auth.StaticTokens.GetStaticTokens(), check.DeepEquals, []services.ProvisionToken{
+	c.Assert(cfg.Auth.StaticTokens.GetStaticTokens(), check.DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{
 		{
 			Token:   "xxx",
 			Roles:   teleport.Roles([]teleport.Role{"Proxy", "Node"}),
@@ -388,7 +388,7 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 			Roles:   teleport.Roles([]teleport.Role{"Auth"}),
 			Expires: time.Unix(0, 0).UTC(),
 		},
-	})
+	}))
 	c.Assert(cfg.Auth.ClusterName.GetClusterName(), check.Equals, "magadan")
 	c.Assert(cfg.AdvertiseIP, check.Equals, "10.10.10.1")
 

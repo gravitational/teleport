@@ -176,16 +176,16 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 	}
 
 	// Sort by expire time.
-	sort.Slice(tokens, func(i, j int) bool { return tokens[i].Expires.Unix() < tokens[j].Expires.Unix() })
+	sort.Slice(tokens, func(i, j int) bool { return tokens[i].Expiry().Unix() < tokens[j].Expiry().Unix() })
 
 	tokensView := func() string {
 		table := asciitable.MakeTable([]string{"Token", "Type", "Expiry Time (UTC)"})
 		for _, t := range tokens {
 			expiry := "never"
-			if t.Expires.Unix() > 0 {
-				expiry = t.Expires.Format(time.RFC822)
+			if t.Expiry().Unix() > 0 {
+				expiry = t.Expiry().Format(time.RFC822)
 			}
-			table.AddRow([]string{t.Token, t.Roles.String(), expiry})
+			table.AddRow([]string{t.GetName(), t.GetRoles().String(), expiry})
 		}
 		return table.AsBuffer().String()
 	}

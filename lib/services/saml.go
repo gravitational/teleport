@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
@@ -140,7 +139,7 @@ func GetSAMLConnectorMarshaler() SAMLConnectorMarshaler {
 // mostly adds support for extended versions
 type SAMLConnectorMarshaler interface {
 	// UnmarshalSAMLConnector unmarshals connector from binary representation
-	UnmarshalSAMLConnector(bytes []byte) (SAMLConnector, error)
+	UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector, error)
 	// MarshalSAMLConnector marshals connector to binary representation
 	MarshalSAMLConnector(c SAMLConnector, opts ...MarshalOption) ([]byte, error)
 }
@@ -153,17 +152,27 @@ func GetSAMLConnectorSchema() string {
 type TeleportSAMLConnectorMarshaler struct{}
 
 // UnmarshalSAMLConnector unmarshals connector from
-func (*TeleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte) (SAMLConnector, error) {
+func (*TeleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var h ResourceHeader
-	err := json.Unmarshal(bytes, &h)
+	err = utils.FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
 	case V2:
 		var c SAMLConnectorV2
-		if err := utils.UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
-			return nil, trace.BadParameter(err.Error())
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(bytes, &c); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
 		}
 
 		if err := c.Metadata.CheckAndSetDefaults(); err != nil {
@@ -192,7 +201,15 @@ func (*TeleportSAMLConnectorMarshaler) MarshalSAMLConnector(c SAMLConnector, opt
 		if !ok {
 			return nil, trace.BadParameter("don't know how to marshal %v", V2)
 		}
-		return json.Marshal(v.V2())
+		v2 := v.V2()
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *v2
+			copy.SetResourceID(0)
+			v2 = &copy
+		}
+		return utils.FastMarshal(v2)
 	default:
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}
@@ -202,12 +219,34 @@ func (*TeleportSAMLConnectorMarshaler) MarshalSAMLConnector(c SAMLConnector, opt
 type SAMLConnectorV2 struct {
 	// Kind is a resource kind
 	Kind string `json:"kind"`
+	// SubKind is a resource sub kind
+	SubKind string `json:"sub_kind,omitempty"`
 	// Version is version
 	Version string `json:"version"`
 	// Metadata is connector metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains connector specification
 	Spec SAMLConnectorSpecV2 `json:"spec"`
+}
+
+// GetVersion returns resource version
+func (o *SAMLConnectorV2) GetVersion() string {
+	return o.Version
+}
+
+// GetKind returns resource kind
+func (o *SAMLConnectorV2) GetKind() string {
+	return o.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (o *SAMLConnectorV2) GetSubKind() string {
+	return o.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (o *SAMLConnectorV2) SetSubKind(sk string) {
+	o.SubKind = sk
 }
 
 // GetResourceID returns resource ID

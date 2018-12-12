@@ -160,6 +160,11 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			oauth2.ErrorInvalidRequest, "missing state query param", q)
 	}
 
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	req, err := a.Identity.GetOIDCAuthRequest(stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -254,7 +259,7 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(services.CertAuthID{
 			Type:       services.HostCA,
-			DomainName: a.clusterName.GetClusterName(),
+			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -376,7 +381,7 @@ func (a *AuthServer) createOIDCUser(p *createUserParams) (services.User, error) 
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.GetUser(p.username)
+	existingUser, err := a.Identity.GetUser(p.username)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)

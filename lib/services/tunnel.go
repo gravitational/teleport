@@ -1,3 +1,19 @@
+/*
+Copyright 2015-2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package services
 
 import (
@@ -47,16 +63,24 @@ func NewReverseTunnel(clusterName string, dialAddrs []string) ReverseTunnel {
 	}
 }
 
-// ReverseTunnelV2 is version 1 resource spec of the reverse tunnel
-type ReverseTunnelV2 struct {
-	// Kind is a resource kind - always resource
-	Kind string `json:"kind"`
-	// Version is a resource version
-	Version string `json:"version"`
-	// Metadata is Role metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains user specification
-	Spec ReverseTunnelSpecV2 `json:"spec"`
+// GetVersion returns resource version
+func (r *ReverseTunnelV2) GetVersion() string {
+	return r.Version
+}
+
+// GetKind returns resource kind
+func (r *ReverseTunnelV2) GetKind() string {
+	return r.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (r *ReverseTunnelV2) GetSubKind() string {
+	return r.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (o *ReverseTunnelV2) SetSubKind(s string) {
+	o.SubKind = s
 }
 
 // GetResourceID returns resource ID
@@ -164,15 +188,6 @@ func (r *ReverseTunnelV2) Check() error {
 	return nil
 }
 
-// ReverseTunnelSpecV2 is a specification for V2 reverse tunnel
-type ReverseTunnelSpecV2 struct {
-	// ClusterName is a domain name of remote cluster we are connecting to
-	ClusterName string `json:"cluster_name"`
-	// DialAddrs is a list of remote address to establish a connection to
-	// it's always SSH over TCP
-	DialAddrs []string `json:"dial_addrs,omitempty"`
-}
-
 // ReverseTunnelSpecV2Schema is JSON schema for reverse tunnel spec
 const ReverseTunnelSpecV2Schema = `{
   "type": "object",
@@ -227,7 +242,7 @@ func GetReverseTunnelSchema() string {
 
 // UnmarshalReverseTunnel unmarshals reverse tunnel from JSON or YAML,
 // sets defaults and checks the schema
-func UnmarshalReverseTunnel(data []byte) (ReverseTunnel, error) {
+func UnmarshalReverseTunnel(data []byte, opts ...MarshalOption) (ReverseTunnel, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing tunnel data")
 	}
@@ -236,6 +251,11 @@ func UnmarshalReverseTunnel(data []byte) (ReverseTunnel, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch h.Version {
 	case "":
 		var r ReverseTunnelV1
@@ -243,18 +263,28 @@ func UnmarshalReverseTunnel(data []byte) (ReverseTunnel, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		v2 := r.V2()
+		if cfg.ID != 0 {
+			v2.SetResourceID(cfg.ID)
+		}
 		return r.V2(), nil
 	case V2:
 		var r ReverseTunnelV2
-
-		if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, data); err != nil {
-			return nil, trace.BadParameter(err.Error())
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(data, &r); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, data); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
 		}
-
 		if err := r.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
+		if cfg.ID != 0 {
+			r.SetResourceID(cfg.ID)
+		}
 		return &r, nil
 	}
 	return nil, trace.BadParameter("reverse tunnel version %v is not supported", h.Version)
@@ -277,7 +307,7 @@ func GetReverseTunnelMarshaler() ReverseTunnelMarshaler {
 // ReverseTunnelMarshaler implements marshal/unmarshal of reverse tunnel implementations
 type ReverseTunnelMarshaler interface {
 	// UnmarshalReverseTunnel unmarshals reverse tunnel from binary representation
-	UnmarshalReverseTunnel(bytes []byte) (ReverseTunnel, error)
+	UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel, error)
 	// MarshalReverseTunnel marshals reverse tunnel to binary representation
 	MarshalReverseTunnel(ReverseTunnel, ...MarshalOption) ([]byte, error)
 }
@@ -285,8 +315,8 @@ type ReverseTunnelMarshaler interface {
 type TeleportTunnelMarshaler struct{}
 
 // UnmarshalReverseTunnel unmarshals reverse tunnel from JSON or YAML
-func (*TeleportTunnelMarshaler) UnmarshalReverseTunnel(bytes []byte) (ReverseTunnel, error) {
-	return UnmarshalReverseTunnel(bytes)
+func (*TeleportTunnelMarshaler) UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel, error) {
+	return UnmarshalReverseTunnel(bytes, opts...)
 }
 
 // MarshalRole marshalls role into JSON
@@ -314,7 +344,15 @@ func (*TeleportTunnelMarshaler) MarshalReverseTunnel(rt ReverseTunnel, opts ...M
 		if !ok {
 			return nil, trace.BadParameter("don't know how to marshal %v", V2)
 		}
-		return json.Marshal(v.V2())
+		v2 := v.V2()
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *v2
+			copy.SetResourceID(0)
+			v2 = &copy
+		}
+		return utils.FastMarshal(v2)
 	default:
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}

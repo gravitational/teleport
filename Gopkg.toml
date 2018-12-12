@@ -130,7 +130,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"
-  version = "0.8.0"
+  version = "0.9.2"
 
 [[constraint]]
   branch = "master"
@@ -142,7 +142,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/gravitational/trace"
-  version = "1.1.5"
+  version = "1.1.6"
 
 [[constraint]]
   name = "github.com/coreos/go-oidc"

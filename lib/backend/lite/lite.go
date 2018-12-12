@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -77,12 +78,21 @@ type Config struct {
 	Sync string `json:"sync,omitempty"`
 	// BusyTimeout sets busy timeout in milliseconds
 	BusyTimeout int `json:"busy_timeout,omitempty"`
+	// Memory turns memory mode of the database
+	Memory bool `json:"memory"`
+	// MemoryName set the name of the database,
+	// set to "sqlite.db" by default
+	MemoryName string `json:"memory_name"`
+	// Mirror turns on mirror mode for the backend,
+	// which will use record IDs for Put and PutRange passed from
+	// the resources, not generate a new one
+	Mirror bool `json:"mirror"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to sqlite
 func (cfg *Config) CheckAndSetDefaults() error {
-	if cfg.Path == "" {
+	if cfg.Path == "" && !cfg.Memory {
 		return trace.BadParameter("specify directory path to the database using 'path' parameter")
 	}
 	if cfg.BufferSize == 0 {
@@ -99,6 +109,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.BusyTimeout == 0 {
 		cfg.BusyTimeout = busyTimeout
+	}
+	if cfg.MemoryName == "" {
+		cfg.MemoryName = defaultDBFile
 	}
 	return nil
 }
@@ -119,16 +132,22 @@ func NewWithConfig(ctx context.Context, cfg Config) (*LiteBackend, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Ensure that the path to the root directory exists.
-	err := os.MkdirAll(cfg.Path, defaultDirMode)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+	var connectorURL string
+	if !cfg.Memory {
+		// Ensure that the path to the root directory exists.
+		err := os.MkdirAll(cfg.Path, defaultDirMode)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+		fullPath := filepath.Join(cfg.Path, defaultDBFile)
+		connectorURL = fmt.Sprintf("file:%v?_busy_timeout=%v&_sync=%v", fullPath, cfg.BusyTimeout, cfg.Sync)
+	} else {
+		connectorURL = fmt.Sprintf("file:%v?mode=memory&cache=shared", cfg.MemoryName)
+		connectorURL = fmt.Sprintf("file:%v?mode=memory", cfg.MemoryName)
 	}
-	fullPath := filepath.Join(cfg.Path, defaultDBFile)
-	connectorURL := fmt.Sprintf("file:%v?_busy_timeout=%v&_sync=%v", fullPath, cfg.BusyTimeout, cfg.Sync)
 	db, err := sql.Open(BackendName, connectorURL)
 	if err != nil {
-		return nil, trace.Wrap(err, "error opening URI: %v", fullPath)
+		return nil, trace.Wrap(err, "error opening URI: %v", connectorURL)
 	}
 	// serialize access to sqlite to avoid database is locked errors
 	db.SetMaxOpenConns(1)
@@ -149,9 +168,9 @@ func NewWithConfig(ctx context.Context, cfg Config) (*LiteBackend, error) {
 		watchStarted:     watchStarted,
 		signalWatchStart: signalWatchStart,
 	}
-	l.Debugf("Connected to: %v", connectorURL)
+	l.Debugf("Connected to: %v, poll stream period: %v", connectorURL, cfg.PollStreamPeriod)
 	if err := l.createSchema(); err != nil {
-		return nil, trace.Wrap(err, "error creating schema: %v", fullPath)
+		return nil, trace.Wrap(err, "error creating schema: %v", connectorURL)
 	}
 	if err := l.showPragmas(); err != nil {
 		l.Warningf("Failed to show pragma settings: %v.", err)
@@ -177,6 +196,9 @@ type LiteBackend struct {
 	cancel           context.CancelFunc
 	watchStarted     context.Context
 	signalWatchStart context.CancelFunc
+
+	// closedFlag is set to indicate that the database is closed
+	closedFlag int32
 }
 
 // showPragmas is used to debug SQLite database connection
@@ -184,17 +206,16 @@ type LiteBackend struct {
 func (l *LiteBackend) showPragmas() error {
 	return l.inTransaction(l.ctx, func(tx *sql.Tx) error {
 		row := tx.QueryRowContext(l.ctx, "PRAGMA synchronous;")
-		var value string
-		if err := row.Scan(&value); err != nil {
+		var syncValue string
+		if err := row.Scan(&syncValue); err != nil {
 			return trace.Wrap(err)
 		}
-		l.Debugf("Synchronous: %v", value)
-
+		var timeoutValue string
 		row = tx.QueryRowContext(l.ctx, "PRAGMA busy_timeout;")
-		if err := row.Scan(&value); err != nil {
+		if err := row.Scan(&timeoutValue); err != nil {
 			return trace.Wrap(err)
 		}
-		l.Debugf("Busy timeout: %v", value)
+		l.Debugf("Synchronous: %v, busy timeout: %v", syncValue, timeoutValue)
 		return nil
 	})
 }
@@ -215,6 +236,7 @@ func (l *LiteBackend) createSchema() error {
            created INTEGER NOT NULL,
            kv_key TEXT NOT NULL,
            kv_modified INTEGER NOT NULL,
+           kv_expires DATETIME,
            kv_value BLOB
          );
         CREATE INDEX IF NOT EXISTS events_created ON events (created);`,
@@ -262,11 +284,11 @@ func (l *LiteBackend) Create(ctx context.Context, i backend.Item) (*backend.Leas
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		created := l.clock.Now().UTC()
 		if !l.EventsOff {
-			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_value) values(?, ?, ?, ?, ?)")
+			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(i.Key), id(created), i.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -327,11 +349,11 @@ func (l *LiteBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 			return trace.Wrap(err)
 		}
 		if !l.EventsOff {
-			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_value) values(?, ?, ?, ?, ?)")
+			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(replaceWith.Key), id(created), replaceWith.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(replaceWith.Key), id(created), expires(replaceWith.Expires), replaceWith.Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -356,12 +378,16 @@ func (l *LiteBackend) Put(ctx context.Context, i backend.Item) (*backend.Lease, 
 	}
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		created := l.clock.Now().UTC()
+		recordID := i.ID
+		if !l.Mirror {
+			recordID = id(created)
+		}
 		if !l.EventsOff {
-			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_value) values(?, ?, ?, ?, ?)")
+			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(i.Key), id(created), i.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -369,7 +395,7 @@ func (l *LiteBackend) Put(ctx context.Context, i backend.Item) (*backend.Lease, 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if _, err := stmt.ExecContext(ctx, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
+		if _, err := stmt.ExecContext(ctx, string(i.Key), recordID, expires(i.Expires), i.Value); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -469,7 +495,7 @@ func (l *LiteBackend) putRangeInTransaction(ctx context.Context, tx *sql.Tx, ite
 	var eventsStmt *sql.Stmt
 	var err error
 	if !l.EventsOff {
-		eventsStmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_value) values(?, ?, ?, ?, ?)")
+		eventsStmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -480,12 +506,16 @@ func (l *LiteBackend) putRangeInTransaction(ctx context.Context, tx *sql.Tx, ite
 	}
 	for i := range items {
 		created := l.clock.Now().UTC()
+		recordID := id(created)
+		if !l.Mirror {
+			recordID = items[i].ID
+		}
 		if !l.EventsOff && !forceEventsOff {
-			if _, err := eventsStmt.ExecContext(ctx, backend.OpPut, created, string(items[i].Key), id(created), items[i].Value); err != nil {
+			if _, err := eventsStmt.ExecContext(ctx, backend.OpPut, created, string(items[i].Key), recordID, expires(items[i].Expires), items[i].Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		if _, err := stmt.ExecContext(ctx, string(items[i].Key), id(created), expires(items[i].Expires), items[i].Value); err != nil {
+		if _, err := stmt.ExecContext(ctx, string(items[i].Key), recordID, expires(items[i].Expires), items[i].Value); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -515,11 +545,11 @@ func (l *LiteBackend) Update(ctx context.Context, i backend.Item) (*backend.Leas
 			return trace.NotFound("key %v is not found", string(i.Key))
 		}
 		if !l.EventsOff {
-			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_value) values(?, ?, ?, ?, ?)")
+			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(i.Key), id(created), i.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -537,28 +567,33 @@ func (l *LiteBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 		return nil, trace.BadParameter("missing parameter key")
 	}
 	var item backend.Item
-	now := l.clock.Now().UTC()
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
-		q, err := tx.PrepareContext(ctx,
-			"SELECT key, value, expires, modified FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		row := q.QueryRowContext(ctx, string(key), now)
-		var expires NullTime
-		if err := row.Scan(&item.Key, &item.Value, &expires, &item.ID); err != nil {
-			if err == sql.ErrNoRows {
-				return trace.NotFound("key %v is not found", string(key))
-			}
-			return trace.Wrap(err)
-		}
-		item.Expires = expires.Time
-		return nil
+		return l.getInTransaction(ctx, key, tx, &item)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &item, nil
+}
+
+// getInTransaction returns an item, works in transaction
+func (l *LiteBackend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, item *backend.Item) error {
+	now := l.clock.Now().UTC()
+	q, err := tx.PrepareContext(ctx,
+		"SELECT key, value, expires, modified FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	row := q.QueryRowContext(ctx, string(key), now)
+	var expires NullTime
+	if err := row.Scan(&item.Key, &item.Value, &expires, &item.ID); err != nil {
+		if err == sql.ErrNoRows {
+			return trace.NotFound("key %v is not found", string(key))
+		}
+		return trace.Wrap(err)
+	}
+	item.Expires = expires.Time
+	return nil
 }
 
 // GetRange returns query range
@@ -610,6 +645,21 @@ func (l *LiteBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 	}
 	now := l.clock.Now().UTC()
 	return l.inTransaction(ctx, func(tx *sql.Tx) error {
+		var item backend.Item
+		err := l.getInTransaction(ctx, lease.Key, tx, &item)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		created := l.clock.Now().UTC()
+		if !l.EventsOff {
+			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(item.Key), id(created), expires.UTC(), item.Value); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 		stmt, err := tx.PrepareContext(ctx, "UPDATE kv SET expires = ?, modified = ? WHERE key = ?")
 		if err != nil {
 			return trace.Wrap(err)
@@ -727,7 +777,16 @@ func (l *LiteBackend) Close() error {
 	return l.closeDatabase()
 }
 
+func (l *LiteBackend) isClosed() bool {
+	return atomic.LoadInt32(&l.closedFlag) == 1
+}
+
+func (l *LiteBackend) setClosed() {
+	atomic.StoreInt32(&l.closedFlag, 1)
+}
+
 func (l *LiteBackend) closeDatabase() error {
+	l.setClosed()
 	l.buf.Close()
 	return l.db.Close()
 }
@@ -770,11 +829,13 @@ func (l *LiteBackend) inTransaction(ctx context.Context, f func(tx *sql.Tx) erro
 			if isLockedError(trace.Unwrap(err)) {
 				err = trace.ConnectionProblem(err, "database is locked")
 			}
-			if !trace.IsCompareFailed(err) && !trace.IsAlreadyExists(err) && !trace.IsConnectionProblem(err) {
-				l.Warningf("Unexpected error in inTransaction: %v, rolling back.", trace.DebugReport(err))
-			}
-			if e2 := rollback(); e2 != nil {
-				l.Errorf("Failed to rollback too: %v.", e2)
+			if !l.isClosed() {
+				if !trace.IsCompareFailed(err) && !trace.IsAlreadyExists(err) && !trace.IsConnectionProblem(err) {
+					l.Warningf("Unexpected error in inTransaction: %v, rolling back.", trace.DebugReport(err))
+				}
+				if e2 := rollback(); e2 != nil {
+					l.Errorf("Failed to rollback too: %v.", e2)
+				}
 			}
 			return
 		}

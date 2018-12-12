@@ -101,6 +101,11 @@ const (
 	// 15 minutes default is compliant with PCI DSS standards
 	DefaultIdleConnectionDuration = 15 * time.Minute
 
+	// DefaultGracefulShutdownTimeout is a default timeout for
+	// graceful shutdown waiting for connections to drain off
+	// before cutting the connections forcefully.
+	DefaultGracefulShutdownTimeout = 5 * time.Minute
+
 	// ShutdownPollPeriod is a polling period for graceful shutdowns of SSH servers
 	ShutdownPollPeriod = 500 * time.Millisecond
 
@@ -287,6 +292,10 @@ var (
 	// LowResPollingPeriod is a default low resolution polling period
 	LowResPollingPeriod = 600 * time.Second
 
+	// HighResReportingPeriod is a high resolution polling reporting
+	// period used in services
+	HighResReportingPeriod = 10 * time.Second
+
 	// KeepAliveInterval is interval at which Teleport will send keep-alive
 	// messages to the client. The interval of 15 minutes mirrors
 	// ClientAliveInterval of sshd.
@@ -296,6 +305,15 @@ var (
 	// without receiving a response from the client before the client is
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
 	KeepAliveCountMax = 3
+
+	// TopRequestsCapacity sets up default top requests capacity
+	TopRequestsCapacity = 128
+
+	// CachePollPeriod is a period for cache internal events polling,
+	// used in cases when cache is being used to subscribe for events
+	// and this parameter controls how often cache checks for new events
+	// to arrive
+	CachePollPeriod = 500 * time.Millisecond
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

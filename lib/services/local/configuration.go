@@ -38,7 +38,7 @@ func NewClusterConfigurationService(backend backend.Backend) *ClusterConfigurati
 }
 
 // GetClusterName gets the name of the cluster from the backend.
-func (s *ClusterConfigurationService) GetClusterName() (services.ClusterName, error) {
+func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
 	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, namePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -46,7 +46,20 @@ func (s *ClusterConfigurationService) GetClusterName() (services.ClusterName, er
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.GetClusterNameMarshaler().Unmarshal(item.Value)
+	return services.GetClusterNameMarshaler().Unmarshal(item.Value,
+		services.AddOptions(opts, services.WithResourceID(item.ID))...)
+}
+
+// DeleteClusterName deletes services.ClusterName from the backend.
+func (s *ClusterConfigurationService) DeleteClusterName() error {
+	err := s.Delete(context.TODO(), backend.Key(clusterConfigPrefix, namePrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("cluster configuration not found")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // SetClusterName sets the name of the cluster in the backend. SetClusterName
@@ -69,6 +82,26 @@ func (s *ClusterConfigurationService) SetClusterName(c services.ClusterName) err
 	return nil
 }
 
+// UpsertClusterName sets the name of the cluster in the backend.
+func (s *ClusterConfigurationService) UpsertClusterName(c services.ClusterName) error {
+	value, err := services.GetClusterNameMarshaler().Marshal(c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.Put(context.TODO(), backend.Item{
+		Key:     backend.Key(clusterConfigPrefix, namePrefix),
+		Value:   value,
+		Expires: c.Expiry(),
+		ID:      c.GetResourceID(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // GetStaticTokens gets the list of static tokens used to provision nodes.
 func (s *ClusterConfigurationService) GetStaticTokens() (services.StaticTokens, error) {
 	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, staticTokensPrefix))
@@ -78,7 +111,7 @@ func (s *ClusterConfigurationService) GetStaticTokens() (services.StaticTokens, 
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.GetStaticTokensMarshaler().Unmarshal(item.Value)
+	return services.GetStaticTokensMarshaler().Unmarshal(item.Value, services.WithResourceID(item.ID))
 }
 
 // SetStaticTokens sets the list of static tokens used to provision nodes.
@@ -87,16 +120,28 @@ func (s *ClusterConfigurationService) SetStaticTokens(c services.StaticTokens) e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	_, err = s.Put(context.TODO(), backend.Item{
 		Key:     backend.Key(clusterConfigPrefix, staticTokensPrefix),
 		Value:   value,
 		Expires: c.Expiry(),
+		ID:      c.GetResourceID(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+// DeleteStaticTokens deletes static tokens
+func (s *ClusterConfigurationService) DeleteStaticTokens() error {
+	err := s.Delete(context.TODO(), backend.Key(clusterConfigPrefix, staticTokensPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("static tokens are not found")
+		}
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -110,7 +155,7 @@ func (s *ClusterConfigurationService) GetAuthPreference() (services.AuthPreferen
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.GetAuthPreferenceMarshaler().Unmarshal(item.Value)
+	return services.GetAuthPreferenceMarshaler().Unmarshal(item.Value, services.WithResourceID(item.ID))
 }
 
 // SetAuthPreference sets the cluster authentication preferences
@@ -124,6 +169,7 @@ func (s *ClusterConfigurationService) SetAuthPreference(preferences services.Aut
 	item := backend.Item{
 		Key:   backend.Key(authPrefix, preferencePrefix, generalPrefix),
 		Value: value,
+		ID:    preferences.GetResourceID(),
 	}
 
 	_, err = s.Put(context.TODO(), item)
@@ -135,7 +181,7 @@ func (s *ClusterConfigurationService) SetAuthPreference(preferences services.Aut
 }
 
 // GetClusterConfig gets services.ClusterConfig from the backend.
-func (s *ClusterConfigurationService) GetClusterConfig() (services.ClusterConfig, error) {
+func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
 	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, generalPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -143,7 +189,20 @@ func (s *ClusterConfigurationService) GetClusterConfig() (services.ClusterConfig
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.GetClusterConfigMarshaler().Unmarshal(item.Value)
+	return services.GetClusterConfigMarshaler().Unmarshal(item.Value,
+		services.AddOptions(opts, services.WithResourceID(item.ID))...)
+}
+
+// DeleteClusterConfig deletes services.ClusterConfig from the backend.
+func (s *ClusterConfigurationService) DeleteClusterConfig() error {
+	err := s.Delete(context.TODO(), backend.Key(clusterConfigPrefix, generalPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("cluster configuration not found")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // SetClusterConfig sets services.ClusterConfig on the backend.
@@ -156,6 +215,7 @@ func (s *ClusterConfigurationService) SetClusterConfig(c services.ClusterConfig)
 	item := backend.Item{
 		Key:   backend.Key(clusterConfigPrefix, generalPrefix),
 		Value: value,
+		ID:    c.GetResourceID(),
 	}
 
 	_, err = s.Put(context.TODO(), item)

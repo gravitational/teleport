@@ -63,7 +63,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		Login:        sconn.User(),
 	}
 
-	clusterName, err := h.AccessPoint.GetDomainName()
+	clusterName, err := h.AccessPoint.GetClusterName()
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -82,7 +82,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 	identity.CertAuthority = certAuthority
 
-	roleSet, err := h.fetchRoleSet(certificate, certAuthority, identity.TeleportUser, clusterName)
+	roleSet, err := h.fetchRoleSet(certificate, certAuthority, identity.TeleportUser, clusterName.GetClusterName())
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -195,7 +195,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		}
 	}
 
-	clusterName, err := h.AccessPoint.GetDomainName()
+	clusterName, err := h.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -203,7 +203,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// this is the only way we know of to pass valid additional data about the
 	// connection to the handlers
 	permissions.Extensions[utils.CertTeleportUser] = teleportUser
-	permissions.Extensions[utils.CertTeleportClusterName] = clusterName
+	permissions.Extensions[utils.CertTeleportClusterName] = clusterName.GetClusterName()
 	permissions.Extensions[utils.CertTeleportUserCertificate] = string(ssh.MarshalAuthorizedKey(cert))
 
 	if h.isProxy() {
@@ -213,9 +213,9 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// check if the user has permission to log into the node.
 	switch {
 	case h.Component == teleport.ComponentForwardingNode:
-		err = h.canLoginWithoutRBAC(cert, clusterName, teleportUser, conn.User())
+		err = h.canLoginWithoutRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
 	default:
-		err = h.canLoginWithRBAC(cert, clusterName, teleportUser, conn.User())
+		err = h.canLoginWithRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
 	}
 	if err != nil {
 		h.Errorf("Permission denied: %v", err)

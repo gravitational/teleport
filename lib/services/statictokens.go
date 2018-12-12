@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -73,31 +72,29 @@ func DefaultStaticTokens() StaticTokens {
 			Namespace: defaults.Namespace,
 		},
 		Spec: StaticTokensSpecV2{
-			StaticTokens: []ProvisionToken{},
+			StaticTokens: []ProvisionTokenV1{},
 		},
 	}
 }
 
-// StaticTokensV2 implements the StaticTokens interface.
-type StaticTokensV2 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Spec is the specification of the resource.
-	Spec StaticTokensSpecV2 `json:"spec"`
+// GetVersion returns resource version
+func (c *StaticTokensV2) GetVersion() string {
+	return c.Version
 }
 
-// StaticTokensSpecV2 is the actual data we care about for StaticTokensSpecV2.
-type StaticTokensSpecV2 struct {
-	// StaticTokens is a list of tokens that can be used to add nodes to the
-	// cluster.
-	StaticTokens []ProvisionToken `json:"static_tokens"`
+// GetKind returns resource kind
+func (c *StaticTokensV2) GetKind() string {
+	return c.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (c *StaticTokensV2) GetSubKind() string {
+	return c.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (c *StaticTokensV2) SetSubKind(sk string) {
+	c.SubKind = sk
 }
 
 // GetResourceID returns resource ID
@@ -142,12 +139,12 @@ func (c *StaticTokensV2) GetMetadata() Metadata {
 
 // SetStaticTokens sets the list of static tokens used to provision nodes.
 func (c *StaticTokensV2) SetStaticTokens(s []ProvisionToken) {
-	c.Spec.StaticTokens = s
+	c.Spec.StaticTokens = ProvisionTokensToV1(s)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
 func (c *StaticTokensV2) GetStaticTokens() []ProvisionToken {
-	return c.Spec.StaticTokens
+	return ProvisionTokensFromV1(c.Spec.StaticTokens)
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
@@ -211,7 +208,7 @@ func GetStaticTokensSchema(extensionSchema string) string {
 // mostly adds support for extended versions.
 type StaticTokensMarshaler interface {
 	Marshal(c StaticTokens, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte) (StaticTokens, error)
+	Unmarshal(bytes []byte, opts ...MarshalOption) (StaticTokens, error)
 }
 
 var staticTokensMarshaler StaticTokensMarshaler = &TeleportStaticTokensMarshaler{}
@@ -234,16 +231,27 @@ func GetStaticTokensMarshaler() StaticTokensMarshaler {
 type TeleportStaticTokensMarshaler struct{}
 
 // Unmarshal unmarshals StaticTokens from JSON.
-func (t *TeleportStaticTokensMarshaler) Unmarshal(bytes []byte) (StaticTokens, error) {
+func (t *TeleportStaticTokensMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (StaticTokens, error) {
 	var staticTokens StaticTokensV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	err := utils.UnmarshalWithSchema(GetStaticTokensSchema(""), &staticTokens, bytes)
+	cfg, err := collectOptions(opts)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(bytes, &staticTokens); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	} else {
+		err = utils.UnmarshalWithSchema(GetStaticTokensSchema(""), &staticTokens, bytes)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
 	}
 
 	err = staticTokens.CheckAndSetDefaults()
@@ -251,10 +259,30 @@ func (t *TeleportStaticTokensMarshaler) Unmarshal(bytes []byte) (StaticTokens, e
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.ID != 0 {
+		staticTokens.SetResourceID(cfg.ID)
+	}
+
 	return &staticTokens, nil
 }
 
 // Marshal marshals StaticTokens to JSON.
 func (t *TeleportStaticTokensMarshaler) Marshal(c StaticTokens, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(c)
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch resource := c.(type) {
+	case *StaticTokensV2:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *resource
+			copy.SetResourceID(0)
+			resource = &copy
+		}
+		return utils.FastMarshal(resource)
+	default:
+		return nil, trace.BadParameter("unrecognized resource version %T", c)
+	}
 }

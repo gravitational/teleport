@@ -87,7 +87,11 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.ClusterName == s.clusterName.GetClusterName() {
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.ClusterName == clusterName.GetClusterName() {
 		log.Debugf("Generating certificate for local Kubernetes cluster.")
 
 		kubeCreds, err := s.getKubeClient()
@@ -144,7 +148,7 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 
 	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
-		DomainName: s.clusterName.GetClusterName(),
+		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
