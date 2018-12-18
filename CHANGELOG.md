@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.2
+
+Teleport 3.0.2 contains a security fix. We strongly encourage anyone running Teleport 3.0.1 to upgrade.
+
+* Upgraded Go to 1.11.4 to mitigate CVE-2018-16875: [CPU denial of service in chain validation](https://golang.org/issue/29233) Go. For customers using the RHEL5.x compatible release of Teleport, we've backported this fix to Go 1.9.7, before releasing RHEL 5.x compatible binaries.
+
 ## 3.0.1
 
 This release of Teleport contains the following bug fix:
