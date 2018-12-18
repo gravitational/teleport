@@ -9,4 +9,5 @@ TELEPORT_DYNAMO_TABLE_NAME=${dynamo_table_name}
 TELEPORT_DYNAMO_EVENTS_TABLE_NAME=${dynamo_events_table_name}
 TELEPORT_LOCKS_TABLE_NAME=${locks_table_name}
 TELEPORT_S3_BUCKET=${s3_bucket}
+USE_ACM=${use_acm}
 EOF

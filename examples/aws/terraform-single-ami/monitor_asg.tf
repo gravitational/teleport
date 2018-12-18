@@ -39,6 +39,7 @@ data "template_file" "monitor_user_data" {
     telegraf_version = "${var.telegraf_version}"
     s3_bucket = "${var.s3_bucket_name}"
     domain_name = "${var.route53_domain}"
+    use_acm = "${var.use_acm}"
   }
 }
 

@@ -41,6 +41,7 @@ data "template_file" "node_user_data" {
     telegraf_version = "${var.telegraf_version}"
     auth_server_addr = "${aws_lb.auth.dns_name}:3025"
     influxdb_addr = "http://${aws_lb.monitor.dns_name}:8086"
+    use_acm = "${var.use_acm}"
   }
 }
 

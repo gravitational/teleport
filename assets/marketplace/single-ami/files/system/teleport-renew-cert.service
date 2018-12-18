@@ -1,6 +1,6 @@
 [Unit]
 Description=Service rotating teleport certificates
-ConditionPathExists=/etc/teleport.d/role.auth
+ConditionPathExists=/etc/teleport.d/use-letsencrypt
 
 [Service]
 Type=oneshot

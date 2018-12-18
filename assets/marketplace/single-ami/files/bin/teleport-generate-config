@@ -22,6 +22,11 @@ source /etc/teleport.d/conf
 echo ${LOCAL_HOSTNAME} > /var/lib/teleport/host_uuid
 chown -R teleport:adm /var/lib/teleport
 
+# Use letsencrypt by default unless we are explicitly using ACM here
+if [[ "${USE_ACM}" != "true" ]]; then
+    echo "use-letsencrypt" > /etc/teleport.d/use-letsencrypt
+fi
+
 if [[ "${TELEPORT_ROLE}" == "auth" ]]; then
     echo "auth" > /etc/teleport.d/role.auth
     # Teleport Auth server is using DynamoDB as a backend
@@ -58,21 +63,30 @@ proxy_service:
   enabled: no
 EOF
 
-# enable/start token services and timers
-systemctl enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer
-systemctl start teleport-ssm-publish-tokens.timer
+    # enable/start token services and timers
+    systemctl enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer
+    systemctl start teleport-ssm-publish-tokens.timer
 
-# enable/start cert services and timers
-systemctl enable teleport-get-cert.service teleport-get-cert.timer
-systemctl start teleport-get-cert.timer
+    # enable/start cert services and timers
+    systemctl enable teleport-get-cert.service teleport-get-cert.timer
+    systemctl enable teleport-renew-cert.service teleport-renew-cert.timer
+    systemctl start teleport-get-cert.timer --no-block
+    systemctl start teleport-renew-cert.timer --no-block
 
-# enable auth service and disable all-in-one
-systemctl disable teleport.service
-systemctl enable teleport-auth.service
-systemctl start teleport-auth.service --no-block
+    # enable auth service and disable all-in-one
+    systemctl disable teleport.service
+    systemctl enable teleport-auth.service
+    systemctl start teleport-auth.service --no-block
 
 elif [[ "${TELEPORT_ROLE}" == "proxy" ]]; then
-    echo "proxy" > /etc/teleport.d/role.proxy
+    if [[ "${USE_ACM}" == "true" ]]; then
+        echo "proxy-acm" > /etc/teleport.d/role.proxy-acm
+        # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
+        TUNNEL_LISTEN_PORT=3024
+    else
+        echo "proxy" > /etc/teleport.d/role.proxy
+        TUNNEL_LISTEN_PORT=3080
+    fi
     # Teleport proxy proxies and optionally records
     # SSH sessions
     cat >/etc/teleport.yaml <<EOF
@@ -100,17 +114,32 @@ ssh_service:
 proxy_service:
   enabled: yes
   listen_addr: 0.0.0.0:3023
-  tunnel_listen_addr: 0.0.0.0:3080
+  tunnel_listen_addr: 0.0.0.0:${TUNNEL_LISTEN_PORT}
   web_listen_addr: 0.0.0.0:3080
   public_addr: ${TELEPORT_DOMAIN_NAME}:443
-  https_cert_file: /var/lib/teleport/fullchain.pem
-  https_key_file: /var/lib/teleport/privkey.pem
+  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}
 EOF
 
-# enable proxy service and disable all-in-one
-systemctl disable teleport.service
-systemctl enable teleport-proxy.service
-systemctl start teleport-proxy.service --no-block
+    # if we are using letsencrypt (i.e. not ACM) then append config lines
+    if [[ "${USE_ACM}" != "true" ]]; then
+        echo "  https_cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
+        echo "  https_key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
+    fi
+
+    # enable/start cert services and timers
+    systemctl enable teleport-check-cert.service teleport-check-cert.timer
+    systemctl start teleport-check-cert.timer --no-block
+
+    # enable proxy service and disable all-in-one
+    # skip TLS verification if we are using ACM (as we can't get the cert for use locally, it's on the load balancer)
+    systemctl disable teleport.service
+    if [[ "${USE_ACM}" == "true" ]]; then
+        systemctl enable teleport-proxy-acm.service
+        systemctl start teleport-proxy-acm.service --no-block
+    else
+        systemctl enable teleport-proxy.service
+        systemctl start teleport-proxy.service --no-block
+    fi
 
 elif [[ "${TELEPORT_ROLE}" == "node" ]]; then
     echo "node" > /etc/teleport.d/role.node
@@ -142,10 +171,10 @@ proxy_service:
   enabled: no
 EOF
 
-# enable node service and disable all-in-one
-systemctl disable teleport.service
-systemctl enable teleport-node.service
-systemctl start teleport-node.service --no-block
+    # enable node service and disable all-in-one
+    systemctl disable teleport.service
+    systemctl enable teleport-node.service
+    systemctl start teleport-node.service --no-block
 
 elif [[ "${TELEPORT_ROLE}" == "monitor" ]]; then
     echo "monitor" > /etc/teleport.d/role.monitor
@@ -159,7 +188,6 @@ elif [[ "${TELEPORT_ROLE}" == "monitor" ]]; then
 else
     echo "No Teleport role provided via TELEPORT_ROLE; using all-in-one config"
     echo "all" > /etc/teleport.d/role.all
-    chmod +x /etc/teleport.d/role.all
     cat >/etc/teleport.yaml <<EOF
 teleport:
   nodename: ${LOCAL_HOSTNAME}
@@ -189,8 +217,30 @@ proxy_service:
   listen_addr: 0.0.0.0:3023
   tunnel_listen_addr: 0.0.0.0:3080
   web_listen_addr: 0.0.0.0:3080
-  public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$LOCAL_HOSTNAME}:${TELEPORT_EXTERNAL_PORT:-3025}
+  public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$LOCAL_HOSTNAME}:${TELEPORT_EXTERNAL_PORT:-3080}
 EOF
+
+    # if we are using letsencrypt, append config lines
+    if [[ "${USE_LETSENCRYPT}" == "true" ]]; then
+        # these variables must all be set for letsencrypt to work
+        # it also needs the running instance to have permissions to read from/write to the S3 bucket
+        if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
+            echo "  https_cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
+            echo "  https_key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
+
+            # enable/start cert services and timers
+            systemctl enable teleport-get-cert.service teleport-get-cert.timer
+            systemctl start teleport-get-cert.timer
+
+            systemctl enable teleport-renew-cert.service teleport-renew-cert.timer
+            systemctl start teleport-get-cert.timer --no-block
+
+            systemctl enable teleport-check-cert.service teleport-check-cert.timer
+            systemctl start teleport-check-cert.timer --no-block
+
+            systemctl start teleport-get-cert.service --no-block
+        fi
+    fi
 fi
 
 # enable telegraf service if running in cluster mode
