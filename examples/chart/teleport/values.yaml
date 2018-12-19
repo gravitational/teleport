@@ -118,6 +118,11 @@ proxy:
     # We assume TLS is terminated in front of the proxy by default
     enabled: true
 
+license:
+  enabled: true
+  secretName: license
+  mountPath: /var/lib/license
+
 # See the admin guide for full details
 # https://gravitational.com/teleport/docs/admin-guide/#configuration-file
 config:
