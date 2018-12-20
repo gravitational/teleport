@@ -119,6 +119,7 @@ proxy:
     enabled: true
 
 license:
+  ## Set false to run Teleport in Community edition mode
   enabled: true
   secretName: license
   mountPath: /var/lib/license
