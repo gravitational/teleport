@@ -20,10 +20,11 @@ import { sortBy } from 'lodash';
 import { isMatch } from 'app/lib/objectUtils';
 import InputSearch from './../inputSearch';
 import InputSshServer from './../inputSshServer';
-import { Table, Column, Cell, TextCell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
+import { Column, Cell, TextCell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table/table.jsx';
 import ClusterSelector from './../clusterSelector.jsx';
 import cfg from 'app/config';
 import history from 'app/services/history';
+import { PagedTable } from './../table/pagedTable.jsx';
 
 const EmptyValue = ({ text='Empty' }) => (
   <small className="text-muted">
@@ -31,7 +32,7 @@ const EmptyValue = ({ text='Empty' }) => (
   </small>
 );
 
-const TagCell = ({rowIndex, data, ...props}) => {
+const TagCell = ({ rowIndex, data, ...props }) => {
   const { tags } = data[rowIndex];
   let $content = tags.map((item, index) => (
     <span key={index} title={`${item.name}:${item.value}`} className="label label-default grv-nodes-table-label">
@@ -95,7 +96,7 @@ class LoginCell extends React.Component {
 
     return (
       <Cell {...props}>
-        <div style={{ display: "flex" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
           {logins.length === 0 &&
             <EmptyValue text="No assigned logins"/>
           }
@@ -210,9 +211,8 @@ class NodeList extends React.Component {
           <h2 className="text-center no-margins"> Nodes </h2>
           <div className="grv-flex">
             <ClusterSelector/>
-            <InputSearch value={searchValue} onChange={this.onFilterChange} />
+            <InputSearch autoFocus value={searchValue} onChange={this.onFilterChange} />
             <InputSshServer
-              autoFocus={true}
               clusterId={siteId}
               sshHistory={sshHistory}
               onEnter={this.onSshInputEnter} />
@@ -221,8 +221,7 @@ class NodeList extends React.Component {
         <div className="m-t">
           {
             data.length === 0 && this.state.filter.length > 0 ? <EmptyIndicator text="No matching nodes found"/> :
-
-            <Table rowCount={data.length} className="table-striped grv-nodes-table">
+            <PagedTable className="grv-nodes-table" tableClass="table-striped" data={data} pageSize={100}>
               <Column
                 columnKey="hostname"
                 header={
@@ -232,7 +231,7 @@ class NodeList extends React.Component {
                     title="Hostname"
                   />
                 }
-                cell={<TextCell data={data}/> }
+                cell={<TextCell /> }
               />
               <Column
                 columnKey="addr"
@@ -243,18 +242,19 @@ class NodeList extends React.Component {
                     title="Address"
                   />
                 }
-                cell={<TextCell data={data}/> }
+                cell={<TextCell /> }
               />
               <Column
                 header={<Cell>Labels</Cell> }
-                cell={<TagCell data={data}/> }
+                cell={<TagCell /> }
               />
-              <Column
+                <Column
+                className="grv-nodes-table-login"
                 onLoginClick={onLoginClick}
                 header={<Cell>Login as</Cell> }
-                cell={<LoginCell data={data} logins={logins}/> }
+                cell={<LoginCell logins={logins}/> }
               />
-            </Table>
+            </PagedTable>
           }
         </div>
       </div>

@@ -16,10 +16,10 @@ limitations under the License.
 
 import React from 'react';
 
-const GrvTableTextCell = ({rowIndex, data, columnKey, ...props}) => (
-  <GrvTableCell {...props}>
+const TableTextCell = ({rowIndex, data, columnKey, ...props}) => (
+  <TableCell {...props}>
     {data[rowIndex][columnKey]}
-  </GrvTableCell>
+  </TableCell>
 );
 
 /**
@@ -46,21 +46,9 @@ const SortIndicator = ({sortDir})=>{
 /**
 * Sort Header Cell
 */
-var SortHeaderCell = React.createClass({
-  render() {
-    var {sortDir, title, ...props} = this.props;
+class SortHeaderCell extends React.Component {
 
-    return (
-      <GrvTableCell {...props}>
-        <a onClick={this.onSortChange}>
-          {title}
-        </a>
-        <SortIndicator sortDir={sortDir}/>
-      </GrvTableCell>
-    );
-  },
-
-  onSortChange(e) {
+  onSortChange = e => {
     e.preventDefault();
     if(this.props.onSortChange) {
       // default
@@ -71,45 +59,83 @@ var SortHeaderCell = React.createClass({
       this.props.onSortChange(this.props.columnKey, newDir);
     }
   }
-});
+
+  render() {
+    const { sortDir, title, ...props } = this.props;
+
+    return (
+      <TableCell {...props}>
+        <a onClick={this.onSortChange}>
+          {title}
+        </a>
+        <SortIndicator sortDir={sortDir}/>
+      </TableCell>
+    );
+  }
+}
 
 /**
 * Default Cell
 */
-var GrvTableCell = React.createClass({
-  render(){
-    let { isHeader, children, className='' } = this.props;
-    className = 'grv-table-cell ' + className;
-    return isHeader ? <th className={className}>{children}</th> : <td>{children}</td>;
-  }
-});
+const TableCell = props => {
+  let { isHeader, children, className='' } = props;
+  className = 'grv-table-cell ' + className;
+  return isHeader ? <th className={className}>{children}</th> : <td>{children}</td>;
+}
+
 
 /**
 * Table
 */
-var GrvTable = React.createClass({
+
+class Table extends React.Component {
 
   renderHeader(children){
-    var cells = children.map((item, index)=>{
-      return this.renderCell(item.props.header, {index, key: index, isHeader: true, ...item.props});
-    })
+    const { data } = this.props;
+    const cells = children.map((item, index) => {
+      return this.renderCell(
+        item.props.header,
+        {
+          index,
+          key: index,
+          isHeader: true,
+          data,
+          ...item.props
+        });
+    });
 
-    return <thead className="grv-table-header"><tr>{cells}</tr></thead>
-  },
+    return (
+      <thead className="grv-table-header">
+        <tr>{cells}</tr>
+      </thead>
+    )
+  }
 
-  renderBody(children){
-    var count = this.props.rowCount;
-    var rows = [];
-    for(var i = 0; i < count; i ++){
+  renderBody(children) {
+    const { data } = this.props;
+    const count = this.props.rowCount;
+    const rows = [];
+    for (var i = 0; i < count; i++){
       var cells = children.map((item, index)=>{
-        return this.renderCell(item.props.cell, {rowIndex: i, key: index, isHeader: false, ...item.props});
+        return this.renderCell(
+          item.props.cell,
+          {
+            rowIndex: i,
+            key: index,
+            isHeader: false,
+            data,
+            ...item.props
+          }
+        );
       })
 
       rows.push(<tr key={i}>{cells}</tr>);
     }
 
-    return <tbody>{rows}</tbody>;
-  },
+    return (
+      <tbody>{rows}</tbody>
+    );
+  }
 
   renderCell(cell, cellProps){
     var content = null;
@@ -120,7 +146,7 @@ var GrvTable = React.createClass({
      }
 
      return content;
-  },
+  }
 
   render() {
     var children = [];
@@ -129,8 +155,8 @@ var GrvTable = React.createClass({
         return;
       }
 
-      if(child.type.displayName !== 'GrvTableColumn'){
-        throw 'Should be GrvTableColumn';
+      if(!child.props._isColumn){
+        throw 'Should be Column';
       }
 
       children.push(child);
@@ -145,24 +171,28 @@ var GrvTable = React.createClass({
       </table>
     );
   }
-})
+}
 
-const GrvTableColumn = React.createClass({
-  render: function() {
-    throw new Error('Component <GrvTableColumn /> should never render');
+class Column extends React.Component {
+  static defaultProps = {
+    _isColumn: true
   }
-})
+
+  render(){
+    throw new Error('Component <Column /> should never render');
+  }
+}
 
 const EmptyIndicator = ({text}) => (
   <div className="grv-table-indicator-empty text-muted"><span>{text}</span></div>
 )
 
-export default GrvTable;
+export default Table;
 export {
-  GrvTableColumn as Column,
-  GrvTable as Table,
-  GrvTableCell as Cell,
-  GrvTableTextCell as TextCell,
+  Column,
+  Table,
+  TableCell as Cell,
+  TableTextCell as TextCell,
   SortHeaderCell,
   SortIndicator,
   SortTypes,

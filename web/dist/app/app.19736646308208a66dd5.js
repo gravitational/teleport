@@ -4107,8 +4107,16 @@ inputSshServer_InputSshServer.propTypes = {
   onEnter: react["PropTypes"].func.isRequired
 };
 /* harmony default export */ var inputSshServer = (inputSshServer_InputSshServer);
-// CONCATENATED MODULE: ./src/app/components/table.jsx
+// CONCATENATED MODULE: ./src/app/components/table/table.jsx
 var table_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var table_createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function table_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function table_possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function table_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
 function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
 
@@ -4130,14 +4138,14 @@ limitations under the License.
 
 
 
-var table_GrvTableTextCell = function GrvTableTextCell(_ref) {
+var table_TableTextCell = function TableTextCell(_ref) {
   var rowIndex = _ref.rowIndex,
       data = _ref.data,
       columnKey = _ref.columnKey,
       props = _objectWithoutProperties(_ref, ['rowIndex', 'data', 'columnKey']);
 
   return react_default.a.createElement(
-    GrvTableCell,
+    table_TableCell,
     props,
     data[rowIndex][columnKey]
   );
@@ -4169,153 +4177,220 @@ var table_SortIndicator = function SortIndicator(_ref2) {
 /**
 * Sort Header Cell
 */
-var SortHeaderCell = react_default.a.createClass({
-  displayName: 'SortHeaderCell',
-  render: function render() {
-    var _props = this.props,
-        sortDir = _props.sortDir,
-        title = _props.title,
-        props = _objectWithoutProperties(_props, ['sortDir', 'title']);
 
-    return react_default.a.createElement(
-      GrvTableCell,
-      props,
-      react_default.a.createElement(
-        'a',
-        { onClick: this.onSortChange },
-        title
-      ),
-      react_default.a.createElement(table_SortIndicator, { sortDir: sortDir })
-    );
-  },
-  onSortChange: function onSortChange(e) {
-    e.preventDefault();
-    if (this.props.onSortChange) {
-      // default
-      var newDir = SortTypes.DESC;
-      if (this.props.sortDir) {
-        newDir = this.props.sortDir === SortTypes.DESC ? SortTypes.ASC : SortTypes.DESC;
-      }
-      this.props.onSortChange(this.props.columnKey, newDir);
+var table_SortHeaderCell = function (_React$Component) {
+  table_inherits(SortHeaderCell, _React$Component);
+
+  function SortHeaderCell() {
+    var _ref3;
+
+    var _temp, _this, _ret;
+
+    table_classCallCheck(this, SortHeaderCell);
+
+    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
     }
+
+    return _ret = (_temp = (_this = table_possibleConstructorReturn(this, (_ref3 = SortHeaderCell.__proto__ || Object.getPrototypeOf(SortHeaderCell)).call.apply(_ref3, [this].concat(args))), _this), _this.onSortChange = function (e) {
+      e.preventDefault();
+      if (_this.props.onSortChange) {
+        // default
+        var newDir = SortTypes.DESC;
+        if (_this.props.sortDir) {
+          newDir = _this.props.sortDir === SortTypes.DESC ? SortTypes.ASC : SortTypes.DESC;
+        }
+        _this.props.onSortChange(_this.props.columnKey, newDir);
+      }
+    }, _temp), table_possibleConstructorReturn(_this, _ret);
   }
-});
+
+  table_createClass(SortHeaderCell, [{
+    key: 'render',
+    value: function render() {
+      var _props = this.props,
+          sortDir = _props.sortDir,
+          title = _props.title,
+          props = _objectWithoutProperties(_props, ['sortDir', 'title']);
+
+      return react_default.a.createElement(
+        table_TableCell,
+        props,
+        react_default.a.createElement(
+          'a',
+          { onClick: this.onSortChange },
+          title
+        ),
+        react_default.a.createElement(table_SortIndicator, { sortDir: sortDir })
+      );
+    }
+  }]);
+
+  return SortHeaderCell;
+}(react_default.a.Component);
 
 /**
 * Default Cell
 */
-var GrvTableCell = react_default.a.createClass({
-  displayName: 'GrvTableCell',
-  render: function render() {
-    var _props2 = this.props,
-        isHeader = _props2.isHeader,
-        children = _props2.children,
-        _props2$className = _props2.className,
-        className = _props2$className === undefined ? '' : _props2$className;
 
-    className = 'grv-table-cell ' + className;
-    return isHeader ? react_default.a.createElement(
-      'th',
-      { className: className },
-      children
-    ) : react_default.a.createElement(
-      'td',
-      null,
-      children
-    );
-  }
-});
+
+var table_TableCell = function TableCell(props) {
+  var isHeader = props.isHeader,
+      children = props.children,
+      _props$className = props.className,
+      className = _props$className === undefined ? '' : _props$className;
+
+  className = 'grv-table-cell ' + className;
+  return isHeader ? react_default.a.createElement(
+    'th',
+    { className: className },
+    children
+  ) : react_default.a.createElement(
+    'td',
+    null,
+    children
+  );
+};
 
 /**
 * Table
 */
-var GrvTable = react_default.a.createClass({
-  displayName: 'GrvTable',
-  renderHeader: function renderHeader(children) {
-    var _this = this;
 
-    var cells = children.map(function (item, index) {
-      return _this.renderCell(item.props.header, table_extends({ index: index, key: index, isHeader: true }, item.props));
-    });
+var table_Table = function (_React$Component2) {
+  table_inherits(Table, _React$Component2);
 
-    return react_default.a.createElement(
-      'thead',
-      { className: 'grv-table-header' },
-      react_default.a.createElement(
-        'tr',
-        null,
-        cells
-      )
-    );
-  },
-  renderBody: function renderBody(children) {
-    var _this2 = this;
+  function Table() {
+    table_classCallCheck(this, Table);
 
-    var count = this.props.rowCount;
-    var rows = [];
-    for (var i = 0; i < count; i++) {
+    return table_possibleConstructorReturn(this, (Table.__proto__ || Object.getPrototypeOf(Table)).apply(this, arguments));
+  }
+
+  table_createClass(Table, [{
+    key: 'renderHeader',
+    value: function renderHeader(children) {
+      var _this3 = this;
+
+      var data = this.props.data;
+
       var cells = children.map(function (item, index) {
-        return _this2.renderCell(item.props.cell, table_extends({ rowIndex: i, key: index, isHeader: false }, item.props));
+        return _this3.renderCell(item.props.header, table_extends({
+          index: index,
+          key: index,
+          isHeader: true,
+          data: data
+        }, item.props));
       });
 
-      rows.push(react_default.a.createElement(
-        'tr',
-        { key: i },
-        cells
-      ));
+      return react_default.a.createElement(
+        'thead',
+        { className: 'grv-table-header' },
+        react_default.a.createElement(
+          'tr',
+          null,
+          cells
+        )
+      );
     }
+  }, {
+    key: 'renderBody',
+    value: function renderBody(children) {
+      var _this4 = this;
 
-    return react_default.a.createElement(
-      'tbody',
-      null,
-      rows
-    );
-  },
-  renderCell: function renderCell(cell, cellProps) {
-    var content = null;
-    if (react_default.a.isValidElement(cell)) {
-      content = react_default.a.cloneElement(cell, cellProps);
-    } else if (typeof cell === 'function') {
-      content = cell(cellProps);
-    }
+      var data = this.props.data;
 
-    return content;
-  },
-  render: function render() {
-    var children = [];
-    react_default.a.Children.forEach(this.props.children, function (child) {
-      if (child == null) {
-        return;
+      var count = this.props.rowCount;
+      var rows = [];
+      for (var i = 0; i < count; i++) {
+        var cells = children.map(function (item, index) {
+          return _this4.renderCell(item.props.cell, table_extends({
+            rowIndex: i,
+            key: index,
+            isHeader: false,
+            data: data
+          }, item.props));
+        });
+
+        rows.push(react_default.a.createElement(
+          'tr',
+          { key: i },
+          cells
+        ));
       }
 
-      if (child.type.displayName !== 'GrvTableColumn') {
-        throw 'Should be GrvTableColumn';
+      return react_default.a.createElement(
+        'tbody',
+        null,
+        rows
+      );
+    }
+  }, {
+    key: 'renderCell',
+    value: function renderCell(cell, cellProps) {
+      var content = null;
+      if (react_default.a.isValidElement(cell)) {
+        content = react_default.a.cloneElement(cell, cellProps);
+      } else if (typeof cell === 'function') {
+        content = cell(cellProps);
       }
 
-      children.push(child);
-    });
+      return content;
+    }
+  }, {
+    key: 'render',
+    value: function render() {
+      var children = [];
+      react_default.a.Children.forEach(this.props.children, function (child) {
+        if (child == null) {
+          return;
+        }
 
-    var tableClass = 'table grv-table ' + this.props.className;
+        if (!child.props._isColumn) {
+          throw 'Should be Column';
+        }
 
-    return react_default.a.createElement(
-      'table',
-      { className: tableClass },
-      this.renderHeader(children),
-      this.renderBody(children)
-    );
+        children.push(child);
+      });
+
+      var tableClass = 'table grv-table ' + this.props.className;
+
+      return react_default.a.createElement(
+        'table',
+        { className: tableClass },
+        this.renderHeader(children),
+        this.renderBody(children)
+      );
+    }
+  }]);
+
+  return Table;
+}(react_default.a.Component);
+
+var Column = function (_React$Component3) {
+  table_inherits(Column, _React$Component3);
+
+  function Column() {
+    table_classCallCheck(this, Column);
+
+    return table_possibleConstructorReturn(this, (Column.__proto__ || Object.getPrototypeOf(Column)).apply(this, arguments));
   }
-});
 
-var GrvTableColumn = react_default.a.createClass({
-  displayName: 'GrvTableColumn',
+  table_createClass(Column, [{
+    key: 'render',
+    value: function render() {
+      throw new Error('Component <Column /> should never render');
+    }
+  }]);
 
-  render: function render() {
-    throw new Error('Component <GrvTableColumn /> should never render');
-  }
-});
+  return Column;
+}(react_default.a.Component);
 
-var table_EmptyIndicator = function EmptyIndicator(_ref3) {
-  var text = _ref3.text;
+Column.defaultProps = {
+  _isColumn: true
+};
+
+
+var table_EmptyIndicator = function EmptyIndicator(_ref4) {
+  var text = _ref4.text;
   return react_default.a.createElement(
     'div',
     { className: 'grv-table-indicator-empty text-muted' },
@@ -4327,7 +4402,7 @@ var table_EmptyIndicator = function EmptyIndicator(_ref3) {
   );
 };
 
-/* harmony default export */ var table = (GrvTable);
+/* harmony default export */ var table = (table_Table);
 
 // CONCATENATED MODULE: ./src/app/flux/sites/getters.js
 /*
@@ -4809,6 +4884,213 @@ function clusterSelector_mapStateToProps() {
 }
 
 /* harmony default export */ var clusterSelector = (Object(build["connect"])(clusterSelector_mapStateToProps)(clusterSelector_ClusterSelector));
+// CONCATENATED MODULE: ./src/app/components/table/pagedTable.jsx
+var pagedTable_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+/*
+Copyright 2018 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+var PagedTable = react_default.a.createClass({
+  displayName: 'PagedTable',
+  onPrev: function onPrev() {
+    var _state = this.state,
+        startFrom = _state.startFrom,
+        pageSize = _state.pageSize;
+
+
+    startFrom = startFrom - pageSize;
+
+    if (startFrom < 0) {
+      startFrom = 0;
+    }
+
+    this.setState({
+      startFrom: startFrom
+    });
+  },
+  onNext: function onNext() {
+    var _props$data = this.props.data,
+        data = _props$data === undefined ? [] : _props$data;
+    var _state2 = this.state,
+        startFrom = _state2.startFrom,
+        pageSize = _state2.pageSize;
+
+    var newStartFrom = startFrom + pageSize;
+
+    if (newStartFrom < data.length) {
+      newStartFrom = startFrom + pageSize;
+      this.setState({
+        startFrom: newStartFrom
+      });
+    }
+  },
+  getInitialState: function getInitialState() {
+    var _props$pageSize = this.props.pageSize,
+        pageSize = _props$pageSize === undefined ? 7 : _props$pageSize;
+
+    return {
+      startFrom: 0,
+      pageSize: pageSize
+    };
+  },
+  componentWillReceiveProps: function componentWillReceiveProps(newProps) {
+    var newData = newProps.data || [];
+    var oldData = this.props.data || [];
+    // if data length changes, reset paging
+    if (newData.length !== oldData.length) {
+      this.setState({ startFrom: 0 });
+    }
+  },
+  render: function render() {
+    var _state3 = this.state,
+        startFrom = _state3.startFrom,
+        pageSize = _state3.pageSize;
+    var _props = this.props,
+        _props$data2 = _props.data,
+        data = _props$data2 === undefined ? [] : _props$data2,
+        _props$tableClass = _props.tableClass,
+        tableClass = _props$tableClass === undefined ? '' : _props$tableClass,
+        _props$className = _props.className,
+        className = _props$className === undefined ? '' : _props$className;
+
+    var totalRows = data.length;
+
+    var endAt = 0;
+    var pagedData = data;
+
+    if (data.length > 0) {
+      endAt = startFrom + (pageSize > data.length ? data.length : pageSize);
+
+      if (endAt > data.length) {
+        endAt = data.length;
+      }
+
+      pagedData = data.slice(startFrom, endAt);
+    }
+
+    var tableProps = pagedTable_extends({}, this.props, {
+      rowCount: pagedData.length,
+      data: pagedData
+    });
+
+    var infoProps = {
+      pageSize: pageSize,
+      startFrom: startFrom,
+      endAt: endAt,
+      totalRows: totalRows
+    };
+
+    return react_default.a.createElement(
+      'div',
+      { className: className },
+      react_default.a.createElement(pagedTable_PageInfo, pagedTable_extends({}, infoProps, { onPrev: this.onPrev, onNext: this.onNext })),
+      react_default.a.createElement(
+        'div',
+        { className: tableClass },
+        react_default.a.createElement(table_Table, tableProps)
+      ),
+      react_default.a.createElement(pagedTable_PageInfo, pagedTable_extends({}, infoProps, { onPrev: this.onPrev, onNext: this.onNext }))
+    );
+  }
+});
+
+var pagedTable_PageInfo = function PageInfo(props) {
+  var startFrom = props.startFrom,
+      endAt = props.endAt,
+      totalRows = props.totalRows,
+      onPrev = props.onPrev,
+      onNext = props.onNext,
+      pageSize = props.pageSize;
+
+
+  var shouldBeDisplayed = totalRows > pageSize;
+
+  if (!shouldBeDisplayed) {
+    return null;
+  }
+
+  var prevBtnClass = classnames_default()('btn btn-white', {
+    'disabled': startFrom === 0
+  });
+
+  var nextBtnClass = classnames_default()('btn btn-white', {
+    'disabled': endAt === totalRows
+  });
+
+  return react_default.a.createElement(
+    'div',
+    { className: 'm-b-sm grv-table-paged-info' },
+    react_default.a.createElement(
+      'span',
+      { className: 'm-r-sm' },
+      react_default.a.createElement(
+        'span',
+        { className: 'text-muted' },
+        'Showing '
+      ),
+      react_default.a.createElement(
+        'span',
+        { className: 'font-bold' },
+        startFrom + 1
+      ),
+      react_default.a.createElement(
+        'span',
+        { className: 'text-muted' },
+        ' to '
+      ),
+      react_default.a.createElement(
+        'span',
+        { className: 'font-bold' },
+        endAt
+      ),
+      react_default.a.createElement(
+        'span',
+        { className: 'text-muted' },
+        ' of '
+      ),
+      react_default.a.createElement(
+        'span',
+        { className: 'font-bold' },
+        totalRows
+      )
+    ),
+    react_default.a.createElement(
+      'div',
+      { className: 'btn-group btn-group-sm' },
+      react_default.a.createElement(
+        'a',
+        { onClick: onPrev, className: prevBtnClass, type: 'button' },
+        'Prev'
+      ),
+      react_default.a.createElement(
+        'a',
+        { onClick: onNext, className: nextBtnClass, type: 'button' },
+        'Next'
+      )
+    )
+  );
+};
+
+/* harmony default export */ var pagedTable = (PagedTable);
+
+
 // CONCATENATED MODULE: ./src/app/components/nodes/nodeList.jsx
 var nodeList_createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
@@ -4837,6 +5119,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 
 
 
@@ -4886,7 +5169,7 @@ var nodeList_TagCell = function TagCell(_ref2) {
   }
 
   return react_default.a.createElement(
-    GrvTableCell,
+    table_TableCell,
     props,
     $content
   );
@@ -4959,11 +5242,11 @@ var nodeList_LoginCell = function (_React$Component) {
       }
 
       return react_default.a.createElement(
-        GrvTableCell,
+        table_TableCell,
         props,
         react_default.a.createElement(
           'div',
-          { style: { display: "flex" } },
+          { style: { display: "flex", justifyContent: "flex-end" } },
           logins.length === 0 && react_default.a.createElement(nodeList_EmptyValue, { text: 'No assigned logins' }),
           logins.length > 0 && react_default.a.createElement(
             'div',
@@ -5117,9 +5400,8 @@ var nodeList_NodeList = function (_React$Component2) {
             'div',
             { className: 'grv-flex' },
             react_default.a.createElement(clusterSelector, null),
-            react_default.a.createElement(inputSearch, { value: searchValue, onChange: this.onFilterChange }),
+            react_default.a.createElement(inputSearch, { autoFocus: true, value: searchValue, onChange: this.onFilterChange }),
             react_default.a.createElement(inputSshServer, {
-              autoFocus: true,
               clusterId: siteId,
               sshHistory: sshHistory,
               onEnter: this.onSshInputEnter })
@@ -5129,42 +5411,43 @@ var nodeList_NodeList = function (_React$Component2) {
           'div',
           { className: 'm-t' },
           data.length === 0 && this.state.filter.length > 0 ? react_default.a.createElement(table_EmptyIndicator, { text: 'No matching nodes found' }) : react_default.a.createElement(
-            GrvTable,
-            { rowCount: data.length, className: 'table-striped grv-nodes-table' },
-            react_default.a.createElement(GrvTableColumn, {
+            PagedTable,
+            { className: 'grv-nodes-table', tableClass: 'table-striped', data: data, pageSize: 100 },
+            react_default.a.createElement(Column, {
               columnKey: 'hostname',
-              header: react_default.a.createElement(SortHeaderCell, {
+              header: react_default.a.createElement(table_SortHeaderCell, {
                 sortDir: this.state.colSortDirs.hostname,
                 onSortChange: this.onSortChange,
                 title: 'Hostname'
               }),
-              cell: react_default.a.createElement(table_GrvTableTextCell, { data: data })
+              cell: react_default.a.createElement(table_TableTextCell, null)
             }),
-            react_default.a.createElement(GrvTableColumn, {
+            react_default.a.createElement(Column, {
               columnKey: 'addr',
-              header: react_default.a.createElement(SortHeaderCell, {
+              header: react_default.a.createElement(table_SortHeaderCell, {
                 sortDir: this.state.colSortDirs.addr,
                 onSortChange: this.onSortChange,
                 title: 'Address'
               }),
-              cell: react_default.a.createElement(table_GrvTableTextCell, { data: data })
+              cell: react_default.a.createElement(table_TableTextCell, null)
             }),
-            react_default.a.createElement(GrvTableColumn, {
+            react_default.a.createElement(Column, {
               header: react_default.a.createElement(
-                GrvTableCell,
+                table_TableCell,
                 null,
                 'Labels'
               ),
-              cell: react_default.a.createElement(nodeList_TagCell, { data: data })
+              cell: react_default.a.createElement(nodeList_TagCell, null)
             }),
-            react_default.a.createElement(GrvTableColumn, {
+            react_default.a.createElement(Column, {
+              className: 'grv-nodes-table-login',
               onLoginClick: onLoginClick,
               header: react_default.a.createElement(
-                GrvTableCell,
+                table_TableCell,
                 null,
                 'Login as'
               ),
-              cell: react_default.a.createElement(nodeList_LoginCell, { data: data, logins: logins })
+              cell: react_default.a.createElement(nodeList_LoginCell, { logins: logins })
             })
           )
         )
@@ -9771,7 +10054,7 @@ var listItems_DateCreatedCell = function DateCreatedCell(_ref) {
   var createdDisplayText = data[rowIndex].createdDisplayText;
 
   return react_default.a.createElement(
-    GrvTableCell,
+    table_TableCell,
     props,
     createdDisplayText
   );
@@ -9786,7 +10069,7 @@ var listItems_DurationCell = function DurationCell(_ref2) {
 
   var displayDate = moment_default.a.duration(duration).humanize();
   return react_default.a.createElement(
-    GrvTableCell,
+    table_TableCell,
     props,
     displayDate
   );
@@ -9800,7 +10083,7 @@ var listItems_SingleUserCell = function SingleUserCell(_ref3) {
   var user = data[rowIndex].user;
 
   return react_default.a.createElement(
-    GrvTableCell,
+    table_TableCell,
     props,
     react_default.a.createElement(
       'span',
@@ -9836,7 +10119,7 @@ var listItems_UsersCell = function UsersCell(_ref4) {
   }
 
   return react_default.a.createElement(
-    GrvTableCell,
+    table_TableCell,
     props,
     react_default.a.createElement(
       'div',
@@ -9881,7 +10164,7 @@ var listItems_SessionIdCell = function SessionIdCell(_ref5) {
   });
 
   return react_default.a.createElement(
-    GrvTableCell,
+    table_TableCell,
     props,
     react_default.a.createElement(
       layout.Flex,
@@ -9918,7 +10201,7 @@ var listItems_NodeCell = function NodeCell(_ref6) {
   var nodeDisplayText = data[rowIndex].nodeDisplayText;
 
   return react_default.a.createElement(
-    GrvTableCell,
+    table_TableCell,
     props,
     nodeDisplayText
   );
@@ -10183,7 +10466,7 @@ var sessionList_SessionList = function (_React$Component) {
       stored = this.sortAndFilter(stored);
       active = this.sortAndFilter(active);
 
-      // always display active sessions first    
+      // always display active sessions first
       var data = [].concat(sessionList_toConsumableArray(active), sessionList_toConsumableArray(stored));
       return react_default.a.createElement(
         'div',
@@ -10220,50 +10503,52 @@ var sessionList_SessionList = function (_React$Component) {
           'div',
           { className: 'grv-content' },
           data.length === 0 ? react_default.a.createElement(table_EmptyIndicator, { text: 'No matching sessions found' }) : react_default.a.createElement(
-            GrvTable,
-            { rowCount: data.length },
-            react_default.a.createElement(GrvTableColumn, {
+            table_Table,
+            {
+              data: data,
+              rowCount: data.length },
+            react_default.a.createElement(Column, {
               header: react_default.a.createElement(
-                GrvTableCell,
+                table_TableCell,
                 { className: 'grv-sessions-col-sid' },
                 ' Session ID '
               ),
-              cell: react_default.a.createElement(listItems_SessionIdCell, { canJoin: canJoin, data: data, container: this })
+              cell: react_default.a.createElement(listItems_SessionIdCell, { canJoin: canJoin, container: this })
             }),
-            react_default.a.createElement(GrvTableColumn, {
+            react_default.a.createElement(Column, {
               header: react_default.a.createElement(
-                GrvTableCell,
+                table_TableCell,
                 null,
                 ' User '
               ),
-              cell: react_default.a.createElement(listItems_UsersCell, { data: data })
+              cell: react_default.a.createElement(listItems_UsersCell, null)
             }),
-            react_default.a.createElement(GrvTableColumn, {
+            react_default.a.createElement(Column, {
               columnKey: 'nodeIp',
               header: react_default.a.createElement(
-                GrvTableCell,
+                table_TableCell,
                 { className: 'grv-sessions-stored-col-ip' },
                 'Node'
               ),
-              cell: react_default.a.createElement(listItems_NodeCell, { data: data })
+              cell: react_default.a.createElement(listItems_NodeCell, null)
             }),
-            react_default.a.createElement(GrvTableColumn, {
+            react_default.a.createElement(Column, {
               columnKey: 'created',
-              header: react_default.a.createElement(SortHeaderCell, {
+              header: react_default.a.createElement(table_SortHeaderCell, {
                 sortDir: this.state.colSortDirs.created,
                 onSortChange: this.onSortChange,
                 title: 'Created (UTC)'
               }),
-              cell: react_default.a.createElement(listItems_DateCreatedCell, { data: data })
+              cell: react_default.a.createElement(listItems_DateCreatedCell, null)
             }),
-            react_default.a.createElement(GrvTableColumn, {
+            react_default.a.createElement(Column, {
               columnKey: 'duration',
-              header: react_default.a.createElement(SortHeaderCell, {
+              header: react_default.a.createElement(table_SortHeaderCell, {
                 sortDir: this.state.colSortDirs.duration,
                 onSortChange: this.onSortChange,
                 title: 'Duration'
               }),
-              cell: react_default.a.createElement(listItems_DurationCell, { data: data })
+              cell: react_default.a.createElement(listItems_DurationCell, null)
             })
           )
         )
