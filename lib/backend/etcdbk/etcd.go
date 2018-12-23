@@ -245,39 +245,42 @@ func (b *EtcdBackend) Close() error {
 }
 
 func (b *EtcdBackend) reconnect() error {
-	clientCertPEM, err := ioutil.ReadFile(b.cfg.TLSCertFile)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	clientKeyPEM, err := ioutil.ReadFile(b.cfg.TLSKeyFile)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	caCertPEM, err := ioutil.ReadFile(b.cfg.TLSCAFile)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	tlsConfig := utils.TLSConfig(nil)
-	tlsCert, err := tls.X509KeyPair(clientCertPEM, clientKeyPEM)
-	if err != nil {
-		return trace.BadParameter("failed to parse private key: %v", err)
-	}
-	certPool := x509.NewCertPool()
-	parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
-	if err != nil {
-		return trace.Wrap(err, "failed to parse CA certificate")
-	}
-	certPool.AddCert(parsedCert)
-
-	tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	tlsConfig.RootCAs = certPool
-	tlsConfig.ClientCAs = certPool
-
-	clt, err := clientv3.New(clientv3.Config{
+	bClientConfig := clientv3.Config{
 		Endpoints:   b.nodes,
-		TLS:         tlsConfig,
 		DialTimeout: b.cfg.DialTimeout,
-	})
+	}
+	if b.cfg.Insecure == false {
+		tlsConfig := utils.TLSConfig(nil)
+		clientCertPEM, err := ioutil.ReadFile(b.cfg.TLSCertFile)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		clientKeyPEM, err := ioutil.ReadFile(b.cfg.TLSKeyFile)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		caCertPEM, err := ioutil.ReadFile(b.cfg.TLSCAFile)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		tlsCert, err := tls.X509KeyPair(clientCertPEM, clientKeyPEM)
+		if err != nil {
+			return trace.BadParameter("failed to parse private key: %v", err)
+		}
+		certPool := x509.NewCertPool()
+		parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
+		if err != nil {
+			return trace.Wrap(err, "failed to parse CA certificate")
+		}
+		certPool.AddCert(parsedCert)
+
+		tlsConfig.Certificates = []tls.Certificate{tlsCert}
+		tlsConfig.RootCAs = certPool
+		tlsConfig.ClientCAs = certPool
+		bClientConfig.TLS = tlsConfig
+	}
+
+	clt, err := clientv3.New(bClientConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
