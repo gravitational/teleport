@@ -17,21 +17,33 @@ limitations under the License.
 .grv-nodes{
 
   .grv-header{
-    align-items: center;       
+    align-items: center;
   }
 
   .grv-nodes-custom-login{
     padding: 2px;
-    input{      
-      border-radius: 0;      
+    input{
+      border-radius: 0;
     }
   }
 
+
   .grv-nodes-table{
+    .grv-nodes-table-login{
+      text-align: end;
+    }
+
      tbody > tr > td{
         vertical-align: middle;
      }
-          
+
+     .grv-table-paged-info{
+        float: right;
+        &:first-child {
+          margin-top: 20px;
+        }
+    }
+
     .grv-nodes-table-label{
       margin-right: 5px;
       max-width: 100%;
@@ -55,5 +67,5 @@ limitations under the License.
         font-size: 10px;
       }
     }
-  }  
+  }
 }

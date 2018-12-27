@@ -62,7 +62,7 @@ teleport:
   advertise_ip: $${LOCAL_IP}
   log:
     output: stderr
-    severity: DEBUG
+    severity: INFO
 
   data_dir: /var/lib/teleport
   storage:

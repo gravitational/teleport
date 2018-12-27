@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,19 +14,37 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var baseCfg = require('./webpack.base');
+const webpack = require('webpack');
+const baseCfg = require('./webpack.base');
 
-var config = {
-  //devtool: 'inline-source-map',
+const output = Object.assign({}, baseCfg.output, {
+  filename: '[name].js',
+  chunkFilename: '[name].js'
+});
+
+var cfg = {
+
+  mode: 'development',
+
+  output: output,
+
+  devtool: false,
+
   resolve: baseCfg.resolve,
+
   module: {
-    loaders: [
-      baseCfg.loaders.json,
-      { test: /\.(js|jsx)$/, exclude: /node_modules/, loader: 'babel' },
-      { test: /\.(svg|scss)$/, exclude: /node_modules/, loader: 'ignore-loader' }
+    noParse: baseCfg.noParse,
+    rules: [
+      baseCfg.rules.inlineStyle,
+      baseCfg.rules.svg,
+      baseCfg.rules.jsx({test: true}),
     ]
   },
-  plugins: [ baseCfg.plugins.testBuild ]
+
+  plugins:  [
+    baseCfg.plugins.extractAppCss,
+    new webpack.DefinePlugin({ 'process.env.NODE_ENV_TYPE': JSON.stringify('test') }),
+ ]
 };
 
-module.exports = config;
+module.exports = cfg;

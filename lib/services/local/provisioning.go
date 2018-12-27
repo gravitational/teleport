@@ -17,6 +17,7 @@ limitations under the License.
 package local
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -30,12 +31,12 @@ import (
 
 // ProvisioningService governs adding new nodes to the cluster
 type ProvisioningService struct {
-	backend backend.Backend
+	backend.Backend
 }
 
 // NewProvisioningService returns a new instance of provisioning service
 func NewProvisioningService(backend backend.Backend) *ProvisioningService {
-	return &ProvisioningService{backend}
+	return &ProvisioningService{Backend: backend}
 }
 
 // UpsertToken adds provisioning tokens for the auth server
@@ -48,12 +49,18 @@ func (s *ProvisioningService) UpsertToken(token string, roles teleport.Roles, tt
 		Expires: time.Now().UTC().Add(ttl),
 		Token:   token,
 	}
-	out, err := json.Marshal(t)
+	value, err := json.Marshal(t)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal([]string{"tokens"}, token, out, ttl)
+	item := backend.Item{
+		Key:     backend.Key(tokensPrefix, token),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(ttl),
+	}
+
+	_, err = s.Put(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -62,40 +69,47 @@ func (s *ProvisioningService) UpsertToken(token string, roles teleport.Roles, tt
 
 // GetToken finds and returns token by id
 func (s *ProvisioningService) GetToken(token string) (*services.ProvisionToken, error) {
-	out, err := s.backend.GetVal([]string{"tokens"}, token)
+	if token == "" {
+		return nil, trace.BadParameter("missing parameter token")
+	}
+	item, err := s.Get(context.TODO(), backend.Key(tokensPrefix, token))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var t *services.ProvisionToken
-	err = json.Unmarshal(out, &t)
+	var t services.ProvisionToken
+	err = json.Unmarshal(item.Value, &t)
 	if err != nil {
 		t.Token = token // for backwards compatibility with older tokens
 		return nil, trace.Wrap(err)
 	}
-	return t, nil
+	return &t, nil
 }
 
 func (s *ProvisioningService) DeleteToken(token string) error {
-	err := s.backend.DeleteKey([]string{"tokens"}, token)
-	return err
+	if token == "" {
+		return trace.BadParameter("missing parameter token")
+	}
+	err := s.Delete(context.TODO(), backend.Key(tokensPrefix, token))
+	return trace.Wrap(err)
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (s *ProvisioningService) GetTokens() (tokens []services.ProvisionToken, err error) {
-	keys, err := s.backend.GetKeys([]string{"tokens"})
+func (s *ProvisioningService) GetTokens() ([]services.ProvisionToken, error) {
+	startKey := backend.Key(tokensPrefix)
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
-		return tokens, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	for _, k := range keys {
-		tok, err := s.GetToken(k)
+	tokens := make([]services.ProvisionToken, len(result.Items))
+	for i, item := range result.Items {
+		var t services.ProvisionToken
+		err = json.Unmarshal(item.Value, &t)
 		if err != nil {
-			// token could have expired
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			continue
+			return nil, trace.Wrap(err)
 		}
-		tokens = append(tokens, *tok)
+		tokens[i] = t
 	}
 	return tokens, nil
 }
+
+const tokensPrefix = "tokens"

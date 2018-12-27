@@ -17,7 +17,11 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"time"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
 )
 
 // Presence records and reports the presence of all components
@@ -38,10 +42,13 @@ type Presence interface {
 
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
-	UpsertNode(server Server) error
+	UpsertNode(server Server) (*KeepAlive, error)
 
 	// UpsertNodes bulk inserts nodes.
 	UpsertNodes(namespace string, servers []Server) error
+
+	// KeepAliveNode updates node TTL in the storage
+	KeepAliveNode(ctx context.Context, h KeepAlive) error
 
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]Server, error)
@@ -156,4 +163,36 @@ type Site struct {
 	Name          string    `json:"name"`
 	LastConnected time.Time `json:"lastconnected"`
 	Status        string    `json:"status"`
+}
+
+// IsEmpty returns true if keepalive is empty,
+// used to indicate that keepalive is not supported
+func (s *KeepAlive) IsEmpty() bool {
+	return s.LeaseID == 0 && s.ServerName == ""
+}
+
+func (s *KeepAlive) CheckAndSetDefaults() error {
+	if s.IsEmpty() {
+		return trace.BadParameter("no lease ID or server name is specified")
+	}
+	if s.Namespace == "" {
+		s.Namespace = defaults.Namespace
+	}
+	return nil
+}
+
+// KeepAliver keeps object alive
+type KeepAliver interface {
+	// KeepAlives allows to receive keep alives
+	KeepAlives() chan<- KeepAlive
+
+	// Done returns the channel signalling the closure
+	Done() <-chan struct{}
+
+	// Close closes the watcher and releases
+	// all associated resources
+	Close() error
+
+	// Error returns error associated with keep aliver if any
+	Error() error
 }

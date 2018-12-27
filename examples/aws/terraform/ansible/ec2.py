@@ -95,7 +95,8 @@ def generate_ssh_cfg(cluster, ssh_key=None):
     bastion = ''
     for reservation in response['Reservations']:
         for instance in reservation['Instances']:
-            bastion = instance['PublicIpAddress']
+            if instance['State']['Code'] == 16: # code 16 = running
+                bastion = instance['PublicIpAddress']
     return ssh_cfg_template.format(bastion=bastion, ssh_key_path=ssh_key_path, identity_file=identity_file)
 
 if args.cluster is None:

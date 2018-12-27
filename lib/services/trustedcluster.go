@@ -227,15 +227,6 @@ func (r RoleMap) Check() error {
 	return trace.Wrap(err)
 }
 
-// RoleMappping provides mapping of remote roles to local roles
-// for trusted clusters
-type RoleMapping struct {
-	// Remote specifies remote role name to map from
-	Remote string `json:"remote"`
-	// Local specifies local roles to map to
-	Local []string `json:"local"`
-}
-
 // Equals checks if the two role mappings are equal.
 func (r RoleMapping) Equals(o RoleMapping) bool {
 	if r.Remote != o.Remote {
@@ -279,6 +270,16 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetResourceID returns resource ID
+func (c *TrustedClusterV2) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *TrustedClusterV2) SetResourceID(id int64) {
+	c.Metadata.ID = id
 }
 
 // CombinedMapping is used to specify combined mapping from legacy property Roles

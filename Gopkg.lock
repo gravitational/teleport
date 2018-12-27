@@ -56,7 +56,7 @@
   revision = "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a"
 
 [[projects]]
-  digest = "1:2b21b2231c48dc583476fe542fc32c0b533f8f0dfd3b829e36bd91173b5b5f7a"
+  digest = "1:b3d365f0c970ca096f9dff0bb7fb948fe14e97a29d60e61c2861919c8a484780"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -86,6 +86,7 @@
     "private/protocol/xml/xmlutil",
     "service/dynamodb",
     "service/dynamodb/dynamodbattribute",
+    "service/dynamodbstreams",
     "service/s3",
     "service/s3/s3iface",
     "service/s3/s3manager",
@@ -272,17 +273,18 @@
   revision = "811b1089cde9dad18d4d0c2d09fbdbf28dbd27a5"
 
 [[projects]]
-  digest = "1:acba7f3d06725b78c6999c2ba6c40b80539c10346fe37b4681072f1666c87d0c"
+  digest = "1:983cb7d70588854e2706e32c61698bbf0eab4956fca89e86c1c10d7213679a0e"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
     "proto",
     "protoc-gen-gogo/descriptor",
     "sortkeys",
+    "types",
   ]
   pruneopts = "NUT"
-  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
-  version = "v1.0.0"
+  revision = "636bf0302bc95575d69441b25a2603156ffdddf1"
+  version = "v1.1.1"
 
 [[projects]]
   branch = "master"
@@ -425,9 +427,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:d92cabdc7cfe96302f98b2fac7b0f1107ef9ab066708d45d6feaca39aeb4f6f3"
+  digest = "1:7fe2f0540c93189eb5c82b9dbd118d7f4f8ab9993101c3198ed6870bfadbf2e0"
   name = "github.com/gravitational/trace"
-  packages = ["."]
+  packages = [
+    ".",
+    "trail",
+  ]
   pruneopts = "NUT"
   revision = "3318e711adee0b3f48d3399ebf5aaddf329a2b4f"
   version = "1.1.5"
@@ -578,6 +583,14 @@
   ]
   pruneopts = "NUT"
   revision = "8b799c424f57fa123fc63a99d6383bc6e4c02578"
+
+[[projects]]
+  digest = "1:c9724c929d27a14475a45b17a267dbc60671c0bc2c5c05ed21f011f7b5bc9fb5"
+  name = "github.com/mattn/go-sqlite3"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "c7c4067b79cc51e6dfdcef5c702e74b1e0fa7c75"
+  version = "v1.10.0"
 
 [[projects]]
   digest = "1:fb04e8f83a0a1be6c248fb11e439edf7a1540da1eb903801d5e1c2047ce9f091"
@@ -1077,6 +1090,7 @@
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/dynamodb",
     "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute",
+    "github.com/aws/aws-sdk-go/service/dynamodbstreams",
     "github.com/aws/aws-sdk-go/service/s3",
     "github.com/aws/aws-sdk-go/service/s3/s3manager",
     "github.com/beevik/etree",
@@ -1084,6 +1098,7 @@
     "github.com/codahale/hdrhistogram",
     "github.com/coreos/etcd/clientv3",
     "github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes",
+    "github.com/coreos/etcd/mvcc/mvccpb",
     "github.com/coreos/go-oidc/jose",
     "github.com/coreos/go-oidc/oauth2",
     "github.com/coreos/go-oidc/oidc",
@@ -1091,9 +1106,12 @@
     "github.com/davecgh/go-spew/spew",
     "github.com/docker/docker/pkg/term",
     "github.com/ghodss/yaml",
+    "github.com/gogo/protobuf/gogoproto",
+    "github.com/gogo/protobuf/types",
     "github.com/gokyle/hotp",
     "github.com/golang/protobuf/proto",
     "github.com/golang/protobuf/ptypes/empty",
+    "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/google/gops/agent",
     "github.com/gravitational/configure/cstrings",
     "github.com/gravitational/configure/jsonschema",
@@ -1108,6 +1126,7 @@
     "github.com/gravitational/reporting/types",
     "github.com/gravitational/roundtrip",
     "github.com/gravitational/trace",
+    "github.com/gravitational/trace/trail",
     "github.com/gravitational/ttlmap",
     "github.com/jonboulle/clockwork",
     "github.com/json-iterator/go",
@@ -1118,6 +1137,7 @@
     "github.com/mailgun/lemma/secret",
     "github.com/mailgun/timetools",
     "github.com/mailgun/ttlmap",
+    "github.com/mattn/go-sqlite3",
     "github.com/pborman/uuid",
     "github.com/pquerna/otp",
     "github.com/pquerna/otp/totp",
@@ -1135,12 +1155,15 @@
     "golang.org/x/crypto/ssh/agent",
     "golang.org/x/crypto/ssh/terminal",
     "golang.org/x/net/context",
+    "golang.org/x/net/http2",
     "golang.org/x/net/proxy",
     "golang.org/x/net/websocket",
     "golang.org/x/text/encoding",
     "golang.org/x/text/encoding/unicode",
     "google.golang.org/grpc",
     "google.golang.org/grpc/codes",
+    "google.golang.org/grpc/credentials",
+    "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/status",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",

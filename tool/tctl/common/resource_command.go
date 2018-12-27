@@ -85,7 +85,7 @@ func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.C
 
 	g.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
 	g.getCmd.Arg("resource", "Resource spec: 'type/[name]'").SetValue(&g.ref)
-	g.getCmd.Flag("format", "Output format: 'yaml' or 'json'").Default(formatYAML).StringVar(&g.format)
+	g.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(formatYAML).StringVar(&g.format)
 	g.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&g.namespace)
 	g.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&g.withSecrets)
 

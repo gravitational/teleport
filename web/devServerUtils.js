@@ -24,7 +24,7 @@ module.exports = function expressModifyResponse(checkCallback, modifyCallback) {
     var checked = false;
     var buffers = [];
     var addBuffer = (chunk, encoding) => {
-      if (chunk === undefined) 
+      if (chunk === undefined)
         return;
       if (typeof chunk === 'string') {
         chunk = new Buffer(chunk, encoding);

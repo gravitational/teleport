@@ -34,7 +34,7 @@ type LicenseSuite struct {
 var _ = check.Suite(&LicenseSuite{})
 
 func (s *LicenseSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *LicenseSuite) TestUnmarshal(c *check.C) {

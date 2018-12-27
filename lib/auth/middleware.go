@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"golang.org/x/net/http2"
+
 	"github.com/gravitational/trace"
 )
 
@@ -95,11 +97,12 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		AccessPoint:   cfg.AccessPoint,
 		AcceptedUsage: cfg.AcceptedUsage,
 	}
-	authMiddleware.Wrap(NewAPIServer(&cfg.APIConfig))
+	authMiddleware.Wrap(NewGRPCServer(cfg.APIConfig))
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
+	cfg.TLS.NextProtos = []string{http2.NextProtoTLS}
 
 	server := &TLSServer{
 		TLSServerConfig: cfg,

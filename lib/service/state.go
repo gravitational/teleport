@@ -65,7 +65,7 @@ func (f *processState) Process(event Event) {
 	// If the current state is degraded, and a OK event has been
 	// received, change the state to recovering. If the current state is
 	// recovering and a OK events is received, if it's been longer
-	// than the recovery time (2 time the server heartbeat ttl), change
+	// than the recovery time (2 time the server keep alive ttl), change
 	// state to OK.
 	case TeleportOKEvent:
 		switch atomic.LoadInt64(&f.currentState) {
@@ -74,7 +74,7 @@ func (f *processState) Process(event Event) {
 			f.recoveryTime = f.process.Clock.Now()
 			f.process.Infof("Teleport is recovering from a degraded state.")
 		case stateRecovering:
-			if f.process.Clock.Now().Sub(f.recoveryTime) > defaults.ServerHeartbeatTTL*2 {
+			if f.process.Clock.Now().Sub(f.recoveryTime) > defaults.ServerKeepAliveTTL*2 {
 				atomic.StoreInt64(&f.currentState, stateOK)
 				f.process.Infof("Teleport has recovered from a degraded state.")
 			}

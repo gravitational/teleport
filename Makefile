@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=3.1.0-alpha.4
+VERSION=3.2.0-alpha.1
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -251,10 +251,9 @@ docker:
 enter:
 	make -C build.assets enter
 
-PROTOC_VER ?= 3.0.0
-GOGO_PROTO_TAG ?= v0.3
+PROTOC_VER ?= 3.6.1
+GOGO_PROTO_TAG ?= v1.1.1
 PLATFORM := linux-x86_64
-GRPC_API := lib/events
 BUILDBOX_TAG := teleport-grpc-buildbox:0.0.1
 
 # buildbox builds docker buildbox image used to compile binaries and generate GRPc stuff
@@ -276,7 +275,15 @@ grpc: buildbox
 buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
-	cd $(GRPC_API) && protoc -I=.:$$PROTO_INCLUDE \
+	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
+	cd lib/services && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
+	cd lib/auth/proto && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
     *.proto
 

@@ -21,8 +21,6 @@ import (
 	"net"
 	"time"
 
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -126,8 +124,8 @@ func (p *clusterPeers) DialAuthServer() (net.Conn, error) {
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (p *clusterPeers) Dial(from, to net.Addr, userAgent agent.Agent) (conn net.Conn, err error) {
-	return p.DialTCP(from, to)
+func (p *clusterPeers) Dial(params DialParams) (conn net.Conn, err error) {
+	return p.DialTCP(params.From, params.To)
 }
 
 func (p *clusterPeers) DialTCP(from, to net.Addr) (conn net.Conn, err error) {
@@ -189,7 +187,7 @@ func (s *clusterPeer) GetLastConnected() time.Time {
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (s *clusterPeer) Dial(from, to net.Addr) (conn net.Conn, err error) {
+func (s *clusterPeer) Dial(params DialParams) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy %v has not been discovered yet, try again later", s)
 }
 

@@ -1,4 +1,0 @@
-{
-  "presets" : ["es2015-loose", "react", "stage-1"],
-  "plugins": ["add-module-exports"]
-}

@@ -50,6 +50,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentTSH,
+})
+
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
 	// UserHost contains "[login]@hostname" argument to SSH command
@@ -288,17 +292,17 @@ func Run(args []string, underTest bool) {
 
 		select {
 		case sig := <-exitSignals:
-			logrus.Debugf("signal: %v", sig)
+			log.Debugf("signal: %v", sig)
 			cancel()
 		}
 	}()
 	cf.Context = ctx
 
 	if cf.Gops {
-		logrus.Debugf("starting gops agent")
+		log.Debugf("Starting gops agent.")
 		err = gops.Listen(&gops.Options{Addr: cf.GopsAddr})
 		if err != nil {
-			logrus.Warningf("failed to start gops agent %v", err)
+			log.Warningf("Failed to start gops agent %v.", err)
 		}
 	}
 
@@ -485,16 +489,25 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy
 func onLogout(cf *CLIConf) {
+	// Extract all clusters the user is currently logged into.
+	active, available, err := client.Status("", "")
+	if err != nil {
+		utils.FatalError(err)
+		return
+	}
+	profiles := append(available, active)
+
+	// Unlink the current profile.
 	client.UnlinkCurrentProfile()
 
-	// extract the proxy name
+	// Extract the proxy name.
 	proxyHost, _, err := net.SplitHostPort(cf.Proxy)
 	if err != nil {
 		proxyHost = cf.Proxy
 	}
 
 	switch {
-	// proxy and username for key to remove
+	// Proxy and username for key to remove.
 	case proxyHost != "" && cf.Username != "":
 		tc, err := makeClient(cf, true)
 		if err != nil {
@@ -512,8 +525,24 @@ func onLogout(cf *CLIConf) {
 			utils.FatalError(err)
 			return
 		}
+
+		// Get the address of the active Kubernetes proxy to find AuthInfos,
+		// Clusters, and Contexts in kubeconfig.
+		clusterName, _ := tc.KubeProxyHostPort()
+		if tc.SiteName != "" {
+			clusterName = fmt.Sprintf("%v.%v", tc.SiteName, clusterName)
+		}
+
+		// Remove Teleport related entries from kubeconfig.
+		log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", clusterName)
+		err = kubeclient.RemoveKubeconifg(tc, clusterName)
+		if err != nil {
+			utils.FatalError(err)
+			return
+		}
+
 		fmt.Printf("Logged out %v from %v.\n", cf.Username, proxyHost)
-	// remove all keys
+	// Remove all keys.
 	case proxyHost == "" && cf.Username == "":
 		// The makeClient function requires a proxy. However this value is not used
 		// because the user will be logged out from all proxies. Pass a dummy value
@@ -523,6 +552,16 @@ func onLogout(cf *CLIConf) {
 		if err != nil {
 			utils.FatalError(err)
 			return
+		}
+
+		// Remove Teleport related entries from kubeconfig for all clusters.
+		for _, profile := range profiles {
+			log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", profile.Cluster)
+			err = kubeclient.RemoveKubeconifg(tc, profile.Cluster)
+			if err != nil {
+				utils.FatalError(err)
+				return
+			}
 		}
 
 		// Remove all keys from disk and the running agent.
@@ -784,7 +823,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		logrus.Debugf("Extracted username %q from the identity file %v.", certUsername, cf.IdentityFileIn)
+		log.Debugf("Extracted username %q from the identity file %v.", certUsername, cf.IdentityFileIn)
 		c.Username = certUsername
 
 		identityAuth, err = authFromIdentity(key)
@@ -920,7 +959,7 @@ func refuseArgs(command string, args []string) {
 // If the "host auth callback" is not returned, user will be prompted to
 // trust the proxy server.
 func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
-	logrus.Infof("Reading identity file: %v", idFn)
+	log.Infof("Reading identity file: %v", idFn)
 
 	f, err := os.Open(idFn)
 	if err != nil {
@@ -966,7 +1005,7 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 	// -cert.pub prefix
 	if len(cert) == 0 {
 		certFn := idFn + "-cert.pub"
-		logrus.Infof("certificate not found in %s. looking in %s", idFn, certFn)
+		log.Infof("Certificate not found in %s. Looking in %s.", idFn, certFn)
 		cert, err = ioutil.ReadFile(certFn)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1007,7 +1046,7 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 				}
 			}
 			err = trace.AccessDenied("host %v is untrusted", host)
-			logrus.Error(err)
+			log.Error(err)
 			return err
 		}
 	}
