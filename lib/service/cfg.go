@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/legacy/dir"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/ghodss/yaml"
+	"github.com/jonboulle/clockwork"
 )
 
 // Config structure is used to initialize _all_ services Teleporot can run.
@@ -105,6 +106,9 @@ type Config struct {
 	// Presence service is a discovery and hearbeat tracker
 	Presence services.Presence
 
+	// Events is events service
+	Events services.Events
+
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
 
@@ -158,6 +162,12 @@ type Config struct {
 
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
+
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
+	CAPin string
+
+	// Clock is used to control time in tests.
+	Clock clockwork.Clock
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

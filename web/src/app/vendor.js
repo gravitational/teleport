@@ -16,19 +16,6 @@ limitations under the License.
 
 import 'jQuery';
 import 'perfect-scrollbar/jquery';
-import 'xterm/dist/xterm';
-import 'lodash';
 import 'bootstrap-sass/assets/javascripts/bootstrap';
 import './../assets/js/jquery-validate';
 import './../assets/js/datepicker';
-import 'buffer';
-import 'classnames';
-import 'moment';
-import 'nuclear-js';
-import 'react';
-import 'react-addons-transition-group';
-import 'react-addons-css-transition-group';
-import 'react-dom';
-import 'react-router';
-import 'react-slider';
-import 'react-overlays';

@@ -33,6 +33,9 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -48,16 +51,21 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
+	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentNode,
+})
 
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
 type Server struct {
 	sync.Mutex
+
+	*logrus.Entry
 
 	namespace string
 	addr      utils.NetAddr
@@ -89,8 +97,10 @@ type Server struct {
 	// this gets set to true for unit testing
 	isTestStub bool
 
-	// sets to true when the server needs to be stopped
-	closer *utils.CloseBroadcaster
+	// cancel cancels all operations
+	cancel context.CancelFunc
+	// ctx is broadcasting context closure
+	ctx context.Context
 
 	// alog points to the AuditLog this server uses to report
 	// auditable events
@@ -126,6 +136,10 @@ type Server struct {
 
 	// dataDir is a server local data directory
 	dataDir string
+
+	// heartbeat sends updates about this server
+	// back to auth server
+	heartbeat *srv.Heartbeat
 }
 
 // GetClock returns server clock implementation
@@ -188,8 +202,14 @@ type ServerOption func(s *Server) error
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
-	s.closer.Close()
+	s.cancel()
 	s.reg.Close()
+	if s.heartbeat != nil {
+		if err := s.heartbeat.Close(); err != nil {
+			s.Warningf("Failed to close heartbeat: %v", err)
+		}
+		s.heartbeat = nil
+	}
 	return s.srv.Close()
 }
 
@@ -197,8 +217,14 @@ func (s *Server) Close() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	// wait until connections drain off
 	err := s.srv.Shutdown(ctx)
-	s.closer.Close()
+	s.cancel()
 	s.reg.Close()
+	if s.heartbeat != nil {
+		if err := s.heartbeat.Close(); err != nil {
+			s.Warningf("Failed to close heartbeat: %v", err)
+		}
+		s.heartbeat = nil
+	}
 	return err
 }
 
@@ -207,7 +233,7 @@ func (s *Server) Start() error {
 	if len(s.getCommandLabels()) > 0 {
 		s.updateLabels()
 	}
-	go s.heartbeatPresence()
+	go s.heartbeat.Run()
 	return s.srv.Start()
 }
 
@@ -216,7 +242,7 @@ func (s *Server) Serve(l net.Listener) error {
 	if len(s.getCommandLabels()) > 0 {
 		s.updateLabels()
 	}
-	go s.heartbeatPresence()
+	go s.heartbeat.Run()
 	return s.srv.Serve(l)
 }
 
@@ -270,6 +296,9 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 func SetLabels(labels map[string]string,
 	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
+		// make sure to clone labels to avoid
+		// concurrent writes to the map during reloads
+		cmdLabels = cmdLabels.Clone()
 		for name, label := range cmdLabels {
 			if label.GetPeriod() < time.Second {
 				label.SetPeriod(time.Second)
@@ -277,7 +306,6 @@ func SetLabels(labels map[string]string,
 				log.Warningf("label period can't be less that 1 second. Period for label '%v' was set to 1 second", name)
 			}
 		}
-
 		s.labels = labels
 		s.cmdLabels = cmdLabels
 		return nil
@@ -296,6 +324,14 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 func SetAuditLog(alog events.IAuditLog) ServerOption {
 	return func(s *Server) error {
 		s.alog = alog
+		return nil
+	}
+}
+
+// SetUUID sets server unique ID
+func SetUUID(uuid string) ServerOption {
+	return func(s *Server) error {
+		s.uuid = uuid
 		return nil
 	}
 }
@@ -359,6 +395,7 @@ func New(addr utils.NetAddr,
 		return nil, trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.TODO())
 	s := &Server{
 		addr:            addr,
 		authService:     authService,
@@ -367,7 +404,8 @@ func New(addr utils.NetAddr,
 		advertiseIP:     advertiseIP,
 		proxyPublicAddr: proxyPublicAddr,
 		uuid:            uuid,
-		closer:          utils.NewCloseBroadcaster(),
+		cancel:          cancel,
+		ctx:             ctx,
 		clock:           clockwork.NewRealClock(),
 		dataDir:         dataDir,
 	}
@@ -398,6 +436,11 @@ func New(addr utils.NetAddr,
 		component = teleport.ComponentNode
 	}
 
+	s.Entry = logrus.WithFields(logrus.Fields{
+		trace.Component:       component,
+		trace.ComponentFields: logrus.Fields{},
+	})
+
 	s.reg, err = srv.NewSessionRegistry(s)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -405,9 +448,9 @@ func New(addr utils.NetAddr,
 
 	// add in common auth handlers
 	s.authHandlers = &srv.AuthHandlers{
-		Entry: log.WithFields(log.Fields{
+		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component:       component,
-			trace.ComponentFields: log.Fields{},
+			trace.ComponentFields: logrus.Fields{},
 		}),
 		Server:      s,
 		Component:   component,
@@ -433,6 +476,30 @@ func New(addr utils.NetAddr,
 		return nil, trace.Wrap(err)
 	}
 	s.srv = server
+
+	var heartbeatMode srv.HeartbeatMode
+	if s.proxyMode {
+		heartbeatMode = srv.HeartbeatModeProxy
+	} else {
+		heartbeatMode = srv.HeartbeatModeNode
+	}
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Mode:            heartbeatMode,
+		Context:         ctx,
+		Component:       component,
+		Announcer:       s.authService,
+		GetServerInfo:   s.getServerInfo,
+		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
+		ServerTTL:       defaults.ServerAnnounceTTL,
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		Clock:           s.clock,
+	})
+	if err != nil {
+		s.srv.Close()
+		return nil, trace.Wrap(err)
+	}
+	s.heartbeat = heartbeat
 	return s, nil
 }
 
@@ -520,8 +587,7 @@ func (s *Server) GetInfo() services.Server {
 	}
 }
 
-// registerServer attempts to register server in the cluster
-func (s *Server) registerServer() error {
+func (s *Server) getServerInfo() (services.Server, error) {
 	server := s.GetInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
@@ -533,35 +599,8 @@ func (s *Server) registerServer() error {
 			server.SetRotation(*rotation)
 		}
 	}
-	server.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
-	if !s.proxyMode {
-		return trace.Wrap(s.authService.UpsertNode(server))
-	}
-	server.SetPublicAddr(s.proxyPublicAddr.String())
-	return trace.Wrap(s.authService.UpsertProxy(server))
-}
-
-// heartbeatPresence periodically calls into the auth server to let everyone
-// know we're up & alive
-func (s *Server) heartbeatPresence() {
-	sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-	ticker := time.NewTicker(sleepTime)
-	defer ticker.Stop()
-
-	for {
-		if err := s.registerServer(); err != nil {
-			log.Warningf("failed to announce %v presence: %v", s.ID(), err)
-		}
-		select {
-		case <-ticker.C:
-			continue
-		case <-s.closer.C:
-			{
-				log.Debugf("server.heartbeatPresence() exited")
-				return
-			}
-		}
-	}
+	server.SetTTL(s.clock, defaults.ServerAnnounceTTL)
+	return server, nil
 }
 
 func (s *Server) updateLabels() {
@@ -588,9 +627,15 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 }
 
 func (s *Server) periodicUpdateLabel(name string, label services.CommandLabel) {
+	t := time.NewTicker(label.GetPeriod())
+	defer t.Stop()
 	for {
-		s.updateLabel(name, label)
-		time.Sleep(label.GetPeriod())
+		s.updateLabel(name, label.Clone())
+		select {
+		case <-t.C:
+		case <-s.ctx.Done():
+			return
+		}
 	}
 }
 
@@ -637,7 +682,7 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
 	if err := os.Chown(socketDir, uid, gid); err != nil {
 		if err := dirCloser.Close(); err != nil {
-			log.Warn("failed to remove directory: %v", err)
+			log.Warnf("failed to remove directory: %v", err)
 		}
 		return trace.ConvertSystemError(err)
 	}
@@ -652,7 +697,7 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	ctx.SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
 	ctx.AddCloser(agentServer)
 	ctx.AddCloser(dirCloser)
-	ctx.Debugf("[SSH:node] opened agent channel for teleport user %v and socket %v", ctx.Identity.TeleportUser, socketPath)
+	ctx.Debugf("Opened agent channel for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, socketPath)
 	go agentServer.Serve()
 
 	return nil
@@ -691,7 +736,7 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 		if r.WantReply {
 			r.Reply(false, nil)
 		}
-		log.Debugf("[SSH] Discarding %q global request: %+v", r.Type, r)
+		log.Debugf("Discarding %q global request: %+v", r.Type, r)
 	}
 }
 
@@ -705,7 +750,7 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 
 	channelType := nch.ChannelType()
 	if s.proxyMode {
-		// Channels of type "session" handle requests that are invovled in running
+		// Channels of type "session" handle requests that are involved in running
 		// commands on a server. In the case of proxy mode subsystem and agent
 		// forwarding requests occur over the "session" channel.
 		if channelType == "session" {
@@ -723,7 +768,7 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 	}
 
 	switch channelType {
-	// Channels of type "session" handle requests that are invovled in running
+	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case "session":
 		ch, requests, err := nch.Accept()
@@ -769,8 +814,8 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 	defer ctx.Debugf("direct-tcp closed")
 	defer ctx.Close()
 
-	srcAddr := fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
-	dstAddr := fmt.Sprintf("%v:%d", req.Host, req.Port)
+	srcAddr := net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
+	dstAddr := net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
 
 	// check if the role allows port forwarding for this user
 	err = s.authHandlers.CheckPortForward(dstAddr, ctx)
@@ -794,12 +839,12 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 			Stdout:      ioutil.Discard,
 		})
 		if err != nil {
-			ctx.Errorf("Unable to open PAM context for session: %v: %v", ctx.SessionID(), err)
+			ctx.Errorf("Unable to open PAM context for direct-tcpip request: %v.", err)
 			ch.Stderr().Write([]byte(err.Error()))
 			return
 		}
 
-		ctx.Debugf("Opening PAM context for session %v", ctx.SessionID())
+		ctx.Debugf("Opening PAM context for direct-tcpip request.")
 	}
 
 	conn, err := net.Dial("tcp", dstAddr)
@@ -837,10 +882,10 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 	if s.pamConfig.Enabled {
 		err = pamContext.Close()
 		if err != nil {
-			ctx.Errorf("Unable to close PAM context for session %v: %v.", ctx.SessionID(), err)
+			ctx.Errorf("Unable to close PAM context for direct-tcpip request: %v.", err)
 			return
 		}
-		ctx.Debugf("Closing PAM context for session %v.", ctx.SessionID())
+		ctx.Debugf("Closing PAM context for direct-tcpip request.")
 	}
 }
 
@@ -860,19 +905,44 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext sr
 	ctx.AddCloser(ch)
 	defer ctx.Close()
 
+	// Create a close context used to signal between the server and the
+	// keep-alive loop when to close th connection (from either side).
+	closeContext, closeCancel := context.WithCancel(context.Background())
+	defer closeCancel()
+
+	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
+	if err != nil {
+		log.Errorf("Unable to fetch cluster config: %v.", err)
+		ch.Stderr().Write([]byte("Unable to fetch cluster configuration."))
+		return
+	}
+
+	// The keep-alive loop will keep pinging the remote server and after it has
+	// missed a certain number of keep-alive requests it will cancel the
+	// closeContext which signals the server to shutdown.
+	go srv.StartKeepAliveLoop(srv.KeepAliveParams{
+		Conns: []srv.RequestSender{
+			sconn,
+		},
+		Interval:     clusterConfig.GetKeepAliveInterval(),
+		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
+		CloseContext: closeContext,
+		CloseCancel:  closeCancel,
+	})
+
 	for {
 		// update ctx with the session ID:
 		if !s.proxyMode {
 			err := ctx.CreateOrJoinSession(s.reg)
 			if err != nil {
 				errorMessage := fmt.Sprintf("unable to update context: %v", err)
-				ctx.Errorf("[SSH] %v", errorMessage)
+				ctx.Errorf("Unable to update context: %v.", errorMessage)
 
 				// write the error to channel and close it
 				ch.Stderr().Write([]byte(errorMessage))
 				_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
 				if err != nil {
-					ctx.Errorf("[SSH] failed to send exit status %v", errorMessage)
+					ctx.Errorf("Failed to send exit status %v.", errorMessage)
 				}
 				return
 			}
@@ -881,12 +951,12 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext sr
 		case creq := <-ctx.SubsystemResultCh:
 			// this means that subsystem has finished executing and
 			// want us to close session and the channel
-			ctx.Debugf("[SSH] close session request: %v", creq.Err)
+			ctx.Debugf("Close session request: %v.", creq.Err)
 			return
 		case req := <-in:
 			if req == nil {
 				// this will happen when the client closes/drops the connection
-				ctx.Debugf("[SSH] client %v disconnected", sconn.RemoteAddr())
+				ctx.Debugf("Client %v disconnected.", sconn.RemoteAddr())
 				return
 			}
 			if err := s.dispatch(ch, req, ctx); err != nil {
@@ -897,13 +967,18 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext sr
 				req.Reply(true, nil)
 			}
 		case result := <-ctx.ExecResultCh:
-			ctx.Debugf("[SSH] ctx.result = %v", result)
-			// this means that exec process has finished and delivered the execution result,
-			// we send it back and close the session
+			ctx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
+
+			// The exec process has finished and delivered the execution result, send
+			// the result back to the client, and close the session and channel.
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
 			if err != nil {
-				ctx.Infof("[SSH] %v failed to send exit status: %v", result.Command, err)
+				ctx.Infof("Failed to send exit status for %v: %v", result.Command, err)
 			}
+
+			return
+		case <-closeContext.Done():
+			log.Debugf("Closing session due to missed heartbeat.")
 			return
 		}
 	}
@@ -912,9 +987,10 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext sr
 // dispatch receives an SSH request for a subsystem and disptaches the request to the
 // appropriate subsystem implementation
 func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	ctx.Debugf("[SSH] ssh.dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
-	// if this SSH server is configured to only proxy, we do not support anything other
-	// than our own custom "subsystems" and environment manipulation
+	ctx.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
+
+	// If this SSH server is configured to only proxy, we do not support anything
+	// other than our own custom "subsystems" and environment manipulation.
 	if s.proxyMode {
 		switch req.Type {
 		case sshutils.SubsystemRequest:
@@ -1035,20 +1111,20 @@ func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContex
 func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
 	sb, err := s.parseSubsystemRequest(req, ctx)
 	if err != nil {
-		ctx.Warnf("[SSH] %v failed to parse subsystem request: %v", err)
+		ctx.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
 		return trace.Wrap(err)
 	}
-	ctx.Debugf("[SSH] subsystem request: %v", sb)
+	ctx.Debugf("Subsystem request: %v.", sb)
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
 	if err := sb.Start(ctx.Conn, ch, req, ctx); err != nil {
-		ctx.Warnf("[SSH] failed executing request: %v", err)
+		ctx.Warnf("Subsystem request %v failed: %v.", sb, err)
 		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 		return trace.Wrap(err)
 	}
 	go func() {
 		err := sb.Wait()
-		log.Debugf("[SSH] %v finished with result: %v", sb, err)
+		log.Debugf("Subsystem %v finished with result: %v.", sb, err)
 		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 	}()
 	return nil
@@ -1068,18 +1144,18 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCont
 
 // handleKeepAlive accepts and replies to keepalive@openssh.com requests.
 func (s *Server) handleKeepAlive(req *ssh.Request) {
-	log.Debugf("[KEEP ALIVE] Received %q: WantReply: %v", req.Type, req.WantReply)
+	log.Debugf("Received %q: WantReply: %v", req.Type, req.WantReply)
 
 	// only reply if the sender actually wants a response
 	if req.WantReply {
 		err := req.Reply(true, nil)
 		if err != nil {
-			log.Warnf("[KEEP ALIVE] Unable to reply to %q request: %v", req.Type, err)
+			log.Warnf("Unable to reply to %q request: %v", req.Type, err)
 			return
 		}
 	}
 
-	log.Debugf("[KEEP ALIVE] Replied to %q", req.Type)
+	log.Debugf("Replied to %q", req.Type)
 }
 
 // handleRecordingProxy responds to global out-of-band with a bool which

@@ -212,6 +212,14 @@ const (
 
 	// CSRSignTimeout is a default timeout for CSR request to be processed by K8s
 	CSRSignTimeout = 30 * time.Second
+
+	// Localhost is the address of localhost. Used for the default binding
+	// address for port forwarding.
+	Localhost = "127.0.0.1"
+
+	// AnyAddress is used to refer to the non-routable meta-address used to
+	// refer to all addresses on the machine.
+	AnyAddress = "0.0.0.0"
 )
 
 var (
@@ -222,11 +230,15 @@ var (
 	// after which we are going to declare the reverse tunnel offline
 	ReverseTunnelOfflineThreshold = 5 * ReverseTunnelAgentHeartbeatPeriod
 
-	// ServerHeartbeatTTL is a period between heartbeats
+	// ServerAnnounceTTL is a period between heartbeats
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
-	ServerHeartbeatTTL = 90 * time.Second
+	ServerAnnounceTTL = 600 * time.Second
+
+	// ServerKeepAliveTTL is a period between server keep alives,
+	// when servers announce only presence withough sending full data
+	ServerKeepAliveTTL = 60 * time.Second
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
@@ -264,6 +276,22 @@ var (
 
 	// HighResPollingPeriod is a default high resolution polling period
 	HighResPollingPeriod = 10 * time.Second
+
+	// HeartbeatCheckPeriod is a period between heartbeat status checks
+	HeartbeatCheckPeriod = 5 * time.Second
+
+	// LowResPollingPeriod is a default low resolution polling period
+	LowResPollingPeriod = 600 * time.Second
+
+	// KeepAliveInterval is interval at which Teleport will send keep-alive
+	// messages to the client. The interval of 15 minutes mirrors
+	// ClientAliveInterval of sshd.
+	KeepAliveInterval = 15 * time.Minute
+
+	// KeepAliveCountMax is the number of keep-alive messages that can be sent
+	// without receiving a response from the client before the client is
+	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
+	KeepAliveCountMax = 3
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

@@ -59,9 +59,10 @@ import (
 )
 
 const (
-	Host   = "localhost"
-	HostID = "00000000-0000-0000-0000-000000000000"
-	Site   = "local-site"
+	Loopback = "127.0.0.1"
+	Host     = "localhost"
+	HostID   = "00000000-0000-0000-0000-000000000000"
+	Site     = "local-site"
 
 	AllocatePortsNum = 300
 )
@@ -354,7 +355,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			time.Sleep(time.Millisecond * 250)
 			if i >= 5 {
 				// session stream keeps coming back short
-				c.Fatal("stream is not getting data: %q", string(sessionStream))
+				c.Fatalf("Stream is not getting data: %q.", string(sessionStream))
 			}
 		}
 
@@ -1173,7 +1174,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 	}
 
 	cmd := []string{"echo", "hello world"}
-	tc, err := b.NewClient(ClientConfig{Login: username, Cluster: "cluster-a", Host: "127.0.0.1", Port: sshPort})
+	tc, err := b.NewClient(ClientConfig{Login: username, Cluster: "cluster-a", Host: Loopback, Port: sshPort})
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -1256,7 +1257,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role, backend.Forever)
+	err = aux.Process.GetAuthServer().UpsertRole(role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
@@ -1309,12 +1310,19 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	// Make sure that GetNodes returns nodes in the remote site. This makes
 	// sure identity aware GetNodes works for remote clusters. Testing of the
 	// correct nodes that identity aware GetNodes is done in TestList.
-	nodes, err := aux.Process.GetAuthServer().GetNodes(defaults.Namespace, services.SkipValidation())
-	c.Assert(err, check.IsNil)
+	var nodes []services.Server
+	for i := 0; i < 10; i++ {
+		nodes, err = aux.Process.GetAuthServer().GetNodes(defaults.Namespace, services.SkipValidation())
+		c.Assert(err, check.IsNil)
+		if len(nodes) != 2 {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+	}
 	c.Assert(nodes, check.HasLen, 2)
 
 	cmd := []string{"echo", "hello world"}
-	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: clusterAux, Host: "127.0.0.1", Port: sshPort})
+	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: clusterAux, Host: Loopback, Port: sshPort})
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -1468,7 +1476,7 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role, backend.Forever)
+	err = aux.Process.GetAuthServer().UpsertRole(role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
@@ -1519,7 +1527,7 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	}
 
 	cmd := []string{"echo", "hello world"}
-	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: clusterAux, Host: "127.0.0.1", Port: sshPort})
+	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: clusterAux, Host: Loopback, Port: sshPort})
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -1601,7 +1609,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	username := s.me.Username
 
 	// create load balancer for main cluster proxies
-	frontend := *utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", s.getPorts(1)[0]))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(s.getPorts(1)[0])))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	c.Assert(err, check.IsNil)
 	c.Assert(lb.Listen(), check.IsNil)
@@ -1647,7 +1655,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// add second proxy as a backend to the load balancer
-	lb.AddBackend(*utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", proxyReverseTunnelPort)))
+	lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
 
 	// At this point the remote cluster should be connected to two proxies in
 	// the main cluster.
@@ -1657,7 +1665,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	cfg := ClientConfig{
 		Login:   username,
 		Cluster: "cluster-remote",
-		Host:    "127.0.0.1",
+		Host:    Loopback,
 		Port:    remote.GetPortSSHInt(),
 	}
 	output, err := runCommand(main, []string{"echo", "hello world"}, cfg, 1)
@@ -1671,7 +1679,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	cfgProxy := ClientConfig{
 		Login:   username,
 		Cluster: "cluster-remote",
-		Host:    "127.0.0.1",
+		Host:    Loopback,
 		Port:    remote.GetPortSSHInt(),
 		Proxy:   &proxyConfig,
 	}
@@ -1696,7 +1704,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	// attempt to allow the discovery request to be received and the connection
 	// added to the agent pool.
 	lb.AddBackend(mainProxyAddr)
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 20)
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 40)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 
@@ -2093,7 +2101,7 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 	case <-endCh:
 	}
 
-	// audit log should have the fact that the session occured recorded in it
+	// audit log should have the fact that the session occurred recorded in it
 	sessions, err = site.GetSessions(defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(sessions), check.Equals, 1)
@@ -2299,7 +2307,7 @@ func (s *IntSuite) rotateSuccess(c *check.C) {
 
 	cfg := ClientConfig{
 		Login: s.me.Username,
-		Host:  "127.0.0.1",
+		Host:  Loopback,
 		Port:  t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
@@ -2438,7 +2446,7 @@ func (s *IntSuite) rotateRollback(c *check.C) {
 
 	cfg := ClientConfig{
 		Login: s.me.Username,
-		Host:  "127.0.0.1",
+		Host:  Loopback,
 		Port:  t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
@@ -2563,7 +2571,7 @@ func (s *IntSuite) rotateTrustedClusters(c *check.C) {
 	err = SetupUser(svc, s.me.Username, []services.Role{role})
 	c.Assert(err, check.IsNil)
 
-	// create auxillary cluster and setup trust
+	// create auxiliary cluster and setup trust
 	c.Assert(aux.CreateEx(nil, rotationConfig(false)), check.IsNil)
 
 	// auxiliary cluster has a role aux-devs
@@ -2577,7 +2585,7 @@ func (s *IntSuite) rotateTrustedClusters(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role, backend.Forever)
+	err = aux.Process.GetAuthServer().UpsertRole(role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = svc.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
@@ -2614,7 +2622,7 @@ func (s *IntSuite) rotateTrustedClusters(c *check.C) {
 	// credentials should work
 	cfg := ClientConfig{
 		Login:   s.me.Username,
-		Host:    "127.0.0.1",
+		Host:    Loopback,
 		Cluster: clusterAux,
 		Port:    aux.GetPortSSHInt(),
 	}
@@ -2907,7 +2915,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 	}
 
 	// waitForOutput checks the output of the passed in terminal of a string until
-	// some timeout has occured.
+	// some timeout has occurred.
 	waitForOutput := func(t Terminal, s string) error {
 		tickerCh := time.Tick(500 * time.Millisecond)
 		timeoutCh := time.After(30 * time.Second)
@@ -3131,11 +3139,11 @@ func (s *IntSuite) TestMultipleSignup(c *check.C) {
 		c.Assert(err, check.IsNil)
 
 		// Render the signup page.
-		_, err = clt.Get(clt.Endpoint("webapi", "users", "invites", token), url.Values{})
+		_, err = clt.Get(context.Background(), clt.Endpoint("webapi", "users", "invites", token), url.Values{})
 		c.Assert(err, check.IsNil)
 
 		// Make sure signup is successful.
-		_, err = clt.PostJSON(clt.Endpoint("webapi", "users"), createNewUserReq{
+		_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "users"), createNewUserReq{
 			InviteToken: token,
 			Pass:        "fake-password-123",
 		})

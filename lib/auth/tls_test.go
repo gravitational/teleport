@@ -22,9 +22,11 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
+	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -46,18 +48,21 @@ import (
 )
 
 type TLSSuite struct {
-	server *TestTLSServer
+	dataDir string
+	server  *TestTLSServer
 }
 
 var _ = check.Suite(&TLSSuite{})
 
 func (s *TLSSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *TLSSuite) SetUpTest(c *check.C) {
+	s.dataDir = c.MkDir()
+
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir: c.MkDir(),
+		Dir: s.dataDir,
 	})
 	c.Assert(err, check.IsNil)
 	s.server, err = testAuthServer.NewTestTLSServer()
@@ -1219,7 +1224,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	roleOptions := userRole.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
 	userRole.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(userRole, backend.Forever)
+	err = s.server.Auth().UpsertRole(userRole)
 	c.Assert(err, check.IsNil)
 
 	cert, err = adminClient.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
@@ -1283,7 +1288,7 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 		roleOptions := userRole.GetOptions()
 		roleOptions.CertificateFormat = tt.inRoleCertificateFormat
 		userRole.SetOptions(roleOptions)
-		err := s.server.Auth().UpsertRole(userRole, backend.Forever)
+		err := s.server.Auth().UpsertRole(userRole)
 		c.Assert(err, check.IsNil)
 
 		proxyClient, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
@@ -1592,4 +1597,280 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 		_, err = client.GetDomainName()
 		c.Assert(err, check.IsNil)
 	}
+}
+
+// TestRegisterCAPin makes sure that registration only works with a valid
+// CA pin.
+func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
+	// Generate a token to use.
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(GenerateTokenRequest{
+		Roles: teleport.Roles{
+			teleport.RoleProxy,
+		},
+		TTL: time.Hour,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Generate public and private keys for node.
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	privateKey, err := ssh.ParseRawPrivateKey(priv)
+	c.Assert(err, check.IsNil)
+	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
+	c.Assert(err, check.IsNil)
+
+	// Calculate what CA pin should be.
+	hostCA, err := s.server.AuthServer.AuthServer.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.AuthServer.ClusterName,
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := hostCA.TLSCA()
+	c.Assert(err, check.IsNil)
+	caPin := utils.CalculateSKPI(tlsCA.Cert)
+
+	// Attempt to register with valid CA pin, should work.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     teleport.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+		CAPin:                caPin,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Attempt to register with invalid CA pin, should fail.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     teleport.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+		CAPin:                "sha256:123",
+	})
+	c.Assert(err, check.NotNil)
+}
+
+// TestRegisterCAPath makes sure registration only works with a valid CA
+// file on disk.
+func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
+	// Generate a token to use.
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(GenerateTokenRequest{
+		Roles: teleport.Roles{
+			teleport.RoleProxy,
+		},
+		TTL: time.Hour,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Generate public and private keys for node.
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	privateKey, err := ssh.ParseRawPrivateKey(priv)
+	c.Assert(err, check.IsNil)
+	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
+	c.Assert(err, check.IsNil)
+
+	// Attempt to register with nothing at the CA path, should work.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     teleport.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Extract the root CA public key and write it out to the data dir.
+	hostCA, err := s.server.AuthServer.AuthServer.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.AuthServer.ClusterName,
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := hostCA.TLSCA()
+	c.Assert(err, check.IsNil)
+	tlsBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
+	c.Assert(err, check.IsNil)
+	caPath := filepath.Join(s.dataDir, defaults.CACertFile)
+	err = ioutil.WriteFile(caPath, tlsBytes, teleport.FileMaskOwnerOnly)
+	c.Assert(err, check.IsNil)
+
+	// Attempt to register with valid CA path, should work.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     teleport.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+		CAPath:               caPath,
+	})
+	c.Assert(err, check.IsNil)
+}
+
+// TestStreamNodePresence tests streaming node presence API -
+// announcing node and keeping node alive
+func (s *TLSSuite) TestStreamNodePresence(c *check.C) {
+	node := &services.ServerV2{
+		Kind:    services.KindNode,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      "node1",
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.ServerSpecV2{
+			Addr: "localhost:3022",
+		},
+	}
+	node.SetExpiry(time.Now().Add(2 * time.Second))
+	clt, err := s.server.NewClient(TestIdentity{
+		I: BuiltinRole{
+			Role:     teleport.RoleNode,
+			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, s.server.ClusterName()),
+		},
+	})
+	c.Assert(err, check.IsNil)
+	defer clt.Close()
+
+	keepAlive, err := clt.UpsertNode(node)
+	c.Assert(err, check.IsNil)
+	c.Assert(keepAlive, check.NotNil)
+
+	ctx := context.TODO()
+	keepAliver, err := clt.NewKeepAliver(ctx)
+	c.Assert(err, check.IsNil)
+	defer keepAliver.Close()
+
+	keepAlive.Expires = time.Now().Add(2 * time.Second)
+	select {
+	case keepAliver.KeepAlives() <- *keepAlive:
+		// ok
+	case <-time.After(time.Second):
+		c.Fatalf("time out sending keep ailve")
+	case <-keepAliver.Done():
+		c.Fatalf("unknown problem sending keep ailve")
+	}
+
+	// upsert node and keep alives will fail for users with no privileges
+	nopClt, err := s.server.NewClient(TestBuiltin(teleport.RoleNop))
+	c.Assert(err, check.IsNil)
+	defer nopClt.Close()
+
+	_, err = nopClt.UpsertNode(node)
+	fixtures.ExpectAccessDenied(c, err)
+
+	k2, err := nopClt.NewKeepAliver(ctx)
+	c.Assert(err, check.IsNil)
+
+	keepAlive.Expires = time.Now().Add(2 * time.Second)
+	go func() {
+		select {
+		case k2.KeepAlives() <- *keepAlive:
+		case <-k2.Done():
+		}
+	}()
+
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("time out expecting error")
+	case <-k2.Done():
+	}
+
+	fixtures.ExpectAccessDenied(c, k2.Error())
+}
+
+// TestStreamEvents tests streaming of events
+func (s *TLSSuite) TestStreamEvents(c *check.C) {
+	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleNode))
+	c.Assert(err, check.IsNil)
+	defer clt.Close()
+
+	ctx := context.TODO()
+	w, err := clt.NewWatcher(ctx, services.Watch{Kinds: []string{services.KindCertAuthority}})
+	c.Assert(err, check.IsNil)
+	defer w.Close()
+
+	// start rotation
+	gracePeriod := time.Hour
+	err = s.server.Auth().RotateCertAuthority(RotateRequest{
+		Type:        services.HostCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: services.RotationPhaseInit,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	ca, err := s.server.Auth().GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+
+	timeoutC := time.After(3 * time.Second)
+waitLoop:
+	for {
+		select {
+		case <-timeoutC:
+			c.Fatalf("Timeout waiting for event")
+		case event := <-w.Events():
+			if event.Type != backend.OpPut {
+				log.Debugf("Skipping stale event %v", event)
+				continue waitLoop
+			}
+			if ca.GetResourceID() > event.Resource.GetResourceID() {
+				log.Debugf("Skipping stale event %v, latest object version is %v", event.Resource.GetResourceID(), ca.GetResourceID())
+				continue waitLoop
+			}
+			fixtures.DeepCompare(c, ca, event.Resource)
+			break waitLoop
+		}
+	}
+
+	// nop roles user is not authorized to watch events
+	nopClt, err := s.server.NewClient(TestBuiltin(teleport.RoleNop))
+	c.Assert(err, check.IsNil)
+	defer nopClt.Close()
+
+	w2, err := nopClt.NewWatcher(ctx, services.Watch{Kinds: []string{services.KindCertAuthority}})
+	c.Assert(err, check.IsNil)
+	defer w2.Close()
+
+	go func() {
+		select {
+		case <-w2.Events():
+		case <-w2.Done():
+		}
+	}()
+
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("time out expecting error")
+	case <-w2.Done():
+	}
+
+	fixtures.ExpectAccessDenied(c, w2.Error())
 }

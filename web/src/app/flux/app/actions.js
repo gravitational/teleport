@@ -51,13 +51,6 @@ export function initApp(siteId, featureActivator) {
     })
 }
 
-export function refresh() {
-  return $.when(
-    fetchActiveSessions(),
-    fetchNodes()
-  )
-}
-
 export function fetchInitData(siteId) {
   return $.when(fetchSites(), fetchUserContext())
     .then(masterSiteId => {
@@ -70,15 +63,10 @@ export function fetchInitData(siteId) {
 export function fetchSites(){
   return api.get(cfg.api.sitesBasePath)
     .then(json => {
-      let masterSiteId = null;
-      let sites = json.sites;
-      if (sites) {
-        masterSiteId = sites[0].name;
-      }
-
-      reactor.dispatch(RECEIVE_CLUSTERS, sites);
-
-      return masterSiteId;
+      const trusted = json.trusted || [];
+      const allClusters = [json.current, ...trusted];
+      reactor.dispatch(RECEIVE_CLUSTERS, allClusters);
+      return json.current.name;
   })
   .fail(err => {
     logger.error('fetchSites', err);

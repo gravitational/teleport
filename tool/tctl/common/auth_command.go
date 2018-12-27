@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -216,7 +217,7 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys() error {
-	keygen, err := native.New(native.PrecomputeKeys(0))
+	keygen, err := native.New(context.TODO(), native.PrecomputeKeys(0))
 	if err != nil {
 		return trace.Wrap(err)
 	}

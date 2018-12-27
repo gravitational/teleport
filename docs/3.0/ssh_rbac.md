@@ -9,7 +9,7 @@ SSH into staging servers as guests"_
 
 RBAC is almost always used in conjunction with
 Signle Sign-On ([SSO](https://en.wikipedia.org/wiki/Single_sign-on)) but it also works with
-users stored in Teleport's internal database. 
+users stored in Teleport's internal database.
 
 ### How does it work?
 
@@ -20,7 +20,7 @@ would look like this:
 1. Configure Teleport to use existing user identities stored in Okta.
 2. Okta would have users placed in certain groups, perhaps "developers", "admins", "contractors", etc.
 3. Teleport would have certain _Teleport roles_ defined. For example: "developers" and "admins".
-4. Mappings would connect the Okta groups (SAML assertions) to the Teleport roles. 
+4. Mappings would connect the Okta groups (SAML assertions) to the Teleport roles.
    Every Teleport user will be assigned a _Teleport role_ based on their Okta
    group membership.
 
@@ -41,7 +41,7 @@ Some of the permissions a role could define include:
 * Ability to update cluster configuration.
 * Which UNIX logins a user is allowed to use when logging into servers.
 
-A Teleport `role` works by having two lists of rules: `allow` rules and `deny` rules. 
+A Teleport `role` works by having two lists of rules: `allow` rules and `deny` rules.
 When declaring access rules, keep in mind the following:
 
 * Everything is denied by default.
@@ -51,7 +51,7 @@ A rule consists of two parts: the resources and verbs. Here's an example of an
 `allow` rule describing a `list` verb applied to the SSH `sessions` resource.  It means "allow
 users of this role to see a list of active SSH sessions".
 
-```bash
+```yaml
 allow:
     - resources: [session]
       verbs: [list]
@@ -60,19 +60,19 @@ allow:
 If this rule was declared in `deny` section of a role definition, it effectively
 prohibits users from getting a list of trusted clusters and sessions. You can see
 all of the available resources and verbs under the `allow` section in the `admin` role configuration
-below. 
+below.
 
 To manage cluster roles, a Teleport administrator can use the Web UI or the command
 line using [tctl resource commands](admin-guide#resources). To see the list of
 roles in a Teleport cluster, an administrator can execute:
 
-```bash
+```bsh
 $ tctl get roles
 ```
 
 By default there is always one role called `admin` which looks like this:
 
-```bash
+```yaml
 kind: role
 version: v3
 metadata:
@@ -80,19 +80,19 @@ metadata:
 spec:
   # SSH options used for user sessions with default values:
   options:
-    # max_session_ttl defines the TTL (time to live) of SSH certificates 
+    # max_session_ttl defines the TTL (time to live) of SSH certificates
     # issued to the users with this role.
     max_session_ttl: 8h
     # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
     # port_forwarding controls whether TCP port forwarding is allowed
     port_forwarding: true
-    # determines if SSH sessions to cluster nodes are forcefully terminated 
-    # after no activity from a client (idle client). it overrides the global 
+    # determines if SSH sessions to cluster nodes are forcefully terminated
+    # after no activity from a client (idle client). it overrides the global
     # cluster setting. examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
     # determines if the clients will be forcefully disconnected when their
-    # certificates expire in the middle of an active SSH session. 
+    # certificates expire in the middle of an active SSH session.
     # it overrides the global cluster setting.
     disconnect_expired_cert: no
 
@@ -102,14 +102,17 @@ spec:
     # logins array defines the OS/UNIX logins a user is allowed to use.
     # a few special variables are supported here (see below)
     logins: [root, '{{internal.logins}}']
-    # if kubernetes integration is enabled, this setting configures which 
+    # if kubernetes integration is enabled, this setting configures which
     # kubernetes groups the users of this role will be assigned to.
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
     kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
 
-    # node labels that a user can connect to. The wildcard ('*') means "any node"
+    # list of node labels a user will be allowed to connect to:
     node_labels:
+      # a user can only connect to a node marked with 'test' label:
+      'environment': 'test'
+      # the wildcard ('*') means "any node"
       '*': '*'
 
     # list of allow-rules. see below for more information.
@@ -156,8 +159,8 @@ Option                    | Description                          | Multi-role be
 ## RBAC for Hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
-This works by [labeling nodes](admin-guide/#labeling-nodes) and listing 
-allow/deny labels in a role definition. 
+This works by [labeling nodes](admin-guide/#labeling-nodes) and listing
+allow/deny labels in a role definition.
 
 Consider the following use case:
 
@@ -173,7 +176,7 @@ also have "workload=database" (these will always be denied).
 
 Access to any other nodes will be denied:
 
-```bash
+```yaml
 kind: role
 version: v3
 metadata:
@@ -201,7 +204,7 @@ spec:
 As shown in the role example above, a Teleport administrator can restrict
 access to user sessions using the following rule:
 
-```bash
+```yaml
 rules:
   - resources: [session]
     verbs: [list, read]
@@ -221,7 +224,7 @@ be able to replay a session using `tsh play` if they know the session ID)
 
 **A:** In this case, the access will be granted only if **all of the labels**
 defined in the role are present. This effectively means Teleport uses an "AND"
-operator when evaluating node-level access using labels. 
+operator when evaluating node-level access using labels.
 
 **Q:** Can I use node-level RBAC with OpenSSH servers?
 

@@ -62,7 +62,7 @@ teleport:
   advertise_ip: $${LOCAL_IP}
   log:
     output: stderr
-    severity: DEBUG
+    severity: INFO
 
   data_dir: /var/lib/teleport
   storage:
@@ -206,7 +206,7 @@ systemctl start teleport-ssm-publish-tokens.timer
 # Install certbot to rotate certificates
 # Certbot is a tool to request letsencrypt certificates,
 # remove it if you don't need letsencrypt.
-pip install certbot==0.21.0 certbot-dns-route53==0.21.0
+pip install certbot==0.28.0 certbot-dns-route53==0.28.0 requests==2.20
 
 # This script uses DNS-01 challenge, which means that you
 # have to control route53 zone as it modifes zone records

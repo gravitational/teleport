@@ -17,9 +17,11 @@ limitations under the License.
 package etcdbk
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
@@ -27,27 +29,23 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/gravitational/trace"
-	"golang.org/x/net/context"
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
-func TestEtcd(t *testing.T) { TestingT(t) }
+func TestEtcd(t *testing.T) { check.TestingT(t) }
 
 type EtcdSuite struct {
-	bk       *bk
-	suite    test.BackendSuite
-	client   *clientv3.Client
-	changesC chan interface{}
-	key      string
-	stopC    chan bool
-	config   backend.Params
-	skip     bool
+	bk     *EtcdBackend
+	suite  test.BackendSuite
+	client *clientv3.Client
+	config backend.Params
+	skip   bool
 }
 
-var _ = Suite(&EtcdSuite{})
+var _ = check.Suite(&EtcdSuite{})
 
-func (s *EtcdSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
+func (s *EtcdSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests(testing.Verbose())
 
 	// this config must match examples/etcd/teleport.yaml
 	s.config = backend.Params{
@@ -56,31 +54,29 @@ func (s *EtcdSuite) SetUpSuite(c *C) {
 		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
 		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
 		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
+		"dial_timeout":  500 * time.Millisecond,
 	}
-}
 
-func (s *EtcdSuite) SetUpTest(c *C) {
-	if s.skip {
-		fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
-		c.Skip("Etcd is not avialable")
+	newBackend := func() (backend.Backend, error) {
+		return New(context.Background(), s.config)
 	}
+	s.suite.NewBackend = newBackend
 	// Initiate a backend with a registry
-	raw, err := New(s.config)
-	c.Assert(err, IsNil)
+	b, err := newBackend()
+	if err != nil {
+		if strings.Contains(err.Error(), "connection refused") {
+			fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
+			s.skip = true
+			c.Skip(err.Error())
+		}
+		c.Assert(err, check.IsNil)
+	}
+	c.Assert(err, check.IsNil)
+	s.bk = b.(*EtcdBackend)
+	s.suite.B = s.bk
 
-	sb, ok := raw.(*backend.Sanitizer)
-	c.Assert(ok, Equals, true)
-
-	s.bk = sb.Backend().(*bk)
-	s.suite.B = raw
-	s.client = s.bk.client
-	s.changesC = make(chan interface{})
-	s.stopC = make(chan bool)
-
-	// Delete all values under the given prefix
-	_, err = s.client.Delete(context.Background(),
-		s.bk.cfg.Key,
-		clientv3.WithPrefix())
+	// Check connectivity and disable the suite
+	_, err = s.bk.GetRange(context.Background(), []byte("/"), backend.RangeEnd([]byte("/")), backend.NoLimit)
 	err = convertErr(err)
 	if err != nil && !trace.IsNotFound(err) {
 		if strings.Contains(err.Error(), "connection refused") {
@@ -88,38 +84,55 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 			s.skip = true
 			c.Skip(err.Error())
 		}
-		c.Assert(err, IsNil)
+		c.Assert(err, check.IsNil)
 	}
-
-	// Set up suite
-	s.suite.ChangesC = s.changesC
 }
 
-func (s *EtcdSuite) TearDownTest(c *C) {
-	close(s.stopC)
-	c.Assert(s.bk.Close(), IsNil)
+func (s *EtcdSuite) SetUpTest(c *check.C) {
+	if s.skip {
+		fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
+		c.Skip("Etcd is not avialable")
+	}
 }
 
-func (s *EtcdSuite) TestBasicCRUD(c *C) {
-	s.suite.BasicCRUD(c)
+func (s *EtcdSuite) TearDownSuite(c *check.C) {
+	if s.bk != nil {
+		c.Assert(s.bk.Close(), check.IsNil)
+	}
 }
 
-func (s *EtcdSuite) TestBatchCRUD(c *C) {
-	s.suite.BatchCRUD(c)
+func (s *EtcdSuite) TestCRUD(c *check.C) {
+	s.suite.CRUD(c)
 }
 
-func (s *EtcdSuite) TestCompareAndSwap(c *C) {
+func (s *EtcdSuite) TestRange(c *check.C) {
+	s.suite.Range(c)
+}
+
+func (s *EtcdSuite) TestDeleteRange(c *check.C) {
+	s.suite.DeleteRange(c)
+}
+
+func (s *EtcdSuite) TestCompareAndSwap(c *check.C) {
 	s.suite.CompareAndSwap(c)
 }
 
-func (s *EtcdSuite) TestExpiration(c *C) {
+func (s *EtcdSuite) TestExpiration(c *check.C) {
 	s.suite.Expiration(c)
 }
 
-func (s *EtcdSuite) TestLock(c *C) {
-	s.suite.Locking(c)
+func (s *EtcdSuite) TestKeepAlive(c *check.C) {
+	s.suite.KeepAlive(c)
 }
 
-func (s *EtcdSuite) TestValueAndTTL(c *C) {
-	s.suite.ValueAndTTL(c)
+func (s *EtcdSuite) TestEvents(c *check.C) {
+	s.suite.Events(c)
+}
+
+func (s *EtcdSuite) TestWatchersClose(c *check.C) {
+	s.suite.WatchersClose(c)
+}
+
+func (s *EtcdSuite) TestLocking(c *check.C) {
+	s.suite.Locking(c)
 }

@@ -34,8 +34,6 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestRoleParsing(t *testing.T) { TestingT(t) }
-
 type RoleSuite struct {
 }
 
@@ -215,7 +213,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 			in: `{
 		      "kind": "role",
 		      "version": "v3",
-		      "metadata": {"name": "name1"},
+		      "metadata": {"name": "name1", "labels": {"a-b": "c"}},
 		      "spec": {
                  "options": {
                    "cert_format": "standard",
@@ -225,7 +223,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
                    "disconnect_expired_cert": "yes"
                  },
                  "allow": {
-                   "node_labels": {"a": "b"},
+                   "node_labels": {"a": "b", "c-d": "e"},
                    "namespaces": ["default"],
                    "rules": [
                      {
@@ -249,6 +247,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 				Metadata: Metadata{
 					Name:      "name1",
 					Namespace: defaults.Namespace,
+					Labels:    map[string]string{"a-b": "c"},
 				},
 				Spec: RoleSpecV3{
 					Options: RoleOptions{
@@ -259,7 +258,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						DisconnectExpiredCert: NewBool(true),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{"a": []string{"b"}},
+						NodeLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						Namespaces: []string{"default"},
 						Rules: []Rule{
 							Rule{
@@ -473,6 +472,13 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 			Labels:    map[string]string{"role": "db", "status": "follower"},
 		},
 	}
+	serverC2 := &ServerV2{
+		Metadata: Metadata{
+			Name:      "c2",
+			Namespace: namespaceC,
+			Labels:    map[string]string{"role": "db01", "status": "follower01"},
+		},
+	}
 	testCases := []struct {
 		name   string
 		roles  []RoleV3
@@ -497,7 +503,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
@@ -526,7 +532,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"admin"},
@@ -555,7 +561,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"admin"},
@@ -575,7 +581,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 			},
 		},
 		{
-			name: "node_labels with emtpy list value matches nothing",
+			name: "node_labels with empty list value matches nothing",
 			roles: []RoleV3{
 				RoleV3{
 					Metadata: Metadata{
@@ -584,7 +590,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"admin"},
@@ -613,7 +619,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"admin"},
@@ -629,7 +635,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"root", "admin"},
@@ -646,6 +652,37 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 				{server: serverB, login: "admin", hasAccess: true},
 				{server: serverC, login: "root", hasAccess: true},
 				{server: serverC, login: "admin", hasAccess: true},
+			},
+		},
+		{
+			name: "one role needs to access servers sharing the partially same label value",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: namespaceC,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"admin"},
+							NodeLabels: Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}},
+							Namespaces: []string{namespaceC},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverA, login: "admin", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: false},
+				{server: serverB, login: "admin", hasAccess: false},
+				{server: serverC, login: "root", hasAccess: false},
+				{server: serverC, login: "admin", hasAccess: true},
+				{server: serverC2, login: "root", hasAccess: false},
+				{server: serverC2, login: "admin", hasAccess: true},
 			},
 		},
 	}

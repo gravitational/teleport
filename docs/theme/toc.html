@@ -1,31 +1,37 @@
-<div class="current grv-nav-left">                      
-{% for nav_item in nav %}
-  {% if nav_item.children %}
-    <div class="grv-nav-left-level-1">        
-      <div class="grv-nav-left-item-header">
-        <span>{{ nav_item.title }}</span>
-      </div>        
-        {% for nav_item2 in nav_item.children %}          
-          <div class="grv-nav-left-level-2 {% if nav_item2.active%}current{%endif%} ">               
-            {% if nav_item2 == page %}          
-              <div class="grv-nav-left-item-header">
-                  <a href="{{ nav_item2.url }}">{{ nav_item2.title }}</a>
-              </div>                         
-              {% for nav_item3 in page.toc %}  
-                <div class="grv-nav-left-level-3">             
-                  <div class="grv-nav-left-item-header {% if nav_item3.active%}current{%endif%} "><a href="{{ nav_item3.url }}">{{ nav_item3.title }}</a></div>            
-                  {% for nav_item4 in nav_item3.children %}
-                      <div class="grv-nav-left-item" ><a  href="{{ nav_item4.url }}">{{ nav_item4.title }}</a></div>
-                  {% endfor %}               
-                </div>                          
+<nav id="side-nav" class="side-nav is-condensed">
+  <header>{% include "searchbox.html" %}</header>
+  {% for nav_item in nav %}
+    {% if nav_item.children %}
+      <div id="side-nav-menu" class="side-nav-menu">
+        <h3 class="side-nav-section-header">
+          {{ nav_item.title }}
+        </h3>
+
+        {% for nav_item2 in nav_item.children %}
+          {% if nav_item2 == page %}
+            <ul class="side-nav-buttons">
+              <li>
+                <a class="{% if nav_item2.active%}is-active{%endif%}" href="{{ nav_item2.url }}">{{ nav_item2.title }}</a>
+              </li>
+            </ul>
+
+            {% for nav_item3 in page.toc %}
+              <ul class="side-nav-secondary-buttons">
+                <li class="{% if nav_item3.active%}is-active{%endif%} "><a href="{{ nav_item3.url }}">{{ nav_item3.title }}</a></li>
+              {% for nav_item4 in nav_item3.children %}
+                <li><a href="{{ nav_item4.url }}">{{ nav_item4.title }}</a></li>
               {% endfor %}
-            {% endif %}            
-            {% if nav_item2 != page %}          
-              <div class="grv-nav-left-item-header" ><a  href="{{ nav_item2.url }}">{{ nav_item2.title }}</a></div>
-            {% endif %}      
-          </div> 
-        {% endfor %}         
-    </div>    
-  {% endif %}
-{% endfor %}  
-</div>    
+              </ul>
+            {% endfor %}
+          {% endif %}
+
+          {% if nav_item2 != page %}
+            <ul class="side-nav-buttons">
+              <li><a class="{% if nav_item2.active%}is-active{%endif%}" href="{{ nav_item2.url }}">{{ nav_item2.title }}</a></li>
+            </ul>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</nav>

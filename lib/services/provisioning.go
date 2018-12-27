@@ -51,6 +51,6 @@ func (p ProvisionToken) String() string {
 	if p.Expires.Unix() != 0 {
 		expires = p.Expires.String()
 	}
-	return fmt.Sprintf("ProvisionToken(Token=%v,Roles=%v,Expires=%v)",
-		p.Token, p.Roles, expires)
+	return fmt.Sprintf("ProvisionToken(Roles=%v,Expires=%v)",
+		p.Roles, expires)
 }

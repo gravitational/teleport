@@ -1,13 +1,7 @@
 import * as enums from 'app/services/enums';
 import { LoginInputForm } from 'app/components/user/login';
-import {
-  ReactTestUtils,
-  React,
-  ReactDOM,  
-  $,
-  expect,  
-  reactor
-} from 'app/__tests__/';
+import { ReactTestUtils, React, ReactDOM } from 'app/__tests__/domUtils';
+import { $, expect, reactor } from 'app/__tests__/';
 
 let $node = $('<div>').appendTo("body");
 
@@ -15,95 +9,95 @@ describe('components/user/login', () => {
 
   const webApiUrl = '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName';
   const ssoProvider = { name: 'microsoft', type: enums.AuthProviderTypeEnum.OIDC, url: webApiUrl };
-  
+
   afterEach(function () {
     ReactDOM.unmountComponentAtNode($node[0]);
     expect.restoreSpies();
     reactor.reset();
   })
-  
-  it('should login with username and password', () => {        
-    let props = getProps({      
+
+  it('should login with username and password', () => {
+    let props = getProps({
       auth2faType: enums.Auth2faTypeEnum.DISABLED
     });
 
-    render(<LoginInputForm { ...props } />);    
-    
-    let expected = ['email@email', '123456', ''];        
-    setValues(...expected);    
-    clickLogin();    
+    render(<LoginInputForm { ...props } />);
+
+    let expected = ['email@email', '123456', ''];
+    setValues(...expected);
+    clickLogin();
     expectNInputs(3);
-    expect(props.onLogin).toHaveBeenCalledWith(...expected);    
-  });    
+    expect(props.onLogin).toHaveBeenCalledWith(...expected);
+  });
 
-  it('should login with Auth2faTypeEnum.UTF', () => {                        
-    let props = getProps({      
-      auth2faType: enums.Auth2faTypeEnum.UTF      
+  it('should login with Auth2faTypeEnum.UTF', () => {
+    let props = getProps({
+      auth2faType: enums.Auth2faTypeEnum.UTF
     });
-    
-    render(<LoginInputForm { ...props } />);                            
 
-    let expected = ['email@email', '123456'];        
+    render(<LoginInputForm { ...props } />);
 
-    setValues(...expected);        
+    let expected = ['email@email', '123456'];
+
+    setValues(...expected);
     clickLogin();
-    expectNInputs(3);            
-    expect(props.onLoginWithU2f).toHaveBeenCalledWith(...expected);    
-  });    
+    expectNInputs(3);
+    expect(props.onLoginWithU2f).toHaveBeenCalledWith(...expected);
+  });
 
-  it('should login with Auth2faTypeEnum.OTP', () => {                    
-    let props = getProps({      
-      auth2faType: enums.Auth2faTypeEnum.OTP      
+  it('should login with Auth2faTypeEnum.OTP', () => {
+    let props = getProps({
+      auth2faType: enums.Auth2faTypeEnum.OTP
     });
-    
-    render(<LoginInputForm { ...props } />);                            
 
-    let expected = ['email@email', '123456', 'token'];        
+    render(<LoginInputForm { ...props } />);
 
-    setValues(...expected);        
+    let expected = ['email@email', '123456', 'token'];
+
+    setValues(...expected);
     clickLogin();
-    expectNInputs(4);            
-    expect(props.onLogin).toHaveBeenCalledWith(...expected);    
-  });    
+    expectNInputs(4);
+    expect(props.onLogin).toHaveBeenCalledWith(...expected);
+  });
 
-  it('should login with SSO', () => {                
-    let props = getProps({      
+  it('should login with SSO', () => {
+    let props = getProps({
       authProviders: [ssoProvider]
     });
 
-    render(<LoginInputForm { ...props } />);                        
-    $node.find(".btn-microsoft").click();    
+    render(<LoginInputForm { ...props } />);
+    $node.find(".btn-microsoft").click();
     expectNInputs(4);
-    expect(props.onLoginWithSso).toHaveBeenCalledWith(ssoProvider);    
-  });    
-    
-  it('should render OIDC and Auth2faTypeEnum.OTP', () => {                    
-    let props = getProps({      
-      authProviders: [ssoProvider],
-      auth2faType: enums.Auth2faTypeEnum.OTP      
-    });
-      
-    render(<LoginInputForm { ...props } />);                            
-    expectNInputs(5);        
+    expect(props.onLoginWithSso).toHaveBeenCalledWith(ssoProvider);
+  });
 
-    $node.find(".btn-microsoft").click();    
+  it('should render OIDC and Auth2faTypeEnum.OTP', () => {
+    let props = getProps({
+      authProviders: [ssoProvider],
+      auth2faType: enums.Auth2faTypeEnum.OTP
+    });
+
+    render(<LoginInputForm { ...props } />);
+    expectNInputs(5);
+
+    $node.find(".btn-microsoft").click();
     expect(props.onLoginWithSso).toHaveBeenCalled();
 
-    let expected = ['email@email', '123456', 'token'];        
-    setValues(...expected);        
+    let expected = ['email@email', '123456', 'token'];
+    setValues(...expected);
     clickLogin();
-    expect(props.onLogin).toHaveBeenCalledWith(...expected);    
-  });    
+    expect(props.onLogin).toHaveBeenCalledWith(...expected);
+  });
 
-  it('should render SAML and Auth2faTypeEnum.UTF', () => {                    
-    let props = getProps({      
+  it('should render SAML and Auth2faTypeEnum.UTF', () => {
+    let props = getProps({
       authProviders: [ssoProvider],
-      auth2faType: enums.Auth2faTypeEnum.UTF      
+      auth2faType: enums.Auth2faTypeEnum.UTF
     });
 
-    render(<LoginInputForm { ...props } />);                            
-    expectNInputs(4);        
-  });    
+    render(<LoginInputForm { ...props } />);
+    expectNInputs(4);
+  });
 
 });
 
@@ -120,7 +114,7 @@ const setValues = (user, password, token) => {
     setText($node.find('input[name="token"]')[0], token);
   }
 }
-  
+
 const clickLogin = () => {
   $node.find(".btn-primary").click();
 }
@@ -131,12 +125,12 @@ const expectNInputs = n => {
 
 const getProps = customProps => {
   let props = {
-    authProviders: [],    
-    auth2faType: '',    
-    authType: '',    
+    authProviders: [],
+    auth2faType: '',
+    authType: '',
     onLoginWithSso(/*providerName*/) { },
     onLoginWithU2f(/*username, password*/) { },
-    onLogin(/*username, password, token*/) { },    
+    onLogin(/*username, password, token*/) { },
     attemp: { },
     ...customProps
   };
@@ -148,7 +142,7 @@ const getProps = customProps => {
   return props;
 }
 
- 
+
 function render(component){
   return ReactDOM.render(component, $node[0]);
 }

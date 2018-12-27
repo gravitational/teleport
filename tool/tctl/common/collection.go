@@ -147,7 +147,7 @@ type serverCollection struct {
 }
 
 func (s *serverCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Hostname", "UUID", "Address", "Labels"})
+	t := asciitable.MakeTable([]string{"Nodename", "UUID", "Address", "Labels"})
 	for _, s := range s.servers {
 		t.AddRow([]string{
 			s.GetHostname(), s.GetName(), s.GetAddr(), s.LabelsString(),
@@ -385,6 +385,83 @@ func (c *samlCollection) toMarshal() interface{} {
 }
 
 func (c *samlCollection) writeYAML(w io.Writer) error {
+	data, err := yaml.Marshal(c.toMarshal())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+type connectorsCollection struct {
+	oidc   []services.OIDCConnector
+	saml   []services.SAMLConnector
+	github []services.GithubConnector
+}
+
+func (c *connectorsCollection) writeText(w io.Writer) error {
+	if len(c.oidc) > 0 {
+		_, err := io.WriteString(w, "\nOIDC:\n")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		oc := &oidcCollection{connectors: c.oidc}
+		err = oc.writeText(w)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if len(c.saml) > 0 {
+		_, err := io.WriteString(w, "\nSAML:\n")
+		sc := &samlCollection{connectors: c.saml}
+		err = sc.writeText(w)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if len(c.github) > 0 {
+		_, err := io.WriteString(w, "\nGitHub:\n")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		gc := &githubCollection{connectors: c.github}
+		err = gc.writeText(w)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (c *connectorsCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *connectorsCollection) toMarshal() interface{} {
+	var connectors []interface{}
+
+	for _, o := range c.oidc {
+		connectors = append(connectors, o)
+	}
+	for _, s := range c.saml {
+		connectors = append(connectors, s)
+	}
+	for _, g := range c.github {
+		connectors = append(connectors, g)
+	}
+
+	return connectors
+}
+
+func (c *connectorsCollection) writeYAML(w io.Writer) error {
 	data, err := yaml.Marshal(c.toMarshal())
 	if err != nil {
 		return trace.Wrap(err)

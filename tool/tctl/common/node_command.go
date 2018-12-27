@@ -96,7 +96,11 @@ This token will expire in %d minutes
 
 Run this on the new node to join the cluster:
 
-> teleport start --roles=%s --token=%v --auth-server=%v
+> teleport start \
+   --roles=%s \
+   --token=%v \
+   --ca-pin=%v \
+   --auth-server=%v
 
 Please note:
 
@@ -113,6 +117,13 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	token, err := client.GenerateToken(auth.GenerateTokenRequest{Roles: roles, TTL: c.ttl, Token: c.token})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Calculate the CA pin for this cluster. The CA pin is used by the client
+	// to verify the identity of the Auth Server.
+	caPin, err := calculateCAPin(client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -135,6 +146,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 				int(c.ttl.Minutes()),
 				strings.ToLower(roles.String()),
 				token,
+				caPin,
 				authServers[0].GetAddr(),
 				int(c.ttl.Minutes()),
 				authServers[0].GetAddr(),

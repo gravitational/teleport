@@ -41,7 +41,7 @@ func ParseSigningKeyStorePEM(keyPEM, certPEM string) (*SigningKeyStore, error) {
 	}
 	rsaKey, ok := key.(*rsa.PrivateKey)
 	if !ok {
-		return nil, trace.BadParameter("key of type %T is not supported, only RSA keys are supported for signatures")
+		return nil, trace.BadParameter("key of type %T is not supported, only RSA keys are supported for signatures", key)
 	}
 	certASN, _ := pem.Decode([]byte(certPEM))
 	if certASN == nil {

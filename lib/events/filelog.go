@@ -134,11 +134,11 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int
 	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
 	if days < 0 {
-		return nil, trace.BadParameter("query", query)
+		return nil, trace.BadParameter("invalid days")
 	}
 	queryVals, err := url.ParseQuery(query)
 	if err != nil {
-		return nil, trace.BadParameter("missing parameter query", query)
+		return nil, trace.BadParameter("invalid query")
 	}
 	filtered, err := l.matchingFiles(fromUTC, toUTC)
 	if err != nil {

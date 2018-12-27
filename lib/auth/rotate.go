@@ -313,7 +313,7 @@ func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
 			ca:          ca,
 			targetPhase: services.RotationPhaseUpdateClients,
 			mode:        services.RotationModeAuto,
-			gracePeriod: rotation.GracePeriod.Duration,
+			gracePeriod: rotation.GracePeriod.Duration(),
 			schedule:    rotation.Schedule,
 		}
 	case services.RotationPhaseUpdateClients:
@@ -325,7 +325,7 @@ func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
 			ca:          ca,
 			targetPhase: services.RotationPhaseUpdateServers,
 			mode:        services.RotationModeAuto,
-			gracePeriod: rotation.GracePeriod.Duration,
+			gracePeriod: rotation.GracePeriod.Duration(),
 			schedule:    rotation.Schedule,
 		}
 	case services.RotationPhaseUpdateServers:
@@ -337,7 +337,7 @@ func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
 			ca:          ca,
 			targetPhase: services.RotationPhaseStandby,
 			mode:        services.RotationModeAuto,
-			gracePeriod: rotation.GracePeriod.Duration,
+			gracePeriod: rotation.GracePeriod.Duration(),
 			schedule:    rotation.Schedule,
 		}
 	default:

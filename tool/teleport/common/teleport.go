@@ -97,6 +97,9 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	start.Flag("token",
 		"Invitation token to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
+	start.Flag("ca-pin",
+		"CA pin to validate the Auth Server").
+		StringVar(&ccf.CAPin)
 	start.Flag("nodename",
 		"Name of this node, defaults to hostname").
 		StringVar(&ccf.NodeName)

@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -67,6 +66,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// Operations on certificate authorities
 	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))
+	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert))
 
 	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.withAuth(srv.rotateCertAuthority))
@@ -103,6 +103,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
+	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.withAuth(srv.keepAliveNode))
 	srv.PUT("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNodes))
 	srv.GET("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.getNodes))
 	srv.POST("/:version/authservers", srv.withAuth(srv.upsertAuthServer))
@@ -301,9 +302,11 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 			return nil, trace.BadParameter("invalid namespace %q", namespace)
 		}
 		server.SetNamespace(namespace)
-		if err := auth.UpsertNode(server); err != nil {
+		handle, err := auth.UpsertNode(server)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		return handle, nil
 	case teleport.RoleAuth:
 		if err := auth.UpsertAuthServer(server); err != nil {
 			return nil, trace.Wrap(err)
@@ -312,6 +315,18 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 		if err := auth.UpsertProxy(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+	return message("ok"), nil
+}
+
+// keepAliveNode updates node TTL in the backend
+func (s *APIServer) keepAliveNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var handle services.KeepAlive
+	if err := httplib.ReadJSON(r, &handle); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.KeepAliveNode(r.Context(), handle); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
@@ -857,6 +872,10 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Pass along the remote address the request came from to the registration function.
+	req.RemoteAddr = r.RemoteAddr
+
 	keys, err := auth.RegisterUsingToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -885,6 +904,9 @@ func (s *APIServer) generateServerKeys(auth ClientI, w http.ResponseWriter, r *h
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Pass along the remote address the request came from to the registration function.
+	req.RemoteAddr = r.RemoteAddr
 
 	keys, err := auth.GenerateServerKeys(req)
 	if err != nil {
@@ -990,6 +1012,16 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 		return nil, trace.Wrap(err)
 	}
 	return domain, nil
+}
+
+// getClusterCACert returns the CAs for the local cluster without signing keys.
+func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	localCA, err := auth.GetClusterCACert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return localCA, nil
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration
@@ -1965,7 +1997,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.UpsertRole(role, backend.Forever)
+	err = auth.UpsertRole(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -161,6 +161,10 @@ type TerminalHandler struct {
 
 	// decoder is used to decode UTF-8 strings.
 	decoder *encoding.Decoder
+
+	// buffer is a buffer used to store the remaining payload data if it did not
+	// fit into the buffer provided by the callee to Read method
+	buffer []byte
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -459,6 +463,16 @@ func (t *TerminalHandler) write(data []byte, ws *websocket.Conn) (n int, err err
 // Read unwraps the envelope and either fills out the passed in bytes or
 // performs an action on the connection (sending window-change request).
 func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error) {
+	if len(t.buffer) > 0 {
+		n := copy(out, t.buffer)
+		if n == len(t.buffer) {
+			t.buffer = []byte{}
+		} else {
+			t.buffer = t.buffer[n:]
+		}
+		return n, nil
+	}
+
 	var bytes []byte
 	err = websocket.Message.Receive(ws, &bytes)
 	if err != nil {
@@ -480,16 +494,15 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 		return 0, trace.Wrap(err)
 	}
 
-	if len(data) < 1 {
-		return 0, trace.BadParameter("frame must have length of at least 1")
-	}
-
 	switch string(envelope.GetType()) {
 	case defaults.WebsocketRaw:
-		if len(out) < len(data) {
-			t.log.Warnf("websocket failed to receive everything: %d vs %d", len(out), len(data))
+		n := copy(out, data)
+		// if payload size is greater than [out], store the remaining
+		// part in the buffer to be processed on the next Read call
+		if len(data) > n {
+			t.buffer = data[n:]
 		}
-		return copy(out, data), nil
+		return n, nil
 	case defaults.WebsocketResize:
 		var e events.EventFields
 		err := json.Unmarshal(data, &e)

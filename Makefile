@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=3.0.0-rc.6
+VERSION=3.2.0-alpha.1
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -19,9 +19,11 @@ DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
 GOCACHEDIR ?= `go env GOCACHE`
+GOPKGDIR ?= `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+CGOFLAG ?= CGO_ENABLED=1
 
 OS ?= `go env GOOS`
 ARCH ?= `go env GOARCH`
@@ -67,15 +69,15 @@ all: $(VERSRC)
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build $(PAMFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport:
-	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) go build $(PAMFLAGS) -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build $(PAMFLAGS) -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 #
 # make full - Builds Teleport binaries with the built-in web assets and
@@ -99,11 +101,11 @@ clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
 	rm -rf $(GOCACHEDIR)
+	rm -rf $(GOPKGDIR)
 	rm -rf teleport
 	rm -rf *.gz
 	rm -rf *.zip
 	rm -f gitref.go
-	rm -rf `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 
 #
 # make release - Produces a binary release tarball.
@@ -249,10 +251,9 @@ docker:
 enter:
 	make -C build.assets enter
 
-PROTOC_VER ?= 3.0.0
-GOGO_PROTO_TAG ?= v0.3
+PROTOC_VER ?= 3.6.1
+GOGO_PROTO_TAG ?= v1.1.1
 PLATFORM := linux-x86_64
-GRPC_API := lib/events
 BUILDBOX_TAG := teleport-grpc-buildbox:0.0.1
 
 # buildbox builds docker buildbox image used to compile binaries and generate GRPc stuff
@@ -274,7 +275,15 @@ grpc: buildbox
 buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
-	cd $(GRPC_API) && protoc -I=.:$$PROTO_INCLUDE \
+	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
+	cd lib/services && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
+	cd lib/auth/proto && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
     *.proto
 

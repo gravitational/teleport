@@ -1,6 +1,8 @@
 package local
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -22,7 +24,8 @@ func NewCAService(b backend.Backend) *CA {
 
 // DeleteAllCertAuthorities deletes all certificate authorities of a certain type
 func (s *CA) DeleteAllCertAuthorities(caType services.CertAuthType) error {
-	return s.DeleteBucket([]string{"authorities"}, string(caType))
+	startKey := backend.Key(authoritiesPrefix, string(caType))
+	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
 // CreateCertAuthority updates or inserts a new certificate authority
@@ -30,12 +33,17 @@ func (s *CA) CreateCertAuthority(ca services.CertAuthority) error {
 	if err := ca.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	value, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), ca.Expiry())
-	err = s.CreateVal([]string{"authorities", string(ca.GetType())}, ca.GetName(), data, ttl)
+	item := backend.Item{
+		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Value:   value,
+		Expires: ca.Expiry(),
+	}
+
+	_, err = s.Create(context.TODO(), item)
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
 			return trace.AlreadyExists("cluster %q already exists", ca.GetName())
@@ -50,12 +58,17 @@ func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := ca.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	value, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), ca.Expiry())
-	err = s.UpsertVal([]string{"authorities", string(ca.GetType())}, ca.GetName(), data, ttl)
+	item := backend.Item{
+		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Value:   value,
+		Expires: ca.Expiry(),
+	}
+
+	_, err = s.Put(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -69,16 +82,27 @@ func (s *CA) CompareAndSwapCertAuthority(new, existing services.CertAuthority) e
 	if err := new.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	newData, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(new)
+	newValue, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(new)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	existingData, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(existing)
+	newItem := backend.Item{
+		Key:     backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName()),
+		Value:   newValue,
+		Expires: new.Expiry(),
+	}
+
+	existingValue, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(existing)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), new.Expiry())
-	err = s.CompareAndSwapVal([]string{"authorities", string(new.GetType())}, new.GetName(), newData, existingData, ttl)
+	existingItem := backend.Item{
+		Key:     backend.Key(authoritiesPrefix, string(existing.GetType()), existing.GetName()),
+		Value:   existingValue,
+		Expires: existing.Expiry(),
+	}
+
+	_, err = s.CompareAndSwap(context.TODO(), existingItem, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
 			return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
@@ -95,13 +119,13 @@ func (s *CA) DeleteCertAuthority(id services.CertAuthID) error {
 	}
 	// when removing a services.CertAuthority also remove any deactivated
 	// services.CertAuthority as well if they exist.
-	err := s.DeleteKey([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
+	err := s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	}
-	err = s.DeleteKey([]string{"authorities", string(id.Type)}, id.DomainName)
+	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,12 +135,15 @@ func (s *CA) DeleteCertAuthority(id services.CertAuthID) error {
 // ActivateCertAuthority moves a CertAuthority from the deactivated list to
 // the normal list.
 func (s *CA) ActivateCertAuthority(id services.CertAuthID) error {
-	data, err := s.GetVal([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
+	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
-		return trace.BadParameter("can not activate CertAuthority which has not been deactivated: %v: %v", id, err)
+		if trace.IsNotFound(err) {
+			return trace.BadParameter("can not activate cert authority %q which has not been deactivated", id.DomainName)
+		}
+		return trace.Wrap(err)
 	}
 
-	certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(data)
+	certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -126,7 +153,7 @@ func (s *CA) ActivateCertAuthority(id services.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.DeleteKey([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
+	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,7 +166,10 @@ func (s *CA) ActivateCertAuthority(id services.CertAuthID) error {
 func (s *CA) DeactivateCertAuthority(id services.CertAuthID) error {
 	certAuthority, err := s.GetCertAuthority(id, true)
 	if err != nil {
-		return trace.NotFound("can not deactivate CertAuthority which does not exist: %v", err)
+		if trace.IsNotFound(err) {
+			return trace.NotFound("can not deactivate cert authority %q which does not exist", id.DomainName)
+		}
+		return trace.Wrap(err)
 	}
 
 	err = s.DeleteCertAuthority(id)
@@ -147,13 +177,17 @@ func (s *CA) DeactivateCertAuthority(id services.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
-	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(certAuthority)
+	value, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(certAuthority)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), certAuthority.Expiry())
+	item := backend.Item{
+		Key:     backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName),
+		Value:   value,
+		Expires: certAuthority.Expiry(),
+	}
 
-	err = s.UpsertVal([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName, data, ttl)
+	_, err = s.Put(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -167,11 +201,11 @@ func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	data, err := s.GetVal([]string{"authorities", string(id.Type)}, id.DomainName)
+	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(data, opts...)
+	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(item.Value, services.AddOptions(opts, services.WithResourceID(item.ID))...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,16 +236,16 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 	}
 
 	// Get all items in the bucket.
-	bucket := []string{"authorities", string(caType)}
-	items, err := s.GetItems(bucket)
+	startKey := backend.Key(authoritiesPrefix, string(caType))
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Marshal values into a []services.CertAuthority slice.
-	cas := make([]services.CertAuthority, len(items))
-	for i, item := range items {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(item.Value, opts...)
+	cas := make([]services.CertAuthority, len(result.Items))
+	for i, item := range result.Items {
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(item.Value, services.AddOptions(opts, services.WithResourceID(item.ID))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -224,3 +258,8 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 
 	return cas, nil
 }
+
+const (
+	authoritiesPrefix = "authorities"
+	deactivatedPrefix = "deactivated"
+)

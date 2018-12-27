@@ -17,6 +17,7 @@ limitations under the License.
 package tlsca
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -186,4 +187,17 @@ func MarshalPublicKeyFromPrivateKeyPEM(privateKey crypto.PrivateKey) ([]byte, er
 		return nil, trace.Wrap(err)
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: derBytes}), nil
+}
+
+// MarshalCertificatePEM takes a *x509.Certificate and returns the PEM
+// encoded bytes.
+func MarshalCertificatePEM(cert *x509.Certificate) ([]byte, error) {
+	var buf bytes.Buffer
+
+	err := pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return buf.Bytes(), nil
 }

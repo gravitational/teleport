@@ -196,6 +196,16 @@ type UserV2 struct {
 	rawObject interface{}
 }
 
+// GetResourceID returns resource ID
+func (u *UserV2) GetResourceID() int64 {
+	return u.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (u *UserV2) SetResourceID(id int64) {
+	u.Metadata.ID = id
+}
+
 // GetMetadata returns object metadata
 func (u *UserV2) GetMetadata() Metadata {
 	return u.Metadata
@@ -317,7 +327,7 @@ const UserSpecV2SchemaTemplate = `{
       "type": "object",
       "additionalProperties": false,
       "patternProperties": {
-        "^[a-zA-Z/.0-9_]+$": {
+        "^[a-zA-Z/.0-9-_:]+$": {
           "type": ["array", "null"],
           "items": {
             "type": "string"

@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -27,13 +28,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
 	. "gopkg.in/check.v1"
+	"testing"
 )
 
 type AuthInitSuite struct {
@@ -44,7 +45,7 @@ var _ = Suite(&AuthInitSuite{})
 var _ = fmt.Printf
 
 func (s *AuthInitSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *AuthInitSuite) TearDownSuite(c *C) {
@@ -165,7 +166,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 // TestAuthPreference ensures that the act of creating an AuthServer sets
 // the AuthPreference (type and second factor) on the backend.
 func (s *AuthInitSuite) TestAuthPreference(c *C) {
-	bk, err := boltbk.New(backend.Params{"path": s.tempDir})
+	bk, err := lite.New(context.TODO(), backend.Params{"path": s.tempDir})
 	c.Assert(err, IsNil)
 
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
@@ -212,7 +213,7 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 }
 
 func (s *AuthInitSuite) TestClusterID(c *C) {
-	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	bk, err := lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
 
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
@@ -228,6 +229,7 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 		Authority:     testauthority.New(),
 		ClusterConfig: services.DefaultClusterConfig(),
 		ClusterName:   clusterName,
+		StaticTokens:  services.DefaultStaticTokens(),
 	})
 	c.Assert(err, IsNil)
 
@@ -245,6 +247,7 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 		Authority:     testauthority.New(),
 		ClusterConfig: services.DefaultClusterConfig(),
 		ClusterName:   clusterName,
+		StaticTokens:  services.DefaultStaticTokens(),
 	})
 	c.Assert(err, IsNil)
 
@@ -255,7 +258,7 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 
 // TestClusterName ensures that a cluster can not be renamed.
 func (s *AuthInitSuite) TestClusterName(c *C) {
-	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	bk, err := lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
 
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
@@ -271,6 +274,7 @@ func (s *AuthInitSuite) TestClusterName(c *C) {
 		Authority:     testauthority.New(),
 		ClusterConfig: services.DefaultClusterConfig(),
 		ClusterName:   clusterName,
+		StaticTokens:  services.DefaultStaticTokens(),
 	})
 	c.Assert(err, IsNil)
 
@@ -289,6 +293,7 @@ func (s *AuthInitSuite) TestClusterName(c *C) {
 		Authority:     testauthority.New(),
 		ClusterConfig: services.DefaultClusterConfig(),
 		ClusterName:   clusterName,
+		StaticTokens:  services.DefaultStaticTokens(),
 	})
 	c.Assert(err, IsNil)
 

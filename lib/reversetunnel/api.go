@@ -24,7 +24,39 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/trace"
 )
+
+// DialParams is a list of parameters used to Dial to a node within a cluster.
+type DialParams struct {
+	// From is the source address.
+	From net.Addr
+
+	// To is the destination address.
+	To net.Addr
+
+	// UserAgent is SSH agent used to connect to the remote host. Used by the
+	// forwarding proxy.
+	UserAgent agent.Agent
+
+	// Address is used by the forwarding proxy to generate a host certificate for
+	// the target node. This is needed because while dialing occurs via IP
+	// address, tsh thinks it's connecting via DNS name and that's how it
+	// validates the host certificate.
+	Address string
+}
+
+// CheckAndSetDefaults makes sure the minimal parameters are set.
+func (d *DialParams) CheckAndSetDefaults() error {
+	if d.From == nil {
+		return trace.BadParameter("parameter From required")
+	}
+	if d.To == nil {
+		return trace.BadParameter("parameter To required")
+	}
+
+	return nil
+}
 
 // RemoteSite represents remote teleport site that can be accessed via
 // teleport tunnel or directly by proxy
@@ -36,7 +68,7 @@ type RemoteSite interface {
 	// Dial dials any address within the site network, in terminating
 	// mode it uses local instance of forwarding server to terminate
 	// and record the connection
-	Dial(fromAddr, toAddr net.Addr, userAgent agent.Agent) (net.Conn, error)
+	Dial(DialParams) (net.Conn, error)
 	// DialTCP dials any address within the site network,
 	// ignores recording mode and always uses TCP dial, used
 	// in components that need direct dialer.

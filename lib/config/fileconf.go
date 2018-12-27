@@ -146,6 +146,9 @@ var (
 		"client_idle_timeout":     false,
 		"disconnect_expired_cert": false,
 		"ciphersuites":            false,
+		"ca_pin":                  false,
+		"keep_alive_interval":     false,
+		"keep_alive_count_max":    false,
 	}
 )
 
@@ -385,6 +388,9 @@ type Global struct {
 	// MACAlgorithms is a list of SSH message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
+
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
+	CAPin string `yaml:"ca_pin"`
 }
 
 // CachePolicy is used to control  local cache
@@ -544,6 +550,14 @@ type Auth struct {
 	// if specified, teleport will use API server address and
 	// trusted certificate authority information from it
 	KubeconfigFile string `yaml:"kubeconfig_file,omitempty"`
+
+	// KeepAliveInterval set the keep-alive interval for server to client
+	// connections.
+	KeepAliveInterval services.Duration `yaml:"keep_alive_interval,omitempty"`
+
+	// KeepAliveCountMax set the number of keep-alive messages that can be
+	// missed before the server disconnects the client.
+	KeepAliveCountMax int `yaml:"keep_alive_count_max"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

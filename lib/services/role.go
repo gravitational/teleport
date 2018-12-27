@@ -192,10 +192,10 @@ type Access interface {
 	GetRoles() ([]Role, error)
 
 	// CreateRole creates a role
-	CreateRole(role Role, ttl time.Duration) error
+	CreateRole(role Role) error
 
 	// UpsertRole creates or updates role
-	UpsertRole(role Role, ttl time.Duration) error
+	UpsertRole(role Role) error
 
 	// DeleteAllRoles deletes all roles
 	DeleteAllRoles() error
@@ -387,6 +387,16 @@ type RoleV3 struct {
 	// rawObject is the raw object stored in the backend without any
 	// conversions applied, used in migrations.
 	rawObject interface{}
+}
+
+// GetResourceID returns resource ID
+func (r *RoleV3) GetResourceID() int64 {
+	return r.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (r *RoleV3) SetResourceID(id int64) {
+	r.Metadata.ID = id
 }
 
 // Equals returns true if the roles are equal. Roles are equal if options,
@@ -1013,6 +1023,16 @@ type RoleV2 struct {
 	Spec RoleSpecV2 `json:"spec"`
 }
 
+// GetResourceID returns resource ID
+func (r *RoleV2) GetResourceID() int64 {
+	return r.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (r *RoleV2) SetResourceID(id int64) {
+	r.Metadata.ID = id
+}
+
 // Equals test roles for equality. Roles are considered equal if all resources,
 // logins, namespaces, labels, and options match.
 func (r *RoleV2) Equals(other Role) bool {
@@ -1044,7 +1064,7 @@ func (r *RoleV2) SetNodeLabels(labels map[string]string) {
 
 // SetMaxSessionTTL sets a maximum TTL for SSH or Web session
 func (r *RoleV2) SetMaxSessionTTL(duration time.Duration) {
-	r.Spec.MaxSessionTTL.Duration = duration
+	r.Spec.MaxSessionTTL = Duration(duration)
 }
 
 // SetExpiry sets expiry time for the object
@@ -1127,10 +1147,10 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 	if r.Metadata.Namespace == "" {
 		r.Metadata.Namespace = defaults.Namespace
 	}
-	if r.Spec.MaxSessionTTL.Duration == 0 {
-		r.Spec.MaxSessionTTL.Duration = defaults.MaxCertDuration
+	if r.Spec.MaxSessionTTL == 0 {
+		r.Spec.MaxSessionTTL = Duration(defaults.MaxCertDuration)
 	}
-	if r.Spec.MaxSessionTTL.Duration < defaults.MinCertDuration {
+	if r.Spec.MaxSessionTTL.Duration() < defaults.MinCertDuration {
 		return trace.BadParameter("maximum session TTL can not be less than %v", defaults.MinCertDuration)
 	}
 	if r.Spec.Namespaces == nil {
@@ -1269,7 +1289,7 @@ type AccessChecker interface {
 	AdjustSessionTTL(ttl time.Duration) time.Duration
 
 	// AdjustClientIdleTimeout adjusts requested idle timeout
-	// to the lowest max allowed timeout, the most restricive
+	// to the lowest max allowed timeout, the most restrictive
 	// option will be picked
 	AdjustClientIdleTimeout(ttl time.Duration) time.Duration
 
@@ -1395,30 +1415,37 @@ func MatchLogin(selectors []string, login string) (bool, string) {
 
 // MatchLabels matches selector against target. Empty selector matches
 // nothing, wildcard matches everything.
-func MatchLabels(selector Labels, target map[string]string) (bool, string) {
+func MatchLabels(selector Labels, target map[string]string) (bool, string, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
-		return false, "no match, empty selector"
+		return false, "no match, empty selector", nil
 	}
 
 	// *: * matches everything even empty target set.
 	selectorValues := selector[Wildcard]
 	if len(selectorValues) == 1 && selectorValues[0] == Wildcard {
-		return true, "matched"
+		return true, "matched", nil
 	}
 
 	// Perform full match.
 	for key, selectorValues := range selector {
 		targetVal, hasKey := target[key]
+
 		if !hasKey {
-			return false, fmt.Sprintf("no key match: '%v'", key)
+			return false, fmt.Sprintf("no key match: '%v'", key), nil
 		}
-		if !utils.SliceContainsStr(selectorValues, Wildcard) && !utils.SliceContainsStr(selectorValues, targetVal) {
-			return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues)
+
+		if !utils.SliceContainsStr(selectorValues, Wildcard) {
+			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
+			if err != nil {
+				return false, "", trace.Wrap(err)
+			} else if !result {
+				return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
+			}
 		}
 	}
 
-	return true, "matched"
+	return true, "matched", nil
 }
 
 // RoleNames returns a slice with role names
@@ -1462,7 +1489,7 @@ func (set RoleSet) AdjustClientIdleTimeout(timeout time.Duration) time.Duration 
 	for _, role := range set {
 		roleTimeout := role.GetOptions().ClientIdleTimeout
 		// 0 means not set, so it can't be most restrictive, disregard it too
-		if roleTimeout.Duration <= 0 {
+		if roleTimeout.Duration() <= 0 {
 			continue
 		}
 		switch {
@@ -1470,9 +1497,9 @@ func (set RoleSet) AdjustClientIdleTimeout(timeout time.Duration) time.Duration 
 		// does not restrict the idle timeout, pick any other value
 		// set by the role
 		case timeout == 0:
-			timeout = roleTimeout.Duration
-		case roleTimeout.Duration < timeout:
-			timeout = roleTimeout.Duration
+			timeout = roleTimeout.Duration()
+		case roleTimeout.Duration() < timeout:
+			timeout = roleTimeout.Duration()
 		}
 	}
 	return timeout
@@ -1558,7 +1585,10 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	// the deny role set prohibits access.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), s.GetNamespace())
-		matchLabels, labelsMessage := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
+		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		matchLogin, loginMessage := MatchLogin(role.GetLogins(Deny), login)
 		if matchNamespace && (matchLabels || matchLogin) {
 			if log.GetLevel() == log.DebugLevel {
@@ -1575,7 +1605,10 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	// one role in the role set to be granted access.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), s.GetNamespace())
-		matchLabels, labelsMessage := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
+		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		matchLogin, loginMessage := MatchLogin(role.GetLogins(Allow), login)
 		if matchNamespace && matchLabels && matchLogin {
 			return nil
@@ -1751,7 +1784,7 @@ func MaxDuration() Duration {
 
 // NewDuration returns Duration struct based on time.Duration
 func NewDuration(d time.Duration) Duration {
-	return Duration{Duration: d}
+	return Duration(d)
 }
 
 // NewBool returns Bool struct based on bool value
@@ -1881,18 +1914,21 @@ func (b *Bool) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // Duration is a wrapper around duration to set up custom marshal/unmarshal
-type Duration struct {
-	time.Duration
+type Duration time.Duration
+
+// Duration returns time.Duration from Duration typex
+func (d Duration) Duration() time.Duration {
+	return time.Duration(d)
 }
 
 // MarshalJSON marshals Duration to string
 func (d Duration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(fmt.Sprintf("%v", d.Duration))
+	return json.Marshal(fmt.Sprintf("%v", d.Duration()))
 }
 
 // Value returns time.Duration value of this wrapper
 func (d Duration) Value() time.Duration {
-	return d.Duration
+	return time.Duration(d)
 }
 
 // UnmarshalJSON marshals Duration to string
@@ -1905,13 +1941,13 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 		return trace.Wrap(err)
 	}
 	if stringVar == teleport.DurationNever {
-		d.Duration = 0
+		*d = Duration(0)
 	} else {
 		out, err := time.ParseDuration(stringVar)
 		if err != nil {
 			return trace.BadParameter(err.Error())
 		}
-		d.Duration = out
+		*d = Duration(out)
 	}
 	return nil
 }
@@ -1919,7 +1955,7 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 // MarshalYAML marshals duration into YAML value,
 // encodes it as a string in format "1m"
 func (d Duration) MarshalYAML() (interface{}, error) {
-	return fmt.Sprintf("%v", d.Duration), nil
+	return fmt.Sprintf("%v", d.Duration()), nil
 }
 
 func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -1928,13 +1964,13 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return trace.Wrap(err)
 	}
 	if stringVar == teleport.DurationNever {
-		d.Duration = 0
+		*d = Duration(0)
 	} else {
 		out, err := time.ParseDuration(stringVar)
 		if err != nil {
 			return trace.BadParameter(err.Error())
 		}
-		d.Duration = out
+		*d = Duration(out)
 	}
 	return nil
 }
@@ -1973,7 +2009,7 @@ const RoleSpecV3SchemaDefinitions = `
         "type": "object",
         "additionalProperties": false,
         "patternProperties": {
-          "^[a-zA-Z/.0-9_*]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
+          "^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
         }
       },
       "logins": {
@@ -2021,7 +2057,7 @@ const RoleSpecV2SchemaTemplate = `{
     "node_labels": {
       "type": "object",
       "patternProperties": {
-         "^[a-zA-Z/.0-9_]$":  { "type": "string" }
+         "^[a-zA-Z/.0-9_-]$":  { "type": "string" }
       }
     },
     "namespaces": {

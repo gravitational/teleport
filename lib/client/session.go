@@ -40,8 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type NodeSession struct {
@@ -352,7 +350,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 			}
 
 			lastSize = terminalParams.Winsize()
-			log.Debugf("Recevied window size %v from node in session.\n", lastSize, event.GetString(events.SessionEventID))
+			log.Debugf("Recevied window size %v from node in session %v.", lastSize, event.GetString(events.SessionEventID))
 
 		// Update size of local terminal with the last size received from remote server.
 		case <-tickerCh.C:
@@ -373,14 +371,14 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 			// the window.
 			err = term.SetWinsize(0, lastSize)
 			if err != nil {
-				log.Warnf("Unable to update terminal size: %v.\n", err)
+				log.Warnf("Unable to update terminal size: %v.", err)
 				continue
 			}
 
 			// This is what we use to resize the physical terminal window itself.
 			os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", lastSize.Height, lastSize.Width)))
 
-			log.Debugf("Updated window size from to %v due to remote window change.", currSize, lastSize)
+			log.Debugf("Updated window size from %v to %v due to remote window change.", currSize, lastSize)
 		case <-ns.closer.C:
 			return
 		}

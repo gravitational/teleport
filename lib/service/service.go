@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2017 Gravitational, Inc.
+Copyright 2015-2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,10 +41,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/backend/legacy"
+	"github.com/gravitational/teleport/lib/backend/legacy/boltbk"
+	"github.com/gravitational/teleport/lib/backend/legacy/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -57,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/system"
@@ -133,6 +136,13 @@ const (
 	// ServiceExitedWithErrorEvent is emitted whenever a service
 	// has exited with an error, the payload includes the error
 	ServiceExitedWithErrorEvent = "ServiceExitedWithError"
+
+	// TeleportDegradedEvent is emitted whenever a service is operating in a
+	// degraded manner.
+	TeleportDegradedEvent = "TeleportDegraded"
+
+	// TeleportOKEvent is emitted whenever a service is operating normally.
+	TeleportOKEvent = "TeleportOKEvent"
 )
 
 // RoleConfig is a configuration for a server role (either proxy or node)
@@ -156,6 +166,14 @@ type Connector struct {
 	ServerIdentity *auth.Identity
 	// Client is authenticated client with credentials from ClientIdenity.
 	Client *auth.Client
+}
+
+// Close closes resources associated with connector
+func (c *Connector) Close() error {
+	if c.Client != nil {
+		return c.Close()
+	}
+	return nil
 }
 
 // TeleportProcess structure holds the state of the Teleport daemon, controlling
@@ -235,15 +253,6 @@ func (process *TeleportProcess) GetAuditLog() events.IAuditLog {
 // GetBackend returns the process' backend
 func (process *TeleportProcess) GetBackend() backend.Backend {
 	return process.backend
-}
-
-func (process *TeleportProcess) backendSupportsForks() bool {
-	switch process.backend.(type) {
-	case *boltbk.BoltBackend:
-		return false
-	default:
-		return true
-	}
 }
 
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
@@ -523,15 +532,20 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
-	storage, err := auth.NewProcessStorage(filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	processID := fmt.Sprintf("%v", nextProcessID())
+	supervisor := NewSupervisor(processID)
+	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	processID := fmt.Sprintf("%v", nextProcessID())
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
+	}
+
 	process := &TeleportProcess{
-		Clock:               clockwork.NewRealClock(),
-		Supervisor:          NewSupervisor(processID),
+		Clock:               cfg.Clock,
+		Supervisor:          supervisor,
 		Config:              cfg,
 		Identities:          make(map[teleport.Role]*auth.Identity),
 		connectors:          make(map[teleport.Role]*Connector),
@@ -565,7 +579,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			precomputeCount = 0
 		}
 		var err error
-		cfg.Keygen, err = native.New(native.PrecomputeKeys(precomputeCount))
+		cfg.Keygen, err = native.New(process.ExitContext(), native.PrecomputeKeys(precomputeCount))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -865,6 +879,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		auditServiceConfig := events.AuditLogConfig{
+			Context:        process.ExitContext(),
 			DataDir:        filepath.Join(cfg.DataDir, teleport.LogsDir),
 			RecordSessions: recordSessions,
 			ServerID:       cfg.HostUUID,
@@ -896,6 +911,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ReverseTunnels:       cfg.ReverseTunnels,
 		Trust:                cfg.Trust,
 		Presence:             cfg.Presence,
+		Events:               cfg.Events,
 		Provisioner:          cfg.Provisioner,
 		Identity:             cfg.Identity,
 		Access:               cfg.Access,
@@ -1009,78 +1025,81 @@ func (process *TeleportProcess) initAuthService() error {
 		// External integrations rely on this event:
 		process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: connector})
 		process.onExit("auth.broadcast", func(payload interface{}) {
-			connector.Client.Close()
+			connector.Close()
 		})
 		return nil
 	})
-	process.RegisterFunc("auth.heartbeat", func() error {
-		srv := services.ServerV2{
-			Kind:    services.KindAuthServer,
-			Version: services.V2,
-			Metadata: services.Metadata{
-				Namespace: defaults.Namespace,
-				Name:      process.Config.HostUUID,
-			},
-			Spec: services.ServerSpecV2{
-				Addr:     cfg.Auth.SSHAddr.Addr,
-				Hostname: process.Config.Hostname,
-			},
-		}
-		host, port, err := net.SplitHostPort(srv.GetAddr())
+
+	// figure out server public address
+	authAddr := cfg.Auth.SSHAddr.Addr
+	host, port, err := net.SplitHostPort(authAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// advertise-ip is explicitly set:
+	if process.Config.AdvertiseIP != "" {
+		ahost, aport, err := utils.ParseAdvertiseAddr(process.Config.AdvertiseIP)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// advertise-ip is explicitly set:
-		if process.Config.AdvertiseIP != "" {
-			ahost, aport, err := utils.ParseAdvertiseAddr(process.Config.AdvertiseIP)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			// if port is not set in the advertise addr, use the default one
-			if aport == "" {
-				aport = port
-			}
-			srv.SetAddr(fmt.Sprintf("%v:%v", ahost, aport))
-		} else {
-			// advertise-ip is not set, while the CA is listening on 0.0.0.0? lets try
-			// to guess the 'advertise ip' then:
-			if net.ParseIP(host).IsUnspecified() {
-				ip, err := utils.GuessHostIP()
-				if err != nil {
-					log.Warn(err)
-				} else {
-					srv.SetAddr(net.JoinHostPort(ip.String(), port))
-				}
-			}
-			log.Warnf("Configuration setting auth_service/advertise_ip is not set. guessing %v.", srv.GetAddr())
+		// if port is not set in the advertise addr, use the default one
+		if aport == "" {
+			aport = port
 		}
-		// immediately register, and then keep repeating in a loop:
-		ticker := time.NewTicker(defaults.ServerHeartbeatTTL / 2)
-		defer ticker.Stop()
-	announce:
-		for {
+		authAddr = fmt.Sprintf("%v:%v", ahost, aport)
+	} else {
+		// advertise-ip is not set, while the CA is listening on 0.0.0.0? lets try
+		// to guess the 'advertise ip' then:
+		if net.ParseIP(host).IsUnspecified() {
+			ip, err := utils.GuessHostIP()
+			if err != nil {
+				log.Warn(err)
+			} else {
+				authAddr = net.JoinHostPort(ip.String(), port)
+			}
+		}
+		log.Warnf("Configuration setting auth_service/advertise_ip is not set. guessing %v.", authAddr)
+	}
+
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Mode:      srv.HeartbeatModeAuth,
+		Context:   process.ExitContext(),
+		Component: teleport.ComponentAuth,
+		Announcer: authServer,
+		GetServerInfo: func() (services.Server, error) {
+			srv := services.ServerV2{
+				Kind:    services.KindAuthServer,
+				Version: services.V2,
+				Metadata: services.Metadata{
+					Namespace: defaults.Namespace,
+					Name:      process.Config.HostUUID,
+				},
+				Spec: services.ServerSpecV2{
+					Addr:     authAddr,
+					Hostname: process.Config.Hostname,
+				},
+			}
 			state, err := process.storage.GetState(teleport.RoleAdmin)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Warningf("Failed to get rotation state: %v.", err)
+					return nil, trace.Wrap(err)
 				}
 			} else {
 				srv.Spec.Rotation = state.Spec.Rotation
 			}
-			srv.SetTTL(process, defaults.ServerHeartbeatTTL)
-			err = authServer.UpsertAuthServer(&srv)
-			if err != nil {
-				log.Warningf("Failed to announce presence: %v.", err)
-			}
-			select {
-			case <-process.ExitContext().Done():
-				break announce
-			case <-ticker.C:
-			}
-		}
-		log.Infof("Heartbeat to other auth servers exited.")
-		return nil
+			srv.SetTTL(process, defaults.ServerAnnounceTTL)
+			return &srv, nil
+		},
+		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		ServerTTL:       defaults.ServerAnnounceTTL,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 	// execute this when process is asked to exit:
 	process.onExit("auth.shutdown", func(payload interface{}) {
 		// The listeners have to be closed here, because if shutdown
@@ -1140,7 +1159,7 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []stri
 	if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	cacheBackend, err := dir.New(backend.Params{"path": path})
+	cacheBackend, err := lite.NewWithConfig(process.ExitContext(), lite.Config{Path: path, EventsOff: true})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1294,7 +1313,7 @@ func (process *TeleportProcess) initSSH() error {
 func (process *TeleportProcess) registerWithAuthServer(role teleport.Role, eventName string) {
 	var authClient *auth.Client
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", strings.ToLower(role.String())), func() error {
-		retryTime := defaults.ServerHeartbeatTTL / 3
+		retryTime := defaults.HighResPollingPeriod
 		for {
 			connector, err := process.connectToAuthService(role)
 			if err == nil {
@@ -1405,26 +1424,45 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentDiagnostic, process.id),
 	})
-	var ready int64
-	process.RegisterFunc("diagnostic.readyz", func() error {
-		eventC := make(chan Event, 1)
-		process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventC)
-		select {
-		case <-eventC:
-			atomic.StoreInt64(&ready, 1)
-			log.Infof("Detected that service started and joined the cluster successfully.")
-		case <-process.ExitContext().Done():
-			log.Debugf("Teleport is exiting, returning.")
-		}
-		return nil
-	})
 
+	// Create a state machine that will process and update the internal state of
+	// Teleport based off Events. Use this state machine to return return the
+	// status from the /readyz endpoint.
+	ps := newProcessState(process)
+	process.RegisterFunc("readyz.monitor", func() error {
+		// Start loop to monitor for events that are used to update Teleport state.
+		eventCh := make(chan Event, 1024)
+		process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventCh)
+		process.WaitForEvent(process.ExitContext(), TeleportDegradedEvent, eventCh)
+		process.WaitForEvent(process.ExitContext(), TeleportOKEvent, eventCh)
+
+		for {
+			select {
+			case e := <-eventCh:
+				ps.Process(e)
+			case <-process.ExitContext().Done():
+				log.Debugf("Teleport is exiting, returning.")
+				return nil
+			}
+		}
+	})
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		isReady := atomic.LoadInt64(&ready)
-		if isReady == 1 {
-			roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
-		} else {
-			roundtrip.ReplyJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"status": "teleport is is not ready, check logs for details"})
+		switch ps.GetState() {
+		// 503
+		case stateDegraded:
+			roundtrip.ReplyJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
+				"status": "teleport is in a degraded state, check logs for details",
+			})
+		// 400
+		case stateRecovering:
+			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]interface{}{
+				"status": "teleport is recovering from a degraded state, check logs for details",
+			})
+		// 200
+		case stateOK:
+			roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{
+				"status": "ok",
+			})
 		}
 	})
 
@@ -1479,6 +1517,18 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		addrs = process.Config.Auth.PublicAddrs
 	case teleport.RoleNode:
 		addrs = process.Config.SSH.PublicAddrs
+		// If advertise IP is set, add it to the list of principals. Otherwise
+		// add in the default (0.0.0.0) which will be replaced by the Auth Server
+		// when a host certificate is issued.
+		if process.Config.AdvertiseIP != "" {
+			advertiseIP, err := utils.ParseAddr(process.Config.AdvertiseIP)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			addrs = append(addrs, *advertiseIP)
+		} else {
+			addrs = append(addrs, process.Config.SSH.Addr)
+		}
 	}
 	for _, addr := range addrs {
 		host, err := utils.Host(addr.Addr)
@@ -1962,25 +2012,49 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	bc := &process.Config.Auth.StorageConfig
 	process.Debugf("Using %v backend.", bc.Type)
 	switch bc.Type {
-	// legacy bolt backend:
+	case lite.GetName():
+		bk, err = lite.New(context.TODO(), bc.Params)
+		// legacy bolt backend, import all data into SQLite and return
+		// SQLite data
 	case boltbk.GetName():
-		bk, err = boltbk.New(bc.Params)
-	// filesystem backend:
+		litebk, err := lite.New(context.TODO(), bc.Params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = legacy.Import(context.TODO(), litebk, func() (legacy.Exporter, error) {
+			return boltbk.New(legacy.Params(bc.Params))
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		bk = litebk
+		// legacy filesystem backend, import all data into SQLite and return
+		// SQLite data
 	case dir.GetName():
-		bk, err = dir.New(bc.Params)
+		litebk, err := lite.New(context.TODO(), bc.Params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = legacy.Import(context.TODO(), litebk, func() (legacy.Exporter, error) {
+			return dir.New(legacy.Params(bc.Params))
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		bk = litebk
 	// DynamoDB backend:
 	case dynamo.GetName():
-		bk, err = dynamo.New(bc.Params)
+		bk, err = dynamo.New(context.TODO(), bc.Params)
 	// etcd backend:
 	case etcdbk.GetName():
-		bk, err = etcdbk.New(bc.Params)
+		bk, err = etcdbk.New(context.TODO(), bc.Params)
 	default:
 		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return bk, nil
+	return backend.NewSanitizer(bk), nil
 }
 
 // WaitWithContext waits until all internal services stop.
@@ -2078,7 +2152,7 @@ func validateConfig(cfg *Config) error {
 	}
 
 	if cfg.PollingPeriod == 0 {
-		cfg.PollingPeriod = defaults.HighResPollingPeriod
+		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
 
 	cfg.SSH.Namespace = services.ProcessNamespace(cfg.SSH.Namespace)

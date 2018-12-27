@@ -1,11 +1,30 @@
+/*
+Copyright 2018 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package service
 
 import (
-	"golang.org/x/crypto/ssh"
+	"path/filepath"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,8 +65,12 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 	// this is a migration clutch, used to re-register
 	// in case if identity of the auth server does not have the wildcard cert
 	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
-		if !identity.HasPrincipals([]string{"*." + teleport.APIDomain}) {
-			process.Debugf("Detected Auth server certificate without wildcard, regenerating.")
+		hasNames, err := identity.HasDNSNames([]string{"*." + teleport.APIDomain})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !hasNames {
+			process.Debugf("Detected Auth server certificate without wildcard principals: %v, regenerating.", identity.Cert.ValidPrincipals)
 			return process.firstTimeConnect(role)
 		}
 	}
@@ -210,6 +233,15 @@ func (process *TeleportProcess) generateKeyPair(role teleport.Role, reason strin
 	return &keyPair, nil
 }
 
+// newWatcher returns a new watcher,
+// either using local auth server connection or remote client
+func (process *TeleportProcess) newWatcher(conn *Connector, watch services.Watch) (services.Watcher, error) {
+	if conn.ClientIdentity.ID.Role == teleport.RoleAdmin || conn.ClientIdentity.ID.Role == teleport.RoleAuth {
+		return process.localAuth.NewWatcher(process.ExitContext(), watch)
+	}
+	return conn.Client.NewWatcher(process.ExitContext(), watch)
+}
+
 // getCertAuthority returns cert authority by ID.
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
@@ -262,7 +294,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		// Auth service is on the same host, no need to go though the invitation
 		// procedure.
 		process.Debugf("This server has local Auth server started, using it to add role to the cluster.")
-		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals)
+		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals, process.Config.AdvertiseIP)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -287,6 +319,8 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			PublicTLSKey:         keyPair.PublicTLSKey,
 			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
+			CAPin:                process.Config.CAPin,
+			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -349,54 +383,130 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	case <-eventC:
 		process.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
 	case <-process.ExitContext().Done():
-		process.Infof("Periodic rotation sync has exited.")
 		return nil
 	}
 
-	t := time.NewTicker(process.Config.PollingPeriod)
-	defer t.Stop()
+	retryTicker := time.NewTicker(defaults.HighResPollingPeriod)
+	defer retryTicker.Stop()
 	for {
+		err := process.syncRotationStateCycle()
+		if err == nil {
+			return nil
+		}
+		process.Warningf("Sync rotation state cycle failed: %v, going to retry after %v.", err, defaults.HighResPollingPeriod)
 		select {
-		case <-t.C:
-			status, err := process.syncRotationState()
-			if err != nil {
-				if trace.IsConnectionProblem(err) {
-					process.Warningf("Connection problem: sync rotation state: %v.", err)
-				} else {
-					process.Warningf("Failed to sync rotation state: %v.", err)
-				}
-			} else {
-				if status.phaseChanged || status.needsReload {
-					process.Debugf("Sync rotation state detected cert authority reload phase update.")
-				}
-				if status.phaseChanged {
-					process.BroadcastEvent(Event{Name: TeleportPhaseChangeEvent})
-				}
-				if status.needsReload {
-					process.Debugf("Triggering reload process.")
-					process.BroadcastEvent(Event{Name: TeleportReloadEvent})
-					return nil
-				}
-			}
+		case <-retryTicker.C:
 		case <-process.ExitContext().Done():
-			process.Infof("Periodic rotation sync has exited because the process is shutting down.")
 			return nil
 		}
 	}
 }
 
-// syncRotationState compares cluster rotation state with the state of
-// internal services and performs the rotation if necessary.
-func (process *TeleportProcess) syncRotationState() (*rotationStatus, error) {
+// syncRotationCycle executes a rotation cycle that returns:
+//
+// * nil whenever rotation state leads to teleport reload event
+// * error whenever rotation sycle has to be restarted
+//
+// the function accepts extra delay timer extraDelay in case if parent
+// function needs a
+func (process *TeleportProcess) syncRotationStateCycle() error {
 	connectors := process.getConnectors()
 	if len(connectors) == 0 {
-		return nil, trace.BadParameter("no connectors found")
+		return trace.BadParameter("no connectors found")
 	}
 	// it is important to use the same view of the certificate authority
 	// for all internal services at the same time, so that the same
 	// procedure will be applied at the same time for multiple service process
 	// and no internal services is left behind.
 	conn := connectors[0]
+
+	status, err := process.syncRotationStateAndBroadcast(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if status.needsReload {
+		return nil
+	}
+
+	watcher, err := process.newWatcher(conn, services.Watch{Kinds: []string{services.KindCertAuthority}})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	t := time.NewTicker(process.Config.PollingPeriod)
+	defer t.Stop()
+	for {
+		select {
+		case event := <-watcher.Events():
+			ca, ok := event.Resource.(services.CertAuthority)
+			if !ok {
+				process.Debugf("Skipping event %v for %v", event.Type, event.Resource.GetName())
+				continue
+			}
+			if ca.GetType() != services.HostCA && ca.GetClusterName() != conn.ClientIdentity.ClusterName {
+				process.Debugf("Skipping event for %v %v", ca.GetType(), ca.GetClusterName())
+				continue
+			}
+			if status.ca.GetResourceID() > ca.GetResourceID() {
+				process.Debugf("Skipping stale event %v, latest object version is %v.", ca.GetResourceID(), status.ca.GetResourceID())
+				continue
+			}
+			status, err := process.syncRotationStateAndBroadcast(conn)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if status.needsReload {
+				return nil
+			}
+		case <-watcher.Done():
+			return trace.ConnectionProblem(watcher.Error(), "watcher has disconnected")
+		case <-t.C:
+			status, err := process.syncRotationStateAndBroadcast(conn)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if status.needsReload {
+				return nil
+			}
+		case <-process.ExitContext().Done():
+			return nil
+		}
+	}
+}
+
+// syncRotationStateAndBroadcast syncs rotation state and broadcasts events
+// when phase has been changed or reload happened
+func (process *TeleportProcess) syncRotationStateAndBroadcast(conn *Connector) (*rotationStatus, error) {
+	status, err := process.syncRotationState(conn)
+	if err != nil {
+		process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: nil})
+		if trace.IsConnectionProblem(err) {
+			process.Warningf("Connection problem: sync rotation state: %v.", err)
+		} else {
+			process.Warningf("Failed to sync rotation state: %v.", err)
+		}
+		return nil, trace.Wrap(err)
+	}
+	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: nil})
+
+	if status.phaseChanged || status.needsReload {
+		process.Debugf("Sync rotation state detected cert authority reload phase update.")
+	}
+	if status.phaseChanged {
+		process.BroadcastEvent(Event{Name: TeleportPhaseChangeEvent})
+	}
+	if status.needsReload {
+		process.Debugf("Triggering reload process.")
+		process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+	}
+	return status, nil
+}
+
+// syncRotationState compares cluster rotation state with the state of
+// internal services and performs the rotation if necessary.
+func (process *TeleportProcess) syncRotationState(conn *Connector) (*rotationStatus, error) {
+	connectors := process.getConnectors()
 	ca, err := process.getCertAuthority(conn, services.CertAuthID{
 		DomainName: conn.ClientIdentity.ClusterName,
 		Type:       services.HostCA,
@@ -405,6 +515,7 @@ func (process *TeleportProcess) syncRotationState() (*rotationStatus, error) {
 		return nil, trace.Wrap(err)
 	}
 	var status rotationStatus
+	status.ca = ca
 	for _, conn := range connectors {
 		serviceStatus, err := process.syncServiceRotationState(ca, conn)
 		if err != nil {
@@ -437,6 +548,9 @@ type rotationStatus struct {
 	// phaseChanged means that teleport phase has been updated,
 	// but teleport does not need reload
 	phaseChanged bool
+	// ca is the certificate authority
+	// fetched during status check
+	ca services.CertAuthority
 }
 
 // rotate is called to check if rotation should be triggered.
@@ -448,6 +562,12 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	additionalPrincipals = utils.ReplaceInSlice(
+		additionalPrincipals,
+		defaults.AnyAddress,
+		defaults.Localhost,
+	)
+
 	principalsChanged := len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals)
 
 	if local.Matches(remote) && !principalsChanged {

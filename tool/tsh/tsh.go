@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -48,6 +49,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentTSH,
+})
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
@@ -79,6 +84,9 @@ type CLIConf struct {
 	RecursiveCopy bool
 	// -L flag for ssh. Local port forwarding like 'ssh -L 80:remote.host:80 -L 443:remote.host:443'
 	LocalForwardPorts []string
+	// DynamicForwardedPorts is port forwarding using SOCKS5. It is similar to
+	// "ssh -D 8080 example.com".
+	DynamicForwardedPorts []string
 	// ForwardAgent agent to target node. Equivalent of -A for OpenSSH.
 	ForwardAgent bool
 	// --local flag for ssh
@@ -129,6 +137,13 @@ type CLIConf struct {
 
 	// SkipVersionCheck skips version checking for client and server
 	SkipVersionCheck bool
+
+	// Options is a list of OpenSSH options in the format used in the
+	// configuration file.
+	Options []string
+
+	// Verbose is used to print extra output.
+	Verbose bool
 }
 
 func main() {
@@ -176,7 +191,7 @@ func Run(args []string, underTest bool) {
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
-	app.Flag("skip-version-check", "Skip version checking between server and client.").Hidden().BoolVar(&cf.SkipVersionCheck)
+	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
@@ -187,9 +202,11 @@ func Run(args []string, underTest bool) {
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
+	ssh.Flag("dynamic-forward", "Forward localhost connections to remote server using SOCKS5").Short('D').StringsVar(&cf.DynamicForwardedPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
+	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').StringsVar(&cf.Options)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -210,6 +227,7 @@ func Run(args []string, underTest bool) {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
+	ls.Flag("verbose", clusterHelp).Short('v').BoolVar(&cf.Verbose)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
@@ -274,17 +292,17 @@ func Run(args []string, underTest bool) {
 
 		select {
 		case sig := <-exitSignals:
-			logrus.Debugf("signal: %v", sig)
+			log.Debugf("signal: %v", sig)
 			cancel()
 		}
 	}()
 	cf.Context = ctx
 
 	if cf.Gops {
-		logrus.Debugf("starting gops agent")
+		log.Debugf("Starting gops agent.")
 		err = gops.Listen(&gops.Options{Addr: cf.GopsAddr})
 		if err != nil {
-			logrus.Warningf("failed to start gops agent %v", err)
+			log.Warningf("Failed to start gops agent %v.", err)
 		}
 	}
 
@@ -366,13 +384,13 @@ func onLogin(cf *CLIConf) {
 		case cf.Proxy == "" && cf.SiteName == "":
 			printProfiles(profile, profiles)
 			return
-			// in case if parameters match, print current status
+		// in case if parameters match, print current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster:
 			printProfiles(profile, profiles)
 			return
-			// proxy is unspecified or the same as the currently provided proxy,
-			// but cluster is specified, treat this as selecting a new cluster
-			// for the same proxy
+		// proxy is unspecified or the same as the currently provided proxy,
+		// but cluster is specified, treat this as selecting a new cluster
+		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
 			tc.SaveProfile("")
 			if err := kubeclient.UpdateKubeconfig(tc); err != nil {
@@ -380,7 +398,7 @@ func onLogin(cf *CLIConf) {
 			}
 			onStatus(cf)
 			return
-			// otherwise just passthrough to standard login
+		// otherwise just passthrough to standard login
 		default:
 		}
 	}
@@ -410,9 +428,11 @@ func onLogin(cf *CLIConf) {
 		return
 	}
 
-	// Update kubernetes config file.
-	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
-		utils.FatalError(err)
+	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
+	if tc.KubeProxyAddr != "" {
+		if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+			utils.FatalError(err)
+		}
 	}
 
 	// Regular login without -i flag.
@@ -440,6 +460,19 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 		return trace.Wrap(err)
 	}
 	tc.Username = certUsername
+
+	// Extract and set the HostLogin to be the first principal. It doesn't
+	// matter what the value is, but some valid principal has to be set
+	// otherwise the certificate won't be validated.
+	certPrincipals, err := key.CertPrincipals()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(certPrincipals) == 0 {
+		return trace.BadParameter("no principals found")
+	}
+	tc.HostLogin = certPrincipals[0]
+
 	identityAuth, err := authFromIdentity(key)
 	if err != nil {
 		return trace.Wrap(err)
@@ -456,16 +489,25 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy
 func onLogout(cf *CLIConf) {
+	// Extract all clusters the user is currently logged into.
+	active, available, err := client.Status("", "")
+	if err != nil {
+		utils.FatalError(err)
+		return
+	}
+	profiles := append(available, active)
+
+	// Unlink the current profile.
 	client.UnlinkCurrentProfile()
 
-	// extract the proxy name
+	// Extract the proxy name.
 	proxyHost, _, err := net.SplitHostPort(cf.Proxy)
 	if err != nil {
 		proxyHost = cf.Proxy
 	}
 
 	switch {
-	// proxy and username for key to remove
+	// Proxy and username for key to remove.
 	case proxyHost != "" && cf.Username != "":
 		tc, err := makeClient(cf, true)
 		if err != nil {
@@ -483,8 +525,24 @@ func onLogout(cf *CLIConf) {
 			utils.FatalError(err)
 			return
 		}
+
+		// Get the address of the active Kubernetes proxy to find AuthInfos,
+		// Clusters, and Contexts in kubeconfig.
+		clusterName, _ := tc.KubeProxyHostPort()
+		if tc.SiteName != "" {
+			clusterName = fmt.Sprintf("%v.%v", tc.SiteName, clusterName)
+		}
+
+		// Remove Teleport related entries from kubeconfig.
+		log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", clusterName)
+		err = kubeclient.RemoveKubeconifg(tc, clusterName)
+		if err != nil {
+			utils.FatalError(err)
+			return
+		}
+
 		fmt.Printf("Logged out %v from %v.\n", cf.Username, proxyHost)
-	// remove all keys
+	// Remove all keys.
 	case proxyHost == "" && cf.Username == "":
 		// The makeClient function requires a proxy. However this value is not used
 		// because the user will be logged out from all proxies. Pass a dummy value
@@ -494,6 +552,16 @@ func onLogout(cf *CLIConf) {
 		if err != nil {
 			utils.FatalError(err)
 			return
+		}
+
+		// Remove Teleport related entries from kubeconfig for all clusters.
+		for _, profile := range profiles {
+			log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", profile.Cluster)
+			err = kubeclient.RemoveKubeconifg(tc, profile.Cluster)
+			if err != nil {
+				utils.FatalError(err)
+				return
+			}
 		}
 
 		// Remove all keys from disk and the running agent.
@@ -510,7 +578,7 @@ func onLogout(cf *CLIConf) {
 	}
 }
 
-// onListNodes executes 'tsh ls' command
+// onListNodes executes 'tsh ls' command.
 func onListNodes(cf *CLIConf) {
 	tc, err := makeClient(cf, true)
 	if err != nil {
@@ -520,13 +588,56 @@ func onListNodes(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
-	for _, n := range nodes {
-		t.AddRow([]string{
-			n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString(),
-		})
+
+	switch cf.Verbose {
+	// In verbose mode, print everything on a single line and include the Node
+	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
+	case true:
+		t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
+		for _, n := range nodes {
+			t.AddRow([]string{
+				n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString(),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	// In normal mode chunk the labels and print two per line and allow multiple
+	// lines per node.
+	case false:
+		t := asciitable.MakeTable([]string{"Node Name", "Address", "Labels"})
+		for _, n := range nodes {
+			labelChunks := chunkLabels(n.GetAllLabels(), 2)
+			for i, v := range labelChunks {
+				var hostname string
+				var addr string
+				if i == 0 {
+					hostname = n.GetHostname()
+					addr = n.GetAddr()
+				}
+				t.AddRow([]string{hostname, addr, strings.Join(v, ", ")})
+			}
+		}
+		fmt.Println(t.AsBuffer().String())
 	}
-	fmt.Println(t.AsBuffer().String())
+}
+
+// chunkLabels breaks labels into sized chunks. Used to improve readability
+// of "tsh ls".
+func chunkLabels(labels map[string]string, chunkSize int) [][]string {
+	// First sort labels so they always occur in the same order.
+	sorted := make([]string, 0, len(labels))
+	for k, v := range labels {
+		sorted = append(sorted, fmt.Sprintf("%v=%v", k, v))
+	}
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+
+	// Then chunk labels into sized chunks.
+	var chunks [][]string
+	for chunkSize < len(sorted) {
+		sorted, chunks = sorted[chunkSize:], append(chunks, sorted[0:chunkSize:chunkSize])
+	}
+	chunks = append(chunks, sorted)
+
+	return chunks
 }
 
 // onListSites executes 'tsh sites' command
@@ -647,6 +758,12 @@ func onSCP(cf *CLIConf) {
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
+	// Parse OpenSSH style options.
+	options, err := parseOptions(cf.Options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// apply defaults
 	if cf.MinsToLive == 0 {
 		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
@@ -670,6 +787,11 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		}
 	}
 	fPorts, err := client.ParsePortForwardSpec(cf.LocalForwardPorts)
+	if err != nil {
+		return nil, err
+	}
+
+	dPorts, err := client.ParseDynamicPortForwardSpec(cf.DynamicForwardedPorts)
 	if err != nil {
 		return nil, err
 	}
@@ -701,7 +823,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		logrus.Debugf("Extracted username %q from the identity file %v.", certUsername, cf.IdentityFileIn)
+		log.Debugf("Extracted username %q from the identity file %v.", certUsername, cf.IdentityFileIn)
 		c.Username = certUsername
 
 		identityAuth, err = authFromIdentity(key)
@@ -740,6 +862,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	if len(fPorts) > 0 {
 		c.LocalForwardPorts = fPorts
 	}
+	if len(dPorts) > 0 {
+		c.DynamicForwardedPorts = dPorts
+	}
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
 	}
@@ -755,7 +880,13 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.Labels = labels
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
-	c.Interactive = cf.Interactive
+
+	// If a TTY was requested, make sure to allocate it. Note this applies to
+	// "exec" command because a shell always has a TTY allocated.
+	if cf.Interactive || options.RequestTTY {
+		c.Interactive = true
+	}
+
 	if !cf.NoCache {
 		c.CachePolicy = &client.CachePolicy{}
 	}
@@ -775,8 +906,16 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		c.AuthConnector = cf.AuthConnector
 	}
 
-	// copy over if we want agent forwarding or not
-	c.ForwardAgent = cf.ForwardAgent
+	// If agent forwarding was specified on the command line enable it.
+	if cf.ForwardAgent || options.ForwardAgent {
+		c.ForwardAgent = true
+	}
+
+	// If the caller does not want to check host keys, pass in a insecure host
+	// key checker.
+	if options.StrictHostKeyChecking == false {
+		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
+	}
 
 	return client.NewClient(c)
 }
@@ -820,7 +959,7 @@ func refuseArgs(command string, args []string) {
 // If the "host auth callback" is not returned, user will be prompted to
 // trust the proxy server.
 func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
-	logrus.Infof("Reading identity file: %v", idFn)
+	log.Infof("Reading identity file: %v", idFn)
 
 	f, err := os.Open(idFn)
 	if err != nil {
@@ -866,7 +1005,7 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 	// -cert.pub prefix
 	if len(cert) == 0 {
 		certFn := idFn + "-cert.pub"
-		logrus.Infof("certificate not found in %s. looking in %s", idFn, certFn)
+		log.Infof("Certificate not found in %s. Looking in %s.", idFn, certFn)
 		cert, err = ioutil.ReadFile(certFn)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -907,7 +1046,7 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 				}
 			}
 			err = trace.AccessDenied("host %v is untrusted", host)
-			logrus.Error(err)
+			log.Error(err)
 			return err
 		}
 	}
@@ -1010,7 +1149,7 @@ func printProfiles(profile *client.ProfileStatus, profiles []*client.ProfileStat
 	// here, they are only available in Enterprise.
 	if profile != nil || len(profiles) > 0 {
 		fmt.Printf("\n* RBAC is only available in Teleport Enterprise\n")
-		fmt.Printf("  https://gravitaitonal.com/teleport/docs/enteprise\n")
+		fmt.Printf("  https://gravitational.com/teleport/docs/enterprise\n")
 	}
 }
 

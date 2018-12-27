@@ -1,3 +1,19 @@
+/*
+Copyright 2018 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package integration
 
 import (
@@ -29,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -51,8 +67,10 @@ import (
 // work faster but consuming more CPU (useful for integration testing)
 func SetTestTimeouts(t time.Duration) {
 	defaults.ReverseTunnelAgentHeartbeatPeriod = t
-	defaults.ServerHeartbeatTTL = t
+	defaults.ServerAnnounceTTL = t
+	defaults.ServerKeepAliveTTL = t
 	defaults.SessionRefreshPeriod = t
+	defaults.HeartbeatCheckPeriod = t
 }
 
 // TeleInstance represents an in-memory instance of a teleport
@@ -146,7 +164,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		fatalIf(err)
 	}
 	// generate instance secrets (keys):
-	keygen, err := native.New(native.PrecomputeKeys(0))
+	keygen, err := native.New(context.TODO(), native.PrecomputeKeys(0))
 	fatalIf(err)
 	if cfg.Priv == nil || cfg.Pub == nil {
 		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair("")
@@ -359,7 +377,7 @@ func SetupUser(process *service.TeleportProcess, username string, roles []servic
 		roleOptions.ForwardAgent = services.NewBool(true)
 		role.SetOptions(roleOptions)
 
-		err = auth.UpsertRole(role, backend.Forever)
+		err = auth.UpsertRole(role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -367,7 +385,7 @@ func SetupUser(process *service.TeleportProcess, username string, roles []servic
 		roles = append(roles, role)
 	} else {
 		for _, role := range roles {
-			err := auth.UpsertRole(role, backend.Forever)
+			err := auth.UpsertRole(role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -458,14 +476,36 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = i.Secrets.ListenAddr
 	tconf.HostUUID = i.Secrets.GetIdentity().ID.HostUUID
 	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, i.GetPortSSH())
+	tconf.SSH.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
+	}
 	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortAuth())
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
-	tconf.Proxy.PublicAddrs = []utils.NetAddr{{Addr: i.Hostname}}
-
+	tconf.Proxy.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        i.Hostname,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
+	}
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
-		Type:   dir.GetName(),
+		Type:   lite.GetName(),
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir},
 	}
 
@@ -515,7 +555,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 			roleOptions.ForwardAgent = services.NewBool(true)
 			role.SetOptions(roleOptions)
 
-			err = auth.UpsertRole(role, backend.Forever)
+			err = auth.UpsertRole(role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -524,7 +564,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		} else {
 			roles = user.Roles
 			for _, role := range user.Roles {
-				err := auth.UpsertRole(role, backend.Forever)
+				err := auth.UpsertRole(role)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -569,6 +609,16 @@ func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProces
 	tconf.CachePolicy = service.CachePolicy{
 		Enabled:   true,
 		RecentTTL: &ttl,
+	}
+	tconf.SSH.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
 	}
 	tconf.Auth.Enabled = false
 	tconf.Proxy.Enabled = false
@@ -631,6 +681,16 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
+	tconf.SSH.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
+	}
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -694,6 +754,16 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) error {
 
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.SSHPort))
+	tconf.Proxy.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
+	}
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.ReverseTunnelPort))
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.WebPort))
 	tconf.Proxy.DisableReverseTunnel = false
@@ -788,7 +858,7 @@ func (i *TeleInstance) Start() error {
 	}
 
 	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
-	// receipt of a ProxyReverseTunnelReady and ProxyAgentPoolReady respectivly.
+	// receipt of a ProxyReverseTunnelReady and ProxyAgentPoolReady respectively.
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
@@ -1314,7 +1384,7 @@ func fatalIf(err error) {
 }
 
 func makeKey() (priv, pub []byte) {
-	k, err := native.New(native.PrecomputeKeys(0))
+	k, err := native.New(context.TODO(), native.PrecomputeKeys(0))
 	if err != nil {
 		panic(err)
 	}

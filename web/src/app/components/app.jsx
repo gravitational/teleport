@@ -19,13 +19,17 @@ import classnames from 'classnames';
 import { connect } from 'nuclear-js-react-addons';
 import appGetters from 'app/flux/app/getters';
 import { platform } from 'app/services/browser';
-import { refresh } from 'app/flux/app/actions';
 import NavLeftBar from './navLeftBar';
 import AjaxPoller from './dataProvider.jsx';
 import { Failed } from './msgPage.jsx';
 import Indicator from './indicator.jsx';
+import { fetchActiveSessions } from 'app/flux/sessions/actions';
 
 class App extends Component {
+
+  onRefresh = () => {
+    return fetchActiveSessions();
+  }
 
   render() {
     const { router, initAttempt } = this.props;
@@ -49,7 +53,7 @@ class App extends Component {
     if (isSuccess) {
       return (
         <div className={className}>
-          <AjaxPoller onFetch={refresh} time={3000}/>
+          <AjaxPoller onFetch={this.onRefresh} time={3000}/>
           {this.props.CurrentSessionHost}
           <NavLeftBar router={router}/>
           {this.props.children}

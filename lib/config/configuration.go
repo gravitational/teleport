@@ -36,8 +36,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/legacy/boltbk"
+	"github.com/gravitational/teleport/lib/backend/legacy/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -59,6 +60,9 @@ type CommandLineFlags struct {
 	AuthServerAddr string
 	// --token flag
 	AuthToken string
+	// CAPin is the hash of the SKPI of the root CA. Used to verify the cluster
+	// being joined is the one expected.
+	CAPin string
 	// --listen-ip flag
 	ListenIP net.IP
 	// --advertise-ip flag
@@ -170,7 +174,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
 		_, pathSet := cfg.Auth.StorageConfig.Params[defaults.BackendPath]
-		if cfg.Auth.StorageConfig.Type == dir.GetName() && !pathSet {
+		if (cfg.Auth.StorageConfig.Type == dir.GetName() || cfg.Auth.StorageConfig.Type == lite.GetName()) && !pathSet {
 			if cfg.Auth.StorageConfig.Params == nil {
 				cfg.Auth.StorageConfig.Params = make(backend.Params)
 			}
@@ -248,6 +252,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.MACAlgorithms != nil {
 		cfg.MACAlgorithms = fc.MACAlgorithms
+	}
+
+	// Read in how nodes will validate the CA.
+	if fc.CAPin != "" {
+		cfg.CAPin = fc.CAPin
 	}
 
 	// apply connection throttling:
@@ -406,13 +415,15 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	auditConfig.Type = fc.Storage.Type
 
-	// build cluster config from session recording and host key checking preferences
+	// Set cluster-wide configuration from file configuration.
 	cfg.Auth.ClusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording:      fc.Auth.SessionRecording,
 		ProxyChecksHostKeys:   fc.Auth.ProxyChecksHostKeys,
 		Audit:                 *auditConfig,
 		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
 		DisconnectExpiredCert: fc.Auth.DisconnectExpiredCert,
+		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
+		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -801,7 +812,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// apply diangostic address flag
+	// Apply diagnostic address flag.
 	if clf.DiagnosticAddr != "" {
 		addr, err := utils.ParseAddr(clf.DiagnosticAddr)
 		if err != nil {
@@ -858,6 +869,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// apply --token flag:
 	cfg.ApplyToken(clf.AuthToken)
+
+	// Apply flags used for the node to validate the Auth Server.
+	if clf.CAPin != "" {
+		cfg.CAPin = clf.CAPin
+	}
 
 	// apply --listen-ip flag:
 	if clf.ListenIP != nil {
