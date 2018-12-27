@@ -41,6 +41,14 @@ ignored = ["github.com/Sirupsen/logrus"]
   version = ">=1.0.0, <=19.0.0-g5d150e7"
 
 [[constraint]]
+  name = "github.com/gogo/protobuf"
+  version = "v1.1.1"
+
+[[constraint]]
+  name = "github.com/mattn/go-sqlite3"
+  version = "v1.10.0"
+
+[[constraint]]
   name = "github.com/vulcand/predicate"
   version = "v1.1.0"
 

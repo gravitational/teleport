@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"math/rand"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -79,6 +80,9 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if cfg.ClusterConfiguration == nil {
 		cfg.ClusterConfiguration = local.NewClusterConfigurationService(cfg.Backend)
 	}
+	if cfg.Events == nil {
+		cfg.Events = local.NewEventsService(cfg.Backend)
+	}
 	if cfg.AuditLog == nil {
 		cfg.AuditLog = events.NewDiscardAuditLog()
 	}
@@ -96,6 +100,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		AuthServiceName:      cfg.AuthServiceName,
 		ClusterConfiguration: cfg.ClusterConfiguration,
 		IAuditLog:            cfg.AuditLog,
+		Events:               cfg.Events,
 		oidcClients:          make(map[string]*oidcClient),
 		samlProviders:        make(map[string]*samlProvider),
 		githubClients:        make(map[string]*githubClient),
@@ -144,6 +149,7 @@ type AuthServer struct {
 	services.Identity
 	services.Access
 	services.ClusterConfiguration
+	services.Events
 	events.IAuditLog
 
 	clusterName services.ClusterName
@@ -543,7 +549,6 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	registration, err := s.GetU2FRegistration(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -553,7 +558,6 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	err = s.UpsertU2FSignChallenge(user, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -735,6 +739,15 @@ func (s *AuthServer) ClientCertPool(clusterName string) (*x509.CertPool, error) 
 	return pool, nil
 }
 
+// ExtractHostID returns host id based on the hostname
+func ExtractHostID(hostName string, clusterName string) (string, error) {
+	suffix := "." + clusterName
+	if !strings.HasSuffix(hostName, suffix) {
+		return "", trace.BadParameter("expected suffix %q in %q", suffix, hostName)
+	}
+	return strings.TrimSuffix(hostName, suffix), nil
+}
+
 // HostFQDN consits of host UUID and cluster name joined via .
 func HostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
@@ -758,6 +771,10 @@ type GenerateServerKeysRequest struct {
 	// if present will be signed as a return value
 	// otherwise, new public/private key pair will be generated
 	PublicSSHKey []byte `json:"public_ssh_key"`
+	// RemoteAddr is the IP address of the remote host requesting a host
+	// certificate. RemoteAddr is used to replace 0.0.0.0 in the list of
+	// additional principals.
+	RemoteAddr string `json:"remote_addr"`
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -777,6 +794,14 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// If the request contains 0.0.0.0, this implies an advertise IP was not
+	// specified on the node. Try and guess what the address by replacing 0.0.0.0
+	// with the RemoteAddr as known to the Auth Server.
+	req.AdditionalPrincipals = utils.ReplaceInSlice(
+		req.AdditionalPrincipals,
+		defaults.AnyAddress,
+		req.RemoteAddr)
 
 	var cryptoPubKey crypto.PublicKey
 	var privateKeyPEM, pubSSHKey []byte
@@ -833,7 +858,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 		NodeName:            req.NodeName,
 		ClusterName:         s.clusterName.GetClusterName(),
 		Roles:               req.Roles,
-		Principals:          append([]string{}, req.AdditionalPrincipals...),
+		Principals:          req.AdditionalPrincipals,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -935,6 +960,9 @@ type RegisterUsingTokenRequest struct {
 	// if present will be signed as a return value
 	// otherwise, new public/private key pair will be generated
 	PublicSSHKey []byte `json:"public_ssh_key"`
+	// RemoteAddr is the remote address of the host requesting a host certificate.
+	// It is used to replace 0.0.0.0 in the list of additional principals.
+	RemoteAddr string `json:"remote_addr"`
 }
 
 // CheckAndSetDefaults checks for errors and sets defaults
@@ -986,6 +1014,7 @@ func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedK
 		AdditionalPrincipals: req.AdditionalPrincipals,
 		PublicTLSKey:         req.PublicTLSKey,
 		PublicSSHKey:         req.PublicSSHKey,
+		RemoteAddr:           req.RemoteAddr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1169,6 +1198,79 @@ func (a *AuthServer) DeleteRole(name string) error {
 		}
 	}
 	return a.Access.DeleteRole(name)
+}
+
+// NewKeepAliver returns a new instance of keep aliver
+func (a *AuthServer) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
+	cancelCtx, cancel := context.WithCancel(ctx)
+	k := &authKeepAliver{
+		a:           a,
+		ctx:         cancelCtx,
+		cancel:      cancel,
+		keepAlivesC: make(chan services.KeepAlive),
+	}
+	go k.forwardKeepAlives()
+	return k, nil
+}
+
+// authKeepAliver is a keep aliver using auth server directly
+type authKeepAliver struct {
+	sync.RWMutex
+	a           *AuthServer
+	ctx         context.Context
+	cancel      context.CancelFunc
+	keepAlivesC chan services.KeepAlive
+	err         error
+}
+
+// KeepAlives returns a channel accepting keep alive requests
+func (k *authKeepAliver) KeepAlives() chan<- services.KeepAlive {
+	return k.keepAlivesC
+}
+
+func (k *authKeepAliver) forwardKeepAlives() {
+	for {
+		select {
+		case <-k.a.closeCtx.Done():
+			k.Close()
+			return
+		case <-k.ctx.Done():
+			return
+		case keepAlive := <-k.keepAlivesC:
+			err := k.a.KeepAliveNode(k.ctx, keepAlive)
+			if err != nil {
+				k.closeWithError(err)
+				return
+			}
+		}
+	}
+}
+
+func (k *authKeepAliver) closeWithError(err error) {
+	k.Close()
+	k.Lock()
+	defer k.Unlock()
+	k.err = err
+}
+
+// Error returns the error if keep aliver
+// has been closed
+func (k *authKeepAliver) Error() error {
+	k.RLock()
+	defer k.RUnlock()
+	return k.err
+}
+
+// Done returns channel that is closed whenever
+// keep aliver is closed
+func (k *authKeepAliver) Done() <-chan struct{} {
+	return k.ctx.Done()
+}
+
+// Close closes keep aliver and cancels all goroutines
+func (k *authKeepAliver) Close() error {
+	k.cancel()
+	return nil
 }
 
 const (

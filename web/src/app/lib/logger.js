@@ -20,7 +20,7 @@ class Logger {
   }
 
   log(level='log', ...args) {
-    console[level](`%c[${this.name}]`, `color: blue;`, ...args);
+    window.console[level](`%c[${this.name}]`, `color: blue;`, ...args);
   }
 
   trace(...args) {

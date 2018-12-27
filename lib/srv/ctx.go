@@ -308,9 +308,9 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	// update ctx with a session ID
 	c.session, _ = findSession()
 	if c.session == nil {
-		log.Debugf("[SSH] will create new session for SSH connection %v", c.Conn.RemoteAddr())
+		log.Debugf("Will create new session for SSH connection %v.", c.Conn.RemoteAddr())
 	} else {
-		log.Debugf("[SSH] will join session %v for SSH connection %v", c.session, c.Conn.RemoteAddr())
+		log.Debugf("Will join session %v for SSH connection %v.", c.session, c.Conn.RemoteAddr())
 	}
 
 	return nil

@@ -232,7 +232,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 // generated the certificate. If the target server presents a public key, if
 // we are strictly checking keys, we reject the target server. If we are not
 // we take whatever.
-func (h *AuthHandlers) HostKeyAuth(hostport string, remote net.Addr, key ssh.PublicKey) error {
+func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicKey) error {
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
 	// update entry to include a fingerprint of the key so admins can track down
@@ -245,30 +245,34 @@ func (h *AuthHandlers) HostKeyAuth(hostport string, remote net.Addr, key ssh.Pub
 		},
 	})
 
+	// Check if the given host key was signed by a Teleport certificate
+	// authority (CA) or fallback to host key checking if it's allowed.
+	certChecker := ssh.CertChecker{
+		IsHostAuthority: h.IsHostAuthority,
+		HostKeyFallback: h.hostKeyCallback,
+	}
+	err := certChecker.CheckHostKey(addr, remote, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// hostKeyCallback allows connections to host that present keys only if
+// strict host key checking is disabled.
+func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
+	// If strict host key checking is enabled, reject host key fallback.
 	clusterConfig, err := h.AccessPoint.GetClusterConfig()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	cert, ok := key.(*ssh.Certificate)
-	if ok {
-		err := h.IsHostAuthority(hostport, remote, cert)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	}
-
-	// if we are strictly checking host keys then reject this request right away
 	if clusterConfig.GetProxyChecksHostKeys() == services.HostKeyCheckYes {
 		return trace.AccessDenied("remote host presented a public key, expected a host certificate")
 	}
 
-	// if we are not stricting rejecting host keys, we need to log that we
-	// trusted a insecure key and then return nil
+	// If strict host key checking is not enabled, log that Teleport trusted an
+	// insecure key, but allow the request to go through.
 	h.Warn("Insecure configuration! Strict host key checking disabled, allowing login without checking host key.")
-
 	return nil
 }
 
@@ -285,11 +289,12 @@ func (h *AuthHandlers) IsUserAuthority(cert ssh.PublicKey) bool {
 // IsHostAuthority is called when checking the host certificate a server
 // presents. It make sure that the key used to sign the host certificate was a
 // Teleport CA.
-func (h *AuthHandlers) IsHostAuthority(hostport string, remote net.Addr, cert ssh.PublicKey) error {
+func (h *AuthHandlers) IsHostAuthority(cert ssh.PublicKey, address string) bool {
 	if _, err := h.authorityForCert(services.HostCA, cert); err != nil {
-		return trace.Wrap(err)
+		h.Entry.Debugf("Unable to find SSH host CA: %v.", err)
+		return false
 	}
-	return nil
+	return true
 }
 
 // canLoginWithoutRBAC checks the given certificate (supplied by a connected

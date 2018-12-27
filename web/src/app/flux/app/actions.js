@@ -51,13 +51,6 @@ export function initApp(siteId, featureActivator) {
     })
 }
 
-export function refresh() {
-  return $.when(
-    fetchActiveSessions(),
-    fetchNodes()
-  )
-}
-
 export function fetchInitData(siteId) {
   return $.when(fetchSites(), fetchUserContext())
     .then(masterSiteId => {

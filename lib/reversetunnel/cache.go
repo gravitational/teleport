@@ -17,7 +17,7 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,25 +60,23 @@ func NewHostCertificateCache(keygen sshca.Authority, authClient auth.ClientI) (*
 // Multiple callers can arrive and generate a host certificate at the same time.
 // This is a tradeoff to prevent long delays here due to the expensive
 // certificate generation call.
-func (c *certificateCache) GetHostCertificate(addr string) (ssh.Signer, error) {
+func (c *certificateCache) GetHostCertificate(addr string, additionalPrincipals []string) (ssh.Signer, error) {
 	var certificate ssh.Signer
 	var err error
 	var ok bool
 
-	// extract the principal from the address
-	principal, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var principals []string
+	principals = append(principals, addr)
+	principals = append(principals, additionalPrincipals...)
 
-	certificate, ok = c.get(principal)
+	certificate, ok = c.get(strings.Join(principals, "."))
 	if !ok {
-		certificate, err = c.generateHostCert(principal)
+		certificate, err = c.generateHostCert(principals)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = c.set(principal, certificate, defaults.HostCertCacheTime)
+		err = c.set(addr, certificate, defaults.HostCertCacheTime)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -89,11 +87,11 @@ func (c *certificateCache) GetHostCertificate(addr string) (ssh.Signer, error) {
 
 // get is goroutine safe and will return a ssh.Signer for a principal from
 // the cache.
-func (c *certificateCache) get(principal string) (ssh.Signer, bool) {
+func (c *certificateCache) get(addr string) (ssh.Signer, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	certificate, ok := c.cache.Get(principal)
+	certificate, ok := c.cache.Get(addr)
 	if !ok {
 		return nil, false
 	}
@@ -108,11 +106,11 @@ func (c *certificateCache) get(principal string) (ssh.Signer, bool) {
 
 // set is goroutine safe and will set a ssh.Signer for a principal in
 // the cache.
-func (c *certificateCache) set(principal string, certificate ssh.Signer, ttl time.Duration) error {
+func (c *certificateCache) set(addr string, certificate ssh.Signer, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	err := c.cache.Set(principal, certificate, ttl)
+	err := c.cache.Set(addr, certificate, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -122,21 +120,31 @@ func (c *certificateCache) set(principal string, certificate ssh.Signer, ttl tim
 
 // generateHostCert will generate a SSH host certificate for a given
 // principal.
-func (c *certificateCache) generateHostCert(principal string) (ssh.Signer, error) {
-	// generate public/private keypair
+func (c *certificateCache) generateHostCert(principals []string) (ssh.Signer, error) {
+	if len(principals) == 0 {
+		return nil, trace.BadParameter("at least one principal must be provided")
+	}
+
+	// Generate public/private keypair.
 	privBytes, pubBytes, err := c.keygen.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// have auth server sign and return a host certificate to us
+	// Generate a SSH host certificate.
 	clusterName, err := c.authClient.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certBytes, err := c.authClient.GenerateHostCert(pubBytes,
-		principal, principal, nil,
-		clusterName, teleport.Roles{teleport.RoleNode}, 0)
+
+	certBytes, err := c.authClient.GenerateHostCert(
+		pubBytes,
+		principals[0],
+		principals[0],
+		principals,
+		clusterName,
+		teleport.Roles{teleport.RoleNode},
+		0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

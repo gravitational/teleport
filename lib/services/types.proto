@@ -1,0 +1,185 @@
+syntax = "proto3";
+package services;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+message KeepAlive {
+    // ServerName is a server name to keep alive
+    string ServerName = 1 [(gogoproto.jsontag) = "server_name"];
+    // Namespace is a server namespace
+    string Namespace = 2 [(gogoproto.jsontag) = "namespace"];
+    // LeaseID is ID of the lease
+	int64 LeaseID = 3 [(gogoproto.jsontag) = "lease_id"];
+    // Expires is set to update expirty time
+    google.protobuf.Timestamp Expires = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "expires"];
+}
+
+// Metadata is resource metadata
+message Metadata {
+    // Name is an object name
+	string Name = 1 [(gogoproto.jsontag) = "name"];
+	// Namespace is object namespace. The field should be called "namespace"
+	// when it returns in Teleport 2.4.
+	string Namespace = 2 [(gogoproto.jsontag) = "-"];
+	// Description is object description
+	string Description = 3 [(gogoproto.jsontag) = "description,omitempty"];
+	// Labels is a set of labels
+	map <string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
+	// Expires is a global expiry time header can be set on any resource in the system.
+	google.protobuf.Timestamp Expires = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true, (gogoproto.jsontag) = "expires,omitempty"];
+    // ID is a record ID
+	int64 ID = 7 [(gogoproto.jsontag) = "-"];
+};
+
+// Rotation is a status of the rotation of the certificate authority
+message Rotation {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+    
+	// State could be one of "init" or "in_progress".
+	string State = 1 [(gogoproto.jsontag) = "state,omitempty"];
+	// Phase is the current rotation phase.
+	string Phase = 2 [(gogoproto.jsontag) = "phase,omitempty"];
+	// Mode sets manual or automatic rotation mode.
+	string Mode = 3 [(gogoproto.jsontag) = "mode,omitempty"];
+	// CurrentID is the ID of the rotation operation
+	// to differentiate between rotation attempts.
+	string CurrentID = 4 [(gogoproto.jsontag) = "current_id"];
+	// Started is set to the time when rotation has been started
+	// in case if the state of the rotation is "in_progress".
+    google.protobuf.Timestamp Started = 5 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "started,omitempty"];
+	// GracePeriod is a period during which old and new CA
+	// are valid for checking purposes, but only new CA is issuing certificates.
+	int64 GracePeriod = 6 [(gogoproto.jsontag) = "grace_period,omitempty", (gogoproto.casttype) = "Duration"];
+	// LastRotated specifies the last time of the completed rotation.
+	google.protobuf.Timestamp LastRotated = 7 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "last_rotated,omitempty"];
+	// Schedule is a rotation schedule - used in
+	// automatic mode to switch beetween phases.
+	RotationSchedule Schedule = 8 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "schedule,omitempty"];
+}
+
+// RotationSchedule is a rotation schedule setting time switches
+// for different phases.
+message RotationSchedule {
+	// UpdateClients specifies time to switch to the "Update clients" phase
+	google.protobuf.Timestamp UpdateClients = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "update_clients,omitempty"];
+	// UpdateServers specifies time to switch to the "Update servers" phase.
+	google.protobuf.Timestamp UpdateServers = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "update_servers,omitempty"];
+	// Standby specifies time to switch to the "Standby" phase.
+	google.protobuf.Timestamp Standby = 3 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "standby,omitempty"];
+}
+
+// ResorceHeader is a shared resource header
+// used in cases when only type and name is known
+message ResourceHeader {
+    // Kind is a resource kind
+    string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+	// Version is version
+    string Version = 2 [(gogoproto.jsontag) = "version,omitempty"];
+	// Metadata is User metadata
+    Metadata Metadata = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty"];
+}
+
+// ServerV2 represents a Node, Proxy or Auth server in a Teleport cluster
+message ServerV2 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+	// Version is version    
+    string Version = 2 [(gogoproto.jsontag) = "version"];
+	// Metadata is User metadata    
+    Metadata Metadata = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    // Spec is a server spec
+    ServerSpecV2 Spec = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+}
+
+// ServerSpecV2 is a specification for V2 Server
+message ServerSpecV2  {
+	// Addr is server host:port address
+	string Addr = 1 [(gogoproto.jsontag) = "addr"];
+	// PublicAddr is the public address this cluster can be reached at.
+	string PublicAddr = 2 [(gogoproto.jsontag) = "public_addr,omitempty"];
+	// Hostname is server hostname
+	string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
+	// CmdLabels is server dynamic labels
+	map <string, CommandLabelV2> CmdLabels = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "cmd_labels,omitempty"];
+	// Rotation specifies server rotation
+	Rotation Rotation  = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty"];
+}
+
+// CommandLabelV2 is a label that has a value as a result of the
+// output generated by running command, e.g. hostname
+message CommandLabelV2 {
+	// Period is a time between command runs
+	int64 Period = 1 [(gogoproto.jsontag) = "period", (gogoproto.casttype) = "Duration"];
+	// Command is a command to run
+	repeated string Command = 2 [(gogoproto.jsontag) = "command"];
+	// Result captures standard output
+	string Result = 3 [(gogoproto.jsontag) = "result"];
+}
+
+
+// TLSKeyPair is a TLS key pair
+message TLSKeyPair {
+	// Cert is a PEM encoded TLS cert
+	bytes Cert = 1 [(gogoproto.jsontag) = "cert,omitempty"];
+	// Key is a PEM encoded TLS key
+	bytes Key = 2 [(gogoproto.jsontag) = "key,omitempty"];
+}
+
+// CertAuthorityV2 is version 2 resource spec for Cert Authority
+message CertAuthorityV2 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+	// Kind is a resource kind
+	string Kind = 1 [(gogoproto.jsontag) = "kind"];
+	// Version is version
+	string Version = 2 [(gogoproto.jsontag) = "version"];
+	// Metadata is connector metadata
+	Metadata Metadata = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+	// Spec contains cert authority specification
+	CertAuthoritySpecV2 Spec = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+}
+
+// CertAuthoritySpecV2 is a host or user certificate authority that
+// can check and if it has private key stored as well, sign it too
+message CertAuthoritySpecV2 {
+	// Type is either user or host certificate authority
+	string Type = 1 [(gogoproto.jsontag) = "type", (gogoproto.casttype) = "CertAuthType"];
+	// DELETE IN(2.7.0) this field is deprecated,
+	// as resource name matches cluster name after migrations.
+	// and this property is enforced by the auth server code.
+	// ClusterName identifies cluster name this authority serves,
+	// for host authorities that means base hostname of all servers,
+	// for user authorities that means organization name
+	string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
+	// Checkers is a list of SSH public keys that can be used to check
+	// certificate signatures
+	repeated bytes CheckingKeys = 3 [(gogoproto.jsontag) = "checking_keys"];
+	// SigningKeys is a list of private keys used for signing
+	repeated bytes SigningKeys = 4 [(gogoproto.jsontag) = "signing_keys,omitempty"];
+	// Roles is a list of roles assumed by users signed by this CA
+	repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
+	// RoleMap specifies role mappings to remote roles
+	repeated RoleMapping RoleMap = 6 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "role_map,omitempty"];
+	// TLS is a list of TLS key pairs
+	repeated TLSKeyPair TLSKeyPairs = 7 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "tls_key_pairs,omitempty"];
+	// Rotation is a status of the certificate authority rotation
+	Rotation Rotation = 8 [(gogoproto.nullable) = true, (gogoproto.jsontag) = "rotation,omitempty"];
+}
+
+// RoleMappping provides mapping of remote roles to local roles
+// for trusted clusters
+message RoleMapping {
+	// Remote specifies remote role name to map from
+	string Remote = 1 [(gogoproto.jsontag) = "remote"];
+	// Local specifies local roles to map to
+	repeated string Local = 2 [(gogoproto.jsontag) = "local"];
+}

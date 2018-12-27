@@ -83,6 +83,16 @@ type ClusterNameSpecV2 struct {
 	ClusterName string `json:"cluster_name"`
 }
 
+// GetResourceID returns resource ID
+func (c *ClusterNameV2) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *ClusterNameV2) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
 // GetName returns the name of the cluster.
 func (c *ClusterNameV2) GetName() string {
 	return c.Metadata.Name

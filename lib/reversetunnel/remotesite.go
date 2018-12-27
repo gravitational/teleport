@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -563,7 +562,12 @@ func (s *remoteSite) DialAuthServer() (conn net.Conn, err error) {
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (s *remoteSite) Dial(from net.Addr, to net.Addr, userAgent agent.Agent) (net.Conn, error) {
+func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
+	err := params.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterConfig, err := s.localAccessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -572,12 +576,12 @@ func (s *remoteSite) Dial(from net.Addr, to net.Addr, userAgent agent.Agent) (ne
 	// if the proxy is in recording mode use the agent to dial and build a
 	// in-memory forwarding server
 	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
-		if userAgent == nil {
+		if params.UserAgent == nil {
 			return nil, trace.BadParameter("user agent missing")
 		}
-		return s.dialWithAgent(from, to, userAgent)
+		return s.dialWithAgent(params)
 	}
-	return s.DialTCP(from, to)
+	return s.DialTCP(params.From, params.To)
 }
 
 func (s *remoteSite) DialTCP(from, to net.Addr) (net.Conn, error) {
@@ -591,16 +595,22 @@ func (s *remoteSite) DialTCP(from, to net.Addr) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *remoteSite) dialWithAgent(from, to net.Addr, userAgent agent.Agent) (net.Conn, error) {
-	s.Debugf("Dialing with an agent from %v to %v", from, to)
+func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
+	s.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
 
-	// get a host certificate for the forwarding node from the cache
-	hostCertificate, err := s.certificateCache.GetHostCertificate(to.String())
+	addr := params.Address
+	host, _, err := net.SplitHostPort(params.To.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	targetConn, err := s.connThroughTunnel(chanTransportDialReq, to.String())
+	// Get a host certificate for the forwarding node from the cache.
+	hostCertificate, err := s.certificateCache.GetHostCertificate(addr, []string{host})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	targetConn, err := s.connThroughTunnel(chanTransportDialReq, params.To.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -614,10 +624,10 @@ func (s *remoteSite) dialWithAgent(from, to net.Addr, userAgent agent.Agent) (ne
 	// remote cluster.
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.localClient,
-		UserAgent:       userAgent,
+		UserAgent:       params.UserAgent,
 		TargetConn:      targetConn,
-		SrcAddr:         from,
-		DstAddr:         to,
+		SrcAddr:         params.From,
+		DstAddr:         params.To,
 		HostCertificate: hostCertificate,
 		Ciphers:         s.srv.Config.Ciphers,
 		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,

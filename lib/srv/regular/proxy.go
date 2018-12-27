@@ -38,13 +38,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
-	log          *log.Entry
+	log          *logrus.Entry
 	srv          *Server
 	host         string
 	port         string
@@ -117,7 +117,7 @@ func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*pro
 	}
 
 	return &proxySubsys{
-		log: log.WithFields(log.Fields{
+		log: logrus.WithFields(logrus.Fields{
 			trace.Component:       teleport.ComponentSubsystemProxy,
 			trace.ComponentFields: map[string]string{},
 		}),
@@ -141,7 +141,7 @@ func (t *proxySubsys) String() string {
 // a mapping connection between a client & remote node we're proxying to)
 func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
 	// once we start the connection, update logger to include component fields
-	t.log = log.WithFields(log.Fields{
+	t.log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentSubsystemProxy,
 		trace.ComponentFields: map[string]string{
 			"src": sconn.RemoteAddr().String(),
@@ -284,6 +284,8 @@ func (t *proxySubsys) proxyToHost(
 		}
 	}
 
+	// Resolve the IP address to dial to because the hostname may not be
+	// DNS resolvable.
 	var serverAddr string
 	if server != nil {
 		serverAddr = server.GetAddr()
@@ -295,13 +297,20 @@ func (t *proxySubsys) proxyToHost(
 		t.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
-	// dial by IP address because the hostname may not be DNS resolvable
-	// pass the agent along to the site (if the proxy is in recording mode, this
-	// agent will be used for user auth)
-	conn, err := site.Dial(
-		remoteAddr,
-		&utils.NetAddr{Addr: serverAddr, AddrNetwork: "tcp"},
-		t.agent)
+	// Pass the agent along to the site. If the proxy is in recording mode, this
+	// agent is used to perform user authentication. Pass the DNS name to the
+	// dialer as well so the forwarding proxy can generate a host certificate
+	// with the correct hostname).
+	toAddr := &utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        serverAddr,
+	}
+	conn, err := site.Dial(reversetunnel.DialParams{
+		From:      remoteAddr,
+		To:        toAddr,
+		UserAgent: t.agent,
+		Address:   t.host,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

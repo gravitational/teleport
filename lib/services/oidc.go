@@ -208,6 +208,16 @@ type OIDCConnectorV2 struct {
 	Spec OIDCConnectorSpecV2 `json:"spec"`
 }
 
+// GetResourceID returns resource ID
+func (o *OIDCConnectorV2) GetResourceID() int64 {
+	return o.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (o *OIDCConnectorV2) SetResourceID(id int64) {
+	o.Metadata.ID = id
+}
+
 // V2 returns V2 version of the resource
 func (o *OIDCConnectorV2) V2() *OIDCConnectorV2 {
 	return o

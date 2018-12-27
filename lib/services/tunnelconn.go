@@ -104,6 +104,16 @@ type TunnelConnectionV2 struct {
 	Spec TunnelConnectionSpecV2 `json:"spec"`
 }
 
+// GetResourceID returns resource ID
+func (r *TunnelConnectionV2) GetResourceID() int64 {
+	return r.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (r *TunnelConnectionV2) SetResourceID(id int64) {
+	r.Metadata.ID = id
+}
+
 // Clone returns a copy of this tunnel connection
 func (r *TunnelConnectionV2) Clone() TunnelConnection {
 	out := *r

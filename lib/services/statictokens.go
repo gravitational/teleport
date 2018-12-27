@@ -100,6 +100,16 @@ type StaticTokensSpecV2 struct {
 	StaticTokens []ProvisionToken `json:"static_tokens"`
 }
 
+// GetResourceID returns resource ID
+func (c *StaticTokensV2) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *StaticTokensV2) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
 // GetName returns the name of the StaticTokens resource.
 func (c *StaticTokensV2) GetName() string {
 	return c.Metadata.Name

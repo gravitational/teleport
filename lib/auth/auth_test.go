@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -29,7 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
@@ -55,13 +56,13 @@ var _ = Suite(&AuthSuite{})
 var _ = fmt.Printf
 
 func (s *AuthSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *AuthSuite) SetUpTest(c *C) {
 	var err error
 	s.dataDir = c.MkDir()
-	s.bk, err = boltbk.New(backend.Params{"path": s.dataDir})
+	s.bk, err = lite.New(context.TODO(), backend.Params{"path": s.dataDir})
 	c.Assert(err, IsNil)
 
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
@@ -617,7 +618,7 @@ func (s *AuthSuite) TestMigrateIdentity(c *C) {
 func (s *AuthSuite) TestMigrateAdminRole(c *C) {
 	defaultRole := services.NewAdminRole()
 	defaultRole.SetKubeGroups(services.Allow, nil)
-	err := s.a.UpsertRole(defaultRole, backend.Forever)
+	err := s.a.UpsertRole(defaultRole)
 	c.Assert(err, IsNil)
 
 	err = migrateAdminRole(s.a)
