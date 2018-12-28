@@ -17,6 +17,9 @@ limitations under the License.
 package auth
 
 import (
+	"time"
+
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -41,6 +44,34 @@ func (s *GithubSuite) TestPopulateClaims(c *check.C) {
 			"org2": []string{"team1"},
 		},
 	})
+}
+
+func (s *GithubSuite) TestMaxSessionTTL(c *check.C) {
+	roleSet := services.RoleSet{}
+	roleSet = append(roleSet, &services.RoleV3{
+		Spec: services.RoleSpecV3{
+			Options: services.RoleOptions{
+				MaxSessionTTL: services.NewDuration(10 * time.Hour),
+			},
+		},
+	})
+
+	roleSet = append(roleSet, &services.RoleV3{
+		Spec: services.RoleSpecV3{
+			Options: services.RoleOptions{
+				MaxSessionTTL: services.NewDuration(20 * time.Hour),
+			},
+		},
+	})
+
+	actual := getWebSessionTTL(roleSet)
+	c.Assert(actual, check.Equals, 20*time.Hour)
+
+	roleSet = services.RoleSet{}
+	roleSet = append(roleSet, &services.RoleV3{})
+
+	actual = getWebSessionTTL(roleSet)
+	c.Assert(actual, check.Equals, defaults.OAuth2TTL)
 }
 
 type testGithubAPIClient struct{}

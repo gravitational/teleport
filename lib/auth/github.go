@@ -175,7 +175,8 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sessionTTL := roles.AdjustSessionTTL(defaults.OAuth2TTL)
+
+		sessionTTL := getWebSessionTTL(roles)
 		bearerTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
 		session.SetExpiryTime(s.clock.Now().UTC().Add(sessionTTL))
 		session.SetBearerTokenExpiryTime(s.clock.Now().UTC().Add(bearerTTL))
@@ -471,6 +472,23 @@ func (c *githubAPIClient) get(url string) ([]byte, string, error) {
 	wls := utils.ParseWebLinks(response)
 
 	return bytes, wls.NextPage, nil
+}
+
+// getWebSessionTTL returns web session TTL
+func getWebSessionTTL(roleSet services.RoleSet) time.Duration {
+	var webSessionTTL time.Duration
+	for _, role := range roleSet {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if maxSessionTTL > webSessionTTL {
+			webSessionTTL = maxSessionTTL
+		}
+	}
+
+	if webSessionTTL == 0 {
+		return defaults.OAuth2TTL
+	}
+
+	return webSessionTTL
 }
 
 const (
