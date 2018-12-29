@@ -54,9 +54,11 @@ spec:
         - mountPath: /etc/teleport
           name: config
           readOnly: true
-        - mountPath: /var/lib/license
+{{- if .Values.license.enabled }}
+        - mountPath: {{ .Values.license.mountPath }}
           name: license
           readOnly: true
+{{- end }}
         - mountPath: /var/lib/teleport
           name: storage
 {{- if .Values.extraVolumeMounts }}
@@ -68,9 +70,11 @@ spec:
         secret:
           secretName: tls-web
 {{- end }}
+{{- if .Values.license.enabled }}
       - name: license
         secret:
-          secretName: license
+          secretName: {{ .Values.license.secretName }}
+{{- end }}
       - name: config
         configMap:
           name: {{ template "teleport.fullname" . }}
