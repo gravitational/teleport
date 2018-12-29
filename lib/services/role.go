@@ -52,7 +52,7 @@ var DefaultImplicitRules = []Rule{
 	NewRule(KindNode, RO()),
 	NewRule(KindAuthServer, RO()),
 	NewRule(KindReverseTunnel, RO()),
-	NewRule(KindCertAuthority, RO()),
+	NewRule(KindCertAuthority, ReadNoSecrets()),
 	NewRule(KindClusterAuthPreference, RO()),
 	NewRule(KindClusterName, RO()),
 	NewRule(KindSSHSession, RO()),
@@ -65,7 +65,7 @@ var DefaultCertAuthorityRules = []Rule{
 	NewRule(KindNode, RO()),
 	NewRule(KindAuthServer, RO()),
 	NewRule(KindReverseTunnel, RO()),
-	NewRule(KindCertAuthority, RO()),
+	NewRule(KindCertAuthority, ReadNoSecrets()),
 }
 
 // RoleNameForUser returns role name associated with a user.
