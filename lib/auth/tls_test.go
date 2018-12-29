@@ -164,6 +164,20 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 	err = remoteProxy.UpsertCertAuthority(remoteCA)
 	fixtures.ExpectAccessDenied(c, err)
 
+	// remote proxy can't read local cert authority with secrets
+	_, err = remoteProxy.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, true)
+	fixtures.ExpectAccessDenied(c, err)
+
+	// no secrets read is allowed
+	_, err = remoteProxy.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+
 	// remote auth server will get rejected
 	err = remoteAuth.RotateExternalCertAuthority(remoteCA)
 	fixtures.ExpectAccessDenied(c, err)
@@ -965,6 +979,65 @@ func (s *TLSSuite) TestWebSessions(c *check.C) {
 
 	_, err = web.ExtendWebSession(user, ws.GetName())
 	c.Assert(err, check.NotNil)
+}
+
+// TestGetCertAuthority tests certificate authority permissions
+func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
+	// generate server keys for node
+	nodeClt, err := s.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: teleport.RoleNode}})
+	c.Assert(err, check.IsNil)
+	defer nodeClt.Close()
+
+	// node is authorized to fetch CA without secrets
+	ca, err := nodeClt.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+	for _, keyPair := range ca.GetTLSKeyPairs() {
+		c.Assert(keyPair.Key, check.IsNil)
+	}
+	keys := ca.GetSigningKeys()
+	c.Assert(keys, check.HasLen, 0)
+
+	// node is not authorized to fetch CA with secrets
+	_, err = nodeClt.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, true)
+	fixtures.ExpectAccessDenied(c, err)
+
+	// non-admin users are not allowed to get access to private key material
+	user, err := services.NewUser("bob")
+	c.Assert(err, check.IsNil)
+
+	role := services.NewImplicitRole()
+	role.SetName(user.GetName())
+	role.SetLogins(services.Allow, []string{user.GetName()})
+	err = s.server.Auth().UpsertRole(role, backend.Forever)
+	c.Assert(err, check.IsNil)
+
+	user.AddRole(role.GetName())
+	err = s.server.Auth().UpsertUser(user)
+	c.Assert(err, check.IsNil)
+
+	userClt, err := s.server.NewClient(TestUser(user.GetName()))
+	c.Assert(err, check.IsNil)
+	defer userClt.Close()
+
+	// user is authorized to fetch CA without secrets
+	_, err = userClt.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+
+	// user is not authorized to fetch CA with secrets
+	_, err = userClt.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, true)
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 // TestGenerateCerts tests edge cases around authorization of
