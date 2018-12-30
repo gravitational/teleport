@@ -576,30 +576,20 @@ ul.has-icons, dl.has-icons {
         margin-top: 32px; } }
   .text-article h3 {
     font-size: 20px;
-    line-height: 32px;
     font-weight: 600;
-    margin-top: 32px;
+    line-height: 32px;
+    margin: 32px 0 8px 0;
     text-transform: uppercase; }
-    @media screen and (max-width: 1200px) {
-      .text-article h3 {
-        font-size: 20px;
-        line-height: 32px;
-        margin: 32px 0 8px 0; } }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article h3 {
         font-size: 18px;
         line-height: 24px;
         margin: 32px 0 8px 0; } }
   .text-article h4, .text-article p {
-    font-size: 18px;
-    line-height: 32px;
-    margin-bottom: 24px;
+    font-size: 16px;
+    margin-bottom: 16px;
+    line-height: 28px;
     word-wrap: break-word; }
-    @media screen and (max-width: 1200px) {
-      .text-article h4, .text-article p {
-        font-size: 16px;
-        margin-bottom: 16px;
-        line-height: 28px; } }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article h4, .text-article p {
         font-size: 15px;
@@ -619,14 +609,9 @@ ul.has-icons, dl.has-icons {
     .text-article small a {
       color: #039BE5; }
   .text-article ol, .text-article ul, .text-article dl {
-    font-size: 18px;
-    line-height: 32px;
-    margin: 24px 0 24px 40px; }
-    @media screen and (max-width: 1200px) {
-      .text-article ol, .text-article ul, .text-article dl {
-        font-size: 16px;
-        line-height: 28px;
-        margin: 24px 0 24px 32px; } }
+    font-size: 16px;
+    line-height: 28px;
+    margin: 24px 0 24px 32px; }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article ol, .text-article ul, .text-article dl {
         font-size: 15px;
@@ -672,15 +657,9 @@ ul.has-icons, dl.has-icons {
       border-bottom: 1px solid #EDF0F2;
       font-size: 16px;
       font-weight: 500;
-      line-height: 28px;
-      min-width: 100px;
-      padding: 16px; }
-      @media screen and (max-width: 1200px) {
-        .text-article table tbody th, .text-article table tbody td {
-          font-size: 16px;
-          line-height: 30px;
-          min-width: auto;
-          padding: 8px; } }
+      line-height: 30px;
+      min-width: auto;
+      padding: 8px; }
       @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
         .text-article table tbody th, .text-article table tbody td {
           font-size: 15px;
@@ -704,7 +683,7 @@ ul.has-icons, dl.has-icons {
     border-radius: 4px;
     display: inline-block;
     color: #263238;
-    font-size: 18px;
+    font-size: 16px;
     line-height: 32px;
     margin: 0 0 16px 0;
     padding: 24px;
@@ -8355,6 +8334,7 @@ pre.prettyprint, code.prettyprint {
   border: none;
   font-family: "Courier New", Courier, monospace;
   font-size: 14px;
+  font-weight: bold;
   line-height: 22px;
   margin: 0 auto 16px auto;
   overflow: auto;
@@ -8372,8 +8352,7 @@ pre .str, code .str {
 
 /* string  - yellow */
 pre .kwd, code .kwd {
-  color: #E91E63;
-  font-weight: 500; }
+  color: #E91E63; }
 
 /* keyword - dark pink */
 pre .com, code .com {
