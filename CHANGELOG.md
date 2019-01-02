@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.7.7
+
+Teleport 2.7.7 contains two security fixes. We strongly encourage anyone running Teleport 2.7.6 to upgrade.
+
+#### Bugfixes
+
+* Due to the flaw in internal RBAC verification logic, a compromised node, trusted cluster or authenticated non-privileged user can craft special request to Teleport's internal auth server API to gain access to the private key material of the cluster's internal certificate authorities and elevate their privileges to gain full administrative access to the Teleport cluster. This vulnerability only affects authenticated clients, there is no known way to exploit this vulnerability outside the cluster for unauthenticated clients.
+* Upgraded Go to 1.11.4 to mitigate CVE-2018-16875: CPU denial of service in chain validation Go.
+
 ## 2.7.6
 
 This release of Teleport contains the following bug fix:
