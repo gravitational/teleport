@@ -4,10 +4,7 @@ kind: ClusterRoleBinding
 metadata:
   name: {{ template "teleport.fullname" . }}
   labels:
-    app: {{ template "teleport.name" . }}
-    chart: {{ template "teleport.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+{{ include "teleport.labels" . | indent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

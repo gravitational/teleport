@@ -1,0 +1,19 @@
+{{- if .Values.persistence.pdName -}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.persistence.pdName }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.storageSize }}
+  accessModes:
+    - ReadWriteOnce
+  claimRef:
+    namespace: {{ .Release.Namespace }}
+    name: {{ template "teleport.fullname" . }}-storage
+  gcePersistentDisk:
+    pdName: {{ .Values.persistnce.pdName }}
+    fsType: {{ .Values.persistence.fsType }}
+{{- end }}
