@@ -8,6 +8,8 @@ image:
   pullSecrets:
   # - name: myRegistryKeySecretName
 
+labels: {}
+
 # Pod annotations
 annotations: {}
 ## See https://github.com/uswitch/kiam#overview
@@ -204,3 +206,21 @@ serviceAccount:
   # The name of the ServiceAccount to use.
   # If not set and create is true, a name is generated using the fullname template
   name:
+
+persistence:
+  enabled: false
+  accessMode: ReadWriteOnce
+  ## If defined, storageClass: <storageClass>
+  ## If set to "-", storageClass: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClass spec is
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  ##
+  # existingClaim:
+  # annotations:
+  #  "helm.sh/resource-policy": keep
+  # storageClass: "-"
+  storageSize: 8Gi
+  # If PersistentDisk already exists you can create a PV for it by including the 2 following keypairs.
+  # pdName: teleport-data-disk
+  # fsType: ext4
