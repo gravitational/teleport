@@ -75,6 +75,6 @@
     "webpack": "4.19.1",
     "webpack-bundle-analyzer": "2.13.1",
     "webpack-cli": "2.1.5",
-    "webpack-dev-server": "3.1.10"
+    "webpack-dev-server": "3.1.11"
   }
 }
