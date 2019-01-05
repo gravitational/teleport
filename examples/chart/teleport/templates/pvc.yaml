@@ -2,7 +2,7 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: {{ template "teleport.fullname" . }}-data
+  name: {{ template "teleport.fullname" . }}-storage
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 {{- if .Values.persistence.annotations }}
