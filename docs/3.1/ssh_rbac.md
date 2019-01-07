@@ -140,8 +140,8 @@ The following variables can be used with `logins` field:
 
 Variable                | Description
 ------------------------|--------------------------
-`{{ internal.logins }}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
-`{{ external.xyz }}`    | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim.
+`{{internal.logins}}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
+`{{external.xyz}}`    | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim.
 
 Both variables above are there to deliver the same benefit: they allow Teleport
 administrators to define allowed OS logins via the user database, be it the

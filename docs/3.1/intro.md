@@ -2,7 +2,9 @@
 
 ## What is Teleport?
 
-Gravitational Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API. It is intended to be used instead of traditional OpenSSH for organizations that need to:
+Gravitational Teleport is a gateway for managing access to clusters of Linux
+servers via SSH or the Kubernetes API. It is intended to be used instead of
+traditional OpenSSH for organizations that need to:
 
 * Secure their infrastructure and comply with security best-practices and regulatory requirements.
 * Have complete visibility into activity happening across their infrastructure.
@@ -58,6 +60,13 @@ we have separated out the documentation that is specific to Teleport Enterprise.
 A good place to start if you want to jump right in.
 - [RBAC for SSH](ssh_rbac) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
 - [SSO for SSH](ssh_sso) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
+
+## Windows Support
+
+Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
+can be used on Windows to execute `tsh login` to retrieve a user's SSH
+certificate and use it with `ssh`, the OpenSSH client, running on a Windows
+client machine.
 
 ## Guides
 

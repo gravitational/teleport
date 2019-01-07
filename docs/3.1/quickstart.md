@@ -28,8 +28,8 @@ using Teleport's client-side tools:
 
 ## Installing and Starting
 
-Teleport runs on Linux, MacOS and Teleport 3.0 now supports Windows for running `tsh`. You can
-download pre-built binaries from [here](https://gravitational.com/teleport/download/)
+Teleport runs on Linux, MacOS and Teleport 3.0 now supports Windows for running `tsh login`. 
+You can download pre-built binaries from [here](https://gravitational.com/teleport/download/)
 or you can [build it from source](https://github.com/gravitational/teleport).
 
 After downloading the binary tarball, run:
