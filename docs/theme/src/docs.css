@@ -554,7 +554,7 @@ ul.has-icons, dl.has-icons {
       background: rgba(237, 240, 242, 0.56);
       border-radius: 2px;
       color: #6200EA;
-      padding: 0 8px; }
+      padding: 0 4px; }
   .text-article h1 {
     font-size: 38px;
     line-height: 48px;
@@ -630,6 +630,9 @@ ul.has-icons, dl.has-icons {
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article table {
         max-width: 100%; } }
+    .text-article table tbody td:first-child {
+        white-space: nowrap;
+    }
     .text-article table thead th {
       background: #edf0f2;
       border-bottom: 1px solid #EDF0F2;
@@ -897,7 +900,7 @@ pre,
 samp {
   font-family: monospace, monospace;
   /* 1 */
-  font-size: 1em;
+  font-size: 14px;
   /* 2 */ }
 
 /**
