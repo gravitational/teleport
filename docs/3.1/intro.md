@@ -26,7 +26,25 @@ Teleport gives teams that manage infrastructure access:
 Teleport is available through the free, open source edition ("Teleport Community Edition")
 or a commercial edition ("Teleport Enterprise Edition").
 
-Below is a brief summary of the documentation available here.
+## Operating System Support
+
+Teleport is officially supported on the platforms listed below, it is worth noting
+that the open source community has been successful building and running Teleport on 
+UNIX variants other than Linux [2].
+
+Operating System      |  Teleport Client   | Teleport Server 
+----------------------|--------------------|-----------------
+Linux v2.6+           |  yes               | yes
+MacOS v10.12+         |  yes               | yes
+Windows [1]           |  yes [1]           | no
+
+[1] _Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
+  can be used on Windows to execute `tsh login` to retrieve a user's SSH
+  certificate and use it with `ssh`, the OpenSSH client, running on a Windows
+  client machine._
+
+[2] _Teleport is written in Go and it is theoretically possible to build it on 
+    any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)_.
 
 ## Teleport Community
 
@@ -60,13 +78,6 @@ we have separated out the documentation that is specific to Teleport Enterprise.
 A good place to start if you want to jump right in.
 - [RBAC for SSH](ssh_rbac) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
 - [SSO for SSH](ssh_sso) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
-
-## Windows Support
-
-Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
-can be used on Windows to execute `tsh login` to retrieve a user's SSH
-certificate and use it with `ssh`, the OpenSSH client, running on a Windows
-client machine.
 
 ## Guides
 
