@@ -37,9 +37,9 @@ func Verify(licenseKeyPair liblicense.License, license services.License) error {
 		return trace.BadParameter("this teleport version should run on instances of AWS account %v", license.GetAWSAccountID())
 	}
 
-	// license is bound to billing product IDs
-	if license.GetAWSProductID() != "" && !utils.SliceContainsStr(meta.BillingProducts, license.GetAWSProductID()) {
-		return trace.BadParameter("this teleport version should run on instances of AWS with billing products %v", license.GetAWSProductID())
+	// license is bound to marketplace product code
+	if license.GetAWSProductID() != "" && !utils.SliceContainsStr(meta.MarketplaceProductCodes, license.GetAWSProductID()) {
+		return trace.BadParameter("this teleport version should run on instances of AWS with marketplace product code %v", license.GetAWSProductID())
 	}
 
 	return nil
@@ -49,6 +49,8 @@ func Verify(licenseKeyPair liblicense.License, license services.License) error {
 type InstanceMetadata struct {
 	// BillingProducts is a list of billing products AMI is associated with
 	BillingProducts []string `json:"billingProducts"`
+	// MarketplaceProductCodes is a list of marketplace product codes the AMI is associated with
+	MarketplaceProductCodes []string `json:"marketplaceProductCodes"`
 	// AccountID is id of the account
 	AccountID string `json:"accountId"`
 }

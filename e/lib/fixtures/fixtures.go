@@ -232,23 +232,23 @@ const (
 	// AWSDoc is AWS instance metadata document
 	AWSDoc = `{
   "devpayProductCodes" : null,
-  "marketplaceProductCodes" : null,
+  "marketplaceProductCodes" : [ "9x4pv56fe6h1gj8hejc5r6a3z" ],
+  "privateIp" : "172.31.2.95",
   "version" : "2017-09-30",
-  "instanceId" : "i-095aa02b39cb14231",
-  "billingProducts" : null,
+  "region" : "us-east-1",
   "instanceType" : "t2.micro",
-  "availabilityZone" : "us-west-2b",
+  "billingProducts" : null,
+  "instanceId" : "i-0a8dcf1b16e3aa725",
+  "accountId" : "126027368216",
+  "availabilityZone" : "us-east-1e",
   "kernelId" : null,
   "ramdiskId" : null,
-  "accountId" : "126027368216",
   "architecture" : "x86_64",
-  "imageId" : "ami-c250c8ba",
-  "pendingTime" : "2018-03-27T23:54:03Z",
-  "privateIp" : "10.0.1.213",
-  "region" : "us-west-2"
+  "imageId" : "ami-00ee66d6a9d213d2e",
+  "pendingTime" : "2019-01-08T15:19:30Z"
 }`
 	// AWSSig is AWS instance metadata signature
-	AWSSig = `NitpTNs510R4nTAvUIS+tUejufqLhoBF9U+JAHljvxY36xJxCF2ydn09bolF9Ou9UDfctD7utqg2
-cu+NIXKHje6yhppDqvTNCOsWQ0XqG7MigGucsEMl8CuV6/7liTL+W30lXKOALCIMuj44TlbXBdss
-ZGsf+dc/sUQeaNiG4zs=`
+	AWSSig = `a0ZUyS0aoWYWr7dxjRWtG9OJG4TdXB8tEQRYzdm3ZP1o8Mc6wCVXRm95PBP2dWattAn56CiE3XYd
+czgpXGrDAd0IiYWhxbY7GzGfvkVCjbVgNlVs72jPsSoL+BCFgiV01lSlBJy+R6ZuTE1SukpqWvRy
+hGFCchFNuKQ42SHRHC4=`
 )
