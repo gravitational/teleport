@@ -36,6 +36,7 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 | [Demo Video](https://www.youtube.com/watch?v=7eVAC2U8OtM) | 3-minute video overview of the UI. |
 | [Teleconsole](http://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
 | [Blog](http://blog.gravitational.com) | Our blog where we publish Teleport news |
+| [Security Updates](https://groups.google.com/forum/#!forum/teleport-community-security) | Teleport Community Edition Security Updates|
 
 ## Installing and Running
 
