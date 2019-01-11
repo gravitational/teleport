@@ -76,7 +76,6 @@ data "template_file" "proxy_user_data" {
   vars {
     region = "${var.region}"
     cluster_name = "${var.cluster_name}"
-    teleport_version = "${var.teleport_version}"
     auth_server_addr = "${aws_lb.auth.dns_name}:3025"
     proxy_server_lb_addr = "${aws_lb.proxy.dns_name}:3023"
     influxdb_addr = "http://${aws_lb.monitor.dns_name}:8086"

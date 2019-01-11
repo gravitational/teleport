@@ -4,7 +4,7 @@ After=network.target cloud-final.service teleport-generate-config.service
 ConditionPathExists=/etc/teleport.d/role.all
 
 [Service]
-User=teleport
+User=root
 Group=adm
 Type=simple
 Restart=always

@@ -11,7 +11,6 @@ export TF_VAR_region="us-west-2"
 export TF_VAR_route53_domain="teleport.example.com"
 export TF_VAR_route53_zone="example.com"
 export TF_VAR_s3_bucket_name="teleport.example.com"
-export TF_VAR_teleport_version="3.0.0"
 
 # plan
 make plan
@@ -46,5 +45,5 @@ ansible -vvv -i ec2.py -u admin auth -m ping --private-key=/path/to/key
 **Launch an upgrade**
 
 ```
-ansible-playbook -vvv -i ec2.py --private-key=/path/to/key --extra-vars "teleport_version=3.0.1" upgrade.yaml
+ansible-playbook -vvv -i ec2.py --private-key=/path/to/key --extra-vars "teleport_version=3.1.1" upgrade.yaml
 ```

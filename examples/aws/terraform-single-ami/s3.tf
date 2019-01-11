@@ -18,8 +18,18 @@ resource "aws_s3_bucket_object" "grafana_teleport_dashboard" {
   source = "./assets/health-dashboard.json"
 }
 
+// Grafana nginx config (letsencrypt)
 resource "aws_s3_bucket_object" "grafana_teleport_nginx" {
   bucket = "${aws_s3_bucket.certs.bucket}"
   key    = "grafana-nginx.conf"
   source = "./assets/grafana-nginx.conf"
+  count  =  "${var.use_acm == "" ? 1 : 0}"
+}
+
+// Grafana nginx config (ACM)
+resource "aws_s3_bucket_object" "grafana_teleport_nginx_acm" {
+  bucket = "${aws_s3_bucket.certs.bucket}"
+  key    = "grafana-nginx.conf"
+  source = "./assets/grafana-nginx-acm.conf"
+  count  =  "${var.use_acm ? 1 : 0}"
 }

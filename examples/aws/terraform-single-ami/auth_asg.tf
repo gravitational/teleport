@@ -42,7 +42,6 @@ data "template_file" "auth_user_data" {
     region = "${var.region}"
     locks_table_name = "${aws_dynamodb_table.locks.name}"
     cluster_name = "${var.cluster_name}"
-    teleport_version = "${var.teleport_version}"
     dynamo_table_name = "${aws_dynamodb_table.teleport.name}"
     dynamo_events_table_name = "${aws_dynamodb_table.teleport_events.name}"
     email = "${var.email}"

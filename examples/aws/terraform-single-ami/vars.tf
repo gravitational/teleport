@@ -14,11 +14,6 @@ variable "cluster_name" {
   type = "string"
 }
 
-// Teleport version to install
-variable "teleport_version" {
-  type = "string"
-}
-
 // Teleport UID is a UID for teleport user provisioned on the hosts
 variable "teleport_uid" {
   type = "string"

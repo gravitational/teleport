@@ -61,6 +61,17 @@ resource "aws_security_group_rule" "proxy_ingress_allow_web" {
   security_group_id = "${aws_security_group.proxy.id}"
 }
 
+// Ingress traffic to grafana port 8443 is allowed from all directions (ACM)
+resource "aws_security_group_rule" "proxy_ingress_allow_grafana_acm" {
+  type              = "ingress"
+  from_port         = 8443
+  to_port           = 8443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = "${aws_security_group.proxy_acm.id}"
+  count             = "${var.use_acm ? 1 : 0}"
+}
+
 // Egress traffic is allowed everywhere
 resource "aws_security_group_rule" "proxy_egress_allow_all_traffic" {
   type              = "egress"
@@ -182,20 +193,46 @@ resource "aws_lb_listener" "proxy_web_acm" {
 
 // This is a small hack to expose grafana over web port 8443
 // feel free to remove it or replace with something else
+// letsencrypt
 resource "aws_lb_target_group" "proxy_grafana" {
   name     = "${var.cluster_name}-proxy-grafana"
   port     = 8443
   vpc_id   = "${aws_vpc.teleport.id}"
   protocol = "TCP"
+  count    = "${var.use_acm == "" ? 1 : 0}"
 }
 
 resource "aws_lb_listener" "proxy_grafana" {
   load_balancer_arn = "${aws_lb.proxy.arn}"
   port              = "8443"
   protocol          = "TCP"
+  count             = "${var.use_acm == "" ? 1 : 0}"
 
   default_action {
     target_group_arn = "${aws_lb_target_group.proxy_grafana.arn}"
     type             = "forward"
   }
 }
+
+// ACM
+resource "aws_lb_target_group" "proxy_grafana_acm" {
+  name     = "${var.cluster_name}-proxy-grafana"
+  port     = 8444
+  vpc_id   = "${aws_vpc.teleport.id}"
+  protocol = "HTTP"
+  count    = "${var.use_acm ? 1 : 0}"
+}
+
+resource "aws_lb_listener" "proxy_grafana_acm" {
+  load_balancer_arn = "${aws_lb.proxy_acm.arn}"
+  port              = "8443"
+  protocol          = "HTTPS"
+  certificate_arn   = "${aws_acm_certificate_validation.cert.certificate_arn}"
+  count             = "${var.use_acm ? 1 : 0}"
+
+  default_action {
+    target_group_arn = "${aws_lb_target_group.proxy_grafana_acm.arn}"
+    type             = "forward"
+  }
+}
+

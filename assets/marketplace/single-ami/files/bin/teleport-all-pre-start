@@ -3,9 +3,12 @@
 set -e
 set -x
 
-# Source variables from user-data
-. /etc/teleport.d/conf
+# Source variables from user-data (if present)
+if [ -f /etc/teleport.d/conf ]; then
+    source /etc/teleport.d/conf
+fi
 
+# check for letsencrypt
 if [[ "${USE_LETSENCRYPT}" != "true" ]]; then
     echo "Not using Letsencrypt, exiting with success"
     exit 0
