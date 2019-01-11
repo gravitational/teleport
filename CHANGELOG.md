@@ -2,7 +2,7 @@
 
 ## 3.1.3
 
-Teleport 3.1.2 contains two security fixs.
+Teleport 3.1.3 contains two security fixs.
 
 #### Bugfixes
 
