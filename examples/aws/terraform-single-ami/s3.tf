@@ -23,7 +23,7 @@ resource "aws_s3_bucket_object" "grafana_teleport_nginx" {
   bucket = "${aws_s3_bucket.certs.bucket}"
   key    = "grafana-nginx.conf"
   source = "./assets/grafana-nginx.conf"
-  count  =  "${var.use_acm == "" ? 1 : 0}"
+  count  =  "${var.use_acm ? 0 : 1}"
 }
 
 // Grafana nginx config (ACM)

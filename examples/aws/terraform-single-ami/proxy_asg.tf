@@ -15,7 +15,7 @@ resource "aws_autoscaling_group" "proxy" {
   vpc_zone_identifier       = ["${aws_subnet.public.*.id}"]
   // Auto scaling group is associated with load balancer
   target_group_arns         = ["${aws_lb_target_group.proxy_proxy.arn}", "${aws_lb_target_group.proxy_web.arn}"]
-  count                     = "${var.use_acm == "" ? 1 : 0}"
+  count                     = "${var.use_acm ? 0 : 1}"
 
   tag {
     key =  "TeleportCluster"

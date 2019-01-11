@@ -16,7 +16,7 @@ resource "aws_autoscaling_group" "monitor" {
   // Auto scaling group is associated with internal load balancer for metrics ingestion
   // and proxy load balancer for grafana
   target_group_arns         = ["${aws_lb_target_group.proxy_grafana.arn}", "${aws_lb_target_group.monitor.arn}"]
-  count                     = "${var.use_acm == "" ? 1 : 0}"
+  count                     = "${var.use_acm ? 0 : 1}"
 
   tag {
     key =  "TeleportCluster"
@@ -117,7 +117,7 @@ resource "aws_security_group_rule" "monitor_ingress_allow_web" {
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = "${aws_security_group.monitor.id}"
-  count             = "${var.use_acm == "" ? 1 : 0}"
+  count             = "${var.use_acm ? 0 : 1}"
 }
 
 // Ingress traffic to non-SSL port 8444 is allowed from everywhere (ACM)

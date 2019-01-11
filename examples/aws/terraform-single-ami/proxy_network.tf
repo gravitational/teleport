@@ -147,7 +147,7 @@ resource "aws_lb_target_group" "proxy_web" {
   name     = "${var.cluster_name}-proxy-web"
   port     = 3080
   vpc_id   = "${aws_vpc.teleport.id}"
-  count    = "${var.use_acm == "" ? 1 : 0}"
+  count    = "${var.use_acm ? 0 : 1}"
   protocol = "TCP"
 }
 
@@ -156,7 +156,7 @@ resource "aws_lb_listener" "proxy_web" {
   load_balancer_arn = "${aws_lb.proxy.arn}"
   port              = "443"
   protocol          = "TCP"
-  count             = "${var.use_acm == "" ? 1 : 0}"
+  count             = "${var.use_acm ? 0 : 1}"
 
   default_action {
     target_group_arn = "${aws_lb_target_group.proxy_web.arn}"
@@ -199,14 +199,14 @@ resource "aws_lb_target_group" "proxy_grafana" {
   port     = 8443
   vpc_id   = "${aws_vpc.teleport.id}"
   protocol = "TCP"
-  count    = "${var.use_acm == "" ? 1 : 0}"
+  count    = "${var.use_acm ? 0 : 1}"
 }
 
 resource "aws_lb_listener" "proxy_grafana" {
   load_balancer_arn = "${aws_lb.proxy.arn}"
   port              = "8443"
   protocol          = "TCP"
-  count             = "${var.use_acm == "" ? 1 : 0}"
+  count             = "${var.use_acm ? 0 : 1}"
 
   default_action {
     target_group_arn = "${aws_lb_target_group.proxy_grafana.arn}"

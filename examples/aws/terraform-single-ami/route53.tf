@@ -10,7 +10,7 @@ resource "aws_route53_record" "proxy" {
   zone_id = "${data.aws_route53_zone.proxy.zone_id}"
   name    = "${var.route53_domain}"
   type    = "A"
-  count   =  "${var.use_acm == "" ? 1 : 0}"
+  count   =  "${var.use_acm ? 0 : 1}"
 
   alias {
     name                   = "${aws_lb.proxy.dns_name}"

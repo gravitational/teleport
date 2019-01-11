@@ -9,8 +9,8 @@ set -x
 # Source variables from user-data
 . /etc/teleport.d/conf
 
-if [ ! -f /etc/teleport.d/role.proxy ] && [ ! -f /etc/teleport.d/role.all ]; then
-    echo "Not running 'proxy' or 'all' role, exiting with success"
+if [ ! -f /etc/teleport.d/role.auth ] && [ ! -f /etc/teleport.d/role.all ]; then
+    echo "Not running 'auth' or 'all' role, exiting with success"
     exit 0
 fi
 
