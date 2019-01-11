@@ -29,7 +29,7 @@
     "react-router": "3.0.1",
     "react-slider": "0.6.1",
     "u2f-api-polyfill": "0.4.3",
-    "xterm": "2.4.0"
+    "xterm": "https://github.com/gravitational/xterm.js#v2.4.0"
   },
   "devDependencies": {
     "babel-core": "6.26.3",
