@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.7.8
+
+Teleport 2.7.8 contains two security fixs.
+
+#### Bugfixes
+
+* Updated xterm.js to mitigate a [RCE in xterm.js](https://github.com/xtermjs/xterm.js/releases/tag/3.10.1).
+* Mitigate potential timing attacks during bearer token authentication. [#2482](https://github.com/gravitational/teleport/pull/2482)
+
 ## 2.7.7
 
 Teleport 2.7.7 contains two security fixes. We strongly encourage anyone running Teleport 2.7.6 to upgrade.
