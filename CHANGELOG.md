@@ -8,6 +8,7 @@ Teleport 3.1.2 contains two security fixs.
 
 * Updated xterm.js to mitigate a [RCE in xterm.js](https://github.com/xtermjs/xterm.js/releases/tag/3.10.1).
 * Mitigate potential timing attacks during bearer token authentication. [#2482](https://github.com/gravitational/teleport/pull/2482)
+* Fixed `x509: certificate signed by unknown authority` error when connecting to DynamoDB within Gravitational publish Docker image. [#2473](https://github.com/gravitational/teleport/pull/2473)
 
 ## 3.1.2
 
