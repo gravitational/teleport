@@ -24,9 +24,6 @@ INSTANCE_TYPE ?= t2.micro
 # https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html
 DESTINATION_REGIONS ?= us-west-2,us-east-1,us-east-2,eu-west-1
 
-# License S3 URI for enterprise builds, e.g. s3://example.com/path/to/license
-TELEPORT_LICENSE_URI ?=
-
 # Generate timestamp for builds
 BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
 
@@ -46,6 +43,7 @@ export
 
 .PHONY: oss
 oss: TELEPORT_TYPE=oss
+oss: check-vars
 oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
@@ -54,14 +52,14 @@ oss:
 
 .PHONY: oss-name-build
 oss-name-build: TELEPORT_TYPE=oss
+oss-name-build: check-vars
 oss-name-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
 
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
-ent: check-ent-vars
-	aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem
+ent: check-vars
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
@@ -69,19 +67,15 @@ ent: check-ent-vars
 
 .PHONY: ent-name-build
 ent-name-build: TELEPORT_TYPE=ent
-ent-name-build: check-ent-vars
+ent-name-build: check-vars
 ent-name-build:
-	aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
 
 
 # Other helpers
-.PHONY: check-ent-vars
-check-ent-vars:
+.PHONY: check-vars
+check-vars:
 	@if [ -z "$(TELEPORT_VERSION)" ]; then \
 	  echo "TELEPORT_VERSION is not set"; exit 1; \
-	fi;
-	@if [ -z "$(TELEPORT_LICENSE_URI)" ]; then \
-	  echo "TELEPORT_LICENSE_URI is not set"; exit 1; \
 	fi;
