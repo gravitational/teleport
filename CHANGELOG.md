@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.1.3
+
+Teleport 3.1.2 contains two security fixs.
+
+#### Bugfixes
+
+* Updated xterm.js to mitigate a [RCE in xterm.js](https://github.com/xtermjs/xterm.js/releases/tag/3.10.1).
+* Mitigate potential timing attacks during bearer token authentication. [#2482](https://github.com/gravitational/teleport/pull/2482)
+
 ## 3.1.2
 
 Teleport 3.1.2 contains a security fix. We strongly encourage anyone running Teleport 3.1.1 to upgrade.
@@ -27,6 +36,15 @@ This is a major Teleport release with a focus on backwards compatibility, stabil
 * Improved Kubernetes UX. [#2291](https://github.com/gravitational/teleport/issues/2291) [#2258](https://github.com/gravitational/teleport/issues/2258) [#2304](https://github.com/gravitational/teleport/issues/2304)
 * Fixed bug that did not allow copy and paste of texts over 128 in the Web UI. [#2313](https://github.com/gravitational/teleport/issues/2313)
 * Fixes issues with `scp` when using the Web UI. [#2300](https://github.com/gravitational/teleport/issues/2300)
+
+## 3.0.4
+
+Teleport 3.0.4 contains two security fixs.
+
+#### Bugfixes
+
+* Updated xterm.js to mitigate a [RCE in xterm.js](https://github.com/xtermjs/xterm.js/releases/tag/3.10.1).
+* Mitigate potential timing attacks during bearer token authentication. [#2482](https://github.com/gravitational/teleport/pull/2482)
 
 ## 3.0.3
 
@@ -95,6 +113,15 @@ to upgrade to this version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
 `etcd` version is 3.3 or newer prior to upgrading to Teleport 3.0.
+
+## 2.7.8
+
+Teleport 2.7.8 contains two security fixs.
+
+#### Bugfixes
+
+* Updated xterm.js to mitigate a [RCE in xterm.js](https://github.com/xtermjs/xterm.js/releases/tag/3.10.1).
+* Mitigate potential timing attacks during bearer token authentication. [#2482](https://github.com/gravitational/teleport/pull/2482)
 
 ## 2.7.7
 
