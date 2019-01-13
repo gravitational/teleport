@@ -365,8 +365,11 @@ func (s *KubeSuite) TestKubeTrustedClusters(c *check.C) {
 	// role specified by mapping remote role "aux-kube" to local role "main-kube"
 	auxRole, err := services.NewRole("aux-kube", services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: []string{teleport.KubeSystemMasters},
+			Logins: []string{username},
+			// Note that main cluster can pass it's kubernetes groups
+			// to the remote cluster, and remote cluster
+			// can choose to use them by using special variable
+			KubeGroups: []string{teleport.TraitInternalKubeGroupsVariable},
 		},
 	})
 	c.Assert(err, check.IsNil)

@@ -73,6 +73,8 @@ type Identity struct {
 	Usage []string
 	// Principals is a list of Unix logins allowed.
 	Principals []string
+	// KubernetesGroups is a list of Kubernetes groups allowed
+	KubernetesGroups []string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -94,16 +96,18 @@ func (id *Identity) Subject() pkix.Name {
 	subject.Organization = append([]string{}, id.Groups...)
 	subject.OrganizationalUnit = append([]string{}, id.Usage...)
 	subject.Locality = append([]string{}, id.Principals...)
+	subject.Province = append([]string{}, id.KubernetesGroups...)
 	return subject
 }
 
 // FromSubject returns identity from subject name
 func FromSubject(subject pkix.Name) (*Identity, error) {
 	i := &Identity{
-		Username:   subject.CommonName,
-		Groups:     subject.Organization,
-		Usage:      subject.OrganizationalUnit,
-		Principals: subject.Locality,
+		Username:         subject.CommonName,
+		Groups:           subject.Organization,
+		Usage:            subject.OrganizationalUnit,
+		Principals:       subject.Locality,
+		KubernetesGroups: subject.Province,
 	}
 	if err := i.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
