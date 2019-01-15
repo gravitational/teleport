@@ -1,0 +1,27 @@
+#!groovy
+pipeline {
+    agent any
+    options {
+        ansiColor(colorMapName: 'XTerm')
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    parameters {
+        string(name: 'version', defaultValue: '2.6.1', description: 'Teleport version to build')
+        string(name: 'teleport_license_uri', defaultValue: 's3://', description: 'Path to load license file from')
+    }
+    stages {
+        stage('Run Packer to build specified version') {
+            steps {
+                dir('assets/marketplace') {
+                    sh """
+BUILD_AMI_NAME=cloudformation-gravitational-teleport-ent-${params.version} \
+TELEPORT_VERSION=${params.version} \
+TELEPORT_LICENSE_URI=${params.teleport_license_uri} \
+make ent-name-build
+"""
+                }
+            }
+        }
+    }
+}

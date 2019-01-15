@@ -1,0 +1,20 @@
+[Unit]
+Description=Teleport SSH Node Service
+After=network.target 
+ConditionPathExists=/etc/teleport.d/role.node
+
+[Service]
+User=root
+Group=adm
+Type=simple
+Restart=always
+RestartSec=5
+RuntimeDirectory=teleport
+ExecStartPre=/usr/bin/teleport-ssm-get-token
+ExecStart=/usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/teleport/teleport.pid
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

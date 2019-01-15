@@ -1,0 +1,10 @@
+#!/bin/bash
+# This script is called to upload renewed cert
+# to the S3 bucket
+set -e
+set -x
+
+# Source variables set up by cloudformation template
+. /etc/teleport.d/conf
+
+aws s3 sync /etc/letsencrypt/ s3://${TELEPORT_S3_BUCKET} --sse=AES256

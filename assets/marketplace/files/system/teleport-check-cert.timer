@@ -1,6 +1,6 @@
 [Unit]
 Description=Timer checking if teleport cert has been updated
-ConditionPathExists=/etc/teleport.d/role.proxy
+ConditionPathExists=/etc/teleport.d/use-letsencrypt
 
 [Timer]
 OnBootSec=20min

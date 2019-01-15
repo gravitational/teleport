@@ -6,8 +6,13 @@
 set -e
 set -x
 
-# Source variables set up by cloudformation template
+# Source variables from user-data
 . /etc/teleport.d/conf
+
+if [ ! -f /etc/teleport.d/role.auth ] && [ ! -f /etc/teleport.d/role.all ]; then
+    echo "Not running 'auth' or 'all' role, exiting with success"
+    exit 0
+fi
 
 # This is called periodically, if renewal is successful
 # certs are uploaded to the S3 Bucket

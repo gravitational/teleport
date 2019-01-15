@@ -1,8 +1,0 @@
-[Unit]
-Description=Timer checking if teleport cert has been updated
-ConditionPathExists=/etc/teleport.d/use-letsencrypt
-
-[Timer]
-OnBootSec=20min
-OnCalendar=hourly
-Persistent=true

@@ -1,8 +1,0 @@
-[Unit]
-Description=Timer rotating teleport tokens in SSM
-ConditionPathExists=/etc/teleport.d/role.auth
-
-[Timer]
-OnBootSec=3min
-OnCalendar=hourly
-Persistent=true

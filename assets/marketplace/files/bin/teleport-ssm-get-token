@@ -8,7 +8,7 @@
 set -e
 set -o pipefail
 
-# Source variables set up by cloudformation template
+# Source variables from user-data
 . /etc/teleport.d/conf
 
 # Fetch token published by Auth server to SSM parameter store to join the cluster
