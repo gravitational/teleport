@@ -373,7 +373,7 @@ func (a *AuthWithRoles) NewWatcher(ctx context.Context, watch services.Watch) (s
 	for _, kind := range watch.Kinds {
 		switch kind {
 		case services.KindCertAuthority:
-			if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbRead); err != nil {
+			if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbReadNoSecrets); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		default:
