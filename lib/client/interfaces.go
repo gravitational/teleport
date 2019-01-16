@@ -52,6 +52,9 @@ type Key struct {
 
 	// TrustedCA is a list of trusted certificate authorities
 	TrustedCA []auth.TrustedCerts
+
+	// ClusterName is a cluster name this key is associated with
+	ClusterName string
 }
 
 // TLSConfig returns client TLS configuration used
