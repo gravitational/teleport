@@ -1928,7 +1928,7 @@ more than one auth server available. There are two ways to do this:
 
   * Use a load balancer to create a single the auth API access point (AP) and
     specify this AP in `auth_servers` section of Teleport configuration for
-    all nodes in a cluster.
+    all nodes in a cluster. This load balancer should do TCP level forwarding.
   * If a load balancer is not an option, you must specify each instance of an
     auth server in `auth_servers` section of Teleport configuration.
 
@@ -1943,7 +1943,10 @@ If using the [default configuration](#ports), configure your load balancer to
 forward ports `3023` and `3080` to the servers that run the Teleport proxy. If
 you have configured your proxy to use non-default ports, you will need to
 configure your load balancer to forward the ports you specified for
-`listen_addr` and `web_listen_addr` in `teleport.yaml`.
+`listen_addr` and `web_listen_addr` in `teleport.yaml`. The load balancer for
+`web_listen_addr` can terminate TLS with your own certificate that is valid
+for your users, while the remaining ports should do TCP level forwarding, since
+Teleport will handle its own SSL on top of that with its own certificates.
 
 If your load balancer supports health checks, configure it to hit the
 `/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the
