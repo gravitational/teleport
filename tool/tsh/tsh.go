@@ -419,7 +419,7 @@ func onLogin(cf *CLIConf) {
 		if err := setupNoninteractiveClient(tc, key); err != nil {
 			utils.FatalError(err)
 		}
-		authorities, err := tc.GetTrustedCA(cf.Context)
+		authorities, err := tc.GetTrustedCA(cf.Context, key.ClusterName)
 		if err != nil {
 			utils.FatalError(err)
 		}
@@ -439,7 +439,7 @@ func onLogin(cf *CLIConf) {
 	tc.SaveProfile("")
 
 	// Connect to the Auth Server and fetch the known hosts for this cluster.
-	err = tc.UpdateTrustedCA(cf.Context)
+	err = tc.UpdateTrustedCA(cf.Context, key.ClusterName)
 	if err != nil {
 		utils.FatalError(err)
 	}
