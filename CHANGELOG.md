@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.1.4
+
+Teleport 3.1.4 contains one new feature and two bug fixes.
+
+#### New Feature
+
+* Added support for GSuite as a SSO provider. [https://github.com/gravitational/teleport/issues/2455](#2455)
+
+#### Bug fixes
+
+* Fixed issue where Kubernetes groups were not being passed to remote clusters. [#2484](https://github.com/gravitational/teleport/pull/2484)
+* Fixed issue where the client was pulling incorrect CA for trusted clusters. [#2487](https://github.com/gravitational/teleport/pull/2487)
+
 ## 3.1.3
 
 Teleport 3.1.3 contains two security fixs.
