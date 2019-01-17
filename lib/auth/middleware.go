@@ -237,10 +237,11 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 			}, nil
 		}
 		return RemoteUser{
-			ClusterName: certClusterName,
-			Username:    identity.Username,
-			Principals:  identity.Principals,
-			RemoteRoles: identity.Groups,
+			ClusterName:      certClusterName,
+			Username:         identity.Username,
+			Principals:       identity.Principals,
+			KubernetesGroups: identity.KubernetesGroups,
+			RemoteRoles:      identity.Groups,
 		}, nil
 	}
 	// code below expects user or service from local cluster, to distinguish between
