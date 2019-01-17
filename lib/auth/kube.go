@@ -130,6 +130,13 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 
 	ttl := roles.AdjustSessionTTL(defaults.CertDuration)
 
+	// extract and encode the kubernetes groups of the authenticated
+	// user in the newly issued certificate
+	kubernetesGroups, err := roles.CheckKubeGroups(0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -147,13 +154,15 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	identity := tlsca.Identity{
 		Username: user.GetName(),
 		Groups:   roles.RoleNames(),
 		// Generate a certificate restricted for
 		// use against a kubernetes endpoint, and not the API server endpoint
 		// otherwise proxies can generate certs for any user.
-		Usage: []string{teleport.UsageKubeOnly},
+		Usage:            []string{teleport.UsageKubeOnly},
+		KubernetesGroups: kubernetesGroups,
 	}
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,
