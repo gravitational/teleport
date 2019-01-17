@@ -377,6 +377,15 @@ const (
 	TraitInternalKubeGroupsVariable = "{{internal.kubernetes_groups}}"
 )
 
+const (
+	// GSuiteIssuerURL is issuer URL used for GSuite provider
+	GSuiteIssuerURL = "https://accounts.google.com"
+	// GSuiteGroupsEndpoint is gsuite API endpoint
+	GSuiteGroupsEndpoint = "https://www.googleapis.com/admin/directory/v1/groups"
+	// GSuiteGroupsScope is a scope to get access to admin groups API
+	GSuiteGroupsScope = "https://www.googleapis.com/auth/admin.directory.group.readonly"
+)
+
 // SCP is Secure Copy.
 const SCP = "scp"
 
