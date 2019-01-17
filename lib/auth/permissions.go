@@ -138,8 +138,17 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 	if len(roleNames) == 0 {
 		return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q", u.Username, u.ClusterName)
 	}
-	log.Debugf("Mapped roles %v of remote user %q to local roles %v.", u.RemoteRoles, u.Username, roleNames)
-	checker, err := services.FetchRoles(roleNames, a.access, nil)
+	// Set "logins" trait and "kubernetes_groups" for the remote user. This allows Teleport to work by
+	// passing exact logins and kubernetes groups to the remote cluster. Note that claims (OIDC/SAML)
+	// are not passed, but rather the exact logins, this is done to prevent
+	// leaking too much of identity to the remote cluster, and instead of focus
+	// on main cluster's interpretation of this identity
+	traits := map[string][]string{
+		teleport.TraitLogins:     u.Principals,
+		teleport.TraitKubeGroups: u.KubernetesGroups,
+	}
+	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.", u.RemoteRoles, u.Username, roleNames, traits)
+	checker, err := services.FetchRoles(roleNames, a.access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,13 +157,6 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 	user, err := services.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Set "logins" trait for the remote user. This allows Teleport to work by
-	// passing exact logins to the remote cluster. Note that claims (OIDC/SAML)
-	// are not passed, but rather the exact logins.
-	traits := map[string][]string{
-		teleport.TraitLogins: u.Principals,
 	}
 	user.SetTraits(traits)
 
@@ -518,6 +520,9 @@ type RemoteUser struct {
 
 	// Principals is a list of Unix logins.
 	Principals []string `json:"principals"`
+
+	// KubernetesGroups is a list of Kubernetes groups
+	KubernetesGroups []string `json:"kubernetes_groups"`
 }
 
 // GetClusterConfigFunc returns a cached services.ClusterConfig.
