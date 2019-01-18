@@ -132,10 +132,10 @@ func UserMessageFromError(err error) string {
 		// error occurred" message.
 		if er, ok := err.(*trace.TraceErr); ok {
 			if er.Message != "" {
-				return fmt.Sprintf("error: %v", er.Message)
+				return fmt.Sprintf("error: %v", EscapeControl(er.Message))
 			}
 		}
-		return fmt.Sprintf("error: %v", err.Error())
+		return fmt.Sprintf("error: %v", EscapeControl(err.Error()))
 	}
 	return ""
 }
@@ -165,6 +165,27 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 
 	// set our own help template
 	return app.UsageTemplate(defaultUsageTemplate)
+}
+
+// EscapeControl escapes all ANSI escape sequences from string and returns a
+// string that is safe to print on the CLI. This is to ensure that malicious
+// servers can not hide output. For more details, see:
+//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+func EscapeControl(s string) string {
+	if needsQuoting(s) {
+		return fmt.Sprintf("%q", s)
+	}
+	return s
+}
+
+// needsQuoting returns true if any non-printable characters are found.
+func needsQuoting(text string) bool {
+	for _, r := range text {
+		if !strconv.IsPrint(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // Usage template with compactly formatted commands.

@@ -28,7 +28,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -320,7 +322,8 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 
 	// report progress:
 	if cmd.ProgressWriter != nil {
-		defer fmt.Fprintf(cmd.ProgressWriter, "-> %s (%d)\n", fileInfo.GetPath(), fileInfo.GetSize())
+		statusMessage := fmt.Sprintf("-> %s (%d)\n", fileInfo.GetPath(), fileInfo.GetSize())
+		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage))
 	}
 
 	_, err = io.WriteString(ch, out)
@@ -441,7 +444,8 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 
 	// report progress:
 	if cmd.ProgressWriter != nil {
-		defer fmt.Fprintf(cmd.ProgressWriter, "<- %s (%d)\n", path, fc.Length)
+		statusMessage := fmt.Sprintf("<- %s (%d)\n", path, fc.Length)
+		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage))
 	}
 
 	defer writer.Close()
@@ -524,7 +528,16 @@ func parseNewFile(line string) (*newFileCmd, error) {
 	if c.Length, err = strconv.ParseUint(parts[1], 10, 64); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Don't allow malicious servers to send bad directory names. For more
+	// details, see:
+	//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+	//   * https://github.com/openssh/openssh-portable/commit/6010c03
 	c.Name = parts[2]
+	if len(c.Name) == 0 || strings.HasPrefix(c.Name, string(filepath.Separator)) || c.Name == "." || c.Name == ".." {
+		return nil, trace.BadParameter("invalid name")
+	}
+
 	return &c, nil
 }
 

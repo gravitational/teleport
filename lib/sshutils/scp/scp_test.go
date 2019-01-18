@@ -17,6 +17,7 @@ package scp
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -39,6 +40,7 @@ func TestSCP(t *testing.T) { TestingT(t) }
 type SCPSuite struct {
 }
 
+var _ = fmt.Printf
 var _ = Suite(&SCPSuite{})
 
 func (s *SCPSuite) SetUpSuite(c *C) {
@@ -222,6 +224,37 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 	bytes, err = ioutil.ReadFile(filepath.Join(outDir, name, "target2"))
 	c.Assert(err, IsNil)
 	c.Assert(string(bytes), Equals, string("file 2"))
+}
+
+func (s *SCPSuite) TestInvalidDir(c *C) {
+	cmd, err := CreateCommand(Config{
+		User: "test-user",
+		Flags: Flags{
+			Sink:      true,
+			Target:    []string{},
+			Recursive: true,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	tests := []struct {
+		inDirName string
+	}{
+		{inDirName: ""},
+		{inDirName: "."},
+		{inDirName: ".."},
+	}
+
+	for _, tt := range tests {
+		scp, in, out, _ := run("scp", "-v", "-r", "-f", tt.inDirName)
+		rw := &combo{out, in}
+
+		err := scp.Start()
+		c.Assert(err, IsNil)
+
+		err = cmd.Execute(rw)
+		c.Assert(err, NotNil)
+	}
 }
 
 func (s *SCPSuite) TestSCPParsing(c *C) {
