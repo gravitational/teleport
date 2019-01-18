@@ -1994,6 +1994,11 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 			i++
 			endOfToken = true
 		}
+		// for utf8 character
+		if i+3 == specLen {
+			i+=3
+			endOfToken = true
+		}
 		switch ch {
 		case '"':
 			openQuotes = !openQuotes
