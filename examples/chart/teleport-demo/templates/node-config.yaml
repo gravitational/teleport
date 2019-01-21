@@ -1,0 +1,29 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "teleport.fullname" . }}-node-config
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+data:
+  teleport.yaml: |
+    teleport:
+      log:
+        output: {{ .Values.config.teleport.log.output }}
+        severity: {{ .Values.config.teleport.log.severity }}
+      data_dir: {{ .Values.config.teleport.data_dir }}
+      storage:
+        type: {{ .Values.config.teleport.storage.type }}
+      auth_servers:
+        - {{ template "teleport.fullname" . }}:3025
+      auth_token: NODE_JOIN_TOKEN_PLACEHOLDER
+      ca_pin: CA_PIN_HASH_PLACEHOLDER
+
+    auth_service:
+      enabled: no
+
+    ssh_service:
+      enabled: yes
+
+    proxy_service:
+      enabled: no

@@ -1,0 +1,20 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "teleport.fullname" . }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "teleport.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "teleport.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end -}}

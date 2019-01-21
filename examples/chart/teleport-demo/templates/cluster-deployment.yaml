@@ -1,0 +1,145 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "teleport.fullname" . }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 4 }}
+{{- end }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: {{ template "teleport.name" . }}
+        release: {{ .Release.Name }}
+        heritage: {{ .Release.Service }}
+      annotations:
+        checksum/config: {{ toYaml .Values.config | sha256sum }}
+{{- if .Values.annotations }}
+{{ toYaml .Values.annotations | indent 8 }}
+{{- end }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ tpl .Values.image.tag . }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+{{- if .Values.extraArgs }}
+{{ toYaml .Values.extraArgs | indent 8 }}
+{{- end }}
+{{- if not .Values.proxy.tls.enabled }}
+        - --insecure-no-tls
+{{- end }}
+        env:
+{{- range $key, $value := .Values.extraVars }}
+        - name: {{ $key }}
+          value: {{ $value }}
+{{- end }}
+        # See https://gravitational.com/teleport/docs/admin-guide/#ports
+        ports:
+{{- range $key, $port := .Values.ports.cluster }}
+        - name: {{ $key }}
+{{ toYaml $port | indent 10 }}
+{{- end }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        volumeMounts:
+{{- if .Values.proxy.tls.enabled }}
+        - mountPath: /var/lib/certs
+          name: {{ template "teleport.fullname" . }}-tls-web
+          readOnly: true
+{{- end }}
+        - mountPath: /etc/teleport
+          name: {{ template "teleport.fullname" . }}-config
+          readOnly: true
+{{- if .Values.license.enabled }}
+        - mountPath: {{ .Values.license.mountPath }}
+          name: {{ template "teleport.fullname" . }}-license
+          readOnly: true
+{{- end }}
+        - mountPath: /var/lib/teleport
+          name: {{ template "teleport.fullname" . }}-storage
+{{- if .Values.extraVolumeMounts }}
+{{ toYaml .Values.extraVolumeMounts | indent 8 }}
+{{- end }}
+# sidecar
+      - name: {{ .Chart.Name }}-sidecar
+        image: "{{ .Values.sidecar.image.repository }}:{{ tpl .Values.sidecar.image.tag . }}"
+        imagePullPolicy: {{ .Values.sidecar.image.pullPolicy }}
+{{- if .Values.sidecar.command }}
+        command: {{ .Values.sidecar.command }}
+{{- end }}
+{{- if .Values.sidecar.args }}
+        args:
+{{ toYaml .Values.sidecar.args | indent 8 }}
+{{- end }}
+        env:
+        - name: CLUSTER_NAME
+          value: {{ .Values.mainClusterName }}
+        - name: NAMESPACE
+          value: {{ .Values.namespace }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        volumeMounts:
+{{- if .Values.proxy.tls.enabled }}
+        - mountPath: /var/lib/certs
+          name: {{ template "teleport.fullname" . }}-tls-web
+          readOnly: true
+{{- end }}
+        - mountPath: /etc/teleport
+          name: {{ template "teleport.fullname" . }}-config
+          readOnly: true
+{{- if .Values.license.enabled }}
+        - mountPath: {{ .Values.license.mountPath }}
+          name: {{ template "teleport.fullname" . }}-license
+          readOnly: true
+{{- end }}
+        - mountPath: /var/lib/teleport
+          name: {{ template "teleport.fullname" . }}-storage
+{{- if .Values.extraVolumeMounts }}
+{{ toYaml .Values.extraVolumeMounts | indent 8 }}
+{{- end }}
+# end sidecar
+      volumes:
+{{- if .Values.proxy.tls.enabled }}
+      - name: {{ template "teleport.fullname" . }}-tls-web
+        secret:
+          secretName: tls-web
+{{- end }}
+{{- if .Values.license.enabled }}
+      - name: {{ template "teleport.fullname" . }}-license
+        secret:
+          secretName: {{ .Values.license.secretName }}
+{{- end }}
+      - name: {{ template "teleport.fullname" . }}-config
+        configMap:
+          name: {{ template "teleport.fullname" . }}-cluster-config
+      - name: {{ template "teleport.fullname" . }}-storage
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.persistence.existingClaim | default (printf "%s-%s" (include "teleport.fullname" .) "storage") }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+{{- if .Values.extraVolumes }}
+{{ toYaml .Values.extraVolumes | indent 6 }}
+{{- end }}
+{{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.image.pullSecrets | indent 6 }}
+{{- end }}
+{{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 6 }}
+{{- end }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}

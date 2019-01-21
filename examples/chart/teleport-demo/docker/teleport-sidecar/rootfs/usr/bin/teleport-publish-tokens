@@ -1,0 +1,46 @@
+#!/bin/bash
+# This script calls tctl to query the Teleport auth server API and get join tokens for nodes and trusted clusters
+# It then uses kubectl to export the tokens as Kubernetes secrets so other services in the k8s cluster can use them
+set -e
+set -x
+
+# Source variables
+#. /etc/teleport.d/conf
+
+TCTL=/usr/local/bin/tctl
+
+if [ -z ${NAMESPACE} ]; then
+    echo "[teleport-publish-tokens] NAMESPACE not set"
+    exit 1
+elif [ -z ${CLUSTER_NAME} ]; then
+    echo "[teleport-publish-tokens] CLUSTER_NAME not set"
+    exit 1
+fi
+
+# Node token authenticates nodes joining the cluster
+NODE_TOKEN=$(uuid)
+mkdir -p /tmp/node
+echo "${NODE_TOKEN}" > /tmp/node/join-token
+${TCTL} nodes add --roles=node --ttl=4h --token=${NODE_TOKEN}
+kubectl --namespace ${NAMESPACE} create secret generic ${CLUSTER_NAME}-node-join-token --from-file=/tmp/node/join-token --dry-run -o yaml | kubectl apply -f -
+rm -rf /tmp/node
+
+# Trusted cluster token authenticates trusted clusters joining the cluster
+TRUSTEDCLUSTER_TOKEN=$(uuid)
+mkdir -p /tmp/trustedcluster
+echo "${TRUSTEDCLUSTER_TOKEN}" > /tmp/trustedcluster/join-token
+${TCTL} nodes add --roles=trusted_cluster --ttl=4h --token=${TRUSTEDCLUSTER_TOKEN}
+kubectl --namespace ${NAMESPACE} create secret generic ${CLUSTER_NAME}-trustedcluster-join-token --from-file=/tmp/trustedcluster/join-token --dry-run -o yaml | kubectl apply -f -
+rm -rf /tmp/trustedcluster
+
+# Export CA certificate as a secret so nodes and clusters can check the identity of the auth server they are connecting to
+mkdir -p /tmp/ca
+CERT=$(${TCTL} auth export --type=tls)
+echo ${CERT} > /tmp/ca/ca.pem
+kubectl --namespace ${NAMESPACE} create secret generic ${CLUSTER_NAME}-ca --from-file=/tmp/ca/ca.pem --dry-run -o yaml | kubectl apply -f -
+
+# Export CA pin hash as a secret for secure node joins
+CA_PIN_HASH=$(tctl status | grep "CA pin" | awk '{print $3}')
+echo ${CA_PIN_HASH} > /tmp/ca/hash
+kubectl --namespace ${NAMESPACE} create secret generic ${CLUSTER_NAME}-ca-pin --from-file=/tmp/ca/hash --dry-run -o yaml | kubectl apply -f -
+rm -rf /tmp/ca
