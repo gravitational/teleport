@@ -33,6 +33,7 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 |---|----
 | [Teleport Website](http://gravitational.com/teleport)  | The official website of the project |
 | [Documentation](http://gravitational.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
+| [Slack Channel](https://join.slack.com/t/grv8/shared_invite/enQtNTEwMTU2NjQ2NzU2LWIzYTM1ZDcyNWFhMzZhNDJhN2IyOWMwZDA4NDA4MmE2MjgzYWNiYmY1NjcxYjA3M2RmOTQ1ZjRkOTAwODE1NDY)  |  Our community Slack channel for Gravitational products, including Teleport |
 | [Demo Video](https://www.youtube.com/watch?v=7eVAC2U8OtM) | 3-minute video overview of the UI. |
 | [Teleconsole](http://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
 | [Blog](http://blog.gravitational.com) | Our blog where we publish Teleport news |
