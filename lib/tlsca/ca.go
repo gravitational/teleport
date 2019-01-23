@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -174,8 +175,16 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		// BasicConstraintsValid is true to not allow any intermediate certs.
 		BasicConstraintsValid: true,
-		IsCA:     false,
-		DNSNames: req.DNSNames,
+		IsCA: false,
+	}
+
+	// sort out principals into DNS names and IP addresses
+	for i := range req.DNSNames {
+		if ip := net.ParseIP(req.DNSNames[i]); ip != nil {
+			template.IPAddresses = append(template.IPAddresses, ip)
+		} else {
+			template.DNSNames = append(template.DNSNames, req.DNSNames[i])
+		}
 	}
 
 	certBytes, err := x509.CreateCertificate(rand.Reader, template, ca.Cert, req.PublicKey, ca.Signer)

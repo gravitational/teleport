@@ -188,7 +188,7 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	headers.Set(StreamType, StreamTypeData)
 	dataStream, err := h.targetConn.CreateStream(headers)
 	if err != nil {
-		return trace.ConnectionProblem(err, "error creating forwarding stream for port -> %d: %v", remotePort)
+		return trace.ConnectionProblem(err, "error creating forwarding stream for port -> %d: %v", remotePort, err)
 	}
 	defer dataStream.Close()
 
