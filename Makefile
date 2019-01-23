@@ -216,7 +216,7 @@ endif
 
 .PHONY: test-package
 test-package: remove-temp-files
-	go test -v -test.parallel=0 ./$(p)
+	go test -v ./$(p)
 
 .PHONY: test-grep-package
 test-grep-package: remove-temp-files
