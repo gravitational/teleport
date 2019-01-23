@@ -534,6 +534,10 @@ ul.has-icons, dl.has-icons {
       margin: 0 !important; }
     .text-article h1.is-center, .text-article h2.is-center, .text-article h3.is-center, .text-article p.is-center, .text-article ul.is-center, .text-article ol.is-center, .text-article dl.is-center {
       text-align: center; }
+    .text-article h1.is-left, .text-article h2.is-left, .text-article h3.is-left, .text-article p.is-left, .text-article ul.is-left, .text-article ol.is-left, .text-article dl.is-left {
+      text-align: left; }
+    .text-article h1.is-right, .text-article h2.is-right, .text-article h3.is-right, .text-article p.is-right, .text-article ul.is-right, .text-article ol.is-right, .text-article dl.is-right {
+      text-align: right; }
     .text-article h1.is-secondary, .text-article h2.is-secondary, .text-article h3.is-secondary, .text-article p.is-secondary, .text-article ul.is-secondary, .text-article ol.is-secondary, .text-article dl.is-secondary {
       color: rgba(38, 50, 56, 0.56); }
     .text-article h1.is-accent, .text-article h1.has-accent, .text-article h2.is-accent, .text-article h2.has-accent, .text-article h3.is-accent, .text-article h3.has-accent, .text-article p.is-accent, .text-article p.has-accent, .text-article ul.is-accent, .text-article ul.has-accent, .text-article ol.is-accent, .text-article ol.has-accent, .text-article dl.is-accent, .text-article dl.has-accent {
@@ -554,7 +558,7 @@ ul.has-icons, dl.has-icons {
       background: rgba(237, 240, 242, 0.56);
       border-radius: 2px;
       color: #6200EA;
-      padding: 0 4px; }
+      padding: 0 8px; }
   .text-article h1 {
     font-size: 38px;
     line-height: 48px;
@@ -630,22 +634,18 @@ ul.has-icons, dl.has-icons {
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article table {
         max-width: 100%; } }
-    .text-article table tbody td:first-child {
-        white-space: nowrap;
-    }
     .text-article table thead th {
       background: #edf0f2;
       border-bottom: 1px solid #EDF0F2;
       color: #233591;
-      padding: 0 16px;
-      font-size: 14px;
+      padding: 0 8px;
+      font-size: 12px;
       line-height: 32px;
       margin: 0;
       text-transform: uppercase;
       white-space: nowrap; }
       @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
         .text-article table thead th {
-          font-size: 12px;
           line-height: 24px;
           min-width: auto;
           padding: 0 8px;
@@ -658,21 +658,24 @@ ul.has-icons, dl.has-icons {
       background: rgba(237, 240, 242, 0.56); }
     .text-article table tbody th, .text-article table tbody td {
       border-bottom: 1px solid #EDF0F2;
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 500;
-      line-height: 30px;
+      line-height: 24px;
       min-width: auto;
       padding: 8px; }
       @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
         .text-article table tbody th, .text-article table tbody td {
-          font-size: 15px;
-          line-height: 24px;
+          font-size: 12px;
           min-width: auto;
-          padding: 8px; } }
+          padding: 8px; }
+          .text-article table tbody th code, .text-article table tbody td code {
+            font-size: 12px;
+            white-space: nowrap; } }
       .text-article table tbody th code, .text-article table tbody td code {
         background: rgba(237, 240, 242, 0.56);
         border-radius: 2px;
         color: #6200EA;
+        font-size: 14px;
         padding: 0 8px; }
     .text-article table tbody th {
       background: rgba(237, 240, 242, 0.56);
@@ -900,7 +903,7 @@ pre,
 samp {
   font-family: monospace, monospace;
   /* 1 */
-  font-size: 14px;
+  font-size: 1em;
   /* 2 */ }
 
 /**
