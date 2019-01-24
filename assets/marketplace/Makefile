@@ -31,13 +31,13 @@ BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
 S3_BUCKET_ID ?=
 
 # Telegraf version
-TELEGRAF_VERSION ?= 1.5.1
+TELEGRAF_VERSION ?= 1.9.3
 
 # InfluxDB version
-INFLUXDB_VERSION ?= 1.4.2
+INFLUXDB_VERSION ?= 1.7.1
 
 # Grafana version
-GRAFANA_VERSION ?= 4.6.3
+GRAFANA_VERSION ?= 5.4.3
 export
 
 
