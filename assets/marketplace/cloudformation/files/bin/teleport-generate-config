@@ -1,4 +1,6 @@
 #!/bin/bash
+set -o nounset
+set -o errexit
 
 # Setup teleport auth server config file
 LOCAL_IP=`curl http://169.254.169.254/latest/meta-data/local-ipv4`

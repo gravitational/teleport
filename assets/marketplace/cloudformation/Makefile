@@ -13,7 +13,7 @@ BUILD_AMI_NAME ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 3.0.1
+TELEPORT_VERSION ?= 3.1.1
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -65,6 +65,7 @@ oss-name-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) template.json
 
+# this target builds a generic AMI used for the Enterprise edition of Teleport in Cloudformation
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
 ent: check-ent-vars
@@ -74,6 +75,7 @@ ent: check-ent-vars
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
+# this target builds the actual named AMI used for the Enterprise edition of Teleport in Cloudformation
 .PHONY: ent-name-build
 ent-name-build: TELEPORT_TYPE=ent
 ent-name-build: check-ent-vars

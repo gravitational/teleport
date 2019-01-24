@@ -6,7 +6,6 @@
 # Auth servers are started.
 
 set -e
-set -o pipefail
 
 # Source variables set up by cloudformation template
 . /etc/teleport.d/conf
