@@ -1004,7 +1004,7 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 		c.Assert(outputA.String(), check.Equals, "hello world\n")
 
 		// Update trusted CAs.
-		err = tc.UpdateTrustedCA(context.TODO())
+		err = tc.UpdateTrustedCA(context.TODO(), a.Secrets.SiteName)
 		c.Assert(err, check.IsNil)
 
 		// The known_hosts file should have two certificates, the way bytes.Split

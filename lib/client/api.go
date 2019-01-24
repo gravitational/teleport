@@ -911,7 +911,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	site, err := proxyClient.ConnectToSite(ctx, false)
+	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -985,7 +985,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionId string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	site, err := proxyClient.ConnectToSite(ctx, false)
+	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1580,6 +1580,11 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	key.Cert = response.Cert
 	key.TLSCert = response.TLSCert
 
+	if len(response.HostSigners) <= 0 {
+		return nil, trace.BadParameter("bad response from the server: expected at least one certificate, got 0")
+	}
+	key.ClusterName = response.HostSigners[0].ClusterName
+
 	if activateKey {
 		// save the list of CAs client trusts to ~/.tsh/known_hosts
 		err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
@@ -1604,7 +1609,7 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 
 // GetTrustedCA returns a list of host certificate authorities
 // trusted by the cluster client is authenticated with.
-func (tc *TeleportClient) GetTrustedCA(ctx context.Context) ([]services.CertAuthority, error) {
+func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]services.CertAuthority, error) {
 	// Connect to the proxy.
 	if !tc.Config.ProxySpecified() {
 		return nil, trace.BadParameter("proxy server is not specified")
@@ -1616,7 +1621,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context) ([]services.CertAuth
 	defer proxyClient.Close()
 
 	// Get a client to the Auth Server.
-	clt, err := proxyClient.ClusterAccessPoint(ctx, true)
+	clt, err := proxyClient.ClusterAccessPoint(ctx, clusterName, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1627,9 +1632,9 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context) ([]services.CertAuth
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
 // and updates ~/.tsh/keys/proxy/certs.pem and ~/.tsh/known_hosts.
-func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context) error {
+func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName string) error {
 	// Get the list of host certificates that this cluster knows about.
-	hostCerts, err := tc.GetTrustedCA(ctx)
+	hostCerts, err := tc.GetTrustedCA(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
