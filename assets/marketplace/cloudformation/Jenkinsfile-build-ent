@@ -18,7 +18,7 @@ pipeline {
 BUILD_AMI_NAME=cloudformation-gravitational-teleport-ent-${params.version} \
 TELEPORT_VERSION=${params.version} \
 TELEPORT_LICENSE_URI=${params.teleport_license_uri} \
-make ent-name-build
+make ent-jenkins-build
 """
                 }
             }

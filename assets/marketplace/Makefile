@@ -48,12 +48,11 @@ oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
-	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
-.PHONY: oss-name-build
-oss-name-build: TELEPORT_TYPE=oss
-oss-name-build: check-vars
-oss-name-build:
+.PHONY: oss-jenkins-build
+oss-jenkins-build: TELEPORT_TYPE=oss
+oss-jenkins-build: check-vars
+oss-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
 
@@ -63,12 +62,11 @@ ent: check-vars
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
-	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
-.PHONY: ent-name-build
-ent-name-build: TELEPORT_TYPE=ent
-ent-name-build: check-vars
-ent-name-build:
+.PHONY: ent-jenkins-build
+ent-jenkins-build: TELEPORT_TYPE=ent
+ent-jenkins-build: check-vars
+ent-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
 

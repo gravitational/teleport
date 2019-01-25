@@ -1,6 +1,6 @@
 # Teleport AWS Quickstart Guide (CloudFormation)
 
-#### NOTE: This method will no longer be updated - it's provided as an example if anyone particularly wants to use CloudFormation with AWS  
+#### NOTE: This method will no longer be updated - it's provided as an example for anyone wanting to use CloudFormation with AWS  
 
 ## Development instructions
 
@@ -23,19 +23,47 @@ apt install awscli
 
 Follow instructions at: https://www.packer.io/docs/install/index.html
 
-**To build an AMI**
+### To build an AMI
+
+**OSS** 
 
 ```bash
 make oss
 ```
 
-**Update YAML files with the new AMI image IDs**
+**Enterprise**
+
+If you have your Teleport Enterprise license in S3, you can provide the URI via the `TELEPORT_LICENSE_URI` parameter:
+
+```bash
+TELEPORT_LICENSE_URI=s3://s3.bucket/teleport-enterprise-license.pem make ent
+```
+
+You must have your AWS account credentials configured to be able to run `aws s3 cp`.
+
+Alternatively, copy your license file to `files/system/license.pem` and run `make ent` without any additional parameters:
+
+```bash
+cp /home/user/teleport-enterprise-license.pem files/system/license.pem
+make ent
+```
+
+#### Update YAML files with the new AMI image IDs
+
+##### OSS
 
 ```bash
 make update-ami-ids-oss
 ```
 
-**Launch a dev CloudFormation stack using an existing VPC**
+##### Enterprise
+
+```bash
+make update-ami-ids-ent
+```
+
+
+### Launch a dev CloudFormation stack using an existing VPC
 
 When using an existing VPC it must have both DNS support and DNS hostnames enabled.
 
@@ -61,21 +89,22 @@ ParameterKey=HostedZoneID,ParameterValue=AWS_ZONE_ID"
 make create-stack
 ```
 
-## Usage instructions
+#### Usage instructions
 
-After the stack has been provisioned, login to the AWS Console and capture the IP address of a Proxy Server and a Auth Server, then type the following to add a admin user:
+After the stack has been provisioned, login to the AWS Console and capture the IP address of a Proxy Server and a Auth
+Server, then type the following to add an admin user:
 
 ```bash
 ssh -i key.pem -o ProxyCommand="ssh -i key.pem -W %h:%p ec2-user@PROXY_SERVER" ec2-user@$AUTH_SERVER
 ```
 
-#### For OSS
+##### For OSS
 
 ```bash
 sudo -u teleport tctl users add bob ec2-user
 ```
 
-#### For Enterprise
+##### For Enterprise
 
 ```bash
 sudo -u teleport tctl users add bob --roles=admin

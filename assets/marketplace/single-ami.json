@@ -15,7 +15,7 @@
   },
   "builders": [{
     "name": "Teleport AWS Linux",
-    "ami_description": "Teleport OSS Linux using AWS Linux AMI",
+    "ami_description": "Gravitational Teleport using AWS Linux AMI",
     "type": "amazon-ebs",
     "region": "{{user `aws_region`}}",
     "source_ami_filter": {
@@ -39,8 +39,7 @@
     "ami_regions": "{{user `destination_regions`}}",
     "force_delete_snapshot": "true",
     "tags": {
-      "Name": "{{user `ami_name`}}",
-      "BuildTimestamp": "{{user `build_timestamp`}}"
+      "Name": "{{user `ami_name`}}"
     },
     "run_tags": {
       "Name": "{{user `ami_name`}}"

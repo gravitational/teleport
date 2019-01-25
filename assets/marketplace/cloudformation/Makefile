@@ -1,5 +1,3 @@
-
-
 # VPC ID used for builds
 BUILD_VPC_ID ?=
 
@@ -59,9 +57,9 @@ oss:
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
-.PHONY: oss-name-build
-oss-name-build: TELEPORT_TYPE=oss
-oss-name-build:
+.PHONY: oss-jenkins-build
+oss-jenkins-build: TELEPORT_TYPE=oss
+oss-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) template.json
 
@@ -69,17 +67,17 @@ oss-name-build:
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
 ent: check-ent-vars
-	aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem
+ent: copy-license-from-s3
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 # this target builds the actual named AMI used for the Enterprise edition of Teleport in Cloudformation
-.PHONY: ent-name-build
-ent-name-build: TELEPORT_TYPE=ent
-ent-name-build: check-ent-vars
-ent-name-build:
+.PHONY: ent-jenkins-build
+ent-jenkins-build: TELEPORT_TYPE=ent
+ent-jenkins-build: check-ent-vars
+ent-jenkins-build:
 	aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) template.json
@@ -105,7 +103,7 @@ create-stack:
 	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
 
 .PHONY: create-stack-vpc
-create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
+create-stack-vpc: CF_YAML_FILENAME=./vpc.yaml
 create-stack-vpc:
 	$(MAKE) create-stack
 
@@ -117,7 +115,7 @@ update-stack:
 	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
 
 .PHONY: update-stack-vpc
-update-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
+update-stack-vpc: CF_YAML_FILENAME=./vpc.yaml
 update-stack-vpc:
 	$(MAKE) update-stack
 
@@ -150,7 +148,7 @@ jenkins-create-stack:
 	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://$(CF_YAML_FILENAME) --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
 
 .PHONY: jenkins-create-stack-vpc
-jenkins-create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
+jenkins-create-stack-vpc: CF_YAML_FILENAME=./vpc.yaml
 jenkins-create-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
 jenkins-create-stack-vpc:
 	$(MAKE) jenkins-create-stack
@@ -214,6 +212,9 @@ check-ent-vars:
 	@if [ -z "$(TELEPORT_VERSION)" ]; then \
 	  echo "TELEPORT_VERSION is not set"; exit 1; \
 	fi;
-	@if [ -z "$(TELEPORT_LICENSE_URI)" ]; then \
-	  echo "TELEPORT_LICENSE_URI is not set"; exit 1; \
+
+.PHONY: copy-license-from-s3
+copy-license-from-s3:
+	@if [ ! -z "$(TELEPORT_LICENSE_URI)" ]; then \
+	  aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem; \
 	fi;
