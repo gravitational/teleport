@@ -75,7 +75,7 @@ Replace the placeholder values in the exports below.
 ```bash
 export STACK=test1
 export STACK_PARAMS="\
-ParameterKey=VPCID,ParameterValue=EXISTING_VPC_ID \
+ParameterKey=VPC,ParameterValue=EXISTING_VPC_ID \
 ParameterKey=ProxySubnetA,ParameterValue=PUBLIC_SUBNET_ID_1 \
 ParameterKey=ProxySubnetB,ParameterValue=PUBLIC_SUBNET_ID_2 \
 ParameterKey=AuthSubnetA,ParameterValue=PRIVATE_SUBNET_ID_1 \
