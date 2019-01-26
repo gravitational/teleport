@@ -438,12 +438,6 @@ func onLogin(cf *CLIConf) {
 	// Regular login without -i flag.
 	tc.SaveProfile("")
 
-	// Connect to the Auth Server and fetch the known hosts for this cluster.
-	err = tc.UpdateTrustedCA(cf.Context, key.ClusterName)
-	if err != nil {
-		utils.FatalError(err)
-	}
-
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
 	// advertised settings are picked up.
