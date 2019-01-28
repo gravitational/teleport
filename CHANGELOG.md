@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.5
+
+Teleport 3.0.5 contains a security fix.
+
+#### Bug fixes
+
+* Upgraded Go to 1.11.5 to mitigate [CVE-2019-6486](https://groups.google.com/forum/#!topic/golang-announce/mVeX35iXuSw): CPU denial of service in P-521 and P-384 elliptic curve implementation.
+
 ## 3.0.4
 
 Teleport 3.0.4 contains two security fixs.
@@ -76,6 +84,14 @@ to upgrade to this version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
 `etcd` version is 3.3 or newer prior to upgrading to Teleport 3.0.
+
+## 2.7.9
+
+Teleport 2.7.9 contains a security fix.
+
+#### Bug fixes
+
+* Upgraded Go to 1.11.5 to mitigate [CVE-2019-6486](https://groups.google.com/forum/#!topic/golang-announce/mVeX35iXuSw): CPU denial of service in P-521 and P-384 elliptic curve implementation.
 
 ## 2.7.8
 
