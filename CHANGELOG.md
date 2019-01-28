@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.9
+
+Teleport 2.7.9 contains a security fix.
+
+#### Bug fixes
+
+* Upgraded Go to 1.11.5 to mitigate [CVE-2019-6486](https://groups.google.com/forum/#!topic/golang-announce/mVeX35iXuSw): CPU denial of service in P-521 and P-384 elliptic curve implementation.
+
 ## 2.7.8
 
 Teleport 2.7.8 contains two security fixs.
