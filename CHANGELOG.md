@@ -1,12 +1,21 @@
 # Changelog
 
+## 3.1.5
+
+Teleport 3.1.5 contains a bug fix and security fix.
+
+#### Bug fixes
+
+* Fixed issue where certificate authorities were not fetched during every login. [#2526](https://github.com/gravitational/teleport/pull/2526)
+* Upgraded Go to 1.11.5 to mitigate [CVE-2019-6486](https://groups.google.com/forum/#!topic/golang-announce/mVeX35iXuSw): CPU denial of service in P-521 and P-384 elliptic curve implementation.
+
 ## 3.1.4
 
 Teleport 3.1.4 contains one new feature and two bug fixes.
 
 #### New Feature
 
-* Added support for GSuite as a SSO provider. [https://github.com/gravitational/teleport/issues/2455](#2455)
+* Added support for GSuite as a SSO provider. [#2455](https://github.com/gravitational/teleport/issues/2455)
 
 #### Bug fixes
 
@@ -50,6 +59,14 @@ This is a major Teleport release with a focus on backwards compatibility, stabil
 * Improved Kubernetes UX. [#2291](https://github.com/gravitational/teleport/issues/2291) [#2258](https://github.com/gravitational/teleport/issues/2258) [#2304](https://github.com/gravitational/teleport/issues/2304)
 * Fixed bug that did not allow copy and paste of texts over 128 in the Web UI. [#2313](https://github.com/gravitational/teleport/issues/2313)
 * Fixes issues with `scp` when using the Web UI. [#2300](https://github.com/gravitational/teleport/issues/2300)
+
+## 3.0.5
+
+Teleport 3.0.5 contains a security fix.
+
+#### Bug fixes
+
+* Upgraded Go to 1.11.5 to mitigate [CVE-2019-6486](https://groups.google.com/forum/#!topic/golang-announce/mVeX35iXuSw): CPU denial of service in P-521 and P-384 elliptic curve implementation.
 
 ## 3.0.4
 
@@ -127,6 +144,14 @@ to upgrade to this version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
 `etcd` version is 3.3 or newer prior to upgrading to Teleport 3.0.
+
+## 2.7.9
+
+Teleport 2.7.9 contains a security fix.
+
+#### Bug fixes
+
+* Upgraded Go to 1.11.5 to mitigate [CVE-2019-6486](https://groups.google.com/forum/#!topic/golang-announce/mVeX35iXuSw): CPU denial of service in P-521 and P-384 elliptic curve implementation.
 
 ## 2.7.8
 
