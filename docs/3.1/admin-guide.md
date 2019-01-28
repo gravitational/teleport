@@ -348,7 +348,7 @@ auth_service:
     # certificates
     listen_addr: 0.0.0.0:3025
 
-    # The optional DNS name the auth server if locataed behind a load balancer.
+    # The optional DNS name the auth server if located behind a load balancer.
     # (see public_addr section below)
     public_addr: auth.example.com:3025
 
@@ -419,7 +419,7 @@ ssh_service:
     # See "Labeling Nodes" section below for more information.
     commands:
     - name: arch             # this command will add a label like 'arch=x86_64' to a node
-      command: [uname, -p]
+      command: ['/bin/uname', '-p'] # write a small script or use ['/bin/sh', '-c', "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+"] for scripting
       period: 1h0m0s
 
     # enables reading ~/.tsh/environment before creating a session. by default
@@ -431,7 +431,7 @@ ssh_service:
         enabled: no
         service_name: teleport
 
-# This section configures the 'proxy servie'
+# This section configures the 'proxy service'
 proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
     enabled: yes
@@ -456,10 +456,28 @@ proxy_service:
     # (see public_addr section below)
     public_addr: proxy.example.com:3080
 
+    # The DNS name of the SSH proxy server that is accessible by cluster clients.
+    # Defaults to the proxy's hostname if not specified. If running multiple proxies behind
+    # a load balancer, this name must point to the load balancer. Use TCP load balancer
+    # because this port uses SSH protocol. If set, used
+    # by tsh to connect to the cluster instead of the default value.
+    ssh_public_addr: proxy.example.com:3023
+
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
     https_key_file: /var/lib/teleport/webproxy_key.pem
     https_cert_file: /var/lib/teleport/webproxy_cert.pem
+
+    # This section configures the kubernetes proxy
+    kubernetes:
+        # Turns 'kubernetes' proxy on. Default is 'no'
+        enabled: yes
+        # The DNS name of the Kubernetes proxy server that is accessible by cluster clients.
+        # If running multiple proxies behind  a load balancer, this name must point to the load balancer.
+        public_addr: ['kube.example.com:3026']
+        # Kubernetes Gateway Proxy listen address.
+        listen_addr: 0.0.0.0:3026
+
 ```
 
 #### Public Addr
@@ -909,7 +927,7 @@ ssh_service:
   # Dynamic labels AKA "commands":
   commands:
   - name: arch
-    command: [/bin/uname, -m]
+    command: ['/bin/uname', '-m']
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s 
@@ -2023,10 +2041,10 @@ teleport:
 
     # This setting configures Teleport to send the audit events to two places: 
     # To the DynamoDB table and to keep a copy on a local filesystem.
-    audit_events_uri:  [file:///var/lib/teleport/audit/events, dynamodb://table_name]
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name']
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
-    audit_sessions_uri: s3://example.com/teleport.events
+    audit_sessions_uri: 's3://example.com/teleport.events'
 ```
 
 * Replace `region` and `table_name` with your own settings. Teleport will
