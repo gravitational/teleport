@@ -1603,6 +1603,12 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Connect to the Auth Server of the main cluster
+		// and fetch the known hosts for this cluster.
+		if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return key, nil
 }
