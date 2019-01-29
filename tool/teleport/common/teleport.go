@@ -126,7 +126,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	scpc.Flag("f", "source mode (data producer)").Short('f').Default("false").BoolVar(&scpFlags.Source)
 	scpc.Flag("v", "verbose mode").Default("false").Short('v').BoolVar(&scpFlags.Verbose)
 	scpc.Flag("r", "recursive mode").Default("false").Short('r').BoolVar(&scpFlags.Recursive)
-	scpc.Flag("d", "directory mode").Short('d').Hidden().Bool()
+	scpc.Flag("d", "directory mode").Short('d').Hidden().BoolVar(&scpFlags.DirectoryMode)
 	scpc.Flag("remote-addr", "address of the remote client").StringVar(&scpFlags.RemoteAddr)
 	scpc.Flag("local-addr", "local address which accepted the request").StringVar(&scpFlags.LocalAddr)
 	scpc.Arg("target", "").StringsVar(&scpFlags.Target)

@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	. "gopkg.in/check.v1"
 )
 
@@ -66,7 +65,8 @@ func (s *SCPSuite) TestHTTPSendFile(c *C) {
 			User:           "test-user",
 		})
 	c.Assert(err, IsNil)
-	s.runSCP(c, cmd, "scp", "-v", "-t", outdir)
+	err = runSCP(cmd, "scp", "-v", "-t", outdir)
+	c.Assert(err, IsNil)
 	bytesReceived, err := ioutil.ReadFile(filepath.Join(outdir, "filename"))
 	c.Assert(err, IsNil)
 	c.Assert(string(bytesReceived), Equals, string(expectedBytes))
@@ -92,7 +92,8 @@ func (s *SCPSuite) TestHTTPReceiveFile(c *C) {
 
 	c.Assert(err, IsNil)
 
-	s.runSCP(c, cmd, "scp", "-v", "-f", source)
+	err = runSCP(cmd, "scp", "-v", "-f", source)
+	c.Assert(err, IsNil)
 
 	data, err := ioutil.ReadAll(w.Body)
 	contentLengthStr := strconv.Itoa(len(data))
@@ -123,7 +124,8 @@ func (s *SCPSuite) TestSendFile(c *C) {
 	c.Assert(err, IsNil)
 
 	outDir := c.MkDir()
-	s.runSCP(c, cmd, "scp", "-v", "-t", outDir)
+	err = runSCP(cmd, "scp", "-v", "-t", outDir)
+	c.Assert(err, IsNil)
 
 	bytes, err := ioutil.ReadFile(filepath.Join(outDir, "target"))
 	c.Assert(err, IsNil)
@@ -148,7 +150,8 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	s.runSCP(c, cmd, "scp", "-v", "-f", source)
+	err = runSCP(cmd, "scp", "-v", "-f", source)
+	c.Assert(err, IsNil)
 
 	bytes, err := ioutil.ReadFile(filepath.Join(outDir, "target"))
 	c.Assert(err, IsNil)
@@ -178,7 +181,8 @@ func (s *SCPSuite) TestSendDir(c *C) {
 	c.Assert(err, IsNil)
 
 	outDir := c.MkDir()
-	s.runSCP(c, cmd, "scp", "-v", "-r", "-t", outDir)
+	err = runSCP(cmd, "scp", "-v", "-r", "-t", outDir)
+	c.Assert(err, IsNil)
 
 	name := filepath.Base(dir)
 	bytes, err := ioutil.ReadFile(filepath.Join(outDir, name, "target_dir", "target1"))
@@ -213,7 +217,8 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	s.runSCP(c, cmd, "scp", "-v", "-r", "-f", dir)
+	err = runSCP(cmd, "scp", "-v", "-r", "-f", dir)
+	c.Assert(err, IsNil)
 	time.Sleep(time.Millisecond * 300)
 
 	name := filepath.Base(dir)
@@ -257,6 +262,33 @@ func (s *SCPSuite) TestInvalidDir(c *C) {
 	}
 }
 
+// TestVerifyDir makes sure that if scp was started in directory mode (the
+// user attempts to copy multiple files or a directory), the target is a
+// directory.
+func (s *SCPSuite) TestVerifyDir(c *C) {
+	// Create temporary directory with a file "target" in it.
+	dir := c.MkDir()
+	target := filepath.Join(dir, "target")
+	err := ioutil.WriteFile(target, []byte{}, 0666)
+	c.Assert(err, IsNil)
+
+	cmd, err := CreateCommand(
+		Config{
+			User: "test-user",
+			Flags: Flags{
+				Source: true,
+				Target: []string{target},
+			},
+		},
+	)
+	c.Assert(err, IsNil)
+
+	// Run command with -d flag (directory mode). Since the target is a file,
+	// it should fail.
+	err = runSCP(cmd, "scp", "-t", "-d", target)
+	c.Assert(err, NotNil)
+}
+
 func (s *SCPSuite) TestSCPParsing(c *C) {
 	user, host, dest := ParseSCPDestination("root@remote.host:/etc/nginx.conf")
 	c.Assert(user, Equals, "root")
@@ -274,32 +306,37 @@ func (s *SCPSuite) TestSCPParsing(c *C) {
 	c.Assert(dest, Equals, ".")
 }
 
-func (s *SCPSuite) runSCP(c *C, cmd Command, name string, args ...string) {
+func runSCP(cmd Command, name string, args ...string) error {
 	scp, in, out, _ := run(name, args...)
-	errC := make(chan error, 2)
-	successC := make(chan bool)
 	rw := &combo{out, in}
+
+	errCh := make(chan error, 1)
+
 	go func() {
 		if err := scp.Start(); err != nil {
-			errC <- trace.Wrap(err)
+			errCh <- trace.Wrap(err)
+			return
 		}
 		if err := cmd.Execute(rw); err != nil {
-			errC <- trace.Wrap(err)
+			errCh <- trace.Wrap(err)
+			return
 		}
 		in.Close()
 		if err := scp.Wait(); err != nil {
-			errC <- trace.Wrap(err)
+			errCh <- trace.Wrap(err)
+			return
 		}
-		log.Infof("run completed")
-		close(successC)
+		close(errCh)
 	}()
 
 	select {
 	case <-time.After(2 * time.Second):
-		c.Fatalf("timeout")
-	case err := <-errC:
-		c.Assert(err, IsNil)
-	case <-successC:
+		return trace.BadParameter("timed out waiting for command")
+	case err := <-errCh:
+		if err == nil {
+			return nil
+		}
+		return trace.Wrap(err)
 	}
 }
 
