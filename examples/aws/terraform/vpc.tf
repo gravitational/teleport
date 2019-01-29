@@ -14,7 +14,7 @@ resource "aws_eip" "nat" {
   vpc   = true
   tags {
     TeleportCluster = "${var.cluster_name}"
-  }  
+  }
 }
 
 // Internet gateway for NAT gateway
@@ -33,7 +33,7 @@ resource "aws_nat_gateway" "teleport" {
   depends_on    = ["aws_subnet.public", "aws_internet_gateway.teleport"]
   tags {
     TeleportCluster = "${var.cluster_name}"
-  }  
+  }
 }
 
 locals {

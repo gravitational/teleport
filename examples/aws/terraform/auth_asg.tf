@@ -42,7 +42,6 @@ data "template_file" "auth_user_data" {
     region = "${var.region}"
     locks_table_name = "${aws_dynamodb_table.locks.name}"
     cluster_name = "${var.cluster_name}"
-    teleport_version = "${var.teleport_version}"
     dynamo_table_name = "${aws_dynamodb_table.teleport.name}"
     dynamo_events_table_name = "${aws_dynamodb_table.teleport_events.name}"
     email = "${var.email}"
@@ -51,6 +50,7 @@ data "template_file" "auth_user_data" {
     influxdb_addr = "http://${aws_lb.monitor.dns_name}:8086"
     telegraf_version = "${var.telegraf_version}"
     teleport_uid = "${var.teleport_uid}"
+    use_acm = "${var.use_acm}"
   }
 }
 

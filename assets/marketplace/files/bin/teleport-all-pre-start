@@ -1,0 +1,18 @@
+#!/bin/bash
+# This script prepares a Letsencrypt certificate before all-in-one Teleport starts for the first time (if needed)
+set -e
+set -x
+
+# Source variables from user-data (if present)
+if [ -f /etc/teleport.d/conf ]; then
+    source /etc/teleport.d/conf
+fi
+
+# check for letsencrypt
+if [[ "${USE_LETSENCRYPT}" != "true" ]]; then
+    echo "Not using Letsencrypt, exiting with success"
+    exit 0
+fi
+
+# copy certificates into place
+/bin/aws s3 sync s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport

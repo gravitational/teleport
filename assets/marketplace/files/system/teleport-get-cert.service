@@ -1,5 +1,6 @@
 [Unit]
 Description=Service getting teleport certificates
+ConditionPathExists=/etc/teleport.d/use-letsencrypt
 
 [Service]
 Type=oneshot

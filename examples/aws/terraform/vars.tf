@@ -14,11 +14,6 @@ variable "cluster_name" {
   type = "string"
 }
 
-// Teleport version to install
-variable "teleport_version" {
-  type = "string"
-}
-
 // Teleport UID is a UID for teleport user provisioned on the hosts
 variable "teleport_uid" {
   type = "string"
@@ -141,5 +136,11 @@ variable "monitor_instance_type" {
 
 // Password for grafana admin user
 variable "grafana_pass" {
+  type = "string"
+}
+
+// Whether to use Amazon-issued certificates via ACM or not
+// This must be set to true for any use of ACM whatsoever, regardless of whether Terraform generates/approves the cert
+variable "use_acm" {
   type = "string"
 }

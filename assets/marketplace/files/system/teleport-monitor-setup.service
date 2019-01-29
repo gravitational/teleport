@@ -1,0 +1,14 @@
+[Unit]
+Description=Teleport Monitor Setup Service
+After=network.target cloud-final.service teleport-generate-config.service
+ConditionPathExists=/etc/teleport.d/role.monitor
+
+[Service]
+User=root
+Group=adm
+Type=oneshot
+RuntimeDirectory=teleport
+ExecStart=/usr/bin/teleport-monitor-setup
+
+[Install]
+WantedBy=multi-user.target
