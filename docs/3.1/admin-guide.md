@@ -416,10 +416,11 @@ ssh_service:
         type: postgres
 
     # List of the commands to periodically execute. Their output will be used as node labels.
-    # See "Labeling Nodes" section below for more information.
+    # See "Labeling Nodes" section below for more information and more examples.
     commands:
-    - name: arch             # this command will add a label like 'arch=x86_64' to a node
-      command: ['/bin/uname', '-p'] # write a small script or use ['/bin/sh', '-c', "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+"] for scripting
+    # this command will add a label 'arch=x86_64' to a node
+    - name: arch
+      command: ['/bin/uname', '-p']
       period: 1h0m0s
 
     # enables reading ~/.tsh/environment before creating a session. by default
@@ -450,17 +451,16 @@ proxy_service:
     # command line (CLI) users via password+HOTP
     web_listen_addr: 0.0.0.0:3080
 
-    # The DNS name the proxy server is accessible by cluster users. Defaults to
-    # the proxy's hostname if not specified. If running multiple proxies behind
-    # a load balancer, this name must point to the load balancer
+    # The DNS name the proxy HTTPS endpoint as accessible by cluster users.
+    # Defaults to the proxy's hostname if not specified. If running multiple
+    # proxies behind a load balancer, this name must point to the load balancer
     # (see public_addr section below)
     public_addr: proxy.example.com:3080
 
-    # The DNS name of the SSH proxy server that is accessible by cluster clients.
-    # Defaults to the proxy's hostname if not specified. If running multiple proxies behind
-    # a load balancer, this name must point to the load balancer. Use TCP load balancer
-    # because this port uses SSH protocol. If set, used
-    # by tsh to connect to the cluster instead of the default value.
+    # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
+    # Defaults to the proxy's hostname if not specified. If running multiple proxies 
+    # behind a load balancer, this name must point to the load balancer. 
+    # Use a TCP load balancer because this port uses SSH protocol.
     ssh_public_addr: proxy.example.com:3023
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
@@ -468,16 +468,18 @@ proxy_service:
     https_key_file: /var/lib/teleport/webproxy_key.pem
     https_cert_file: /var/lib/teleport/webproxy_cert.pem
 
-    # This section configures the kubernetes proxy
+    # This section configures the Kubernetes proxy
     kubernetes:
         # Turns 'kubernetes' proxy on. Default is 'no'
         enabled: yes
-        # The DNS name of the Kubernetes proxy server that is accessible by cluster clients.
-        # If running multiple proxies behind  a load balancer, this name must point to the load balancer.
-        public_addr: ['kube.example.com:3026']
-        # Kubernetes Gateway Proxy listen address.
+
+        # Kubernetes proxy listen address.
         listen_addr: 0.0.0.0:3026
 
+        # The DNS name of the Kubernetes proxy server that is accessible by cluster clients.
+        # If running multiple proxies behind  a load balancer, this name must point to the 
+        # load balancer.
+        public_addr: ['kube.example.com:3026']
 ```
 
 #### Public Addr
@@ -892,16 +894,18 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 
 ## Labeling Nodes
 
-In addition to specifying a custom nodename, Teleport also allows for the application of arbitrary
-key:value pairs to each node, called labels. There are two kinds of labels:
+In addition to specifying a custom nodename, Teleport also allows for the
+application of arbitrary key:value pairs to each node, called labels. There are
+two kinds of labels:
 
-1. `static labels` never change while the `teleport` process is running. You may want
-   to label nodes with their physical location, the Linux distribution, etc.
+1. `static labels` do not change over time, while `teleport` process is
+   running. Examples of static labels are physical location of nodes, name of
+   the environment (staging vs production), etc.
 
-2. `label commands` or "dynamic labels" allow you to execute an external
-   command on a node at a configurable frequency. The output of that command becomes
-   the value of such label. Examples include reporting a kernel version, load averages,
-   time after reboot, etc.
+2. `dynamic labels` also known as "label commands" allow to generate labels at runtime.
+   Teleport will execute an external command on a node at a configurable frequency and
+   the output of a command becomes the label value. Examples include reporting load 
+   averages, presence of a process, time after last reboot, etc.
 
 There are two ways to configure node labels. 
 
@@ -909,13 +913,14 @@ There are two ways to configure node labels.
 2. Using `/etc/teleport.yaml` configuration file on the nodes.
 
 
-### CLI Example
+To define labels as command line arguments, use `--labels` flag like shown below.
+This method works well for static labels or simple commands:
 
 ```yaml
 $ teleport start --labels uptime=[1m:"uptime -p"],kernel=[1h:"uname -r"]
 ```
 
-### Configuration File Example
+Alternatively, you can update `labels` via a configuration file:
 
 ```yaml
 ssh_service:
@@ -923,26 +928,41 @@ ssh_service:
   # Static labels are simple key/value pairs:
   labels:
     environment: test
+```
 
+To configure dynamic labels via a configuration file, define a `commands` array
+as shown below:
+
+```yaml
+ssh_service:
+  enabled: "yes"
   # Dynamic labels AKA "commands":
   commands:
   - name: arch
-    command: ['/bin/uname', '-m']
+    command: ['/path/to/executable', 'flag1', 'flag2']
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s 
 ```
 
-When a node starts, it usually takes up to a minute for the labels to become 
-visible to users within a cluster, but when they do, you should see:
+`/path/to/executable` must be a valid executable command (i.e. executable bit must be set)
+which also includes shell scripts with a proper [shebang line](https://en.wikipedia.org/wiki/Shebang_(Unix)).
 
-```bash
-$ tsh ls
+**Important:** notice that `command` setting is an array where the first element is 
+a valid executable and each subsequent element is an argument, i.e:
 
-Node Name     Address         Labels
----------     -------         -----------------------------
-turing        10.1.0.5:3022   arch=x86_64, environment=test
+```yaml
+# valid syntax:
+command: ["/bin/uname", "-m"]
+
+# INVALID syntax:
+command: ["/bin/uname -m"]
+
+# if you want to pipe several bash commands together, here's how to do it:
+# notice how ' and " are iterchangeable and you can use it for quoting:
+command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+'"]
 ```
+
 
 ## Audit Log
 
