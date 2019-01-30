@@ -578,10 +578,15 @@ func onListNodes(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+
+	// Get list of all nodes in backend and sort by "Node Name".
 	nodes, err := tc.ListNodes(context.TODO())
 	if err != nil {
 		utils.FatalError(err)
 	}
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].GetHostname() < nodes[j].GetHostname()
+	})
 
 	switch cf.Verbose {
 	// In verbose mode, print everything on a single line and include the Node
