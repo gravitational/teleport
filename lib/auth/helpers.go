@@ -70,8 +70,13 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 
 // CreateUploaderDir creates directory for file uploader service
 func CreateUploaderDir(dir string) error {
-	return os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
+	err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
 		events.SessionLogsDir, defaults.Namespace), teleport.SharedDirMode)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	return nil
 }
 
 // TestAuthServer is auth server using local filesystem backend
