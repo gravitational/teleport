@@ -94,7 +94,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/gravitational/kingpin"
-  branch = "master"
+  revision = "742f2714c145075a68df26ccc25bc05545310f3a"
 
 [[constraint]]
   name = "github.com/gravitational/roundtrip"
