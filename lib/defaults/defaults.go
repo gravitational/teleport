@@ -216,6 +216,14 @@ const (
 	// Localhost is the address of localhost. Used for the default binding
 	// address for port forwarding.
 	Localhost = "127.0.0.1"
+
+	// AnyAddress is used to refer to the non-routable meta-address used to
+	// refer to all addresses on the machine.
+	AnyAddress = "0.0.0.0"
+
+	// CallbackTimeout is how long to wait for a response from SSO provider
+	// before timeout.
+	CallbackTimeout = 180 * time.Second
 )
 
 var (

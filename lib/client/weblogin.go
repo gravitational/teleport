@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -276,8 +277,8 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	case response := <-waitC:
 		log.Debugf("Got response from browser.")
 		return response, nil
-	case <-time.After(60 * time.Second):
-		log.Debugf("Timed out waiting for callback.")
+	case <-time.After(defaults.CallbackTimeout):
+		log.Debugf("Timed out waiting for callback after %v.", defaults.CallbackTimeout)
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-ctx.Done():
 		log.Debugf("Canceled by user.")
