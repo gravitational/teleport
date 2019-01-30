@@ -180,11 +180,23 @@ func parseOptions(opts []string) (Options, error) {
 }
 
 func splitOption(option string) (string, string, error) {
-	parts := strings.Fields(option)
+	parts := strings.FieldsFunc(option, fieldsFunc)
 
 	if len(parts) != 2 {
 		return "", "", trace.BadParameter("invalid format for option")
 	}
 
 	return parts[0], parts[1], nil
+}
+
+// fieldsFunc splits key-value pairs off ' ' and '='.
+func fieldsFunc(c rune) bool {
+	switch {
+	case c == ' ':
+		return true
+	case c == '=':
+		return true
+	default:
+		return false
+	}
 }
