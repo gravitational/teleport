@@ -413,7 +413,7 @@ func (fs *FSLocalKeyStore) dirFor(proxyHost string, create bool) (string, error)
 	if create {
 		if err := os.MkdirAll(dirPath, profileDirPerms); err != nil {
 			fs.log.Error(err)
-			return "", trace.Wrap(err)
+			return "", trace.ConvertSystemError(err)
 		}
 	}
 
@@ -439,7 +439,7 @@ func initKeysDir(dirPath string) (string, error) {
 		if os.IsNotExist(err) {
 			err = os.MkdirAll(dirPath, os.ModeDir|profileDirPerms)
 			if err != nil {
-				return "", trace.Wrap(err)
+				return "", trace.ConvertSystemError(err)
 			}
 		} else {
 			return "", trace.Wrap(err)
