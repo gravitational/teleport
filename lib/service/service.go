@@ -486,7 +486,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if os.IsNotExist(err) {
 		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.ConvertSystemError(err)
 		}
 	}
 
