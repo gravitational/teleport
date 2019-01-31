@@ -488,7 +488,7 @@ const (
 
 const (
 	// OpenBrowserLinux is the command used to open a web browser on Linux.
-	OpenBrowserLinux = "sensible-browser"
+	OpenBrowserLinux = "xdg-open"
 
 	// OpenBrowserDarwin is the command used to open a web browser on macOS/Darwin.
 	OpenBrowserDarwin = "open"
