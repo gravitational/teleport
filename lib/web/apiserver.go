@@ -20,6 +20,7 @@ package web
 
 import (
 	"compress/gzip"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -654,7 +655,7 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
-		log.Warningf("unable to extract CSRF token from cookie", err)
+		log.Warningf("unable to extract CSRF token from cookie: %v", err)
 		return nil, trace.AccessDenied("access denied")
 	}
 
@@ -824,7 +825,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	if response.Req.CreateWebSession {
 		err = csrf.VerifyToken(response.Req.CSRFToken, r)
 		if err != nil {
-			log.Warningf("[OIDC] unable to verify CSRF token", err)
+			log.Warningf("[OIDC] unable to verify CSRF token: %v", err)
 			return nil, trace.AccessDenied("access denied")
 		}
 
@@ -1990,8 +1991,9 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 			logger.Warningf("no auth headers %v", err)
 			return nil, trace.AccessDenied("need auth")
 		}
-		if creds.Password != ctx.GetWebSession().GetBearerToken() {
-			logger.Warningf("bad bearer token")
+
+		if subtle.ConstantTimeCompare([]byte(creds.Password), []byte(ctx.GetWebSession().GetBearerToken())) != 1 {
+			logger.Warningf("Request failed: bad bearer token.")
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}

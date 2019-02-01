@@ -79,8 +79,8 @@ ignored = ["github.com/Sirupsen/logrus"]
   branch = "master"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/gravitational/roundtrip"
+  version = "=v1.0.0"
 
 [[constraint]]
   version = "0.0.1"

@@ -81,7 +81,9 @@ func (w *WebSockWrapper) Write(data []byte) (n int, err error) {
 	} else {
 		var utf8 string
 		utf8, err = w.encoder.String(string(data))
-		err = websocket.Message.Send(w.ws, utf8)
+		if err == nil {
+			err = websocket.Message.Send(w.ws, utf8)
+		}
 	}
 	if err != nil {
 		n = 0

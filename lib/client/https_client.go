@@ -18,6 +18,7 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"net/http"
@@ -62,18 +63,18 @@ type WebClient struct {
 
 func (w *WebClient) PostJSON(
 	endpoint string, val interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(w.Client.PostJSON(endpoint, val))
+	return httplib.ConvertResponse(w.Client.PostJSON(context.TODO(), endpoint, val))
 }
 
 func (w *WebClient) PutJSON(
 	endpoint string, val interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(w.Client.PutJSON(endpoint, val))
+	return httplib.ConvertResponse(w.Client.PutJSON(context.TODO(), endpoint, val))
 }
 
 func (w *WebClient) Get(endpoint string, val url.Values) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(w.Client.Get(endpoint, val))
+	return httplib.ConvertResponse(w.Client.Get(context.TODO(), endpoint, val))
 }
 
 func (w *WebClient) Delete(endpoint string) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(w.Client.Delete(endpoint))
+	return httplib.ConvertResponse(w.Client.Delete(context.TODO(), endpoint))
 }
