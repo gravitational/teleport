@@ -684,7 +684,7 @@ func refuseArgs(command string, args []string) {
 // If the "host auth callback" is not returned, user will be prompted to
 // trust the proxy server.
 func loadIdentity(idFn string) (*client.Key, client.HostKeyCallback, error) {
-	logrus.Infof("Reading identity file: ", idFn)
+	logrus.Infof("Reading identity file: %v", idFn)
 
 	f, err := os.Open(idFn)
 	if err != nil {

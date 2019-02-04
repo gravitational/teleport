@@ -18,11 +18,13 @@ package roundtrip
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha512"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -49,9 +51,10 @@ func (s *ClientSuite) TestPostForm(c *C) {
 	var form url.Values
 	var method string
 	var user, pass string
-	var ok bool
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		var ok bool
 		user, pass, ok = r.BasicAuth()
+		c.Assert(ok, Equals, true)
 		u = r.URL
 		c.Assert(r.ParseForm(), IsNil)
 		form = r.Form
@@ -62,28 +65,29 @@ func (s *ClientSuite) TestPostForm(c *C) {
 
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
 	values := url.Values{"a": []string{"b"}}
-	out, err := clt.PostForm(clt.Endpoint("a", "b"), values)
+	out, err := clt.PostForm(context.Background(), clt.Endpoint("a", "b"), values)
 
 	c.Assert(err, IsNil)
 	c.Assert(string(out.Bytes()), Equals, "hello back")
 	c.Assert(u.String(), DeepEquals, "/v1/a/b")
 	c.Assert(form, DeepEquals, values)
-	c.Assert(method, Equals, "POST")
+	c.Assert(method, Equals, http.MethodPost)
 	c.Assert(user, DeepEquals, "user")
 	c.Assert(pass, DeepEquals, "pass")
 }
 
 func (s *ClientSuite) TestAddAuth(c *C) {
 	var user, pass string
-	var ok bool
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		var ok bool
 		user, pass, ok = r.BasicAuth()
+		c.Assert(ok, Equals, true)
 		io.WriteString(w, "hello back")
 	})
 	defer srv.Close()
 
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
-	req, err := http.NewRequest("GET", clt.Endpoint("a", "b"), nil)
+	req, err := http.NewRequest(http.MethodGet, clt.Endpoint("a", "b"), nil)
 	c.Assert(err, IsNil)
 	clt.SetAuthHeader(req.Header)
 	_, err = clt.HTTPClient().Do(req)
@@ -93,14 +97,15 @@ func (s *ClientSuite) TestAddAuth(c *C) {
 	c.Assert(pass, DeepEquals, "pass")
 }
 
-func (s *ClientSuite) TestPostJSON(c *C) {
+func (s *ClientSuite) TestPostPutPatchJSON(c *C) {
 	var data interface{}
 	var user, pass string
-	var ok bool
 	var method string
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		var ok bool
 		method = r.Method
 		user, pass, ok = r.BasicAuth()
+		c.Assert(ok, Equals, true)
 		err := json.NewDecoder(r.Body).Decode(&data)
 		c.Assert(err, IsNil)
 	})
@@ -109,19 +114,28 @@ func (s *ClientSuite) TestPostJSON(c *C) {
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
 
 	values := map[string]interface{}{"hello": "there"}
-	_, err := clt.PostJSON(clt.Endpoint("a", "b"), values)
+	_, err := clt.PostJSON(context.Background(), clt.Endpoint("a", "b"), values)
 
 	c.Assert(err, IsNil)
-	c.Assert(method, Equals, "POST")
+	c.Assert(method, Equals, http.MethodPost)
 	c.Assert(user, DeepEquals, "user")
 	c.Assert(pass, DeepEquals, "pass")
 	c.Assert(data, DeepEquals, values)
 
 	values = map[string]interface{}{"hello": "there, put"}
-	_, err = clt.PutJSON(clt.Endpoint("a", "b"), values)
+	_, err = clt.PutJSON(context.Background(), clt.Endpoint("a", "b"), values)
 
 	c.Assert(err, IsNil)
-	c.Assert(method, Equals, "PUT")
+	c.Assert(method, Equals, http.MethodPut)
+	c.Assert(user, DeepEquals, "user")
+	c.Assert(pass, DeepEquals, "pass")
+	c.Assert(data, DeepEquals, values)
+
+	values = map[string]interface{}{"hello": "there,patch"}
+	_, err = clt.PatchJSON(context.Background(), clt.Endpoint("a", "b"), values)
+
+	c.Assert(err, IsNil)
+	c.Assert(method, Equals, http.MethodPatch)
 	c.Assert(user, DeepEquals, "user")
 	c.Assert(pass, DeepEquals, "pass")
 	c.Assert(data, DeepEquals, values)
@@ -137,9 +151,9 @@ func (s *ClientSuite) TestDelete(c *C) {
 	defer srv.Close()
 
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
-	re, err := clt.Delete(clt.Endpoint("a", "b"))
+	re, err := clt.Delete(context.Background(), clt.Endpoint("a", "b"))
 	c.Assert(err, IsNil)
-	c.Assert(method, Equals, "DELETE")
+	c.Assert(method, Equals, http.MethodDelete)
 	c.Assert(re.Code(), Equals, http.StatusOK)
 	c.Assert(user, DeepEquals, "user")
 	c.Assert(pass, DeepEquals, "pass")
@@ -158,9 +172,9 @@ func (s *ClientSuite) TestDeleteP(c *C) {
 
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
 	values := url.Values{"force": []string{"true"}}
-	re, err := clt.DeleteWithParams(clt.Endpoint("a", "b"), values)
+	re, err := clt.DeleteWithParams(context.Background(), clt.Endpoint("a", "b"), values)
 	c.Assert(err, IsNil)
-	c.Assert(method, Equals, "DELETE")
+	c.Assert(method, Equals, http.MethodDelete)
 	c.Assert(re.Code(), Equals, http.StatusOK)
 	c.Assert(user, DeepEquals, "user")
 	c.Assert(pass, DeepEquals, "pass")
@@ -178,8 +192,8 @@ func (s *ClientSuite) TestGet(c *C) {
 
 	clt := newC(srv.URL, "v1")
 	values := url.Values{"q": []string{"1", "2"}}
-	clt.Get(clt.Endpoint("a", "b"), values)
-	c.Assert(method, Equals, "GET")
+	clt.Get(context.Background(), clt.Endpoint("a", "b"), values)
+	c.Assert(method, Equals, http.MethodGet)
 	c.Assert(query, DeepEquals, values)
 }
 
@@ -193,7 +207,7 @@ func (s *ClientSuite) TestTracer(c *C) {
 	clt := newC(srv.URL, "v1", Tracer(func() RequestTracer {
 		return NewWriterTracer(out)
 	}))
-	clt.Get(clt.Endpoint("a", "b"), url.Values{"q": []string{"1", "2"}})
+	clt.Get(context.Background(), clt.Endpoint("a", "b"), url.Values{"q": []string{"1", "2"}})
 	c.Assert(out.String(), Matches, ".*a/b.*")
 }
 
@@ -202,16 +216,17 @@ func (s *ClientSuite) TestGetFile(c *C) {
 	err := ioutil.WriteFile(fileName, []byte("hello there"), 0666)
 	c.Assert(err, IsNil)
 	var user, pass string
-	var ok bool
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		var ok bool
 		user, pass, ok = r.BasicAuth()
+		c.Assert(ok, Equals, true)
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%v`, "file.txt"))
 		http.ServeFile(w, r, fileName)
 	})
 	defer srv.Close()
 
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
-	f, err := clt.GetFile(clt.Endpoint("download"), url.Values{})
+	f, err := clt.GetFile(context.Background(), clt.Endpoint("download"), url.Values{})
 	c.Assert(err, IsNil)
 	defer f.Close()
 	data, err := ioutil.ReadAll(f.Body())
@@ -261,17 +276,18 @@ func (s *ClientSuite) TestOpenFile(c *C) {
 	defer os.RemoveAll(file.Name())
 
 	now := time.Now().UTC()
-	var ok bool
 	var user, pass string
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		var ok bool
 		user, pass, ok = r.BasicAuth()
+		c.Assert(ok, Equals, true)
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%v`, file.Name()))
 		http.ServeContent(w, r, file.Name(), now, file)
 	})
 	defer srv.Close()
 
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
-	reader, err := clt.OpenFile(clt.Endpoint("download"), url.Values{})
+	reader, err := clt.OpenFile(context.Background(), clt.Endpoint("download"), url.Values{})
 	c.Assert(err, IsNil)
 	c.Assert(hashOfReader(reader), Equals, hash)
 
@@ -304,7 +320,7 @@ func (s *ClientSuite) TestReplyNotFound(c *C) {
 	defer srv.Close()
 
 	clt := newC(srv.URL, "v1")
-	re, err := clt.Get(clt.Endpoint("a"), url.Values{})
+	re, err := clt.Get(context.Background(), clt.Endpoint("a"), url.Values{})
 	c.Assert(err, IsNil)
 	c.Assert(re.Code(), Equals, http.StatusNotFound)
 	c.Assert(re.Headers().Get("Content-Type"), Equals, "application/json")
@@ -319,19 +335,61 @@ func (s *ClientSuite) TestCustomClient(c *C) {
 	clt, err := NewClient(srv.URL, "v1", HTTPClient(&http.Client{Timeout: time.Millisecond}))
 	c.Assert(err, IsNil)
 
-	_, err = clt.Get(clt.Endpoint("a"), url.Values{})
+	_, err = clt.Get(context.Background(), clt.Endpoint("a"), url.Values{})
 	c.Assert(err, NotNil)
 }
 
 func (s *ClientSuite) TestPostMultipartForm(c *C) {
+	files := []File{
+		File{
+			Name:     "a",
+			Filename: "a.json",
+			Reader:   strings.NewReader("file 1"),
+		},
+		File{
+			Name:     "a",
+			Filename: "b.json",
+			Reader:   strings.NewReader("file 2"),
+		},
+	}
+	expected := [][]byte{[]byte("file 1"), []byte("file 2")}
+	s.testPostMultipartForm(c, files, expected)
+}
+
+func (s *ClientSuite) TestPostMultipartFormLargeFile(c *C) {
+	buffer := make([]byte, 1024<<10)
+	rand.Read(buffer)
+	files := []File{
+		File{
+			Name:     "a",
+			Filename: "a.json",
+			Reader:   strings.NewReader("file 1"),
+		},
+		File{
+			Name:     "a",
+			Filename: "b.json",
+			Reader:   strings.NewReader("file 2"),
+		},
+		File{
+			Name:     "a",
+			Filename: "c",
+			Reader:   bytes.NewReader(buffer),
+		},
+	}
+	expected := [][]byte{[]byte("file 1"), []byte("file 2"), buffer}
+	s.testPostMultipartForm(c, files, expected)
+}
+
+func (s *ClientSuite) testPostMultipartForm(c *C, files []File, expected [][]byte) {
 	var u *url.URL
 	var params url.Values
 	var method string
-	var data []string
+	var data [][]byte
 	var user, pass string
-	var ok bool
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		var ok bool
 		user, pass, ok = r.BasicAuth()
+		c.Assert(ok, Equals, true)
 		u = r.URL
 		c.Assert(r.ParseMultipartForm(64<<20), IsNil)
 		params = r.Form
@@ -346,7 +404,7 @@ func (s *ClientSuite) TestPostMultipartForm(c *C) {
 			c.Assert(err, IsNil)
 			val, err := ioutil.ReadAll(f)
 			c.Assert(err, IsNil)
-			data = append(data, string(val))
+			data = append(data, val)
 		}
 
 		io.WriteString(w, "hello back")
@@ -357,25 +415,19 @@ func (s *ClientSuite) TestPostMultipartForm(c *C) {
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
 	values := url.Values{"a": []string{"b"}}
 	out, err := clt.PostForm(
+		context.Background(),
 		clt.Endpoint("a", "b"),
 		values,
-		File{
-			Name:     "a",
-			Filename: "a.json",
-			Reader:   strings.NewReader("file 1")},
-		File{
-			Name:     "a",
-			Filename: "a.json",
-			Reader:   strings.NewReader("file 2")},
+		files...,
 	)
 
 	c.Assert(err, IsNil)
 	c.Assert(string(out.Bytes()), Equals, "hello back")
 	c.Assert(u.String(), DeepEquals, "/v1/a/b")
 
-	c.Assert(method, Equals, "POST")
+	c.Assert(method, Equals, http.MethodPost)
 	c.Assert(params, DeepEquals, values)
-	c.Assert(data, DeepEquals, []string{"file 1", "file 2"})
+	c.Assert(data, DeepEquals, expected)
 
 	c.Assert(user, Equals, "user")
 	c.Assert(pass, Equals, "pass")
@@ -383,14 +435,15 @@ func (s *ClientSuite) TestPostMultipartForm(c *C) {
 
 func (s *ClientSuite) TestGetBasicAuth(c *C) {
 	var user, pass string
-	var ok bool
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		var ok bool
 		user, pass, ok = r.BasicAuth()
+		c.Assert(ok, Equals, true)
 	})
 	defer srv.Close()
 
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
-	clt.Get(clt.Endpoint("a", "b"), url.Values{})
+	clt.Get(context.Background(), clt.Endpoint("a", "b"), url.Values{})
 	c.Assert(user, DeepEquals, "user")
 	c.Assert(pass, DeepEquals, "pass")
 }
@@ -427,7 +480,7 @@ func (s *ClientSuite) TestCookies(c *C) {
 	c.Assert(err, IsNil)
 	jar.SetCookies(u, requestCookies)
 
-	re, err := clt.Get(clt.Endpoint("test"), url.Values{})
+	re, err := clt.Get(context.Background(), clt.Endpoint("test"), url.Values{})
 	c.Assert(err, IsNil)
 
 	c.Assert(len(capturedRequestCookies), Equals, len(requestCookies))
@@ -444,6 +497,37 @@ func (s *ClientSuite) TestEndpoint(c *C) {
 	c.Assert(client.Endpoint("api", "resource"), Equals, "http://localhost/v1/api/resource")
 	client = newC("http://localhost", "")
 	c.Assert(client.Endpoint("api", "resource"), Equals, "http://localhost/api/resource")
+}
+
+func (s *ClientSuite) TestLimitsWrites(c *C) {
+	var buf bytes.Buffer
+	w := &limitWriter{&buf, 10}
+	input := []byte("The quick brown fox jumps over the lazy dog")
+	r := bytes.NewReader(input)
+	_, err := io.Copy(w, r)
+	c.Assert(err, Equals, errShortWrite)
+	c.Assert(buf.Bytes(), DeepEquals, input[:10])
+	out, err := ioutil.ReadAll(r)
+	c.Assert(out, DeepEquals, input[10:], Commentf("expected %q but got %q", input[10:], out))
+}
+
+func (s *ClientSuite) TestContext(c *C) {
+	// Create a server that blocks for a second before responding.
+	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(1 * time.Second)
+		io.WriteString(w, "hello back")
+	})
+	defer srv.Close()
+
+	// Create a context that times out after 100 ms.
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	// Make sure the request is canceled due to the context.
+	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
+	_, err := clt.PostJSON(ctx, clt.Endpoint("a", "b"), nil)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, ".*context deadline exceeded")
 }
 
 func newC(addr, version string, params ...ClientParam) *testClient {

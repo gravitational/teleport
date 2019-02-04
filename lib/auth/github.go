@@ -230,6 +230,9 @@ func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims
 			},
 		},
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	existingUser, err := s.GetUser(claims.Username)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)

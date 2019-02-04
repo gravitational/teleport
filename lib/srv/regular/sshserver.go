@@ -534,7 +534,7 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
 	if err := os.Chown(socketDir, uid, gid); err != nil {
 		if err := dirCloser.Close(); err != nil {
-			log.Warn("failed to remove directory: %v", err)
+			log.WithError(err).Warn("failed to remove directory")
 		}
 		return trace.ConvertSystemError(err)
 	}

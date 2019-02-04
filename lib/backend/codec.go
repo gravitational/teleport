@@ -41,11 +41,11 @@ func (c *JSONCodec) UpsertJSONVal(path []string, key string, val interface{}, tt
 }
 
 func (c *JSONCodec) GetJSONVal(path []string, key string, val interface{}) error {
-	bytes, err := json.Marshal(val)
+	_, err := json.Marshal(val)
 	if err != nil {
 		return err
 	}
-	bytes, err = c.GetVal(path, key)
+	bytes, err := c.GetVal(path, key)
 	if err != nil {
 		return err
 	}

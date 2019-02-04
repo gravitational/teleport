@@ -17,6 +17,7 @@ limitations under the License.
 package roundtrip
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 
@@ -40,7 +41,7 @@ func (s *CredsSuite) TestBasicAuth(c *C) {
 	defer srv.Close()
 
 	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
-	_, err := clt.Get(clt.Endpoint("test"), url.Values{})
+	_, err := clt.Get(context.Background(), clt.Endpoint("test"), url.Values{})
 	c.Assert(err, IsNil)
 
 	c.Assert(credsErr, IsNil)
@@ -56,7 +57,7 @@ func (s *CredsSuite) TestTokenAuth(c *C) {
 	defer srv.Close()
 
 	clt := newC(srv.URL, "v1", BearerAuth("token1"))
-	_, err := clt.Get(clt.Endpoint("test"), url.Values{})
+	_, err := clt.Get(context.Background(), clt.Endpoint("test"), url.Values{})
 	c.Assert(err, IsNil)
 
 	c.Assert(credsErr, IsNil)
@@ -72,7 +73,7 @@ func (s *CredsSuite) TestTokenURIAuth(c *C) {
 	defer srv.Close()
 
 	clt := newC(srv.URL, "v1")
-	_, err := clt.Get(clt.Endpoint("test"), url.Values{AccessTokenQueryParam: []string{"token2"}})
+	_, err := clt.Get(context.Background(), clt.Endpoint("test"), url.Values{AccessTokenQueryParam: []string{"token2"}})
 	c.Assert(err, IsNil)
 
 	c.Assert(credsErr, IsNil)

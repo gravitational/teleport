@@ -1113,9 +1113,7 @@ type tunConn struct {
 }
 
 func (c *tunConn) Close() error {
-	err := c.Conn.Close()
-	err = c.client.Close()
-	return trace.Wrap(err)
+	return trace.NewAggregate(c.Conn.Close(), c.client.Close())
 }
 
 const (

@@ -74,9 +74,7 @@ func (s *ServerSuite) TestStartStop(c *C) {
 }
 
 func (s *ServerSuite) TestConfigureCiphers(c *C) {
-	called := false
 	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
-		called = true
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
 

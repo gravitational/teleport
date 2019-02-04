@@ -1716,7 +1716,7 @@ const RoleSpecV3SchemaDefinitions = `
       "node_labels": {
         "type": "object",
         "patternProperties": {
-          "^[a-zA-Z/.0-9_]$": { "type": "string" }
+          "^[a-zA-Z/.0-9_*-]+$": { "type": "string"}
         }
       },
       "logins": {
@@ -1760,7 +1760,7 @@ const RoleSpecV2SchemaTemplate = `{
     "node_labels": {
       "type": "object",
       "patternProperties": {
-         "^[a-zA-Z/.0-9_]$":  { "type": "string" }
+         "^[a-zA-Z/.0-9_-]$":  { "type": "string" }
       }
     },
     "namespaces": {

@@ -53,7 +53,7 @@ func (p *clusterPeers) pickPeer() (*clusterPeer, error) {
 		}
 	}
 	if currentPeer == nil {
-		return nil, trace.NotFound("no active peers found for %v")
+		return nil, trace.NotFound("no active peers found for %v", p.clusterName)
 	}
 	return currentPeer, nil
 }
@@ -151,7 +151,7 @@ type clusterPeer struct {
 }
 
 func (s *clusterPeer) CachingAccessPoint() (auth.AccessPoint, error) {
-	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later")
+	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
 }
 
 func (s *clusterPeer) GetClient() (auth.ClientI, error) {

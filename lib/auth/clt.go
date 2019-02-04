@@ -109,13 +109,13 @@ func (c *Client) GetTransport() *http.Transport {
 // PostJSON is a generic method that issues http POST request to the server
 func (c *Client) PostJSON(
 	endpoint string, val interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.PostJSON(endpoint, val))
+	return httplib.ConvertResponse(c.Client.PostJSON(context.TODO(), endpoint, val))
 }
 
 // PutJSON is a generic method that issues http PUT request to the server
 func (c *Client) PutJSON(
 	endpoint string, val interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.PutJSON(endpoint, val))
+	return httplib.ConvertResponse(c.Client.PutJSON(context.TODO(), endpoint, val))
 }
 
 // PostForm is a generic method that issues http POST request to the server
@@ -124,17 +124,17 @@ func (c *Client) PostForm(
 	vals url.Values,
 	files ...roundtrip.File) (*roundtrip.Response, error) {
 
-	return httplib.ConvertResponse(c.Client.PostForm(endpoint, vals, files...))
+	return httplib.ConvertResponse(c.Client.PostForm(context.TODO(), endpoint, vals, files...))
 }
 
 // Get issues http GET request to the server
 func (c *Client) Get(u string, params url.Values) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.Get(u, params))
+	return httplib.ConvertResponse(c.Client.Get(context.TODO(), u, params))
 }
 
 // Delete issues http Delete Request to the server
 func (c *Client) Delete(u string) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.Delete(u))
+	return httplib.ConvertResponse(c.Client.Delete(context.TODO(), u))
 }
 
 // GetSessions returns a list of active sessions in the cluster
