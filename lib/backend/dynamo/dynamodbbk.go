@@ -131,7 +131,7 @@ func New(params backend.Params) (backend.Backend, error) {
 	err := utils.ObjectToStruct(params, &cfg)
 	if err != nil {
 		log.Error(err)
-		return nil, trace.BadParameter("DynamoDB configuration is invalid", err)
+		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
 	}
 
 	defer log.Debug("AWS session created")

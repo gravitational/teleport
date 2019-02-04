@@ -511,7 +511,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		// pose as another. so we have to check that authority
 		// matches by some other way (in absence of x509 chains)
 		if err := s.checkTrustedKey(services.HostCA, authDomain, cert.SignatureKey); err != nil {
-			logger.Warningf("this claims to be signed as authDomain %v, but no matching signing keys found")
+			logger.Warningf("this claims to be signed as authDomain %v, but no matching signing keys found", authDomain)
 			return nil, trace.Wrap(err)
 		}
 		return &ssh.Permissions{

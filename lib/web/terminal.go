@@ -292,7 +292,7 @@ func resolveHostPort(value string, existingServers []services.Server) (string, i
 			hostName = host
 			hostPort, err = strconv.Atoi(port)
 			if err != nil {
-				return "", 0, trace.BadParameter("server: invalid port", err)
+				return "", 0, trace.BadParameter("server: invalid port: %v", err)
 			}
 		}
 	}

@@ -345,12 +345,12 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	l.Debugf("SearchEvents(%v, %v, query=%v)", fromUTC, toUTC, query)
 	queryVals, err := url.ParseQuery(query)
 	if err != nil {
-		return nil, trace.BadParameter("missing parameter query", query)
+		return nil, trace.BadParameter("missing parameter query: %q", query)
 	}
 	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
 	if days < 0 {
-		return nil, trace.BadParameter("query", query)
+		return nil, trace.BadParameter("invalid time interval: from(%q) > to(%q)", fromUTC, toUTC)
 	}
 
 	// scan the log directory:
