@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The commercial edition of Teleport allows users to retreive their SSH
+The commercial edition of Teleport allows users to login and retrieve their SSH
 credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign-on)
 (SSO) system used by the rest of the organization.
 
@@ -17,17 +17,22 @@ or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 ## How does SSO work with SSH?
 
-From the user's perspective they need to execute the following command to retreive their SSH certificate.
+From the user's perspective they need to execute the following command login:
 
 ```bsh
-$ tsh login
+# this command will automatically open the default web browser and take a user
+# through the login process with an SSO provider:
+$ tsh login --proxy=proxy.example.com
+
+# output:
+If browser window does not open automatically, open it by clicking on the link: 
+http://127.0.0.1:45235/055a310a-1099-43ea-8cf6-ffc41d88ad1f
 ```
 
-Teleport can be configured with a certificate TTL to determine how often a user needs to log in.
-
-`tsh login` will print a URL into the console which, when opened with a web browser, will open an SSO login
-prompt, along with the 2FA, as enforced by the SSO provider. If user supplies
-valid credentials, Teleport will issue an SSH certificate.
+Teleport will wait for up to 3 minutes for a user to authenticate. If authentication
+succeeds, Teleport will retrieve an SSH certificate and will store it in 
+`~/.tsh/keys/proxy.example.com` directory and also will add it to an 
+[SSH agent](https://en.wikipedia.org/wiki/Ssh-agent) if there's one running.
 
 ## Configuring SSO
 
