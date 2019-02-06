@@ -125,7 +125,8 @@ func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = s.createGithubUser(connector, *claims)
+	expires := s.clock.Now().UTC().Add(defaults.OAuth2TTL)
+	err = s.createGithubUser(connector, *claims, expires)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,7 +195,7 @@ func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 	return response, nil
 }
 
-func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims services.GithubClaims) error {
+func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims services.GithubClaims, expires time.Time) error {
 	logins := connector.MapClaims(claims)
 	if len(logins) == 0 {
 		return trace.BadParameter(
@@ -210,11 +211,11 @@ func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims
 		Metadata: services.Metadata{
 			Name:      claims.Username,
 			Namespace: defaults.Namespace,
+			Expires:   &expires,
 		},
 		Spec: services.UserSpecV2{
-			Roles:   modules.GetModules().RolesFromLogins(logins),
-			Traits:  modules.GetModules().TraitsFromLogins(logins),
-			Expires: s.clock.Now().UTC().Add(defaults.OAuth2TTL),
+			Roles:  modules.GetModules().RolesFromLogins(logins),
+			Traits: modules.GetModules().TraitsFromLogins(logins),
 			GithubIdentities: []services.ExternalIdentity{{
 				ConnectorID: connector.GetName(),
 				Username:    claims.Username,
