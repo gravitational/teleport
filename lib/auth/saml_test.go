@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,19 +28,21 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
+	saml2 "github.com/russellhaering/gosaml2"
+	"github.com/russellhaering/gosaml2/types"
 	"gopkg.in/check.v1"
 )
 
-type GithubSuite struct {
+type SAMLSuite struct {
 	a *AuthServer
 	b backend.Backend
 	c clockwork.FakeClock
 }
 
 var _ = fmt.Printf
-var _ = check.Suite(&GithubSuite{})
+var _ = check.Suite(&SAMLSuite{})
 
-func (s *GithubSuite) SetUpSuite(c *check.C) {
+func (s *SAMLSuite) SetUpSuite(c *check.C) {
 	var err error
 
 	utils.InitLoggerForTests()
@@ -69,75 +71,42 @@ func (s *GithubSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *GithubSuite) TestPopulateClaims(c *check.C) {
-	claims, err := populateGithubClaims(&testGithubAPIClient{})
-	c.Assert(err, check.IsNil)
-	c.Assert(claims, check.DeepEquals, &services.GithubClaims{
-		Username: "octocat",
-		OrganizationToTeams: map[string][]string{
-			"org1": []string{"team1", "team2"},
-			"org2": []string{"team1"},
-		},
-	})
-}
-
-func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
-	connector := services.NewGithubConnector("github", services.GithubConnectorSpecV3{
-		ClientID:     "fakeClientID",
-		ClientSecret: "fakeClientSecret",
-		RedirectURL:  "https://www.example.com",
-		TeamsToLogins: []services.TeamMapping{
-			services.TeamMapping{
-				Organization: "fakeOrg",
-				Team:         "fakeTeam",
-				Logins:       []string{"foo"},
+func (s *SAMLSuite) TestCreateSAMLUser(c *check.C) {
+	connector := services.NewSAMLConnector("samlService", services.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://www.example.com",
+		AttributesToRoles: []services.AttributeMapping{
+			services.AttributeMapping{
+				Name:  "groups",
+				Value: "everyone",
+				Roles: []string{"admin"},
 			},
 		},
 	})
 
-	claims := services.GithubClaims{
-		Username: "foo",
-		OrganizationToTeams: map[string][]string{
-			"fakeOrg": []string{"fakeTeam"},
+	assertionInfo := saml2.AssertionInfo{
+		NameID: "foo@example.com",
+		Values: map[string]types.Attribute{
+			"groups": types.Attribute{
+				Name: "groups",
+				Values: []types.AttributeValue{
+					types.AttributeValue{
+						Value: "everyone",
+					},
+				},
+			},
 		},
 	}
 
-	// Create GitHub user with 1 minute expiry.
-	err := s.a.createGithubUser(connector, claims, s.c.Now().Add(1*time.Minute))
+	// Create SAML user with 1 minute expiry.
+	err := s.a.createSAMLUser(connector, assertionInfo, s.c.Now().Add(1*time.Minute))
 	c.Assert(err, check.IsNil)
 
 	// Within that 1 minute period the user should still exist.
-	_, err = s.a.GetUser("foo")
+	_, err = s.a.GetUser("foo@example.com")
 	c.Assert(err, check.IsNil)
 
 	// Advance time 2 minutes, the user should be gone.
 	s.c.Advance(2 * time.Minute)
-	_, err = s.a.GetUser("foo")
+	_, err = s.a.GetUser("foo@example.com")
 	c.Assert(err, check.NotNil)
-}
-
-type testGithubAPIClient struct{}
-
-func (c *testGithubAPIClient) getUser() (*userResponse, error) {
-	return &userResponse{Login: "octocat"}, nil
-}
-
-func (c *testGithubAPIClient) getTeams() ([]teamResponse, error) {
-	return []teamResponse{
-		{
-			Name: "team1",
-			Slug: "team1",
-			Org:  orgResponse{Login: "org1"},
-		},
-		{
-			Name: "team2",
-			Slug: "team2",
-			Org:  orgResponse{Login: "org1"},
-		},
-		{
-			Name: "team1",
-			Slug: "team1",
-			Org:  orgResponse{Login: "org2"},
-		},
-	}, nil
 }

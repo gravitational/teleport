@@ -41,8 +41,8 @@ type PasswordSuite struct {
 	a  *AuthServer
 }
 
-var _ = Suite(&PasswordSuite{})
 var _ = fmt.Printf
+var _ = Suite(&PasswordSuite{})
 
 func (s *PasswordSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()

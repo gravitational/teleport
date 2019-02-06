@@ -340,11 +340,11 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 		Metadata: services.Metadata{
 			Name:      ident.Email,
 			Namespace: defaults.Namespace,
+			Expires:   &ident.ExpiresAt,
 		},
 		Spec: services.UserSpecV2{
-			Roles:   roles,
-			Traits:  traits,
-			Expires: ident.ExpiresAt,
+			Roles:  roles,
+			Traits: traits,
 			OIDCIdentities: []services.ExternalIdentity{
 				{
 					ConnectorID: connector.GetName(),

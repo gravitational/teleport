@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"fmt"
 	"sort"
 	"time"
 
@@ -39,6 +40,8 @@ import (
 
 	. "gopkg.in/check.v1"
 )
+
+var _ = fmt.Printf
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
@@ -91,6 +94,7 @@ type ServicesTestSuite struct {
 	WebS          services.Identity
 	ConfigS       services.ClusterConfiguration
 	ChangesC      chan interface{}
+	Clock         clockwork.FakeClock
 }
 
 func (s *ServicesTestSuite) collectChanges(c *C, expected int) []interface{} {
