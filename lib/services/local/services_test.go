@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
 
@@ -36,6 +38,7 @@ type ServicesSuite struct {
 	suite *suite.ServicesTestSuite
 }
 
+var _ = fmt.Printf
 var _ = check.Suite(&ServicesSuite{})
 
 func (s *ServicesSuite) SetUpSuite(c *check.C) {
@@ -45,18 +48,25 @@ func (s *ServicesSuite) SetUpSuite(c *check.C) {
 func (s *ServicesSuite) SetUpTest(c *check.C) {
 	var err error
 
-	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir(), PollStreamPeriod: 200 * time.Millisecond})
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+		Path:             c.MkDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
+	})
 	c.Assert(err, check.IsNil)
 
-	suite := &suite.ServicesTestSuite{}
-	suite.CAS = NewCAService(s.bk)
-	suite.PresenceS = NewPresenceService(s.bk)
-	suite.ProvisioningS = NewProvisioningService(s.bk)
-	suite.WebS = NewIdentityService(s.bk)
-	suite.Access = NewAccessService(s.bk)
-	suite.EventsS = NewEventsService(s.bk)
-	suite.ChangesC = make(chan interface{})
-	s.suite = suite
+	s.suite = &suite.ServicesTestSuite{
+		CAS:           NewCAService(s.bk),
+		PresenceS:     NewPresenceService(s.bk),
+		ProvisioningS: NewProvisioningService(s.bk),
+		WebS:          NewIdentityService(s.bk),
+		Access:        NewAccessService(s.bk),
+		EventsS:       NewEventsService(s.bk),
+		ChangesC:      make(chan interface{}),
+		Clock:         clock,
+	}
 }
 
 func (s *ServicesSuite) TearDownTest(c *check.C) {
@@ -77,6 +87,10 @@ func (s *ServicesSuite) TestReverseTunnelsCRUD(c *check.C) {
 
 func (s *ServicesSuite) TestUsersCRUD(c *check.C) {
 	s.suite.UsersCRUD(c)
+}
+
+func (s *ServicesSuite) TestUsersExpiry(c *check.C) {
+	s.suite.UsersExpiry(c)
 }
 
 func (s *ServicesSuite) TestLoginAttempts(c *check.C) {

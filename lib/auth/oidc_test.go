@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,20 +27,21 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-oidc/oidc"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
 
-type GithubSuite struct {
+type OIDCSuite struct {
 	a *AuthServer
 	b backend.Backend
 	c clockwork.FakeClock
 }
 
 var _ = fmt.Printf
-var _ = check.Suite(&GithubSuite{})
+var _ = check.Suite(&OIDCSuite{})
 
-func (s *GithubSuite) SetUpSuite(c *check.C) {
+func (s *OIDCSuite) SetUpSuite(c *check.C) {
 	var err error
 
 	utils.InitLoggerForTests()
@@ -69,75 +70,41 @@ func (s *GithubSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *GithubSuite) TestPopulateClaims(c *check.C) {
-	claims, err := populateGithubClaims(&testGithubAPIClient{})
-	c.Assert(err, check.IsNil)
-	c.Assert(claims, check.DeepEquals, &services.GithubClaims{
-		Username: "octocat",
-		OrganizationToTeams: map[string][]string{
-			"org1": []string{"team1", "team2"},
-			"org2": []string{"team1"},
-		},
-	})
-}
-
-func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
-	connector := services.NewGithubConnector("github", services.GithubConnectorSpecV3{
+func (s *OIDCSuite) TestCreateOIDCUser(c *check.C) {
+	connector := services.NewOIDCConnector("oidcService", services.OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.example.com",
 		ClientID:     "fakeClientID",
 		ClientSecret: "fakeClientSecret",
-		RedirectURL:  "https://www.example.com",
-		TeamsToLogins: []services.TeamMapping{
-			services.TeamMapping{
-				Organization: "fakeOrg",
-				Team:         "fakeTeam",
-				Logins:       []string{"foo"},
+		RedirectURL:  "https://www.example.com/redirect",
+		Scope:        []string{"profile", "email"},
+		ClaimsToRoles: []services.ClaimMapping{
+			services.ClaimMapping{
+				Claim: "email",
+				Value: "foo@example.com",
+				Roles: []string{"admin"},
 			},
 		},
 	})
 
-	claims := services.GithubClaims{
-		Username: "foo",
-		OrganizationToTeams: map[string][]string{
-			"fakeOrg": []string{"fakeTeam"},
-		},
+	ident := &oidc.Identity{
+		Email:     "foo@example.com",
+		ExpiresAt: s.c.Now().Add(1 * time.Minute),
 	}
 
-	// Create GitHub user with 1 minute expiry.
-	err := s.a.createGithubUser(connector, claims, s.c.Now().Add(1*time.Minute))
+	claims := map[string]interface{}{
+		"email": "foo@example.com",
+	}
+
+	// Create OIDC user with 1 minute expiry.
+	err := s.a.createOIDCUser(connector, ident, claims)
 	c.Assert(err, check.IsNil)
 
 	// Within that 1 minute period the user should still exist.
-	_, err = s.a.GetUser("foo")
+	_, err = s.a.GetUser("foo@example.com")
 	c.Assert(err, check.IsNil)
 
 	// Advance time 2 minutes, the user should be gone.
 	s.c.Advance(2 * time.Minute)
-	_, err = s.a.GetUser("foo")
+	_, err = s.a.GetUser("foo@example.com")
 	c.Assert(err, check.NotNil)
-}
-
-type testGithubAPIClient struct{}
-
-func (c *testGithubAPIClient) getUser() (*userResponse, error) {
-	return &userResponse{Login: "octocat"}, nil
-}
-
-func (c *testGithubAPIClient) getTeams() ([]teamResponse, error) {
-	return []teamResponse{
-		{
-			Name: "team1",
-			Slug: "team1",
-			Org:  orgResponse{Login: "org1"},
-		},
-		{
-			Name: "team2",
-			Slug: "team2",
-			Org:  orgResponse{Login: "org1"},
-		},
-		{
-			Name: "team1",
-			Slug: "team1",
-			Org:  orgResponse{Login: "org2"},
-		},
-	}, nil
 }
