@@ -53,6 +53,8 @@ type TestAuthServerConfig struct {
 	AcceptedUsage []string
 	// CipherSuites is the list of ciphers that the server supports.
 	CipherSuites []uint16
+	// Clock is used to control time in tests.
+	Clock clockwork.FakeClock
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -62,6 +64,9 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Dir == "" {
 		return trace.BadParameter("missing parameter Dir")
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewFakeClockAt(time.Now())
 	}
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
@@ -107,7 +112,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		TestAuthServerConfig: cfg,
 	}
 	var err error
-	srv.Backend, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: cfg.Dir, PollStreamPeriod: 100 * time.Millisecond})
+	srv.Backend, err = lite.NewWithConfig(context.Background(), lite.Config{
+		Path:             cfg.Dir,
+		PollStreamPeriod: 100 * time.Millisecond,
+		Clock:            cfg.Clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
