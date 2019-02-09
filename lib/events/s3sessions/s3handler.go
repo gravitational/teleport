@@ -88,7 +88,7 @@ func NewHandler(cfg Config) (*Handler, error) {
 		client:     s3.New(cfg.Session),
 	}
 	start := time.Now()
-	h.Infof("Setting up bucket %q.", h.Bucket)
+	h.Infof("Setting up bucket %q, sessions path %q in region %q.", h.Bucket, h.Path, h.Region)
 	if err := h.ensureBucket(); err != nil {
 		return nil, trace.Wrap(err)
 	}
