@@ -504,7 +504,7 @@ ul.has-icons, dl.has-icons {
   /* SHARED STYLES */ }
   .text-article pre.prettyprint {
     margin-bottom: 24px; }
-  .text-article h1, .text-article h2, .text-article h3, .text-article p, .text-article ul, .text-article ol, .text-article dl {
+  .text-article h1, .text-article h2, .text-article h3, .text-article p, .text-article ul, .text-article ol, .text-article dl, .text-article table {
     color: rgba(38, 50, 56, 0.87);
     font-family: "Lato", Helvetica, Arial, "Lucida Grande", sans-serif;
     font-weight: 400;
@@ -513,52 +513,47 @@ ul.has-icons, dl.has-icons {
     margin: 0 0 16px 0;
     outline: none;
     padding: 0; }
-    .text-article h1[id]:hover a, .text-article h2[id]:hover a, .text-article h3[id]:hover a, .text-article p[id]:hover a, .text-article ul[id]:hover a, .text-article ol[id]:hover a, .text-article dl[id]:hover a {
+    .text-article h1[id]:hover a, .text-article h2[id]:hover a, .text-article h3[id]:hover a, .text-article p[id]:hover a, .text-article ul[id]:hover a, .text-article ol[id]:hover a, .text-article dl[id]:hover a, .text-article table[id]:hover a {
       text-decoration: none;
       color: #039BE5; }
-      .text-article h1[id]:hover a:before, .text-article h2[id]:hover a:before, .text-article h3[id]:hover a:before, .text-article p[id]:hover a:before, .text-article ul[id]:hover a:before, .text-article ol[id]:hover a:before, .text-article dl[id]:hover a:before {
+      .text-article h1[id]:hover a:before, .text-article h2[id]:hover a:before, .text-article h3[id]:hover a:before, .text-article p[id]:hover a:before, .text-article ul[id]:hover a:before, .text-article ol[id]:hover a:before, .text-article dl[id]:hover a:before, .text-article table[id]:hover a:before {
         content: " \B6"; }
-    .text-article h1.is-italic, .text-article h2.is-italic, .text-article h3.is-italic, .text-article p.is-italic, .text-article ul.is-italic, .text-article ol.is-italic, .text-article dl.is-italic {
+    .text-article h1.is-italic, .text-article h2.is-italic, .text-article h3.is-italic, .text-article p.is-italic, .text-article ul.is-italic, .text-article ol.is-italic, .text-article dl.is-italic, .text-article table.is-italic {
       font-style: italic; }
-    .text-article h1.is-semi-bold, .text-article h2.is-semi-bold, .text-article h3.is-semi-bold, .text-article p.is-semi-bold, .text-article ul.is-semi-bold, .text-article ol.is-semi-bold, .text-article dl.is-semi-bold {
+    .text-article h1.is-semi-bold, .text-article h2.is-semi-bold, .text-article h3.is-semi-bold, .text-article p.is-semi-bold, .text-article ul.is-semi-bold, .text-article ol.is-semi-bold, .text-article dl.is-semi-bold, .text-article table.is-semi-bold {
       font-weight: 500; }
-    .text-article h1.is-bold, .text-article h2.is-bold, .text-article h3.is-bold, .text-article p.is-bold, .text-article ul.is-bold, .text-article ol.is-bold, .text-article dl.is-bold {
+    .text-article h1.is-bold, .text-article h2.is-bold, .text-article h3.is-bold, .text-article p.is-bold, .text-article ul.is-bold, .text-article ol.is-bold, .text-article dl.is-bold, .text-article table.is-bold {
       font-weight: 600; }
-    .text-article h1.is-extra-bold, .text-article h2.is-extra-bold, .text-article h3.is-extra-bold, .text-article p.is-extra-bold, .text-article ul.is-extra-bold, .text-article ol.is-extra-bold, .text-article dl.is-extra-bold {
+    .text-article h1.is-extra-bold, .text-article h2.is-extra-bold, .text-article h3.is-extra-bold, .text-article p.is-extra-bold, .text-article ul.is-extra-bold, .text-article ol.is-extra-bold, .text-article dl.is-extra-bold, .text-article table.is-extra-bold {
       font-weight: 800; }
-    .text-article h1.is-black, .text-article h2.is-black, .text-article h3.is-black, .text-article p.is-black, .text-article ul.is-black, .text-article ol.is-black, .text-article dl.is-black {
+    .text-article h1.is-black, .text-article h2.is-black, .text-article h3.is-black, .text-article p.is-black, .text-article ul.is-black, .text-article ol.is-black, .text-article dl.is-black, .text-article table.is-black {
       font-weight: 900; }
-    .text-article h1.is-uppercase, .text-article h2.is-uppercase, .text-article h3.is-uppercase, .text-article p.is-uppercase, .text-article ul.is-uppercase, .text-article ol.is-uppercase, .text-article dl.is-uppercase {
+    .text-article h1.is-uppercase, .text-article h2.is-uppercase, .text-article h3.is-uppercase, .text-article p.is-uppercase, .text-article ul.is-uppercase, .text-article ol.is-uppercase, .text-article dl.is-uppercase, .text-article table.is-uppercase {
       text-transform: uppercase; }
-    .text-article h1.no-margin, .text-article h2.no-margin, .text-article h3.no-margin, .text-article p.no-margin, .text-article ul.no-margin, .text-article ol.no-margin, .text-article dl.no-margin {
+    .text-article h1.no-margin, .text-article h2.no-margin, .text-article h3.no-margin, .text-article p.no-margin, .text-article ul.no-margin, .text-article ol.no-margin, .text-article dl.no-margin, .text-article table.no-margin {
       margin: 0 !important; }
-    .text-article h1.is-center, .text-article h2.is-center, .text-article h3.is-center, .text-article p.is-center, .text-article ul.is-center, .text-article ol.is-center, .text-article dl.is-center {
+    .text-article h1.is-center, .text-article h2.is-center, .text-article h3.is-center, .text-article p.is-center, .text-article ul.is-center, .text-article ol.is-center, .text-article dl.is-center, .text-article table.is-center {
       text-align: center; }
-    .text-article h1.is-left, .text-article h2.is-left, .text-article h3.is-left, .text-article p.is-left, .text-article ul.is-left, .text-article ol.is-left, .text-article dl.is-left {
+    .text-article h1.is-left, .text-article h2.is-left, .text-article h3.is-left, .text-article p.is-left, .text-article ul.is-left, .text-article ol.is-left, .text-article dl.is-left, .text-article table.is-left {
       text-align: left; }
-    .text-article h1.is-right, .text-article h2.is-right, .text-article h3.is-right, .text-article p.is-right, .text-article ul.is-right, .text-article ol.is-right, .text-article dl.is-right {
+    .text-article h1.is-right, .text-article h2.is-right, .text-article h3.is-right, .text-article p.is-right, .text-article ul.is-right, .text-article ol.is-right, .text-article dl.is-right, .text-article table.is-right {
       text-align: right; }
-    .text-article h1.is-secondary, .text-article h2.is-secondary, .text-article h3.is-secondary, .text-article p.is-secondary, .text-article ul.is-secondary, .text-article ol.is-secondary, .text-article dl.is-secondary {
+    .text-article h1.is-secondary, .text-article h2.is-secondary, .text-article h3.is-secondary, .text-article p.is-secondary, .text-article ul.is-secondary, .text-article ol.is-secondary, .text-article dl.is-secondary, .text-article table.is-secondary {
       color: rgba(38, 50, 56, 0.56); }
-    .text-article h1.is-accent, .text-article h1.has-accent, .text-article h2.is-accent, .text-article h2.has-accent, .text-article h3.is-accent, .text-article h3.has-accent, .text-article p.is-accent, .text-article p.has-accent, .text-article ul.is-accent, .text-article ul.has-accent, .text-article ol.is-accent, .text-article ol.has-accent, .text-article dl.is-accent, .text-article dl.has-accent {
+    .text-article h1.is-accent, .text-article h1.has-accent, .text-article h2.is-accent, .text-article h2.has-accent, .text-article h3.is-accent, .text-article h3.has-accent, .text-article p.is-accent, .text-article p.has-accent, .text-article ul.is-accent, .text-article ul.has-accent, .text-article ol.is-accent, .text-article ol.has-accent, .text-article dl.is-accent, .text-article dl.has-accent, .text-article table.is-accent, .text-article table.has-accent {
       color: #00BFA5; }
-      .text-article h1.is-accent a, .text-article h1.has-accent a, .text-article h2.is-accent a, .text-article h2.has-accent a, .text-article h3.is-accent a, .text-article h3.has-accent a, .text-article p.is-accent a, .text-article p.has-accent a, .text-article ul.is-accent a, .text-article ul.has-accent a, .text-article ol.is-accent a, .text-article ol.has-accent a, .text-article dl.is-accent a, .text-article dl.has-accent a {
+      .text-article h1.is-accent a, .text-article h1.has-accent a, .text-article h2.is-accent a, .text-article h2.has-accent a, .text-article h3.is-accent a, .text-article h3.has-accent a, .text-article p.is-accent a, .text-article p.has-accent a, .text-article ul.is-accent a, .text-article ul.has-accent a, .text-article ol.is-accent a, .text-article ol.has-accent a, .text-article dl.is-accent a, .text-article dl.has-accent a, .text-article table.is-accent a, .text-article table.has-accent a {
         color: #00BFA5; }
-    .text-article h1.is-disabled, .text-article h2.is-disabled, .text-article h3.is-disabled, .text-article p.is-disabled, .text-article ul.is-disabled, .text-article ol.is-disabled, .text-article dl.is-disabled {
+    .text-article h1.is-disabled, .text-article h2.is-disabled, .text-article h3.is-disabled, .text-article p.is-disabled, .text-article ul.is-disabled, .text-article ol.is-disabled, .text-article dl.is-disabled, .text-article table.is-disabled {
       opacity: .24; }
-    .text-article h1.is-inverse, .text-article h1.is-inverted, .text-article h2.is-inverse, .text-article h2.is-inverted, .text-article h3.is-inverse, .text-article h3.is-inverted, .text-article p.is-inverse, .text-article p.is-inverted, .text-article ul.is-inverse, .text-article ul.is-inverted, .text-article ol.is-inverse, .text-article ol.is-inverted, .text-article dl.is-inverse, .text-article dl.is-inverted {
+    .text-article h1.is-inverse, .text-article h1.is-inverted, .text-article h2.is-inverse, .text-article h2.is-inverted, .text-article h3.is-inverse, .text-article h3.is-inverted, .text-article p.is-inverse, .text-article p.is-inverted, .text-article ul.is-inverse, .text-article ul.is-inverted, .text-article ol.is-inverse, .text-article ol.is-inverted, .text-article dl.is-inverse, .text-article dl.is-inverted, .text-article table.is-inverse, .text-article table.is-inverted {
       color: #FFF; }
-      .text-article h1.is-inverse a, .text-article h1.is-inverted a, .text-article h2.is-inverse a, .text-article h2.is-inverted a, .text-article h3.is-inverse a, .text-article h3.is-inverted a, .text-article p.is-inverse a, .text-article p.is-inverted a, .text-article ul.is-inverse a, .text-article ul.is-inverted a, .text-article ol.is-inverse a, .text-article ol.is-inverted a, .text-article dl.is-inverse a, .text-article dl.is-inverted a {
+      .text-article h1.is-inverse a, .text-article h1.is-inverted a, .text-article h2.is-inverse a, .text-article h2.is-inverted a, .text-article h3.is-inverse a, .text-article h3.is-inverted a, .text-article p.is-inverse a, .text-article p.is-inverted a, .text-article ul.is-inverse a, .text-article ul.is-inverted a, .text-article ol.is-inverse a, .text-article ol.is-inverted a, .text-article dl.is-inverse a, .text-article dl.is-inverted a, .text-article table.is-inverse a, .text-article table.is-inverted a {
         color: #FFF; }
-    .text-article h1.is-plum, .text-article h2.is-plum, .text-article h3.is-plum, .text-article p.is-plum, .text-article ul.is-plum, .text-article ol.is-plum, .text-article dl.is-plum {
+    .text-article h1.is-plum, .text-article h2.is-plum, .text-article h3.is-plum, .text-article p.is-plum, .text-article ul.is-plum, .text-article ol.is-plum, .text-article dl.is-plum, .text-article table.is-plum {
       color: #1e3c72; }
-    .text-article h1.is-error, .text-article h1.has-error, .text-article h2.is-error, .text-article h2.has-error, .text-article h3.is-error, .text-article h3.has-error, .text-article p.is-error, .text-article p.has-error, .text-article ul.is-error, .text-article ul.has-error, .text-article ol.is-error, .text-article ol.has-error, .text-article dl.is-error, .text-article dl.has-error {
+    .text-article h1.is-error, .text-article h1.has-error, .text-article h2.is-error, .text-article h2.has-error, .text-article h3.is-error, .text-article h3.has-error, .text-article p.is-error, .text-article p.has-error, .text-article ul.is-error, .text-article ul.has-error, .text-article ol.is-error, .text-article ol.has-error, .text-article dl.is-error, .text-article dl.has-error, .text-article table.is-error, .text-article table.has-error {
       color: #F50057; }
-    .text-article h1 code, .text-article h2 code, .text-article h3 code, .text-article p code, .text-article ul code, .text-article ol code, .text-article dl code {
-      background: rgba(237, 240, 242, 0.56);
-      border-radius: 2px;
-      color: #6200EA;
-      padding: 0 8px; }
   .text-article h1 {
     font-size: 38px;
     line-height: 48px;
@@ -607,6 +602,14 @@ ul.has-icons, dl.has-icons {
       display: block;
       margin: 0 auto 24px auto;
       width: auto; }
+  .text-article code {
+    border-radius: 2px;
+    color: #6200EA;
+    font-size: 16px;
+    padding: 0 8px; }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .text-article code {
+        font-size: 14px; } }
   .text-article small {
     font-size: 14px;
     line-height: 24px; }
@@ -658,25 +661,23 @@ ul.has-icons, dl.has-icons {
       background: rgba(237, 240, 242, 0.56); }
     .text-article table tbody th, .text-article table tbody td {
       border-bottom: 1px solid #EDF0F2;
-      font-size: 14px;
-      font-weight: 500;
-      line-height: 24px;
+      font-size: 16px;
+      line-height: 28px;
       min-width: auto;
       padding: 8px; }
       @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
         .text-article table tbody th, .text-article table tbody td {
-          font-size: 12px;
-          min-width: auto;
-          padding: 8px; }
+          font-size: 15px;
+          line-height: 24px; }
           .text-article table tbody th code, .text-article table tbody td code {
-            font-size: 12px;
-            white-space: nowrap; } }
+            font-size: 14px; } }
       .text-article table tbody th code, .text-article table tbody td code {
         background: rgba(237, 240, 242, 0.56);
         border-radius: 2px;
         color: #6200EA;
         font-size: 14px;
-        padding: 0 8px; }
+        padding: 0 8px;
+        white-space: nowrap; }
     .text-article table tbody th {
       background: rgba(237, 240, 242, 0.56);
       color: #233591; }
@@ -7800,7 +7801,7 @@ textarea {
           margin: 0; } }
   .l-section figure img {
     border-radius: 4px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12); }
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.24), 0 8px 32px rgba(0, 0, 0, 0.24); }
   .l-section.has-stripes {
     margin-top: 140px;
     overflow: visible;
