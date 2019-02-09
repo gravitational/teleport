@@ -277,6 +277,9 @@ const (
 	// storage
 	SchemeS3 = "s3"
 
+	// Region is AWS region parameter
+	Region = "region"
+
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
