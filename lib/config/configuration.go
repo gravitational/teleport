@@ -203,7 +203,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	case "stdout", "out", "1":
 		log.SetOutput(os.Stdout)
 	case teleport.Syslog:
-		utils.SwitchLoggingtoSyslog()
+		err := utils.SwitchLoggingtoSyslog()
+		if err != nil {
+			// this error will go to stderr
+			log.Errorf("Failed to switch logging to syslog: %v.", err)
+		}
 	default:
 		// assume it's a file path:
 		logFile, err := os.Create(fc.Logger.Output)
@@ -219,14 +223,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		log.SetLevel(log.InfoLevel)
 	case "err", "error":
 		log.SetLevel(log.ErrorLevel)
-	case "debug":
+	case teleport.DebugLevel:
 		log.SetLevel(log.DebugLevel)
 	case "warn", "warning":
 		log.SetLevel(log.WarnLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: '%v'", fc.Logger.Severity)
 	}
-
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -807,6 +810,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	// apply command line --debug flag to override logger severity
+	if clf.Debug {
+		fileConf.Logger.Severity = teleport.DebugLevel
+	}
+
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
 	}
@@ -825,10 +834,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Proxy.DisableTLS = clf.DisableTLS
 	}
 
-	// apply --debug flag:
+	// apply --debug flag to config:
 	if clf.Debug {
 		cfg.Console = ioutil.Discard
-		utils.InitLogger(utils.LoggingForDaemon, log.DebugLevel)
 		cfg.Debug = clf.Debug
 	}
 
