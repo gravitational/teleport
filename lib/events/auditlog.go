@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -54,6 +54,10 @@ const (
 
 	// LogfileExt defines the ending of the daily event log file
 	LogfileExt = ".log"
+
+	// SymlinkFilename is a name of the symlink pointing to the last
+	// current log file
+	SymlinkFilename = "events.log"
 
 	// sessionsMigratedEvent is a sessions migration event used internally
 	sessionsMigratedEvent = "sessions.migrated"
@@ -248,6 +252,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		al.localLog, err = NewFileLog(FileLogConfig{
 			RotationPeriod: al.RotationPeriod,
 			Dir:            auditDir,
+			SymlinkDir:     cfg.DataDir,
 			Clock:          al.Clock,
 			SearchDirs:     al.auditDirs,
 		})
