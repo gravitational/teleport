@@ -307,6 +307,9 @@ const (
 
 	// HumanDateFormatMilli is a human readable date formatting with milliseconds
 	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
+
+	// DebugLevel is a debug logging level name
+	DebugLevel = "debug"
 )
 
 // Component generates "component:subcomponent1:subcomponent2" strings used
