@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/url"
 	"path/filepath"
@@ -24,10 +25,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-
-	"gopkg.in/check.v1"
+	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/check.v1"
 )
 
 type UtilsSuite struct {
@@ -361,5 +362,62 @@ func (s *UtilsSuite) TestContainsExpansion(c *check.C) {
 		comment := check.Commentf("test case %v %v", i, testCase.comment)
 		contains := ContainsExpansion(testCase.val)
 		c.Assert(contains, check.Equals, testCase.contains, comment)
+	}
+}
+
+// TestMarshalYAML tests marshal/unmarshal of elements
+func (s *UtilsSuite) TestMarshalYAML(c *check.C) {
+	type kv struct {
+		Key string
+	}
+	testCases := []struct {
+		comment  string
+		val      interface{}
+		expected interface{}
+		isDoc    bool
+	}{
+		{
+			comment: "simple yaml value",
+			val:     "hello",
+		},
+		{
+			comment: "list of yaml types",
+			val:     []interface{}{"hello", "there"},
+		},
+		{
+			comment:  "list of yaml documents",
+			val:      []interface{}{kv{Key: "a"}, kv{Key: "b"}},
+			expected: []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
+			isDoc:    true,
+		},
+		{
+			comment:  "list of pointers to yaml docs",
+			val:      []interface{}{kv{Key: "a"}, &kv{Key: "b"}},
+			expected: []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
+			isDoc:    true,
+		},
+		{
+			comment: "list of maps",
+			val:     []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
+			isDoc:   true,
+		},
+	}
+	for i, testCase := range testCases {
+		comment := check.Commentf("test case %v %v", i, testCase.comment)
+		buf := &bytes.Buffer{}
+		err := WriteYAML(buf, testCase.val)
+		c.Assert(err, check.IsNil, comment)
+		if testCase.isDoc {
+			c.Assert(bytes.Contains(buf.Bytes(),
+				[]byte(yamlDocDelimiter)), check.Equals, true,
+				check.Commentf("test case %v: expected to find --- in %q", testCase.comment, buf.String()))
+		}
+		out, err := ReadYAML(bytes.NewReader(buf.Bytes()))
+		c.Assert(err, check.IsNil, comment)
+		if testCase.expected != nil {
+			fixtures.DeepCompare(c, out, testCase.expected)
+		} else {
+			fixtures.DeepCompare(c, out, testCase.val)
+		}
 	}
 }
