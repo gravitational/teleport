@@ -108,7 +108,7 @@ test:
 .PHONY: image
 image:
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build . -t quay.io/gravitational/teleport-ent:$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t quay.io/gravitational/teleport-ent:$(VERSION)
 
 .PHONY: publish
 publish:
