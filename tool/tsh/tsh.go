@@ -491,9 +491,6 @@ func onLogout(cf *CLIConf) {
 	}
 	profiles := append(available, active)
 
-	// Unlink the current profile.
-	client.UnlinkCurrentProfile()
-
 	// Extract the proxy name.
 	proxyHost, _, err := net.SplitHostPort(cf.Proxy)
 	if err != nil {
