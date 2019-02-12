@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.1.6
+
+This release of Teleport contains bug fixes, security fixes, and user experience improvements.
+
+#### Changes
+
+* Use `xdg-open` instead of `sensible-browser` to open links on Linux. [#2454](https://github.com/gravitational/teleport/issues/2454)
+* Increased SSO callback timeout to 180 seconds. [#2483](https://github.com/gravitational/teleport/issues/2483)
+* Improved Teleport error messages when it fails to start. [#2525](https://github.com/gravitational/teleport/issues/2525)
+* Sort `tsh ls` output by node name. [#2511](https://github.com/gravitational/teleport/issues/2511)
+* Support different regions for S3 (sessions) and DynamoDB (audit log). [#2007](https://github.com/gravitational/teleport/issues/2007)
+* Fixed syslog output even when Teleport is in debug mode. [#2550](https://github.com/gravitational/teleport/issues/2550)
+* Fixed audit log naming conventions. [#2388](https://github.com/gravitational/teleport/issues/2388)
+* Fixed issue where `~/.tsh/profile` was deleted upon logout. [#2546](https://github.com/gravitational/teleport/issues/2546)
+* Fixed output of `tctl get` to be compatible with `tctl create`. [#2479](https://github.com/gravitational/teleport/issues/2479)
+* Fixed issue where multiple file upload with `scp` did not work correctly. [#2094](https://github.com/gravitational/teleport/issues/2094)
+* Correctly set permissions TTY. [#2540](https://github.com/gravitational/teleport/issues/2540)
+* Mitigated scp issues when connected to malicious server [#2539](https://github.com/gravitational/teleport/issues/2539)
+
 ## 3.1.5
 
 Teleport 3.1.5 contains a bug fix and security fix.
