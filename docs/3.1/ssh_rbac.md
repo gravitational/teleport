@@ -8,7 +8,7 @@ anything, developers must never touch production servers and interns can only
 SSH into staging servers as guests"_
 
 RBAC is almost always used in conjunction with
-Signle Sign-On ([SSO](https://en.wikipedia.org/wiki/Single_sign-on)) but it also works with
+Single Sign-On ([SSO](https://en.wikipedia.org/wiki/Single_sign-on)) but it also works with
 users stored in Teleport's internal database.
 
 ### How does it work?
