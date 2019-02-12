@@ -10082,7 +10082,7 @@ webpackJsonp([0],[
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	var MSG_INFO_LOGIN_SUCCESS = exports.MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
+	var MSG_INFO_LOGIN_SUCCESS = exports.MSG_INFO_LOGIN_SUCCESS = 'Login successful';
 	var MSG_ERROR_LOGIN_FAILED = exports.MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administrator.';
 	var MSG_ERROR_DEFAULT = exports.MSG_ERROR_DEFAULT = 'Internal Error';
 	var MSG_ERROR_NOT_FOUND = exports.MSG_ERROR_NOT_FOUND = '404 Not Found';
@@ -10110,7 +10110,7 @@ webpackJsonp([0],[
 	    return _react2.default.createElement(SuccessfulLogin, null);
 	  }
 
-	  return _react2.default.createElement(InfoBox, null);
+	  return null;
 	});
 
 	var ErrorPage = (0, _documentTitle.withDocTitle)("Error", function (_ref2) {
@@ -10146,12 +10146,8 @@ webpackJsonp([0],[
 	  );
 	};
 
-	var InfoBox = function InfoBox(props) {
-	  return _react2.default.createElement(Box, _extends({ iconClass: 'fa fa-smile-o' }, props));
-	};
-
 	var ErrorBox = function ErrorBox(props) {
-	  return _react2.default.createElement(Box, _extends({ iconClass: 'fa fa-frown-o' }, props));
+	  return _react2.default.createElement(Box, _extends({ iconClass: 'fa fa-exclamation-triangle' }, props));
 	};
 
 	var ErrorBoxDetails = function ErrorBoxDetails(_ref3) {
@@ -10254,14 +10250,26 @@ webpackJsonp([0],[
 
 	var SuccessfulLogin = function SuccessfulLogin() {
 	  return _react2.default.createElement(
-	    InfoBox,
-	    null,
+	    Box,
+	    { iconClass: 'fa fa-check-circle m-b-md' },
 	    _react2.default.createElement(
 	      'h1',
 	      null,
 	      MSG_INFO_LOGIN_SUCCESS
+	    ),
+	    _react2.default.createElement(
+	      'p',
+	      { className: 'm-t', style: successfulLoginStyles },
+	      'You have successfully signed into your account. You can close this window and continue using the product.'
 	    )
 	  );
+	};
+
+	var successfulLoginStyles = {
+	  textAlign: "center",
+	  maxWidth: "500px",
+	  marginLeft: "auto",
+	  marginRight: "auto"
 	};
 
 	exports.ErrorPage = ErrorPage;
