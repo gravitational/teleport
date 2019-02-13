@@ -53,10 +53,17 @@ func (a *AuditTestSuite) TearDownSuite(c *check.C) {
 // creates a file-based audit log and returns a proper *AuditLog pointer
 // instead of the usual IAuditLog interface
 func (a *AuditTestSuite) makeLog(c *check.C, dataDir string, recordSessions bool) (*AuditLog, error) {
+	return a.makeLogWithClock(c, dataDir, recordSessions, nil)
+}
+
+// creates a file-based audit log and returns a proper *AuditLog pointer
+// instead of the usual IAuditLog interface
+func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, recordSessions bool, clock clockwork.Clock) (*AuditLog, error) {
 	alog, err := NewAuditLog(AuditLogConfig{
 		DataDir:        dataDir,
 		RecordSessions: recordSessions,
 		ServerID:       "server1",
+		Clock:          clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -318,6 +325,51 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(string(bytes), check.Equals,
 		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\"}\n", now.Format(time.RFC3339)))
+}
+
+// TestLogRotation makes sure that logs are rotated
+// on the day boundary and symlinks are created and updated
+func (a *AuditTestSuite) TestLogRotation(c *check.C) {
+	start := time.Now().In(time.UTC).Round(time.Second)
+	clock := clockwork.NewFakeClockAt(start)
+
+	// create audit log, write a couple of events into it, close it
+	alog, err := a.makeLogWithClock(c, a.dataDir, true, clock)
+	c.Assert(err, check.IsNil)
+	defer func() {
+		c.Assert(alog.Close(), check.IsNil)
+	}()
+
+	for _, duration := range []time.Duration{0, time.Hour * 24} {
+		// advance time and emit audit event
+		now := start.Add(duration)
+		clock.Advance(duration)
+
+		// emit regular event:
+		err = alog.EmitAuditEvent("user.joined", EventFields{"apples?": "yes"})
+		c.Assert(err, check.IsNil)
+		logfile := alog.localLog.file.Name()
+
+		// make sure that file has the same date as the event
+		dt, err := parseFileTime(filepath.Base(logfile))
+		c.Assert(err, check.IsNil)
+		c.Assert(dt, check.Equals, time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
+
+		// read back what's been written:
+		bytes, err := ioutil.ReadFile(logfile)
+		c.Assert(err, check.IsNil)
+		contents := fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\"}\n", now.Format(time.RFC3339))
+		c.Assert(string(bytes), check.Equals, contents)
+
+		// read back the contents using symlink
+		bytes, err = ioutil.ReadFile(filepath.Join(alog.localLog.SymlinkDir, SymlinkFilename))
+		c.Assert(err, check.IsNil)
+		c.Assert(string(bytes), check.Equals, contents)
+
+		found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
+		c.Assert(err, check.IsNil)
+		c.Assert(found, check.HasLen, 1)
+	}
 }
 
 // TestForwardAndUpload tests forwarding server and upload

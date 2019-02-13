@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,6 +45,8 @@ type FileLogConfig struct {
 	RotationPeriod time.Duration
 	// Dir is a directory where logger puts the files
 	Dir string
+	// SymlinkDir is a directory for symlink pointer to the current log
+	SymlinkDir string
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
 	// SearchDirs is a function that returns
@@ -60,8 +62,17 @@ func (cfg *FileLogConfig) CheckAndSetDefaults() error {
 	if !utils.IsDir(cfg.Dir) {
 		return trace.BadParameter("path %q does not exist or is not a directory", cfg.Dir)
 	}
+	if cfg.SymlinkDir == "" {
+		cfg.SymlinkDir = cfg.Dir
+	}
+	if !utils.IsDir(cfg.SymlinkDir) {
+		return trace.BadParameter("path %q does not exist or is not a directory", cfg.SymlinkDir)
+	}
 	if cfg.RotationPeriod == 0 {
 		cfg.RotationPeriod = defaults.LogRotationPeriod
+	}
+	if cfg.RotationPeriod%(24*time.Hour) != 0 {
+		return trace.BadParameter("rotation period %v is not a multiple of 24 hours, e.g. '24h' or '48h'", cfg.RotationPeriod)
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -279,29 +290,49 @@ func (l *FileLog) rotateLog() (err error) {
 	defer l.Unlock()
 
 	// determine the timestamp for the current log file
-	fileTime := l.Clock.Now().In(time.UTC).Round(l.RotationPeriod)
+	fileTime := l.Clock.Now().In(time.UTC)
+
+	// truncate time to the resolution of one day, cutting at the day end boundary
+	fileTime = time.Date(fileTime.Year(), fileTime.Month(), fileTime.Day(), 0, 0, 0, 0, time.UTC)
+
+	logFilename := filepath.Join(l.Dir,
+		fileTime.Format(defaults.AuditLogTimeFormat)+LogfileExt)
 
 	openLogFile := func() error {
-		logfname := filepath.Join(l.Dir,
-			fileTime.Format(defaults.AuditLogTimeFormat)+LogfileExt)
-		l.file, err = os.OpenFile(logfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+		l.file, err = os.OpenFile(logFilename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
 			log.Error(err)
 		}
-
 		l.fileTime = fileTime
 		return trace.Wrap(err)
 	}
 
+	linkFilename := filepath.Join(l.SymlinkDir, SymlinkFilename)
+	createSymlink := func() error {
+		err = trace.ConvertSystemError(os.Remove(linkFilename))
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+		return trace.ConvertSystemError(os.Symlink(logFilename, linkFilename))
+	}
+
 	// need to create a log file?
 	if l.file == nil {
-		return openLogFile()
+		if err := openLogFile(); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(createSymlink())
 	}
 
 	// time to advance the logfile?
 	if l.fileTime.Before(fileTime) {
 		l.file.Close()
-		return openLogFile()
+		if err := openLogFile(); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(createSymlink())
 	}
 	return nil
 }
@@ -337,10 +368,9 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time) ([]eventFile, error) {
 			if fi.IsDir() || filepath.Ext(fi.Name()) != LogfileExt {
 				continue
 			}
-			base := strings.TrimSuffix(fi.Name(), filepath.Ext(fi.Name()))
-			fd, err := time.Parse(defaults.AuditLogTimeFormat, base)
+			fd, err := parseFileTime(fi.Name())
 			if err != nil {
-				l.Warningf("Failed to parse audit log file %q format: %v", base, err)
+				l.Warningf("Failed to parse audit log file %q format: %v", fi.Name(), err)
 				continue
 			}
 			// File rounding in current logs is non-deterministic,
@@ -361,6 +391,12 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time) ([]eventFile, error) {
 	// sort all accepted files by date
 	sort.Sort(byDate(filtered))
 	return filtered, nil
+}
+
+// parseFileTime parses file's timestamp encoded into filename
+func parseFileTime(filename string) (time.Time, error) {
+	base := strings.TrimSuffix(filename, filepath.Ext(filename))
+	return time.Parse(defaults.AuditLogTimeFormat, base)
 }
 
 // findInFile scans a given log file and returns events that fit the criteria

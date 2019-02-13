@@ -287,6 +287,9 @@ const (
 	// storage
 	SchemeS3 = "s3"
 
+	// Region is AWS region parameter
+	Region = "region"
+
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
@@ -304,6 +307,9 @@ const (
 
 	// HumanDateFormatMilli is a human readable date formatting with milliseconds
 	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
+
+	// DebugLevel is a debug logging level name
+	DebugLevel = "debug"
 )
 
 // Component generates "component:subcomponent1:subcomponent2" strings used
