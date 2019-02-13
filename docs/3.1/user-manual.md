@@ -14,10 +14,21 @@ In addition to this document, you can always simply type `tsh` into your termina
 the CLI reference.
 
 ```bash
-$ tsh
-usage: tsh [<flags>] <command> [<command-args> ...]
+Usage: tsh [<flags>] <command> [<args> ...]
 
-Gravitational Teleport SSH tool
+TSH: Teleport SSH client
+
+Flags:
+  -l, --login               Remote host login
+      --proxy               SSH proxy address
+      --user                SSH proxy user [ekontsevoy]
+      --ttl                 Minutes to live for a SSH session
+  -i, --identity            Identity file
+      --cert-format         SSH certificate format
+      --insecure            Do not verify servers certificate and host name.
+      --auth                Specify the type of authentication connector to use.
+      --skip-version-check  Skip version checking between server and client.
+  -d, --debug               Verbose logging to stdout
 
 Commands:
   help         Show help.
@@ -28,11 +39,40 @@ Commands:
   scp          Secure file copy
   ls           List remote SSH nodes
   clusters     List available Teleport clusters
-  login        Log in to the cluster and store the session certificate to avoid login prompts
+  login        Log in to a cluster and retrieve the session certificate
   logout       Delete a cluster certificate
-
-# Run `tsh help <command>` to get help for <command> like `tsh help ssh`
+  status       Display the list of proxy servers and retrieved certificates
 ```
+
+## Introduction
+
+For the impatient, here's an example of how a user would typically use `tsh`:
+
+```bash
+# Login into a Teleport cluster. This command retrieves user's certificates
+# and saves them into ~/.tsh/teleport.example.com
+$ tsh login --proxy=teleport.example.com
+
+# SSH into a node, as usual:
+$ tsh ssh user@node
+
+# `tsh ssh` takes the same arguments as OpenSSH client:
+$ tsh ssh -o ForwardAgent=yes user@node
+$ tsh ssh -o AddKeysToAgent=yes user@node
+
+# you can even create a convenient symlink:
+$ ln -s /path/to/tsh /path/to/ssh
+
+# ... and now your 'ssh' command is calling Teleport's `tsh ssh`
+$ ssh user@host
+
+# This command removes SSH certificates from a user's machine:
+$ tsh logout
+```
+
+In other words, Teleport was designed to be fully compatible with existing
+SSH-based workflows and does not require users to learn anything new, other
+than to call `tsh login` in the beginning.
 
 ## User Identities
 
@@ -44,16 +84,10 @@ When logging into a remote node, you will have to specify both logins. Teleport
 identity will have to be passed as `--user` flag, while the node login will be
 passed as `login@host`, using syntax compatible with traditional `ssh`.
 
-These examples assume your localhost username is 'joe':
-
 ```bash
-# Authenticate against cluster 'work' as 'joe' and then login into 'node'
+# Authenticate against the "work" cluster as joe and then login into the node
 # as root:
 $ tsh ssh --proxy=work.example.com --user=joe root@node
-
-# Authenticate against cluster 'work' as 'joe' and then login into 'node'
-# as joe (by default tsh uses $USER for both):
-$ tsh ssh --proxy=work.example.com node
 ```
 
 ## Logging In
@@ -218,7 +252,7 @@ command:
 ```bash
 $ tsh ssh --help
 
-usage: t ssh [<flags>] <[user@]host> [<command>...]
+Usage: tsh ssh [<flags>] <[user@]host> [<command>...]
 Run shell or execute a command on a remote SSH node.
 
 Flags:
@@ -231,6 +265,9 @@ Flags:
   -l, --login     Remote host login
   -L, --forward   Forward localhost connections to remote server
       --local     Execute command on localhost after connecting to SSH node
+  -t, --tty       Allocate TTY
+      --cluster   Specify the cluster to connect
+  -o, --option    OpenSSH options in the format used in the configuration file
 
 Args:
   <[user@]host>  Remote hostname and the login to use
@@ -239,12 +276,21 @@ Args:
 
 `tsh` tries to mimic the `ssh` experience as much as possible, so it supports the most popular `ssh`
 flags like `-p`, `-l` or `-L`. For example, if you have the following alias defined in your 
-`~/.bashrc`: `alias ssh="tsh --proxy=work.example.com --user=myname"` then you can continue
+~/.bashrc: `alias ssh="tsh ssh"` then you can continue
 using familiar SSH syntax:
 
 ```bash
-$ ssh root@host
-$ ssh -p 6122 root@host ls
+# Have this alias configured, perhaps via ~/.bashrc
+$ alias ssh=/usr/local/bin/tsh
+
+# Login into a cluster and retreive your SSH certificate:
+$ tsh --proxy=proxy.example.com login
+
+# These commands execute `tsh ssh` under the hood:
+$ ssh user@node
+$ ssh -p 6122 user@node ls
+$ ssh -o ForwardAgent=yes user@node
+$ ssh -o AddKeysToAgent=yes user@node
 ```
 
 ### Proxy Ports

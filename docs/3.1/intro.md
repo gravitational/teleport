@@ -6,22 +6,28 @@ Gravitational Teleport is a gateway for managing access to clusters of Linux
 servers via SSH or the Kubernetes API. It is intended to be used instead of
 traditional OpenSSH for organizations that need to:
 
-* Secure their infrastructure and comply with security best-practices and regulatory requirements.
+* Secure their infrastructure and comply with security best-practices and
+  regulatory requirements.
 * Have complete visibility into activity happening across their infrastructure.
-* Reduce the operational overhead of privileged access management across both traditional and cloud-native infrastructure.
+* Reduce the operational overhead of privileged access management across both
+  traditional and cloud-native infrastructure.
 
 ![teleport diagram](/images/diagram-teleport.png)
 
-Teleport gives teams that manage infrastructure access:
+Teleport aims to be a cloud-native SSH solution, i.e. it makes it natural to think of
+environments, not servers. Below is the list of most popular Teleport features:
 
-* The ability to manage trust between teams, organizations and data centers.
+* Single SSH/Kubernetes access gateway for an entire organization.
 * Certificate based authentication instead of static keys.
-* SSH access into behind-firewall environments without any open ports.
+* The ability to manage trust between teams, organizations and data centers.
+* SSH/Kubernetes access into behind-firewall environments without any open ports.
 * Role-based access control (RBAC) for SSH.
 * A single tool ("pane of glass") to manage RBAC for both SSH and Kubernetes.
-* SSH audit log with session recording/replay.
+* Audit log with session recording/replay.
 * Kubernetes audit log, including the recording of interactive commands executed via `kubectl`.
 * The same workflows and ease of that they get with familiar `ssh` / `kubectl` commands.
+* Ability to run in "agentless" mode, i.e. most of Teleport features are
+  available on clusters with pre-existing SSH daemons, usually `sshd`.
 
 Teleport is available through the free, open source edition ("Teleport Community Edition")
 or a commercial edition ("Teleport Enterprise Edition").
