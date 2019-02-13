@@ -99,7 +99,6 @@ docs: docsbox
 		-w $(DOCSDIR) \
 		-h $(DOCSHOST) $(DOCSBOX) \
 		./docs/build.sh
-	@echo "\nSUCCESS: Teleport docs ----> build/docs\n"
 
 #
 # allows to enter into bash shell of docs container
