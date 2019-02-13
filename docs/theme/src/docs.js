@@ -10516,13 +10516,13 @@ var TopNav = function () {
       // change cta to teleport demo on teleport pages
       if (this.$cta.length && this.currentPath.includes('/teleport/')) {
         this.$cta.attr('href', '/teleport/demo/');
-        this.$cta.text('Demo Teleport');
+        this.$cta.text('Free 30-Day Eval');
       }
 
       // change cta to telekube demo on telekube pages
       if (this.$cta.length && this.currentPath.includes('/gravity/')) {
         this.$cta.attr('href', '/gravity/demo/');
-        this.$cta.text('Demo Gravity');
+        this.$cta.text('Free 30-Day Eval');
       }
     }
   }]);

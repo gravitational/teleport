@@ -513,6 +513,15 @@ ul.has-icons, dl.has-icons {
     margin: 0 0 16px 0;
     outline: none;
     padding: 0; }
+    .text-article h1 code, .text-article h2 code, .text-article h3 code, .text-article p code, .text-article ul code, .text-article ol code, .text-article dl code, .text-article table code {
+      background: rgba(237, 240, 242, 0.56);
+      border-radius: 2px;
+      color: #6200EA;
+      font-size: 14px;
+      padding: 0 8px; }
+      @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+        .text-article h1 code, .text-article h2 code, .text-article h3 code, .text-article p code, .text-article ul code, .text-article ol code, .text-article dl code, .text-article table code {
+          font-size: 14px; } }
     .text-article h1[id]:hover a, .text-article h2[id]:hover a, .text-article h3[id]:hover a, .text-article p[id]:hover a, .text-article ul[id]:hover a, .text-article ol[id]:hover a, .text-article dl[id]:hover a, .text-article table[id]:hover a {
       text-decoration: none;
       color: #039BE5; }
@@ -602,14 +611,6 @@ ul.has-icons, dl.has-icons {
       display: block;
       margin: 0 auto 24px auto;
       width: auto; }
-  .text-article code {
-    border-radius: 2px;
-    color: #6200EA;
-    font-size: 16px;
-    padding: 0 8px; }
-    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
-      .text-article code {
-        font-size: 14px; } }
   .text-article small {
     font-size: 14px;
     line-height: 24px; }
@@ -668,15 +669,8 @@ ul.has-icons, dl.has-icons {
       @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
         .text-article table tbody th, .text-article table tbody td {
           font-size: 15px;
-          line-height: 24px; }
-          .text-article table tbody th code, .text-article table tbody td code {
-            font-size: 14px; } }
+          line-height: 24px; } }
       .text-article table tbody th code, .text-article table tbody td code {
-        background: rgba(237, 240, 242, 0.56);
-        border-radius: 2px;
-        color: #6200EA;
-        font-size: 14px;
-        padding: 0 8px;
         white-space: nowrap; }
     .text-article table tbody th {
       background: rgba(237, 240, 242, 0.56);
@@ -9448,13 +9442,13 @@ ol.linenums {
     margin: 0;
     padding: 0; }
     .side-nav .side-nav-secondary-buttons li {
-      font-size: 11;
+      font-size: 12px;
       margin: 0; }
       .side-nav .side-nav-secondary-buttons li a {
         background: rgba(255, 255, 255, 0);
-        color: rgba(38, 50, 56, 0.87);
+        color: #263238;
         display: block;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 500;
         line-height: 32px;
         padding: 0 16px 0 32px;
