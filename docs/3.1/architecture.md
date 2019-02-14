@@ -471,7 +471,7 @@ clusters. This enables the following capabilities:
 * A Teleport Proxy becomes a single authentication endpoint for both SSH and
   Kubernetes.
 * Users authenticate against a Teleport proxy using `tsh login` command and
-  retreive credentials for both SSH and Kubernetes API.
+  retrieve credentials for both SSH and Kubernetes API.
 * Users' RBAC roles are always synchronized between SSH and Kubernetes, making
   it easier to implement policies like _developers must not access production
   data_.
@@ -488,7 +488,7 @@ clusters. This enables the following capabilities:
 As shown in the diagram above:
 
 * A user executes `tsh login` against a Teleport proxy as usual.
-* `tsh login` retreives the short lived x509 and SSH certificates issued by the Telepoort CA (auth server).
+* `tsh login` retrieves the short lived x509 and SSH certificates issued by the Telepoort CA (auth server).
    The user's kubernetes configuration (kubeconfig) is updated with x509 certs and
    credentials and now points to the Teleport proxy as the Kubernetes API endpoint.
 * All Kubernetes API requests now go through the Teleport proxy.

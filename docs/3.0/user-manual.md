@@ -58,7 +58,7 @@ $ tsh ssh --proxy=work.example.com node
 
 ## Logging In
 
-To retreive a user's certificate, execute:
+To retrieve a user's certificate, execute:
 
 ```bash
 # Full form:
@@ -80,7 +80,7 @@ https_proxy_port   | the HTTPS port the proxy host is listening to (defaults to 
 ssh_proxy_port     | the SSH port the proxy is listening to (defaults to 3023).
 
 
-The login command retreives a user's certificate and stores it 
+The login command retrieves a user's certificate and stores it 
 in `~/.tsh` directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent), 
 if there is one running.
 

@@ -72,10 +72,10 @@ spec:
   client_id: "xxxxxxxx.example.com"
   client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
   redirect_url: "https://teleport-proxy.example.com:3080/v1/webapi/oidc/callback"
-  # scope instructs Teleport to query for 'group' scope to retreive
+  # scope instructs Teleport to query for 'group' scope to retrieve
   # user's group membership
   scope: ["group"]
-  # once Teleport retreives the user's groups, this section configures
+  # once Teleport retrieves the user's groups, this section configures
   # the mapping from groups to Teleport roles
   claims_to_roles:
      - claim: "group"
