@@ -258,7 +258,7 @@ teleport:
 
         # Use this setting to configure teleport to store the recorded sessions in
         # an AWS S3 bucket. see "Using Amazon S3" chapter for more information.
-        audit_sessions_uri: 's3://name-of-s3-bucket'
+        audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
@@ -2006,15 +2006,29 @@ teleport:
     Before continuing, please make sure to take a look at the [cluster state section](architecture/#cluster-state)
     in Teleport Architecture documentation.
 
-S3 buckets can be used as a storage for the recorded sessions. S3 cannot store the audit log or the cluster state. Below is an example of how to configure a Teleport auth server to store the recorded sessions in an S3 bucket:
+!!! tip "AWS Authentication":
+    The configuration examples below contain AWS access keys and secret keys. They are optional,
+    they exist for your convenience but we DO NOT RECOMMEND usign them in
+    production. If Teleport is running on an AWS instance it will automatically
+    use the instance IAM role. Teleport also will pick up AWS credentials from
+    the `~/.aws` folder, just like the AWS CLI tool.
+
+S3 buckets can only be used as a storage for the recorded sessions. S3 cannot store
+the audit log or the cluster state. Below is an example of how to configure a Teleport 
+auth server to store the recorded sessions in an S3 bucket. 
+
 
 ```yaml
 teleport:
   storage:
-      # These two settings instruct Teleport to use a specified
-      # S3 bucket
+      # The region setting sets the default AWS region for all AWS services 
+      # Teleport may consume (DynamoDB, S3)
       region: us-west-1
-      audit_sessions_uri: s3://uri-of-the-bucket
+
+      # Path to S3 bucket to store the recorded sessions in. The optional 'region'
+      # parameter allows to override the region setting above, keeping S3 recordings
+      # in a different region:
+      audit_sessions_uri: s3://example.com/path/to/bucket?region=us-east-1
 
       # Authentication settings are optional (see below)
       access_key: BKZA3H2LOKJ1QJ3YF21A
