@@ -1035,7 +1035,7 @@ Command         | Description | Examples
     attention to spaces vs tabs!
 
 Here's an example how the YAML resource definition for a user Joe might look like.
-It can be retreived by executing `tctl get user/joe`
+It can be retrieved by executing `tctl get user/joe`
 
 ```bash
 kind: user

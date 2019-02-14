@@ -92,7 +92,7 @@ $ tsh ssh --proxy=work.example.com --user=joe root@node
 
 ## Logging In
 
-To retreive a user's certificate, execute:
+To retrieve a user's certificate, execute:
 
 ```bash
 # Full form:
@@ -114,7 +114,7 @@ https_proxy_port   | the HTTPS port the proxy host is listening to (defaults to 
 ssh_proxy_port     | the SSH port the proxy is listening to (defaults to 3023).
 
 
-The login command retreives a user's certificate and stores it 
+The login command retrieves a user's certificate and stores it 
 in `~/.tsh` directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent), 
 if there is one running.
 
@@ -283,7 +283,7 @@ using familiar SSH syntax:
 # Have this alias configured, perhaps via ~/.bashrc
 $ alias ssh=/usr/local/bin/tsh
 
-# Login into a cluster and retreive your SSH certificate:
+# Login into a cluster and retrieve your SSH certificate:
 $ tsh --proxy=proxy.example.com login
 
 # These commands execute `tsh ssh` under the hood:

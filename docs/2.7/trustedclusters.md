@@ -319,8 +319,8 @@ how your network security groups are configured on AWS.
 Troubleshooting access denied messages can be challenging. A Teleport administrator
 should check to see the following:
 
-* Which roles a user is assigned on "main" when they retreive their SSH
-  certificate via `tsh login`. You can inspect the retreived certificate with
+* Which roles a user is assigned on "main" when they retrieve their SSH
+  certificate via `tsh login`. You can inspect the retrieved certificate with
   `tsh status` command on the client side.
 * Which roles a user is assigned on "east" when the role mapping takes place.
   The role mapping result is reflected in the Teleport audit log. By default,

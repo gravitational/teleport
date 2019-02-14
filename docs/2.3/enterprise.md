@@ -195,7 +195,7 @@ $ tsh --proxy=proxy.example.com login --auth=corporate
 ```
 
 The command above will print a URL which the user will have to visit to
-retreive an SSH certificate to be used to access SSH nodes.
+retrieve an SSH certificate to be used to access SSH nodes.
 
 Refer to the following pages for detailed guides of how to configure authentication
 connectors of both SAML and OIDC types:

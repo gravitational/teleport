@@ -1229,7 +1229,7 @@ Command         | Description | Examples
     attention to spaces vs tabs!
 
 Here's an example how the YAML resource definition for a user Joe might look like.
-It can be retreived by executing `tctl get user/joe`
+It can be retrieved by executing `tctl get user/joe`
 
 ```yaml
 kind: user
@@ -1797,7 +1797,7 @@ scp_if_ssh = True
 
 Teleport 3.0+ can be configured as a compliance gateway for Kubernetes
 clusters.  This allows users to authenticate against a Teleport proxy using
-`tsh login` command to retreive credentials for both SSH and Kubernetes API.
+`tsh login` command to retrieve credentials for both SSH and Kubernetes API.
 
 Below is a high-level diagram of how Teleport can be deployed in front of
 a Kubernetes cluster:
@@ -1810,7 +1810,7 @@ section in the Architecture chapter.
 In the scenario illustrated above a user would execute the following commands:
 
 ```bsh
-# Authentication step to retreive the certificates. tsh login places the SSH
+# Authentication step to retrieve the certificates. tsh login places the SSH
 # certificate into `~/.tsh` as usual and updates kubeconfig with Kubernetes
 # credentials:
 $ tsh --proxy=teleport.example.com login
