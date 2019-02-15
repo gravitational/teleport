@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 )
@@ -87,4 +88,51 @@ func RoundtripWithConn(conn net.Conn) (string, error) {
 		return "", err
 	}
 	return string(out), nil
+}
+
+// Stater is extension interface of the net.Conn for implementations that
+// track connection statistics.
+type Stater interface {
+	// Stat returns TX, RX data.
+	Stat() (uint64, uint64)
+}
+
+// TrackingConn is a net.Conn that keeps track of how much data was transmitted
+// (TX) and received (RX) over the net.Conn. A maximum of about 18446
+// petabytes can be kept track of for TX and RX before it rolls over.
+// See https://golang.org/ref/spec#Numeric_types for more details.
+type TrackingConn struct {
+	// net.Conn is the underlying net.Conn.
+	net.Conn
+
+	// txBytes keeps track of how many bytes were transmitted.
+	txBytes uint64
+
+	// rxBytes keeps track of how many bytes were received.
+	rxBytes uint64
+}
+
+// NewTrackingConn returns a net.Conn that can keep track of how much data was
+// transmitted over it.
+func NewTrackingConn(conn net.Conn) *TrackingConn {
+	return &TrackingConn{
+		Conn: conn,
+	}
+}
+
+// Stat returns the transmitted (TX) and received (RX) bytes over the net.Conn.
+func (s *TrackingConn) Stat() (uint64, uint64) {
+	return atomic.LoadUint64(&s.txBytes), atomic.LoadUint64(&s.rxBytes)
+}
+
+func (s *TrackingConn) Read(b []byte) (n int, err error) {
+	n, err = s.Conn.Read(b)
+	atomic.AddUint64(&s.rxBytes, uint64(n))
+	return n, trace.Wrap(err)
+}
+
+func (s *TrackingConn) Write(b []byte) (n int, err error) {
+	n, err = s.Conn.Write(b)
+	atomic.AddUint64(&s.txBytes, uint64(n))
+	return n, trace.Wrap(err)
 }

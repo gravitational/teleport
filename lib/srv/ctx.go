@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -38,10 +40,31 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
 var ctxID int32
+
+var (
+	serverTX = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "tx",
+			Help: "Number of bytes transmitted.",
+		},
+	)
+	serverRX = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "rx",
+			Help: "Number of bytes received.",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(serverTX)
+	prometheus.MustRegister(serverRX)
+}
 
 // Server is regular or forwarding SSH server.
 type Server interface {
@@ -163,6 +186,9 @@ type ServerContext struct {
 
 	// Conn is the underlying *ssh.ServerConn.
 	Conn *ssh.ServerConn
+
+	// Connection is the underlying net.Conn for the connection.
+	Connection net.Conn
 
 	// Identity holds the identity of the user that is currently logged in on
 	// the Conn.
@@ -478,9 +504,63 @@ func (c *ServerContext) takeClosers() []io.Closer {
 	return closers
 }
 
+// When the ServerContext (connection) is closed, emit "session.data" event
+// containing how much data was transmitted and received over the net.Conn.
+func (c *ServerContext) reportStats(conn utils.Stater) {
+	// Never emit session data events for the proxy or from a Teleport node if
+	// sessions are being recorded at the proxy (this would result in double
+	// events).
+	if c.GetServer().Component() == teleport.ComponentProxy {
+		return
+	}
+	if c.ClusterConfig.GetSessionRecording() == services.RecordAtProxy &&
+		c.GetServer().Component() == teleport.ComponentNode {
+		return
+	}
+
+	// Get the TX and RX bytes.
+	txBytes, rxBytes := conn.Stat()
+
+	// Build and emit session data event. Note that TX and RX are reversed
+	// below, that is because the connection is held from the perspective of
+	// the server not the client, but the logs are from the perspective of the
+	// client.
+	eventFields := events.EventFields{
+		events.DataTransmitted: rxBytes,
+		events.DataReceived:    txBytes,
+		events.SessionServerID: c.GetServer().ID(),
+		events.EventLogin:      c.Identity.Login,
+		events.EventUser:       c.Identity.TeleportUser,
+		events.LocalAddr:       c.Conn.LocalAddr().String(),
+		events.RemoteAddr:      c.Conn.RemoteAddr().String(),
+	}
+	if c.session != nil {
+		eventFields[events.SessionEventID] = c.session.id
+	}
+	c.GetServer().GetAuditLog().EmitAuditEvent(events.SessionDataEvent, eventFields)
+
+	// Emit TX and RX bytes to their respective Prometheus counters.
+	serverTX.Add(float64(txBytes))
+	serverRX.Add(float64(rxBytes))
+}
+
 func (c *ServerContext) Close() error {
+	// If the underlying connection is holding tracking information, report that
+	// to the audit log at close.
+	if stats, ok := c.Connection.(*utils.TrackingConn); ok {
+		defer c.reportStats(stats)
+	}
+
+	// Unblock any goroutines waiting until session is closed.
 	c.cancel()
-	return closeAll(c.takeClosers()...)
+
+	// Close and release all resources.
+	err := closeAll(c.takeClosers()...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // SendExecResult sends the result of execution of the "exec" command over the

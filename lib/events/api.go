@@ -88,6 +88,11 @@ const (
 	// SessionLeaveEvent indicates that someone left a session
 	SessionLeaveEvent = "session.leave"
 
+	// Data transfer events.
+	SessionDataEvent = "session.data"
+	DataTransmitted  = "tx"
+	DataReceived     = "rx"
+
 	// ClientDisconnectEvent is emitted when client is disconnected
 	// by the server due to inactivity or any other reason
 	ClientDisconnectEvent = "client.disconnect"
