@@ -82,28 +82,14 @@ func (s *GithubSuite) TestPopulateClaims(c *check.C) {
 }
 
 func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
-	connector := services.NewGithubConnector("github", services.GithubConnectorSpecV3{
-		ClientID:     "fakeClientID",
-		ClientSecret: "fakeClientSecret",
-		RedirectURL:  "https://www.example.com",
-		TeamsToLogins: []services.TeamMapping{
-			services.TeamMapping{
-				Organization: "fakeOrg",
-				Team:         "fakeTeam",
-				Logins:       []string{"foo"},
-			},
-		},
-	})
-
-	claims := services.GithubClaims{
-		Username: "foo",
-		OrganizationToTeams: map[string][]string{
-			"fakeOrg": []string{"fakeTeam"},
-		},
-	}
-
 	// Create GitHub user with 1 minute expiry.
-	err := s.a.createGithubUser(connector, claims, s.c.Now().Add(1*time.Minute))
+	_, err := s.a.createGithubUser(&createUserParams{
+		connectorName: "github",
+		username:      "foo",
+		logins:        []string{"foo"},
+		roles:         []string{"admin"},
+		sessionTTL:    1 * time.Minute,
+	})
 	c.Assert(err, check.IsNil)
 
 	// Within that 1 minute period the user should still exist.

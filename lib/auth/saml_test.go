@@ -28,8 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
-	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/russellhaering/gosaml2/types"
 	"gopkg.in/check.v1"
 )
 
@@ -72,33 +70,14 @@ func (s *SAMLSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *SAMLSuite) TestCreateSAMLUser(c *check.C) {
-	connector := services.NewSAMLConnector("samlService", services.SAMLConnectorSpecV2{
-		AssertionConsumerService: "https://www.example.com",
-		AttributesToRoles: []services.AttributeMapping{
-			services.AttributeMapping{
-				Name:  "groups",
-				Value: "everyone",
-				Roles: []string{"admin"},
-			},
-		},
-	})
-
-	assertionInfo := saml2.AssertionInfo{
-		NameID: "foo@example.com",
-		Values: map[string]types.Attribute{
-			"groups": types.Attribute{
-				Name: "groups",
-				Values: []types.AttributeValue{
-					types.AttributeValue{
-						Value: "everyone",
-					},
-				},
-			},
-		},
-	}
-
 	// Create SAML user with 1 minute expiry.
-	err := s.a.createSAMLUser(connector, assertionInfo, s.c.Now().Add(1*time.Minute))
+	_, err := s.a.createSAMLUser(&createUserParams{
+		connectorName: "samlService",
+		username:      "foo@example.com",
+		logins:        []string{"foo"},
+		roles:         []string{"admin"},
+		sessionTTL:    1 * time.Minute,
+	})
 	c.Assert(err, check.IsNil)
 
 	// Within that 1 minute period the user should still exist.

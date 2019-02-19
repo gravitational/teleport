@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/coreos/go-oidc/oidc"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
@@ -71,32 +70,14 @@ func (s *OIDCSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *OIDCSuite) TestCreateOIDCUser(c *check.C) {
-	connector := services.NewOIDCConnector("oidcService", services.OIDCConnectorSpecV2{
-		IssuerURL:    "https://www.example.com",
-		ClientID:     "fakeClientID",
-		ClientSecret: "fakeClientSecret",
-		RedirectURL:  "https://www.example.com/redirect",
-		Scope:        []string{"profile", "email"},
-		ClaimsToRoles: []services.ClaimMapping{
-			services.ClaimMapping{
-				Claim: "email",
-				Value: "foo@example.com",
-				Roles: []string{"admin"},
-			},
-		},
-	})
-
-	ident := &oidc.Identity{
-		Email:     "foo@example.com",
-		ExpiresAt: s.c.Now().Add(1 * time.Minute),
-	}
-
-	claims := map[string]interface{}{
-		"email": "foo@example.com",
-	}
-
 	// Create OIDC user with 1 minute expiry.
-	err := s.a.createOIDCUser(connector, ident, claims)
+	_, err := s.a.createOIDCUser(&createUserParams{
+		connectorName: "oidcService",
+		username:      "foo@example.com",
+		logins:        []string{"foo"},
+		roles:         []string{"admin"},
+		sessionTTL:    1 * time.Minute,
+	})
 	c.Assert(err, check.IsNil)
 
 	// Within that 1 minute period the user should still exist.
