@@ -99,7 +99,7 @@ func (s *Suite) TestSanitizeBucket(c *check.C) {
 type nopBackend struct {
 }
 
-func (n *nopBackend) GetKeys(bucket []string) ([]string, error) {
+func (n *nopBackend) GetKeys(bucket []string, opts ...OpOption) ([]string, error) {
 	return []string{"foo"}, nil
 }
 

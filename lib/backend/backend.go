@@ -38,7 +38,7 @@ const (
 //
 type Backend interface {
 	// GetKeys returns a list of keys for a given path
-	GetKeys(bucket []string) ([]string, error)
+	GetKeys(bucket []string, opts ...OpOption) ([]string, error)
 	// GetItems returns a list of items (key value pairs) for a bucket.
 	GetItems(bucket []string, opts ...OpOption) ([]Item, error)
 	// CreateVal creates value with a given TTL and key in the bucket
@@ -73,10 +73,15 @@ type Backend interface {
 
 // OpConfig contains operation config
 type OpConfig struct {
-	// Recursive triggers recursive get
+	// Recursive triggers recursive get.
 	Recursive bool
-	// KeysOnly fetches only keys
+
+	// KeysOnly fetches only keys.
 	KeysOnly bool
+
+	// DeduplicateByKey removes duplicates based off key instead of the full path.
+	// Used for certain resources like users.
+	DeduplicateByKey bool
 }
 
 // OpOption is operation functional argument
@@ -86,6 +91,14 @@ type OpOption func(*OpConfig) error
 func WithRecursive() OpOption {
 	return func(o *OpConfig) error {
 		o.Recursive = true
+		return nil
+	}
+}
+
+// DeduplicateByKey removes duplicates based off key instead of the full path.
+func WithDeduplicateByKey() OpOption {
+	return func(o *OpConfig) error {
+		o.DeduplicateByKey = true
 		return nil
 	}
 }

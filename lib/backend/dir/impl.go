@@ -116,9 +116,9 @@ func (bk *Backend) Close() error {
 }
 
 // GetKeys returns a list of keys for a given bucket.
-func (bk *Backend) GetKeys(bucket []string) ([]string, error) {
+func (bk *Backend) GetKeys(bucket []string, opts ...backend.OpOption) ([]string, error) {
 	// Get all the key/value pairs for this bucket.
-	items, err := bk.GetItems(bucket)
+	items, err := bk.GetItems(bucket, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,6 +134,11 @@ func (bk *Backend) GetKeys(bucket []string) ([]string, error) {
 
 // GetItems returns all items (key/value pairs) in a given bucket.
 func (bk *Backend) GetItems(bucket []string, opts ...backend.OpOption) ([]backend.Item, error) {
+	options, err := backend.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var out []backend.Item
 
 	// Get a list of all buckets in the backend.
@@ -200,7 +205,8 @@ func (bk *Backend) GetItems(bucket []string, opts ...backend.OpOption) ([]backen
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Key < out[j].Key
 	})
-	out = removeDuplicates(out)
+
+	out = removeDuplicates(out, options.DeduplicateByKey)
 
 	return out, nil
 }
@@ -635,17 +641,26 @@ func suffix(pathToBucket string, bucketPrefix string) (string, error) {
 // removeDuplicates removes any duplicate items from the passed in slice. This
 // is to ensure that partial matches don't result in multiple values returned.
 // This is consistent with our DynamoDB implementation.
-func removeDuplicates(items []backend.Item) []backend.Item {
+func removeDuplicates(items []backend.Item, deduplicateByKey bool) []backend.Item {
 	// Use map to record duplicates as we find them.
 	encountered := map[string]bool{}
 	result := make([]backend.Item, 0, len(items))
 
 	// Loop over all items, if it has not been seen before, append to result.
 	for _, e := range items {
-		_, ok := encountered[e.FullPath]
+		var ok bool
+		if deduplicateByKey {
+			_, ok = encountered[e.Key]
+		} else {
+			_, ok = encountered[e.FullPath]
+		}
 		if !ok {
 			// Record this element as an encountered element.
-			encountered[e.FullPath] = true
+			if deduplicateByKey {
+				encountered[e.Key] = true
+			} else {
+				encountered[e.FullPath] = true
+			}
 
 			// Append to result slice.
 			result = append(result, e)

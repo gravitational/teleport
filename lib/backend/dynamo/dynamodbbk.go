@@ -333,7 +333,12 @@ func (b *DynamoDBBackend) fullPath(bucket ...string) string {
 }
 
 // getRecords retrieve all prefixed keys
-func (b *DynamoDBBackend) getRecords(path string) ([]record, error) {
+func (b *DynamoDBBackend) getRecords(path string, opts ...backend.OpOption) ([]record, error) {
+	options, err := backend.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var vals []record
 	query := "HashKey = :hashKey AND begins_with (FullPath, :fullPath)"
 	attrV := map[string]interface{}{
@@ -369,7 +374,7 @@ func (b *DynamoDBBackend) getRecords(path string) ([]record, error) {
 		}
 	}
 	sort.Sort(records(vals))
-	vals = removeDuplicates(vals)
+	vals = removeDuplicates(vals, options.DeduplicateByKey)
 	return vals, nil
 }
 
@@ -390,29 +395,40 @@ func suffix(key string) string {
 	return vals[0]
 }
 
-func removeDuplicates(elements []record) []record {
+func removeDuplicates(elements []record, deduplicateByKey bool) []record {
 	// Use map to record duplicates as we find them.
 	encountered := map[string]bool{}
-	result := []record{}
+	result := make([]record, 0, len(elements))
 
-	for v := range elements {
-		if encountered[elements[v].FullPath] == true {
-			// Do not add duplicate.
+	// Loop over all items, if it has not been seen before, append to result.
+	for _, e := range elements {
+		var ok bool
+		if deduplicateByKey {
+			_, ok = encountered[e.key]
 		} else {
+			_, ok = encountered[e.FullPath]
+		}
+
+		if !ok {
 			// Record this element as an encountered element.
-			encountered[elements[v].FullPath] = true
+			if deduplicateByKey {
+				encountered[e.key] = true
+			} else {
+				encountered[e.FullPath] = true
+			}
+
 			// Append to result slice.
-			result = append(result, elements[v])
+			result = append(result, e)
 		}
 	}
-	// Return the new slice.
+
 	return result
 }
 
 // GetItems is a function that returns keys in batch
 func (b *DynamoDBBackend) GetItems(path []string, opts ...backend.OpOption) ([]backend.Item, error) {
 	fullPath := b.fullPath(path...)
-	records, err := b.getRecords(fullPath)
+	records, err := b.getRecords(fullPath, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -427,8 +443,8 @@ func (b *DynamoDBBackend) GetItems(path []string, opts ...backend.OpOption) ([]b
 }
 
 // GetKeys retrieve all keys matching specific path
-func (b *DynamoDBBackend) GetKeys(path []string) ([]string, error) {
-	records, err := b.getRecords(b.fullPath(path...))
+func (b *DynamoDBBackend) GetKeys(path []string, opts ...backend.OpOption) ([]string, error) {
+	records, err := b.getRecords(b.fullPath(path...), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

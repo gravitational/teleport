@@ -243,7 +243,7 @@ func (b *BoltBackend) GetItems(path []string, opts ...backend.OpOption) ([]backe
 	return items, nil
 }
 
-func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
+func (b *BoltBackend) GetKeys(path []string, opts ...backend.OpOption) ([]string, error) {
 	keys, err := b.getKeys(path)
 	if err != nil {
 		if trace.IsNotFound(err) {

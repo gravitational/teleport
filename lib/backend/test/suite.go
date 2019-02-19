@@ -188,6 +188,16 @@ func (s *BackendSuite) BatchCRUD(c *C) {
 
 }
 
+func (s *BackendSuite) Deduplicate(c *C) {
+	c.Assert(s.B.UpsertVal([]string{"z", "y"}, "xkey", []byte("val1"), 0), IsNil)
+	c.Assert(s.B.UpsertVal([]string{"z", "y"}, "wkey", []byte("val2"), 0), IsNil)
+
+	keys, err := s.B.GetKeys([]string{"z"}, backend.WithDeduplicateByKey())
+	c.Assert(err, IsNil)
+	c.Assert(keys, HasLen, 1)
+	c.Assert(keys[0], Equals, "y")
+}
+
 // Directories checks directories access
 func (s *BackendSuite) Directories(c *C) {
 	bucket := []string{"level1", "level2", "level3"}

@@ -59,7 +59,7 @@ func (s *IdentityService) DeleteAllUsers() error {
 
 // GetUsers returns a list of users registered with the local auth server
 func (s *IdentityService) GetUsers() ([]services.User, error) {
-	keys, err := s.GetKeys([]string{"web", "users"})
+	keys, err := s.GetKeys([]string{"web", "users"}, backend.WithDeduplicateByKey())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -159,6 +159,10 @@ func (s *Suite) TestDirectories(c *check.C) {
 	s.suite.Directories(c)
 }
 
+func (s *Suite) TestDeduplicate(c *check.C) {
+	s.suite.Deduplicate(c)
+}
+
 // TODO(russjones): Eventually this test should be removed and the one from
 // the suite should be used. For that to happen, some refactoring around the
 // clock needs to occur to expose clock.Advance to the suite across backends.
