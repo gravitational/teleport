@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -36,7 +35,7 @@ var _ = check.Suite(&TermSuite{})
 var _ = fmt.Printf
 
 func (s *TermSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 }
 func (s *TermSuite) TearDownSuite(c *check.C) {}
 func (s *TermSuite) SetUpTest(c *check.C)     {}

@@ -269,7 +269,7 @@ func (b *bk) GetItems(path []string, opts ...backend.OpOption) ([]backend.Item, 
 }
 
 // GetKeys fetches keys (and values) but only returns keys to the caller.
-func (b *bk) GetKeys(path []string) ([]string, error) {
+func (b *bk) GetKeys(path []string, opts ...backend.OpOption) ([]string, error) {
 	items, err := b.getItems(b.key(path...), backend.OpConfig{KeysOnly: true}, clientv3.WithSerializable(), clientv3.WithKeysOnly(), clientv3.WithPrefix())
 	if err != nil {
 		return nil, trace.Wrap(err)

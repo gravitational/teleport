@@ -61,12 +61,12 @@ func (s *Sanitizer) Backend() Backend {
 }
 
 // GetKeys returns a list of keys for a given path.
-func (s *Sanitizer) GetKeys(bucket []string) ([]string, error) {
+func (s *Sanitizer) GetKeys(bucket []string, opts ...OpOption) ([]string, error) {
 	if !isSliceSafe(bucket) {
 		return nil, trace.BadParameter(errorMessage)
 	}
 
-	return s.backend.GetKeys(bucket)
+	return s.backend.GetKeys(bucket, opts...)
 }
 
 // GetItems returns a list of items (key value pairs) for a bucket.

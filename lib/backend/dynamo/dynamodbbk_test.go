@@ -76,6 +76,10 @@ func (s *DynamoDBSuite) TestBatchCRUD(c *C) {
 	s.suite.BatchCRUD(c)
 }
 
+func (s *Suite) TestDeduplicate(c *check.C) {
+	s.suite.Deduplicate(c)
+}
+
 func (s *DynamoDBSuite) TestDirectories(c *C) {
 	s.suite.Directories(c)
 }
