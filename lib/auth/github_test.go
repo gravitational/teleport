@@ -17,56 +17,18 @@ limitations under the License.
 package auth
 
 import (
-	"context"
-	"fmt"
-	"time"
-
-	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
-type GithubSuite struct {
-	a *AuthServer
-	b backend.Backend
-	c clockwork.FakeClock
-}
+type GithubSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&GithubSuite{})
 
 func (s *GithubSuite) SetUpSuite(c *check.C) {
-	var err error
-
 	utils.InitLoggerForTests()
-
-	s.c = clockwork.NewFakeClockAt(time.Now())
-
-	s.b, err = lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             c.MkDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            s.c,
-	})
-	c.Assert(err, check.IsNil)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	c.Assert(err, check.IsNil)
-
-	authConfig := &InitConfig{
-		ClusterName:            clusterName,
-		Backend:                s.b,
-		Authority:              authority.New(),
-		SkipPeriodicOperations: true,
-	}
-	s.a, err = NewAuthServer(authConfig)
-	c.Assert(err, check.IsNil)
 }
 
 func (s *GithubSuite) TestPopulateClaims(c *check.C) {
@@ -79,41 +41,6 @@ func (s *GithubSuite) TestPopulateClaims(c *check.C) {
 			"org2": []string{"team1"},
 		},
 	})
-}
-
-func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
-	connector := services.NewGithubConnector("github", services.GithubConnectorSpecV3{
-		ClientID:     "fakeClientID",
-		ClientSecret: "fakeClientSecret",
-		RedirectURL:  "https://www.example.com",
-		TeamsToLogins: []services.TeamMapping{
-			services.TeamMapping{
-				Organization: "fakeOrg",
-				Team:         "fakeTeam",
-				Logins:       []string{"foo"},
-			},
-		},
-	})
-
-	claims := services.GithubClaims{
-		Username: "foo",
-		OrganizationToTeams: map[string][]string{
-			"fakeOrg": []string{"fakeTeam"},
-		},
-	}
-
-	// Create GitHub user with 1 minute expiry.
-	err := s.a.createGithubUser(connector, claims, s.c.Now().Add(1*time.Minute))
-	c.Assert(err, check.IsNil)
-
-	// Within that 1 minute period the user should still exist.
-	_, err = s.a.GetUser("foo")
-	c.Assert(err, check.IsNil)
-
-	// Advance time 2 minutes, the user should be gone.
-	s.c.Advance(2 * time.Minute)
-	_, err = s.a.GetUser("foo")
-	c.Assert(err, check.NotNil)
 }
 
 type testGithubAPIClient struct{}
