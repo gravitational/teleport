@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.7
+
+This release of Teleport contains a bug fix.
+
+#### Changes
+
+* Fixed issue where `tctl users ls` output contained duplicates. [#2569](https://github.com/gravitational/teleport/issues/2569) [#2107](https://github.com/gravitational/teleport/issues/2107)
+
 ## 3.1.6
 
 This release of Teleport contains bug fixes, security fixes, and user experience improvements.
