@@ -275,6 +275,12 @@ const (
 	// JSON means JSON serialization format
 	JSON = "json"
 
+	// YAML means YAML serialization format
+	YAML = "yaml"
+
+	// Text means text serialization format
+	Text = "text"
+
 	// LinuxAdminGID is the ID of the standard adm group on linux
 	LinuxAdminGID = 4
 
