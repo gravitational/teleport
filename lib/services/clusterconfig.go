@@ -89,6 +89,12 @@ type ClusterConfig interface {
 	// the server disconnects the client.
 	SetKeepAliveCountMax(c int64)
 
+	// GetLocalAuth gets if local authentication is allowed.
+	GetLocalAuth() bool
+
+	// SetLocalAuth sets if local authentication is allowed.
+	SetLocalAuth(bool)
+
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
 }
@@ -126,6 +132,7 @@ func DefaultClusterConfig() ClusterConfig {
 			ProxyChecksHostKeys: HostKeyCheckYes,
 			KeepAliveInterval:   NewDuration(defaults.KeepAliveInterval),
 			KeepAliveCountMax:   int64(defaults.KeepAliveCountMax),
+			LocalAuth:           NewBool(true),
 		},
 	}
 }
@@ -312,6 +319,16 @@ func (c *ClusterConfigV3) SetKeepAliveCountMax(m int64) {
 	c.Spec.KeepAliveCountMax = m
 }
 
+// GetLocalAuth gets if local authentication is allowed.
+func (c *ClusterConfigV3) GetLocalAuth() bool {
+	return c.Spec.LocalAuth.Value()
+}
+
+// SetLocalAuth gets if local authentication is allowed.
+func (c *ClusterConfigV3) SetLocalAuth(b bool) {
+	c.Spec.LocalAuth = NewBool(b)
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -390,6 +407,9 @@ const ClusterConfigSpecSchemaTemplate = `{
     },
     "keep_alive_count_max": {
       "type": "number"
+    },
+    "local_auth": {
+      "anyOf": [{"type": "string"}, { "type": "boolean"}]
     },
     "audit": {
       "type": "object",

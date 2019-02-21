@@ -149,6 +149,7 @@ var (
 		"ca_pin":                  false,
 		"keep_alive_interval":     false,
 		"keep_alive_count_max":    false,
+		"local_auth":              false,
 	}
 )
 
@@ -628,6 +629,9 @@ type AuthenticationConfig struct {
 	// TODO: OIDC connection is DEPRECATED!!!! Users are supposed to use resources
 	// for configuring OIDC connectors
 	OIDC *OIDCConnector `yaml:"oidc,omitempty"`
+
+	// LocalAuth controls if local authentication is allowed.
+	LocalAuth *services.Bool `yaml:"local_auth"`
 }
 
 // Parse returns the Authentication Configuration in two parts: AuthPreference

@@ -44,6 +44,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	"github.com/tstranex/u2f"
 	"gopkg.in/check.v1"
 )
 
@@ -1624,6 +1625,94 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 	loginAttempts, err = s.server.Auth().GetUserLoginAttempts(user)
 	c.Assert(err, check.IsNil)
 	c.Assert(loginAttempts, check.HasLen, 0)
+}
+
+// TestSignupNoLocalAuth make sure that signup tokens can not be created
+// when local auth is disabled.
+func (s *TLSSuite) TestSignupNoLocalAuth(c *check.C) {
+	// Set services.ClusterConfig to disallow local auth.
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		LocalAuth: services.NewBool(false),
+	})
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, check.IsNil)
+
+	// Make sure access is denied when trying to create a signup token.
+	_, err = s.server.Auth().CreateSignupToken(services.UserV1{
+		Name:          "foo",
+		AllowedLogins: []string{"admin"},
+	}, backend.Forever)
+	fixtures.ExpectAccessDenied(c, err)
+}
+
+// TestCreateUserNoLocalAuth make sure that local users can not be created
+// when local auth is disabled.
+func (s *TLSSuite) TestCreateUserNoLocalAuth(c *check.C) {
+	// Set services.ClusterConfig to disallow local auth.
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		LocalAuth: services.NewBool(false),
+	})
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, check.IsNil)
+
+	// Make sure access is denied when trying to create a user.
+	_, err = s.server.Auth().CreateUserWithoutOTP("foo", "bar")
+	fixtures.ExpectAccessDenied(c, err)
+	_, err = s.server.Auth().CreateUserWithOTP("foo", "bar", "123456")
+	fixtures.ExpectAccessDenied(c, err)
+	_, err = s.server.Auth().CreateUserWithU2FToken("foo", "bar", u2f.RegisterResponse{
+		ClientData:       "baz",
+		RegistrationData: "qux",
+	})
+	fixtures.ExpectAccessDenied(c, err)
+}
+
+// TestLoginNoLocalAuth makes sure that logins for local accounts can not be
+// performed when local auth is disabled.
+func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
+	user := "foo"
+	pass := []byte("barbaz")
+
+	// Create a local user.
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	c.Assert(err, check.IsNil)
+	err = clt.UpsertPassword(user, pass)
+	c.Assert(err, check.IsNil)
+
+	// Set services.ClusterConfig to disallow local auth.
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		LocalAuth: services.NewBool(false),
+	})
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, check.IsNil)
+
+	// Make sure access is denied for web login.
+	_, err = s.server.Auth().AuthenticateWebUser(AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: pass,
+		},
+	})
+	fixtures.ExpectAccessDenied(c, err)
+
+	// Make sure access is denied for SSH login.
+	_, pub, err := s.server.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	_, err = s.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass: &PassCreds{
+				Password: pass,
+			},
+		},
+		PublicKey: pub,
+	})
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 // TestCipherSuites makes sure that clients with invalid cipher suites can

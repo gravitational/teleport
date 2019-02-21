@@ -390,6 +390,7 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 		},
 	}))
 	c.Assert(cfg.Auth.ClusterName.GetClusterName(), check.Equals, "magadan")
+	c.Assert(cfg.Auth.ClusterConfig.GetLocalAuth(), check.Equals, true)
 	c.Assert(cfg.AdvertiseIP, check.Equals, "10.10.10.1")
 
 	c.Assert(cfg.Proxy.Enabled, check.Equals, true)

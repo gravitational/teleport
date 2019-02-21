@@ -197,7 +197,7 @@ message RoleMapping {
 message ProvisionTokenV1 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
-    
+
 	// Roles is a list of roles associated with the token,
 	// that will be converted to metadata in the SSH and X509
 	// certificates issued to the user of the token
@@ -217,9 +217,9 @@ message ProvisionTokenV2 {
     string Kind = 1 [(gogoproto.jsontag) = "kind"];
     // SubKind is an optional resource sub kind, used in some resources
 	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version    
+	// Version is version
     string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata    
+	// Metadata is User metadata
     Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
     // Spec is a provisioning token V2 spec
     ProvisionTokenSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
@@ -243,9 +243,9 @@ message StaticTokensV2 {
     string Kind = 1 [(gogoproto.jsontag) = "kind"];
     // SubKind is an optional resource sub kind, used in some resources
 	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version    
+	// Version is version
     string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata    
+	// Metadata is User metadata
     Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
     // Spec is a provisioning token V2 spec
     StaticTokensSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
@@ -330,6 +330,9 @@ message ClusterConfigSpecV3 {
 	// KeepAliveCountMax is the number of keep-alive messages that can be missed before
 	// the server disconnects the connection to the client.
 	int64 KeepAliveCountMax = 8 [(gogoproto.jsontag) = "keep_alive_count_max"];
+
+    // LocalAuth is true if local authentication is enabled.
+    bool LocalAuth = 9 [(gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool"];
 }
 
 // AuditConfig represents audit log settings in the cluster
@@ -419,7 +422,7 @@ message RoleOptions  {
 	// ClientIdleTimeout sets disconnect clients on idle timeout behavior,
 	// if set to 0 means do not disconnect, otherwise is set to the idle
 	// duration.
-	int64 ClientIdleTimeout = 5 [(gogoproto.jsontag) = "client_idle_timeout,omitempty", (gogoproto.casttype) = "Duration"];    
+	int64 ClientIdleTimeout = 5 [(gogoproto.jsontag) = "client_idle_timeout,omitempty", (gogoproto.casttype) = "Duration"];
 
 	// DisconnectExpiredCert sets disconnect clients on expired certificates.
     bool DisconnectExpiredCert = 6 [(gogoproto.nullable) = true, (gogoproto.jsontag) = "disconnect_expired_cert,omitempty", (gogoproto.casttype) = "Bool"];
@@ -431,7 +434,7 @@ message RoleOptions  {
 message RoleConditions {
 	// Logins is a list of *nix system logins.
 	repeated string Logins = 1 [(gogoproto.jsontag) = "logins"];
-    
+
 	// Namespaces is a list of namespaces (used to partition a cluster). The
 	// field should be called "namespaces" when it returns in Teleport 2.4.
     repeated string Namespaces = 2 [(gogoproto.jsontag) = "-"];

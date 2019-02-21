@@ -484,7 +484,7 @@ func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
 		if !trace.IsNotFound(err) {
 			return false, trace.Wrap(err)
 		}
-		// CA not found? --> first start!
+		// If a CA was not found, that means this is the first start.
 		return true, nil
 	}
 	return false, nil
