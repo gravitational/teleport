@@ -405,6 +405,20 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	var localAuth services.Bool
+	if fc.Auth.Authentication == nil || fc.Auth.Authentication.LocalAuth == nil {
+		localAuth = services.NewBool(true)
+	} else {
+		localAuth = *fc.Auth.Authentication.LocalAuth
+	}
+
+	if localAuth.Value() == false && fc.Auth.Authentication.SecondFactor != "" {
+		warningMessage := "Second factor settings will have no affect because local " +
+			"authentication is disabled. Update file configuration and remove " +
+			"\"second_factor\" field to get rid of this error message."
+		log.Warnf(warningMessage)
+	}
+
 	auditConfig, err := services.AuditConfigFromObject(fc.Storage.Params)
 	if err != nil {
 		return trace.Wrap(err)
@@ -420,6 +434,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		DisconnectExpiredCert: fc.Auth.DisconnectExpiredCert,
 		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
+		LocalAuth:             localAuth,
 	})
 	if err != nil {
 		return trace.Wrap(err)

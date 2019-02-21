@@ -43,6 +43,15 @@ import (
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and otp generator
 func (s *AuthServer) CreateSignupToken(userv1 services.UserV1, ttl time.Duration) (string, error) {
+	clusterConfig, err := s.GetClusterConfig()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if clusterConfig.GetLocalAuth() == false {
+		s.emitNoLocalAuthEvent(userv1.V2().GetName())
+		return "", trace.AccessDenied(noLocalAuth)
+	}
+
 	user := userv1.V2()
 	if err := user.Check(); err != nil {
 		return "", trace.Wrap(err)
@@ -73,7 +82,7 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1, ttl time.Duration
 
 	// TODO(rjones): TOCTOU, instead try to create signup token for user and fail
 	// when unable to.
-	_, err := s.GetPasswordHash(user.GetName())
+	_, err = s.GetPasswordHash(user.GetName())
 	if err == nil {
 		return "", trace.BadParameter("user '%s' already exists", user.GetName())
 	}
@@ -230,6 +239,15 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
 func (s *AuthServer) CreateUserWithOTP(token string, password string, otpToken string) (services.WebSession, error) {
+	clusterConfig, err := s.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if clusterConfig.GetLocalAuth() == false {
+		s.emitNoLocalAuthEvent("")
+		return nil, trace.AccessDenied(noLocalAuth)
+	}
+
 	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		log.Debugf("failed to get signup token: %v", err)
@@ -263,6 +281,15 @@ func (s *AuthServer) CreateUserWithOTP(token string, password string, otpToken s
 
 // CreateUserWithoutOTP creates an account with the provided password and deletes the token afterwards.
 func (s *AuthServer) CreateUserWithoutOTP(token string, password string) (services.WebSession, error) {
+	clusterConfig, err := s.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if clusterConfig.GetLocalAuth() == false {
+		s.emitNoLocalAuthEvent("")
+		return nil, trace.AccessDenied(noLocalAuth)
+	}
+
 	authPreference, err := s.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -291,6 +318,15 @@ func (s *AuthServer) CreateUserWithoutOTP(token string, password string) (servic
 }
 
 func (s *AuthServer) CreateUserWithU2FToken(token string, password string, response u2f.RegisterResponse) (services.WebSession, error) {
+	clusterConfig, err := s.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if clusterConfig.GetLocalAuth() == false {
+		s.emitNoLocalAuthEvent("")
+		return nil, trace.AccessDenied(noLocalAuth)
+	}
+
 	// before trying to create a user, see U2F is actually setup on the backend
 	cap, err := s.GetAuthPreference()
 	if err != nil {
