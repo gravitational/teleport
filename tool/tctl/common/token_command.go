@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -38,6 +39,9 @@ import (
 // TokenCommand implements `tctl token` group of commands
 type TokenCommand struct {
 	config *service.Config
+
+	// format is the output format, e.g. text or json
+	format string
 
 	// tokenType is the type of token. For example, "trusted_cluster".
 	tokenType string
@@ -80,6 +84,7 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 
 	// "tctl tokens ls"
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens")
+	c.tokenList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default("text").StringVar(&c.format)
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
@@ -178,18 +183,39 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 	// Sort by expire time.
 	sort.Slice(tokens, func(i, j int) bool { return tokens[i].Expires.Unix() < tokens[j].Expires.Unix() })
 
-	tokensView := func() string {
-		table := asciitable.MakeTable([]string{"Token", "Type", "Expiry Time (UTC)"})
-		for _, t := range tokens {
-			expiry := "never"
-			if t.Expires.Unix() > 0 {
-				expiry = t.Expires.Format(time.RFC822)
+	if c.format == "text" {
+		tokensView := func() string {
+			table := asciitable.MakeTable([]string{"Token", "Type", "Expiry Time (UTC)"})
+			for _, t := range tokens {
+				expiry := "never"
+				if t.Expires.Unix() > 0 {
+					expiry = t.Expires.Format(time.RFC822)
+				}
+				table.AddRow([]string{t.Token, t.Roles.String(), expiry})
 			}
-			table.AddRow([]string{t.Token, t.Roles.String(), expiry})
+			return table.AsBuffer().String()
 		}
-		return table.AsBuffer().String()
+		fmt.Printf(tokensView())
+	} else {
+		type tokenInfos struct {
+			Token   string          `json:"token"`
+			Roles   []teleport.Role `json:"roles"`
+			Expires time.Time       `json:"expires"`
+		}
+		tokensInfos := []tokenInfos{}
+		for _, t := range tokens {
+			var expires time.Time
+			if t.Expires.Unix() > 0 {
+				expires = t.Expires
+			}
+			tokensInfos = append(tokensInfos, tokenInfos{Token: t.Token, Roles: t.Roles, Expires: expires})
+		}
+		out, err := json.Marshal(tokensInfos)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal tokens")
+		}
+		fmt.Printf(string(out))
 	}
-	fmt.Printf(tokensView())
 	return nil
 }
 
