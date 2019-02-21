@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -43,6 +44,9 @@ type UserCommand struct {
 	identities    []string
 	ttl           time.Duration
 
+	// format is the output format, e.g. text or json
+	format string
+
 	userAdd    *kingpin.CmdClause
 	userUpdate *kingpin.CmdClause
 	userList   *kingpin.CmdClause
@@ -63,6 +67,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
 		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
+	u.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 	u.userAdd.Alias(AddUserHelp)
 
 	u.userUpdate = users.Command("update", "Update properties for existing user").Hidden()
@@ -71,6 +76,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 		Default("").StringVar(&u.roles)
 
 	u.userList = users.Command("ls", "List all user accounts")
+	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 
 	u.userDelete = users.Command("rm", "Deletes user accounts").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
@@ -116,16 +122,25 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	}
 
 	// try to auto-suggest the activation link
-	u.PrintSignupURL(client, token, u.ttl)
-	return nil
+	return u.PrintSignupURL(client, token, u.ttl, u.format)
 }
 
-func (u *UserCommand) PrintSignupURL(client auth.ClientI, token string, ttl time.Duration) {
+// PrintSignupURL prints signup URL
+func (u *UserCommand) PrintSignupURL(client auth.ClientI, token string, ttl time.Duration, format string) error {
 	signupURL, proxyHost := web.CreateSignupLink(client, token)
 
-	fmt.Printf("Signup token has been created and is valid for %v hours. Share this URL with the user:\n%v\n\n",
-		int(ttl/time.Hour), signupURL)
-	fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", proxyHost)
+	if format == teleport.Text {
+		fmt.Printf("Signup token has been created and is valid for %v hours. Share this URL with the user:\n%v\n\n",
+			int(ttl/time.Hour), signupURL)
+		fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", proxyHost)
+	} else {
+		out, err := json.MarshalIndent(services.NewInviteToken(token, signupURL, time.Now().Add(ttl).UTC()), "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal signup infos")
+		}
+		fmt.Printf(string(out))
+	}
+	return nil
 }
 
 // Update updates existing user
@@ -154,16 +169,24 @@ func (u *UserCommand) List(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(users) == 0 {
-		fmt.Println("No users found")
-		return nil
+	if u.format == teleport.Text {
+		if len(users) == 0 {
+			fmt.Println("No users found")
+			return nil
+		}
+		t := asciitable.MakeTable([]string{"User", "Allowed logins"})
+		for _, u := range users {
+			logins, _ := u.GetTraits()[teleport.TraitLogins]
+			t.AddRow([]string{u.GetName(), strings.Join(logins, ",")})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		out, err := json.MarshalIndent(users, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal users")
+		}
+		fmt.Printf(string(out))
 	}
-	t := asciitable.MakeTable([]string{"User", "Allowed logins"})
-	for _, u := range users {
-		logins, _ := u.GetTraits()[teleport.TraitLogins]
-		t.AddRow([]string{u.GetName(), strings.Join(logins, ",")})
-	}
-	fmt.Println(t.AsBuffer().String())
 	return nil
 }
 
