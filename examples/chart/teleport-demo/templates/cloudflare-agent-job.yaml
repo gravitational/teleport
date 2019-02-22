@@ -1,0 +1,139 @@
+kind: Job
+apiVersion: batch/v1
+metadata:
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-cloudflare-agent
+  namespace: {{ .Values.mainClusterName }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 4 }}
+{{- end }}
+spec:
+  template:
+    metadata:
+      namespace: {{ .Values.mainClusterName }}
+      labels:
+        app: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-cloudflare-agent
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}-{{ .Values.mainClusterName }}-cloudflare-agent
+        image: {{ .Values.cloudflareagent.image.repository }}:{{ .Values.cloudflareagent.image.tag }}
+        imagePullPolicy: {{ .Values.cloudflareagent.image.pullPolicy }}
+        env:
+          - name: API_VERSION
+            value: "{{ .Values.cloudflare.apiVersion }}"
+          - name: CLUSTER_NAME
+            value: "{{ .Values.mainClusterName }}"
+          - name: CLOUDFLARE_DOMAIN
+            value: "{{ .Values.cloudflare.domain }}"
+          - name: CLOUDFLARE_TTL
+            value: "{{ default 300 .Values.cloudflare.ttl }}"
+          - name: LETSENCRYPT_EMAIL
+            value: "{{ .Values.letsencrypt.email }}"
+          - name: SERVICE_NAME
+            value: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        volumeMounts:
+        - mountPath: /etc/cloudflare
+          name: cloudflare-credentials
+          readOnly: true
+        - mountPath: /etc/teleport-tls
+          name: teleport-tls
+          readOnly: true
+      volumes:
+        - name: cloudflare-credentials
+          secret:
+            secretName: cloudflare-credentials
+        - name: teleport-tls
+          secret:
+            secretName: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-tls-config
+      restartPolicy: Never
+{{- if .Values.cloudflareagent.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.cloudflareagent.image.pullSecrets | indent 6 }}
+{{- end }}
+{{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 6 }}
+{{- end }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}-{{ .Values.mainClusterName }}
+  backoffLimit: 0
+
+{{- $root := . -}}
+{{- range .Values.extraClusterNames }}
+---
+kind: Job
+apiVersion: batch/v1
+metadata:
+  name: {{ template "teleport.fullname" $root }}-{{ . }}-cloudflare-agent
+  namespace: {{ . }}
+  labels:
+{{ include "teleport.labels" $root | indent 4 }}
+{{- if $root.Values.labels }}
+{{ toYaml $root.Values.labels | indent 4 }}
+{{- end }}
+spec:
+  template:
+    metadata:
+      namespace: {{ . }}
+      labels:
+        app: {{ template "teleport.fullname" $root }}-{{ . }}-cloudflare-agent
+    spec:
+      containers:
+      - name: {{ $root.Chart.Name }}-{{ . }}-cloudflare-agent
+        image: {{ $root.Values.cloudflareagent.image.repository }}:{{ $root.Values.cloudflareagent.image.tag }}
+        imagePullPolicy: {{ $root.Values.cloudflareagent.image.pullPolicy }}
+        env:
+          - name: API_VERSION
+            value: "{{ $root.Values.cloudflare.apiVersion }}"
+          - name: CLUSTER_NAME
+            value: "{{ . }}"
+          - name: CLOUDFLARE_DOMAIN
+            value: "{{ $root.Values.cloudflare.domain }}"
+          - name: CLOUDFLARE_TTL
+            value: "{{ default 300 $root.Values.cloudflare.ttl }}"
+          - name: LETSENCRYPT_EMAIL
+            value: "{{ $root.Values.letsencrypt.email }}"
+          - name: SERVICE_NAME
+            value: {{ template "teleport.fullname" $root }}-{{ . }}
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        volumeMounts:
+        - mountPath: /etc/cloudflare
+          name: cloudflare-credentials
+          readOnly: true
+        - mountPath: /etc/teleport-tls
+          name: teleport-tls
+          readOnly: true
+      volumes:
+        - name: cloudflare-credentials
+          secret:
+            secretName: cloudflare-credentials
+        - name: teleport-tls
+          secret:
+            secretName: {{ template "teleport.fullname" $root }}-{{ . }}-tls-config
+      restartPolicy: Never
+{{- if $root.Values.cloudflareagent.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml $root.Values.cloudflareagent.image.pullSecrets | indent 6 }}
+{{- end }}
+{{- if $root.Values.affinity }}
+      affinity:
+{{ toYaml $root.Values.affinity | indent 8 }}
+{{- end }}
+{{- if $root.Values.tolerations }}
+      tolerations:
+{{ toYaml $root.Values.tolerations | indent 6 }}
+{{- end }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" $root }}-{{ . }}
+  backoffLimit: 0
+{{- end }}

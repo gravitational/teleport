@@ -4,7 +4,7 @@ description: Teleport Enterprise
 keywords:
   - Teleport Enterprise
 tillerVersion: ">=2.8.0"
-kubeVersion: ">=1.7.0"
+kubeVersion: ">=1.7.0-0"
 home: https://github.com/gravitational/teleport
 sources:
   - https://github.com/gravitational/teleport

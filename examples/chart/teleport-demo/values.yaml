@@ -1,64 +1,153 @@
-## override these on the helm command line with --set clusterHostname=teleport.test.com --set teleportVersion=3.0.0
-# hostname of the cluster
-clusterHostname: gus.gravitational.co
+## override these on the helm command line with things like --set teleportVersion=3.1.4
 # teleport version to deploy (must be a valid tag on https://quay.io/repository/gravitational/teleport-ent?tab=tags)
 teleportVersion: 3.1.4
-# name of the 'main' cluster which will be set up and configured
-# this will also have 'teleport-' prepended to give the name of the cluster namespace
+# name of the 'main' cluster which will be set up and configured - this will also the cluster's namespace
+# DNS will be set up for <clusterName>.<clusterDomain>
 mainClusterName: main
-# namespace (this will be set automatically later)
-namespace: default
 # names of the 'extra' trusted clusters which will be linked
 # adding more values to this list will create more trusted clusters
-# each of these will also have 'teleport-' prepended to give the name of the cluster namespace
+# each of these will be deployed to its own equivalent namespace
 extraClusterNames:
   - east
-# number of nodes to spin up per cluster (the same for each cluster)
-nodesPerCluster: 1
+# number of nodes to start in each cluster
+nodesPerCluster: 2
 
-image:
-  repository: quay.io/gravitational/teleport-ent
-  tag: "{{ .Values.teleportVersion }}"
-  pullPolicy: IfNotPresent
-  # Optionally specify an array of imagePullSecrets.
-  # Secrets must be manually created in the namespace.
-  # ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
-  pullSecrets:
-  # - name: myRegistryKeySecretName
+### Auth0
+auth0:
+  display: Auth0
+  oidc_connector_name: gravitational-auth0
+  issuer_url: https://gravitational.auth0.com/
+  # scope must be an array
+  scope: ["roles"]
+  # list of oidc roles to map to associated teleport roles, formatted like this:
+  # "oidc role": ["teleport role1", "teleport role2"]
+  # this doesn't currently work due to Helm map conversion
+  oidc_role_to_teleport_role_map:
+    "gravitational/admins": ["@teleadmin", "admin"]
+    "gravitational/devc": ["@teleadmin", "admin"]
 
-sidecar:
-  #command: ["/bin/sh"]
-  #command: ["tail", "-f", "/dev/null"]
-  #args: ["-c", "tail", "-f", "/dev/null"]
+### Cloudflare
+cloudflare:
+  # domain you want to update DNS records for
+  domain: gravitational.co
+  # API version (4 is standard/default)
+  apiVersion: 4
+  # optional TTL in seconds to set on DNS records registered with Cloudflare
+  # Cloudflare's default/automatic setting is 300 (5 minutes) which is fine for most situations
+  # For testing it might be useful to set this lower to avoid slow propagation
+  ttl: 60
+
+### LetsEncrypt
+letsencrypt:
+  # Should we get TLS certificates for each cluster? Be aware that leaving this on and deploying many clusters
+  # repeatedly may cause you to hit LetsEncrypt's rate limits. To avoid this, You can take a backup of the tls-web
+  # secret for each cluster namespace after Letsencrypt has provisioned the certificates, then manually re-add these
+  # secrets after deploying the Helm chart
+  enabled: false
+  # Email address to register with LetsEncrypt
+  email: gus@gravitational.com
+
+# Teleport Proxy configuration
+proxy:
+  tls:
+    # true: TLS terminated on proxy server
+    # false: TLS terminated before proxy (i.e. handle TLS yourself and run Teleport in insecure mode)
+    enabled: true
+
+license:
+  ## Set to false to run Teleport in Community edition mode
+  # OIDC isn't supported in the community edition so changing this won't work (for now)
+  enabled: true
+  secretName: teleport-license
+  mountPath: /var/lib/license
+
+# See the admin guide for full details
+# https://gravitational.com/teleport/docs/admin-guide/#configuration-file
+# this file is templated (in templates/auth-config.yaml and templates/node-config.yaml) so just adding new values here
+# WILL NOT WORK - you must also change the template to interpret them
+config:
+  teleport:
+    log:
+      output: stderr
+      severity: DEBUG
+    data_dir: /var/lib/teleport
+    storage:
+      type: dir
+
+  auth_service:
+    enabled: yes
+    authentication:
+      type: oidc
+
+  ssh_service:
+    enabled: no
+
+  proxy_service:
+    enabled: yes
+    web_listen_addr: "0.0.0.0:{{ .Values.ports.auth.proxyweb.containerPort }}"
+    listen_addr: "0.0.0.0:{{ .Values.ports.auth.proxyssh.containerPort }}"
+    kubernetes:
+      enabled: yes
+      listen_addr: "0.0.0.0:{{ .Values.ports.auth.proxykube.containerPort }}"
+      # public_addr is used to set values
+      # setup in kubeconfig after tsh login
+      # public_addr: [kubeproxy.example.com:443]
+
+
+##############################################################
+##### You probably don't want to change stuff below here #####
+##############################################################
+
+# makes the default chart/release name shorter (has 'teleport-' prepended)
+nameOverride: demo
+
+# Teleport container image
+auth:
   image:
-    repository: teleport-sidecar
+    repository: gcr.io/kubeadm-167321/teleport-ent
     tag: "{{ .Values.teleportVersion }}"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     # Optionally specify an array of imagePullSecrets.
     # Secrets must be manually created in the namespace.
     # ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
     pullSecrets:
     # - name: myRegistryKeySecretName
 
+# Teleport container sidecar
+# Handles trusted cluster/node token generation
+sidecar:
+  image:
+    repository: gcr.io/kubeadm-167321/teleport-sidecar
+    tag: "{{ .Values.teleportVersion }}"
+    pullPolicy: Always
+    pullSecrets:
+    # - name: myRegistryKeySecretName
+
+# Teleport node container image
 node:
   image:
-    repository: teleport-ent
+    repository: gcr.io/kubeadm-167321/teleport-ent
     tag: "{{ .Values.teleportVersion }}"
-    pullPolicy: IfNotPresent
-    # Optionally specify an array of imagePullSecrets.
-    # Secrets must be manually created in the namespace.
-    # ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+    pullPolicy: Always
     pullSecrets:
     # - name: myRegistryKeySecretName
 
-secretcleaner:
+# Cloudflare agent container image
+# Used to generate A records for LoadBalancer IP addresses within a Cloudflare-managed domain
+cloudflareagent:
   image:
-    repository: secret-cleaner
+    repository: gcr.io/kubeadm-167321/cloudflare-agent
     tag: latest
-    pullPolicy: IfNotPresent
-    # Optionally specify an array of imagePullSecrets.
-    # Secrets must be manually created in the namespace.
-    # ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+    pullPolicy: Always
+    pullSecrets:
+    # - name: myRegistryKeySecretName
+
+# Namespace cleaner image (runs when a release is deleted to remove the namespaces it created)
+namespacecleaner:
+  image:
+    repository: gcr.io/kubeadm-167321/namespace-cleaner
+    tag: latest
+    pullPolicy: Always
     pullSecrets:
     # - name: myRegistryKeySecretName
 
@@ -99,7 +188,6 @@ annotations: {}
 # Tolerations for pod assignment
 # Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 tolerations: []
-#
 # - key: "dedicated"
 #   operator: "Equal"
 #   value: "teleport"
@@ -110,7 +198,10 @@ tolerations: []
 #   effect: "NoSchedule"
 
 service:
-  type: ClusterIP
+  # use NodePort for local testing/minikube
+  # use LoadBalancer with GKE/Gravity or similar for external access in the cloud
+  #type: NodePort
+  type: LoadBalancer
   ports:
     proxyweb:
       port: 3080
@@ -137,29 +228,8 @@ service:
   # Set something like the below in order to instruct external-dns to create a Route53 record set for your ELB on AWS:
   # external-dns.alpha.kubernetes.io/hostname: teleport.my-org.com
 
-# set up cert-manager
-cert-manager:
-  ingressShim:
-    # this should be letsencrypt-prod unless you want to use staging, in which case it should be letsencrypt-staging
-    defaultIssuerName: letsencrypt-prod
-    defaultIssuerKind: ClusterIssuer
-
-# Use ingress in addition to service to terminate TLS outside of Teleport while using external-dns
-# You can safely use `service` only and disable `ingress`, when you just want to terminate TLS outside of Teleport
-ingress:
-  enabled: true
-  annotations:
-    # See https://cert-manager.readthedocs.io/en/latest/reference/ingress-shim.html#supported-annotations
-    ingress.kubernetes.io/force-ssl-redirect: "true"
-    kubernetes.io/ingress.class: nginx
-    kubernetes.io/tls-acme: "true"
-  tls:
-    - hosts:
-      - "{{ .Values.clusterHostname }}"
-      secretName: teleport-ingress-tls
-
 ports:
-  cluster:
+  auth:
     proxyweb:
       containerPort: 3080
     authssh:
@@ -173,56 +243,6 @@ ports:
   node:
     nodessh:
       containerPort: 3022
-
-# Teleport Proxy configuration
-proxy:
-  tls:
-    # true: TLS terminated on proxy
-    # false: TLS terminated before proxy
-    enabled: false
-
-license:
-  ## Set false to run Teleport in Community edition mode
-  enabled: true
-  secretName: teleport-license
-  mountPath: /var/lib/license
-
-# See the admin guide for full details
-# https://gravitational.com/teleport/docs/admin-guide/#configuration-file
-# this file is templated (in templates/config.yaml) so just adding new values here WILL NOT WORK, you must also change
-# the template to interpret them
-config:
-  teleport:
-    log:
-      output: stderr
-      severity: DEBUG
-    data_dir: /var/lib/teleport
-    storage:
-      type: dir
-
-  auth_service:
-    enabled: yes
-    authentication:
-      type: oidc
-    public_addr: "{{ .Values.clusterHostname }}:{{ .Values.ports.cluster.authssh.containerPort }}"
-    cluster_name: "{{ .Values.clusterHostname }}"
-
-  ssh_service:
-    enabled: no
-
-  proxy_service:
-    enabled: yes
-    public_addr: "{{ .Values.clusterHostname }}"
-    web_listen_addr: "0.0.0.0:{{ .Values.ports.cluster.proxyweb.containerPort }}"
-    listen_addr: "0.0.0.0:{{ .Values.ports.cluster.proxyssh.containerPort }}"
-    # kubernetes section configures
-    # kubernetes proxy protocol support
-    kubernetes:
-      enabled: yes
-      listen_addr: "0.0.0.0:{{ .Values.ports.cluster.proxykube.containerPort }}"
-      # public_addr is used to set values
-      # setup in kubeconfig after tsh login
-      # public_addr: [kubeproxy.example.com:443]
 
 ## Additional container arguments
 extraArgs: []

@@ -1,0 +1,43 @@
+{{- if .Values.persistence.pdName -}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.persistence.pdName }}-{{ .Values.mainClusterName }}
+  namespace: {{ .Values.mainClusterName }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.storageSize }}
+  accessModes:
+    - ReadWriteOnce
+  claimRef:
+    namespace: {{ .Release.Namespace }}
+    name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-storage
+  gcePersistentDisk:
+    pdName: {{ .Values.persistence.pdName }}
+    fsType: {{ .Values.persistence.fsType }}
+
+{{- $root := . -}}
+{{- range .Values.extraClusterNames }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $root.Values.persistence.pdName }}-{{ . }}
+  namespace: {{ . }}
+  labels:
+{{ include "teleport.labels" $root | indent 4 }}
+spec:
+  capacity:
+    storage: {{ $root.Values.persistence.storageSize }}
+  accessModes:
+    - ReadWriteOnce
+  claimRef:
+    namespace: {{ $root.Release.Namespace }}
+    name: {{ template "teleport.fullname" $root }}-{{ . }}-storage
+  gcePersistentDisk:
+    pdName: {{ $root.Values.persistence.pdName }}-{{ . }}
+    fsType: {{ $root.Values.persistence.fsType }}
+{{- end }}
+{{- end }}

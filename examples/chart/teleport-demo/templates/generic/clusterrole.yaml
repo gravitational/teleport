@@ -1,0 +1,117 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "teleport.fullname" . }}-nscleaner
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  resourceNames:
+  - {{ .Values.mainClusterName }}
+  {{- range .Values.extraClusterNames }}
+  - {{ . }}
+  {{- end }}
+  verbs:
+  - delete
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - {{ .Values.mainClusterName }}-trustedcluster-join-token
+  - {{ .Values.mainClusterName }}-node-join-token
+  - {{ .Values.mainClusterName }}-ca
+  - {{ .Values.mainClusterName }}-ca-pin
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  resourceNames:
+  - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+  verbs:
+  - get
+  - list
+  - watch
+
+{{- $root := . -}}
+{{- range .Values.extraClusterNames }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "teleport.fullname" $root }}-{{ . }}
+  labels:
+{{ include "teleport.labels" $root | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - {{ $root.Values.mainClusterName }}-trustedcluster-join-token
+  - {{ . }}-node-join-token
+  - {{ . }}-ca
+  - {{ . }}-ca-pin
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  resourceNames:
+  - {{ template "teleport.fullname" $root }}-{{ . }}
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}
+{{- end -}}
+

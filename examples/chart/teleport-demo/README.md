@@ -1,88 +1,81 @@
-# Teleport
+# Teleport on Kubernetes
 
-[Gravitational Teleport](https://github.com/gravitational/teleport) is a modern SSH/Kubernetes API proxy server for remotely accessing clusters of Linux containers and servers via SSH, HTTPS, or Kubernetes API.
+[Gravitational Teleport](https://github.com/gravitational/teleport) is a modern SSH/Kubernetes API proxy server for
+remotely accessing clusters of Linux containers and servers via SSH, HTTPS, or Kubernetes API.
+
+This configuration is quite a Gravitational-specific deployment but should show a good amount of reusability for other
+savvy admins.
 
 ## Introduction
 
-This chart deploys Teleport components to your cluster via a Kubernetes `Deployment`.
+This chart deploys Teleport components to your cluster using various Kubernetes primitives.
 
-By default this chart is configured as follows:
+It supports a few key features:
+- A configurable number of nodes per cluster (n)
+- One 'main' cluster with <n> nodes in its own Kubernetes namespace
+- Any amount of different-named trusted clusters with <n> nodes, each in their own Kubernetes namespace
+    - These clusters are automatically linked to 'main' as trusted clusters
+- OIDC authentication via Auth0
+- DNS records pointing to a Kubernetes LoadBalancer for each cluster, set up on a configurable Cloudflare domain
+- LetsEncrypt certificates automatically provisioned, configured and renewed for each cluster via certbot-dns-cloudflare
+- Secrets encrypted using sops and a key from GKE
 
-- 1 replica
-- Record ssh/k8s exec and attach session to the `emptyDir` of the Teleport pod
-- The assumed externally accessible hostname of Teleport is `teleport.example.com`
-- Teleport is accessible only from within your cluster. You need `kubectl port-forward` for external access.
-- TLS is enabled by default on the Proxy
-
-See the comments in the default `values.yaml` and also the Teleport documentation for more options.
+See the comments in the default `values.yaml` and also the [Teleport documentation](https://gravitational.com/teleport/docs/quickstart) for more options.
 
 ## Prerequisites
 
 - Kubernetes 1.10+
-- A Teleport license file stored as a Kubernetes Secret object(See below)
-
-### Prepare the license file
-
-Download the `license.pem` from the Teleport dashboard, and then rename it to the filename that this chart expects:
-
-```
-cp ~/Downloads/license.pem license-enterprise.pem
-```
-
-Store it as a Kubernetes secret:
-
-```console
-kubectl create secret generic license --from-file=license-enterprise.pem
-```
+- [sops](https://github.com/mozilla/sops)
+- [helm-secrets](https://github.com/futuresimple/helm-secrets)
+- [gcloud SDK](https://cloud.google.com/sdk/docs/downloads-interactive)
+    - ```curl https://sdk.cloud.google.com | bash``` for a simple install
+- Secrets stored in secrets.yaml and encrypted with sops
+    - Teleport Enterprise license
+    - Email address and API key for a Cloudflare account that controls the domain you wish to use
+    - Client ID and client secret for a configured Auth0 application
 
 ## Installing the chart
 
-To install the chart with the release name `teleport`, run:
+If you want to use a different version of Teleport, you should build and push the Docker images for the specified
+version to GCR:
 
 ```
-$ helm install --name teleport ./
+$ cd examples/chart/teleport-demo/docker
+$ gcloud auth login
+$ gcloud auth configure-docker
+$ ./build-all.sh 3.1.7
 ```
 
-Teleport proxy generates a TLS key and a cert of its own by default.
-In order to instruct the proxy to use the TLS assets brought by you, prepare the following files:
-
-- Your CA cert named `ca.pem`
-- Your proxy server cert named `proxy-server.pem`
-- Your proxy server key named `proxy-server-key.pem`
-
-Then run:
-
-```
-$ kubectl create secret tls tls-web --cert=proxy-server.pem --key=proxy-server-key.pem
-$ kubectl create configmap ca-certs --from-file=ca.pem
-$ helm upgrade --install --name teleport ./
+Make sure that you have access to the key for sops encryption:
+```bash
+$ gcloud auth application-default login
+$ gcloud kms keys list --location global --keyring teleport-sops
+NAME                                                                                          PURPOSE          LABELS  PRIMARY_ID  PRIMARY_STATE
+projects/kubeadm-167321/locations/global/keyRings/teleport-sops/cryptoKeys/teleport-sops-key  ENCRYPT_DECRYPT          1           ENABLED
 ```
 
-## Running locally on minikube
+kubectl needs to know about your cluster - for GKE you can use something like this:
 
-Grab the test setup from the community project [teleport-on-minikube](http://github.com/mumoshu/teleport-on-minikube) and run:
-
-```
-path/to/teleport-on-minikube//scripts/install-on-minikube
-```
-
-Type your desired password, capture the barcode with your MFA device like Google Authenticator, type the OTP.
-
-Now, you can run various `tsh` commands against your local Teleport installation via `teleport.example.com`:
-
-```
-$ tsh login --auth=local --user=$USER login
+```bash
+$ gcloud container clusters get-credentials <cluster-name> --zone <zone> --project <project>
+$ ./gke-init.sh
 ```
 
-## Contributing
+To install the chart with the release name `teleport` and Teleport version 3.1.7, run:
 
-### Building the cli yourself
-
-```console
-$ git clone git@github.com:gravitational/teleport.git ~/go/src/github.com/gravitational/teleport
-cd $_
-
-$ make full
-
-$ build/tsh --proxy=teleport.example.com --auth=local --user=admin login
+```bash
+$ helm secrets install --name teleport -f secrets.yaml ./ --set teleportVersion=3.1.7
 ```
+
+Once the chart is installed successfully, you should be able to go to https://[mainClusterName].[cloudflareDomain]:3080 and log in with
+Auth0 - i.e. https://main.gravitational.co:3080
+
+## Deleting the chart
+
+If you named the chart `teleport`:
+
+```bash
+$ helm delete --purge teleport
+```
+
+Namespaces will automatically be deleted once the cluster is shut down.

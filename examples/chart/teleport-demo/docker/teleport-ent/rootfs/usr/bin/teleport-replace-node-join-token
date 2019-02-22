@@ -11,6 +11,5 @@ if [ ! -f /var/lib/tokens/ca-pin/hash ]; then
 fi
 NODE_JOIN_TOKEN=$(cat /var/lib/tokens/node/join-token)
 CA_PIN_HASH=$(cat /var/lib/tokens/ca-pin/hash)
-cp /etc/teleport/teleport.yaml /tmp/teleport.yaml
 sed -i "s/NODE_JOIN_TOKEN_PLACEHOLDER/${NODE_JOIN_TOKEN}/g" /tmp/teleport.yaml
 sed -i "s/CA_PIN_HASH_PLACEHOLDER/${CA_PIN_HASH}/g" /tmp/teleport.yaml

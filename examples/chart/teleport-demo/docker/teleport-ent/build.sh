@@ -1,2 +1,7 @@
 #!/bin/bash
-docker build -t teleport-ent:3.1.4 --build-arg TELEPORT_VERSION=3.1.4 .
+VERSION=3.1.4
+if [[ "$1" != "" ]]; then
+    VERSION=$1
+fi
+docker build -t gcr.io/kubeadm-167321/teleport-ent:${VERSION} --build-arg TELEPORT_VERSION=${VERSION} .
+docker push gcr.io/kubeadm-167321/teleport-ent:${VERSION}
