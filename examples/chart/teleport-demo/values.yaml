@@ -35,7 +35,7 @@ cloudflare:
   # optional TTL in seconds to set on DNS records registered with Cloudflare
   # Cloudflare's default/automatic setting is 300 (5 minutes) which is fine for most situations
   # For testing it might be useful to set this lower to avoid slow propagation
-  ttl: 60
+  #ttl: 300
 
 ### LetsEncrypt
 letsencrypt:
