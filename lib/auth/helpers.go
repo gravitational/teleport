@@ -112,7 +112,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		TestAuthServerConfig: cfg,
 	}
 	var err error
-	srv.Backend, err = lite.NewWithConfig(context.Background(), lite.Config{
+	b, err := lite.NewWithConfig(context.Background(), lite.Config{
 		Path:             cfg.Dir,
 		PollStreamPeriod: 100 * time.Millisecond,
 		Clock:            cfg.Clock,
@@ -120,6 +120,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Wrap backend in sanitizer like in production.
+	srv.Backend = backend.NewSanitizer(b)
 
 	srv.AuditLog, err = events.NewAuditLog(events.AuditLogConfig{
 		DataDir:        cfg.Dir,
