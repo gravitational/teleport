@@ -114,6 +114,21 @@ const (
 	// LoginMethodGithub represents login with Github
 	LoginMethodGithub = "github"
 
+	// UserUpdatedEvent is emitted when the user is created or updated (upsert).
+	UserUpdatedEvent = "user.update"
+
+	// UserDeleteEvent is emitted when the user is deleted.
+	UserDeleteEvent = "user.delete"
+
+	// UserExpires is when the user will expire.
+	UserExpires = "expires"
+
+	// UserRoles is a list of roles for the user.
+	UserRoles = "roles"
+
+	// UserConnector is the connector used to create the user.
+	UserConnector = "connector"
+
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
 	ExecEvent        = "exec"
