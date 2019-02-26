@@ -26,7 +26,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -55,7 +54,7 @@ type TLSSuite struct {
 var _ = check.Suite(&TLSSuite{})
 
 func (s *TLSSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *TLSSuite) SetUpTest(c *check.C) {

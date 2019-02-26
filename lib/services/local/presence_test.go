@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"gopkg.in/check.v1"
-	"testing"
 )
 
 type PresenceSuite struct {
@@ -39,7 +38,7 @@ var _ = check.Suite(&PresenceSuite{})
 var _ = fmt.Printf
 
 func (s *PresenceSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *PresenceSuite) TearDownSuite(c *check.C) {

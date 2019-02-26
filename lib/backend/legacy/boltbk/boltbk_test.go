@@ -38,7 +38,7 @@ type BoltSuite struct {
 var _ = check.Suite(&BoltSuite{})
 
 func (s *BoltSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *BoltSuite) SetUpTest(c *check.C) {

@@ -115,7 +115,7 @@ var _ = check.Suite(&ClusterSnapshotSuite{})
 func TestState(t *testing.T) { check.TestingT(t) }
 
 func (s *ClusterSnapshotSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 	s.clock = clockwork.NewRealClock()
 }
 

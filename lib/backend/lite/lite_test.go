@@ -39,7 +39,7 @@ type LiteSuite struct {
 var _ = check.Suite(&LiteSuite{})
 
 func (s *LiteSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 	newBackend := func() (backend.Backend, error) {
 		return New(context.Background(), map[string]interface{}{
 			"path":               c.MkDir(),

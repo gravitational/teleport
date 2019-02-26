@@ -44,7 +44,7 @@ type LegacySuite struct {
 var _ = check.Suite(&LegacySuite{})
 
 func (s *LegacySuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 // TestProtoServer tests that protobuf server is compatible with
