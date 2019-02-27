@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2019 Gravitational, Inc.
 Package main contains the enterprise edition of tctl CLI tool.
 */
 
@@ -19,6 +19,7 @@ func main() {
 		&common.TokenCommand{},
 		&common.AuthCommand{},
 		&common.StatusCommand{},
+		&common.TopCommand{},
 		&ResourceCommandE{},
 		&SAMLCommand{},
 	}
