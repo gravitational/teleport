@@ -7,7 +7,7 @@ ENV CURL_OPTS="-L --retry 100 --retry-delay 0 --connect-timeout 10 --max-time 30
 # Update packages
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && \
-    apt-get -y install curl jq python2.7 && \
+    apt-get -y install curl jq python2.7 build-essential python-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt
 
