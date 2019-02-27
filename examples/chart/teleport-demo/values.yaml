@@ -43,7 +43,7 @@ letsencrypt:
   # repeatedly may cause you to hit LetsEncrypt's rate limits. To avoid this, You can take a backup of the tls-web
   # secret for each cluster namespace after Letsencrypt has provisioned the certificates, then manually re-add these
   # secrets after deploying the Helm chart
-  enabled: false
+  enabled: true
   # Email address to register with LetsEncrypt
   email: gus@gravitational.com
 
