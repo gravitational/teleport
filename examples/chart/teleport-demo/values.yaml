@@ -8,7 +8,7 @@ mainClusterName: main
 # adding more values to this list will create more trusted clusters
 # each of these will be deployed to its own equivalent namespace
 extraClusterNames:
-  - east
+- east
 # number of nodes to start in each cluster
 nodesPerCluster: 2
 

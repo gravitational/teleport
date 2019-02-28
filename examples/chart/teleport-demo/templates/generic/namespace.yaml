@@ -8,7 +8,7 @@ metadata:
     "helm.sh/hook": "pre-install"
     "helm.sh/hook-weight": "-10"
 
-{{- if not ((len .Values.extraClusterNames) eq 0) -}}
+{{- if not (eq (index .Values.extraClusterNames 0) "") -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -47,7 +47,7 @@ spec:
         imagePullPolicy: {{ .Values.namespacecleaner.image.pullPolicy }}
         args:
         - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
-        {{- if not ((len .Values.extraClusterNames) eq 0) -}}
+        {{- if not (eq (index .Values.extraClusterNames 0) "") -}}
         {{- $root := . -}}
         {{- range .Values.extraClusterNames }}
         - {{ template "teleport.fullname" $root }}-{{ . }}

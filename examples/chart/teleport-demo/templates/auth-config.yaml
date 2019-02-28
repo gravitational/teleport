@@ -60,7 +60,7 @@ data:
         - { claim: "roles", value: "gravitational/admins", roles: ["admin"] }
         - { claim: "roles", value: "gravitational/devc", roles: ["admin"] }
 
-{{- if not ((len .Values.extraClusterNames) eq 0) -}}
+{{- if not (eq (index .Values.extraClusterNames 0) "") -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
