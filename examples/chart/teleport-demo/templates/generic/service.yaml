@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
-  namespace: {{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 {{- if .Values.service.labels }}
@@ -23,7 +23,7 @@ spec:
 {{ toYaml $value | indent 6 }}
   {{- end }}
   selector:
-    app: {{ template "teleport.name" . }}-{{ .Values.mainClusterName }}
+    app: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
     release: {{ .Release.Name }}
     role: auth
 
@@ -34,7 +34,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ template "teleport.fullname" $root }}-{{ . }}
-  namespace: {{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
   labels:
 {{ include "teleport.labels" $root | indent 4 }}
 {{- if $root.Values.service.labels }}
@@ -55,7 +55,7 @@ spec:
 {{ toYaml $value | indent 6 }}
   {{- end }}
   selector:
-    app: {{ template "teleport.name" $root }}-{{ . }}
+    app: {{ template "teleport.fullname" $root }}-{{ . }}
     release: {{ $root.Release.Name }}
     role: auth
 {{- end }}

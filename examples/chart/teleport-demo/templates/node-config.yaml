@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-node-config
-  namespace: {{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 data:
@@ -35,7 +35,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ template "teleport.fullname" $root }}-{{ . }}-node-config
-  namespace: {{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
   labels:
 {{ include "teleport.labels" $root | indent 4 }}
 data:

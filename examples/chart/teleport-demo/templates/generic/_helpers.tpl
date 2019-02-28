@@ -44,7 +44,7 @@ Create the name of the service account to use
 
 {{/*  Manage the labels for each entity  */}}
 {{- define "teleport.labels" -}}
-app: {{ template "teleport.name" . }}
+app: {{ template "teleport.fullname" . }}
 fullname: {{ template "teleport.fullname" . }}
 chart: {{ template "teleport.chart" . }}
 release: {{ .Release.Name }}

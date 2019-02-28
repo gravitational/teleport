@@ -2,7 +2,7 @@ apiVersion: apps/v1beta1
 kind: StatefulSet
 metadata:
   name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-node
-  namespace: {{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 {{- if .Values.labels }}
@@ -13,9 +13,9 @@ spec:
   podManagementPolicy: Parallel
   template:
     metadata:
-      namespace: {{ .Values.mainClusterName }}
+      namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
       labels:
-        app: {{ template "teleport.name" . }}
+        app: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
         release: {{ .Release.Name }}
         heritage: {{ .Release.Service }}
         role: node
@@ -26,7 +26,7 @@ spec:
 {{- end }}
     spec:
       containers:
-      - name: {{ .Chart.Name }}-{{ .Values.mainClusterName }}-node
+      - name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-node
         image: "{{ .Values.node.image.repository }}:{{ tpl .Values.node.image.tag . }}"
         imagePullPolicy: {{ .Values.node.image.pullPolicy }}
         args:
@@ -76,10 +76,10 @@ spec:
         {{- end }}
       - name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-node-join-token
         secret:
-          secretName: {{ .Values.mainClusterName }}-node-join-token
+          secretName: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-node-join-token
       - name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-ca-pin
         secret:
-          secretName: {{ .Values.mainClusterName }}-ca-pin
+          secretName: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-ca-pin
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
 {{- end }}
@@ -104,7 +104,7 @@ apiVersion: apps/v1beta1
 kind: StatefulSet
 metadata:
   name: {{ template "teleport.fullname" $root }}-{{ . }}-node
-  namespace: {{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
   labels:
 {{ include "teleport.labels" $root | indent 4 }}
 {{- if $root.Values.labels }}
@@ -115,9 +115,9 @@ spec:
   podManagementPolicy: Parallel
   template:
     metadata:
-      namespace: {{ . }}
+      namespace: {{ template "teleport.fullname" $root }}-{{ . }}
       labels:
-        app: {{ template "teleport.name" $root }}-{{ . }}
+        app: {{ template "teleport.fullname" $root }}-{{ . }}
         release: {{ $root.Release.Name }}
         heritage: {{ $root.Release.Service }}
         role: node
@@ -128,7 +128,7 @@ spec:
 {{- end }}
     spec:
       containers:
-      - name: {{ $root.Chart.Name }}-{{ . }}-node
+      - name: {{ template "teleport.fullname" $root }}--{{ . }}-node
         image: "{{ $root.Values.node.image.repository }}:{{ tpl $root.Values.node.image.tag $root }}"
         imagePullPolicy: {{ $root.Values.node.image.pullPolicy }}
         args:
@@ -178,10 +178,10 @@ spec:
         {{- end }}
       - name: {{ template "teleport.fullname" $root }}-{{ . }}-node-join-token
         secret:
-          secretName: {{ . }}-node-join-token
+          secretName: {{ template "teleport.fullname" $root }}-{{ . }}-node-join-token
       - name: {{ template "teleport.fullname" $root }}-{{ . }}-ca-pin
         secret:
-          secretName: {{ . }}-ca-pin
+          secretName: {{ template "teleport.fullname" $root }}-{{ . }}-ca-pin
 {{- if $root.Values.extraVolumes }}
 {{ toYaml $root.Values.extraVolumes | indent 6 }}
 {{- end }}

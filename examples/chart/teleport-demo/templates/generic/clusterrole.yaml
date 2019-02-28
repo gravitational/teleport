@@ -16,9 +16,10 @@ rules:
   resources:
   - namespaces
   resourceNames:
-  - {{ .Values.mainClusterName }}
+  - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+  {{- $root := . -}}
   {{- range .Values.extraClusterNames }}
-  - {{ . }}
+  - {{ template "teleport.fullname" $root }}-{{ . }}
   {{- end }}
   verbs:
   - delete
@@ -46,10 +47,11 @@ rules:
   resources:
   - secrets
   resourceNames:
-  - {{ .Values.mainClusterName }}-trustedcluster-join-token
-  - {{ .Values.mainClusterName }}-node-join-token
-  - {{ .Values.mainClusterName }}-ca
-  - {{ .Values.mainClusterName }}-ca-pin
+  - tls-web
+  - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-trustedcluster-join-token
+  - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-node-join-token
+  - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-ca
+  - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-ca-pin
   verbs:
   - delete
   - get
@@ -92,10 +94,11 @@ rules:
   resources:
   - secrets
   resourceNames:
-  - {{ $root.Values.mainClusterName }}-trustedcluster-join-token
-  - {{ . }}-node-join-token
-  - {{ . }}-ca
-  - {{ . }}-ca-pin
+  - tls-web
+  - {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}-trustedcluster-join-token
+  - {{ template "teleport.fullname" $root }}-{{ . }}-node-join-token
+  - {{ template "teleport.fullname" $root }}-{{ . }}-ca
+  - {{ template "teleport.fullname" $root }}-{{ . }}-ca-pin
   verbs:
   - delete
   - get

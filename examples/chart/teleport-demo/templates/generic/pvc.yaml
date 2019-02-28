@@ -3,7 +3,7 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-storage
-  namespace: {{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 {{- if .Values.persistence.annotations }}
@@ -31,7 +31,7 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: {{ template "teleport.fullname" $root }}-{{ . }}-storage
-  namespace: {{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
   labels:
 {{ include "teleport.labels" $root | indent 4 }}
 {{- if $root.Values.persistence.annotations }}

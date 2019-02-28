@@ -3,7 +3,7 @@ apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: {{ .Values.persistence.pdName }}-{{ .Values.mainClusterName }}
-  namespace: {{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 spec:
@@ -12,7 +12,7 @@ spec:
   accessModes:
     - ReadWriteOnce
   claimRef:
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
     name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-storage
   gcePersistentDisk:
     pdName: {{ .Values.persistence.pdName }}
@@ -24,8 +24,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ $root.Values.persistence.pdName }}-{{ . }}
-  namespace: {{ . }}
+  name: {{ template "teleport.fullname" $root }}-{{ $root.Values.persistence.pdName }}-{{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
   labels:
 {{ include "teleport.labels" $root | indent 4 }}
 spec:
@@ -34,7 +34,7 @@ spec:
   accessModes:
     - ReadWriteOnce
   claimRef:
-    namespace: {{ $root.Release.Namespace }}
+    namespace: {{ template "teleport.fullname" $root }}-{{ . }}
     name: {{ template "teleport.fullname" $root }}-{{ . }}-storage
   gcePersistentDisk:
     pdName: {{ $root.Values.persistence.pdName }}-{{ . }}

@@ -35,7 +35,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ template "teleport.serviceAccountName" . }}-{{ .Values.mainClusterName }}
-  namespace: {{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -56,6 +56,6 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ template "teleport.serviceAccountName" $root }}-{{ . }}
-  namespace: {{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
 {{- end -}}
 {{- end -}}

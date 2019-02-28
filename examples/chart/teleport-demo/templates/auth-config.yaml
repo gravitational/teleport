@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-cluster-config
-  namespace: {{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 data:
@@ -20,15 +20,15 @@ data:
       license_file: {{ .Values.license.mountPath }}/license.pem
       authentication:
         type: {{ .Values.config.auth_service.authentication.type }}
-      public_addr: {{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:3025
-      cluster_name: {{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}
+      public_addr: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:3025
+      cluster_name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}
 
     ssh_service:
       enabled: no
 
     proxy_service:
       enabled: {{ .Values.config.proxy_service.enabled }}
-      public_addr: {{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}
+      public_addr: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}
       web_listen_addr: {{ tpl .Values.config.proxy_service.web_listen_addr . }}
       listen_addr: {{ tpl .Values.config.proxy_service.listen_addr . }}
       {{- if .Values.proxy.tls.enabled }}
@@ -51,7 +51,7 @@ data:
       issuer_url: {{ .Values.auth0.issuer_url }}
       client_id: {{ .Values.secrets.auth0.client_id }}
       client_secret: {{ .Values.secrets.auth0.client_secret }}
-      redirect_url: https://{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:{{ .Values.ports.auth.proxyweb.containerPort }}/v1/webapi/oidc/callback
+      redirect_url: https://{{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:{{ .Values.ports.auth.proxyweb.containerPort }}/v1/webapi/oidc/callback
 
       scope: {{ .Values.auth0.scope }}
 
@@ -67,7 +67,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ template "teleport.fullname" $root }}-{{ . }}-cluster-config
-  namespace: {{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
   labels:
 {{ include "teleport.labels" $root | indent 4 }}
 data:
@@ -85,15 +85,15 @@ data:
       license_file: /var/lib/license/license.pem
       authentication:
         type: {{ $root.Values.config.auth_service.authentication.type }}
-      public_addr: {{ . }}.{{ $root.Values.cloudflare.domain }}:3025
-      cluster_name: {{ . }}.{{ $root.Values.cloudflare.domain }}
+      public_addr: {{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}:3025
+      cluster_name: {{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}
 
     ssh_service:
       enabled: no
 
     proxy_service:
       enabled: {{ $root.Values.config.proxy_service.enabled }}
-      public_addr: {{ . }}.{{ $root.Values.cloudflare.domain }}
+      public_addr: {{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}
       web_listen_addr: {{ tpl $root.Values.config.proxy_service.web_listen_addr $root }}
       listen_addr: {{ tpl $root.Values.config.proxy_service.listen_addr $root }}
       {{- if $root.Values.proxy.tls.enabled }}
@@ -110,12 +110,12 @@ data:
     kind: trusted_cluster
     version: v2
     metadata:
-      name: {{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}
+      name: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}
     spec:
       enabled: true
       token: TRUSTEDCLUSTER_JOIN_TOKEN_PLACEHOLDER
-      tunnel_addr: {{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.ports.auth.proxytunnel.containerPort }}
-      web_proxy_addr: {{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.ports.auth.proxyweb.containerPort }}
+      tunnel_addr: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.ports.auth.proxytunnel.containerPort }}
+      web_proxy_addr: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.ports.auth.proxyweb.containerPort }}
       {{- if $root.Values.license.enabled }}
       role_map:
       - remote: "admin"
@@ -131,7 +131,7 @@ data:
       issuer_url: {{ $root.Values.auth0.issuer_url }}
       client_id: {{ $root.Values.secrets.auth0.client_id }}
       client_secret: {{ $root.Values.secrets.auth0.client_secret }}
-      redirect_url: https://{{ . }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.ports.auth.proxyweb.containerPort }}/v1/webapi/oidc/callback
+      redirect_url: https://{{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.ports.auth.proxyweb.containerPort }}/v1/webapi/oidc/callback
 
       scope: {{ $root.Values.auth0.scope }}
 

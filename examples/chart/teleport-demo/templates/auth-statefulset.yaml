@@ -2,7 +2,7 @@ apiVersion: apps/v1beta1
 kind: StatefulSet
 metadata:
   name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-auth
-  namespace: {{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 {{- if .Values.labels }}
@@ -13,7 +13,7 @@ spec:
   template:
     metadata:
       labels:
-        app: {{ template "teleport.name" . }}-{{ .Values.mainClusterName }}
+        app: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
         release: {{ .Release.Name }}
         heritage: {{ .Release.Service }}
         role: auth
@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
       - name: auth
-        namespace: {{ .Values.mainClusterName }}
+        namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
         image: "{{ .Values.auth.image.repository }}:{{ tpl .Values.auth.image.tag . }}"
         imagePullPolicy: {{ .Values.auth.image.pullPolicy }}
         args:
@@ -88,7 +88,7 @@ spec:
         - name: CLUSTER_TYPE
           value: primary
         - name: CLUSTER_NAME
-          value: {{ .Values.mainClusterName }}
+          value: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
         - name: NAMESPACE
           valueFrom:
             fieldRef:
@@ -160,7 +160,7 @@ apiVersion: apps/v1beta1
 kind: StatefulSet
 metadata:
   name: {{ template "teleport.fullname" $root }}-{{ . }}-auth
-  namespace: {{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
   labels:
 {{ include "teleport.labels" $root | indent 4 }}
 {{- if $root.Values.labels }}
@@ -171,7 +171,7 @@ spec:
   template:
     metadata:
       labels:
-        app: {{ template "teleport.name" $root }}-{{ . }}
+        app: {{ template "teleport.fullname" $root }}-{{ . }}
         release: {{ $root.Release.Name }}
         heritage: {{ $root.Release.Service }}
         role: auth
@@ -245,9 +245,9 @@ spec:
         - name: CLUSTER_TYPE
           value: secondary
         - name: MAIN_CLUSTER_NAME
-          value: {{ $root.Values.mainClusterName }}
+          value: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}
         - name: CLUSTER_NAME
-          value: {{ . }}
+          value: {{ template "teleport.fullname" $root }}-{{ . }}
         - name: NAMESPACE
           valueFrom:
             fieldRef:

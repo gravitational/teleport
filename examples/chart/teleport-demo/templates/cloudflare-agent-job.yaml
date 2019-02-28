@@ -2,7 +2,7 @@ kind: Job
 apiVersion: batch/v1
 metadata:
   name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-cloudflare-agent
-  namespace: {{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 {{- if .Values.labels }}
@@ -11,19 +11,19 @@ metadata:
 spec:
   template:
     metadata:
-      namespace: {{ .Values.mainClusterName }}
+      namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
       labels:
         app: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-cloudflare-agent
     spec:
       containers:
-      - name: {{ .Chart.Name }}-{{ .Values.mainClusterName }}-cloudflare-agent
+      - name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-cloudflare-agent
         image: {{ .Values.cloudflareagent.image.repository }}:{{ .Values.cloudflareagent.image.tag }}
         imagePullPolicy: {{ .Values.cloudflareagent.image.pullPolicy }}
         env:
           - name: API_VERSION
             value: "{{ .Values.cloudflare.apiVersion }}"
           - name: CLUSTER_NAME
-            value: "{{ .Values.mainClusterName }}"
+            value: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
           - name: CLOUDFLARE_DOMAIN
             value: "{{ .Values.cloudflare.domain }}"
           - name: CLOUDFLARE_TTL
@@ -73,7 +73,7 @@ kind: Job
 apiVersion: batch/v1
 metadata:
   name: {{ template "teleport.fullname" $root }}-{{ . }}-cloudflare-agent
-  namespace: {{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
   labels:
 {{ include "teleport.labels" $root | indent 4 }}
 {{- if $root.Values.labels }}
@@ -82,19 +82,19 @@ metadata:
 spec:
   template:
     metadata:
-      namespace: {{ . }}
+      namespace: {{ template "teleport.fullname" $root }}-{{ . }}
       labels:
         app: {{ template "teleport.fullname" $root }}-{{ . }}-cloudflare-agent
     spec:
       containers:
-      - name: {{ $root.Chart.Name }}-{{ . }}-cloudflare-agent
+      - name: {{ template "teleport.fullname" $root }}-{{ . }}-cloudflare-agent
         image: {{ $root.Values.cloudflareagent.image.repository }}:{{ $root.Values.cloudflareagent.image.tag }}
         imagePullPolicy: {{ $root.Values.cloudflareagent.image.pullPolicy }}
         env:
           - name: API_VERSION
             value: "{{ $root.Values.cloudflare.apiVersion }}"
           - name: CLUSTER_NAME
-            value: "{{ . }}"
+            value: {{ template "teleport.fullname" $root }}-{{ . }}
           - name: CLOUDFLARE_DOMAIN
             value: "{{ $root.Values.cloudflare.domain }}"
           - name: CLOUDFLARE_TTL

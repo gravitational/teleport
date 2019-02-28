@@ -43,7 +43,7 @@ letsencrypt:
   # repeatedly may cause you to hit LetsEncrypt's rate limits. To avoid this, You can take a backup of the tls-web
   # secret for each cluster namespace after Letsencrypt has provisioned the certificates, then manually re-add these
   # secrets after deploying the Helm chart
-  enabled: true
+  enabled: false
   # Email address to register with LetsEncrypt
   email: gus@gravitational.com
 
@@ -98,8 +98,8 @@ config:
 ##### You probably don't want to change stuff below here #####
 ##############################################################
 
-# makes the default chart/release name shorter (has 'teleport-' prepended)
-nameOverride: demo
+# makes the default chart/release name shorter
+nameOverride: teleport
 
 # Teleport container image
 auth:

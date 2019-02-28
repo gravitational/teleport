@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ .Values.mainClusterName }}
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
   labels:
 {{ include "teleport.labels" .| indent 4 }}
   annotations:
@@ -14,7 +14,7 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ . }}
+  name: {{ template "teleport.fullname" $root }}-{{ . }}
   labels:
 {{ include "teleport.labels" $root | indent 4 }}
   annotations:
@@ -26,7 +26,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: namespace-cleaner
-  namespace: default
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "teleport.labels" . | indent 4 }}
   annotations:
@@ -35,7 +35,7 @@ metadata:
 spec:
   template:
     metadata:
-      namespace: default
+      namespace: {{ .Release.Namespace }}
       labels:
         app: namespace-cleaner
     spec:
@@ -44,9 +44,10 @@ spec:
         image: {{ .Values.namespacecleaner.image.repository }}:{{ .Values.namespacecleaner.image.tag }}
         imagePullPolicy: {{ .Values.namespacecleaner.image.pullPolicy }}
         args:
-        - {{ .Values.mainClusterName }}
+        - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+        {{- $root := . -}}
         {{- range .Values.extraClusterNames }}
-        - {{ . }}
+        - {{ template "teleport.fullname" $root }}-{{ . }}
         {{- end }}
       restartPolicy: Never
 {{- if .Values.cloudflareagent.image.pullSecrets }}
