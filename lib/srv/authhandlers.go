@@ -154,7 +154,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		h.Debugf("need a valid principal for key")
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
-
 	if len(cert.KeyId) == 0 {
 		h.Debugf("need a valid key ID for key")
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
@@ -172,13 +171,16 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		h.AuditLog.EmitAuditEvent(events.AuthAttemptEvent, fields)
 	}
 
-	certChecker := ssh.CertChecker{IsUserAuthority: h.IsUserAuthority}
+	// Check that the user certificate uses supported public key algorithms, was
+	// issued by Teleport, and check the certificate metadata (principals,
+	// timestamp, etc). Fallback to keys is not supported.
+	certChecker := utils.CertChecker{
+		CertChecker: ssh.CertChecker{
+			IsUserAuthority: h.IsUserAuthority,
+		},
+	}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
-		recordFailedLogin(err)
-		return nil, trace.Wrap(err)
-	}
-	if err := certChecker.CheckCert(conn.User(), cert); err != nil {
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
@@ -247,9 +249,11 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 
 	// Check if the given host key was signed by a Teleport certificate
 	// authority (CA) or fallback to host key checking if it's allowed.
-	certChecker := ssh.CertChecker{
-		IsHostAuthority: h.IsHostAuthority,
-		HostKeyFallback: h.hostKeyCallback,
+	certChecker := utils.CertChecker{
+		CertChecker: ssh.CertChecker{
+			IsHostAuthority: h.IsHostAuthority,
+			HostKeyFallback: h.hostKeyCallback,
+		},
 	}
 	err := certChecker.CheckHostKey(addr, remote, key)
 	if err != nil {
@@ -258,7 +262,7 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 	return nil
 }
 
-// hostKeyCallback allows connections to host that present keys only if
+// hostKeyCallback allows connections to hosts that present keys only if
 // strict host key checking is disabled.
 func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
 	// If strict host key checking is enabled, reject host key fallback.
@@ -272,7 +276,7 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 
 	// If strict host key checking is not enabled, log that Teleport trusted an
 	// insecure key, but allow the request to go through.
-	h.Warn("Insecure configuration! Strict host key checking disabled, allowing login without checking host key.")
+	h.Warn("Insecure configuration! Strict host key checking disabled, allowing login without checking host key of type %v.", key.Type())
 	return nil
 }
 

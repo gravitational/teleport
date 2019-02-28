@@ -173,6 +173,8 @@ func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
 // TestRemoteRotation tests remote builtin role
 // that attempts certificate authority rotation
 func (s *TLSSuite) TestRemoteRotation(c *check.C) {
+	var ok bool
+
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
@@ -195,7 +197,8 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 
 	// remote cluster starts rotation
 	gracePeriod := time.Hour
-	remoteServer.AuthServer.privateKey = fixtures.PEMBytes["rsa2"]
+	remoteServer.AuthServer.privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
 	err = remoteServer.AuthServer.RotateCertAuthority(RotateRequest{
 		Type:        services.HostCA,
 		GracePeriod: &gracePeriod,
@@ -306,6 +309,8 @@ func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 
 // TestAutoRotation tests local automatic rotation
 func (s *TLSSuite) TestAutoRotation(c *check.C) {
+	var ok bool
+
 	clock := clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Hour))
 	s.server.Auth().SetClock(clock)
 
@@ -318,7 +323,8 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// starts rotation
-	s.server.Auth().privateKey = fixtures.PEMBytes["rsa2"]
+	s.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
 	gracePeriod := time.Hour
 	err = s.server.Auth().RotateCertAuthority(RotateRequest{
 		Type:        services.HostCA,
@@ -398,6 +404,8 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 // when user intervenes with rollback and rotation gets switched
 // to manual mode
 func (s *TLSSuite) TestAutoFallback(c *check.C) {
+	var ok bool
+
 	clock := clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Hour))
 	s.server.Auth().SetClock(clock)
 
@@ -410,7 +418,8 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// starts rotation
-	s.server.Auth().privateKey = fixtures.PEMBytes["rsa2"]
+	s.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
 	gracePeriod := time.Hour
 	err = s.server.Auth().RotateCertAuthority(RotateRequest{
 		Type:        services.HostCA,
@@ -453,6 +462,8 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 // TestManualRotation tests local manual rotation
 // that performs full-cycle certificate authority rotation
 func (s *TLSSuite) TestManualRotation(c *check.C) {
+	var ok bool
+
 	// create proxy client just for test purposes
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
@@ -463,7 +474,8 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 
 	// can't jump to mid-phase
 	gracePeriod := time.Hour
-	s.server.Auth().privateKey = fixtures.PEMBytes["rsa2"]
+	s.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
 	err = s.server.Auth().RotateCertAuthority(RotateRequest{
 		Type:        services.HostCA,
 		GracePeriod: &gracePeriod,
@@ -555,6 +567,8 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 
 // TestRollback tests local manual rotation rollback
 func (s *TLSSuite) TestRollback(c *check.C) {
+	var ok bool
+
 	// create proxy client just for test purposes
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
@@ -565,8 +579,8 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 
 	// starts rotation
 	gracePeriod := time.Hour
-	s.server.Auth().privateKey = fixtures.PEMBytes["rsa2"]
-
+	s.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
 	err = s.server.Auth().RotateCertAuthority(RotateRequest{
 		Type:        services.HostCA,
 		GracePeriod: &gracePeriod,

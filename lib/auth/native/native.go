@@ -150,7 +150,7 @@ func (k *Keygen) precomputeKeys() {
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
 // execute.
 func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
 	if err != nil {
 		return nil, nil, err
 	}
