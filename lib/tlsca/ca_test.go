@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/jonboulle/clockwork"
@@ -46,7 +47,7 @@ func (s *TLSCASuite) TestPrincipals(c *check.C) {
 	ca, err := New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	c.Assert(err, check.IsNil)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
 	c.Assert(err, check.IsNil)
 
 	hostnames := []string{"localhost", "example.com"}

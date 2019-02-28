@@ -448,13 +448,8 @@ func makeAddr(host string, port int16) *utils.NetAddr {
 	return retval
 }
 
-const (
-	// RSABits is the default RSA bits for the private key
-	RSABits = 2048
-
-	// CATTL is a default lifetime of a CA certificate
-	CATTL = time.Hour * 24 * 365 * 10
-)
+// CATTL is a default lifetime of a CA certificate
+const CATTL = time.Hour * 24 * 365 * 10
 
 const (
 	// WebsocketVersion is the version of the protocol.

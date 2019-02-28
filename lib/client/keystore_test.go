@@ -244,6 +244,23 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	}
 }
 
+// TestCheckKey make sure Teleport clients don't load invalid user
+// certificates. The main check is the certificate algorithms.
+func (s *KeyStoreTestSuite) TestCheckKey(c *check.C) {
+	key := s.makeSignedKey(c, false)
+
+	// Swap out the key with a ECDSA SSH key.
+	ellipticCertificate, _, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
+	c.Assert(err, check.IsNil)
+	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
+
+	err = s.store.AddKey("host.a", "bob", key)
+	c.Assert(err, check.IsNil)
+
+	_, err = s.store.GetKey("host.a", "bob")
+	c.Assert(err, check.NotNil)
+}
+
 var (
 	CAPriv = []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAwBgwn+vkjCcKEr2fbX1mLN555B9amVYfD/fUZBNbXKpHaqYn
