@@ -153,6 +153,7 @@ spec:
 {{- end }}
       serviceAccountName: {{ template "teleport.serviceAccountName" . }}-{{ .Values.mainClusterName }}
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -311,4 +312,5 @@ spec:
 {{ toYaml $root.Values.tolerations | indent 6 }}
 {{- end }}
       serviceAccountName: {{ template "teleport.serviceAccountName" $root }}-{{ . }}
+{{- end -}}
 {{- end }}

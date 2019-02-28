@@ -18,6 +18,7 @@ spec:
     pdName: {{ .Values.persistence.pdName }}
     fsType: {{ .Values.persistence.fsType }}
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -39,5 +40,6 @@ spec:
   gcePersistentDisk:
     pdName: {{ $root.Values.persistence.pdName }}-{{ . }}
     fsType: {{ $root.Values.persistence.fsType }}
-{{- end }}
+{{- end -}}
+{{- end -}}
 {{- end }}

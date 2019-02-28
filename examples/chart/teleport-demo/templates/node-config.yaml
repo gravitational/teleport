@@ -28,6 +28,7 @@ data:
     proxy_service:
       enabled: no
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -60,4 +61,5 @@ data:
 
     proxy_service:
       enabled: no
+{{- end -}}
 {{- end }}

@@ -24,6 +24,7 @@ spec:
 {{- end }}
 {{- end }}
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -49,7 +50,8 @@ spec:
   storageClassName: ""
 {{- else }}
   storageClassName: "{{ $root.Values.persistence.storageClass }}"
-{{- end }}
-{{- end }}
-{{- end }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- end }}

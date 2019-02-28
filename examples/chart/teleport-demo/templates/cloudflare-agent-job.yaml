@@ -66,6 +66,7 @@ spec:
       serviceAccountName: {{ template "teleport.serviceAccountName" . }}-{{ .Values.mainClusterName }}
   backoffLimit: 0
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -136,4 +137,5 @@ spec:
 {{- end }}
       serviceAccountName: {{ template "teleport.serviceAccountName" $root }}-{{ . }}
   backoffLimit: 0
+{{- end -}}
 {{- end }}

@@ -8,6 +8,7 @@ metadata:
     "helm.sh/hook": "pre-install"
     "helm.sh/hook-weight": "-10"
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -20,6 +21,7 @@ metadata:
   annotations:
     "helm.sh/hook": "pre-install"
     "helm.sh/hook-weight": "-10"
+{{- end -}}
 {{- end }}
 ---
 apiVersion: batch/v1
@@ -45,9 +47,11 @@ spec:
         imagePullPolicy: {{ .Values.namespacecleaner.image.pullPolicy }}
         args:
         - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+        {{- if not ((len .Values.extraClusterNames) eq 0) -}}
         {{- $root := . -}}
         {{- range .Values.extraClusterNames }}
         - {{ template "teleport.fullname" $root }}-{{ . }}
+        {{- end -}}
         {{- end }}
       restartPolicy: Never
 {{- if .Values.cloudflareagent.image.pullSecrets }}

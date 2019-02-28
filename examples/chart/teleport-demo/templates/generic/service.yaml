@@ -27,6 +27,7 @@ spec:
     release: {{ .Release.Name }}
     role: auth
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -58,4 +59,5 @@ spec:
     app: {{ template "teleport.fullname" $root }}-{{ . }}
     release: {{ $root.Release.Name }}
     role: auth
+{{- end -}}
 {{- end }}

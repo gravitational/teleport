@@ -17,9 +17,11 @@ rules:
   - namespaces
   resourceNames:
   - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+  {{- if not ((len .Values.extraClusterNames) eq 0) -}}
   {{- $root := . -}}
   {{- range .Values.extraClusterNames }}
   - {{ template "teleport.fullname" $root }}-{{ . }}
+  {{- end -}}
   {{- end }}
   verbs:
   - delete
@@ -69,6 +71,7 @@ rules:
   - list
   - watch
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -117,4 +120,4 @@ rules:
   - watch
 {{- end }}
 {{- end -}}
-
+{{- end -}}

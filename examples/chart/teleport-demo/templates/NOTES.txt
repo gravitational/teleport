@@ -8,6 +8,7 @@
 {{- if contains "LoadBalancer" .Values.service.type -}}
 You can access the main cluster's web UI at https://{{ $mainClusterProxyAddress }}
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 The following clusters/nodes have been added as trusted:
 
 {{- $root := . -}}
@@ -18,6 +19,7 @@ The following clusters/nodes have been added as trusted:
 {{- $trustedClusterNodeRoot := printf ("%s-%s") $trustedClusterRoot $trustedClusterName -}}
 {{- $trustedClusterDNS := printf ("%s.%s") $trustedClusterNodeRoot $trustedClusterDomain }}
 - {{ $trustedClusterDNS }}
+{{- end -}}
 {{- end }}
 
 You can log into the main cluster with tsh using the following command:
@@ -32,6 +34,7 @@ $ tsh clusters
 SSH into a main cluster node with something like this:
 $ tsh ssh root@{{ $mainClusterNodeRoot }}-node-0
 
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 You can also SSH to nodes in trusted clusters in a similar manner:
 {{- $root := . -}}
 {{- range .Values.extraClusterNames -}}
@@ -41,6 +44,7 @@ You can also SSH to nodes in trusted clusters in a similar manner:
 {{- $trustedClusterNodeRoot := printf ("%s-%s") $trustedClusterRoot $trustedClusterName -}}
 {{- $trustedClusterDNS := printf ("%s.%s") $trustedClusterNodeRoot $trustedClusterDomain }}
 $ tsh ssh --cluster={{ $trustedClusterDNS }} root@{{ $trustedClusterNodeRoot }}-node-0
+{{- end -}}
 {{- end -}}
 {{ end }}
 

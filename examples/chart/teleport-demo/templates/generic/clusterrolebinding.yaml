@@ -36,6 +36,7 @@ subjects:
 - kind: ServiceAccount
   name: {{ template "teleport.serviceAccountName" . }}-{{ .Values.mainClusterName }}
   namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+{{- if not ((len .Values.extraClusterNames) eq 0) -}}
 {{- $root := . -}}
 {{- range .Values.extraClusterNames }}
 ---
@@ -59,3 +60,4 @@ subjects:
   namespace: {{ template "teleport.fullname" $root }}-{{ . }}
 {{- end -}}
 {{- end -}}
+{{- end }}
