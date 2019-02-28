@@ -8,6 +8,7 @@
 {{- if contains "LoadBalancer" .Values.service.type -}}
 You can access the main cluster's web UI at https://{{ $mainClusterProxyAddress }}
 {{ if not (eq (index .Values.extraClusterNames 0) "") }}
+
 The following clusters/nodes have been added as trusted:
 
 {{- $root := . -}}
@@ -33,6 +34,7 @@ $ tsh clusters
 SSH into a main cluster node with something like this:
 $ tsh ssh root@{{ $mainClusterNodeRoot }}-node-0
 {{ if not (eq (index .Values.extraClusterNames 0) "") }}
+
 You can also SSH to nodes in trusted clusters in a similar manner:
 {{- $root := . -}}
 {{- range .Values.extraClusterNames -}}
