@@ -128,6 +128,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
+		Clock:       clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)),
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()

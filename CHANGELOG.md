@@ -1,5 +1,54 @@
 # Changelog
 
+## 3.1.7
+
+This release of Teleport contains a bug fix.
+
+#### Changes
+
+* Fixed issue where `tctl users ls` output contained duplicates. [#2569](https://github.com/gravitational/teleport/issues/2569) [#2107](https://github.com/gravitational/teleport/issues/2107)
+
+## 3.1.6
+
+This release of Teleport contains bug fixes, security fixes, and user experience improvements.
+
+#### Changes
+
+* Use `xdg-open` instead of `sensible-browser` to open links on Linux. [#2454](https://github.com/gravitational/teleport/issues/2454)
+* Increased SSO callback timeout to 180 seconds. [#2483](https://github.com/gravitational/teleport/issues/2483)
+* Improved Teleport error messages when it fails to start. [#2525](https://github.com/gravitational/teleport/issues/2525)
+* Sort `tsh ls` output by node name. [#2511](https://github.com/gravitational/teleport/issues/2511)
+* Support different regions for S3 (sessions) and DynamoDB (audit log). [#2007](https://github.com/gravitational/teleport/issues/2007)
+* Fixed syslog output even when Teleport is in debug mode. [#2550](https://github.com/gravitational/teleport/issues/2550)
+* Fixed audit log naming conventions. [#2388](https://github.com/gravitational/teleport/issues/2388)
+* Fixed issue where `~/.tsh/profile` was deleted upon logout. [#2546](https://github.com/gravitational/teleport/issues/2546)
+* Fixed output of `tctl get` to be compatible with `tctl create`. [#2479](https://github.com/gravitational/teleport/issues/2479)
+* Fixed issue where multiple file upload with `scp` did not work correctly. [#2094](https://github.com/gravitational/teleport/issues/2094)
+* Correctly set permissions TTY. [#2540](https://github.com/gravitational/teleport/issues/2540)
+* Mitigated scp issues when connected to malicious server [#2539](https://github.com/gravitational/teleport/issues/2539)
+
+## 3.1.5
+
+Teleport 3.1.5 contains a bug fix and security fix.
+
+#### Bug fixes
+
+* Fixed issue where certificate authorities were not fetched during every login. [#2526](https://github.com/gravitational/teleport/pull/2526)
+* Upgraded Go to 1.11.5 to mitigate [CVE-2019-6486](https://groups.google.com/forum/#!topic/golang-announce/mVeX35iXuSw): CPU denial of service in P-521 and P-384 elliptic curve implementation.
+
+## 3.1.4
+
+Teleport 3.1.4 contains one new feature and two bug fixes.
+
+#### New Feature
+
+* Added support for GSuite as a SSO provider. [#2455](https://github.com/gravitational/teleport/issues/2455)
+
+#### Bug fixes
+
+* Fixed issue where Kubernetes groups were not being passed to remote clusters. [#2484](https://github.com/gravitational/teleport/pull/2484)
+* Fixed issue where the client was pulling incorrect CA for trusted clusters. [#2487](https://github.com/gravitational/teleport/pull/2487)
+
 ## 3.1.3
 
 Teleport 3.1.3 contains two security fixs.
@@ -37,6 +86,14 @@ This is a major Teleport release with a focus on backwards compatibility, stabil
 * Improved Kubernetes UX. [#2291](https://github.com/gravitational/teleport/issues/2291) [#2258](https://github.com/gravitational/teleport/issues/2258) [#2304](https://github.com/gravitational/teleport/issues/2304)
 * Fixed bug that did not allow copy and paste of texts over 128 in the Web UI. [#2313](https://github.com/gravitational/teleport/issues/2313)
 * Fixes issues with `scp` when using the Web UI. [#2300](https://github.com/gravitational/teleport/issues/2300)
+
+## 3.0.5
+
+Teleport 3.0.5 contains a security fix.
+
+#### Bug fixes
+
+* Upgraded Go to 1.11.5 to mitigate [CVE-2019-6486](https://groups.google.com/forum/#!topic/golang-announce/mVeX35iXuSw): CPU denial of service in P-521 and P-384 elliptic curve implementation.
 
 ## 3.0.4
 
@@ -114,6 +171,14 @@ to upgrade to this version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
 `etcd` version is 3.3 or newer prior to upgrading to Teleport 3.0.
+
+## 2.7.9
+
+Teleport 2.7.9 contains a security fix.
+
+#### Bug fixes
+
+* Upgraded Go to 1.11.5 to mitigate [CVE-2019-6486](https://groups.google.com/forum/#!topic/golang-announce/mVeX35iXuSw): CPU denial of service in P-521 and P-384 elliptic curve implementation.
 
 ## 2.7.8
 

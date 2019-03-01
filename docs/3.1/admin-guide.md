@@ -244,8 +244,10 @@ teleport:
         output: stderr
         severity: ERROR
 
-    # Type of storage used for keys. You need to configure this to use etcd or
-    # a DynamoDB backend if you want to run Teleport in HA configuration.
+    # Configuration for the storage back-end used for the cluster state and the
+    # audit log. Several back-end types are supported. See "High Availability"
+    # section of this Admin Manual below to learn how to configure DynamoDB, 
+    # S3, etcd and other highly available back-ends.
     storage:
         # By default teleport uses the `data_dir` directory on a local filesystem
         type: dir
@@ -256,7 +258,7 @@ teleport:
 
         # Use this setting to configure teleport to store the recorded sessions in
         # an AWS S3 bucket. see "Using Amazon S3" chapter for more information.
-        audit_sessions_uri: 's3://name-of-s3-bucket'
+        audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
@@ -346,7 +348,7 @@ auth_service:
     # certificates
     listen_addr: 0.0.0.0:3025
 
-    # The optional DNS name the auth server if locataed behind a load balancer.
+    # The optional DNS name the auth server if located behind a load balancer.
     # (see public_addr section below)
     public_addr: auth.example.com:3025
 
@@ -414,10 +416,11 @@ ssh_service:
         type: postgres
 
     # List of the commands to periodically execute. Their output will be used as node labels.
-    # See "Labeling Nodes" section below for more information.
+    # See "Labeling Nodes" section below for more information and more examples.
     commands:
-    - name: arch             # this command will add a label like 'arch=x86_64' to a node
-      command: [uname, -p]
+    # this command will add a label 'arch=x86_64' to a node
+    - name: arch
+      command: ['/bin/uname', '-p']
       period: 1h0m0s
 
     # enables reading ~/.tsh/environment before creating a session. by default
@@ -429,7 +432,7 @@ ssh_service:
         enabled: no
         service_name: teleport
 
-# This section configures the 'proxy servie'
+# This section configures the 'proxy service'
 proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
     enabled: yes
@@ -448,16 +451,35 @@ proxy_service:
     # command line (CLI) users via password+HOTP
     web_listen_addr: 0.0.0.0:3080
 
-    # The DNS name the proxy server is accessible by cluster users. Defaults to
-    # the proxy's hostname if not specified. If running multiple proxies behind
-    # a load balancer, this name must point to the load balancer
+    # The DNS name the proxy HTTPS endpoint as accessible by cluster users.
+    # Defaults to the proxy's hostname if not specified. If running multiple
+    # proxies behind a load balancer, this name must point to the load balancer
     # (see public_addr section below)
     public_addr: proxy.example.com:3080
+
+    # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
+    # Defaults to the proxy's hostname if not specified. If running multiple proxies 
+    # behind a load balancer, this name must point to the load balancer. 
+    # Use a TCP load balancer because this port uses SSH protocol.
+    ssh_public_addr: proxy.example.com:3023
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
     https_key_file: /var/lib/teleport/webproxy_key.pem
     https_cert_file: /var/lib/teleport/webproxy_cert.pem
+
+    # This section configures the Kubernetes proxy
+    kubernetes:
+        # Turns 'kubernetes' proxy on. Default is 'no'
+        enabled: yes
+
+        # Kubernetes proxy listen address.
+        listen_addr: 0.0.0.0:3026
+
+        # The DNS name of the Kubernetes proxy server that is accessible by cluster clients.
+        # If running multiple proxies behind  a load balancer, this name must point to the 
+        # load balancer.
+        public_addr: ['kube.example.com:3026']
 ```
 
 #### Public Addr
@@ -872,16 +894,18 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 
 ## Labeling Nodes
 
-In addition to specifying a custom nodename, Teleport also allows for the application of arbitrary
-key:value pairs to each node, called labels. There are two kinds of labels:
+In addition to specifying a custom nodename, Teleport also allows for the
+application of arbitrary key:value pairs to each node, called labels. There are
+two kinds of labels:
 
-1. `static labels` never change while the `teleport` process is running. You may want
-   to label nodes with their physical location, the Linux distribution, etc.
+1. `static labels` do not change over time, while `teleport` process is
+   running. Examples of static labels are physical location of nodes, name of
+   the environment (staging vs production), etc.
 
-2. `label commands` or "dynamic labels" allow you to execute an external
-   command on a node at a configurable frequency. The output of that command becomes
-   the value of such label. Examples include reporting a kernel version, load averages,
-   time after reboot, etc.
+2. `dynamic labels` also known as "label commands" allow to generate labels at runtime.
+   Teleport will execute an external command on a node at a configurable frequency and
+   the output of a command becomes the label value. Examples include reporting load 
+   averages, presence of a process, time after last reboot, etc.
 
 There are two ways to configure node labels. 
 
@@ -889,13 +913,14 @@ There are two ways to configure node labels.
 2. Using `/etc/teleport.yaml` configuration file on the nodes.
 
 
-### CLI Example
+To define labels as command line arguments, use `--labels` flag like shown below.
+This method works well for static labels or simple commands:
 
 ```yaml
 $ teleport start --labels uptime=[1m:"uptime -p"],kernel=[1h:"uname -r"]
 ```
 
-### Configuration File Example
+Alternatively, you can update `labels` via a configuration file:
 
 ```yaml
 ssh_service:
@@ -903,26 +928,41 @@ ssh_service:
   # Static labels are simple key/value pairs:
   labels:
     environment: test
+```
 
+To configure dynamic labels via a configuration file, define a `commands` array
+as shown below:
+
+```yaml
+ssh_service:
+  enabled: "yes"
   # Dynamic labels AKA "commands":
   commands:
   - name: arch
-    command: [/bin/uname, -m]
+    command: ['/path/to/executable', 'flag1', 'flag2']
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s 
 ```
 
-When a node starts, it usually takes up to a minute for the labels to become 
-visible to users within a cluster, but when they do, you should see:
+`/path/to/executable` must be a valid executable command (i.e. executable bit must be set)
+which also includes shell scripts with a proper [shebang line](https://en.wikipedia.org/wiki/Shebang_(Unix)).
 
-```bash
-$ tsh ls
+**Important:** notice that `command` setting is an array where the first element is 
+a valid executable and each subsequent element is an argument, i.e:
 
-Node Name     Address         Labels
----------     -------         -----------------------------
-turing        10.1.0.5:3022   arch=x86_64, environment=test
+```yaml
+# valid syntax:
+command: ["/bin/uname", "-m"]
+
+# INVALID syntax:
+command: ["/bin/uname -m"]
+
+# if you want to pipe several bash commands together, here's how to do it:
+# notice how ' and " are iterchangeable and you can use it for quoting:
+command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+'"]
 ```
+
 
 ## Audit Log
 
@@ -1189,7 +1229,7 @@ Command         | Description | Examples
     attention to spaces vs tabs!
 
 Here's an example how the YAML resource definition for a user Joe might look like.
-It can be retreived by executing `tctl get user/joe`
+It can be retrieved by executing `tctl get user/joe`
 
 ```yaml
 kind: user
@@ -1757,7 +1797,7 @@ scp_if_ssh = True
 
 Teleport 3.0+ can be configured as a compliance gateway for Kubernetes
 clusters.  This allows users to authenticate against a Teleport proxy using
-`tsh login` command to retreive credentials for both SSH and Kubernetes API.
+`tsh login` command to retrieve credentials for both SSH and Kubernetes API.
 
 Below is a high-level diagram of how Teleport can be deployed in front of
 a Kubernetes cluster:
@@ -1770,7 +1810,7 @@ section in the Architecture chapter.
 In the scenario illustrated above a user would execute the following commands:
 
 ```bsh
-# Authentication step to retreive the certificates. tsh login places the SSH
+# Authentication step to retrieve the certificates. tsh login places the SSH
 # certificate into `~/.tsh` as usual and updates kubeconfig with Kubernetes
 # credentials:
 $ tsh --proxy=teleport.example.com login
@@ -1888,7 +1928,7 @@ more than one auth server available. There are two ways to do this:
 
   * Use a load balancer to create a single the auth API access point (AP) and
     specify this AP in `auth_servers` section of Teleport configuration for
-    all nodes in a cluster.
+    all nodes in a cluster. This load balancer should do TCP level forwarding.
   * If a load balancer is not an option, you must specify each instance of an
     auth server in `auth_servers` section of Teleport configuration.
 
@@ -1903,7 +1943,10 @@ If using the [default configuration](#ports), configure your load balancer to
 forward ports `3023` and `3080` to the servers that run the Teleport proxy. If
 you have configured your proxy to use non-default ports, you will need to
 configure your load balancer to forward the ports you specified for
-`listen_addr` and `web_listen_addr` in `teleport.yaml`.
+`listen_addr` and `web_listen_addr` in `teleport.yaml`. The load balancer for
+`web_listen_addr` can terminate TLS with your own certificate that is valid
+for your users, while the remaining ports should do TCP level forwarding, since
+Teleport will handle its own SSL on top of that with its own certificates.
 
 If your load balancer supports health checks, configure it to hit the
 `/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the
@@ -1963,15 +2006,29 @@ teleport:
     Before continuing, please make sure to take a look at the [cluster state section](architecture/#cluster-state)
     in Teleport Architecture documentation.
 
-S3 buckets can be used as a storage for the recorded sessions. S3 cannot store the audit log or the cluster state. Below is an example of how to configure a Teleport auth server to store the recorded sessions in an S3 bucket:
+!!! tip "AWS Authentication":
+    The configuration examples below contain AWS access keys and secret keys. They are optional,
+    they exist for your convenience but we DO NOT RECOMMEND usign them in
+    production. If Teleport is running on an AWS instance it will automatically
+    use the instance IAM role. Teleport also will pick up AWS credentials from
+    the `~/.aws` folder, just like the AWS CLI tool.
+
+S3 buckets can only be used as a storage for the recorded sessions. S3 cannot store
+the audit log or the cluster state. Below is an example of how to configure a Teleport 
+auth server to store the recorded sessions in an S3 bucket. 
+
 
 ```yaml
 teleport:
   storage:
-      # These two settings instruct Teleport to use a specified
-      # S3 bucket
+      # The region setting sets the default AWS region for all AWS services 
+      # Teleport may consume (DynamoDB, S3)
       region: us-west-1
-      audit_sessions_uri: s3://uri-of-the-bucket
+
+      # Path to S3 bucket to store the recorded sessions in. The optional 'region'
+      # parameter allows to override the region setting above, keeping S3 recordings
+      # in a different region:
+      audit_sessions_uri: s3://example.com/path/to/bucket?region=us-east-1
 
       # Authentication settings are optional (see below)
       access_key: BKZA3H2LOKJ1QJ3YF21A
@@ -2012,15 +2069,19 @@ teleport:
     type: dynamodb
     region: eu-west-1
 
+    # Name of the DynamoDB table. If it does not exist, Teleport will create it.
+    table_name: teleport_table
+
     # Authentication settings are optional (see below)
     access_key: BKZA3H2LOKJ1QJ3YF21A
     secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
 
-    # This setting configures Teleport to send the audit events in two places: in a DynamoDB table
-    # and also keep a copy on a local filesystem.
-    audit_events_uri:  [file:///var/lib/teleport/audit/events, dynamodb://table_name]
+    # This setting configures Teleport to send the audit events to two places: 
+    # To the DynamoDB table and to keep a copy on a local filesystem.
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name']
+
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
-    audit_sessions_uri: s3://example.com/teleport.events
+    audit_sessions_uri: 's3://example.com/teleport.events'
 ```
 
 * Replace `region` and `table_name` with your own settings. Teleport will

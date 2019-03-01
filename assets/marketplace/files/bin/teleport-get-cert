@@ -1,13 +1,18 @@
 #!/bin/bash
 # This script uses DNS-01 challenge, which means that users
-# have to control route53 zone as it modifes zone records
+# have to control route53 zone as it modifies zone records
 # to prove to letsencrypt that they own the domain.
 
 set -e
 set -x
 
-# Source variables set up by cloudformation template
+# Source variables from user-data
 . /etc/teleport.d/conf
+
+if [ ! -f /etc/teleport.d/role.auth ] && [ ! -f /etc/teleport.d/role.all ]; then
+    echo "Not running 'auth' or 'all' role, exiting with success"
+    exit 0
+fi
 
 PATH_TO_CHECK="s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME}/fullchain.pem"
 
@@ -23,4 +28,3 @@ certbot certonly -n --agree-tos --email ${TELEPORT_DOMAIN_ADMIN_EMAIL} --dns-rou
 echo "Got certificate for ${TELEPORT_DOMAIN_NAME}. Syncing to S3."
 
 aws s3 sync /etc/letsencrypt/ s3://${TELEPORT_S3_BUCKET} --sse=AES256
-

@@ -7,7 +7,7 @@ RUN apt-get update
 ENV DEBUG=1 GOPATH=/root/go PATH=$PATH:/root/go/src/github.com/gravitational/teleport/build:/root/go/bin
 
 # htop is useful for testing terminal resizing
-RUN apt-get install -y htop vim screen; \
+RUN apt-get update; apt-get install -y htop vim screen; \
     mkdir -p /root/go/src/github.com/gravitational/teleport 
 
 # allows ansible and ssh testing

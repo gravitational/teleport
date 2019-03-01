@@ -1,0 +1,22 @@
+[Unit]
+Description=Teleport Proxy Service
+After=network.target
+ConditionPathExists=/etc/teleport.d/role.proxy
+
+[Service]
+User=teleport
+Group=adm
+Type=simple
+Restart=always
+RestartSec=5
+RuntimeDirectory=teleport
+EnvironmentFile=/etc/teleport.d/conf
+ExecStartPre=/usr/bin/teleport-ssm-get-token
+ExecStartPre=/bin/aws s3 sync s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport
+ExecStart=/usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/teleport/teleport.pid
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

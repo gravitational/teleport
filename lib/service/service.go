@@ -486,7 +486,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if os.IsNotExist(err) {
 		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.ConvertSystemError(err)
 		}
 	}
 
@@ -733,9 +733,13 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 
 	switch uri.Scheme {
 	case teleport.SchemeS3:
+		region := auditConfig.Region
+		if uriRegion := uri.Query().Get(teleport.Region); uriRegion != "" {
+			region = uriRegion
+		}
 		handler, err := s3sessions.NewHandler(s3sessions.Config{
 			Bucket: uri.Host,
-			Region: auditConfig.Region,
+			Region: region,
 			Path:   uri.Path,
 		})
 		if err != nil {

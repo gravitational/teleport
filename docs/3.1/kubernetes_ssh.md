@@ -61,8 +61,9 @@ There are two ways this can be done:
 1. Deploy Teleport Auth service as a Kubernetes pod inside the Kubernetes
    cluster you want the proxy to have access to. No configuration changes are
    required in this case.
-2. Deploy the Teleport auth service outside of Kubernetes and update the Teleport Auth configuration with Kubernetes credentials. In this case, we need to update `/etc/teleport.yaml` of the auth service as
-   shown below:
+2. Deploy the Teleport auth service outside of Kubernetes and update the
+   Teleport Auth configuration with Kubernetes credentials. In this case, we
+   need to update `/etc/teleport.yaml` of the auth service as shown below:
 
 ```yaml
 # snippet from /etc/teleport.yaml on the auth service deployed outside k8s:
@@ -75,7 +76,7 @@ to authenticate against your Kubernetes cluster directly then copy the file to
 `/path/to/kubeconfig` on the Teleport auth server.
 
 Unfortunately for GKE users, GKE requires its own client-side extensions to
-authenticate, so we've created a [simple script](https://github.com/gravitational/ops/blob/master/get-kubeconfig.sh)
+authenticate, so we've created a [simple script](https://github.com/gravitational/teleport/blob/master/examples/gke-auth/get-kubeconfig.sh)
 you can run to generate `kubeconfig` for the Teleport auth service.
 
 ## Kubernetes RBAC

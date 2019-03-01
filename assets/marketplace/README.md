@@ -1,10 +1,10 @@
-# Teleport AWS Quickstart Guide
+# Teleport AWS Quickstart Guide (Single AMI)
 
-AWS Quickstart for Teleport
+AWS Quickstart for Teleport using a single AMI.
 
 ## Development instructions
 
-**Prerequisites** 
+**Prerequisites**
 
 AWS CLI and Packer are required to build and launch a CloudFormation stack.
 
@@ -22,50 +22,18 @@ apt install awscli
 Follow instructions at: https://www.packer.io/docs/install/index.html
 ```
 
-**To build an AMI**
+**To build the OSS AMI**
 
 ```
 make oss
 ```
 
-**Update YAML files with the new AMI image IDs**
-
-```
-make update-ami-ids-oss
-```
-
-**Launch a dev cloudformation stack using an existing VPC**
-
-When using an existing VPC it must have both DNS support and DNS hostnames enabled.
-
-The deployment needs six VPC subnet IDs provided - two public (for the proxy) and four private (for auth and nodes).
-For redundancy, the subnets should be split across availability zones - odd numbers in AZ A and even numbers in AZ B, for example.
-
-Replace the placeholder values in the exports below.
-
-```
-export STACK=test1
-export STACK_PARAMS="\
-ParameterKey=VPCID,ParameterValue=EXISTING_VPC_ID \
-ParameterKey=ProxySubnetA,ParameterValue=PUBLIC_SUBNET_ID_1 \
-ParameterKey=ProxySubnetB,ParameterValue=PUBLIC_SUBNET_ID_2 \
-ParameterKey=AuthSubnetA,ParameterValue=PRIVATE_SUBNET_ID_1 \
-ParameterKey=AuthSubnetB,ParameterValue=PRIVATE_SUBNET_ID_2 \
-ParameterKey=NodeSubnetA,ParameterValue=PRIVATE_SUBNET_ID_3 \
-ParameterKey=NodeSubnetB,ParameterValue=PRIVATE_SUBNET_ID_4 \
-ParameterKey=KeyName,ParameterValue=KeyName \
-ParameterKey=DomainName,ParameterValue=teleport.example.com \
-ParameterKey=DomainAdminEmail,ParameterValue=admin@example.com \
-ParameterKey=HostedZoneID,ParameterValue=AWS_ZONE_ID"
-make create-stack
-```
-
 ## Usage instructions
 
-After stack has been provisioned, login to the AWS Console and capture the IP address of a Proxy Server and a Auth Server then type the following to add a admin user:
+After stack has been provisioned, login to the AWS Console and get the IP address of the server.
 
 ```
-ssh -i key.pem -o ProxyCommand="ssh -i key.pem -W %h:%p ec2-user@PROXY_SERVER" ec2-user@$AUTH_SERVER
+ssh -i key.pem ec2-user@$SERVER_IP
 
 # For OSS
 

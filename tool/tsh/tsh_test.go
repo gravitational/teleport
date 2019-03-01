@@ -153,6 +153,19 @@ func (s *MainTestSuite) TestOptions(c *check.C) {
 				StrictHostKeyChecking: true,
 			},
 		},
+		// Valid
+		{
+			inOptions: []string{
+				"AddKeysToAgent=yes",
+			},
+			outError: false,
+			outOptions: Options{
+				AddKeysToAgent:        true,
+				ForwardAgent:          false,
+				RequestTTY:            false,
+				StrictHostKeyChecking: true,
+			},
+		},
 		// Invalid value.
 		{
 			inOptions: []string{

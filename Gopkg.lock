@@ -375,12 +375,11 @@
   revision = "c4048f792f70d207e6d8b9c1bf52319247f202b8"
 
 [[projects]]
-  branch = "master"
-  digest = "1:6104a01c77e5dbf8fa0385ad2e9a6b5338710fd640754b6afe18241f07ce3044"
+  digest = "1:f60d0b16dff12cd86152c8004638fca13231f51a45ccbafcb9f487a64a73db05"
   name = "github.com/gravitational/kingpin"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "52bc17adf63c0807b5e5b5d91350703630f621c7"
+  revision = "742f2714c145075a68df26ccc25bc05545310f3a"
 
 [[projects]]
   digest = "1:637144c8995935a3a02d03ade2d1374abeac2a47fdafb798a05642d3e19ff86c"
@@ -1099,6 +1098,7 @@
     "github.com/coreos/etcd/clientv3",
     "github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes",
     "github.com/coreos/etcd/mvcc/mvccpb",
+    "github.com/coreos/go-oidc/http",
     "github.com/coreos/go-oidc/jose",
     "github.com/coreos/go-oidc/oauth2",
     "github.com/coreos/go-oidc/oidc",

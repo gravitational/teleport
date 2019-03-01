@@ -1163,6 +1163,15 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 	}
 	// upload:
 	if isRemoteDest(last) {
+		filesToUpload := args[:len(args)-1]
+
+		// If more than a single file were provided, scp must be in directory mode
+		// and the target on the remote host needs to be a directory.
+		var directoryMode bool
+		if len(filesToUpload) > 1 {
+			directoryMode = true
+		}
+
 		login, host, dest := scp.ParseSCPDestination(last)
 		if login != "" {
 			tc.HostLogin = login
@@ -1175,14 +1184,15 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 		}
 
 		// copy everything except the last arg (that's destination)
-		for _, src := range args[:len(args)-1] {
+		for _, src := range filesToUpload {
 			scpConfig := scp.Config{
 				User:           tc.Username,
 				ProgressWriter: progressWriter,
 				RemoteLocation: dest,
 				Flags: scp.Flags{
-					Target:    []string{src},
-					Recursive: recursive,
+					Target:        []string{src},
+					Recursive:     recursive,
+					DirectoryMode: directoryMode,
 				},
 			}
 
@@ -1601,6 +1611,12 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 		// save the cert to the local storage (~/.tsh usually):
 		_, err = tc.localAgent.AddKey(key)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Connect to the Auth Server of the main cluster
+		// and fetch the known hosts for this cluster.
+		if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

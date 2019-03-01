@@ -1917,6 +1917,17 @@ waitLoop:
 				log.Debugf("Skipping stale event %v, latest object version is %v", event.Resource.GetResourceID(), ca.GetResourceID())
 				continue waitLoop
 			}
+
+			eca, ok := event.Resource.(*services.CertAuthorityV2)
+			if !ok {
+				log.Debugf("Wrong resource type, expected *services.CertAuthorityV2 got %T.", event.Resource)
+				continue waitLoop
+			}
+			if eca.GetRotation().State != services.RotationStateInProgress {
+				log.Debugf("Skipping CA, wrong rotation state: %v.", eca.GetRotation().State)
+				continue waitLoop
+			}
+
 			fixtures.DeepCompare(c, ca, event.Resource)
 			break waitLoop
 		}

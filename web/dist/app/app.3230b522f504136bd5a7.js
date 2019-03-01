@@ -3065,7 +3065,7 @@ limitations under the License.
 
 
 
-var MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
+var MSG_INFO_LOGIN_SUCCESS = 'Login successful';
 var MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administrator.';
 var MSG_ERROR_DEFAULT = 'Internal Error';
 var MSG_ERROR_NOT_FOUND = '404 Not Found';
@@ -3093,7 +3093,7 @@ var InfoPage = documentTitle_withDocTitle("Info", function (_ref) {
     return react_default.a.createElement(msgPage_SuccessfulLogin, null);
   }
 
-  return react_default.a.createElement(msgPage_InfoBox, null);
+  return null;
 });
 
 var ErrorPage = documentTitle_withDocTitle("Error", function (_ref2) {
@@ -3129,12 +3129,8 @@ var msgPage_Box = function Box(props) {
   );
 };
 
-var msgPage_InfoBox = function InfoBox(props) {
-  return react_default.a.createElement(msgPage_Box, msgPage_extends({ iconClass: 'fa fa-smile-o' }, props));
-};
-
 var msgPage_ErrorBox = function ErrorBox(props) {
-  return react_default.a.createElement(msgPage_Box, msgPage_extends({ iconClass: 'fa fa-frown-o' }, props));
+  return react_default.a.createElement(msgPage_Box, msgPage_extends({ iconClass: 'fa fa-exclamation-triangle' }, props));
 };
 
 var msgPage_ErrorBoxDetails = function ErrorBoxDetails(_ref3) {
@@ -3237,14 +3233,26 @@ var msgPage_LoginFailed = function LoginFailed(_ref6) {
 
 var msgPage_SuccessfulLogin = function SuccessfulLogin() {
   return react_default.a.createElement(
-    msgPage_InfoBox,
-    null,
+    msgPage_Box,
+    { iconClass: 'fa fa-check-circle m-b-md' },
     react_default.a.createElement(
       'h1',
       null,
       MSG_INFO_LOGIN_SUCCESS
+    ),
+    react_default.a.createElement(
+      'p',
+      { className: 'm-t', style: successfulLoginStyles },
+      'You have successfully signed into your account. You can close this window and continue using the product.'
     )
   );
+};
+
+var successfulLoginStyles = {
+  textAlign: "center",
+  maxWidth: "500px",
+  marginLeft: "auto",
+  marginRight: "auto"
 };
 
 
