@@ -61,10 +61,16 @@ $ gcloud container clusters get-credentials <cluster-name> --zone <zone> --proje
 $ ./gke-init.sh
 ```
 
+Make sure that you have updated the submodule containing the secrets:
+
+```bash
+git pull --recurse-submodules
+```
+
 To install the chart with the release name `teleport` and Teleport version 3.1.7, run:
 
 ```bash
-$ helm secrets install --name teleport -f secrets.yaml ./ --set teleportVersion=3.1.7
+$ helm secrets install --name teleport -f secrets/sops/teleport-demo/secrets.yaml ./ --set teleportVersion=3.1.7
 ```
 
 Once the chart is installed successfully, you should be able to go to https://[mainClusterName].[cloudflareDomain]:3080 and log in with
