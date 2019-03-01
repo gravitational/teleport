@@ -73,8 +73,10 @@ To install the chart with the release name `teleport` and Teleport version 3.1.7
 $ helm secrets install --name teleport -f secrets/sops/teleport-demo/secrets.yaml ./ --set teleportVersion=3.1.7
 ```
 
-Once the chart is installed successfully, you should be able to go to https://[mainClusterName].[cloudflareDomain]:3080 and log in with
-Auth0 - i.e. https://main.gravitational.co:3080
+Once the chart is installed successfully, Helm will output a section titled NOTES containing the URL to access the main
+cluster's web UI, along with some example `tsh` commands based on your installation.
+
+You can show these notes again in future with the `helm status <releaseName>` command - e.g. `helm status teleport`
 
 ## Deleting the chart
 
@@ -85,3 +87,20 @@ $ helm delete --purge teleport
 ```
 
 Namespaces will automatically be deleted once the cluster is shut down.
+
+## Recreating this without access to secrets
+
+If you're looking to use/modify this code and don't have access to the repo containing the sops-encrypted secrets,
+here's the sections you'll need to ensure you have in your `secrets.yaml` or equivalent file:
+
+```yaml
+secrets:
+  auth0:
+    client_id: <Auth0 client ID>
+    client_secret: <Auth0 client secret>
+  cloudflare:
+    api_key: <Cloudflare API key>
+    email: <Cloudflare email address>
+  license: |
+    <PEM-encoded Teleport enterprise license file>
+```

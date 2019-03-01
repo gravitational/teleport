@@ -98,9 +98,6 @@ config:
 ##### You probably don't want to change stuff below here #####
 ##############################################################
 
-# makes the default chart/release name shorter
-nameOverride: teleport
-
 # Teleport container image
 auth:
   image:
