@@ -64,7 +64,7 @@ $ ./gke-init.sh
 Make sure that you have updated the submodule containing the secrets:
 
 ```bash
-git pull --recurse-submodules
+$ git pull --recurse-submodules
 ```
 
 To install the chart with the release name `teleport` and Teleport version 3.1.7, run:
