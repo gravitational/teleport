@@ -9,7 +9,7 @@
 You can access the main cluster's web UI at https://{{ $mainClusterProxyAddress }}
 {{- if not (eq (index .Values.extraClusterNames 0) "") }}
 
-The following clusters/nodes have been added as trusted:
+The following extra clusters/nodes have been added as trusted:
 
 {{- $root := . -}}
 {{- range .Values.extraClusterNames -}}
@@ -17,8 +17,10 @@ The following clusters/nodes have been added as trusted:
 {{- $trustedClusterName := . -}}
 {{- $trustedClusterDomain := $root.Values.cloudflare.domain -}}
 {{- $trustedClusterNodeRoot := printf ("%s-%s") $trustedClusterRoot $trustedClusterName -}}
-{{- $trustedClusterDNS := printf ("%s.%s") $trustedClusterNodeRoot $trustedClusterDomain }}
-- {{ $trustedClusterDNS }}
+{{- $trustedClusterDNS := printf ("%s.%s") $trustedClusterNodeRoot $trustedClusterDomain -}}
+{{- $trustedClusterPort := $root.Values.ports.auth.proxyweb.containerPort -}}
+{{- $trustedClusterProxyAddress := printf ("%s:%v") $trustedClusterDNS $trustedClusterPort }}
+- {{ $trustedClusterDNS }} (Web UI: https://{{ $trustedClusterProxyAddress }})
 {{- end -}}
 {{- end }}
 
