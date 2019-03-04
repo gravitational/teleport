@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # This script takes a space-separated list of namespaces which should be deleted by kubectl after the helm chart is gone
 set -e
 

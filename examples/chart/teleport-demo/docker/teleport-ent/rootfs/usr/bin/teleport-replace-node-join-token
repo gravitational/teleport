@@ -1,6 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
-set -x
 if [ ! -f /var/lib/tokens/node/join-token ]; then
     "Join token is not present, exiting with error"
     exit 1

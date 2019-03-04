@@ -1,6 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
-set -x
 if [ ! -f /var/lib/teleport/primary-trustedcluster-join-token ]; then
     "Primary trusted cluster join token is not present, exiting with error"
     exit 1

@@ -1,12 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # This script calls tctl to query the Teleport auth server API and get join tokens for nodes and trusted clusters
 # It then uses kubectl to export the join tokens as Kubernetes secrets so other nodes/clusters in k8s can use them
 # We only generate a trusted cluster join token on the primary (main) cluster, all others must read the secret from there
 set -e
-set -x
-
-# Source variables
-#. /etc/teleport.d/conf
 
 TCTL=/usr/local/bin/tctl
 

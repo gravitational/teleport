@@ -1,5 +1,4 @@
-#!/bin/bash
-set -x
+#!/usr/bin/env bash
 
 echo "CLUSTER_TYPE: ${CLUSTER_TYPE}"
 echo "ROLE: ${ROLE}"
