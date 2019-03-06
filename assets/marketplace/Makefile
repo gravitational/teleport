@@ -56,6 +56,11 @@ oss-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
 
+.PHONY: change-amis-to-public-oss
+change-amis-to-public-oss:
+	@echo "Making OSS AMIs public"
+	./files/make-amis-public.sh oss
+
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
 ent: check-vars
@@ -70,10 +75,10 @@ ent-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
 
-.PHONY: change-amis-to-public
-change-amis-to-public:
-    @echo "Making AMIs public"
-    ./files/make-amis-public.sh
+.PHONY: change-amis-to-public-ent
+change-amis-to-public-ent:
+	@echo "Making Enterprise AMIs public"
+	./files/make-amis-public.sh ent
 
 
 # Other helpers
