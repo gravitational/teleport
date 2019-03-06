@@ -44,7 +44,7 @@ for REGION in ${REGION_LIST}; do
         echo "Error: cannot get AMI ID for ${REGION}"
         exit 2
     else
-        aws ec2 modify-image-attribute --image-id ${AMI_ID} --launch-permission "Add=[{Group=all}]"
+        aws ec2 modify-image-attribute --region ${REGION} --image-id ${AMI_ID} --launch-permission "Add=[{Group=all}]"
         echo "AMI ID ${AMI_ID} for ${REGION} set to public"
     fi
 done
