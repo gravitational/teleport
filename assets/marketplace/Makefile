@@ -54,7 +54,8 @@ oss-jenkins-build: TELEPORT_TYPE=oss
 oss-jenkins-build: check-vars
 oss-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
-	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
+	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
+	packer build -force -var ami_name=$(BUILD_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
 
 .PHONY: change-amis-to-public-oss
 change-amis-to-public-oss:
@@ -73,7 +74,8 @@ ent-jenkins-build: TELEPORT_TYPE=ent
 ent-jenkins-build: check-vars
 ent-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
-	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
+	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
+	packer build -force -var ami_name=$(BUILD_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
 
 .PHONY: change-amis-to-public-ent
 change-amis-to-public-ent:

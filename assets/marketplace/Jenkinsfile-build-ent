@@ -24,10 +24,10 @@ pipeline {
                 }
             }
         }
-        stage('Make built AMIs public') {
+        stage('Make Enterprise AMIs public') {
             steps {
                 dir('assets/marketplace') {
-                    sh 'make change-amis-to-public'
+                    sh 'make change-amis-to-public-ent'
                 }
             }
         }
