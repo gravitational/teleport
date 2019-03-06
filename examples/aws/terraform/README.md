@@ -22,8 +22,8 @@ the ports to the other parts.
 # This region should support EFS
 export TF_VAR_region="us-west-2"
 
-# Cluster name is a unique cluster name to use, should be unique not contain dots, spaces, and other special characters
-export TF_VAR_cluster_name="example"
+# Cluster name is a unique cluster name to use, should be unique and not contain spaces or other special characters
+export TF_VAR_cluster_name="teleport.example.com"
 
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
 # These AMIs are published by Gravitational and shared as public whenever a new version of Teleport is released
