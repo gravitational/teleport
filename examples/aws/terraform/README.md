@@ -28,8 +28,8 @@ export TF_VAR_cluster_name="teleport.example.com"
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
 # These AMIs are published by Gravitational and shared as public whenever a new version of Teleport is released
 # To list available AMIs:
-# OSS: aws ec2 describe-images --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
-# Enterprise: aws ec2 describe-images --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
+# OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
+# Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 export TF_VAR_ami_name="gravitational-teleport-ami-ent-3.1.7"
 
 # AWS SSH key name to provision in installed instances, should be available in the region
