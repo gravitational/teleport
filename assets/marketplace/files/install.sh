@@ -39,7 +39,7 @@ pip install certbot==0.21.0 certbot-dns-route53==0.21.0
 
 # Create teleport user. It is helpful to share the same UID
 # to have the same permissions on shared NFS volumes across auth servers and for consistency.
-useradd -r teleport -u ${TELEPORT_UID}
+useradd -r teleport -u ${TELEPORT_UID} -d /var/lib/teleport
 # Add teleport to adm group to read and write logs
 usermod -a -G adm teleport
 
@@ -61,9 +61,6 @@ else
     tar -xzf teleport.tar.gz
     cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
     rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
-    # Move enforcing license to the location expected by teleport
-    mv /etc/systemd/system/license.pem /var/lib/teleport/license.pem
-    chown teleport:adm /var/lib/teleport/license.pem
 fi
 popd
 

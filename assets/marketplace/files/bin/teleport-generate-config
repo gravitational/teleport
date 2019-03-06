@@ -1,4 +1,7 @@
 #!/bin/bash
+if [[ "${DEBUG}" == "true" ]]; then
+    set -x
+fi
 
 # Back up existing config file if it exists
 if [ -f /etc/teleport.yaml ]; then
@@ -48,21 +51,30 @@ teleport:
     audit_table_name: ${TELEPORT_DYNAMO_EVENTS_TABLE_NAME}
     audit_sessions_uri: s3://${TELEPORT_S3_BUCKET}/records
 
-auth_service:
-  enabled: yes
-  listen_addr: 0.0.0.0:3025
-
-  authentication:
-    second_factor: otp
-
-  cluster_name: ${TELEPORT_CLUSTER_NAME}
-
 ssh_service:
   enabled: no
 
 proxy_service:
   enabled: no
+
+auth_service:
+  enabled: yes
+  listen_addr: 0.0.0.0:3025
+  authentication:
+    second_factor: otp
+  cluster_name: ${TELEPORT_CLUSTER_NAME}
 EOF
+
+    # copy and set up license if provided
+    if [[ "${TELEPORT_LICENSE_PATH}" != "" ]]; then
+        if [[ "${TELEPORT_LICENSE_PATH}" =~ "s3://" ]]; then
+            aws s3 cp ${TELEPORT_LICENSE_PATH} /var/lib/teleport/license.pem
+        else
+            aws ssm get-parameter --with-decryption --name /teleport/${TELEPORT_CLUSTER_NAME}/license --region ${EC2_REGION} --query 'Parameter.Value' --output text > /var/lib/teleport/license.pem
+        fi
+        chown teleport:adm /var/lib/teleport/license.pem
+        echo "  license_file: /var/lib/teleport/license.pem" >> /etc/teleport.yaml
+    fi
 
     # enable/start token services and timers
     systemctl enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer

@@ -11,7 +11,7 @@ BUILD_AMI_NAME ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 3.1.1
+TELEPORT_VERSION ?= 3.1.7
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -69,6 +69,11 @@ ent-jenkins-build: check-vars
 ent-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
 	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
+
+.PHONY: change-amis-to-public
+change-amis-to-public:
+    @echo "Making AMIs public"
+    ./files/make-amis-public.sh
 
 
 # Other helpers
