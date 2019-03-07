@@ -19,7 +19,7 @@ the ports to the other parts.
 ```bash
 # Set variables for Terraform
 
-# This region should support EFS
+# Region to run in - we currently have AMIs in us-east-1, us-east-2, us-west-2 and eu-west-1
 export TF_VAR_region="us-west-2"
 
 # Cluster name is a unique cluster name to use, should be unique and not contain spaces or other special characters
