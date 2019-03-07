@@ -62,7 +62,7 @@ oss-jenkins-build:
 .PHONY: change-amis-to-public-oss
 change-amis-to-public-oss:
 	@echo "Making OSS AMIs public"
-	bash files/make-amis-public.sh oss
+	bash -x files/make-amis-public.sh oss
 
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
@@ -84,7 +84,7 @@ ent-jenkins-build:
 .PHONY: change-amis-to-public-ent
 change-amis-to-public-ent:
 	@echo "Making Enterprise AMIs public"
-	bash files/make-amis-public.sh ent
+	bash -x files/make-amis-public.sh ent
 
 
 # Other helpers
