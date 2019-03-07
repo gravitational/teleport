@@ -13,7 +13,7 @@ else
 fi
 
 ABSPATH=$(readlink -f $0)
-SCRIPT_DIR=$(dirname $ABSPATH)
+SCRIPT_DIR=$(dirname ${ABSPATH})
 BUILD_DIR=$(readlink -f ${SCRIPT_DIR}/build)
 
 # Remove existing AMI ID file if present
