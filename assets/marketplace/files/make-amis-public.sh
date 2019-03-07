@@ -12,37 +12,41 @@ else
     RUN_MODE="$1"
 fi
 
-ABSPATH=$(readlink -f $0)
-SCRIPT_DIR=$(dirname ${ABSPATH})
-BUILD_DIR=$(readlink -f ${SCRIPT_DIR}/build)
+ABSPATH=$(readlink -f "$0")
+SCRIPT_DIR=$(dirname "${ABSPATH}")
+BUILD_DIR=$(readlink -f "${SCRIPT_DIR}/build")
 
 # Remove existing AMI ID file if present
-if [ -f ${BUILD_DIR}/amis.txt ]; then
-    rm -f ${BUILD_DIR}/amis.txt
+if [ -f "${BUILD_DIR}/amis.txt" ]; then
+    rm -f "${BUILD_DIR}/amis.txt"
 fi
 
 # Read build timestamp from file
-TIMESTAMP_FILE=${BUILD_DIR}/${RUN_MODE}_build_timestamp.txt
-if [ ! -f ${TIMESTAMP_FILE} ]; then
-    echo "Cannot find ${TIMESTAMP_FILE}"
+TIMESTAMP_FILE="${BUILD_DIR}/${RUN_MODE}_build_timestamp.txt"
+if [ ! -f "${TIMESTAMP_FILE}" ]; then
+    echo 'Cannot find "${TIMESTAMP_FILE}"'
     exit 1
 fi
-BUILD_TIMESTAMP=$(<${TIMESTAMP_FILE})
+BUILD_TIMESTAMP=$(<"${TIMESTAMP_FILE}")
 
 # Write AMI ID for each region to AMI ID file
 for REGION in ${REGION_LIST}; do
-    aws ec2 describe-images --region ${REGION} --filters Name=tag:BuildTimestamp,Values=${BUILD_TIMESTAMP} > ${BUILD_DIR}/${REGION}.json
-    AMI_ID=$(jq --raw-output '.Images[0].ImageId' ${BUILD_DIR}/${REGION}.json)
-    rm -f ${BUILD_DIR}/${REGION}.json
-    echo "${REGION}=${AMI_ID}" >> ${BUILD_DIR}/amis.txt
+    aws ec2 describe-images --region ${REGION} --filters Name=tag:BuildTimestamp,Values=${BUILD_TIMESTAMP} > "${BUILD_DIR}/${REGION}.json"
+    AMI_ID=$(jq --raw-output '.Images[0].ImageId' "${BUILD_DIR}/${REGION}.json")
+    if [[ "${AMI_ID}" == "" || "${AMI_ID}" == "null" ]]; then
+        echo "Error: cannot get AMI ID for ${REGION}"
+        exit 2
+    fi
+    rm -f "${BUILD_DIR}/${REGION}.json"
+    echo "${REGION}=${AMI_ID}" >> "${BUILD_DIR}/amis.txt"
 done
 
 # Make each AMI public (set launchPermission to 'all')
 for REGION in ${REGION_LIST}; do
-    AMI_ID=$(grep ${REGION} ${BUILD_DIR}/amis.txt | awk -F= '{print $2}')
+    AMI_ID=$(grep ${REGION} "${BUILD_DIR}/amis.txt" | awk -F= '{print $2}')
     if [[ "${AMI_ID}" == "" || "${AMI_ID}" == "null" ]]; then
         echo "Error: cannot get AMI ID for ${REGION}"
-        exit 2
+        exit 3
     else
         aws ec2 modify-image-attribute --region ${REGION} --image-id ${AMI_ID} --launch-permission "Add=[{Group=all}]"
         echo "AMI ID ${AMI_ID} for ${REGION} set to public"
