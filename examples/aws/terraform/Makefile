@@ -11,7 +11,6 @@ TF_VAR_key_name ?=
 
 # Full absolute path to the license file for Teleport Enterprise or Pro.
 # This license will be copied into SSM and then pulled down on the auth nodes to enable Enterprise/Pro functionality
-# You can also provide a path starting with s3:// - in this case the license will be copied directly from S3
 TF_VAR_license_path ?=
 
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version

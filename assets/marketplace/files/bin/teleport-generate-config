@@ -67,11 +67,7 @@ EOF
 
     # copy and set up license if provided
     if [[ "${TELEPORT_LICENSE_PATH}" != "" ]]; then
-        if [[ "${TELEPORT_LICENSE_PATH}" =~ "s3://" ]]; then
-            aws s3 cp ${TELEPORT_LICENSE_PATH} /var/lib/teleport/license.pem
-        else
-            aws ssm get-parameter --with-decryption --name /teleport/${TELEPORT_CLUSTER_NAME}/license --region ${EC2_REGION} --query 'Parameter.Value' --output text > /var/lib/teleport/license.pem
-        fi
+        aws ssm get-parameter --with-decryption --name /teleport/${TELEPORT_CLUSTER_NAME}/license --region ${EC2_REGION} --query 'Parameter.Value' --output text > /var/lib/teleport/license.pem
         chown teleport:adm /var/lib/teleport/license.pem
         echo "  license_file: /var/lib/teleport/license.pem" >> /etc/teleport.yaml
     fi
