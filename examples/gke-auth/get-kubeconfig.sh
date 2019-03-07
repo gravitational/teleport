@@ -39,7 +39,7 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
     BASE64_DECODE_FLAG="-D"
     BASE64_WRAP_FLAG=""
 else
-    echo "Unknown OS $(OSTYPE)"
+    echo "Unknown OS ${OSTYPE}"
     exit 1
 fi
 
