@@ -17,13 +17,13 @@ pipeline {
                 }
             }
         }
-        //stage('Run Packer to build specified version') {
-        //    steps {
-        //        dir('assets/marketplace') {
-        //            sh "BUILD_AMI_NAME=gravitational-teleport-ami-oss-${params.version} TELEPORT_VERSION=${params.version} make oss-jenkins-build"
-        //        }
-        //    }
-        //}
+        stage('Run Packer to build specified version') {
+            steps {
+                dir('assets/marketplace') {
+                    sh "BUILD_AMI_NAME=gravitational-teleport-ami-oss-${params.version} TELEPORT_VERSION=${params.version} make oss-jenkins-build"
+                }
+            }
+        }
         stage('Make OSS AMIs public') {
             steps {
                 dir('assets/marketplace') {
