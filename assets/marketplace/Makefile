@@ -48,6 +48,7 @@ oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 .PHONY: oss-jenkins-build
 oss-jenkins-build: TELEPORT_TYPE=oss
@@ -68,6 +69,7 @@ ent: check-vars
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 .PHONY: ent-jenkins-build
 ent-jenkins-build: TELEPORT_TYPE=ent
