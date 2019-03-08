@@ -11,7 +11,7 @@ BUILD_AMI_NAME ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 3.1.1
+TELEPORT_VERSION ?= 3.1.7
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -48,13 +48,21 @@ oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 .PHONY: oss-jenkins-build
 oss-jenkins-build: TELEPORT_TYPE=oss
 oss-jenkins-build: check-vars
 oss-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
-	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
+	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
+	packer build -force -var ami_name=$(BUILD_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
+
+.PHONY: change-amis-to-public-oss
+change-amis-to-public-oss:
+	@echo "Making OSS AMIs public"
+	bash files/make-amis-public.sh oss
 
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
@@ -62,13 +70,21 @@ ent: check-vars
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 .PHONY: ent-jenkins-build
 ent-jenkins-build: TELEPORT_TYPE=ent
 ent-jenkins-build: check-vars
 ent-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
-	packer build -force -var ami_name=$(BUILD_AMI_NAME) single-ami.json
+	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
+	packer build -force -var ami_name=$(BUILD_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
+
+.PHONY: change-amis-to-public-ent
+change-amis-to-public-ent:
+	@echo "Making Enterprise AMIs public"
+	bash files/make-amis-public.sh ent
 
 
 # Other helpers
