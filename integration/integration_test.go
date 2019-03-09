@@ -17,9 +17,11 @@ limitations under the License.
 package integration
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -3149,6 +3151,83 @@ func (s *IntSuite) TestMultipleSignup(c *check.C) {
 		})
 		c.Assert(err, check.IsNil)
 	}
+}
+
+// TestDataTransfer makes sure that a "session.data" event is emitted at the
+// end of a session that matches the amount of data that was transferred.
+func (s *IntSuite) TestDataTransfer(c *check.C) {
+	KB := 1024
+	MB := 1048576
+
+	// Create a Teleport cluster.
+	main := s.newTeleport(c, nil, true)
+	defer main.Stop(true)
+
+	// Create a client to the above Teleport cluster.
+	clientConfig := ClientConfig{
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    Host,
+		Port:    main.GetPortSSHInt(),
+	}
+
+	// Write 1 MB to stdout.
+	command := []string{"dd", "if=/dev/zero", "bs=1024", "count=1024"}
+	output, err := runCommand(main, command, clientConfig, 1)
+	c.Assert(err, check.IsNil)
+
+	// Make sure exactly 1 MB was written to output.
+	c.Assert(len(output) == MB, check.Equals, true)
+
+	// Make sure the session.data event was emitted to the audit log.
+	eventFields, err := findEventInLog(main, events.SessionDataEvent)
+	c.Assert(err, check.IsNil)
+
+	// Make sure the audit event shows that 1 MB was written to the output.
+	c.Assert(eventFields.GetInt(events.DataReceived) > MB, check.Equals, true)
+	c.Assert(eventFields.GetInt(events.DataTransmitted) > KB, check.Equals, true)
+}
+
+// findEventInLog tries to find an event in the audit log file 10 times.
+func findEventInLog(t *TeleInstance, eventName string) (events.EventFields, error) {
+	for i := 0; i < 10; i++ {
+		eventFields, err := eventInLog(t.Config.DataDir+"/log/events.log", eventName)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		return eventFields, nil
+	}
+	return nil, trace.NotFound("event not found")
+}
+
+// eventInLog finds event in audit log file.
+func eventInLog(path string, eventName string) (events.EventFields, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		var fields events.EventFields
+		err = json.Unmarshal(scanner.Bytes(), &fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		eventType, ok := fields[events.EventType]
+		if !ok {
+			return nil, trace.BadParameter("not found")
+		}
+		if eventType == eventName {
+			return fields, nil
+		}
+	}
+
+	return nil, trace.NotFound("event not found")
 }
 
 // runCommand is a shortcut for running SSH command, it creates a client

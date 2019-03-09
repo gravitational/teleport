@@ -12,7 +12,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package reversetunnel
@@ -484,7 +483,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 }
 
 func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	// apply read/write timeouts to the server connection
+	// Apply read/write timeouts to the server connection.
 	conn = utils.ObeyIdleTimeout(conn,
 		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
 		"reverse tunnel server")

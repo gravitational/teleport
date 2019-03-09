@@ -296,6 +296,12 @@ var (
 	// without receiving a response from the client before the client is
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
 	KeepAliveCountMax = 3
+
+	// DiskAlertThreshold is the disk space alerting threshold.
+	DiskAlertThreshold = 90
+
+	// DiskAlertInterval is disk space check interval.
+	DiskAlertInterval = 5 * time.Minute
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -70,11 +71,35 @@ var (
 			Help: "Number of open audit files",
 		},
 	)
+
+	auditDiskUsed = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "audit_percentage_disk_space_used",
+			Help: "Percentage disk space used.",
+		},
+	)
+
+	auditFailedDisk = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "audit_failed_disk_monitoring",
+			Help: "Number of times disk monitoring failed.",
+		},
+	)
+
+	auditFailedEmit = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "audit_failed_emit_events",
+			Help: "Number of times emitting audit event failed.",
+		},
+	)
 )
 
 func init() {
-	// Metrics have to be registered to be exposed:
+	// Metrics have to be registered to be exposed.
 	prometheus.MustRegister(auditOpenFiles)
+	prometheus.MustRegister(auditDiskUsed)
+	prometheus.MustRegister(auditFailedDisk)
+	prometheus.MustRegister(auditFailedEmit)
 }
 
 // AuditLog is a new combined facility to record Teleport events and
@@ -262,6 +287,8 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	}
 
 	go al.periodicCleanupPlaybacks()
+	go al.periodicSpaceMonitor()
+
 	return al, nil
 }
 
@@ -840,12 +867,27 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 	return retval, nil
 }
 
-// EmitAuditEvent adds a new event to the log. Part of auth.IAuditLog interface.
+// EmitAuditEvent adds a new event to the log. If emitting fails, a Prometheus
+// counter is incremented.
 func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
+	// If an external logger has been set, use it as the emitter, otherwise
+	// fallback to the local disk based emitter.
+	var emitAuditEvent func(eventType string, fields EventFields) error
 	if l.ExternalLog != nil {
-		return l.ExternalLog.EmitAuditEvent(eventType, fields)
+		emitAuditEvent = l.ExternalLog.EmitAuditEvent
+	} else {
+		emitAuditEvent = l.localLog.EmitAuditEvent
 	}
-	return l.localLog.EmitAuditEvent(eventType, fields)
+
+	// Emit the event. If it fails for any reason a Prometheus counter is
+	// incremented.
+	err := emitAuditEvent(eventType, fields)
+	if err != nil {
+		auditFailedEmit.Inc()
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // emitEvent emits event for test purposes
@@ -936,4 +978,48 @@ func (l *AuditLog) periodicCleanupPlaybacks() {
 			}
 		}
 	}
+}
+
+// periodicSpaceMonitor run forever monitoring how much disk space has been
+// used on disk. Values are emitted to a Prometheus gauge.
+func (l *AuditLog) periodicSpaceMonitor() {
+	ticker := time.NewTicker(defaults.DiskAlertInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Find out what percentage of disk space is used. If the syscall fails,
+			// emit that to prometheus as well.
+			usedPercent, err := percentUsed(l.DataDir)
+			if err != nil {
+				auditFailedDisk.Inc()
+				log.Warnf("Disk space monitoring failed: %v.", err)
+				continue
+			}
+
+			// Update prometheus gauge with the percentage disk space used.
+			auditDiskUsed.Set(usedPercent)
+
+			// If used percentage goes above the alerting level, write to logs as well.
+			if usedPercent > float64(defaults.DiskAlertThreshold) {
+				log.Warnf("Free disk space for audit log is running low, %v%% of disk used.", usedPercent)
+			}
+		case <-l.ctx.Done():
+			return
+		}
+	}
+}
+
+// percentUsed returns percentage of disk space used. The percentage of disk
+// space used is calculated from (total blocks - free blocks)/total blocks.
+// The value is rounded to the nearest whole integer.
+func percentUsed(path string) (float64, error) {
+	var stat syscall.Statfs_t
+	err := syscall.Statfs(path, &stat)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	ratio := float64(stat.Blocks-stat.Bfree) / float64(stat.Blocks)
+	return math.Round(ratio * 100), nil
 }
