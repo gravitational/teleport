@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -61,7 +62,6 @@ import (
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -70,7 +70,9 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/golang/protobuf/proto"
 	"github.com/jonboulle/clockwork"
+	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -1388,6 +1390,85 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 
 	// make sure the connector we get back is "foo"
 	c.Assert(out.Auth.OIDC.Name, Equals, "foo")
+}
+
+// TestConstructSSHResponse checks if the secret package uses AES-GCM to
+// encrypt and decrypt data that passes through the ConstructSSHResponse
+// function.
+func (s *WebSuite) TestConstructSSHResponse(c *C) {
+	key, err := secret.NewKey()
+	c.Assert(err, IsNil)
+
+	u, err := url.Parse("http://www.example.com/callback")
+	c.Assert(err, IsNil)
+	query := u.Query()
+	query.Set("secret_key", key.String())
+	u.RawQuery = query.Encode()
+
+	rawresp, err := ConstructSSHResponse(AuthParams{
+		Username:          "foo",
+		Cert:              []byte{0x00},
+		TLSCert:           []byte{0x01},
+		ClientRedirectURL: u.String(),
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(rawresp.Query().Get("secret"), Equals, "")
+	c.Assert(rawresp.Query().Get("secret_key"), Equals, "")
+	c.Assert(rawresp.Query().Get("response"), Not(Equals), "")
+
+	plaintext, err := key.Open([]byte(rawresp.Query().Get("response")))
+	c.Assert(err, IsNil)
+
+	var resp *auth.SSHLoginResponse
+	err = json.Unmarshal(plaintext, &resp)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, "foo")
+	c.Assert(resp.Cert, DeepEquals, []byte{0x00})
+	c.Assert(resp.TLSCert, DeepEquals, []byte{0x01})
+}
+
+// TestConstructSSHResponseLegacy checks if the secret package uses NaCl to
+// encrypt and decrypt data that passes through the ConstructSSHResponse
+// function.
+func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
+	key, err := lemma_secret.NewKey()
+	c.Assert(err, IsNil)
+
+	lemma, err := lemma_secret.New(&lemma_secret.Config{KeyBytes: key})
+	c.Assert(err, IsNil)
+
+	u, err := url.Parse("http://www.example.com/callback")
+	c.Assert(err, IsNil)
+	query := u.Query()
+	query.Set("secret", lemma_secret.KeyToEncodedString(key))
+	u.RawQuery = query.Encode()
+
+	rawresp, err := ConstructSSHResponse(AuthParams{
+		Username:          "foo",
+		Cert:              []byte{0x00},
+		TLSCert:           []byte{0x01},
+		ClientRedirectURL: u.String(),
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(rawresp.Query().Get("secret"), Equals, "")
+	c.Assert(rawresp.Query().Get("secret_key"), Equals, "")
+	c.Assert(rawresp.Query().Get("response"), Not(Equals), "")
+
+	var sealedData *lemma_secret.SealedBytes
+	err = json.Unmarshal([]byte(rawresp.Query().Get("response")), &sealedData)
+	c.Assert(err, IsNil)
+
+	plaintext, err := lemma.Open(sealedData)
+	c.Assert(err, IsNil)
+
+	var resp *auth.SSHLoginResponse
+	err = json.Unmarshal(plaintext, &resp)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, "foo")
+	c.Assert(resp.Cert, DeepEquals, []byte{0x00})
+	c.Assert(resp.TLSCert, DeepEquals, []byte{0x01})
 }
 
 type authProviderMock struct {
