@@ -130,9 +130,6 @@ type InitConfig struct {
 
 	// CipherSuites is a list of ciphersuites that the auth server supports.
 	CipherSuites []uint16
-
-	// KubeconfigPath is an optional path to kubernetes config file
-	KubeconfigPath string
 }
 
 // Init instantiates and configures an instance of AuthServer
