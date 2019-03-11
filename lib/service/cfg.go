@@ -320,6 +320,9 @@ type KubeProxyConfig struct {
 	// PublicAddrs is a list of the public addresses the Teleport Kube proxy can be accessed by,
 	// it also affects the host principals and routing logic
 	PublicAddrs []utils.NetAddr
+
+	// KubeconfigPath is a path to kubeconfig
+	KubeconfigPath string
 }
 
 // AuthConfig is a configuration of the auth server
@@ -370,9 +373,6 @@ type AuthConfig struct {
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
-
-	// KubeconfigPath is a path to kubeconfig
-	KubeconfigPath string
 }
 
 // SSHConfig configures SSH server node role

@@ -10,20 +10,11 @@ metadata:
     heritage: {{ .Release.Service }}
 rules:
 - apiGroups:
-  - certificates.k8s.io
+  - ""
   resources:
-  - certificatesigningrequests
+  - users
+  - groups
+  - serviceaccounts
   verbs:
-  - create
-  - delete
-  - get
-  - list
-  - watch
-- apiGroups:
-  - certificates.k8s.io
-  resources:
-  - certificatesigningrequests/approval
-  - certificatesigningrequests/status
-  verbs:
-   - update
+  - impersonate
 {{- end -}}

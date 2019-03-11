@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -49,6 +50,9 @@ type SpdyRoundTripper struct {
 	//tlsConfig holds the TLS configuration settings to use when connecting
 	//to the remote server.
 	tlsConfig *tls.Config
+
+	authCtx     authContext
+	bearerToken string
 
 	/* TODO according to http://golang.org/pkg/net/http/#RoundTripper, a RoundTripper
 	   must be safe for use by multiple concurrent goroutines. If this is absolutely
@@ -81,10 +85,19 @@ var _ utilnet.Dialer = &SpdyRoundTripper{}
 // DialWithContext is the function used to dial to remote endpoints
 type DialWithContext func(context context.Context, network, address string) (net.Conn, error)
 
+type roundTripperConfig struct {
+	ctx             context.Context
+	authCtx         authContext
+	bearerToken     string
+	dial            DialWithContext
+	tlsConfig       *tls.Config
+	followRedirects bool
+}
+
 // NewSpdyRoundTripperWithDialer creates a new SpdyRoundTripper that will use
 // the specified tlsConfig. This function is mostly meant for unit tests.
-func NewSpdyRoundTripperWithDialer(ctx context.Context, dial DialWithContext, tlsConfig *tls.Config, followRedirects bool) *SpdyRoundTripper {
-	return &SpdyRoundTripper{tlsConfig: tlsConfig, followRedirects: followRedirects, dialWithContext: dial, ctx: ctx}
+func NewSpdyRoundTripperWithDialer(cfg roundTripperConfig) *SpdyRoundTripper {
+	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, followRedirects: cfg.followRedirects, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx, bearerToken: cfg.bearerToken}
 }
 
 // TLSClientConfig implements pkg/util/net.TLSClientConfigHolder for proper TLS checking during
@@ -175,6 +188,20 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	header := utilnet.CloneHeader(req.Header)
 	header.Add(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
 	header.Add(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
+
+	// impersonation for remote clusters is handled by remote proxies
+	if !s.authCtx.cluster.isRemote {
+		header.Add("Impersonate-User", s.authCtx.User.GetName())
+		log.Debugf("Impersonate User: %v", s.authCtx.User)
+		for _, group := range s.authCtx.kubeGroups {
+			header.Add("Impersonate-Group", group)
+			log.Debugf("Impersonate Group: %v", group)
+		}
+		if s.bearerToken != "" {
+			log.Debugf("Using Bearer Token Auth")
+			header.Set("Authorization", fmt.Sprintf("Bearer %v", s.bearerToken))
+		}
+	}
 
 	var (
 		conn        net.Conn

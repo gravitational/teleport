@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -101,7 +101,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		githubClients:        make(map[string]*githubClient),
 		cancelFunc:           cancelFunc,
 		closeCtx:             closeCtx,
-		kubeconfigPath:       cfg.KubeconfigPath,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -153,9 +152,6 @@ type AuthServer struct {
 
 	// cipherSuites is a list of ciphersuites that the auth server supports.
 	cipherSuites []uint16
-
-	// kubeconfigPath is a path to PEM encoded kubernetes CA certificate
-	kubeconfigPath string
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
