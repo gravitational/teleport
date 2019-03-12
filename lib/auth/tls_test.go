@@ -1699,7 +1699,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tlsCA, err := hostCA.TLSCA()
 	c.Assert(err, check.IsNil)
-	caPin := utils.CalculateSKPI(tlsCA.Cert)
+	caPin := utils.CalculateSPKI(tlsCA.Cert)
 
 	// Attempt to register with valid CA pin, should work.
 	_, err = Register(RegisterParams{
