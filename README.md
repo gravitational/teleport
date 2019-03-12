@@ -139,10 +139,13 @@ across many teams within multiple organizations.
 * [User Manual](http://gravitational.com/teleport/docs/user-manual)
 * [FAQ](http://gravitational.com/teleport/docs/faq)
 
-## Contributing
+## Support and Contributing
 
-The best way to contribute is to create issues or pull requests right here on Github. 
-You can also reach the Gravitational team through their [website](https://gravitational.com/)
+We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in Github, so feel free to create a PR or file an issue if you think improvements can be made. If you still have questions after reviewing our docs, you can also:
+
+* Join the [Teleport Community](https://community.gravitational.com/c/teleport) to ask questions. Our engineers are available there to help you.
+* If you want to contribute to Teleport or file a bug report/issue, you can do so by creating an issue here in Github.
+* If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://gravitational.com/teleport/) to arrange for a POC.
 
 ## Is Teleport Secure and Production Ready?
 
