@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -378,6 +379,29 @@ func (a *AuthServer) createUserAndSession(stoken *services.SignupToken) (service
 	return sess, nil
 }
 
+func (a *AuthServer) UpsertUser(user services.User) error {
+	err := a.Identity.UpsertUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the user was successfully upserted, emit an event.
+	var connectorName string
+	if user.GetCreatedBy().Connector == nil {
+		connectorName = teleport.Local
+	} else {
+		connectorName = user.GetCreatedBy().Connector.ID
+	}
+	a.EmitAuditEvent(events.UserUpdatedEvent, events.EventFields{
+		events.EventUser:     user.GetName(),
+		events.UserExpires:   user.Expiry(),
+		events.UserRoles:     user.GetRoles(),
+		events.UserConnector: connectorName,
+	})
+
+	return nil
+}
+
 func (a *AuthServer) DeleteUser(user string) error {
 	role, err := a.Access.GetRole(services.RoleNameForUser(user))
 	if err != nil {
@@ -391,5 +415,16 @@ func (a *AuthServer) DeleteUser(user string) error {
 			}
 		}
 	}
-	return a.Identity.DeleteUser(user)
+
+	err = a.Identity.DeleteUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the user was successfully deleted, emit an event.
+	a.EmitAuditEvent(events.UserDeleteEvent, events.EventFields{
+		events.EventUser: user,
+	})
+
+	return nil
 }
