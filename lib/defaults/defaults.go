@@ -19,6 +19,7 @@ limitations under the License.
 package defaults
 
 import (
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -512,3 +513,36 @@ const (
 // WindowsOpenSSHNamedPipe is the address of the named pipe that the
 // OpenSSH agent is on.
 const WindowsOpenSSHNamedPipe = `\\.\pipe\openssh-ssh-agent`
+
+var (
+	// FIPSCipherSuites is a list of supported FIPS compliant TLS cipher suites.
+	FIPSCipherSuites = []uint16{
+		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	}
+
+	// FIPSCiphers is a list of supported FIPS compliant SSH ciphers.
+	FIPSCiphers = []string{
+		"aes128-ctr",
+		"aes192-ctr",
+		"aes256-ctr",
+		"aes128-gcm@openssh.com",
+	}
+
+	// FIPSCiphers is a list of supported FIPS compliant SSH kex algorithms.
+	FIPSKEXAlgorithms = []string{
+		"ecdh-sha2-nistp256",
+		"ecdh-sha2-nistp384",
+		"echd-sha2-nistp521",
+	}
+
+	// FIPSCiphers is a list of supported FIPS compliant SSH mac algorithms.
+	FIPSMACAlgorithms = []string{
+		"hmac-sha2-256-etm@openssh.com",
+		"hmac-sha2-256",
+	}
+)

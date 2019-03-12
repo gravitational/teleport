@@ -202,7 +202,8 @@ func (h *Handler) ensureBucket() error {
 		// if this client has not created the bucket, don't reconfigure it
 		return nil
 	}
-	// turn on versioning
+
+	// Turn on versioning.
 	ver := &s3.PutBucketVersioningInput{
 		Bucket: aws.String(h.Bucket),
 		VersioningConfiguration: &s3.VersioningConfiguration{
@@ -215,6 +216,7 @@ func (h *Handler) ensureBucket() error {
 		return trace.Wrap(err)
 	}
 
+	// Turn on server-side encryption for the bucket.
 	_, err = h.client.PutBucketEncryption(&s3.PutBucketEncryptionInput{
 		Bucket: aws.String(h.Bucket),
 		ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{

@@ -109,6 +109,10 @@ type Config struct {
 
 	// ProxySettings is a settings communicated to proxy
 	ProxySettings client.ProxySettings
+
+	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// configuration.
+	FIPS bool
 }
 
 type RewritingHandler struct {
@@ -783,6 +787,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	if len(response.Req.PublicKey) == 0 {
 		return nil, trace.BadParameter("not a web or console Github login request")
 	}
+
 	redirectURL, err := ConstructSSHResponse(AuthParams{
 		ClientRedirectURL: response.Req.ClientRedirectURL,
 		Username:          response.Username,
@@ -791,6 +796,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		Cert:              response.Cert,
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
+		FIPS:              h.cfg.FIPS,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -894,6 +900,9 @@ type AuthParams struct {
 	HostSigners []services.CertAuthority
 	// ClientRedirectURL is a URL to redirect client to
 	ClientRedirectURL string
+	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// configuration.
+	FIPS bool
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
@@ -939,6 +948,12 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		}
 	// NaCl based symmetric cipher (legacy).
 	case secretV1 != "":
+		// If FIPS mode was requested, make sure older clients that use NaCl get rejected.
+		if response.FIPS {
+			return nil, trace.BadParameter("non-FIPS compliant encryption: NaCl, check " +
+				"that tsh release was downloaded from https://dashboard.gravitational.com")
+		}
+
 		secretKeyBytes, err := lemma_secret.EncodedStringToKey(secretV1)
 		if err != nil {
 			return nil, trace.BadParameter("bad secret")

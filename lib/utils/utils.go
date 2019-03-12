@@ -416,6 +416,40 @@ func SliceContainsStr(slice []string, value string) bool {
 	return false
 }
 
+// StringSliceSubset returns true if b is a subset of a.
+func StringSliceSubset(a []string, b []string) error {
+	aset := make(map[string]bool)
+	for _, v := range a {
+		aset[v] = true
+	}
+
+	for _, v := range b {
+		_, ok := aset[v]
+		if !ok {
+			return trace.BadParameter("%v not in set", v)
+		}
+
+	}
+	return nil
+}
+
+// UintSliceSubset returns true if b is a subset of a.
+func UintSliceSubset(a []uint16, b []uint16) error {
+	aset := make(map[uint16]bool)
+	for _, v := range a {
+		aset[v] = true
+	}
+
+	for _, v := range b {
+		_, ok := aset[v]
+		if !ok {
+			return trace.BadParameter("%v not in set", v)
+		}
+
+	}
+	return nil
+}
+
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
 func RemoveFromSlice(slice []string, values ...string) []string {
 	output := make([]string, 0, len(slice))

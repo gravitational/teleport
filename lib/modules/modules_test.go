@@ -49,6 +49,9 @@ func (s *ModulesSuite) TestDefaultModules(c *check.C) {
 		teleport.TraitLogins:     []string{"root"},
 		teleport.TraitKubeGroups: []string{"system:masters"},
 	})
+
+	isBoring := GetModules().IsBoringBinary()
+	c.Assert(isBoring, check.Equals, false)
 }
 
 func (s *ModulesSuite) TestTestModules(c *check.C) {
@@ -65,6 +68,9 @@ func (s *ModulesSuite) TestTestModules(c *check.C) {
 
 	traits := GetModules().TraitsFromLogins([]string{"root"}, []string{"system:masters"})
 	c.Assert(traits, check.IsNil)
+
+	isBoring := GetModules().IsBoringBinary()
+	c.Assert(isBoring, check.Equals, true)
 }
 
 type testModules struct{}
@@ -93,4 +99,8 @@ func (p *testModules) RolesFromLogins(logins []string) []string {
 
 func (p *testModules) TraitsFromLogins(logins []string, kubeGroups []string) map[string][]string {
 	return nil
+}
+
+func (p *testModules) IsBoringBinary() bool {
+	return true
 }
