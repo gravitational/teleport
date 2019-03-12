@@ -47,6 +47,8 @@ type Modules interface {
 	TraitsFromLogins([]string, []string) map[string][]string
 	// SupportsKubernetes returns true if this cluster supports kubernetes
 	SupportsKubernetes() bool
+	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+	IsBoringBinary() bool
 }
 
 // SetModules sets the modules interface
@@ -115,6 +117,11 @@ func (p *defaultModules) TraitsFromLogins(logins []string, kubeGroups []string) 
 // SupportsKubernetes returns true if this cluster supports kubernetes
 func (p *defaultModules) SupportsKubernetes() bool {
 	return true
+}
+
+// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+func (p *defaultModules) IsBoringBinary() bool {
+	return false
 }
 
 var (

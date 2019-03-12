@@ -94,6 +94,10 @@ type CommandLineFlags struct {
 	// Teleport won't check certificates when connecting to trusted clusters
 	// It's useful for learning Teleport (following quick starts, etc).
 	InsecureMode bool
+
+	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140-2 compliant
+	// configuration.
+	FIPS bool
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -837,6 +841,46 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If FIPS mode is specified, validate Teleport configuration is FedRAMP/FIPS
+	// 140-2 compliant.
+	if clf.FIPS {
+		// Make sure all cryptographic primitives are FIPS compliant.
+		err = utils.UintSliceSubset(defaults.FIPSCipherSuites, cfg.CipherSuites)
+		if err != nil {
+			return trace.BadParameter("non-FIPS compliant TLS cipher suite selected: %v", err)
+		}
+		err = utils.StringSliceSubset(defaults.FIPSCiphers, cfg.Ciphers)
+		if err != nil {
+			return trace.BadParameter("non-FIPS compliant SSH cipher selected: %v", err)
+		}
+		err = utils.StringSliceSubset(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
+		if err != nil {
+			return trace.BadParameter("non-FIPS compliant SSH kex algorithm selected: %v", err)
+		}
+		err = utils.StringSliceSubset(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
+		if err != nil {
+			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
+		}
+
+		// Make sure cluster settings are also FedRAMP/FIPS 140-2 compliant.
+		if cfg.Auth.Enabled {
+			// Only SSO based authentication is supported. The SSO provider is where
+			// any FedRAMP/FIPS 140-2 compliance (like password complexity) should be
+			// enforced.
+			if cfg.Auth.ClusterConfig.GetLocalAuth() == true {
+				return trace.BadParameter("non-FIPS compliant authentication setting: \"local_auth\" must be false")
+			}
+
+			// If sessions are being recorded at the proxy host key checking must be
+			// enabled. This make sure the host certificate key algorithm is FIPS
+			// compliant.
+			if cfg.Auth.ClusterConfig.GetSessionRecording() == services.RecordAtProxy &&
+				cfg.Auth.ClusterConfig.GetProxyChecksHostKeys() == services.HostKeyCheckNo {
+				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
+			}
+		}
 	}
 
 	// Apply diagnostic address flag.
