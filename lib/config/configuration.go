@@ -813,7 +813,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// apply command line --debug flag to override logger severity
-	if clf.Debug {
+	if fileConf != nil && clf.Debug {
 		fileConf.Logger.Severity = teleport.DebugLevel
 	}
 
