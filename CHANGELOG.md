@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.8
+
+This release of Teleport contains a bug fix.
+
+#### Changes
+
+* Fixed issue where SSO users TTL was set incorrectly. [#2564](https://github.com/gravitational/teleport/pull/2564)
+
 ## 3.1.7
 
 This release of Teleport contains a bug fix.
