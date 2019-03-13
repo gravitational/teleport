@@ -725,6 +725,18 @@ ssh_service:
 	}
 }
 
+// TestDebugFlag ensures that the debug command-line flag is correctly set in the config.
+func (s *ConfigTestSuite) TestDebugFlag(c *check.C) {
+	clf := CommandLineFlags{
+		Debug: true,
+	}
+	cfg := service.MakeDefaultConfig()
+	c.Assert(cfg.Debug, check.Equals, false)
+	err := Configure(&clf, cfg)
+	c.Assert(err, check.IsNil)
+	c.Assert(cfg.Debug, check.Equals, true)
+}
+
 func (s *ConfigTestSuite) TestLicenseFile(c *check.C) {
 	testCases := []struct {
 		path   string
