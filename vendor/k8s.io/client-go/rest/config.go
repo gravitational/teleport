@@ -17,6 +17,8 @@ limitations under the License.
 package rest
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -27,9 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
-
-	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -37,12 +36,15 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/flowcontrol"
+	"k8s.io/klog"
 )
 
 const (
 	DefaultQPS   float32 = 5.0
 	DefaultBurst int     = 10
 )
+
+var ErrNotInCluster = errors.New("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
 
 // Config holds the common attributes that can be passed to a Kubernetes client on
 // initialization.
@@ -54,9 +56,6 @@ type Config struct {
 	Host string
 	// APIPath is a sub-path that points to an API root.
 	APIPath string
-	// Prefix is the sub path of the server. If not specified, the client will set
-	// a default value.  Use "/" to indicate the server root should be used
-	Prefix string
 
 	// ContentConfig contains settings that affect how objects are transformed when
 	// sent to the server.
@@ -71,10 +70,6 @@ type Config struct {
 	// TODO: demonstrate an OAuth2 compatible client.
 	BearerToken string
 
-	// CacheDir is the directory where we'll store HTTP cached responses.
-	// If set to empty string, no caching mechanism will be used.
-	CacheDir string
-
 	// Impersonate is the configuration that RESTClient will use for impersonation.
 	Impersonate ImpersonationConfig
 
@@ -83,6 +78,9 @@ type Config struct {
 
 	// Callback to persist config for AuthProvider.
 	AuthConfigPersister AuthProviderConfigPersister
+
+	// Exec-based authentication provider.
+	ExecProvider *clientcmdapi.ExecConfig
 
 	// TLSClientConfig contains settings to enable transport layer security
 	TLSClientConfig
@@ -115,7 +113,7 @@ type Config struct {
 	Timeout time.Duration
 
 	// Dial specifies the dial function for creating unencrypted TCP connections.
-	Dial func(network, addr string) (net.Conn, error)
+	Dial func(ctx context.Context, network, address string) (net.Conn, error)
 
 	// Version forces a specific version to be used (if registered)
 	// Do we need this?
@@ -224,7 +222,7 @@ func RESTClientFor(config *Config) (*RESTClient, error) {
 // the config.Version to be empty.
 func UnversionedRESTClientFor(config *Config) (*RESTClient, error) {
 	if config.NegotiatedSerializer == nil {
-		return nil, fmt.Errorf("NeogitatedSerializer is required when initializing a RESTClient")
+		return nil, fmt.Errorf("NegotiatedSerializer is required when initializing a RESTClient")
 	}
 
 	baseURL, versionedAPIPath, err := defaultServerUrlFor(config)
@@ -312,22 +310,28 @@ func DefaultKubernetesUserAgent() string {
 
 // InClusterConfig returns a config object which uses the service account
 // kubernetes gives to pods. It's intended for clients that expect to be
-// running inside a pod running on kubernetes. It will return an error if
-// called from a process not running in a kubernetes environment.
+// running inside a pod running on kubernetes. It will return ErrNotInCluster
+// if called from a process not running in a kubernetes environment.
 func InClusterConfig() (*Config, error) {
+	const (
+		tokenFile  = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+		rootCAFile = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	)
 	host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
 	if len(host) == 0 || len(port) == 0 {
-		return nil, fmt.Errorf("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
+		return nil, ErrNotInCluster
 	}
 
-	token, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/" + v1.ServiceAccountTokenKey)
-	if err != nil {
+	ts := NewCachedFileTokenSource(tokenFile)
+
+	if _, err := ts.Token(); err != nil {
 		return nil, err
 	}
+
 	tlsClientConfig := TLSClientConfig{}
-	rootCAFile := "/var/run/secrets/kubernetes.io/serviceaccount/" + v1.ServiceAccountRootCAKey
+
 	if _, err := certutil.NewPool(rootCAFile); err != nil {
-		glog.Errorf("Expected to load root CA config from %s, but got err: %v", rootCAFile, err)
+		klog.Errorf("Expected to load root CA config from %s, but got err: %v", rootCAFile, err)
 	} else {
 		tlsClientConfig.CAFile = rootCAFile
 	}
@@ -335,8 +339,8 @@ func InClusterConfig() (*Config, error) {
 	return &Config{
 		// TODO: switch to using cluster DNS.
 		Host:            "https://" + net.JoinHostPort(host, port),
-		BearerToken:     string(token),
 		TLSClientConfig: tlsClientConfig,
+		WrapTransport:   TokenSourceWrapTransport(ts),
 	}, nil
 }
 
@@ -405,7 +409,6 @@ func AnonymousClientConfig(config *Config) *Config {
 	return &Config{
 		Host:          config.Host,
 		APIPath:       config.APIPath,
-		Prefix:        config.Prefix,
 		ContentConfig: config.ContentConfig,
 		TLSClientConfig: TLSClientConfig{
 			Insecure:   config.Insecure,
@@ -429,12 +432,10 @@ func CopyConfig(config *Config) *Config {
 	return &Config{
 		Host:          config.Host,
 		APIPath:       config.APIPath,
-		Prefix:        config.Prefix,
 		ContentConfig: config.ContentConfig,
 		Username:      config.Username,
 		Password:      config.Password,
 		BearerToken:   config.BearerToken,
-		CacheDir:      config.CacheDir,
 		Impersonate: ImpersonationConfig{
 			Groups:   config.Impersonate.Groups,
 			Extra:    config.Impersonate.Extra,
@@ -442,6 +443,7 @@ func CopyConfig(config *Config) *Config {
 		},
 		AuthProvider:        config.AuthProvider,
 		AuthConfigPersister: config.AuthConfigPersister,
+		ExecProvider:        config.ExecProvider,
 		TLSClientConfig: TLSClientConfig{
 			Insecure:   config.TLSClientConfig.Insecure,
 			ServerName: config.TLSClientConfig.ServerName,
