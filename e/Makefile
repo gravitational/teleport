@@ -9,9 +9,14 @@ BINARIES ?= $(BUILDDIR)/tctl $(BUILDDIR)/teleport
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 
+# FIPS support must be requested at build time.
+ifneq ("$(FIPS)","")
+FIPS_TAG := fips
+endif
+
 # PAM support will only be built into Teleport if headers exist at build time.
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
-PAMFLAGS = -tags pam
+PAM_TAG = pam
 endif
 
 # All build Enterprise version of "teleport" and "tctl" binaries and copy
@@ -28,11 +33,11 @@ all:
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build $(PAMFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 # The tsh target does not actually build an Enterprise version of tsh, it just
 # copies it over from OSS.

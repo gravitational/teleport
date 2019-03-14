@@ -2,7 +2,9 @@ package modules
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
+	"reflect"
 	"runtime"
 
 	"github.com/gravitational/teleport"
@@ -75,4 +77,17 @@ func (p *enterpriseModules) RolesFromLogins(logins []string) []string {
 // For Enterprise edition "logins" are used as role names so traits are empty
 func (p *enterpriseModules) TraitsFromLogins(logins []string, kubeGroups []string) map[string][]string {
 	return nil
+}
+
+// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+func (p *enterpriseModules) IsBoringBinary() bool {
+	// Check the package name for one of the boring primitives, if the package
+	// path is from BoringCrypto, we know this binary was compiled against the
+	// dev.boringcrypto branch of Go.
+	hash := sha256.New()
+	if reflect.TypeOf(hash).Elem().PkgPath() != "crypto/internal/boring" {
+		return false
+	}
+
+	return true
 }
