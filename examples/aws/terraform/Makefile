@@ -56,8 +56,8 @@ apply:
 	terraform init
 	terraform apply
 
-# Destroy destroys the infrastructure
-.PHONY: destroy
-destroy:
+# Destroy destroys the infrastructure, it doesn't ask for confirmation so be sure you actually want to
+.PHONY: destroy-yes-i-want-to-do-this
+destroy-yes-i-want-to-do-this:
 	terraform init
-	terraform destroy
+	terraform destroy -auto-approve
