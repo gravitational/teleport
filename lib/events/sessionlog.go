@@ -30,8 +30,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -62,6 +65,8 @@ type DiskSessionLoggerConfig struct {
 	DataDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
+	// UIDGenerator is used to generate unique IDs for events
+	UIDGenerator utils.UID
 	// RecordSessions controls if sessions are recorded along with audit events.
 	RecordSessions bool
 	// Namespace is logger namespace
@@ -71,6 +76,9 @@ type DiskSessionLoggerConfig struct {
 }
 
 func (cfg *DiskSessionLoggerConfig) CheckAndSetDefaults() error {
+	if cfg.UIDGenerator == nil {
+		cfg.UIDGenerator = utils.NewRealUID()
+	}
 	return nil
 }
 
@@ -312,6 +320,7 @@ func EventFromChunk(sessionID string, chunk *SessionChunk) (EventFields, error) 
 	fields[EventIndex] = chunk.EventIndex
 	fields[EventTime] = eventStart
 	fields[EventType] = chunk.EventType
+	fields[EventUID] = uuid.New()
 	return fields, nil
 }
 
@@ -349,6 +358,7 @@ func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (
 	}
 	sl.lastChunkIndex = chunk.ChunkIndex
 	event := printEvent{
+		UID:               sl.UIDGenerator.New(),
 		Start:             eventStart,
 		Type:              SessionPrintEvent,
 		Bytes:             int64(len(chunk.Data)),
@@ -390,6 +400,8 @@ type indexEntry struct {
 }
 
 type printEvent struct {
+	// UID is a unique event identifier
+	UID string `json:"uid"`
 	// Start is event start
 	Start time.Time `json:"time"`
 	// Type is event type

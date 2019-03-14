@@ -28,6 +28,8 @@ import (
 const (
 	// EventType is event type/kind
 	EventType = "event"
+	// EventUID is a unique event identifier
+	EventUID = "uid"
 	// EventTime is event time
 	EventTime = "time"
 	// EventLogin is OS login
@@ -235,6 +237,11 @@ func (f EventFields) AsString() string {
 // GetType returns the type (string) of the event
 func (f EventFields) GetType() string {
 	return f.GetString(EventType)
+}
+
+// GetUID returns the unique event ID
+func (f EventFields) GetUID() string {
+	return f.GetString(EventUID)
 }
 
 // GetString returns a string representation of a logged field

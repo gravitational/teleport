@@ -127,6 +127,9 @@ type AuditLogConfig struct {
 	// Clock is a clock either real one or used in tests
 	Clock clockwork.Clock
 
+	// UIDGenerator is used to generate unique IDs for events
+	UIDGenerator utils.UID
+
 	// GID if provided will be used to set group ownership of the directory
 	// to GID
 	GID *int
@@ -172,6 +175,9 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	}
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
+	}
+	if a.UIDGenerator == nil {
+		a.UIDGenerator = utils.NewRealUID()
 	}
 	if a.RotationPeriod == 0 {
 		a.RotationPeriod = defaults.LogRotationPeriod
@@ -248,6 +254,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 			Dir:            auditDir,
 			SymlinkDir:     cfg.DataDir,
 			Clock:          al.Clock,
+			UIDGenerator:   al.UIDGenerator,
 			SearchDirs:     al.auditDirs,
 		})
 		if err != nil {
