@@ -77,7 +77,7 @@ resource "aws_iam_role_policy" "proxy_ssm" {
                 "ssm:GetParametersByPath",
                 "ssm:GetParameter"
             ],
-            "Resource": "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/teleport/${var.cluster_name}/ca"
+            "Resource": "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/teleport/${var.cluster_name}/ca-pin-hash"
         },
         {
          "Effect":"Allow",

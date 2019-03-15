@@ -209,10 +209,10 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Check that the SKPI pin matches the CA we fetched over a insecure
+	// Check that the SPKI pin matches the CA we fetched over a insecure
 	// connection. This makes sure the CA fetched over a insecure connection is
 	// in-fact the expected CA.
-	err = utils.CheckSKPI(params.CAPin, tlsCA)
+	err = utils.CheckSPKI(params.CAPin, tlsCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
