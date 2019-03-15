@@ -122,8 +122,8 @@ func (l *FileLog) EmitAuditEvent(eventType string, fields EventFields) error {
 
 	// set event type, unique ID and time:
 	fields[EventType] = eventType
-	if fields.GetUID() == "" {
-		fields[EventUID] = l.UIDGenerator.New()
+	if fields.GetID() == "" {
+		fields[EventID] = l.UIDGenerator.New()
 	}
 	if _, ok := fields[EventTime]; !ok {
 		fields[EventTime] = l.Clock.Now().In(time.UTC).Round(time.Second)
