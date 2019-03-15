@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -64,6 +65,7 @@ func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, recordSess
 		RecordSessions: recordSessions,
 		ServerID:       "server1",
 		Clock:          clock,
+		UIDGenerator:   utils.NewFakeUID(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -324,7 +326,7 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	bytes, err := ioutil.ReadFile(logfile)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(bytes), check.Equals,
-		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\"}\n", now.Format(time.RFC3339)))
+		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n", now.Format(time.RFC3339), fixtures.UUID))
 }
 
 // TestLogRotation makes sure that logs are rotated
@@ -358,7 +360,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		// read back what's been written:
 		bytes, err := ioutil.ReadFile(logfile)
 		c.Assert(err, check.IsNil)
-		contents := fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\"}\n", now.Format(time.RFC3339))
+		contents := fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n", now.Format(time.RFC3339), fixtures.UUID)
 		c.Assert(string(bytes), check.Equals, contents)
 
 		// read back the contents using symlink

@@ -173,3 +173,6 @@ k+vHAoGBAJyA+RtBF5m64/TqhZFcesTtnpWaRhQ50xXnNVF3W1eKGPtdTDKOaENA
 LJxgC1GdoEz2ilXW802H9QrdKf9GPqxwi2TVzfO6pzWkdZcmbItu+QCCFz+co+r8
 +ki49FmlfbR5YVPN+8X40aLQB4xDkCHwRwTkrigzWQhIOv8NAhDA
 -----END RSA PRIVATE KEY-----`
+
+// UUID is the unique identifier used in tests
+const UUID = "11111111-1111-1111-1111-111111111111"

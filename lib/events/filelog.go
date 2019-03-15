@@ -49,6 +49,8 @@ type FileLogConfig struct {
 	SymlinkDir string
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
+	// UIDGenerator is used to generate unique IDs for events
+	UIDGenerator utils.UID
 	// SearchDirs is a function that returns
 	// search directories, if not set, only Dir is used
 	SearchDirs func() ([]string, error)
@@ -76,6 +78,9 @@ func (cfg *FileLogConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.UIDGenerator == nil {
+		cfg.UIDGenerator = utils.NewRealUID()
 	}
 	return nil
 }
@@ -115,8 +120,11 @@ func (l *FileLog) EmitAuditEvent(eventType string, fields EventFields) error {
 		log.Error(err)
 	}
 
-	// set event type and time:
+	// set event type, unique ID and time:
 	fields[EventType] = eventType
+	if fields.GetID() == "" {
+		fields[EventID] = l.UIDGenerator.New()
+	}
 	if _, ok := fields[EventTime]; !ok {
 		fields[EventTime] = l.Clock.Now().In(time.UTC).Round(time.Second)
 	}
