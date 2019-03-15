@@ -214,7 +214,7 @@ func New(c ServerConfig) (*Server, error) {
 		}),
 		id:              uuid.New(),
 		targetConn:      c.TargetConn,
-		serverConn:      serverConn,
+		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
 		userAgent:       c.UserAgent,
 		hostCertificate: c.HostCertificate,
@@ -594,6 +594,7 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
+	ctx.Connection = s.serverConn
 	ctx.RemoteClient = s.remoteClient
 	defer ctx.Close()
 
@@ -657,6 +658,7 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
+	ctx.Connection = s.serverConn
 	ctx.RemoteClient = s.remoteClient
 	ctx.AddCloser(ch)
 	defer ctx.Close()

@@ -364,10 +364,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 		defaults.DefaultIdleConnectionDuration,
 		s.component)
 
+	// Wrap connection with a tracker used to monitor how much data was
+	// transmitted and received over the connection.
+	wconn := utils.NewTrackingConn(conn)
+
 	// create a new SSH server which handles the handshake (and pass the custom
 	// payload structure which will be populated only when/if this connection
 	// comes from another Teleport proxy):
-	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(conn), &s.cfg)
+	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(wconn), &s.cfg)
 	if err != nil {
 		conn.SetDeadline(time.Time{})
 		return
@@ -413,7 +417,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			go s.newChanHandler.HandleNewChan(conn, sconn, nch)
+			go s.newChanHandler.HandleNewChan(wconn, sconn, nch)
 			// send keepalive pings to the clients
 		case <-keepAliveTick.C:
 			const wantReply = true
