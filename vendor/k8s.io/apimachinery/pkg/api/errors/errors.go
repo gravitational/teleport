@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -82,7 +83,20 @@ func (u *UnexpectedObjectError) Error() string {
 func FromObject(obj runtime.Object) error {
 	switch t := obj.(type) {
 	case *metav1.Status:
-		return &StatusError{*t}
+		return &StatusError{ErrStatus: *t}
+	case runtime.Unstructured:
+		var status metav1.Status
+		obj := t.UnstructuredContent()
+		if !reflect.DeepEqual(obj["kind"], "Status") {
+			break
+		}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(t.UnstructuredContent(), &status); err != nil {
+			return err
+		}
+		if status.APIVersion != "v1" && status.APIVersion != "meta.k8s.io/v1" {
+			break
+		}
+		return &StatusError{ErrStatus: status}
 	}
 	return &UnexpectedObjectError{obj}
 }
@@ -327,6 +341,17 @@ func NewTooManyRequestsError(message string) *StatusError {
 	}}
 }
 
+// NewRequestEntityTooLargeError returns an error indicating that the request
+// entity was too large.
+func NewRequestEntityTooLargeError(message string) *StatusError {
+	return &StatusError{metav1.Status{
+		Status:  metav1.StatusFailure,
+		Code:    http.StatusRequestEntityTooLarge,
+		Reason:  metav1.StatusReasonRequestEntityTooLarge,
+		Message: fmt.Sprintf("Request entity too large: %s", message),
+	}}
+}
+
 // NewGenericServerResponse returns a new error for server responses that are not in a recognizable form.
 func NewGenericServerResponse(code int, verb string, qualifiedResource schema.GroupResource, name, serverMessage string, retryAfterSeconds int, isUnexpectedResponse bool) *StatusError {
 	reason := metav1.StatusReasonUnknown
@@ -352,12 +377,23 @@ func NewGenericServerResponse(code int, verb string, qualifiedResource schema.Gr
 		reason = metav1.StatusReasonForbidden
 		// the server message has details about who is trying to perform what action.  Keep its message.
 		message = serverMessage
+	case http.StatusNotAcceptable:
+		reason = metav1.StatusReasonNotAcceptable
+		// the server message has details about what types are acceptable
+		message = serverMessage
+	case http.StatusUnsupportedMediaType:
+		reason = metav1.StatusReasonUnsupportedMediaType
+		// the server message has details about what types are acceptable
+		message = serverMessage
 	case http.StatusMethodNotAllowed:
 		reason = metav1.StatusReasonMethodNotAllowed
 		message = "the server does not allow this method on the requested resource"
 	case http.StatusUnprocessableEntity:
 		reason = metav1.StatusReasonInvalid
 		message = "the server rejected our request due to an error in our request"
+	case http.StatusServiceUnavailable:
+		reason = metav1.StatusReasonServiceUnavailable
+		message = "the server is currently unable to handle the request"
 	case http.StatusGatewayTimeout:
 		reason = metav1.StatusReasonTimeout
 		message = "the server was unable to return a response in the time allotted, but may still be processing the request"
@@ -434,6 +470,16 @@ func IsResourceExpired(err error) bool {
 	return ReasonForError(err) == metav1.StatusReasonExpired
 }
 
+// IsNotAcceptable determines if err is an error which indicates that the request failed due to an invalid Accept header
+func IsNotAcceptable(err error) bool {
+	return ReasonForError(err) == metav1.StatusReasonNotAcceptable
+}
+
+// IsUnsupportedMediaType determines if err is an error which indicates that the request failed due to an invalid Content-Type header
+func IsUnsupportedMediaType(err error) bool {
+	return ReasonForError(err) == metav1.StatusReasonUnsupportedMediaType
+}
+
 // IsMethodNotSupported determines if the err is an error which indicates the provided action could not
 // be performed because it is not supported by the server.
 func IsMethodNotSupported(err error) bool {
@@ -488,6 +534,19 @@ func IsTooManyRequests(err error) bool {
 	switch t := err.(type) {
 	case APIStatus:
 		return t.Status().Code == http.StatusTooManyRequests
+	}
+	return false
+}
+
+// IsRequestEntityTooLargeError determines if err is an error which indicates
+// the request entity is too large.
+func IsRequestEntityTooLargeError(err error) bool {
+	if ReasonForError(err) == metav1.StatusReasonRequestEntityTooLarge {
+		return true
+	}
+	switch t := err.(type) {
+	case APIStatus:
+		return t.Status().Code == http.StatusRequestEntityTooLarge
 	}
 	return false
 }

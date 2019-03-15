@@ -20,9 +20,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
-	"k8s.io/api/core/v1"
 	restclient "k8s.io/client-go/rest"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
@@ -120,7 +119,7 @@ func (config *DeferredLoadingClientConfig) ClientConfig() (*restclient.Config, e
 
 	// check for in-cluster configuration and use it
 	if config.icc.Possible() {
-		glog.V(4).Infof("Using in-cluster configuration")
+		klog.V(4).Infof("Using in-cluster configuration")
 		return config.icc.ClientConfig()
 	}
 
@@ -145,7 +144,7 @@ func (config *DeferredLoadingClientConfig) Namespace() (string, bool, error) {
 
 	if len(ns) > 0 {
 		// if we got a non-default namespace from the kubeconfig, use it
-		if ns != v1.NamespaceDefault {
+		if ns != "default" {
 			return ns, false, nil
 		}
 
@@ -157,7 +156,7 @@ func (config *DeferredLoadingClientConfig) Namespace() (string, bool, error) {
 		}
 	}
 
-	glog.V(4).Infof("Using in-cluster namespace")
+	klog.V(4).Infof("Using in-cluster namespace")
 
 	// allow the namespace from the service account token directory to be used.
 	return config.icc.Namespace()
