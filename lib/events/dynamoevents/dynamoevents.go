@@ -222,8 +222,8 @@ func (l *Log) EmitAuditEvent(eventType string, fields events.EventFields) error 
 	}
 	// set event type in the fields as it's missing there
 	fields[events.EventType] = eventType
-	if fields.GetUID() == "" {
-		fields[events.EventUID] = l.UIDGenerator.New()
+	if fields.GetID() == "" {
+		fields[events.EventID] = l.UIDGenerator.New()
 	}
 	data, err := json.Marshal(fields)
 	if err != nil {
