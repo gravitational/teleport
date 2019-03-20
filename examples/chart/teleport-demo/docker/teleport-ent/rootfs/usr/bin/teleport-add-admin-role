@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -e
+TCTL=/usr/local/bin/tctl
+# only run when we have an admin role descriptor
+if [ -f /etc/teleport/admin-role.yaml ]; then
+    ${TCTL} create -f /etc/teleport/admin-role.yaml
+fi
