@@ -19,12 +19,45 @@ auth0:
   issuer_url: https://gravitational.auth0.com/
   # scope must be an array
   scope: ["roles"]
-  # list of oidc roles to map to associated teleport roles, formatted like this:
-  # "oidc role": ["teleport role1", "teleport role2"]
-  # this doesn't currently work due to Helm map conversion
-  oidc_role_to_teleport_role_map:
-    "gravitational/admins": ["@teleadmin", "admin"]
-    "gravitational/devc": ["@teleadmin", "admin"]
+  # oidc roles to map to associated teleport roles
+  claims_to_roles:
+  - claim: roles
+    value: gravitational/admins
+    roles: ["admin"]
+  - claim: roles
+    value: gravitational/devc
+    roles: ["admin"]
+
+# admin role kubernetes groups
+admin_role:
+  kubernetes_groups: '["system:masters"]'
+
+# teleport labels
+# static is a dictionary of key:value pairs
+# dynamic is a list containing name, command and period
+teleportLabels:
+  auth:
+    static:
+      role: auth
+      environment: demo
+    dynamic:
+    - name: uptime
+      command: ['uptime', '-p']
+      period: '1m'
+    - name: kernel
+      command: ['uname', '-r']
+      period: '1h'
+  node:
+    static:
+      role: node
+      environment: demo
+    dynamic:
+    - name: uptime
+      command: ['uptime', '-p']
+      period: '1m'
+    - name: kernel
+      command: ['uname', '-r']
+      period: '1h'
 
 ### Cloudflare
 cloudflare:
@@ -43,7 +76,7 @@ letsencrypt:
   # repeatedly may cause you to hit LetsEncrypt's rate limits. To avoid this, You can take a backup of the tls-web
   # secret for each cluster namespace after Letsencrypt has provisioned the certificates, then manually re-add these
   # secrets after deploying the Helm chart
-  enabled: true
+  enabled: false
   # Email address to register with LetsEncrypt
   email: email@address.com
 
@@ -225,6 +258,30 @@ service:
   # Set something like the below in order to instruct external-dns to create a Route53 record set for your ELB on AWS:
   # external-dns.alpha.kubernetes.io/hostname: teleport.my-org.com
 
+# minikubeIP needs to be set via command-line when running in minikube
+#minikubeIP: 192.168.39.46
+
+# list of local ports to use when running in NodePort mode
+# you'll need to override these to run more than one chart installation using NodePort
+# these only apply to the 'main' cluster - any trusted clusters will have randomly assigned NodePorts
+nodePort:
+  ports:
+    proxyweb:
+      port: 3080
+      nodePort: 30080
+    authssh:
+      port: 3025
+      nodePort: 30025
+    proxykube:
+      port: 3026
+      nodePort: 30026
+    proxyssh:
+      port: 3023
+      nodePort: 30023
+    proxytunnel:
+      port: 3024
+      nodePort: 30024
+
 ports:
   auth:
     proxyweb:
@@ -282,6 +339,10 @@ serviceAccount:
   # The name of the ServiceAccount to use.
   # If name is not set (or is blank) and 'create' is true, a name is generated using the fullname template
   name:
+  # optional imagePullSecrets to add to the ServiceAccount (as an alternative to specifying for each individual image)
+  # this secret must be present within each Teleport cluster's Kubernetes namespace otherwise it won't work!
+  #imagePullSecrets:
+  #- name: gcr-pull
 
 persistence:
   enabled: false

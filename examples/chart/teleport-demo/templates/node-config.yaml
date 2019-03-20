@@ -24,6 +24,16 @@ data:
 
     ssh_service:
       enabled: yes
+      {{- if .Values.teleportLabels.node.static }}
+      labels:
+      {{- range $key, $value := .Values.teleportLabels.node.static }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.teleportLabels.node.dynamic }}
+      commands:
+      {{ toYaml .Values.teleportLabels.node.dynamic | indent 6 | trim }}
+      {{- end }}
 
     proxy_service:
       enabled: no
@@ -58,6 +68,16 @@ data:
 
     ssh_service:
       enabled: yes
+      {{- if $root.Values.teleportLabels.node.static }}
+      labels:
+      {{- range $key, $value := $root.Values.teleportLabels.node.static }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if $root.Values.teleportLabels.node.dynamic }}
+      commands:
+      {{ toYaml $root.Values.teleportLabels.node.dynamic | indent 6 | trim }}
+      {{- end }}
 
     proxy_service:
       enabled: no

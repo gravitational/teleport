@@ -50,3 +50,49 @@ chart: {{ template "teleport.chart" . }}
 release: {{ .Release.Name }}
 heritage: {{ .Release.Service }}
 {{- end -}}
+
+{{/* Public authssh address should be set according to ServiceType */}}
+{{- define "teleport.main.authssh_public_addr" -}}
+{{ $.clusterName }}
+{{- if contains "LoadBalancer" $.Values.service.type -}}
+{{ template "teleport.fullname" $ }}-{{ $.Values.mainClusterName }}.{{ $.Values.cloudflare.domain }}:{{ $.Values.service.ports.authssh.port }}
+{{- else -}}
+{{ $.Values.minikubeIP }}:{{ $.Values.nodePort.ports.authssh.nodePort }}
+{{- end -}}
+{{- end -}}
+
+{{/* Public proxyweb address should be set according to ServiceType */}}
+{{- define "teleport.main.proxyweb_public_addr" -}}
+{{- if contains "LoadBalancer" .Values.service.type -}}
+{{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:{{ .Values.service.ports.proxyweb.port }}
+{{- else -}}
+{{ .Values.minikubeIP }}:{{ .Values.nodePort.ports.proxyweb.nodePort }}
+{{- end -}}
+{{- end -}}
+
+{{/* Public proxykube address should be set according to ServiceType */}}
+{{- define "teleport.main.proxykube_public_addr" -}}
+{{- if contains "LoadBalancer" .Values.service.type -}}
+{{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:{{ .Values.service.ports.proxykube.port }}
+{{- else -}}
+{{ .Values.minikubeIP }}:{{ .Values.nodePort.ports.proxykube.nodePort }}
+{{- end -}}
+{{- end -}}
+
+{{/* Public proxyssh address should be set according to ServiceType */}}
+{{- define "teleport.main.proxyssh_public_addr" -}}
+{{- if contains "LoadBalancer" .Values.service.type -}}
+{{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:{{ .Values.service.ports.proxyssh.port }}
+{{- else -}}
+{{ .Values.minikubeIP }}:{{ .Values.nodePort.ports.proxyssh.nodePort }}
+{{- end -}}
+{{- end -}}
+
+{{/* Public proxytunnel address should be set according to ServiceType */}}
+{{- define "teleport.main.proxytunnel_public_addr" -}}
+{{- if contains "LoadBalancer" .Values.service.type -}}
+{{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:{{ .Values.service.ports.proxytunnel.port }}
+{{- else -}}
+{{ .Values.minikubeIP }}:{{ .Values.nodePort.ports.proxytunnel.nodePort }}
+{{- end -}}
+{{- end -}}

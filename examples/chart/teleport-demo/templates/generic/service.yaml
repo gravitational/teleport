@@ -16,11 +16,17 @@ spec:
   type: {{ .Values.service.type }}
   {{- if contains "LoadBalancer" .Values.service.type }}
   externalTrafficPolicy: Local
-  {{- end }}
   ports:
   {{- range $key, $value := .Values.service.ports }}
     - name: {{ $key }}
 {{ toYaml $value | indent 6 }}
+  {{- end -}}
+  {{- else }}
+  ports:
+  {{- range $key, $value := .Values.nodePort.ports }}
+    - name: {{ $key }}
+{{ toYaml $value | indent 6 }}
+  {{- end }}
   {{- end }}
   selector:
     app: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}

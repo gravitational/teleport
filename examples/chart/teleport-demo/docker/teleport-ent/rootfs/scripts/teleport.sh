@@ -17,6 +17,19 @@ fi
 # run in background to keep executing this script
 teleport start -c /tmp/teleport.yaml "$@" &
 
+# add admin role to auth servers
+if [[ "${ROLE}" == "auth" ]]; then
+    ADMIN_ROLE_DONE=false
+    while [[ "${ADMIN_ROLE_DONE}" != "true" ]]; do
+        /usr/bin/teleport-add-admin-role
+        if [ $? -eq 0 ]; then
+            ADMIN_ROLE_DONE=true
+        else
+            sleep 2
+        fi
+    done
+fi
+
 # add OIDC connector to auth servers
 if [[ "${ROLE}" == "auth" ]]; then
     OIDC_DONE=false

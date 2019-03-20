@@ -20,15 +20,26 @@ data:
       license_file: {{ .Values.license.mountPath }}/license.pem
       authentication:
         type: {{ .Values.config.auth_service.authentication.type }}
-      public_addr: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:3025
+      public_addr: {{ template "teleport.main.authssh_public_addr" . }}
       cluster_name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}
 
     ssh_service:
-      enabled: no
+      enabled: yes
+      {{- if .Values.teleportLabels.auth.static }}
+      labels:
+      {{- range $key, $value := .Values.teleportLabels.auth.static }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.teleportLabels.auth.dynamic }}
+      commands:
+      {{ toYaml .Values.teleportLabels.auth.dynamic | indent 6 | trim }}
+      {{- end }}
 
     proxy_service:
       enabled: {{ .Values.config.proxy_service.enabled }}
-      public_addr: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}
+      public_addr: {{ template "teleport.main.proxyweb_public_addr" . }}
+      ssh_public_addr: {{ template "teleport.main.proxyssh_public_addr" . }}
       web_listen_addr: {{ tpl .Values.config.proxy_service.web_listen_addr . }}
       listen_addr: {{ tpl .Values.config.proxy_service.listen_addr . }}
       {{- if .Values.proxy.tls.enabled }}
@@ -38,9 +49,7 @@ data:
       kubernetes:
         enabled: {{ .Values.config.proxy_service.kubernetes.enabled }}
         listen_addr: {{ tpl .Values.config.proxy_service.kubernetes.listen_addr . }}
-        {{- if .Values.config.proxy_service.kubernetes.public_addr }}
-        public_addr: {{ .Values.config.teleport.kubernetes.public_addr }}
-        {{- end }}
+        public_addr: {{ template "teleport.main.proxykube_public_addr" . }}
   oidc.yaml: |
     kind: oidc
     version: v2
@@ -51,14 +60,30 @@ data:
       issuer_url: {{ .Values.auth0.issuer_url }}
       client_id: {{ .Values.secrets.auth0.client_id }}
       client_secret: {{ .Values.secrets.auth0.client_secret }}
-      redirect_url: https://{{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}.{{ .Values.cloudflare.domain }}:{{ .Values.ports.auth.proxyweb.containerPort }}/v1/webapi/oidc/callback
+      redirect_url: https://{{ template "teleport.main.proxyweb_public_addr" . }}/v1/webapi/oidc/callback
 
       scope: {{ .Values.auth0.scope }}
 
-      # TODO figure out a way to make this map properly from the values.yaml file
       claims_to_roles:
-        - { claim: "roles", value: "gravitational/admins", roles: ["admin"] }
-        - { claim: "roles", value: "gravitational/devc", roles: ["admin"] }
+      {{ toYaml .Values.auth0.claims_to_roles | indent 6 | trim }}
+
+  admin-role.yaml: |
+    kind: role
+    version: v3
+    metadata:
+      name: admin
+    spec:
+      allow:
+        logins: [root]
+        kubernetes_groups: {{ .Values.admin_role.kubernetes_groups }}
+        node_labels:
+          '*': '*'
+        rules:
+        - resources:
+          - '*'
+          verbs:
+          - '*'
+      deny: {}
 
 {{- if not (eq (index .Values.extraClusterNames 0) "") -}}
 {{- $root := . -}}
@@ -86,15 +111,25 @@ data:
       license_file: /var/lib/license/license.pem
       authentication:
         type: {{ $root.Values.config.auth_service.authentication.type }}
-      public_addr: {{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}:3025
+      public_addr: {{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.service.ports.authssh.port }}
       cluster_name: {{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}
 
     ssh_service:
-      enabled: no
+      enabled: yes
+      {{- if $root.Values.teleportLabels.auth.static }}
+      labels:
+      {{- range $key, $value := $root.Values.teleportLabels.auth.static }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if $root.Values.teleportLabels.auth.dynamic }}
+      commands:
+      {{ toYaml $root.Values.teleportLabels.auth.dynamic | indent 6 | trim }}
+      {{- end }}
 
     proxy_service:
       enabled: {{ $root.Values.config.proxy_service.enabled }}
-      public_addr: {{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}
+      public_addr: {{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.service.ports.proxyweb.port }}
       web_listen_addr: {{ tpl $root.Values.config.proxy_service.web_listen_addr $root }}
       listen_addr: {{ tpl $root.Values.config.proxy_service.listen_addr $root }}
       {{- if $root.Values.proxy.tls.enabled }}
@@ -104,9 +139,7 @@ data:
       kubernetes:
         enabled: {{ $root.Values.config.proxy_service.kubernetes.enabled }}
         listen_addr: {{ tpl $root.Values.config.proxy_service.kubernetes.listen_addr $root }}
-        {{- if $root.Values.config.proxy_service.kubernetes.public_addr }}
-        public_addr: {{ $root.Values.config.teleport.kubernetes.public_addr }}
-        {{- end }}
+        public_addr: {{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.service.ports.proxykube.port }}
   trusted_cluster.yaml: |
     kind: trusted_cluster
     version: v2
@@ -115,8 +148,8 @@ data:
     spec:
       enabled: true
       token: TRUSTEDCLUSTER_JOIN_TOKEN_PLACEHOLDER
-      tunnel_addr: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.ports.auth.proxytunnel.containerPort }}
-      web_proxy_addr: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.ports.auth.proxyweb.containerPort }}
+      tunnel_addr: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.service.ports.proxytunnel.port }}
+      web_proxy_addr: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.service.ports.proxyweb.port }}
       {{- if $root.Values.license.enabled }}
       role_map:
       - remote: "admin"
@@ -132,13 +165,29 @@ data:
       issuer_url: {{ $root.Values.auth0.issuer_url }}
       client_id: {{ $root.Values.secrets.auth0.client_id }}
       client_secret: {{ $root.Values.secrets.auth0.client_secret }}
-      redirect_url: https://{{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.ports.auth.proxyweb.containerPort }}/v1/webapi/oidc/callback
+      redirect_url: https://{{ template "teleport.fullname" $root }}-{{ . }}.{{ $root.Values.cloudflare.domain }}:{{ $root.Values.service.ports.proxyweb.port }}/v1/webapi/oidc/callback
 
       scope: {{ $root.Values.auth0.scope }}
 
-      # TODO figure out a way to make this map properly from the values.yaml file
       claims_to_roles:
-        - { claim: "roles", value: "gravitational/admins", roles: ["admin"] }
-        - { claim: "roles", value: "gravitational/devc", roles: ["admin"] }
+      {{ toYaml $root.Values.auth0.claims_to_roles | indent 6 | trim }}
+
+  admin-role.yaml: |
+    kind: role
+    version: v3
+    metadata:
+      name: admin
+    spec:
+      allow:
+        logins: [root]
+        kubernetes_groups: {{ $root.Values.admin_role.kubernetes_groups }}
+        node_labels:
+          '*': '*'
+        rules:
+        - resources:
+          - '*'
+          verbs:
+          - '*'
+      deny: {}
 {{- end -}}
 {{- end }}
