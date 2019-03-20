@@ -56,8 +56,13 @@ if [[ "${ZONE_ID}" == "null" || "${ZONE_ID}" == "" ]]; then
     exit 1
 fi
 
+# set TTL if provided - if not, omit it so cloudflare uses auto
+if [[ "${CLOUDFLARE_TTL}" != "" ]]; then
+    RECORD_CONTENT="{\"type\":\"A\",\"name\":\"${DOMAIN_TO_REGISTER}\",\"content\":\"${EXTERNAL_IP}\",\"proxied\":false,\"ttl\":${CLOUDFLARE_TTL}}"
+else
+    RECORD_CONTENT="{\"type\":\"A\",\"name\":\"${DOMAIN_TO_REGISTER}\",\"content\":\"${EXTERNAL_IP}\",\"proxied\":false}"
+fi
 # look up record ID
-RECORD_CONTENT="{\"type\":\"A\",\"name\":\"${DOMAIN_TO_REGISTER}\",\"content\":\"${EXTERNAL_IP}\",\"proxied\":false,\"ttl\":${CLOUDFLARE_TTL}}"
 RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X GET "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records?name=${DOMAIN_TO_REGISTER}" | jq -r '.result[].id')
 # if it doesn't exist, create a new record
 if [[ "${RECORD_ID}" == "null" || "${RECORD_ID}" == "" ]]; then
@@ -66,7 +71,7 @@ if [[ "${RECORD_ID}" == "null" || "${RECORD_ID}" == "" ]]; then
     CREATED_RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" --data ${RECORD_CONTENT} -X POST "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records" | jq -r '.result.id')
     # check response
     if [[ "${CREATED_RECORD_ID}" == "null" || "${CREATED_RECORD_ID}" == "" ]]; then
-        cloudflareagent_log "Couldn't create Cloudflare DNS record for '${CLOUDFLARE_DOMAIN}' under '${ZONE_ID}'. Exiting"
+        cloudflareagent_log "Couldn't create Cloudflare DNS record for '${DOMAIN_TO_REGISTER}' under '${ZONE_ID}'. Exiting"
         exit 2
     else
         cloudflareagent_log "Created Cloudflare DNS record '${CREATED_RECORD_ID}' for '${CLOUDFLARE_DOMAIN}' under '${ZONE_ID}'"
