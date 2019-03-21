@@ -1,6 +1,6 @@
-## override these on the helm command line with things like --set teleportVersion=3.1.7
+## override these on the helm command line with things like --set teleportVersion=3.1.8
 # teleport version to deploy (must be a valid tag on https://quay.io/repository/gravitational/teleport-ent?tab=tags)
-teleportVersion: 3.1.7
+teleportVersion: 3.1.8
 # name of the 'main' cluster which will be set up and configured - this will also the cluster's namespace
 # DNS will be set up for <clusterName>.<clusterDomain>
 mainClusterName: main
@@ -23,14 +23,15 @@ auth0:
   claims_to_roles:
   - claim: roles
     value: gravitational/admins
-    roles: ["admin"]
+    roles: ["clusteradmin"]
   - claim: roles
     value: gravitational/devc
-    roles: ["admin"]
+    roles: ["clusteradmin"]
 
-# admin role kubernetes groups
-admin_role:
-  kubernetes_groups: '["system:masters"]'
+# kubernetes group mappings
+kubernetes_groups:
+  admin_role: '["teleport-users"]'
+  clusteradmin_role: '["system:masters"]'
 
 # teleport labels
 # static is a dictionary of key:value pairs

@@ -17,13 +17,13 @@ fi
 # run in background to keep executing this script
 teleport start -c /tmp/teleport.yaml "$@" &
 
-# add admin role to auth servers
+# add roles to auth servers
 if [[ "${ROLE}" == "auth" ]]; then
-    ADMIN_ROLE_DONE=false
-    while [[ "${ADMIN_ROLE_DONE}" != "true" ]]; do
-        /usr/bin/teleport-add-admin-role
+    ROLES_DONE=false
+    while [[ "${ROLES_DONE}" != "true" ]]; do
+        /usr/bin/teleport-add-roles
         if [ $? -eq 0 ]; then
-            ADMIN_ROLE_DONE=true
+            ROLES_DONE=true
         else
             sleep 2
         fi
@@ -45,7 +45,6 @@ fi
 
 # add trusted cluster YAML
 if [[ "${ROLE}" == "auth" ]] && [[ "${CLUSTER_TYPE}" == "secondary" ]]; then
-    #exec teleport start -c /tmp/teleport.yaml "$@" & # can't use exec as we'd lose control? exec in background
     TRUSTEDCLUSTER_DONE=false
     while [[ "${TRUSTEDCLUSTER_DONE}" != "true" ]]; do
         /usr/bin/teleport-replace-trustedcluster-join-token

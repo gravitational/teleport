@@ -75,7 +75,50 @@ data:
     spec:
       allow:
         logins: [root]
-        kubernetes_groups: {{ .Values.admin_role.kubernetes_groups }}
+        kubernetes_groups: {{ .Values.kubernetes_groups.admin_role }}
+        node_labels:
+          '*': '*'
+        rules:
+        - resources:
+          - role
+          verbs:
+          - list
+          - read
+        - resources:
+          - auth_connector
+          verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+        - resources:
+          - session
+          verbs:
+          - list
+          - read
+        - resources:
+          - trusted_cluster
+          verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      deny: {}
+      options:
+        forward_agent: true
+        max_session_ttl: 12h0m0s
+        port_forwarding: false
+  clusteradmin-role.yaml: |
+    kind: role
+    version: v3
+    metadata:
+      name: clusteradmin
+    spec:
+      allow:
+        logins: [root]
+        kubernetes_groups: {{ .Values.kubernetes_groups.clusteradmin_role }}
         node_labels:
           '*': '*'
         rules:
@@ -84,6 +127,10 @@ data:
           verbs:
           - '*'
       deny: {}
+      options:
+        forward_agent: true
+        max_session_ttl: 12h0m0s
+        port_forwarding: true
 
 {{- if not (eq (index .Values.extraClusterNames 0) "") -}}
 {{- $root := . -}}
@@ -154,6 +201,8 @@ data:
       role_map:
       - remote: "admin"
         local: ["admin"]
+      - remote: "clusteradmin"
+        local: ["clusteradmin"]
       {{- end }}
   oidc.yaml: |
     kind: oidc
@@ -180,7 +229,50 @@ data:
     spec:
       allow:
         logins: [root]
-        kubernetes_groups: {{ $root.Values.admin_role.kubernetes_groups }}
+        kubernetes_groups: {{ $root.Values.kubernetes_groups.admin_role }}
+        node_labels:
+          '*': '*'
+        rules:
+        - resources:
+          - role
+          verbs:
+          - list
+          - read
+        - resources:
+          - auth_connector
+          verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+        - resources:
+          - session
+          verbs:
+          - list
+          - read
+        - resources:
+          - trusted_cluster
+          verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      deny: {}
+      options:
+        forward_agent: true
+        max_session_ttl: 12h0m0s
+        port_forwarding: false
+  clusteradmin-role.yaml: |
+    kind: role
+    version: v3
+    metadata:
+      name: clusteradmin
+    spec:
+      allow:
+        logins: [root]
+        kubernetes_groups: {{ $root.Values.kubernetes_groups.clusteradmin_role }}
         node_labels:
           '*': '*'
         rules:
@@ -189,5 +281,9 @@ data:
           verbs:
           - '*'
       deny: {}
+      options:
+        forward_agent: true
+        max_session_ttl: 12h0m0s
+        port_forwarding: true
 {{- end -}}
 {{- end }}

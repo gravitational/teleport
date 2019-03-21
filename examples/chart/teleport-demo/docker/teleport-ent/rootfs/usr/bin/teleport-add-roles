@@ -5,3 +5,7 @@ TCTL=/usr/local/bin/tctl
 if [ -f /etc/teleport/admin-role.yaml ]; then
     ${TCTL} create -f /etc/teleport/admin-role.yaml
 fi
+# only run when we have a clusteradmin role descriptor
+if [ -f /etc/teleport/clusteradmin-role.yaml ]; then
+    ${TCTL} create -f /etc/teleport/clusteradmin-role.yaml
+fi
