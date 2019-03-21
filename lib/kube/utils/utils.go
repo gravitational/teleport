@@ -32,3 +32,13 @@ func GetKubeClient(configPath string) (client *kubernetes.Clientset, config *res
 	}
 	return client, config, nil
 }
+
+// GetKubeConfig returns kubernetes configuration
+// from configPath file or, by default reads in-cluster configuration
+func GetKubeConfig(configPath string) (*rest.Config, error) {
+	// if path to kubeconfig was provided, init config from it
+	if configPath != "" {
+		return clientcmd.BuildConfigFromFlags("", configPath)
+	}
+	return rest.InClusterConfig()
+}

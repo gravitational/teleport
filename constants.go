@@ -506,3 +506,6 @@ const (
 	// OpenBrowserWindows is the command used to open a web browser on Windows.
 	OpenBrowserWindows = "rundll32.exe"
 )
+
+// RSAKeySize is the size of the RSA key.
+const RSAKeySize = 2048

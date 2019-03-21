@@ -49,10 +49,11 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/mailgun/lemma/secret"
+	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
 	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
@@ -896,29 +897,55 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Extract secret out of the request. Look for both "secret" which is the
+	// old format and "secret_key" which is the new fomat. If this is not done,
+	// then users would have to update their callback URL in their identity
+	// provider.
 	values := u.Query()
-	secretKey := values.Get("secret")
-	if secretKey == "" {
+	secretV1 := values.Get("secret")
+	secretV2 := values.Get("secret_key")
+	values.Set("secret", "")
+	values.Set("secret_key", "")
+
+	var ciphertext []byte
+
+	switch {
+	// AES-GCM based symmetric cipher.
+	case secretV2 != "":
+		key, err := secret.ParseKey([]byte(secretV2))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ciphertext, err = key.Seal(out)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	// NaCl based symmetric cipher (legacy).
+	case secretV1 != "":
+		secretKeyBytes, err := lemma_secret.EncodedStringToKey(secretV1)
+		if err != nil {
+			return nil, trace.BadParameter("bad secret")
+		}
+		encryptor, err := lemma_secret.New(&lemma_secret.Config{KeyBytes: secretKeyBytes})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sealedBytes, err := encryptor.Seal(out)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ciphertext, err = json.Marshal(sealedBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
 		return nil, trace.BadParameter("missing secret")
 	}
-	values.Set("secret", "") // remove secret so others can't see it
-	secretKeyBytes, err := secret.EncodedStringToKey(secretKey)
-	if err != nil {
-		return nil, trace.BadParameter("bad secret")
-	}
-	encryptor, err := secret.New(&secret.Config{KeyBytes: secretKeyBytes})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sealedBytes, err := encryptor.Seal(out)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sealedBytesData, err := json.Marshal(sealedBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	values.Set("response", string(sealedBytesData))
+
+	// Place ciphertext into the response body.
+	values.Set("response", string(ciphertext))
+
 	u.RawQuery = values.Encode()
 	return u, nil
 }

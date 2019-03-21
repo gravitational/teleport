@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -55,6 +56,8 @@ type Config struct {
 	RetentionPeriod time.Duration
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
+	// UIDGenerator is unique ID generator
+	UIDGenerator utils.UID
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -75,6 +78,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.UIDGenerator == nil {
+		cfg.UIDGenerator = utils.NewRealUID()
 	}
 	return nil
 }
@@ -216,6 +222,9 @@ func (l *Log) EmitAuditEvent(eventType string, fields events.EventFields) error 
 	}
 	// set event type in the fields as it's missing there
 	fields[events.EventType] = eventType
+	if fields.GetID() == "" {
+		fields[events.EventID] = l.UIDGenerator.New()
+	}
 	data, err := json.Marshal(fields)
 	if err != nil {
 		return trace.Wrap(err)

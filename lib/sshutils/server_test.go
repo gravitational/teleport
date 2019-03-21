@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package sshutils
 
 import (
@@ -22,32 +23,34 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/fixtures"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 
-	"golang.org/x/crypto/ssh"
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
-func TestSSHUtils(t *testing.T) { TestingT(t) }
+func TestSSHUtils(t *testing.T) { check.TestingT(t) }
 
 type ServerSuite struct {
 	signer ssh.Signer
 }
 
-var _ = Suite(&ServerSuite{})
+var _ = fmt.Printf
+var _ = check.Suite(&ServerSuite{})
 
-func (s *ServerSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
-
+func (s *ServerSuite) SetUpSuite(c *check.C) {
 	var err error
 
-	s.signer, err = ssh.ParsePrivateKey(fixtures.PEMBytes["ecdsa"])
-	c.Assert(err, IsNil)
+	utils.InitLoggerForTests()
+
+	_, s.signer, err = utils.CreateCertificate("foo", ssh.HostCert)
+	c.Assert(err, check.IsNil)
 }
 
-func (s *ServerSuite) TestStartStop(c *C) {
+func (s *ServerSuite) TestStartStop(c *check.C) {
 	called := false
 	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
 		called = true
@@ -61,32 +64,32 @@ func (s *ServerSuite) TestStartStop(c *C) {
 		[]ssh.Signer{s.signer},
 		AuthMethods{Password: pass("abc123")},
 	)
-	c.Assert(err, IsNil)
-	c.Assert(srv.Start(), IsNil)
+	c.Assert(err, check.IsNil)
+	c.Assert(srv.Start(), check.IsNil)
 
 	clientConfig := &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 	clt, err := ssh.Dial("tcp", srv.Addr(), clientConfig)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
 	// call new session to initiate opening new channel
 	clt.NewSession()
 
-	c.Assert(srv.Close(), IsNil)
+	c.Assert(srv.Close(), check.IsNil)
 	wait(c, srv)
-	c.Assert(called, Equals, true)
+	c.Assert(called, check.Equals, true)
 }
 
 // TestShutdown tests graceul shutdown feature
-func (s *ServerSuite) TestShutdown(c *C) {
+func (s *ServerSuite) TestShutdown(c *check.C) {
 	closeContext, cancel := context.WithCancel(context.TODO())
 	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
 		ch, _, err := nch.Accept()
 		defer ch.Close()
-		c.Assert(err, IsNil)
+		c.Assert(err, check.IsNil)
 		select {
 		case <-closeContext.Done():
 			conn.Close()
@@ -101,15 +104,15 @@ func (s *ServerSuite) TestShutdown(c *C) {
 		AuthMethods{Password: pass("abc123")},
 		SetShutdownPollPeriod(10*time.Millisecond),
 	)
-	c.Assert(err, IsNil)
-	c.Assert(srv.Start(), IsNil)
+	c.Assert(err, check.IsNil)
+	c.Assert(srv.Start(), check.IsNil)
 
 	clientConfig := &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 	clt, err := ssh.Dial("tcp", srv.Addr(), clientConfig)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
 	// call new session to initiate opening new channel
@@ -118,21 +121,21 @@ func (s *ServerSuite) TestShutdown(c *C) {
 	// context will timeout because there is a connection around
 	ctx, ctxc := context.WithTimeout(context.TODO(), 50*time.Millisecond)
 	defer ctxc()
-	c.Assert(trace.IsConnectionProblem(srv.Shutdown(ctx)), Equals, true)
+	c.Assert(trace.IsConnectionProblem(srv.Shutdown(ctx)), check.Equals, true)
 
 	// now shutdown will return
 	cancel()
 	ctx2, ctxc2 := context.WithTimeout(context.TODO(), time.Second)
 	defer ctxc2()
-	c.Assert(srv.Shutdown(ctx2), IsNil)
+	c.Assert(srv.Shutdown(ctx2), check.IsNil)
 
 	// shutdown is re-entrable
 	ctx3, ctxc3 := context.WithTimeout(context.TODO(), time.Second)
 	defer ctxc3()
-	c.Assert(srv.Shutdown(ctx3), IsNil)
+	c.Assert(srv.Shutdown(ctx3), check.IsNil)
 }
 
-func (s *ServerSuite) TestConfigureCiphers(c *C) {
+func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
 	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
@@ -146,8 +149,8 @@ func (s *ServerSuite) TestConfigureCiphers(c *C) {
 		AuthMethods{Password: pass("abc123")},
 		SetCiphers([]string{"aes128-ctr"}),
 	)
-	c.Assert(err, IsNil)
-	c.Assert(srv.Start(), IsNil)
+	c.Assert(err, check.IsNil)
+	c.Assert(srv.Start(), check.IsNil)
 
 	// client only speaks aes256-ctr, should fail
 	cc := ssh.ClientConfig{
@@ -158,7 +161,7 @@ func (s *ServerSuite) TestConfigureCiphers(c *C) {
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 	clt, err := ssh.Dial("tcp", srv.Addr(), &cc)
-	c.Assert(err, NotNil, Commentf("cipher mismatch, should fail, got nil"))
+	c.Assert(err, check.NotNil, check.Commentf("cipher mismatch, should fail, got nil"))
 
 	// client only speaks aes128-ctr, should succeed
 	cc = ssh.ClientConfig{
@@ -169,11 +172,32 @@ func (s *ServerSuite) TestConfigureCiphers(c *C) {
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 	clt, err = ssh.Dial("tcp", srv.Addr(), &cc)
-	c.Assert(err, IsNil, Commentf("cipher match, should not fail, got error: %v", err))
+	c.Assert(err, check.IsNil, check.Commentf("cipher match, should not fail, got error: %v", err))
 	defer clt.Close()
 }
 
-func wait(c *C, srv *Server) {
+// TestHostSigner makes sure Teleport can not be started with a invalid host
+// certificate. The main check is the certificate algorithms.
+func (s *ServerSuite) TestHostSigner(c *check.C) {
+	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.HostCert)
+	c.Assert(err, check.IsNil)
+
+	newChanHandler := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+		nch.Reject(ssh.Prohibited, "nothing to see here")
+	})
+
+	_, err = NewServer(
+		"test",
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		newChanHandler,
+		[]ssh.Signer{ellipticSigner},
+		AuthMethods{Password: pass("abc123")},
+		SetCiphers([]string{"aes128-ctr"}),
+	)
+	c.Assert(err, check.NotNil)
+}
+
+func wait(c *check.C, srv *Server) {
 	s := make(chan struct{})
 	go func() {
 		srv.Wait(context.TODO())
@@ -181,7 +205,7 @@ func wait(c *C, srv *Server) {
 	}()
 	select {
 	case <-time.After(time.Second):
-		c.Assert(false, Equals, true, Commentf("exceeded waiting timeout"))
+		c.Assert(false, check.Equals, true, check.Commentf("exceeded waiting timeout"))
 	case <-s:
 	}
 }

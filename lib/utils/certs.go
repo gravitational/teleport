@@ -25,8 +25,11 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+
+	"github.com/sirupsen/logrus"
 )
 
 // ParseSigningKeyStore parses signing key store from PEM encoded key pair
@@ -62,7 +65,7 @@ func (ks *SigningKeyStore) GetKeyPair() (*rsa.PrivateKey, []byte, error) {
 
 // GenerateSelfSignedSigningCert generates self-signed certificate used for digital signatures
 func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -141,7 +144,7 @@ func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
 		if err != nil {
 			generalKey, err = x509.ParseECPrivateKey(der)
 			if err != nil {
-				log.Errorf("failed to parse key: %v", err)
+				logrus.Errorf("Failed to parse key: %v.", err)
 				return nil, trace.BadParameter("failed parsing private key")
 			}
 		}

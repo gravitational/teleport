@@ -26,28 +26,33 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CalculateSKPI the hash value of the SPKI header in a certificate.
-func CalculateSKPI(cert *x509.Certificate) string {
+// CalculateSPKI the hash value of the SPKI header in a certificate.
+func CalculateSPKI(cert *x509.Certificate) string {
 	sum := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// CheckSKPI the passed in pin against the calculated value from a certificate.
-func CheckSKPI(pin string, cert *x509.Certificate) error {
+// CheckSPKI the passed in pin against the calculated value from a certificate.
+func CheckSPKI(pin string, cert *x509.Certificate) error {
 	// Check that the format of the pin is valid.
 	parts := strings.Split(pin, ":")
 	if len(parts) != 2 {
-		return trace.BadParameter("invalid format for SKPI hash")
+		return trace.BadParameter("invalid format for certificate pin, expected algorithm:pin")
 	}
 	if parts[0] != "sha256" {
-		return trace.BadParameter("only sha256 supported by SKPI hash")
+		return trace.BadParameter("sha256 only supported hashing algorithm for certificate pin")
 	}
 
 	// Check that that pin itself matches that value calculated from the passed
 	// in certificate.
-	if subtle.ConstantTimeCompare([]byte(CalculateSKPI(cert)), []byte(pin)) != 1 {
-		return trace.BadParameter("SKPI values do not match")
+	if subtle.ConstantTimeCompare([]byte(CalculateSPKI(cert)), []byte(pin)) != 1 {
+		return trace.BadParameter(errorMessage)
 	}
 
 	return nil
 }
+
+var errorMessage string = "provided certificate pin does not match cluster pin. " +
+	"This could have occurred if the Certificate Authority (CA) for the cluster " +
+	"was rotated, invalidating the old pin. Run \"tctl status\" to compare the pin " +
+	"used to join the cluster to the actual pin for the cluster."
