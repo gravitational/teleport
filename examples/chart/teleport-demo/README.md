@@ -43,7 +43,7 @@ version to GCR:
 $ cd examples/chart/teleport-demo/docker
 $ gcloud auth login
 $ gcloud auth configure-docker
-$ ./build-all.sh 3.1.7
+$ ./build-all.sh 3.1.8
 ```
 
 Make sure that you have access to the key for sops encryption:
@@ -67,10 +67,10 @@ Make sure that you have updated the submodule containing the secrets:
 $ git pull --recurse-submodules
 ```
 
-To install the chart with the release name `teleport` and Teleport version 3.1.7, run:
+To install the chart with the release name `teleport` and Teleport version 3.1.8, run:
 
 ```bash
-$ helm secrets install --name teleport -f secrets/sops/teleport-demo/secrets.yaml ./ --set teleportVersion=3.1.7
+$ helm secrets install --name teleport -f secrets/sops/teleport-demo/secrets.yaml ./ --set teleportVersion=3.1.8
 ```
 
 Once the chart is installed successfully, Helm will output a section titled NOTES containing the URL to access the main
