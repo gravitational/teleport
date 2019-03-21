@@ -761,6 +761,10 @@ type Kube struct {
 	Service `yaml:",inline"`
 	// PublicAddr is a publicly advertised address of the kubernetes proxy
 	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	// KubeconfigFile is an optional path to kubeconfig file,
+	// if specified, teleport will use API server address and
+	// trusted certificate authority information from it
+	KubeconfigFile string `yaml:"kubeconfig_file,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's

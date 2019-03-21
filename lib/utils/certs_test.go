@@ -17,29 +17,31 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
 	"io/ioutil"
 
 	"github.com/gravitational/trace"
-	. "gopkg.in/check.v1"
+
+	"gopkg.in/check.v1"
 )
 
-type CertsSuite struct {
-}
+type CertsSuite struct{}
 
-var _ = Suite(&CertsSuite{})
+var _ = fmt.Printf
+var _ = check.Suite(&CertsSuite{})
 
-func (_ *CertsSuite) TestRejectsInvalidPEMData(c *C) {
+func (s *CertsSuite) TestRejectsInvalidPEMData(c *check.C) {
 	_, err := ReadCertificateChain([]byte("no data"))
-	c.Assert(trace.Unwrap(err), FitsTypeOf, &trace.NotFoundError{})
+	c.Assert(trace.Unwrap(err), check.FitsTypeOf, &trace.NotFoundError{})
 }
 
-func (_ *CertsSuite) TestRejectsSelfSignedCertificate(c *C) {
+func (s *CertsSuite) TestRejectsSelfSignedCertificate(c *check.C) {
 	certificateChainBytes, err := ioutil.ReadFile("../../fixtures/certs/ca.pem")
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	certificateChain, err := ReadCertificateChain(certificateChainBytes)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	err = VerifyCertificateChain(certificateChain)
-	c.Assert(err, ErrorMatches, "x509: certificate signed by unknown authority")
+	c.Assert(err, check.ErrorMatches, "x509: certificate signed by unknown authority")
 }

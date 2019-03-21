@@ -28,7 +28,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 )
 
@@ -42,7 +42,7 @@ func ClusterName(subject pkix.Name) (string, error) {
 
 // GenerateRSAPrivateKeyPEM generates new RSA private key and returns PEM encoded bytes
 func GenerateRSAPrivateKeyPEM() ([]byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, defaults.RSABits)
+	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,7 +88,7 @@ func GenerateSelfSignedCAWithPrivateKey(priv *rsa.PrivateKey, entity pkix.Name, 
 
 // GenerateSelfSignedCA generates self-signed certificate authority used for internal inter-node communications
 func GenerateSelfSignedCA(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, defaults.RSABits)
+	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

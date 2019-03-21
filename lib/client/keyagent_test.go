@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -65,7 +66,10 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	s.username = "foo"
 	s.hostname = "bar"
 
-	s.tlsca, err = newSelfSignedCA(caPrivateKey)
+	pemBytes, ok := fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
+
+	s.tlsca, err = newSelfSignedCA(pemBytes)
 	c.Assert(err, check.IsNil)
 
 	// temporary key to use during tests
@@ -414,12 +418,17 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 		return nil, trace.Wrap(err)
 	}
 
+	pemBytes, ok := fixtures.PEMBytes["rsa"]
+	if !ok {
+		return nil, trace.BadParameter("RSA key not found in fixtures")
+	}
+
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey: caPrivateKey,
-		PublicUserKey:       publicKey,
-		Username:            username,
-		AllowedLogins:       allowedLogins,
-		TTL:                 ttl,
+		PrivateCASigningKey:   pemBytes,
+		PublicUserKey:         publicKey,
+		Username:              username,
+		AllowedLogins:         allowedLogins,
+		TTL:                   ttl,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
 	})

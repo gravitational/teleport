@@ -79,6 +79,7 @@ var wildcardAllow = services.Labels{
 	services.Wildcard: []string{services.Wildcard},
 }
 
+var _ = fmt.Printf
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
@@ -384,6 +385,22 @@ func (s *SrvSuite) TestAllowedLabels(c *C) {
 			c.Assert(err, IsNil)
 		}
 	}
+}
+
+// TestKeyAlgorithms makes sure Teleport does not accept invalid user
+// certificates. The main check is the certificate algorithms.
+func (s *SrvSuite) TestKeyAlgorithms(c *C) {
+	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
+	c.Assert(err, IsNil)
+
+	sshConfig := &ssh.ClientConfig{
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(ellipticSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
+	}
+
+	_, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	c.Assert(err, NotNil)
 }
 
 func (s *SrvSuite) TestInvalidSessionID(c *C) {
