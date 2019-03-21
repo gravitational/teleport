@@ -334,7 +334,8 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 		return nil, trace.Wrap(err)
 	}
 	for _, remoteCluster := range f.Tunnel.GetSites() {
-		if strings.HasPrefix(req.Host, remoteCluster.GetName()+".") {
+		encodedName := kubeutils.EncodeClusterName(remoteCluster.GetName())
+		if strings.HasPrefix(req.Host, remoteCluster.GetName()+".") || strings.HasPrefix(req.Host, encodedName+".") {
 			f.Debugf("Going to proxy to cluster: %v based on matching host prefix %v.", remoteCluster.GetName(), req.Host)
 			targetCluster = remoteCluster
 			isRemoteCluster = remoteCluster.GetName() != f.ClusterName
@@ -771,6 +772,7 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	return sess, nil
 }
 
+// DialFunc is a network dialer function that returns a network connection
 type DialFunc func(string, string) (net.Conn, error)
 
 func (f *Forwarder) newTransport(dial DialFunc, tlsConfig *tls.Config) *http.Transport {
