@@ -172,6 +172,17 @@ func FromAddr(a net.Addr) NetAddr {
 	return NetAddr{AddrNetwork: a.Network(), Addr: a.String()}
 }
 
+// JoinAddrSlices joins two addr slices and returns a resulting slice
+func JoinAddrSlices(a []NetAddr, b []NetAddr) []NetAddr {
+	if len(a)+len(b) == 0 {
+		return nil
+	}
+	out := make([]NetAddr, 0, len(a)+len(b))
+	out = append(out, a...)
+	out = append(out, b...)
+	return out
+}
+
 // ParseHostPortAddr takes strings like "host:port" and returns
 // *NetAddr or an error
 //
