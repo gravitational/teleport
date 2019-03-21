@@ -65,11 +65,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 	// this is a migration clutch, used to re-register
 	// in case if identity of the auth server does not have the wildcard cert
 	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
-		hasNames, err := identity.HasDNSNames([]string{"*." + teleport.APIDomain})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !hasNames {
+		if !identity.HasDNSNames([]string{"*." + teleport.APIDomain}) {
 			process.Debugf("Detected Auth server certificate without wildcard principals: %v, regenerating.", identity.Cert.ValidPrincipals)
 			return process.firstTimeConnect(role)
 		}
@@ -246,9 +242,9 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id services.Ce
 // reRegister receives new identity credentials for proxy, node and auth.
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
-func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string) (*auth.Identity, error) {
+func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals, dnsNames []string) (*auth.Identity, error) {
 	if conn.ClientIdentity.ID.Role == teleport.RoleAdmin || conn.ClientIdentity.ID.Role == teleport.RoleAuth {
-		return auth.GenerateIdentity(process.localAuth, conn.ClientIdentity.ID, additionalPrincipals)
+		return auth.GenerateIdentity(process.localAuth, conn.ClientIdentity.ID, additionalPrincipals, dnsNames)
 	}
 	const reason = "re-register"
 	keyPair, err := process.generateKeyPair(conn.ClientIdentity.ID.Role, reason)
@@ -262,6 +258,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 		PrivateKey:           keyPair.PrivateKey,
 		PublicTLSKey:         keyPair.PublicTLSKey,
 		PublicSSHKey:         keyPair.PublicSSHKey,
+		DNSNames:             dnsNames,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -276,7 +273,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		HostUUID: process.Config.HostUUID,
 		NodeName: process.Config.Hostname,
 	}
-	additionalPrincipals, err := process.getAdditionalPrincipals(role)
+	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -285,7 +282,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		// Auth service is on the same host, no need to go though the invitation
 		// procedure.
 		process.Debugf("This server has local Auth server started, using it to add role to the cluster.")
-		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals)
+		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals, dnsNames)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -306,6 +303,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
+			DNSNames:             dnsNames,
 			PrivateKey:           keyPair.PrivateKey,
 			PublicTLSKey:         keyPair.PublicTLSKey,
 			PublicSSHKey:         keyPair.PublicSSHKey,
@@ -473,13 +471,15 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 	id := conn.ClientIdentity.ID
 	local := localState.Spec.Rotation
 
-	additionalPrincipals, err := process.getAdditionalPrincipals(id.Role)
+	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(id.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	principalsChanged := len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals)
 
-	if local.Matches(remote) && !principalsChanged {
+	principalsOrDNSNamesChanged := (len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals)) ||
+		(len(dnsNames) != 0 && !conn.ServerIdentity.HasDNSNames(dnsNames))
+
+	if local.Matches(remote) && !principalsOrDNSNamesChanged {
 		// nothing to do, local state and rotation state are in sync
 		return &rotationStatus{}, nil
 	}
@@ -508,9 +508,9 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		// that the old node came up and missed the whole rotation
 		// rollback cycle.
 		case "", services.RotationStateStandby:
-			if principalsChanged {
-				process.Infof("Service %v has updated principals to %q, going to request new principals and update.", id.Role, additionalPrincipals)
-				identity, err := process.reRegister(conn, additionalPrincipals)
+			if principalsOrDNSNamesChanged {
+				process.Infof("Service %v has updated principals to %q, DNS Names to %q, going to request new principals and update.", id.Role, additionalPrincipals)
+				identity, err := process.reRegister(conn, additionalPrincipals, dnsNames)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -527,7 +527,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if local.Phase != services.RotationPhaseRollback && local.CurrentID != remote.CurrentID {
 				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
-			identity, err := process.reRegister(conn, additionalPrincipals)
+			identity, err := process.reRegister(conn, additionalPrincipals, dnsNames)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -563,7 +563,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if local.Phase != services.RotationPhaseInit && local.CurrentID != remote.CurrentID {
 				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
-			identity, err := process.reRegister(conn, additionalPrincipals)
+			identity, err := process.reRegister(conn, additionalPrincipals, dnsNames)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -595,7 +595,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			// because it will be widely used to recover cluster state to
 			// the previously valid state, client will re-register to receive
 			// credentials signed by the "old" CA.
-			identity, err := process.reRegister(conn, additionalPrincipals)
+			identity, err := process.reRegister(conn, additionalPrincipals, dnsNames)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

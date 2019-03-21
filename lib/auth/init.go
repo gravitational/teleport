@@ -522,12 +522,13 @@ func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
 }
 
 // GenerateIdentity generates identity for the auth server
-func GenerateIdentity(a *AuthServer, id IdentityID, additionalPrincipals []string) (*Identity, error) {
+func GenerateIdentity(a *AuthServer, id IdentityID, additionalPrincipals, dnsNames []string) (*Identity, error) {
 	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
 		Roles:                teleport.Roles{id.Role},
 		AdditionalPrincipals: additionalPrincipals,
+		DNSNames:             dnsNames,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -552,6 +553,8 @@ type Identity struct {
 	KeySigner ssh.Signer
 	// Cert is a parsed SSH certificate
 	Cert *ssh.Certificate
+	// XCert is X509 client certificate
+	XCert *x509.Certificate
 	// ClusterName is a name of host's cluster
 	ClusterName string
 }
@@ -559,11 +562,8 @@ type Identity struct {
 // String returns user-friendly representation of the identity.
 func (i *Identity) String() string {
 	var out []string
-	cert, err := tlsca.ParseCertificatePEM(i.TLSCertBytes)
-	if err != nil {
-		out = append(out, err.Error())
-	} else {
-		out = append(out, fmt.Sprintf("cert(%v issued by %v:%v)", cert.Subject.CommonName, cert.Issuer.CommonName, cert.Issuer.SerialNumber))
+	if i.XCert != nil {
+		out = append(out, fmt.Sprintf("cert(%v issued by %v:%v)", i.XCert.Subject.CommonName, i.XCert.Issuer.CommonName, i.XCert.Issuer.SerialNumber))
 	}
 	for j := range i.TLSCACertsBytes {
 		cert, err := tlsca.ParseCertificatePEM(i.TLSCACertsBytes[j])
@@ -593,18 +593,17 @@ func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
 }
 
 // HasDNSNames returns true if TLS certificate has required DNS names
-func (i *Identity) HasDNSNames(dnsNames []string) (bool, error) {
-	cert, err := tlsca.ParseCertificatePEM(i.TLSCertBytes)
-	if err != nil {
-		return false, trace.Wrap(err)
+func (i *Identity) HasDNSNames(dnsNames []string) bool {
+	if i.XCert == nil {
+		return false
 	}
-	set := utils.StringsSet(cert.DNSNames)
+	set := utils.StringsSet(i.XCert.DNSNames)
 	for _, dnsName := range dnsNames {
 		if _, ok := set[dnsName]; !ok {
-			return false, nil
+			return false
 		}
 	}
-	return true, nil
+	return true
 }
 
 // TLSConfig returns TLS config for mutual TLS authentication
@@ -667,12 +666,13 @@ func ReadIdentityFromKeyPair(keyBytes, sshCertBytes, tlsCertBytes []byte, tlsCAC
 	}
 	if len(tlsCertBytes) != 0 {
 		// just to verify that identity parses properly for future use
-		_, err := ReadTLSIdentityFromKeyPair(keyBytes, tlsCertBytes, tlsCACertsBytes)
+		i, err := ReadTLSIdentityFromKeyPair(keyBytes, tlsCertBytes, tlsCACertsBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		identity.TLSCertBytes = tlsCertBytes
 		identity.TLSCACertsBytes = tlsCACertsBytes
+		identity.XCert = i.XCert
 	}
 	return identity, nil
 }
@@ -711,6 +711,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		KeyBytes:        keyBytes,
 		TLSCertBytes:    certBytes,
 		TLSCACertsBytes: caCertsBytes,
+		XCert:           cert,
 	}
 	// The passed in ciphersuites don't appear to matter here since the returned
 	// *tls.Config is never actually used?

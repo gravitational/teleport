@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -29,10 +30,15 @@ func UpdateKubeconfig(tc *client.TeleportClient) error {
 	}
 
 	clusterName, proxyPort := tc.KubeProxyHostPort()
+	var clusterAddr string
 	if tc.SiteName != "" {
-		clusterName = fmt.Sprintf("%v.%v", tc.SiteName, clusterName)
+		// In case of a remote cluster, use SNI subdomain to "point" to a remote cluster name
+		clusterAddr = fmt.Sprintf("https://%v.%v:%v",
+			kubeutils.EncodeClusterName(tc.SiteName), clusterName, proxyPort)
+		clusterName = tc.SiteName
+	} else {
+		clusterAddr = fmt.Sprintf("https://%v:%v", clusterName, proxyPort)
 	}
-	clusterAddr := fmt.Sprintf("https://%v:%v", clusterName, proxyPort)
 
 	creds, err := tc.LocalAgent().GetKey()
 	if err != nil {
@@ -62,7 +68,6 @@ func UpdateKubeconfig(tc *client.TeleportClient) error {
 		newContext.Extensions = lastContext.Extensions
 	}
 	config.Contexts[clusterName] = newContext
-
 	config.CurrentContext = clusterName
 	return SaveKubeConfig(*config)
 }
