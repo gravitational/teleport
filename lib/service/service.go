@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -313,11 +313,11 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 			// for admin identity use local auth server
 			// because admin identity is requested by auth server
 			// itself
-			principals, err := process.getAdditionalPrincipals(role)
+			principals, dnsNames, err := process.getAdditionalPrincipals(role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			i, err = auth.GenerateIdentity(process.localAuth, id, principals)
+			i, err = auth.GenerateIdentity(process.localAuth, id, principals, dnsNames)
 		} else {
 			// try to locate static identity provided in the file
 			i, err = process.findStaticIdentity(id)
@@ -1505,8 +1505,9 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 // getAdditionalPrincipals returns a list of additional principals to add
 // to role's service certificates.
-func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]string, error) {
+func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]string, []string, error) {
 	var principals []string
+	var dnsNames []string
 	if process.Config.Hostname != "" {
 		principals = append(principals, process.Config.Hostname)
 	}
@@ -1516,6 +1517,18 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.RemoteKubeProxy})
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
+		// Automatically add wildcards for every proxy public address for k8s SNI routing
+		if process.Config.Proxy.Kube.Enabled {
+			for _, publicAddr := range utils.JoinAddrSlices(process.Config.Proxy.PublicAddrs, process.Config.Proxy.Kube.PublicAddrs) {
+				host, err := utils.Host(publicAddr.Addr)
+				if err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+				if ip := net.ParseIP(host); ip == nil {
+					dnsNames = append(dnsNames, "*."+host)
+				}
+			}
+		}
 	case teleport.RoleAuth, teleport.RoleAdmin:
 		addrs = process.Config.Auth.PublicAddrs
 	case teleport.RoleNode:
@@ -1526,7 +1539,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		if process.Config.AdvertiseIP != "" {
 			advertiseIP, err := utils.ParseAddr(process.Config.AdvertiseIP)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, nil, trace.Wrap(err)
 			}
 			addrs = append(addrs, *advertiseIP)
 		} else {
@@ -1536,11 +1549,11 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	for _, addr := range addrs {
 		host, err := utils.Host(addr.Addr)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		principals = append(principals, host)
 	}
-	return principals, nil
+	return principals, dnsNames, nil
 }
 
 // initProxy gets called if teleport runs with 'proxy' role enabled.
