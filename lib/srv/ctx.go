@@ -149,7 +149,7 @@ func (c IdentityContext) GetCertificate() (*ssh.Certificate, error) {
 	return cert, nil
 }
 
-// SessionContext holds session specific context, such as SSH auth agents, PTYs,
+// ServerContext holds session specific context, such as SSH auth agents, PTYs,
 // and other resources. SessionContext also holds a ServerContext which can be
 // used to access resources on the underlying server. SessionContext can also
 // be used to attach resources that should be closed once the session closes.
@@ -290,12 +290,29 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 	})
 
 	if !ctx.disconnectExpiredCert.IsZero() || ctx.clientIdleTimeout != 0 {
-		go ctx.periodicCheckDisconnect()
+		mon, err := NewMonitor(MonitorConfig{
+			DisconnectExpiredCert: ctx.disconnectExpiredCert,
+			ClientIdleTimeout:     ctx.clientIdleTimeout,
+			Clock:                 ctx.srv.GetClock(),
+			Tracker:               ctx,
+			Conn:                  conn,
+			Context:               cancelContext,
+			TeleportUser:          ctx.Identity.TeleportUser,
+			Login:                 ctx.Identity.Login,
+			ServerID:              ctx.srv.ID(),
+			Audit:                 ctx.srv.GetAuditLog(),
+			Entry:                 ctx.Entry,
+		})
+		if err != nil {
+			ctx.Close()
+			return nil, trace.Wrap(err)
+		}
+		go mon.Start()
 	}
-
 	return ctx, nil
 }
 
+// ID returns ID of this context
 func (c *ServerContext) ID() int {
 	return c.id
 }
