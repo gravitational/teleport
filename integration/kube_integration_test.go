@@ -611,6 +611,114 @@ loop:
 
 }
 
+// TestKubeDisconnect tests kubernetes session disconnects
+func (s *KubeSuite) TestKubeDisconnect(c *check.C) {
+	testCases := []disconnectTestCase{
+		{
+			options: services.RoleOptions{
+				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
+			},
+			disconnectTimeout: 2 * time.Second,
+		},
+		{
+			options: services.RoleOptions{
+				DisconnectExpiredCert: services.NewBool(true),
+				MaxSessionTTL:         services.NewDuration(3 * time.Second),
+			},
+			disconnectTimeout: 6 * time.Second,
+		},
+	}
+	for i := 0; i < getIterations(); i++ {
+		for _, tc := range testCases {
+			s.runKubeDisconnectTest(c, tc)
+		}
+	}
+}
+
+// TestKubeDisconnect tests kubernetes session disconnects
+func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
+	tconf := s.teleKubeConfig(Host)
+
+	t := NewInstance(InstanceConfig{
+		ClusterName: Site,
+		HostID:      HostID,
+		NodeName:    Host,
+		Ports:       s.ports.PopIntSlice(5),
+		Priv:        s.priv,
+		Pub:         s.pub,
+	})
+
+	username := s.me.Username
+	role, err := services.NewRole("kubemaster", services.RoleSpecV3{
+		Options: tc.options,
+		Allow: services.RoleConditions{
+			Logins:     []string{username},
+			KubeGroups: []string{teleport.KubeSystemMasters},
+		},
+	})
+	t.AddUserWithRole(username, role)
+
+	err = t.CreateEx(nil, tconf)
+	c.Assert(err, check.IsNil)
+
+	err = t.Start()
+	c.Assert(err, check.IsNil)
+	defer t.Stop(true)
+
+	// set up kube configuration using proxy
+	proxyClient, proxyClientConfig, err := kubeProxyClient(t, username, nil)
+	c.Assert(err, check.IsNil)
+
+	// try get request to fetch available pods
+	pods, err := proxyClient.Core().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+		LabelSelector: kubeDNSLabels.AsSelector().String(),
+	})
+	c.Assert(len(pods.Items), check.Not(check.Equals), int(0))
+	c.Assert(err, check.IsNil)
+
+	// Exec through proxy and collect output
+	pod := pods.Items[0]
+
+	out := &bytes.Buffer{}
+	err = kubeExec(proxyClientConfig, kubeExecArgs{
+		podName:      pod.Name,
+		podNamespace: pod.Namespace,
+		container:    kubeDNSContainer,
+		command:      []string{"/bin/cat", "/var/run/secrets/kubernetes.io/serviceaccount/namespace"},
+		stdout:       out,
+	})
+	c.Assert(err, check.IsNil)
+
+	data := out.Bytes()
+	c.Assert(string(data), check.Equals, pod.Namespace)
+
+	// interactive command, allocate pty
+	term := NewTerminal(250)
+	sessionCtx, sessionCancel := context.WithCancel(context.TODO())
+	go func() {
+		defer sessionCancel()
+		kubeExec(proxyClientConfig, kubeExecArgs{
+			podName:      pod.Name,
+			podNamespace: pod.Namespace,
+			container:    kubeDNSContainer,
+			command:      []string{"/bin/sh"},
+			stdout:       &term,
+			tty:          true,
+			stdin:        &term,
+		})
+	}()
+
+	// lets type something followed by "enter" and then hang the session
+	enterInput(c, &term, "echo boring platapus\r\n", ".*boring platapus.*")
+	time.Sleep(tc.disconnectTimeout)
+	select {
+	case <-time.After(tc.disconnectTimeout):
+		c.Fatalf("timeout waiting for session to exit")
+	case <-sessionCtx.Done():
+		// session closed
+	}
+}
+
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	tconf := service.MakeDefaultConfig()

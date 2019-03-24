@@ -710,7 +710,6 @@ type disconnectTestCase struct {
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
 func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
-
 	testCases := []disconnectTestCase{
 		{
 			recordingMode: services.RecordAtNode,
@@ -818,34 +817,34 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	go openSession()
 
-	retry := func(command, pattern string) {
-		person.Type(command)
-		abortTime := time.Now().Add(10 * time.Second)
-		var matched bool
-		var output string
-		for {
-			output = string(replaceNewlines(person.Output(1000)))
-			matched, _ = regexp.MatchString(pattern, output)
-			if matched {
-				break
-			}
-			time.Sleep(time.Millisecond * 200)
-			if time.Now().After(abortTime) {
-				c.Fatalf("failed to capture output: %v", pattern)
-			}
-		}
-		if !matched {
-			c.Fatalf("output %q does not match pattern %q", output, pattern)
-		}
-	}
-
-	retry("echo start \r\n", ".*start.*")
+	enterInput(c, &person, "echo start \r\n", ".*start.*")
 	time.Sleep(tc.disconnectTimeout)
 	select {
 	case <-time.After(tc.disconnectTimeout):
 		c.Fatalf("timeout waiting for session to exit")
 	case <-sessionCtx.Done():
 		// session closed
+	}
+}
+
+func enterInput(c *check.C, person *Terminal, command, pattern string) {
+	person.Type(command)
+	abortTime := time.Now().Add(10 * time.Second)
+	var matched bool
+	var output string
+	for {
+		output = string(replaceNewlines(person.Output(1000)))
+		matched, _ = regexp.MatchString(pattern, output)
+		if matched {
+			break
+		}
+		time.Sleep(time.Millisecond * 200)
+		if time.Now().After(abortTime) {
+			c.Fatalf("failed to capture pattern %q in %q", pattern, output)
+		}
+	}
+	if !matched {
+		c.Fatalf("output %q does not match pattern %q", output, pattern)
 	}
 }
 
