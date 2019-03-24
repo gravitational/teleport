@@ -440,7 +440,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		Clock:     s.clock,
 		PublicKey: cryptoPubKey,
 		Subject:   identity.Subject(),
-		NotAfter:  s.clock.Now().UTC().Add(req.ttl),
+		NotAfter:  s.clock.Now().UTC().Add(sessionTTL),
 	}
 	tlsCert, err := tlsAuthority.GenerateCertificate(certRequest)
 	if err != nil {
