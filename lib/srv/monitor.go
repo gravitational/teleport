@@ -29,11 +29,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ActivityTracker is activity tracker
+// ActivityTracker is a connection activity tracker,
+// it allows to update the activity on the connection
+// and retrieve the time when the connection was last active
 type ActivityTracker interface {
 	// GetClientLastActive returns the time of the last recorded activity
 	GetClientLastActive() time.Time
-	// UpdateClient
+	// UpdateClient updates client activity
 	UpdateClientActivity()
 }
 
@@ -155,7 +157,6 @@ func (w *Monitor) Start() {
 		case <-idleTime:
 			now := w.Clock.Now().UTC()
 			clientLastActive := w.Tracker.GetClientLastActive()
-			w.Entry.Debugf("client last active %v, client idle timeout %v", clientLastActive, w.ClientIdleTimeout)
 			if now.Sub(clientLastActive) >= w.ClientIdleTimeout {
 				event := events.EventFields{
 					events.EventLogin:      w.Login,

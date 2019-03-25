@@ -475,6 +475,11 @@ const (
 	// KubeSystemMasters is a name of the builtin kubernets group for master nodes
 	KubeSystemMasters = "system:masters"
 
+	// KubeSystemAuthenticated is a builtin group that allows
+	// any user to access common API methods, e.g. discovery methods
+	// required for initial client usage
+	KubeSystemAuthenticated = "system:authenticated"
+
 	// UsageKubeOnly specifies certificate usage metadata
 	// that limits certificate to be only used for kubernetes proxying
 	UsageKubeOnly = "usage:kube"
