@@ -226,7 +226,8 @@ type authContext struct {
 	clusterConfig services.ClusterConfig
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
-	// disconnectExpiredCert time.Time
+	// disconnectExpiredCert if set, controls the time when the connection
+	// should be disconnected because the client cert expires
 	disconnectExpiredCert time.Time
 	// sessionTTL specifies the duration of the user's session
 	sessionTTL time.Duration
@@ -355,6 +356,14 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 	kubeGroups, err := roles.CheckKubeGroups(sessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// KubeSystemAuthenticated is a builtin group that allows
+	// any user to access common API methods, e.g. discovery methods
+	// required for initial client usage, without it, restricted user's
+	// kubectl clients will not work
+	if !utils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
+		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
 	}
 
 	var isRemoteCluster bool
