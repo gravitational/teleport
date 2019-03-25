@@ -131,7 +131,8 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
 			events.LoginMethod:        events.LoginMethodOIDC,
 			events.AuthAttemptSuccess: false,
-			events.AuthAttemptErr:     err.Error(),
+			// log the original internal error in audit log
+			events.AuthAttemptErr: trace.Unwrap(err).Error(),
 		})
 	} else {
 		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
@@ -178,8 +179,14 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	// extract claims from both the id token and the userinfo endpoint and merge them
 	claims, err := a.getClaims(oidcClient, connector.GetIssuerURL(), connector.GetScope(), code)
 	if err != nil {
-		return nil, trace.OAuth2(
-			oauth2.ErrorUnsupportedResponseType, "unable to construct claims", q)
+		return nil, trace.WrapWithMessage(
+			// preserve the original error message, to avoid leaking
+			// server errors to the user in the UI, but override
+			// user message to the high level instruction to check audit log for details
+			trace.OAuth2(
+				oauth2.ErrorUnsupportedResponseType, err.Error(), q),
+			"unable to construct claims, check audit log for details",
+		)
 	}
 
 	log.Debugf("OIDC claims: %v.", claims)

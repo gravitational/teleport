@@ -32,19 +32,19 @@ import (
 // LocalRegister is used to generate host keys when a node or proxy is running
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
-func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals []string, remoteAddr string) (*Identity, error) {
+func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
 	// If local registration is happening and no remote address was passed in
 	// (which means no advertise IP was set), use localhost.
 	if remoteAddr == "" {
 		remoteAddr = defaults.Localhost
 	}
-
 	keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
 		Roles:                teleport.Roles{id.Role},
 		AdditionalPrincipals: additionalPrincipals,
 		RemoteAddr:           remoteAddr,
+		DNSNames:             dnsNames,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -72,6 +72,8 @@ type RegisterParams struct {
 	Servers []utils.NetAddr
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
+	// DNSNames is a list of DNS names to add to x509 certificate
+	DNSNames []string
 	// PrivateKey is a PEM encoded private key (not passed to auth servers)
 	PrivateKey []byte
 	// PublicTLSKey is a server's public key to sign
@@ -120,6 +122,7 @@ func Register(params RegisterParams) (*Identity, error) {
 		NodeName:             params.ID.NodeName,
 		Role:                 params.ID.Role,
 		AdditionalPrincipals: params.AdditionalPrincipals,
+		DNSNames:             params.DNSNames,
 		PublicTLSKey:         params.PublicTLSKey,
 		PublicSSHKey:         params.PublicSSHKey,
 	})
@@ -243,6 +246,8 @@ type ReRegisterParams struct {
 	ID IdentityID
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
+	// DNSNames is a list of DNS Names to add to the x509 client certificate
+	DNSNames []string
 	// PrivateKey is a PEM encoded private key (not passed to auth servers)
 	PrivateKey []byte
 	// PublicTLSKey is a server's public key to sign
@@ -262,6 +267,7 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 		NodeName:             params.ID.NodeName,
 		Roles:                teleport.Roles{params.ID.Role},
 		AdditionalPrincipals: params.AdditionalPrincipals,
+		DNSNames:             params.DNSNames,
 		PublicTLSKey:         params.PublicTLSKey,
 		PublicSSHKey:         params.PublicSSHKey,
 	})
