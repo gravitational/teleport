@@ -9,6 +9,8 @@ metadata:
 {{- end }}
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.strategy }}
   template:
     metadata:
       labels:
