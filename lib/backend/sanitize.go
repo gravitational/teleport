@@ -110,7 +110,7 @@ func (s *Sanitizer) DeleteRange(ctx context.Context, startKey []byte, endKey []b
 	if !isKeySafe(endKey) {
 		return trace.BadParameter(errorMessage)
 	}
-	return s.backend.Delete(ctx, endKey)
+	return s.backend.DeleteRange(ctx, startKey, endKey)
 }
 
 // KeepAlive keeps object from expiring, updates lease on the existing object,

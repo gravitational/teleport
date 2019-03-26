@@ -98,7 +98,7 @@ func (s *ServiceTestSuite) TestMonitor(c *check.C) {
 	// Broadcast a degraded event and make sure Teleport reports it's in a
 	// degraded state.
 	process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: nil})
-	err = waitForStatus(endpoint, http.StatusServiceUnavailable)
+	err = waitForStatus(endpoint, http.StatusServiceUnavailable, http.StatusBadRequest)
 	c.Assert(err, check.IsNil)
 
 	// Broadcast a OK event, this should put Teleport into a recovering state.
@@ -120,7 +120,7 @@ func (s *ServiceTestSuite) TestMonitor(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func waitForStatus(diagAddr string, statusCode int) error {
+func waitForStatus(diagAddr string, statusCodes ...int) error {
 	tickCh := time.Tick(250 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)
 	for {
@@ -130,11 +130,13 @@ func waitForStatus(diagAddr string, statusCode int) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if resp.StatusCode == statusCode {
-				return nil
+			for _, statusCode := range statusCodes {
+				if resp.StatusCode == statusCode {
+					return nil
+				}
 			}
 		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting for status %v", statusCode)
+			return trace.BadParameter("timeout waiting for status %v", statusCodes)
 		}
 	}
 }

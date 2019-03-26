@@ -296,6 +296,12 @@ var (
 	// without receiving a response from the client before the client is
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
 	KeepAliveCountMax = 3
+
+	// DiskAlertThreshold is the disk space alerting threshold.
+	DiskAlertThreshold = 90
+
+	// DiskAlertInterval is disk space check interval.
+	DiskAlertInterval = 5 * time.Minute
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -442,13 +448,8 @@ func makeAddr(host string, port int16) *utils.NetAddr {
 	return retval
 }
 
-const (
-	// RSABits is the default RSA bits for the private key
-	RSABits = 2048
-
-	// CATTL is a default lifetime of a CA certificate
-	CATTL = time.Hour * 24 * 365 * 10
-)
+// CATTL is a default lifetime of a CA certificate
+const CATTL = time.Hour * 24 * 365 * 10
 
 const (
 	// WebsocketVersion is the version of the protocol.

@@ -741,7 +741,7 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 }
 
 // HandleNewChan is called when new channel is opened
-func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
+func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	identityContext, err := s.authHandlers.CreateIdentityContext(sconn)
 	if err != nil {
 		nch.Reject(ssh.Prohibited, fmt.Sprintf("Unable to create identity from connection: %v", err))
@@ -760,7 +760,7 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 				nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
-			go s.handleSessionRequests(sconn, identityContext, ch, requests)
+			go s.handleSessionRequests(wconn, sconn, identityContext, ch, requests)
 		} else {
 			nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
 		}
@@ -777,7 +777,7 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
-		go s.handleSessionRequests(sconn, identityContext, ch, requests)
+		go s.handleSessionRequests(wconn, sconn, identityContext, ch, requests)
 	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case "direct-tcpip":
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
@@ -792,14 +792,14 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
-		go s.handleDirectTCPIPRequest(sconn, identityContext, ch, req)
+		go s.handleDirectTCPIPRequest(wconn, sconn, identityContext, ch, req)
 	default:
 		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
 	}
 }
 
 // handleDirectTCPIPRequest handles port forwarding requests.
-func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
 	ctx, err := srv.NewServerContext(s, sconn, identityContext)
@@ -808,7 +808,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
-
+	ctx.Connection = wconn
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(ch)
 	defer ctx.Debugf("direct-tcp closed")
@@ -892,21 +892,22 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 // handleSessionRequests handles out of band session requests once the session
 // channel has been created this function's loop handles all the "exec",
 // "subsystem" and "shell" requests.
-func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
+func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	ctx, err := srv.NewServerContext(s, sconn, identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
+		log.Errorf("Unable to create connection context: %v.", err)
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
+	ctx.Connection = conn
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(ch)
 	defer ctx.Close()
 
 	// Create a close context used to signal between the server and the
-	// keep-alive loop when to close th connection (from either side).
+	// keep-alive loop when to close the connection (from either side).
 	closeContext, closeCancel := context.WithCancel(context.Background())
 	defer closeCancel()
 

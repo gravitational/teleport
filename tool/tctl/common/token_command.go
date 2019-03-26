@@ -219,7 +219,7 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 	return nil
 }
 
-// calculateCAPin returns the SKPI pin for the local cluster.
+// calculateCAPin returns the SPKI pin for the local cluster.
 func calculateCAPin(client auth.ClientI) (string, error) {
 	localCA, err := client.GetClusterCACert()
 	if err != nil {
@@ -230,5 +230,5 @@ func calculateCAPin(client auth.ClientI) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return utils.CalculateSKPI(tlsCA), nil
+	return utils.CalculateSPKI(tlsCA), nil
 }

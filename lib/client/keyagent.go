@@ -264,9 +264,11 @@ func (a *LocalKeyAgent) UserRefusedHosts() bool {
 // CheckHostSignature checks if the given host key was signed by a Teleport
 // certificate authority (CA) or a host certificate the user has seen before.
 func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, key ssh.PublicKey) error {
-	certChecker := ssh.CertChecker{
-		IsHostAuthority: a.checkHostCertificate,
-		HostKeyFallback: a.checkHostKey,
+	certChecker := utils.CertChecker{
+		CertChecker: ssh.CertChecker{
+			IsHostAuthority: a.checkHostCertificate,
+			HostKeyFallback: a.checkHostKey,
+		},
 	}
 	err := certChecker.CheckHostKey(addr, remote, key)
 	if err != nil {
@@ -303,7 +305,7 @@ func (a *LocalKeyAgent) checkHostCertificate(key ssh.PublicKey, addr string) boo
 	return true
 }
 
-// checkHostCertificate validates a host key. First checks the
+// checkHostKey validates a host key. First checks the
 // ~/.tsh/known_hosts cache and if not found, prompts the user to accept
 // or reject.
 func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.PublicKey) error {
