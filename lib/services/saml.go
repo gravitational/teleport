@@ -550,7 +550,7 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 		}
 
 		for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
-			certData, err := base64.StdEncoding.DecodeString(kd.KeyInfo.X509Data.X509Certificate.Data)
+			certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(kd.KeyInfo.X509Data.X509Certificate.Data))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
