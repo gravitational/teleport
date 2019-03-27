@@ -36,6 +36,26 @@ type UtilsSuite struct {
 
 var _ = check.Suite(&UtilsSuite{})
 
+// TestLinear tests retry logic
+func (s *UtilsSuite) TestLinear(c *check.C) {
+	r, err := NewLinear(LinearConfig{
+		Step: time.Second,
+		Max:  3 * time.Second,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(r.Duration(), check.Equals, time.Duration(0))
+	r.Inc()
+	c.Assert(r.Duration(), check.Equals, time.Second)
+	r.Inc()
+	c.Assert(r.Duration(), check.Equals, 2*time.Second)
+	r.Inc()
+	c.Assert(r.Duration(), check.Equals, 3*time.Second)
+	r.Inc()
+	c.Assert(r.Duration(), check.Equals, 3*time.Second)
+	r.Reset()
+	c.Assert(r.Duration(), check.Equals, time.Duration(0))
+}
+
 func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	// call twice, get same result
 	dir := c.MkDir()

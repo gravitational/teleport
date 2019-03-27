@@ -92,7 +92,7 @@ type authorizer struct {
 	trust    services.Trust
 }
 
-// AuthzContext is authorization context
+// AuthContext is authorization context
 type AuthContext struct {
 	// User is the user name
 	User services.User

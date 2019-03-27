@@ -21,6 +21,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -35,12 +36,17 @@ type ReporterConfig struct {
 	// TrackTopRequests turns on tracking of top
 	// requests on
 	TrackTopRequests bool
+	// Component is a component name to report
+	Component string
 }
 
 // CheckAndSetDefaults checks and sets
 func (r *ReporterConfig) CheckAndSetDefaults() error {
 	if r.Backend == nil {
 		return trace.BadParameter("missing parameter Backend")
+	}
+	if r.Component == "" {
+		r.Component = teleport.ComponentBackend
 	}
 	return nil
 }
@@ -67,10 +73,10 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
 	start := s.Clock().Now()
 	res, err := s.Backend.GetRange(ctx, startKey, endKey, limit)
-	batchReadLatencies.Observe(time.Since(start).Seconds())
-	batchReadRequests.Inc()
+	batchReadLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	batchReadRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
-		batchReadRequestsFailed.Inc()
+		batchReadRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(OpGet, startKey, endKey)
 	return res, err
@@ -80,10 +86,10 @@ func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte,
 func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 	start := s.Clock().Now()
 	lease, err := s.Backend.Create(ctx, i)
-	writeLatencies.Observe(time.Since(start).Seconds())
-	writeRequests.Inc()
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
-		writeRequestsFailed.Inc()
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(OpPut, i.Key, nil)
 	return lease, err
@@ -94,10 +100,10 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 	start := s.Clock().Now()
 	lease, err := s.Backend.Put(ctx, i)
-	writeLatencies.Observe(time.Since(start).Seconds())
-	writeRequests.Inc()
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
-		writeRequestsFailed.Inc()
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(OpPut, i.Key, nil)
 	return lease, err
@@ -107,10 +113,10 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 	start := s.Clock().Now()
 	lease, err := s.Backend.Update(ctx, i)
-	writeLatencies.Observe(time.Since(start).Seconds())
-	writeRequests.Inc()
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
-		writeRequestsFailed.Inc()
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(OpPut, i.Key, nil)
 	return lease, err
@@ -119,11 +125,11 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 // Get returns a single item or not found error
 func (s *Reporter) Get(ctx context.Context, key []byte) (*Item, error) {
 	start := s.Clock().Now()
-	readLatencies.Observe(time.Since(start).Seconds())
-	readRequests.Inc()
+	readLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	readRequests.WithLabelValues(s.Component).Inc()
 	item, err := s.Backend.Get(ctx, key)
 	if err != nil && !trace.IsNotFound(err) {
-		readRequestsFailed.Inc()
+		readRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(OpGet, key, nil)
 	return item, err
@@ -134,10 +140,10 @@ func (s *Reporter) Get(ctx context.Context, key []byte) (*Item, error) {
 func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWith Item) (*Lease, error) {
 	start := s.Clock().Now()
 	lease, err := s.Backend.CompareAndSwap(ctx, expected, replaceWith)
-	writeLatencies.Observe(time.Since(start).Seconds())
-	writeRequests.Inc()
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
-		writeRequestsFailed.Inc()
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(OpPut, expected.Key, nil)
 	return lease, err
@@ -147,10 +153,10 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 func (s *Reporter) Delete(ctx context.Context, key []byte) error {
 	start := s.Clock().Now()
 	err := s.Backend.Delete(ctx, key)
-	writeLatencies.Observe(time.Since(start).Seconds())
-	writeRequests.Inc()
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
-		writeRequestsFailed.Inc()
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(OpDelete, key, nil)
 	return err
@@ -160,10 +166,10 @@ func (s *Reporter) Delete(ctx context.Context, key []byte) error {
 func (s *Reporter) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
 	start := s.Clock().Now()
 	err := s.Backend.DeleteRange(ctx, startKey, endKey)
-	batchWriteLatencies.Observe(time.Since(start).Seconds())
-	batchWriteRequests.Inc()
+	batchWriteLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	batchWriteRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
-		batchWriteRequestsFailed.Inc()
+		batchWriteRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(OpDelete, startKey, endKey)
 	return err
@@ -176,10 +182,10 @@ func (s *Reporter) DeleteRange(ctx context.Context, startKey []byte, endKey []by
 func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time) error {
 	start := s.Clock().Now()
 	err := s.Backend.KeepAlive(ctx, lease, expires)
-	writeLatencies.Observe(time.Since(start).Seconds())
-	writeRequests.Inc()
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
-		writeRequestsFailed.Inc()
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(OpPut, lease.Key, nil)
 	return err
@@ -191,7 +197,7 @@ func (s *Reporter) NewWatcher(ctx context.Context, watch Watch) (Watcher, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewReporterWatcher(ctx, w), nil
+	return NewReporterWatcher(ctx, s.Component, w), nil
 }
 
 // Close releases the resources taken up by this backend
@@ -223,7 +229,7 @@ func (s *Reporter) trackRequest(opType OpType, key []byte, endKey []byte) {
 		// Range denotes range queries in stat entry
 		rangeSuffix = "true"
 	}
-	counter, err := requests.GetMetricWithLabelValues(string(bytes.Join(parts, []byte{Separator})), rangeSuffix)
+	counter, err := requests.GetMetricWithLabelValues(s.Component, string(bytes.Join(parts, []byte{Separator})), rangeSuffix)
 	if err != nil {
 		log.Warningf("Failed to get counter: %v", err)
 		return
@@ -235,20 +241,22 @@ func (s *Reporter) trackRequest(opType OpType, key []byte, endKey []byte) {
 // watcher that reports events
 type ReporterWatcher struct {
 	Watcher
+	Component string
 }
 
 // NewReporterWatcher creates new reporter watcher instance
-func NewReporterWatcher(ctx context.Context, w Watcher) *ReporterWatcher {
+func NewReporterWatcher(ctx context.Context, component string, w Watcher) *ReporterWatcher {
 	rw := &ReporterWatcher{
-		Watcher: w,
+		Watcher:   w,
+		Component: component,
 	}
 	go rw.watch(ctx)
 	return rw
 }
 
 func (r *ReporterWatcher) watch(ctx context.Context) {
-	watchers.Inc()
-	defer watchers.Dec()
+	watchers.WithLabelValues(r.Component).Inc()
+	defer watchers.WithLabelValues(r.Component).Dec()
 	select {
 	case <-r.Done():
 		return
@@ -263,63 +271,72 @@ var (
 			Name: "backend_requests",
 			Help: "Number of write requests to the backend",
 		},
-		[]string{"req", "range"},
+		[]string{teleport.ComponentLabel, "req", "range"},
 	)
-	watchers = prometheus.NewGauge(
+	watchers = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "backend_watchers_total",
 			Help: "Number of active backend watchers",
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	writeRequests = prometheus.NewCounter(
+	writeRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_write_requests_total",
 			Help: "Number of write requests to the backend",
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	writeRequestsFailed = prometheus.NewCounter(
+	writeRequestsFailed = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_write_requests_failed_total",
 			Help: "Number of failed write requests to the backend",
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	batchWriteRequests = prometheus.NewCounter(
+	batchWriteRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_batch_write_requests_total",
 			Help: "Number of batch write requests to the backend",
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	batchWriteRequestsFailed = prometheus.NewCounter(
+	batchWriteRequestsFailed = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_batch_write_requests_failed_total",
 			Help: "Number of failed write requests to the backend",
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	readRequests = prometheus.NewCounter(
+	readRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_read_requests_total",
 			Help: "Number of read requests to the backend",
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	readRequestsFailed = prometheus.NewCounter(
+	readRequestsFailed = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_read_requests_failed_total",
 			Help: "Number of failed read requests to the backend",
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	batchReadRequests = prometheus.NewCounter(
+	batchReadRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_batch_read_requests_total",
 			Help: "Number of read requests to the backend",
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	batchReadRequestsFailed = prometheus.NewCounter(
+	batchReadRequestsFailed = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_batch_read_requests_failed_total",
 			Help: "Number of failed read requests to the backend",
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	writeLatencies = prometheus.NewHistogram(
+	writeLatencies = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "backend_write_seconds",
 			Help: "Latency for backend write operations",
@@ -327,8 +344,9 @@ var (
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	batchWriteLatencies = prometheus.NewHistogram(
+	batchWriteLatencies = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "backend_batch_write_seconds",
 			Help: "Latency for backend batch write operations",
@@ -336,8 +354,9 @@ var (
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	batchReadLatencies = prometheus.NewHistogram(
+	batchReadLatencies = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "backend_batch_read_seconds",
 			Help: "Latency for batch read operations",
@@ -345,8 +364,9 @@ var (
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
+		[]string{teleport.ComponentLabel},
 	)
-	readLatencies = prometheus.NewHistogram(
+	readLatencies = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "backend_read_seconds",
 			Help: "Latency for read operations",
@@ -354,6 +374,7 @@ var (
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
+		[]string{teleport.ComponentLabel},
 	)
 )
 

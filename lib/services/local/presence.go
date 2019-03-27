@@ -186,13 +186,13 @@ func (s *PresenceService) upsertServer(prefix string, server services.Server) er
 
 // DeleteAllNodes deletes all nodes in a namespace
 func (s *PresenceService) DeleteAllNodes(namespace string) error {
-	startKey := backend.Key(namespacesPrefix, namespace, nodesPrefix)
+	startKey := backend.Key(nodesPrefix, namespace)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
 // DeleteNode deletes node
 func (s *PresenceService) DeleteNode(namespace string, name string) error {
-	key := backend.Key(namespacesPrefix, namespace, nodesPrefix, name)
+	key := backend.Key(nodesPrefix, namespace, name)
 	return s.Delete(context.TODO(), key)
 }
 
@@ -203,7 +203,7 @@ func (s *PresenceService) GetNodes(namespace string, opts ...services.MarshalOpt
 	}
 
 	// Get all items in the bucket.
-	startKey := backend.Key(namespacesPrefix, namespace, nodesPrefix)
+	startKey := backend.Key(nodesPrefix, namespace)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,7 +237,7 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 		return nil, trace.Wrap(err)
 	}
 	lease, err := s.Put(context.TODO(), backend.Item{
-		Key:     backend.Key(namespacesPrefix, server.GetNamespace(), nodesPrefix, server.GetName()),
+		Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
@@ -258,7 +258,7 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAliv
 	}
 	err := s.KeepAlive(ctx, backend.Lease{
 		ID:  h.LeaseID,
-		Key: backend.Key(namespacesPrefix, h.Namespace, nodesPrefix, h.ServerName),
+		Key: backend.Key(nodesPrefix, h.Namespace, h.ServerName),
 	}, h.Expires)
 	return trace.Wrap(err)
 }
@@ -284,7 +284,7 @@ func (s *PresenceService) UpsertNodes(namespace string, servers []services.Serve
 		}
 
 		items[i] = backend.Item{
-			Key:     backend.Key(namespacesPrefix, server.GetNamespace(), nodesPrefix, server.GetName()),
+			Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
 			Value:   value,
 			Expires: server.Expiry(),
 			ID:      server.GetResourceID(),

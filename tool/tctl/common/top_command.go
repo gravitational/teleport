@@ -98,7 +98,8 @@ func (c *TopCommand) Top(client *roundtrip.Client) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := c.render(ctx, *re); err != nil {
+	lastTab := ""
+	if err := c.render(ctx, *re, lastTab); err != nil {
 		return trace.Wrap(err)
 	}
 	for {
@@ -108,9 +109,12 @@ func (c *TopCommand) Top(client *roundtrip.Client) error {
 			case "q", "<C-c>": // press 'q' or 'C-c' to quit
 				return nil
 			}
+			if e.ID == "1" || e.ID == "2" || e.ID == "3" {
+				lastTab = e.ID
+			}
 			// render previously fetched data on the resize event
 			if re != nil {
-				if err := c.render(ctx, *re); err != nil {
+				if err := c.render(ctx, *re, lastTab); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -121,41 +125,44 @@ func (c *TopCommand) Top(client *roundtrip.Client) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := c.render(ctx, *re); err != nil {
+			if err := c.render(ctx, *re, lastTab); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	}
 }
 
-func (c *TopCommand) render(ctx context.Context, re Report) error {
+func (c *TopCommand) render(ctx context.Context, re Report, eventID string) error {
 	h := widgets.NewParagraph()
 	h.Text = ""
 	h.Text = fmt.Sprintf("Report Generated at %v for host %v. Press <q> or Ctrl-C to quit.",
 		re.Timestamp.Format(teleport.HumanDateFormatSeconds), re.Hostname)
 	h.BorderStyle = ui.NewStyle(ui.ColorBlack)
-	h.Border = true
+	h.Border = false
 	h.TextStyle = ui.NewStyle(ui.ColorMagenta)
 
-	t := widgets.NewTable()
-	t.BorderStyle = ui.NewStyle(ui.ColorBlack)
-	t.Title = "Top Backend Requests"
-	t.TitleStyle = ui.NewStyle(ui.ColorCyan)
-	t.ColumnWidths = []int{10, 10, 10, 50000}
-	t.RowSeparator = false
-	t.Rows = [][]string{
-		[]string{"Count", "Req/Sec", "Range", "Key"},
+	backendRequestsTable := func(title string, b BackendStats) *widgets.Table {
+		t := widgets.NewTable()
+		t.BorderStyle = ui.NewStyle(ui.ColorBlack)
+		t.Title = title
+		t.TitleStyle = ui.NewStyle(ui.ColorCyan)
+		t.ColumnWidths = []int{10, 10, 10, 50000}
+		t.RowSeparator = false
+		t.Rows = [][]string{
+			[]string{"Count", "Req/Sec", "Range", "Key"},
+		}
+		for _, req := range b.SortedTopRequests() {
+			t.Rows = append(t.Rows,
+				[]string{
+					humanize.FormatFloat("", float64(req.Count)),
+					humanize.FormatFloat("", req.GetFreq()),
+					fmt.Sprintf("%v", req.Key.IsRange()),
+					req.Key.Key,
+				})
+		}
+		t.TextStyle = ui.NewStyle(ui.ColorBlack)
+		return t
 	}
-	for _, req := range re.SortedTopRequests() {
-		t.Rows = append(t.Rows,
-			[]string{
-				humanize.FormatFloat("", float64(req.Count)),
-				humanize.FormatFloat("", req.GetFreq()),
-				fmt.Sprintf("%v", req.Key.IsRange()),
-				req.Key.Key,
-			})
-	}
-	t.TextStyle = ui.NewStyle(ui.ColorBlack)
 
 	t1 := widgets.NewTable()
 	t1.Title = "Cluster Stats"
@@ -228,22 +235,64 @@ func (c *TopCommand) render(ctx context.Context, re Report) error {
 	termWidth, termHeight := ui.TerminalDimensions()
 	grid.SetRect(0, 0, termWidth, termHeight)
 
-	grid.Set(
-		ui.NewRow(1.0,
-			ui.NewCol(0.5,
-				ui.NewRow(0.05, h),
-				ui.NewRow(0.1, t1),
-				ui.NewRow(0.5, t),
+	tabpane := widgets.NewTabPane("[1] Common", "[2] Backend Stats", "[3] Cache Stats")
+	tabpane.ActiveTabStyle = ui.NewStyle(ui.ColorCyan)
+	tabpane.InactiveTabStyle = ui.NewStyle(ui.ColorBlack)
+	tabpane.Border = false
+
+	switch eventID {
+	case "", "1":
+		tabpane.ActiveTabIndex = 0
+		grid.Set(
+			ui.NewRow(0.05,
+				ui.NewCol(0.3, tabpane),
+				ui.NewCol(0.7, h),
 			),
-			ui.NewCol(0.5,
-				ui.NewRow(0.15, t2),
-				ui.NewRow(0.15, t3),
-				ui.NewRow(0.2, percentileTable("Backend Read Percentiles", re.Backend.Read)),
-				ui.NewRow(0.2, percentileTable("Backend Batch Read Percentiles", re.Backend.BatchRead)),
-				ui.NewRow(0.2, percentileTable("Backend Write Percentiles", re.Backend.Write)),
+			ui.NewRow(0.95,
+				ui.NewCol(0.5,
+					ui.NewRow(0.15, t1),
+					ui.NewRow(0.15, t2),
+					ui.NewRow(0.15, t3),
+				),
 			),
-		),
-	)
+		)
+	case "2":
+		tabpane.ActiveTabIndex = 1
+		grid.Set(
+			ui.NewRow(0.05,
+				ui.NewCol(0.3, tabpane),
+				ui.NewCol(0.7, h),
+			),
+			ui.NewRow(0.95,
+				ui.NewCol(0.5,
+					ui.NewRow(1.0, backendRequestsTable("Top Backend Requests", re.Backend)),
+				),
+				ui.NewCol(0.5,
+					ui.NewRow(0.3, percentileTable("Backend Read Percentiles", re.Backend.Read)),
+					ui.NewRow(0.3, percentileTable("Backend Batch Read Percentiles", re.Backend.BatchRead)),
+					ui.NewRow(0.3, percentileTable("Backend Write Percentiles", re.Backend.Write)),
+				),
+			),
+		)
+	case "3":
+		tabpane.ActiveTabIndex = 2
+		grid.Set(
+			ui.NewRow(0.05,
+				ui.NewCol(0.3, tabpane),
+				ui.NewCol(0.7, h),
+			),
+			ui.NewRow(0.95,
+				ui.NewCol(0.5,
+					ui.NewRow(1.0, backendRequestsTable("Top Cache Requests", re.Cache)),
+				),
+				ui.NewCol(0.5,
+					ui.NewRow(0.3, percentileTable("Cache Read Percentiles", re.Cache.Read)),
+					ui.NewRow(0.3, percentileTable("Cache Batch Read Percentiles", re.Cache.BatchRead)),
+					ui.NewRow(0.3, percentileTable("Cache Write Percentiles", re.Cache.Write)),
+				),
+			),
+		)
+	}
 	ui.Render(grid)
 	return nil
 }
@@ -273,33 +322,16 @@ type Report struct {
 	Timestamp time.Time
 	// Hostname is the hostname of the report
 	Hostname string
-	// TopRequests is a collection of requests to
-	// backend and their counts
-	TopRequests map[RequestKey]Request
 	// Process contains process stats
 	Process ProcessStats
 	// Go contains go runtime stats
 	Go GoStats
 	// Backend is a backend stats
 	Backend BackendStats
+	// Cache is cache stats
+	Cache BackendStats
 	// Cluster is cluster stats
 	Cluster ClusterStats
-}
-
-// SortedTopRequests returns top requests sorted either
-// by frequency if frequency is present, or by count otherwise
-func (r *Report) SortedTopRequests() []Request {
-	out := make([]Request, 0, len(r.TopRequests))
-	for _, req := range r.TopRequests {
-		out = append(out, req)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].GetFreq() == out[j].GetFreq() {
-			return out[i].Count > out[j].Count
-		}
-		return out[i].GetFreq() > out[j].GetFreq()
-	})
-	return out
 }
 
 const (
@@ -363,11 +395,35 @@ type GoStats struct {
 	HeapObjects float64
 }
 
+// BackendStats contains backend stats
 type BackendStats struct {
-	Read       Histogram
-	BatchRead  Histogram
-	Write      Histogram
+	// Read is a read latency historgram
+	Read Histogram
+	// BatchRead is a batch read latency histogram
+	BatchRead Histogram
+	// Write is a write latency histogram
+	Write Histogram
+	// BatchWrite is a batch write latency histogram
 	BatchWrite Histogram
+	// TopRequests is a collection of requests to
+	// backend and their counts
+	TopRequests map[RequestKey]Request
+}
+
+// SortedTopRequests returns top requests sorted either
+// by frequency if frequency is present, or by count otherwise
+func (b *BackendStats) SortedTopRequests() []Request {
+	out := make([]Request, 0, len(b.TopRequests))
+	for _, req := range b.TopRequests {
+		out = append(out, req)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].GetFreq() == out[j].GetFreq() {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].GetFreq() > out[j].GetFreq()
+	})
+	return out
 }
 
 const (
@@ -490,30 +546,46 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 	// format top backend requests
 	hostname, _ := os.Hostname()
 	re := Report{
-		Version:     services.V1,
-		Timestamp:   time.Now().UTC(),
-		Hostname:    hostname,
-		TopRequests: make(map[RequestKey]Request),
+		Version:   services.V1,
+		Timestamp: time.Now().UTC(),
+		Hostname:  hostname,
+		Backend: BackendStats{
+			TopRequests: make(map[RequestKey]Request),
+		},
+		Cache: BackendStats{
+			TopRequests: make(map[RequestKey]Request),
+		},
 	}
 
-	for _, req := range getRequests(metrics[backendRequests]) {
-		if prev != nil {
-			prevReq, ok := prev.TopRequests[req.Key]
-			if ok {
-				// if previous value is set, can calculate req / second
-				freq := float64(req.Count-prevReq.Count) / float64(period/time.Second)
-				req.Freq = &freq
+	collectBackendStats := func(component string, stats *BackendStats, prevStats *BackendStats) {
+		for _, req := range getRequests(component, metrics[backendRequests]) {
+			if prev != nil {
+				prevReq, ok := prevStats.TopRequests[req.Key]
+				if ok {
+					// if previous value is set, can calculate req / second
+					freq := float64(req.Count-prevReq.Count) / float64(period/time.Second)
+					req.Freq = &freq
+				}
 			}
+			stats.TopRequests[req.Key] = req
 		}
-		re.TopRequests[req.Key] = req
+		stats.Read = getHistogram(component, metrics[backendReadHistogram])
+		stats.Write = getHistogram(component, metrics[backendWriteHistogram])
+		stats.BatchRead = getHistogram(component, metrics[backendBatchReadHistogram])
+		stats.BatchWrite = getHistogram(component, metrics[backendBatchWriteHistogram])
 	}
 
-	re.Backend = BackendStats{
-		Read:       getHistogram(metrics[backendReadHistogram]),
-		Write:      getHistogram(metrics[backendWriteHistogram]),
-		BatchRead:  getHistogram(metrics[backendBatchReadHistogram]),
-		BatchWrite: getHistogram(metrics[backendBatchWriteHistogram]),
+	var stats *BackendStats
+	if prev != nil {
+		stats = &prev.Backend
 	}
+	collectBackendStats(teleport.ComponentBackend, &re.Backend, stats)
+	if prev != nil {
+		stats = &prev.Cache
+	} else {
+		stats = nil
+	}
+	collectBackendStats(teleport.ComponentCache, &re.Cache, stats)
 
 	re.Process = ProcessStats{
 		CPUSecondsTotal:     getGaugeValue(metrics[processCPUSecondsTotal]),
@@ -540,12 +612,26 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 	return &re, nil
 }
 
-func getRequests(metric *dto.MetricFamily) []Request {
+// matchesLabelValue returns true if a list of label pairs
+// matches required name/value pair, used to slice vectors by component
+func matchesLabelValue(labels []*dto.LabelPair, name, value string) bool {
+	for _, label := range labels {
+		if label.GetName() == name {
+			return label.GetValue() == value
+		}
+	}
+	return false
+}
+
+func getRequests(component string, metric *dto.MetricFamily) []Request {
 	if metric == nil || metric.GetType() != dto.MetricType_COUNTER || len(metric.Metric) == 0 {
 		return nil
 	}
-	out := make([]Request, len(metric.Metric))
-	for i, counter := range metric.Metric {
+	out := make([]Request, 0, len(metric.Metric))
+	for _, counter := range metric.Metric {
+		if !matchesLabelValue(counter.Label, teleport.ComponentLabel, component) {
+			continue
+		}
 		req := Request{
 			Count: int64(*counter.Counter.Value),
 		}
@@ -557,7 +643,7 @@ func getRequests(metric *dto.MetricFamily) []Request {
 				req.Key.Range = (label.GetValue() == backendRequestsTrue)
 			}
 		}
-		out[i] = req
+		out = append(out, req)
 	}
 	return out
 }
@@ -588,11 +674,20 @@ func getGaugeValue(metric *dto.MetricFamily) float64 {
 	return *metric.Metric[0].Gauge.Value
 }
 
-func getHistogram(metric *dto.MetricFamily) Histogram {
+func getHistogram(component string, metric *dto.MetricFamily) Histogram {
 	if metric == nil || metric.GetType() != dto.MetricType_HISTOGRAM || len(metric.Metric) == 0 || metric.Metric[0].Histogram == nil {
 		return Histogram{}
 	}
-	hist := metric.Metric[0].Histogram
+	var hist *dto.Histogram
+	for i := range metric.Metric {
+		if matchesLabelValue(metric.Metric[i].Label, teleport.ComponentLabel, component) {
+			hist = metric.Metric[i].Histogram
+			break
+		}
+	}
+	if hist == nil {
+		return Histogram{}
+	}
 	out := Histogram{
 		Count: int64(hist.GetSampleCount()),
 	}

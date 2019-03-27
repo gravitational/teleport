@@ -85,9 +85,12 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	var servicesWatch services.Watch
+	servicesWatch := services.Watch{
+		Name: auth.User.GetName(),
+	}
 	for _, kind := range watch.Kinds {
 		servicesWatch.Kinds = append(servicesWatch.Kinds, services.WatchKind{
+			Name:        kind.Name,
 			Kind:        kind.Kind,
 			LoadSecrets: kind.LoadSecrets,
 		})

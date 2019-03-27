@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -48,6 +49,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 	}
+	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
 }
 
@@ -65,6 +67,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 	}
+	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
 }
 
@@ -76,8 +79,12 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
-		{Kind: services.KindNamespace},
+		// Node only needs to "know" about default
+		// namespace events to avoid matching too much
+		// data about other namespaces or node events
+		{Kind: services.KindNamespace, Name: defaults.Namespace},
 	}
+	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
 }
 
@@ -160,6 +167,8 @@ type Config struct {
 	Clock clockwork.Clock
 	// Component is a component used in logs
 	Component string
+	// QueueSize is a desired queue Size
+	QueueSize int
 }
 
 // OnlyRecent defines cache behavior always
@@ -305,26 +314,31 @@ func (c *Cache) setClosed() {
 }
 
 func (c *Cache) update() {
-	// Retry period is for retries on connection errors
-	t := time.NewTicker(c.RetryPeriod)
-	defer t.Stop()
-
-	// Reload period is here to protect against
-	// unknown cache going out of sync problems
-	// that we did not predict.
-	r := time.NewTicker(c.ReloadPeriod)
-	defer r.Stop()
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Step: c.RetryPeriod / 10,
+		Max:  c.RetryPeriod,
+	})
+	if err != nil {
+		c.Errorf("Bad retry parameters: %v", err)
+		return
+	}
 	for {
-		err := c.fetchAndWatch(r.C)
+		// Reload period is here to protect against
+		// unknown cache going out of sync problems
+		// that we did not predict.
+		err := c.fetchAndWatch(retry, time.After(c.ReloadPeriod))
 		if err != nil {
 			c.setCacheState(err)
 			if !c.isClosed() {
 				c.Warningf("Re-init the cache on error: %v.", err)
 			}
 		}
+		c.Debugf("Reloading %v.", retry)
 		select {
-		case <-t.C:
+		case <-retry.After():
+			retry.Inc()
 		case <-c.ctx.Done():
+			c.Debugf("Closed, returning from update loop.")
 			return
 		}
 	}
@@ -410,8 +424,12 @@ func (c *Cache) notify(event CacheEvent) {
 //   we assume that this cache will eventually end up in a correct state
 //   potentially lagging behind the state of the database.
 //
-func (c *Cache) fetchAndWatch(reloadC <-chan time.Time) error {
-	watcher, err := c.Events.NewWatcher(c.ctx, services.Watch{Kinds: c.watchKinds()})
+func (c *Cache) fetchAndWatch(retry utils.Retry, reloadC <-chan time.Time) error {
+	watcher, err := c.Events.NewWatcher(c.ctx, services.Watch{
+		QueueSize: c.QueueSize,
+		Name:      c.Component,
+		Kinds:     c.watchKinds(),
+	})
 	if err != nil {
 		c.notify(CacheEvent{Type: WatcherFailed})
 		return trace.Wrap(err)
@@ -433,10 +451,7 @@ func (c *Cache) fetchAndWatch(reloadC <-chan time.Time) error {
 	// by receiving init event first.
 	select {
 	case <-watcher.Done():
-		if err != nil {
-			return trace.Wrap(watcher.Error())
-		}
-		return trace.ConnectionProblem(nil, "unexpected watcher close")
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 	case <-reloadC:
 		c.Debugf("Triggering scheduled reload.")
 		return nil
@@ -451,15 +466,13 @@ func (c *Cache) fetchAndWatch(reloadC <-chan time.Time) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	retry.Reset()
 	c.wrapper.SetReadError(nil)
 	c.notify(CacheEvent{Type: WatcherStarted})
 	for {
 		select {
 		case <-watcher.Done():
-			if err != nil {
-				return trace.Wrap(watcher.Error())
-			}
-			return trace.ConnectionProblem(nil, "unexpected watcher close")
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 		case <-reloadC:
 			c.Debugf("Triggering scheduled reload.")
 			return nil
@@ -520,13 +533,13 @@ func (c *Cache) processEvent(event services.Event) error {
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (c *Cache) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
-	return c.trustCache.GetCertAuthority(id, loadSigningKeys, opts...)
+	return c.trustCache.GetCertAuthority(id, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
 func (c *Cache) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error) {
-	return c.trustCache.GetCertAuthorities(caType, loadSigningKeys, opts...)
+	return c.trustCache.GetCertAuthorities(caType, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -536,7 +549,7 @@ func (c *Cache) GetStaticTokens() (services.StaticTokens, error) {
 
 // GetTokens returns all active (non-expired) provisioning tokens
 func (c *Cache) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
-	return c.provisionerCache.GetTokens(opts...)
+	return c.provisionerCache.GetTokens(services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetToken finds and returns token by ID
@@ -546,12 +559,12 @@ func (c *Cache) GetToken(token string) (services.ProvisionToken, error) {
 
 // GetClusterConfig gets services.ClusterConfig from the backend.
 func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
-	return c.clusterConfigCache.GetClusterConfig(opts...)
+	return c.clusterConfigCache.GetClusterConfig(services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetClusterName gets the name of the cluster from the backend.
 func (c *Cache) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
-	return c.clusterConfigCache.GetClusterName(opts...)
+	return c.clusterConfigCache.GetClusterName(services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetRoles is a part of auth.AccessPoint implementation

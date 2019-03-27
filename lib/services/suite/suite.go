@@ -1272,6 +1272,38 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 	}
 	s.runEventsTests(c, testCases)
+
+	// Namespace with a name
+	testCases = []eventTest{
+		{
+			name: "Namespace with a name",
+			kind: services.WatchKind{
+				Kind: services.KindNamespace,
+				Name: "shmest",
+			},
+			crud: func() services.Resource {
+				ns := services.Namespace{
+					Kind:    services.KindNamespace,
+					Version: services.V2,
+					Metadata: services.Metadata{
+						Name:      "shmest",
+						Namespace: defaults.Namespace,
+					},
+				}
+				err := s.PresenceS.UpsertNamespace(ns)
+				c.Assert(err, check.IsNil)
+
+				out, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
+				c.Assert(err, check.IsNil)
+
+				err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
+				c.Assert(err, check.IsNil)
+
+				return out
+			},
+		},
+	}
+	s.runEventsTests(c, testCases)
 }
 
 // EventsClusterConfig tests cluster config resource events

@@ -86,10 +86,13 @@ const (
 	// to bypass firewall restrictions
 	ComponentReverseTunnelServer = "proxy:server"
 
-	// ComponentReverseTunnel is reverse tunnel agent
+	// ComponentReverseTunnelAgent is reverse tunnel agent
 	// that together with server establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
 	ComponentReverseTunnelAgent = "proxy:agent"
+
+	// ComponentLabel is a component label name used in reporting
+	ComponentLabel = "component"
 
 	// ComponentKube is a kubernetes proxy
 	ComponentKube = "proxy:kube"
@@ -123,6 +126,9 @@ const (
 
 	// ComponentCache is a cache component
 	ComponentCache = "cache"
+
+	// ComponentBackend is a backend component
+	ComponentBackend = "backend"
 
 	// ComponentCachingClient is a caching auth client
 	ComponentCachingClient = "client:cache"

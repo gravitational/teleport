@@ -320,6 +320,15 @@ var (
 	// and this parameter controls how often cache checks for new events
 	// to arrive
 	CachePollPeriod = 500 * time.Millisecond
+
+	// AuthQueueSize is auth service queue size
+	AuthQueueSize = 8192
+
+	// ProxyQueueSize is proxy service queue size
+	ProxyQueueSize = 8192
+
+	// NodeQueueSize is node service queue size
+	NodeQueueSize = 512
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

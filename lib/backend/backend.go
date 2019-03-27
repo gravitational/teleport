@@ -20,6 +20,7 @@ package backend
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -102,14 +103,27 @@ type Lease struct {
 	ID int64
 }
 
+// IsEmpty returns true if the lease is empty value
 func (l *Lease) IsEmpty() bool {
 	return l.ID == 0 && len(l.Key) == 0
 }
 
 // Watch specifies watcher parameters
 type Watch struct {
-	// Prefixes specifies prefixes to watch
+	// Name is a watch name set for debugging
+	// purposes
+	Name string
+	// Prefixes specifies prefixes to watch,
+	// passed to the backend implementation
 	Prefixes [][]byte
+	// QueueSize is an optional queue size
+	QueueSize int
+}
+
+// String returns a user-friendly description
+// of the watcher
+func (w *Watch) String() string {
+	return fmt.Sprintf("Watcher(name=%v, prefixes=%v)", w.Name, string(bytes.Join(w.Prefixes, []byte(", "))))
 }
 
 // Watcher returns watcher

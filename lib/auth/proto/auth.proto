@@ -67,6 +67,10 @@ message WatchKind {
     string Kind = 1 [(gogoproto.jsontag) = "kind"];
     // LoadSecrets specifies whether to load secrets
     bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
+	// Name is an optional specific resource type to watch,
+	// if specified only the events with a specific resource
+	// name will be sent
+	string Name = 3  [(gogoproto.jsontag) = "name"];
 }
 
 // AuthService is authentication/authorization service implementation

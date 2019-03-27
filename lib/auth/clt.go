@@ -783,6 +783,7 @@ func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services
 	var protoWatch proto.Watch
 	for _, kind := range watch.Kinds {
 		protoWatch.Kinds = append(protoWatch.Kinds, proto.WatchKind{
+			Name:        kind.Name,
 			Kind:        kind.Kind,
 			LoadSecrets: kind.LoadSecrets,
 		})

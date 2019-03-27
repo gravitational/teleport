@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package backend
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/gravitational/teleport"
@@ -148,7 +149,7 @@ func matchPrefix(prefixes [][]byte, e Event) bool {
 
 func (c *CircularBuffer) fanOutEvent(r Event) {
 	for i, watcher := range c.watchers {
-		if !matchPrefix(watcher.prefixes, r) {
+		if !matchPrefix(watcher.Prefixes, r) {
 			continue
 		}
 		select {
@@ -156,13 +157,14 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 		case <-c.ctx.Done():
 			return
 		default:
-			c.Warningf("Closing watcher, buffer overflow.")
+			c.Warningf("Closing %v, buffer overflow at %v elements.", watcher, len(watcher.eventsC))
 			watcher.Close()
 			c.watchers = append(c.watchers[:i], c.watchers[i+1:]...)
 		}
 	}
 }
 
+// NewWatcher adds a new watcher to the events buffer
 func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	c.Lock()
 	defer c.Unlock()
@@ -173,19 +175,25 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	default:
 	}
 
+	if watch.QueueSize == 0 {
+		watch.QueueSize = len(c.events)
+	}
+
 	closeCtx, cancel := context.WithCancel(ctx)
 	w := &BufferWatcher{
-		prefixes: watch.Prefixes,
-		eventsC:  make(chan Event, len(c.events)),
+		Watch:    watch,
+		eventsC:  make(chan Event, watch.QueueSize),
 		ctx:      closeCtx,
 		cancel:   cancel,
+		capacity: watch.QueueSize,
 	}
+	c.Debugf("Add %v.", w)
 	select {
 	case w.eventsC <- Event{Type: OpInit}:
 	case <-c.ctx.Done():
 		return nil, trace.BadParameter("buffer is closed")
 	default:
-		c.Warningf("Closing watcher, buffer overflow.")
+		c.Warningf("Closing %v, buffer overflow.", w)
 		w.Close()
 		return nil, trace.BadParameter("buffer overflow")
 	}
@@ -200,21 +208,34 @@ func max(a, b int) int {
 	return a
 }
 
+// BufferWatcher is a watcher connected to the
+// buffer and receiving fan-out events from the watcher
 type BufferWatcher struct {
-	prefixes [][]byte
+	Watch
 	eventsC  chan Event
 	ctx      context.Context
 	cancel   context.CancelFunc
+	capacity int
 }
 
+// String returns user-friendly representation
+// of the buffer watcher
+func (w *BufferWatcher) String() string {
+	return fmt.Sprintf("Watcher(name=%v, prefixes=%v, capacity=%v, size=%v)", w.Name, string(bytes.Join(w.Prefixes, []byte(", "))), w.capacity, len(w.eventsC))
+}
+
+// Events returns events channel
 func (w *BufferWatcher) Events() <-chan Event {
 	return w.eventsC
 }
 
+// Done channel is closed when watcher is closed
 func (w *BufferWatcher) Done() <-chan struct{} {
 	return w.ctx.Done()
 }
 
+// Close closes the watcher, could
+// be called multiple times
 func (w *BufferWatcher) Close() error {
 	w.cancel()
 	return nil

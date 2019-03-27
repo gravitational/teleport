@@ -51,6 +51,9 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 	var parsers []resourceParser
 	var prefixes [][]byte
 	for _, kind := range watch.Kinds {
+		if kind.Name != "" && kind.Kind != services.KindNamespace {
+			return nil, trace.BadParameter("watch with Name is only supported for Namespace resource")
+		}
 		var parser resourceParser
 		switch kind.Kind {
 		case services.KindCertAuthority:
@@ -64,7 +67,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 		case services.KindClusterName:
 			parser = newClusterNameParser()
 		case services.KindNamespace:
-			parser = newNamespaceParser()
+			parser = newNamespaceParser(kind.Name)
 		case services.KindRole:
 			parser = newRoleParser()
 		case services.KindUser:
@@ -86,7 +89,9 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 	// sort so that longer prefixes get first
 	sort.Slice(parsers, func(i, j int) bool { return len(parsers[i].prefix()) > len(parsers[j].prefix()) })
 	w, err := e.backend.NewWatcher(ctx, backend.Watch{
-		Prefixes: prefixes,
+		Name:      watch.Name,
+		Prefixes:  prefixes,
+		QueueSize: watch.QueueSize,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -223,7 +228,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (services.Resource, err
 		}, nil
 	case backend.OpPut:
 		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(event.Item.Value,
-			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires))
+			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -345,6 +350,7 @@ func (p *clusterConfigParser) parse(event backend.Event) (services.Resource, err
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -396,10 +402,14 @@ func (p *clusterNameParser) parse(event backend.Event) (services.Resource, error
 	}
 }
 
-func newNamespaceParser() *namespaceParser {
-	return &namespaceParser{
-		matchPrefix: backend.Key(namespacesPrefix),
+func newNamespaceParser(name string) *namespaceParser {
+	p := &namespaceParser{}
+	if name == "" {
+		p.matchPrefix = backend.Key(namespacesPrefix)
+	} else {
+		p.matchPrefix = backend.Key(namespacesPrefix, name, paramsPrefix)
 	}
+	return p
 }
 
 type namespaceParser struct {
@@ -514,7 +524,7 @@ func (p *userParser) parse(event backend.Event) (services.Resource, error) {
 
 func newNodeParser() *nodeParser {
 	return &nodeParser{
-		matchPrefix: backend.Key(namespacesPrefix, defaults.Namespace, nodesPrefix),
+		matchPrefix: backend.Key(nodesPrefix, defaults.Namespace),
 	}
 }
 

@@ -53,6 +53,7 @@ type HostCertParams struct {
 	TTL time.Duration
 }
 
+// Check checks parameters for errors
 func (c *HostCertParams) Check() error {
 	if c.HostID == "" && len(c.Principals) == 0 {
 		return trace.BadParameter("HostID [%q] or Principals [%q] are required",
@@ -921,7 +922,7 @@ func (*TeleportCertAuthorityMarshaler) GenerateCertAuthority(ca CertAuthority) (
 	return ca, nil
 }
 
-// UnmarshalUser unmarshals user from JSON
+// UnmarshalCertAuthority unmarshals cert authority from JSON
 func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority, error) {
 	cfg, err := collectOptions(opts)
 	if err != nil {
@@ -963,7 +964,7 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte, opts
 	return nil, trace.BadParameter("cert authority resource version %v is not supported", h.Version)
 }
 
-// MarshalUser marshalls cert authority into JSON
+// MarshalCertAuthority marshalls cert authority into JSON
 func (*TeleportCertAuthorityMarshaler) MarshalCertAuthority(ca CertAuthority, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := collectOptions(opts)
 	if err != nil {

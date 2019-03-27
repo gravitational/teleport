@@ -1218,9 +1218,19 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	reporter, err := backend.NewReporter(backend.ReporterConfig{
+		Component:        teleport.ComponentCache,
+		Backend:          cacheBackend,
+		TrackTopRequests: process.Config.Debug,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return cache.New(cfg.setup(cache.Config{
 		Context:       process.ExitContext(),
-		Backend:       cacheBackend,
+		Backend:       reporter,
 		Events:        cfg.services,
 		ClusterConfig: cfg.services,
 		Provisioner:   cfg.services,
@@ -2151,6 +2161,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 		return nil, trace.Wrap(err)
 	}
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
+		Component:        teleport.ComponentBackend,
 		Backend:          backend.NewSanitizer(bk),
 		TrackTopRequests: process.Config.Debug,
 	})

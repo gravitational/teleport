@@ -63,9 +63,9 @@ func (b *DynamoDBBackend) pollStreams(ctx context.Context) error {
 			if event.err != nil {
 				delete(set, event.shardID)
 				if event.err != io.EOF {
-					b.Debugf("Shard ID %v closed with error: %v.", event.err)
+					b.Debugf("Shard ID %v closed with error: %v.", event.shardID, event.err)
 				} else {
-					b.Debugf("Shard ID %v exited gracefully.", event.err)
+					b.Debugf("Shard ID %v exited gracefully.", event.shardID)
 				}
 			} else {
 				b.buf.PushBatch(event.events)
