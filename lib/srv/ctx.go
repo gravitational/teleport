@@ -149,7 +149,7 @@ func (c IdentityContext) GetCertificate() (*ssh.Certificate, error) {
 	return cert, nil
 }
 
-// SessionContext holds session specific context, such as SSH auth agents, PTYs,
+// ServerContext holds session specific context, such as SSH auth agents, PTYs,
 // and other resources. SessionContext also holds a ServerContext which can be
 // used to access resources on the underlying server. SessionContext can also
 // be used to attach resources that should be closed once the session closes.
@@ -290,12 +290,29 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 	})
 
 	if !ctx.disconnectExpiredCert.IsZero() || ctx.clientIdleTimeout != 0 {
-		go ctx.periodicCheckDisconnect()
+		mon, err := NewMonitor(MonitorConfig{
+			DisconnectExpiredCert: ctx.disconnectExpiredCert,
+			ClientIdleTimeout:     ctx.clientIdleTimeout,
+			Clock:                 ctx.srv.GetClock(),
+			Tracker:               ctx,
+			Conn:                  conn,
+			Context:               cancelContext,
+			TeleportUser:          ctx.Identity.TeleportUser,
+			Login:                 ctx.Identity.Login,
+			ServerID:              ctx.srv.ID(),
+			Audit:                 ctx.srv.GetAuditLog(),
+			Entry:                 ctx.Entry,
+		})
+		if err != nil {
+			ctx.Close()
+			return nil, trace.Wrap(err)
+		}
+		go mon.Start()
 	}
-
 	return ctx, nil
 }
 
+// ID returns ID of this context
 func (c *ServerContext) ID() int {
 	return c.id
 }
@@ -340,71 +357,6 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	}
 
 	return nil
-}
-
-func (c *ServerContext) periodicCheckDisconnect() {
-	var certTime <-chan time.Time
-	if !c.disconnectExpiredCert.IsZero() {
-		t := time.NewTimer(c.disconnectExpiredCert.Sub(c.srv.GetClock().Now().UTC()))
-		defer t.Stop()
-		certTime = t.C
-	}
-
-	var idleTimer *time.Timer
-	var idleTime <-chan time.Time
-	if c.clientIdleTimeout != 0 {
-		idleTimer = time.NewTimer(c.clientIdleTimeout)
-		idleTime = idleTimer.C
-	}
-
-	for {
-		select {
-		// certificate has expired, disconnect
-		case <-certTime:
-			event := events.EventFields{
-				events.EventType:       events.ClientDisconnectEvent,
-				events.EventLogin:      c.Identity.Login,
-				events.EventUser:       c.Identity.TeleportUser,
-				events.LocalAddr:       c.Conn.LocalAddr().String(),
-				events.RemoteAddr:      c.Conn.RemoteAddr().String(),
-				events.SessionServerID: c.srv.ID(),
-				events.Reason:          fmt.Sprintf("client certificate expired at %v", c.clientLastActive),
-			}
-			c.srv.EmitAuditEvent(events.ClientDisconnectEvent, event)
-			c.Debugf("Disconnecting client: %v", event[events.Reason])
-			c.Conn.Close()
-			return
-		case <-idleTime:
-			now := c.srv.GetClock().Now()
-			clientLastActive := c.GetClientLastActive()
-			c.Debugf("client last active %v, client idle timeout %v", clientLastActive, c.clientIdleTimeout)
-			if now.Sub(clientLastActive) >= c.clientIdleTimeout {
-				event := events.EventFields{
-					events.EventLogin:      c.Identity.Login,
-					events.EventUser:       c.Identity.TeleportUser,
-					events.LocalAddr:       c.Conn.LocalAddr().String(),
-					events.RemoteAddr:      c.Conn.RemoteAddr().String(),
-					events.SessionServerID: c.srv.ID(),
-				}
-				if clientLastActive.IsZero() {
-					event[events.Reason] = "client reported no activity"
-				} else {
-					event[events.Reason] = fmt.Sprintf("client is idle for %v, exceeded idle timeout of %v",
-						now.Sub(clientLastActive), c.clientIdleTimeout)
-				}
-				c.Debugf("Disconnecting client: %v", event[events.Reason])
-				c.srv.EmitAuditEvent(events.ClientDisconnectEvent, event)
-				c.Conn.Close()
-				return
-			}
-			c.Debugf("Next check in %v", c.clientIdleTimeout-now.Sub(clientLastActive))
-			idleTimer = time.NewTimer(c.clientIdleTimeout - now.Sub(clientLastActive))
-			idleTime = idleTimer.C
-		case <-c.cancelContext.Done():
-			c.Debugf("Releasing associated resources - context has been closed.")
-			return
-		}
-	}
 }
 
 // GetClientLastActive returns time when client was last active
