@@ -70,6 +70,7 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/golang/protobuf/proto"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
 	. "gopkg.in/check.v1"
@@ -94,9 +95,12 @@ type WebSuite struct {
 	mockU2F     *mocku2f.Key
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
+	clock       clockwork.Clock
 }
 
-var _ = Suite(&WebSuite{})
+var _ = Suite(&WebSuite{
+	clock: clockwork.NewFakeClock(),
+})
 
 func (s *WebSuite) SetUpSuite(c *C) {
 	var err error
@@ -1388,6 +1392,83 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 
 	// make sure the connector we get back is "foo"
 	c.Assert(out.Auth.OIDC.Name, Equals, "foo")
+}
+
+// TestSearchSiteEvents makes sure web API allows querying events by type.
+func (s *WebSuite) TestSearchSiteEvents(c *C) {
+	e1 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.1",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+	e2 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.2",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+	e3 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.3",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+	e4 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.3",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+	e5 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.1",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+
+	for _, e := range []events.EventFields{e1, e2, e3, e4, e5} {
+		c.Assert(s.proxyClient.EmitAuditEvent(e.GetType(), e), IsNil)
+	}
+
+	testCases := []struct {
+		// Comment is the test case description.
+		Comment string
+		// Query is the search query sent to the API.
+		Query url.Values
+		// Result is the expected returned list of events.
+		Result []events.EventFields
+	}{
+		{
+			Comment: "Empty query",
+			Query:   url.Values{},
+			Result:  []events.EventFields{e1, e2, e3, e4, e5},
+		},
+		{
+			Comment: "Query by single event type",
+			Query:   url.Values{"include": []string{"event.1"}},
+			Result:  []events.EventFields{e1, e5},
+		},
+		{
+			Comment: "Query by two event types",
+			Query:   url.Values{"include": []string{"event.2;event.3"}},
+			Result:  []events.EventFields{e2, e3, e4},
+		},
+	}
+
+	pack := s.authPack(c, "foo")
+	for _, tc := range testCases {
+		result := s.searchEvents(c, pack.clt, tc.Query, []string{"event.1", "event.2", "event.3"})
+		c.Assert(result, DeepEquals, tc.Result, Commentf(tc.Comment))
+	}
+}
+
+func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) (result []events.EventFields) {
+	response, err := clt.Get(context.Background(), clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), query)
+	c.Assert(err, IsNil)
+	var out eventsListGetResponse
+	c.Assert(json.Unmarshal(response.Bytes(), &out), IsNil)
+	for _, event := range out.Events {
+		if utils.SliceContainsStr(filter, event.GetType()) {
+			result = append(result, event)
+		}
+	}
+	return result
 }
 
 type authProviderMock struct {
