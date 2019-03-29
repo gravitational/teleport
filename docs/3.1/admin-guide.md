@@ -393,8 +393,7 @@ auth_service:
     # the configured `data_dir`.
     license_file: /var/lib/teleport/license.pem
 
-    # If the auth service is deployed outside Kubernetes, but Kubernetes integration
-    # is required, you have to specify a valid kubeconfig credentials:
+    # DEPRECATED in Teleport 3.2 (moved to proxy_service section)
     kubeconfig_file: /path/to/kubeconfig
 
 # This section configures the 'node service':
@@ -468,7 +467,7 @@ proxy_service:
     https_key_file: /var/lib/teleport/webproxy_key.pem
     https_cert_file: /var/lib/teleport/webproxy_cert.pem
 
-    # This section configures the Kubernetes proxy
+    # This section configures the Kubernetes proxy service
     kubernetes:
         # Turns 'kubernetes' proxy on. Default is 'no'
         enabled: yes
@@ -480,6 +479,11 @@ proxy_service:
         # If running multiple proxies behind  a load balancer, this name must point to the 
         # load balancer.
         public_addr: ['kube.example.com:3026']
+
+        # This setting is not required if the Teleport proxy service is 
+        # deployed inside a Kubernetes cluster. Otherwise, Teleport proxy 
+        # will use the credentials from this file:
+        kubeconfig_file: /path/to/kube/config
 ```
 
 #### Public Addr
