@@ -1449,6 +1449,11 @@ func (s *WebSuite) TestSearchSiteEvents(c *C) {
 			Query:   url.Values{"include": []string{"event.2;event.3"}},
 			Result:  []events.EventFields{e2, e3, e4},
 		},
+		{
+			Comment: "Query with limit",
+			Query:   url.Values{"include": []string{"event.2;event.3"}, "limit": []string{"1"}},
+			Result:  []events.EventFields{e2},
+		},
 	}
 
 	pack := s.authPack(c, "foo")

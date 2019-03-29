@@ -1563,6 +1563,7 @@ func (h *Handler) siteSearchSessionEvents(w http.ResponseWriter, r *http.Request
 //   "to"     : date range to, encoded as RFC3339
 //   "include": optional semicolon-separated list of event names to return e.g.
 //              include=session.start;session.end, all are returned if empty
+//   "limit"  : optional maximum number of events to return
 //
 func (h *Handler) siteSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
@@ -1574,6 +1575,10 @@ func (h *Handler) siteSearchEvents(w http.ResponseWriter, r *http.Request, p htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	limit, err := queryLimit(values, "limit", defaults.EventsIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	query := url.Values{}
 	if include := values.Get("include"); include != "" {
 		query[events.EventType] = strings.Split(include, ";")
@@ -1582,7 +1587,7 @@ func (h *Handler) siteSearchEvents(w http.ResponseWriter, r *http.Request, p htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	events, err := clt.SearchEvents(from, to, query.Encode(), defaults.EventsIterationLimit)
+	events, err := clt.SearchEvents(from, to, query.Encode(), limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1603,6 +1608,22 @@ func queryTime(query url.Values, name string, def time.Time) (time.Time, error) 
 		return time.Time{}, trace.BadParameter("failed to parse %v as RFC3339 time: %v", name, str)
 	}
 	return parsed, nil
+}
+
+// queryLimit returns the limit parameter with the specified name from the
+// query string.
+//
+// If there's no such parameter, specified default limit is returned.
+func queryLimit(query url.Values, name string, def int) (int, error) {
+	str := query.Get(name)
+	if str == "" {
+		return def, nil
+	}
+	limit, err := strconv.Atoi(str)
+	if err != nil {
+		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
+	}
+	return limit, nil
 }
 
 type siteSessionStreamGetResponse struct {
