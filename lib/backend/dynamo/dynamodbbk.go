@@ -332,8 +332,35 @@ func (b *DynamoDBBackend) fullPath(bucket ...string) string {
 	return strings.Join(append([]string{"teleport"}, bucket...), "/")
 }
 
-// getRecords retrieve all prefixed keys
-func (b *DynamoDBBackend) getRecords(path string, opts ...backend.OpOption) ([]record, error) {
+type getResult struct {
+	records []record
+	// lastEvaluatedKey is the primary key of the item where the operation stopped, inclusive of the
+	// previous result set. Use this value to start a new operation, excluding this
+	// value in the new request.
+	lastEvaluatedKey map[string]*dynamodb.AttributeValue
+}
+
+func (b *DynamoDBBackend) getAllRecords(path string, opts ...backend.OpOption) ([]record, error) {
+	var result getResult
+	// this code is being extra careful here not to introduce endless loop
+	// by some unfortunate series of events
+	for i := 0; i < 100; i++ {
+		re, err := b.getRecords(path, result.lastEvaluatedKey, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result.records = append(result.records, re.records...)
+		if len(re.lastEvaluatedKey) == 0 {
+			result.lastEvaluatedKey = nil
+			return result.records, nil
+		}
+		result.lastEvaluatedKey = re.lastEvaluatedKey
+	}
+	return nil, trace.BadParameter("backend entered endless loop")
+}
+
+// getRecords retrieves all prefixed keys
+func (b *DynamoDBBackend) getRecords(path string, lastEvaluatedKey map[string]*dynamodb.AttributeValue, opts ...backend.OpOption) (*getResult, error) {
 	options, err := backend.CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -355,6 +382,7 @@ func (b *DynamoDBBackend) getRecords(path string, opts ...backend.OpOption) ([]r
 		TableName:                 &b.Tablename,
 		ExpressionAttributeValues: av,
 		FilterExpression:          aws.String(filter),
+		ExclusiveStartKey:         lastEvaluatedKey,
 	}
 	out, err := b.svc.Query(&input)
 	if err != nil {
@@ -375,7 +403,10 @@ func (b *DynamoDBBackend) getRecords(path string, opts ...backend.OpOption) ([]r
 	}
 	sort.Sort(records(vals))
 	vals = removeDuplicates(vals, options.DeduplicateByKey)
-	return vals, nil
+	return &getResult{
+		records:          vals,
+		lastEvaluatedKey: out.LastEvaluatedKey,
+	}, nil
 }
 
 // isExpired returns 'true' if the given object (record) has a TTL and
@@ -428,7 +459,7 @@ func removeDuplicates(elements []record, deduplicateByKey bool) []record {
 // GetItems is a function that returns keys in batch
 func (b *DynamoDBBackend) GetItems(path []string, opts ...backend.OpOption) ([]backend.Item, error) {
 	fullPath := b.fullPath(path...)
-	records, err := b.getRecords(fullPath, opts...)
+	records, err := b.getAllRecords(fullPath, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -444,7 +475,7 @@ func (b *DynamoDBBackend) GetItems(path []string, opts ...backend.OpOption) ([]b
 
 // GetKeys retrieve all keys matching specific path
 func (b *DynamoDBBackend) GetKeys(path []string, opts ...backend.OpOption) ([]string, error) {
-	records, err := b.getRecords(b.fullPath(path...), opts...)
+	records, err := b.getAllRecords(b.fullPath(path...), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

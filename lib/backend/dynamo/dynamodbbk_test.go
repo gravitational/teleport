@@ -76,7 +76,7 @@ func (s *DynamoDBSuite) TestBatchCRUD(c *C) {
 	s.suite.BatchCRUD(c)
 }
 
-func (s *Suite) TestDeduplicate(c *check.C) {
+func (s *DynamoDBSuite) TestDeduplicate(c *C) {
 	s.suite.Deduplicate(c)
 }
 
