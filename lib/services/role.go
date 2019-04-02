@@ -44,6 +44,7 @@ var AdminUserRules = []Rule{
 	NewRule(KindAuthConnector, RW()),
 	NewRule(KindSession, RO()),
 	NewRule(KindTrustedCluster, RW()),
+	NewRule(KindEvent, RO()),
 }
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -859,6 +860,16 @@ func (r *Rule) ProcessActions(parser predicate.Parser) error {
 		fn()
 	}
 	return nil
+}
+
+// HasResource returns true if the rule has the specified resource.
+func (r *Rule) HasResource(resource string) bool {
+	for _, r := range r.Resources {
+		if r == resource {
+			return true
+		}
+	}
+	return false
 }
 
 // HasVerb returns true if the rule has verb,
