@@ -1394,8 +1394,8 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	c.Assert(out.Auth.OIDC.Name, Equals, "foo")
 }
 
-// TestSearchSiteEvents makes sure web API allows querying events by type.
-func (s *WebSuite) TestSearchSiteEvents(c *C) {
+// TestSearchClusterEvents makes sure web API allows querying events by type.
+func (s *WebSuite) TestSearchClusterEvents(c *C) {
 	e1 := events.EventFields{
 		events.EventID:   uuid.New(),
 		events.EventType: "event.1",

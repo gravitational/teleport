@@ -184,8 +184,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
 	// recorded sessions handlers
-	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.siteSearchSessionEvents))                                  // get recorded list of sessions (from events)
-	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.siteSearchEvents))                                  // search site events
+	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.clusterSearchSessionEvents))                               // get recorded list of sessions (from events)
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                               // search site events
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
@@ -1507,7 +1507,7 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 
 const maxStreamBytes = 5 * 1024 * 1024
 
-// siteSearchSessionEvents allows to search for session events on site
+// clusterSearchSessionEvents allows to search for session events on a cluster
 //
 // GET /v1/webapi/sites/:site/events
 //
@@ -1518,7 +1518,7 @@ const maxStreamBytes = 5 * 1024 * 1024
 //             the default backend performs exact search: ?key=value means "event
 //             with a field 'key' with value 'value'
 //
-func (h *Handler) siteSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 
 	clt, err := ctx.GetUserClient(site)
@@ -1554,7 +1554,7 @@ func (h *Handler) siteSearchSessionEvents(w http.ResponseWriter, r *http.Request
 	return eventsListGetResponse{Events: el}, nil
 }
 
-// siteSearchEvents returns all audit log events matching the provided criteria
+// clusterSearchEvents returns all audit log events matching the provided criteria
 //
 // GET /v1/webapi/sites/:site/events/search
 //
@@ -1565,7 +1565,7 @@ func (h *Handler) siteSearchSessionEvents(w http.ResponseWriter, r *http.Request
 //              include=session.start;session.end, all are returned if empty
 //   "limit"  : optional maximum number of events to return
 //
-func (h *Handler) siteSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
