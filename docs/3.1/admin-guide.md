@@ -1828,7 +1828,7 @@ $ kubectl get pods
 
 ### Kubernetes/Teleport Configuration
 
-To enable the the Kubernetes integration, first configure the Teleport proxy service as follows:
+To enable the Kubernetes integration, first configure the Teleport proxy service as follows:
 
 ```yaml
 # snippet from /etc/teleport.yaml on the Teleport proxy service:
@@ -1842,25 +1842,15 @@ proxy_service:
         public_addr: [teleport-k8s-proxy.example.com:3026]
         # the listen address is what Teleport/Kubernetes proxy will listen on:
         listen_addr: localhost:3026
+        # optional. see below.
+        kubeconfig_file: /path/to/kubeconfig
 ```
 
-Next, you have to configure the Teleport Auth service.
+To make this work, the Teleport proxy server must be able to access a
+Kubernetes API endpoint.  This can be done either by:
 
-The Teleport auth service uses [Kubernetes certificate API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/)
-to issue Kubernetes certificates automatically every time a user requests
-access to Kubernetes API.
-
-To make this work, the auth server must be configured with access to a Kubernetes API endpoint.
-This can be done either by:
-
-* Deploying the auth server inside a Kubernetes pod.
-* Deploying the auth server outside Kubernetes but supplying a valid `kubeconfig` file:
-
-```yaml
-# snippet from /etc/teleport.yaml on the auth service deployed outside k8s:
-auth_service:
-    kubeconfig_file: /path/to/kubeconfig
-```
+* Deploying the proxy service inside a Kubernetes pod.
+* Deploying the proxy service outside Kubernetes adding a valid `kubeconfig` setting to the configuration file as shown above.
 
 When adding new local users you have to specify which Kubernetes groups they belong to:
 
