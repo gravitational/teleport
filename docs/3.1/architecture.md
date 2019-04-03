@@ -463,46 +463,6 @@ have no way of disabling the audit.
 See the [admin guide](admin-guide#recorded-sessions) to learn how to turn on the
 recording proxy mode.
 
-## Kubernetes Integration
-
-Teleport 3.0+ can be configured as a compliance gateway for Kubernetes
-clusters. This enables the following capabilities:
-
-* A Teleport Proxy becomes a single authentication endpoint for both SSH and
-  Kubernetes.
-* Users authenticate against a Teleport proxy using `tsh login` command and
-  retrieve credentials for both SSH and Kubernetes API.
-* Users' RBAC roles are always synchronized between SSH and Kubernetes, making
-  it easier to implement policies like _developers must not access production
-  data_.
-* Teleport session recording and the audit log extend to Kubernetes, as well.
-  Regular `kubectl exec` commands are logged into the audit log and the interactive
-  commands are recorded as regular sessions which can be stored and replayed in the future.
-
-### How Kubernetes Integration Works
-
-
-
-![ssh-integration-with-kubernetes](img/k8s-sequence.png)
-
-As shown in the diagram above:
-
-* A user executes `tsh login` against a Teleport proxy as usual.
-* `tsh login` retrieves the short lived x509 and SSH certificates issued by the Telepoort CA (auth server).
-   The user's kubernetes configuration (kubeconfig) is updated with x509 certs and
-   credentials and now points to the Teleport proxy as the Kubernetes API endpoint.
-* All Kubernetes API requests now go through the Teleport proxy.
-* Before processing the Kubernetes request, the proxy needs a valid certificate
-  recognized by the Kubernetes cluster. The proxy delegates this task to the auth
-  server and passes the list of kubernetes groups derived from the user's roles.
-* The Teleport auth server uses [Kubernetes native CSR API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/)
-  to send and approve the request. The Teleport auth server acts both as a requester and approver.
-* The Teleport proxy can now use the certificates issued by the Kubernetes CA to TSL-terminate the
-  request and log it to the auth server, capturing the session traffic for audit purposes.
-
-See [configuring Kubernetes integration](admin-guide.md#kubernetesteleport-configuration) section
-in the admin manual for the detailed configuration instructions.
-
 ## Teleport CLI Tools
 
 Teleport offers two command line tools. `tsh` is a client tool used by the end users, while
