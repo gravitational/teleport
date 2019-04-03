@@ -229,3 +229,6 @@ persistence:
   # If PersistentDisk already exists you can create a PV for it by including the 2 following keypairs.
   # pdName: teleport-data-disk
   # fsType: ext4
+
+# set this to false to avoid running into issues for proxies that run in a separate k8s cluster
+automountServiceAccountToken: true

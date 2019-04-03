@@ -23,6 +23,7 @@ spec:
 {{ toYaml .Values.annotations | indent 8 }}
 {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
