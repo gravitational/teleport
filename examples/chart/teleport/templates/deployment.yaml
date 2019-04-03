@@ -70,7 +70,7 @@ spec:
 {{- if .Values.proxy.tls.enabled }}
       - name: {{ template "teleport.fullname" . }}-tls-web
         secret:
-          secretName: tls-web
+          secretName: {{ .Values.proxy.tls.secretName }}
 {{- end }}
 {{- if .Values.license.enabled }}
       - name: {{ template "teleport.fullname" . }}-license
