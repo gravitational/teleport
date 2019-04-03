@@ -83,7 +83,7 @@ $ sudo mkdir -p /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 
-If the build succeds the binaries will be placed in 
+If the build succeeds the binaries will be placed in 
 `$GOPATH/src/github.com/gravitational/teleport/build`
 
 NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need

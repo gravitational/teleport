@@ -31,7 +31,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -44,14 +43,15 @@ type MuxSuite struct {
 	signer ssh.Signer
 }
 
+var _ = fmt.Printf
 var _ = check.Suite(&MuxSuite{})
 
 func (s *MuxSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-
 	var err error
 
-	s.signer, err = ssh.ParsePrivateKey(fixtures.PEMBytes["ecdsa"])
+	utils.InitLoggerForTests()
+
+	_, s.signer, err = utils.CreateCertificate("foo", ssh.HostCert)
 	c.Assert(err, check.IsNil)
 }
 

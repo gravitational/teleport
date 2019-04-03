@@ -38,6 +38,17 @@ func CopyByteSlices(in [][]byte) [][]byte {
 	return out
 }
 
+// JoinStringSlices joins two string slices and returns a resulting slice
+func JoinStringSlices(a []string, b []string) []string {
+	if len(a)+len(b) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(a)+len(b))
+	out = append(out, a...)
+	out = append(out, b...)
+	return out
+}
+
 // CopyStrings makes a deep copy of the passed in string slice and returns
 // the copy.
 func CopyStrings(in []string) []string {

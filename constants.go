@@ -485,6 +485,11 @@ const (
 	// KubeSystemMasters is a name of the builtin kubernets group for master nodes
 	KubeSystemMasters = "system:masters"
 
+	// KubeSystemAuthenticated is a builtin group that allows
+	// any user to access common API methods, e.g. discovery methods
+	// required for initial client usage
+	KubeSystemAuthenticated = "system:authenticated"
+
 	// UsageKubeOnly specifies certificate usage metadata
 	// that limits certificate to be only used for kubernetes proxying
 	UsageKubeOnly = "usage:kube"
@@ -506,3 +511,6 @@ const (
 	// OpenBrowserWindows is the command used to open a web browser on Windows.
 	OpenBrowserWindows = "rundll32.exe"
 )
+
+// RSAKeySize is the size of the RSA key.
+const RSAKeySize = 2048

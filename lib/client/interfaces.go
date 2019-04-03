@@ -219,3 +219,29 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 	}
 	return NewAuthMethodForCert(signer), nil
 }
+
+// CheckCert makes sure the SSH certificate is valid.
+func (k *Key) CheckCert() error {
+	key, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		return trace.BadParameter("found key, not certificate")
+	}
+	if len(cert.ValidPrincipals) == 0 {
+		return trace.BadParameter("principals are required")
+	}
+
+	// A valid principal is always passed in because the principals are not being
+	// checked here, but rather the validity period, signature, and algorithms.
+	certChecker := utils.CertChecker{}
+	err = certChecker.CheckCert(cert.ValidPrincipals[0], cert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}

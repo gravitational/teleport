@@ -81,8 +81,6 @@ type server struct {
 	// Server API.
 	localAccessPoint auth.AccessPoint
 
-	userCertChecker ssh.CertChecker
-
 	// srv is the "base class" i.e. the underlying SSH server
 	srv     *sshutils.Server
 	limiter *limiter.Limiter
@@ -260,7 +258,6 @@ func NewServer(cfg Config) (Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv.userCertChecker = ssh.CertChecker{IsUserAuthority: srv.isUserAuthority}
 	srv.srv = s
 	go srv.periodicFunctions()
 	return srv, nil
@@ -612,15 +609,15 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			},
 		}, nil
 	case ssh.UserCert:
-		_, err := s.userCertChecker.Authenticate(conn, key)
+		certChecker := utils.CertChecker{
+			CertChecker: ssh.CertChecker{
+				IsUserAuthority: s.isUserAuthority,
+			},
+		}
+		_, err := certChecker.Authenticate(conn, key)
 		if err != nil {
 			logger.Warningf("Failed to authenticate user, err: %v.", err)
 			return nil, err
-		}
-
-		if err := s.userCertChecker.CheckCert(conn.User(), cert); err != nil {
-			logger.Warningf("Failed to authenticate user err: %v.", err)
-			return nil, trace.Wrap(err)
 		}
 
 		return &ssh.Permissions{
@@ -663,7 +660,7 @@ func (s *server) checkHostCert(logger *log.Entry, user string, clusterName strin
 		return trace.NotFound("cluster %v has no matching CA keys", clusterName)
 	}
 
-	checker := ssh.CertChecker{}
+	checker := utils.CertChecker{}
 	if err := checker.CheckCert(user, cert); err != nil {
 		return trace.BadParameter(err.Error())
 	}

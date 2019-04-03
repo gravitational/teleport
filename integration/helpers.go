@@ -1167,6 +1167,7 @@ func newDiscardServer(host string, port int, hostSigner ssh.Signer) (*discardSer
 		sshutils.AuthMethods{
 			PublicKey: ds.userKeyAuth,
 		},
+		sshutils.SetInsecureSkipHostValidation(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
