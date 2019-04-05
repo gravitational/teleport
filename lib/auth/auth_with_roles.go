@@ -905,14 +905,14 @@ func (a *AuthWithRoles) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRes
 	return a.authServer.ValidateGithubAuthCallback(q)
 }
 
-func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFields) error {
+func (a *AuthWithRoles) EmitAuditEvent(event events.Event, fields events.EventFields) error {
 	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.alog.EmitAuditEvent(eventType, fields)
+	return a.alog.EmitAuditEvent(event, fields)
 }
 
 func (a *AuthWithRoles) PostSessionSlice(slice events.SessionSlice) error {

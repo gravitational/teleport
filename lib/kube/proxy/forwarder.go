@@ -470,7 +470,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 			// Report the updated window size to the event log (this is so the sessions
 			// can be replayed correctly).
-			recorder.GetAuditLog().EmitAuditEvent(events.ResizeEvent, resizeEvent)
+			recorder.GetAuditLog().EmitAuditEvent(events.TerminalResize, resizeEvent)
 		}
 	}
 
@@ -486,7 +486,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			W: 100,
 			H: 100,
 		}
-		recorder.GetAuditLog().EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+		recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, events.EventFields{
 			events.EventProtocol:   events.EventProtocolKube,
 			events.EventNamespace:  f.Namespace,
 			events.SessionEventID:  string(sessionID),
@@ -531,7 +531,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	if request.tty {
 		// send an event indicating that this session has ended
-		recorder.GetAuditLog().EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+		recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
 			events.EventProtocol:  events.EventProtocolKube,
 			events.SessionEventID: sessionID,
 			events.EventUser:      ctx.User.GetName(),
@@ -554,8 +554,10 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
 				fields[events.ExecEventCode] = fmt.Sprintf("%d", exitErr.ExitStatus())
 			}
+			f.AuditLog.EmitAuditEvent(events.ExecFailure, fields)
+		} else {
+			f.AuditLog.EmitAuditEvent(events.Exec, fields)
 		}
-		f.AuditLog.EmitAuditEvent(events.ExecEvent, fields)
 	}
 
 	f.Debugf("Exited successfully.")
@@ -581,7 +583,11 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 	}
 
 	onPortForward := func(addr string, success bool) {
-		f.AuditLog.EmitAuditEvent(events.PortForwardEvent, events.EventFields{
+		event := events.PortForward
+		if !success {
+			event = events.PortForwardFailure
+		}
+		f.AuditLog.EmitAuditEvent(event, events.EventFields{
 			events.EventProtocol:      events.EventProtocolKube,
 			events.PortForwardAddr:    addr,
 			events.PortForwardSuccess: success,
@@ -1003,14 +1009,14 @@ func getKubeCreds(kubeconfigPath string) (*kubeCreds, error) {
 	if kubeconfigPath == "" {
 		caPEM, err := ioutil.ReadFile(teleport.KubeCAPath)
 		if err != nil {
-			return nil, trace.BadParameter(`auth server assumed that it is 
-running in a kubernetes cluster, but %v mounted in pods could not be read: %v, 
+			return nil, trace.BadParameter(`auth server assumed that it is
+running in a kubernetes cluster, but %v mounted in pods could not be read: %v,
 set kubeconfig_path if auth server is running outside of the cluster`, teleport.KubeCAPath, err)
 		}
 
 		cfg, err := kubeutils.GetKubeConfig(os.Getenv(teleport.EnvKubeConfig))
 		if err != nil {
-			return nil, trace.BadParameter(`auth server assumed that it is 
+			return nil, trace.BadParameter(`auth server assumed that it is
 running in a kubernetes cluster, but could not init in-cluster kubernetes client: %v`, err)
 		}
 

@@ -40,7 +40,7 @@ func (d *DiscardAuditLog) Close() error {
 	return nil
 }
 
-func (d *DiscardAuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
+func (d *DiscardAuditLog) EmitAuditEvent(event Event, fields EventFields) error {
 	return nil
 }
 func (d *DiscardAuditLog) PostSessionSlice(SessionSlice) error {

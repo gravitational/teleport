@@ -131,8 +131,11 @@ func (r *remoteSubsystem) Wait() error {
 
 func (r *remoteSubsystem) emitAuditEvent(err error) {
 	srv := r.serverContext.GetServer()
-
-	srv.EmitAuditEvent(events.SubsystemEvent, events.EventFields{
+	event := events.Subsystem
+	if err != nil {
+		event = events.SubsystemFailure
+	}
+	srv.EmitAuditEvent(event, events.EventFields{
 		events.SubsystemName:  r.subsytemName,
 		events.SubsystemError: err,
 		events.EventUser:      r.serverContext.Identity.TeleportUser,

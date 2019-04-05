@@ -314,7 +314,9 @@ func EventFromChunk(sessionID string, chunk *SessionChunk) (EventFields, error) 
 	fields[EventIndex] = chunk.EventIndex
 	fields[EventTime] = eventStart
 	fields[EventType] = chunk.EventType
-	fields[EventID] = uuid.New()
+	if fields[EventID] == "" {
+		fields[EventID] = uuid.New()
+	}
 	return fields, nil
 }
 

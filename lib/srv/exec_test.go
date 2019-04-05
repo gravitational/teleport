@@ -194,7 +194,7 @@ func (s *testServer) Component() string {
 func (s *testServer) PermitUserEnvironment() bool {
 	return false
 }
-func (s *testServer) EmitAuditEvent(string, events.EventFields) {
+func (s *testServer) EmitAuditEvent(events.Event, events.EventFields) {
 }
 func (s *testServer) GetAuditLog() events.IAuditLog {
 	return s.auth
