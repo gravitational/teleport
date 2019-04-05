@@ -488,7 +488,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, status *ExecResult, exec
 		return
 	}
 
-	var eventType string
+	var event events.Event
 
 	// Create common fields for event.
 	fields := events.EventFields{
@@ -514,16 +514,33 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, status *ExecResult, exec
 
 	// Update appropriate fields based off if the request was SCP or not.
 	if isSCP {
-		eventType = events.SCPEvent
 		fields[events.SCPPath] = path
 		fields[events.SCPAction] = action
+		switch action {
+		case events.SCPActionUpload:
+			if execErr != nil {
+				event = events.SCPUploadFailure
+			} else {
+				event = events.SCPUpload
+			}
+		case events.SCPActionDownload:
+			if execErr != nil {
+				event = events.SCPDownloadFailure
+			} else {
+				event = events.SCPDownload
+			}
+		}
 	} else {
-		eventType = events.ExecEvent
 		fields[events.ExecEventCommand] = cmd
+		if execErr != nil {
+			event = events.ExecFailure
+		} else {
+			event = events.Exec
+		}
 	}
 
 	// Emit the event.
-	auditLog.EmitAuditEvent(eventType, fields)
+	auditLog.EmitAuditEvent(event, fields)
 }
 
 // getDefaultEnvPath returns the default value of PATH environment variable for
@@ -590,9 +607,9 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 
 	// Look for the -t flag, it indicates that an upload occurred. The other
 	// flags do no matter for now.
-	action := events.SCPDownload
+	action := events.SCPActionDownload
 	if utils.SliceContainsStr(parts, "-t") {
-		action = events.SCPUpload
+		action = events.SCPActionUpload
 	}
 
 	// Exract the name of the Teleport executable on disk.

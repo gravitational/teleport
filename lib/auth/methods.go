@@ -85,14 +85,14 @@ type SessionCreds struct {
 func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
 	err := s.authenticateUser(req)
 	if err != nil {
-		s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		s.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
 			events.EventUser:          req.Username,
 			events.LoginMethod:        events.LoginMethodLocal,
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     err.Error(),
 		})
 	} else {
-		s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		s.EmitAuditEvent(events.UserLocalLogin, events.EventFields{
 			events.EventUser:          req.Username,
 			events.LoginMethod:        events.LoginMethodLocal,
 			events.AuthAttemptSuccess: true,

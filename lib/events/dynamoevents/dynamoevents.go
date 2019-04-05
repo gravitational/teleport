@@ -208,7 +208,7 @@ const (
 )
 
 // EmitAuditEvent emits audit event
-func (l *Log) EmitAuditEvent(eventType string, fields events.EventFields) error {
+func (l *Log) EmitAuditEvent(ev events.Event, fields events.EventFields) error {
 	sessionID := fields.GetString(events.SessionEventID)
 	eventIndex := fields.GetInt(events.EventIndex)
 	// no session id - global event gets a random uuid to get a good partition
@@ -216,14 +216,13 @@ func (l *Log) EmitAuditEvent(eventType string, fields events.EventFields) error 
 	if sessionID == "" {
 		sessionID = uuid.New()
 	}
+	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+	}
 	created := fields.GetTime(events.EventTime)
 	if created.IsZero() {
 		created = l.Clock.Now().UTC()
-	}
-	// set event type in the fields as it's missing there
-	fields[events.EventType] = eventType
-	if fields.GetID() == "" {
-		fields[events.EventID] = l.UIDGenerator.New()
 	}
 	data, err := json.Marshal(fields)
 	if err != nil {

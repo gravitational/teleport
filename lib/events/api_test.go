@@ -16,15 +16,20 @@ limitations under the License.
 
 package events
 
-import "gopkg.in/check.v1"
-import "time"
+import (
+	"time"
 
-type AuditApiTestSuite struct {
-}
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
+	"gopkg.in/check.v1"
+)
 
-var _ = check.Suite(&AuditApiTestSuite{})
+type AuditAPITestSuite struct{}
 
-func (a *AuditApiTestSuite) TestFields(c *check.C) {
+var _ = check.Suite(&AuditAPITestSuite{})
+
+func (a *AuditAPITestSuite) TestFields(c *check.C) {
 	now := time.Now().Round(time.Minute)
 
 	f := EventFields{
@@ -47,4 +52,30 @@ func (a *AuditApiTestSuite) TestFields(c *check.C) {
 
 	t := f.GetTime("time")
 	c.Assert(t, check.Equals, now)
+}
+
+func (a *AuditAPITestSuite) TestUpdateFields(c *check.C) {
+	event := Event{
+		Name:     "test.event",
+		Code:     "TEST0001I",
+		Severity: SeverityInfo,
+		Message:  "User {{.user}} logged in via {{.method}}",
+	}
+	fields := EventFields{
+		EventUser:   "test@example.com",
+		LoginMethod: LoginMethodOIDC,
+	}
+	c.Assert(UpdateEventFields(event, fields, clockwork.NewFakeClock(), utils.NewFakeUID()), check.IsNil)
+
+	// Check the fields have been updated appropriately.
+	c.Assert(fields, check.DeepEquals, EventFields{
+		EventType:     event.Name,
+		EventID:       fixtures.UUID,
+		EventCode:     event.Code,
+		EventTime:     time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC),
+		EventSeverity: SeverityInfo,
+		EventUser:     "test@example.com",
+		EventMessage:  "User test@example.com logged in via oidc",
+		LoginMethod:   LoginMethodOIDC,
+	})
 }

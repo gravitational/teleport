@@ -346,7 +346,7 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 		return trace.Wrap(err)
 	}
 	l.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
-	return l.EmitAuditEvent(SessionUploadEvent, EventFields{
+	return l.EmitAuditEvent(SessionUpload, EventFields{
 		SessionEventID: string(r.SessionID),
 		URL:            url,
 		EventIndex:     math.MaxInt32,
@@ -382,7 +382,7 @@ func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := l.EmitAuditEvent(chunk.EventType, fields); err != nil {
+		if err := l.EmitAuditEvent(Event{Name: chunk.EventType}, fields); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -876,10 +876,10 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 
 // EmitAuditEvent adds a new event to the log. If emitting fails, a Prometheus
 // counter is incremented.
-func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
+func (l *AuditLog) EmitAuditEvent(event Event, fields EventFields) error {
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
-	var emitAuditEvent func(eventType string, fields EventFields) error
+	var emitAuditEvent func(event Event, fields EventFields) error
 	if l.ExternalLog != nil {
 		emitAuditEvent = l.ExternalLog.EmitAuditEvent
 	} else {
@@ -888,7 +888,7 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 
 	// Emit the event. If it fails for any reason a Prometheus counter is
 	// incremented.
-	err := emitAuditEvent(eventType, fields)
+	err := emitAuditEvent(event, fields)
 	if err != nil {
 		auditFailedEmit.Inc()
 		return trace.Wrap(err)

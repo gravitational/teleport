@@ -278,13 +278,13 @@ type SAMLAuthResponse struct {
 func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
 	re, err := a.validateSAMLResponse(samlResponse)
 	if err != nil {
-		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		a.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
 			events.LoginMethod:        events.LoginMethodSAML,
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     err.Error(),
 		})
 	} else {
-		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		a.EmitAuditEvent(events.UserSSOLogin, events.EventFields{
 			events.EventUser:          re.Username,
 			events.AuthAttemptSuccess: true,
 			events.LoginMethod:        events.LoginMethodSAML,

@@ -55,10 +55,10 @@ func (m *MultiLog) Close() error {
 }
 
 // EmitAuditEvent emits audit event
-func (m *MultiLog) EmitAuditEvent(eventType string, fields EventFields) error {
+func (m *MultiLog) EmitAuditEvent(event Event, fields EventFields) error {
 	var errors []error
 	for _, log := range m.loggers {
-		errors = append(errors, log.EmitAuditEvent(eventType, fields))
+		errors = append(errors, log.EmitAuditEvent(event, fields))
 	}
 	return trace.NewAggregate(errors...)
 }
