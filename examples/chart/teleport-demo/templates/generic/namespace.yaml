@@ -43,7 +43,7 @@ spec:
     spec:
       containers:
       - name: namespace-cleaner
-        image: {{ .Values.namespacecleaner.image.repository }}:{{ .Values.namespacecleaner.image.tag }}
+        image: {{ .Values.namespacecleaner.image.repository }}:{{ tpl .Values.namespacecleaner.image.tag . }}
         imagePullPolicy: {{ .Values.namespacecleaner.image.pullPolicy }}
         args:
         - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}

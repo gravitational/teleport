@@ -168,7 +168,7 @@ node:
 cloudflareagent:
   image:
     repository: gcr.io/kubeadm-167321/cloudflare-agent
-    tag: latest
+    tag: "{{ .Values.teleportVersion }}"
     pullPolicy: Always
     pullSecrets:
     # - name: myRegistryKeySecretName
@@ -177,7 +177,7 @@ cloudflareagent:
 namespacecleaner:
   image:
     repository: gcr.io/kubeadm-167321/namespace-cleaner
-    tag: latest
+    tag: "{{ .Values.teleportVersion }}"
     pullPolicy: Always
     pullSecrets:
     # - name: myRegistryKeySecretName

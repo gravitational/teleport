@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-cloudflare-agent
-        image: {{ .Values.cloudflareagent.image.repository }}:{{ .Values.cloudflareagent.image.tag }}
+        image: {{ .Values.cloudflareagent.image.repository }}:{{ tpl .Values.cloudflareagent.image.tag . }}
         imagePullPolicy: {{ .Values.cloudflareagent.image.pullPolicy }}
         env:
           - name: API_VERSION
@@ -91,7 +91,7 @@ spec:
     spec:
       containers:
       - name: {{ template "teleport.fullname" $root }}-{{ . }}-cloudflare-agent
-        image: {{ $root.Values.cloudflareagent.image.repository }}:{{ $root.Values.cloudflareagent.image.tag }}
+        image: {{ $root.Values.cloudflareagent.image.repository }}:{{ tpl $root.Values.cloudflareagent.image.tag $root }}
         imagePullPolicy: {{ $root.Values.cloudflareagent.image.pullPolicy }}
         env:
           - name: API_VERSION
