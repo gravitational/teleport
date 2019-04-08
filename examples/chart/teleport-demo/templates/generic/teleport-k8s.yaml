@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-csr
+  name: {{ template "teleport.fullname" . }}-impersonator
   labels:
 {{ include "teleport.labels" . | indent 4 }}
   annotations:
@@ -11,27 +11,18 @@ metadata:
     "helm.sh/hook-delete-policy": "before-hook-creation"
 rules:
 - apiGroups:
-  - certificates.k8s.io
+  - ""
   resources:
-  - certificatesigningrequests
+  - users
+  - serviceaccounts
+  - groups
   verbs:
-  - create
-  - delete
-  - get
-  - list
-  - watch
-- apiGroups:
-  - certificates.k8s.io
-  resources:
-  - certificatesigningrequests/approval
-  - certificatesigningrequests/status
-  verbs:
-  - update
+  - impersonate
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-teleport-admin-role
+  name: {{ template "teleport.fullname" . }}-teleport-admin-role
   labels:
 {{ include "teleport.labels" . | indent 4 }}
   annotations:
@@ -54,7 +45,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-csr
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-impersonator
   annotations:
     "helm.sh/hook": "pre-install"
     "helm.sh/hook-weight": "-3"
@@ -62,7 +53,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-csr
+  name: {{ template "teleport.fullname" . }}-impersonator
 subjects:
 - kind: ServiceAccount
   name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
@@ -80,7 +71,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-teleport-admin-role
+  name: {{ template "teleport.fullname" . }}-teleport-admin-role
 subjects:
 - kind: Group
   name: teleport-users
@@ -92,7 +83,7 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ template "teleport.fullname" $root }}-{{.}}-csr
+  name: {{ template "teleport.fullname" $root }}-{{.}}-impersonator
   annotations:
     "helm.sh/hook": "pre-install"
     "helm.sh/hook-weight": "-3"
@@ -100,7 +91,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}-csr
+  name: {{ template "teleport.fullname" $root }}-impersonator
 subjects:
 - kind: ServiceAccount
   name: {{ template "teleport.fullname" $root }}-{{.}}
@@ -118,7 +109,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ template "teleport.fullname" $root }}-{{ $root.Values.mainClusterName }}-teleport-admin-role
+  name: {{ template "teleport.fullname" $root }}-teleport-admin-role
 subjects:
 - kind: Group
   name: teleport-users
