@@ -89,9 +89,6 @@ data:
           verbs:
           - list
           - create
-          - read
-          - update
-          - delete
         - resources:
           - session
           verbs:
@@ -243,9 +240,6 @@ data:
           verbs:
           - list
           - create
-          - read
-          - update
-          - delete
         - resources:
           - session
           verbs:
