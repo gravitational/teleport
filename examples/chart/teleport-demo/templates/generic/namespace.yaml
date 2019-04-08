@@ -54,9 +54,9 @@ spec:
         {{- end -}}
         {{- end }}
       restartPolicy: Never
-{{- if .Values.cloudflareagent.image.pullSecrets }}
+{{- if .Values.namespacecleaner.image.pullSecrets }}
       imagePullSecrets:
-{{ toYaml .Values.cloudflareagent.image.pullSecrets | indent 6 }}
+{{ toYaml .Values.namespacecleaner.image.pullSecrets | indent 6 }}
 {{- end }}
 {{- if .Values.affinity }}
       affinity:

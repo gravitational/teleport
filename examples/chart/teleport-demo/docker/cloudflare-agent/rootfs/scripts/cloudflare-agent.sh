@@ -62,6 +62,7 @@ if [[ "${CLOUDFLARE_TTL}" != "" ]]; then
 else
     RECORD_CONTENT="{\"type\":\"A\",\"name\":\"${DOMAIN_TO_REGISTER}\",\"content\":\"${EXTERNAL_IP}\",\"proxied\":false}"
 fi
+
 # look up record ID
 RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X GET "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records?name=${DOMAIN_TO_REGISTER}" | jq -r '.result[].id')
 # if it doesn't exist, create a new record
