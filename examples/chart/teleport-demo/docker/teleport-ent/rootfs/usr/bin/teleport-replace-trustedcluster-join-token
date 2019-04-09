@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -e
+if [ ! -f /var/lib/teleport/primary-trustedcluster-join-token ]; then
+    "Primary trusted cluster join token is not present, exiting with error"
+    exit 1
+fi
+# only run when we have a trusted cluster YAML descriptor
+if [ -f /etc/teleport/trusted_cluster.yaml ]; then
+    TRUSTEDCLUSTER_JOIN_TOKEN=$(cat /var/lib/teleport/primary-trustedcluster-join-token)
+    cp /etc/teleport/trusted_cluster.yaml /tmp/trusted_cluster.yaml
+    sed -i "s/TRUSTEDCLUSTER_JOIN_TOKEN_PLACEHOLDER/${TRUSTEDCLUSTER_JOIN_TOKEN}/g" /tmp/trusted_cluster.yaml
+fi

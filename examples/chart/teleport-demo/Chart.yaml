@@ -1,0 +1,14 @@
+name: teleport-demo
+version: 0.0.5
+description: Teleport Enterprise
+keywords:
+  - Teleport Enterprise
+tillerVersion: ">=2.8.0"
+kubeVersion: ">=1.10.0-0"
+home: https://github.com/gravitational/teleport
+sources:
+  - https://github.com/gravitational/teleport
+maintainers:
+  - name: Gus Luxton
+    email: gus@gravitational.com
+    url: https://github.com/webvictim

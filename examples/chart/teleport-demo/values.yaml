@@ -1,0 +1,364 @@
+## override these on the helm command line with things like --set teleportVersion=3.1.8
+# teleport version to deploy (must be a valid tag on https://quay.io/repository/gravitational/teleport-ent?tab=tags)
+teleportVersion: 3.1.8
+# name of the 'main' cluster which will be set up and configured - this will also the cluster's namespace
+# DNS will be set up for <clusterName>.<clusterDomain>
+mainClusterName: main
+# names of the 'extra' trusted clusters which will be linked
+# adding more values to this list will create more trusted clusters
+# each of these will be deployed to its own equivalent namespace
+extraClusterNames:
+- east
+# number of nodes to start in each cluster
+nodesPerCluster: 2
+
+### Auth0
+auth0:
+  display: Auth0
+  oidc_connector_name: gravitational-auth0
+  issuer_url: https://gravitational.auth0.com/
+  # scope must be an array
+  scope: ["roles"]
+  # oidc roles to map to associated teleport roles
+  claims_to_roles:
+  - claim: roles
+    value: gravitational/admins
+    roles: ["clusteradmin"]
+  - claim: roles
+    value: gravitational/devc
+    roles: ["clusteradmin"]
+
+# kubernetes group mappings
+kubernetes_groups:
+  admin_role: '["teleport-users"]'
+  clusteradmin_role: '["system:masters"]'
+
+# teleport labels
+# static is a dictionary of key:value pairs
+# dynamic is a list containing name, command and period
+teleportLabels:
+  auth:
+    static:
+      role: auth
+      environment: demo
+    dynamic:
+    - name: uptime
+      command: ['uptime', '-p']
+      period: '1m'
+    - name: kernel
+      command: ['uname', '-r']
+      period: '1h'
+  node:
+    static:
+      role: node
+      environment: demo
+    dynamic:
+    - name: uptime
+      command: ['uptime', '-p']
+      period: '1m'
+    - name: kernel
+      command: ['uname', '-r']
+      period: '1h'
+
+### Cloudflare
+cloudflare:
+  # domain you want to update DNS records for
+  domain: gravitational.co
+  # API version (4 is standard/default)
+  apiVersion: 4
+  # optional TTL in seconds to set on DNS records registered with Cloudflare
+  # Cloudflare's default/automatic setting is 300 (5 minutes) which is fine for most situations
+  # For testing it might be useful to set this lower to avoid slow propagation
+  #ttl: 300
+
+### LetsEncrypt
+letsencrypt:
+  # Should we get TLS certificates for each cluster? Be aware that leaving this on and deploying many clusters
+  # repeatedly may cause you to hit LetsEncrypt's rate limits. To avoid this, You can take a backup of the tls-web
+  # secret for each cluster namespace after Letsencrypt has provisioned the certificates, then manually re-add these
+  # secrets after deploying the Helm chart
+  enabled: false
+  # Email address to register with LetsEncrypt
+  email: email@address.com
+
+# Teleport Proxy configuration
+proxy:
+  tls:
+    # true: TLS terminated on proxy server
+    # false: TLS terminated before proxy (i.e. handle TLS yourself and run Teleport in insecure mode)
+    enabled: true
+
+license:
+  ## Set to false to run Teleport in Community edition mode
+  # OIDC isn't supported in the community edition so changing this won't work (for now)
+  enabled: true
+  secretName: teleport-license
+  mountPath: /var/lib/license
+
+# See the admin guide for full details
+# https://gravitational.com/teleport/docs/admin-guide/#configuration-file
+# this file is templated (in templates/auth-config.yaml and templates/node-config.yaml) so just adding new values here
+# WILL NOT WORK - you must also change the template to interpret them
+config:
+  teleport:
+    log:
+      output: stderr
+      severity: DEBUG
+    data_dir: /var/lib/teleport
+    storage:
+      type: dir
+
+  auth_service:
+    enabled: yes
+    authentication:
+      type: oidc
+
+  ssh_service:
+    enabled: no
+
+  proxy_service:
+    enabled: yes
+    web_listen_addr: "0.0.0.0:{{ .Values.ports.auth.proxyweb.containerPort }}"
+    listen_addr: "0.0.0.0:{{ .Values.ports.auth.proxyssh.containerPort }}"
+    kubernetes:
+      enabled: yes
+      listen_addr: "0.0.0.0:{{ .Values.ports.auth.proxykube.containerPort }}"
+      # public_addr is used to set values
+      # setup in kubeconfig after tsh login
+      # public_addr: [kubeproxy.example.com:443]
+
+
+##############################################################
+##### You probably don't want to change stuff below here #####
+##############################################################
+
+# Teleport container image
+auth:
+  image:
+    repository: gcr.io/kubeadm-167321/teleport-ent
+    tag: "{{ .Values.teleportVersion }}"
+    pullPolicy: Always
+    # Optionally specify an array of imagePullSecrets.
+    # Secrets must be manually created in the namespace.
+    # ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+    pullSecrets:
+    # - name: myRegistryKeySecretName
+
+# Teleport container sidecar
+# Handles trusted cluster/node token generation
+sidecar:
+  image:
+    repository: gcr.io/kubeadm-167321/teleport-sidecar
+    tag: "{{ .Values.teleportVersion }}"
+    pullPolicy: Always
+    pullSecrets:
+    # - name: myRegistryKeySecretName
+
+# Teleport node container image
+node:
+  image:
+    repository: gcr.io/kubeadm-167321/teleport-ent
+    tag: "{{ .Values.teleportVersion }}"
+    pullPolicy: Always
+    pullSecrets:
+    # - name: myRegistryKeySecretName
+
+# Cloudflare agent container image
+# Used to generate A records for LoadBalancer IP addresses within a Cloudflare-managed domain
+cloudflareagent:
+  image:
+    repository: gcr.io/kubeadm-167321/cloudflare-agent
+    tag: "{{ .Values.teleportVersion }}"
+    pullPolicy: Always
+    pullSecrets:
+    # - name: myRegistryKeySecretName
+
+# Namespace cleaner image (runs when a release is deleted to remove the namespaces it created)
+namespacecleaner:
+  image:
+    repository: gcr.io/kubeadm-167321/namespace-cleaner
+    tag: "{{ .Values.teleportVersion }}"
+    pullPolicy: Always
+    pullSecrets:
+    # - name: myRegistryKeySecretName
+
+labels: {}
+
+# Pod annotations
+annotations: {}
+## See https://github.com/uswitch/kiam#overview
+## To enable AWS API access from teleport, use kube2iam or kiam, annotate the namespace, and then set something like:
+# iam.amazonaws.com/role: teleport-dynamodb-and-s3-access
+
+## Affinity for pod assignment
+## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+# affinity: {}
+#
+## For the sake of security, make specific node group(s) dedicated to Teleport
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: gravitational.io/dedicated
+#           operator: In
+#           values:
+#           - teleport
+#
+## For high availability, distribute teleport pods to nodes as evenly as possible
+#   podAntiAffinity:
+#     preferredDuringSchedulingIgnoredDuringExecution:
+#     - podAffinityTerm:
+#         labelSelector:
+#           matchExpressions:
+#           - key: app
+#             operator: In
+#             values:
+#             - teleport
+#         topologyKey: kubernetes.io/hostname
+
+# Tolerations for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "teleport"
+#   effect: "NoExecute"
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "teleport"
+#   effect: "NoSchedule"
+
+service:
+  # use NodePort for local testing/minikube
+  # use LoadBalancer with GKE/Gravity or similar for external access in the cloud
+  #type: NodePort
+  type: LoadBalancer
+  ports:
+    proxyweb:
+      port: 3080
+      targetPort: 3080
+      protocol: TCP
+    authssh:
+      port: 3025
+      targetPort: 3025
+      protocol: TCP
+    proxykube:
+      port: 3026
+      targetPort: 3026
+      protocol: TCP
+    proxyssh:
+      port: 3023
+      targetPort: 3023
+      protocol: TCP
+    proxytunnel:
+      port: 3024
+      targetPort: 3024
+      protocol: TCP
+  annotations: {}
+  ## See https://github.com/kubernetes-incubator/external-dns/blob/master/docs/tutorials/aws-sd.md#verify-that-externaldns-works-service-example
+  # Set something like the below in order to instruct external-dns to create a Route53 record set for your ELB on AWS:
+  # external-dns.alpha.kubernetes.io/hostname: teleport.my-org.com
+
+# minikubeIP needs to be set via command-line when running in minikube
+#minikubeIP: 192.168.39.46
+
+# list of local ports to use when running in NodePort mode
+# you'll need to override these to run more than one chart installation using NodePort
+# these only apply to the 'main' cluster - any trusted clusters will have randomly assigned NodePorts
+nodePort:
+  ports:
+    proxyweb:
+      port: 3080
+      nodePort: 30080
+    authssh:
+      port: 3025
+      nodePort: 30025
+    proxykube:
+      port: 3026
+      nodePort: 30026
+    proxyssh:
+      port: 3023
+      nodePort: 30023
+    proxytunnel:
+      port: 3024
+      nodePort: 30024
+
+ports:
+  auth:
+    proxyweb:
+      containerPort: 3080
+    authssh:
+      containerPort: 3025
+    proxykube:
+      containerPort: 3026
+    proxyssh:
+      containerPort: 3023
+    proxytunnel:
+      containerPort: 3024
+  node:
+    nodessh:
+      containerPort: 3022
+
+## Additional container arguments
+extraArgs: []
+
+# A map of additional environment variables
+extraVars: {}
+  # Provide the path to your own CA cert if you would like to use to
+  # validate the certificate chain presented by the proxy
+  # SSL_CERT_FILE: "/var/lib/ca-certs/ca.pem"
+
+# Add additional volumes and mounts, for example to read other log files on the host
+extraVolumes: []
+  # - name: ca-certs
+  #   configMap:
+  #     name: ca-certs
+extraVolumeMounts: []
+  # - name: ca-certs
+  #   mountPath: /var/lib/ca-certs
+  #   readOnly: true
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with smaller
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 200Mi
+  # requests:
+  #  cpu: 100m
+  #  memory: 100Mi
+
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: true
+
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true
+  # The name of the ServiceAccount to use.
+  # If name is not set (or is blank) and 'create' is true, a name is generated using the fullname template
+  name:
+  # optional imagePullSecrets to add to the ServiceAccount (as an alternative to specifying for each individual image)
+  # this secret must be present within each Teleport cluster's Kubernetes namespace otherwise it won't work!
+  #imagePullSecrets:
+  #- name: gcr-pull
+
+persistence:
+  enabled: false
+  accessMode: ReadWriteOnce
+  ## If defined, storageClass: <storageClass>
+  ## If set to "-", storageClass: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClass spec is
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  ##
+  # existingClaim:
+  # annotations:
+  #  "helm.sh/resource-policy": keep
+  # storageClass: "-"
+  storageSize: 8Gi
+  # If PersistentDisk already exists you can create a PV for it by including the 2 following keypairs.
+  # pdName: teleport-data-disk
+  # fsType: ext4

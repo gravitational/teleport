@@ -1,0 +1,3 @@
+license/
+secrets*.yaml
+secrets*.yaml.dec
