@@ -24,10 +24,14 @@ spec:
             value: "{{ .Values.cloudflare.apiVersion }}"
           - name: CLUSTER_NAME
             value: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+          - name: CLUSTER_TYPE
+            value: primary
           - name: CLOUDFLARE_DOMAIN
             value: "{{ .Values.cloudflare.domain }}"
           - name: LETSENCRYPT_EMAIL
             value: "{{ .Values.letsencrypt.email }}"
+          - name: MODE
+            value: create
           - name: SERVICE_NAME
             value: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
           - name: NAMESPACE
@@ -39,12 +43,12 @@ spec:
             value: "{{ .Values.cloudflare.ttl }}"
           {{- end }}
         volumeMounts:
-        - mountPath: /etc/cloudflare
-          name: cloudflare-credentials
-          readOnly: true
-        - mountPath: /etc/teleport-tls
-          name: teleport-tls
-          readOnly: true
+          - mountPath: /etc/cloudflare
+            name: cloudflare-credentials
+            readOnly: true
+          - mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
       volumes:
         - name: cloudflare-credentials
           secret:
@@ -66,6 +70,62 @@ spec:
 {{ toYaml .Values.tolerations | indent 6 }}
 {{- end }}
       serviceAccountName: {{ template "teleport.serviceAccountName" . }}-{{ .Values.mainClusterName }}
+  backoffLimit: 0
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-cloudflare-cleaner
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-delete"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      namespace: {{ .Release.Namespace }}
+      labels:
+        app: cloudflare-cleaner
+    spec:
+      containers:
+      - name: cloudflare-cleaner
+        image: {{ .Values.cloudflareagent.image.repository }}:{{ tpl .Values.cloudflareagent.image.tag . }}
+        imagePullPolicy: {{ .Values.cloudflareagent.image.pullPolicy }}
+        env:
+          - name: API_VERSION
+            value: "{{ .Values.cloudflare.apiVersion }}"
+          - name: CLUSTER_NAME
+            value: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+          - name: CLUSTER_TYPE
+            value: primary
+          - name: CLOUDFLARE_DOMAIN
+            value: "{{ .Values.cloudflare.domain }}"
+          - name: MODE
+            value: delete
+        volumeMounts:
+          - mountPath: /etc/cloudflare
+            name: cloudflare-credentials
+            readOnly: true
+      volumes:
+        - name: cloudflare-credentials
+          secret:
+            secretName: {{ template "teleport.fullname" . }}-cloudflare-credentials
+      restartPolicy: Never
+{{- if .Values.cloudflareagent.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.cloudflareagent.image.pullSecrets | indent 6 }}
+{{- end }}
+{{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 6 }}
+{{- end }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}-cleaner
   backoffLimit: 0
 
 {{- if not (eq (index .Values.extraClusterNames 0) "") -}}
@@ -98,10 +158,14 @@ spec:
             value: "{{ $root.Values.cloudflare.apiVersion }}"
           - name: CLUSTER_NAME
             value: {{ template "teleport.fullname" $root }}-{{ . }}
+          - name: CLUSTER_TYPE
+            value: secondary
           - name: CLOUDFLARE_DOMAIN
             value: "{{ $root.Values.cloudflare.domain }}"
           - name: LETSENCRYPT_EMAIL
             value: "{{ $root.Values.letsencrypt.email }}"
+          - name: MODE
+            value: create
           - name: SERVICE_NAME
             value: {{ template "teleport.fullname" $root }}-{{ . }}
           - name: NAMESPACE
@@ -113,12 +177,12 @@ spec:
             value: "{{ $root.Values.cloudflare.ttl }}"
           {{- end }}
         volumeMounts:
-        - mountPath: /etc/cloudflare
-          name: cloudflare-credentials
-          readOnly: true
-        - mountPath: /etc/teleport-tls
-          name: teleport-tls
-          readOnly: true
+          - mountPath: /etc/cloudflare
+            name: cloudflare-credentials
+            readOnly: true
+          - mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
       volumes:
         - name: cloudflare-credentials
           secret:
@@ -140,6 +204,62 @@ spec:
 {{ toYaml $root.Values.tolerations | indent 6 }}
 {{- end }}
       serviceAccountName: {{ template "teleport.serviceAccountName" $root }}-{{ . }}
+  backoffLimit: 0
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "teleport.fullname" $root }}-{{ . }}-cloudflare-cleaner
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+{{ include "teleport.labels" $root | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-delete"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      namespace: {{ $root.Release.Namespace }}
+      labels:
+        app: cloudflare-cleaner
+    spec:
+      containers:
+      - name: cloudflare-cleaner
+        image: {{ $root.Values.cloudflareagent.image.repository }}:{{ tpl $root.Values.cloudflareagent.image.tag $root }}
+        imagePullPolicy: {{ $root.Values.cloudflareagent.image.pullPolicy }}
+        env:
+          - name: API_VERSION
+            value: "{{ $root.Values.cloudflare.apiVersion }}"
+          - name: CLUSTER_NAME
+            value: {{ template "teleport.fullname" $root }}-{{ . }}
+          - name: CLUSTER_TYPE
+            value: secondary
+          - name: CLOUDFLARE_DOMAIN
+            value: "{{ $root.Values.cloudflare.domain }}"
+          - name: MODE
+            value: delete
+        volumeMounts:
+          - mountPath: /etc/cloudflare
+            name: cloudflare-credentials
+            readOnly: true
+      volumes:
+        - name: cloudflare-credentials
+          secret:
+            secretName: {{ template "teleport.fullname" $root }}-cloudflare-credentials
+      restartPolicy: Never
+{{- if $root.Values.cloudflareagent.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml $root.Values.cloudflareagent.image.pullSecrets | indent 6 }}
+{{- end }}
+{{- if $root.Values.affinity }}
+      affinity:
+{{ toYaml $root.Values.affinity | indent 8 }}
+{{- end }}
+{{- if $root.Values.tolerations }}
+      tolerations:
+{{ toYaml $root.Values.tolerations | indent 6 }}
+{{- end }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" $root }}-cleaner
   backoffLimit: 0
 {{- end -}}
 {{- end }}
