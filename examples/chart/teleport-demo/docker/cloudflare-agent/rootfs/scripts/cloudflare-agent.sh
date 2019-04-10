@@ -9,11 +9,16 @@ function cloudflareagent_log() {
     echo "[cloudflare-agent] $*"
 }
 
+# default to creation mode if the MODE variable isn't set (to ensure container compatibility with older installations)
+if [[ "${MODE}" == "" ]]; then
+    MODE="create"
+fi
+
 API_KEY=$(cat /etc/cloudflare/api_key)
 EMAIL=$(cat /etc/cloudflare/email)
 DOMAIN_TO_REGISTER="${CLUSTER_NAME}.${CLOUDFLARE_DOMAIN}"
 
-if [[ "${MODE}" != "delete" ]]; then
+if [[ "${MODE}" == "create" ]]; then
     TLS_ENABLED=$(cat /etc/teleport-tls/enabled)
     LETSENCRYPT_ENABLED=$(cat /etc/teleport-tls/letsencrypt-enabled)
 fi
@@ -32,6 +37,11 @@ if [[ "${DEBUG}" == true ]]; then
     cloudflareagent_log "Service name: ${SERVICE_NAME}"
     cloudflareagent_log "---"
     cloudflareagent_log "Mode: ${MODE}"
+fi
+
+# if this is the main cluster, we create a wildcard record so that kubernetes proxy forwarding from Teleport 3.2 will work
+if [[ "${CLUSTER_TYPE}" == "primary" ]]; then
+    DOMAIN_TO_REGISTER="*.${DOMAIN_TO_REGISTER}"
 fi
 
 if [[ "${MODE}" == "create" ]]; then
@@ -57,11 +67,6 @@ if [[ "${MODE}" == "create" ]]; then
     if [[ "${ZONE_ID}" == "null" || "${ZONE_ID}" == "" ]]; then
         cloudflareagent_log "Couldn't get Cloudflare Zone ID for '${CLOUDFLARE_DOMAIN}' with the provided credentials - exiting with error"
         exit 1
-    fi
-
-    # if this is the main cluster, we use a wildcard record so that kubernetes proxy forwarding from Teleport 3.2 will work
-    if [[ "${CLUSTER_TYPE}" == "primary" ]]; then
-        DOMAIN_TO_REGISTER="*.${DOMAIN_TO_REGISTER}"
     fi
 
     # set TTL if provided - if not, omit it so cloudflare uses auto
@@ -104,8 +109,8 @@ if [[ "${MODE}" == "create" ]]; then
         cloudflareagent_log "TLS/Letsencrypt enabled, running certbot"
         # create certbot.ini file
         cat >/tmp/cloudflare-credentials-certbot.ini <<EOF
-        dns_cloudflare_email = ${EMAIL}
-        dns_cloudflare_api_key = ${API_KEY}
+dns_cloudflare_email = ${EMAIL}
+dns_cloudflare_api_key = ${API_KEY}
 EOF
         chmod 600 /tmp/cloudflare-credentials-certbot.ini
         certbot certonly -n --agree-tos --email ${LETSENCRYPT_EMAIL} --dns-cloudflare --dns-cloudflare-credentials /tmp/cloudflare-credentials-certbot.ini -d ${DOMAIN_TO_REGISTER}
@@ -129,11 +134,6 @@ elif [[ "${MODE}" == "delete" ]]; then
     # exit if we can't get it, we don't exit with a failure code when deleting as it's just a best-effort process
     if [[ "${ZONE_ID}" == "null" || "${ZONE_ID}" == "" ]]; then
         cloudflareagent_log "Couldn't get Cloudflare Zone ID for '${CLOUDFLARE_DOMAIN}' with the provided credentials - exiting"
-    fi
-
-    # if this is the main cluster, we use a wildcard record so that kubernetes proxy forwarding from Teleport 3.2 will work
-    if [[ "${CLUSTER_TYPE}" == "primary" ]]; then
-        DOMAIN_TO_REGISTER="*.${DOMAIN_TO_REGISTER}"
     fi
 
     # look up record ID
