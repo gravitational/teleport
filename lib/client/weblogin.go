@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -129,9 +130,34 @@ type sealData struct {
 	Nonce []byte `json:"nonce"`
 }
 
+// SSHLogin contains SSH login parameters
+type SSHLogin struct {
+	// Context is an external context
+	Context context.Context
+	// ProxyAddr is the target proxy address
+	ProxyAddr string
+	// ConnectorID is the OIDC or SAML connector ID to use
+	ConnectorID string
+	// PubKey is SSH public key to sign
+	PubKey []byte
+	// TTL is requested TTL of the client certificates
+	TTL time.Duration
+	// Insecure turns off verification for x509 target proxy
+	Insecure bool
+	// Pool is x509 cert pool to use for server certifcate verification
+	Pool *x509.CertPool
+	// Protocol is an optional protocol selection
+	Protocol string
+	// Compatibility sets compatibility mode for SSH certificates
+	Compatibility string
+	// BindAddr is an optional host:port address to bind
+	// to for SSO login flows
+	BindAddr string
+}
+
 // SSHAgentSSOLogin is used by SSH Agent (tsh) to login using OpenID connect
-func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, protocol string, compatibility string) (*auth.SSHLoginResponse, error) {
-	clt, proxyURL, err := initClient(proxyAddr, insecure, pool)
+func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
+	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -167,7 +193,7 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		})
 	}
 
-	server := httptest.NewServer(makeHandler(func(w http.ResponseWriter, r *http.Request) (*auth.SSHLoginResponse, error) {
+	handler := makeHandler(func(w http.ResponseWriter, r *http.Request) (*auth.SSHLoginResponse, error) {
 		if r.URL.Path != "/callback" {
 			return nil, trace.NotFound("path not found")
 		}
@@ -185,10 +211,39 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		}
 
 		return re, nil
-	}))
+	})
+
+	redirPath := "/" + uuid.New()
+	// longURL will be set based on the response from the webserver
+	var longURL utils.SyncString
+	mux := http.NewServeMux()
+	mux.Handle("/callback", handler)
+	mux.HandleFunc(redirPath, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, longURL.Value(), http.StatusFound)
+	})
+	redir := httptest.NewServer(mux)
+	defer redir.Close()
+
+	var server *httptest.Server
+	if login.BindAddr != "" {
+		log.Debugf("Binding to %v.", login.BindAddr)
+		listener, err := net.Listen("tcp", login.BindAddr)
+		if err != nil {
+			return nil, trace.Wrap(err, "%v: could not bind to %v, make sure the address is host:port format for ipv4 and [ipv6]:port format for ipv6, and the address is not in use", err, login.BindAddr)
+		}
+		server = &httptest.Server{
+			Listener: listener,
+			Config:   &http.Server{Handler: mux},
+		}
+		server.Start()
+	} else {
+		server = httptest.NewServer(mux)
+	}
 	defer server.Close()
 
-	// Encode the secret into "secret_key" parameter.
+	// redirURL is the short URL presented to the user
+	redirURL := server.URL + redirPath
+
 	u, err := url.Parse(server.URL + "/callback")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -197,12 +252,12 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	query.Set("secret_key", key.String())
 	u.RawQuery = query.Encode()
 
-	out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", protocol, "login", "console"), SSOLoginConsoleReq{
+	out, err := clt.PostJSON(login.Context, clt.Endpoint("webapi", login.Protocol, "login", "console"), SSOLoginConsoleReq{
 		RedirectURL:   u.String(),
-		PublicKey:     pubKey,
-		CertTTL:       ttl,
-		ConnectorID:   connectorID,
-		Compatibility: compatibility,
+		PublicKey:     login.PubKey,
+		CertTTL:       login.TTL,
+		ConnectorID:   login.ConnectorID,
+		Compatibility: login.Compatibility,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -213,18 +268,7 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Start a HTTP server on the client that re-directs to the SAML provider.
-	// This creates nice short URLs and also works around some platforms (like
-	// Windows) that truncate long URLs before passing them to the default browser.
-	redirPath := "/" + uuid.New()
-	redirMux := http.NewServeMux()
-	redirMux.HandleFunc(redirPath, func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, re.RedirectURL, http.StatusFound)
-	})
-	redir := httptest.NewServer(redirMux)
-	defer redir.Close()
-	redirURL := redir.URL + redirPath
+	longURL.Set(re.RedirectURL)
 
 	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
@@ -254,7 +298,7 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 
 	// Print to screen in-case the command that launches the browser did not run.
 	fmt.Printf("If browser window does not open automatically, open it by ")
-	fmt.Printf("clicking on the link:\n %v\n", redirURL)
+	fmt.Printf("clicking on the link:\n %v\n", utils.ClickableURL(redirURL))
 
 	log.Infof("Waiting for response at: %v.", server.URL)
 
@@ -268,9 +312,9 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	case <-time.After(defaults.CallbackTimeout):
 		log.Debugf("Timed out waiting for callback after %v.", defaults.CallbackTimeout)
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
-	case <-ctx.Done():
+	case <-login.Context.Done():
 		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(ctx.Err())
+		return nil, trace.Wrap(login.Context.Err())
 	}
 }
 

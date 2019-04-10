@@ -144,6 +144,26 @@ func (s *UtilsSuite) TestVersions(c *check.C) {
 	}
 }
 
+// TestClickableURL tests clickable URL conversions
+func (s *UtilsSuite) TestClickableURL(c *check.C) {
+	testCases := []struct {
+		info string
+		in   string
+		out  string
+	}{
+		{info: "original URL is OK", in: "http://127.0.0.1:3000/hello", out: "http://127.0.0.1:3000/hello"},
+		{info: "unspecified IPV6", in: "http://[::]:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
+		{info: "unspecified IPV4", in: "http://0.0.0.0:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
+		{info: "specified IPV4", in: "http://192.168.1.1:5050/howdy", out: "http://192.168.1.1:5050/howdy"},
+		{info: "specified IPV6", in: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy", out: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy"},
+	}
+	for i, testCase := range testCases {
+		comment := check.Commentf("test case %v %q", i, testCase.info)
+		out := ClickableURL(testCase.in)
+		c.Assert(out, check.Equals, testCase.out, comment)
+	}
+}
+
 // TestParseSessionsURI parses sessions URI
 func (s *UtilsSuite) TestParseSessionsURI(c *check.C) {
 	testCases := []struct {
