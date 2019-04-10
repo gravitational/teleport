@@ -237,6 +237,9 @@ type Config struct {
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
+
+	// BindAddr is an optional host:port to bind to for SSO redirect flows
+	BindAddr string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1799,16 +1802,18 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
 	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentSSOLogin(
-		ctx,
-		tc.Config.WebProxyAddr,
-		connectorID,
-		pub,
-		tc.KeyTTL,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.Config.WebProxyAddr),
-		protocol,
-		tc.CertificateFormat)
+	response, err := SSHAgentSSOLogin(SSHLogin{
+		Context:       ctx,
+		ProxyAddr:     tc.Config.WebProxyAddr,
+		ConnectorID:   connectorID,
+		PubKey:        pub,
+		TTL:           tc.KeyTTL,
+		Insecure:      tc.InsecureSkipVerify,
+		Pool:          loopbackPool(tc.Config.WebProxyAddr),
+		Protocol:      protocol,
+		Compatibility: tc.CertificateFormat,
+		BindAddr:      tc.BindAddr,
+	})
 	return response, trace.Wrap(err)
 }
 

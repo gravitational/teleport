@@ -134,6 +134,10 @@ type CLIConf struct {
 	// format to use with --out to store a fershly retreived certificate
 	IdentityFormat client.IdentityFileFormat
 
+	// BindAddr is an address in the form of host:port to bind to
+	// during `tsh login` command
+	BindAddr string
+
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
 
@@ -166,8 +170,9 @@ func main() {
 }
 
 const (
-	clusterEnvVar = "TELEPORT_SITE"
-	clusterHelp   = "Specify the cluster to connect"
+	clusterEnvVar  = "TELEPORT_SITE"
+	clusterHelp    = "Specify the cluster to connect"
+	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
 )
 
 // Run executes TSH client. same as main() but easier to test
@@ -240,6 +245,7 @@ func Run(args []string, underTest bool) {
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
 	login := app.Command("login", "Log in to a cluster and retrieve the session certificate")
+	login.Flag("bind-addr", "Address in the form of host:port to bind to for login command webhook").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
 		client.DefaultIdentityFormat,
@@ -917,7 +923,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	if options.StrictHostKeyChecking == false {
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
-
+	c.BindAddr = cf.BindAddr
 	return client.NewClient(c)
 }
 
