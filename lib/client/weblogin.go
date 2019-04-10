@@ -129,9 +129,34 @@ type sealData struct {
 	Nonce []byte `json:"nonce"`
 }
 
+// SSHLogin contains SSH login parameters
+type SSHLogin struct {
+	// Context is an external context
+	Context context.Context
+	// ProxyAddr is the target proxy address
+	ProxyAddr string
+	// ConnectorID is the OIDC or SAML connector ID to use
+	ConnectorID string
+	// PubKey is SSH public key to sign
+	PubKey []byte
+	// TTL is requested TTL of the client certificates
+	TTL time.Duration
+	// Insecure turns off verification for x509 target proxy
+	Insecure bool
+	// Pool is x509 cert pool to use for server certifcate verification
+	Pool *x509.CertPool
+	// Protocol is an optional protocol selection
+	Protocol string
+	// Compatibility sets compatibility mode for SSH certificates
+	Compatibility string
+	// BindAddr is an optional host:port address to bind
+	// to for SSO login flows
+	BindAddr string
+}
+
 // SSHAgentSSOLogin is used by SSH Agent (tsh) to login using OpenID connect
-func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, protocol string, compatibility string) (*auth.SSHLoginResponse, error) {
-	clt, proxyURL, err := initClient(proxyAddr, insecure, pool)
+func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
+	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -172,7 +197,7 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		})
 	}
 
-	server := httptest.NewServer(makeHandler(func(w http.ResponseWriter, r *http.Request) (*auth.SSHLoginResponse, error) {
+	handler := makeHandler(func(w http.ResponseWriter, r *http.Request) (*auth.SSHLoginResponse, error) {
 		if r.URL.Path != "/callback" {
 			return nil, trace.NotFound("path not found")
 		}
@@ -198,7 +223,23 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 			return nil, trace.BadParameter("failed to decode response: in %v, err: %v", r.URL.String(), err)
 		}
 		return re, nil
-	}))
+	})
+
+	var server *httptest.Server
+	if login.BindAddr != "" {
+		log.Debugf("Binding to %v.", login.BindAddr)
+		listener, err := net.Listen("tcp", login.BindAddr)
+		if err != nil {
+			return nil, trace.Wrap(err, "%v: could not bind to %v, make sure the address is host:port format for ipv4 and [ipv6]:port format for ipv6, and the address is not in use", err, login.BindAddr)
+		}
+		server = &httptest.Server{
+			Listener: listener,
+			Config:   &http.Server{Handler: handler},
+		}
+		server.Start()
+	} else {
+		server = httptest.NewServer(handler)
+	}
 	defer server.Close()
 
 	u, err := url.Parse(server.URL + "/callback")
@@ -209,12 +250,12 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	query.Set("secret", secret.KeyToEncodedString(keyBytes))
 	u.RawQuery = query.Encode()
 
-	out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", protocol, "login", "console"), SSOLoginConsoleReq{
+	out, err := clt.PostJSON(login.Context, clt.Endpoint("webapi", login.Protocol, "login", "console"), SSOLoginConsoleReq{
 		RedirectURL:   u.String(),
-		PublicKey:     pubKey,
-		CertTTL:       ttl,
-		ConnectorID:   connectorID,
-		Compatibility: compatibility,
+		PublicKey:     login.PubKey,
+		CertTTL:       login.TTL,
+		ConnectorID:   login.ConnectorID,
+		Compatibility: login.Compatibility,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -280,9 +321,9 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	case <-time.After(defaults.CallbackTimeout):
 		log.Debugf("Timed out waiting for callback after %v.", defaults.CallbackTimeout)
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
-	case <-ctx.Done():
+	case <-login.Context.Done():
 		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(ctx.Err())
+		return nil, trace.Wrap(login.Context.Err())
 	}
 }
 
