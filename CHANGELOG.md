@@ -1,11 +1,18 @@
 # Changelog
 
+## 3.2.1
+
+This release of Teleport contains a new feature.
+
+#### Changes
+
+* Added `--bind-addr` to force tsh to bind to a specific port during SSO login. [#2620](https://github.com/gravitational/teleport/issues/2620)
+
 ## 3.2
 
-This version brings support for Amazon's managed Kubernetes offering (EKS). 
+This version brings support for Amazon's managed Kubernetes offering (EKS).
 
-Starting with this release, Teleport proxy uses [the impersonation API](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation) 
-instead of the [CSR API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/#requesting-a-certificate).
+Starting with this release, Teleport proxy uses [the impersonation API](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation) instead of the [CSR API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/#requesting-a-certificate).
 
 ## 3.1.8
 
