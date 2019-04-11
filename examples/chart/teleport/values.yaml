@@ -16,6 +16,8 @@ annotations: {}
 ## To enable AWS API access from teleport, use kube2iam or kiam, annotate the namespace, and then set something like:
 # iam.amazonaws.com/role: teleport-dynamodb-and-s3-access
 
+strategy: RollingUpdate
+
 ## Affinity for pod assignment
 ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 # affinity: {}
@@ -122,6 +124,8 @@ proxy:
   tls:
     # We assume TLS is terminated in front of the proxy by default
     enabled: true
+    # tweak this if you have multiple proxies in a single namespace
+    fullname: tls-web
 
 license:
   ## Set false to run Teleport in Community edition mode
@@ -227,3 +231,6 @@ persistence:
   # If PersistentDisk already exists you can create a PV for it by including the 2 following keypairs.
   # pdName: teleport-data-disk
   # fsType: ext4
+
+# set this to false to avoid running into issues for proxies that run in a separate k8s cluster
+automountServiceAccountToken: true

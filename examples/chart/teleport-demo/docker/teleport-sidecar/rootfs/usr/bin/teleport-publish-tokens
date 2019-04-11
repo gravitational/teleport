@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# This script calls tctl to query the Teleport auth server API and get join tokens for nodes and trusted clusters
+# It then uses kubectl to export the join tokens as Kubernetes secrets so other nodes/clusters in k8s can use them
+# We only generate a trusted cluster join token on the primary (main) cluster, all others must read the secret from there
+set -e
+
+TCTL=/usr/local/bin/tctl
+
+if [ -z ${NAMESPACE} ]; then
+    echo "[teleport-publish-tokens] NAMESPACE not set"
+    exit 1
+elif [ -z ${CLUSTER_NAME} ]; then
+    echo "[teleport-publish-tokens] CLUSTER_NAME not set"
+    exit 1
+fi
+
+# If this is the primary cluster, generate a trusted cluster join token to authenticate other trusted clusters joining
+if [[ "${CLUSTER_TYPE}" == "primary" ]]; then
+    TRUSTEDCLUSTER_TOKEN=$(uuid)
+    mkdir -p /tmp/trustedcluster
+    echo "${TRUSTEDCLUSTER_TOKEN}" > /tmp/trustedcluster/join-token
+    ${TCTL} nodes add --roles=trusted_cluster --ttl=4h --token=${TRUSTEDCLUSTER_TOKEN}
+    kubectl --namespace ${NAMESPACE} create secret generic ${CLUSTER_NAME}-trustedcluster-join-token --from-file=/tmp/trustedcluster/join-token --dry-run -o yaml | kubectl apply -f -
+    rm -rf /tmp/trustedcluster
+fi
+
+# Node token authenticates nodes joining the cluster
+NODE_TOKEN=$(uuid)
+mkdir -p /tmp/node
+echo "${NODE_TOKEN}" > /tmp/node/join-token
+${TCTL} nodes add --roles=node --ttl=4h --token=${NODE_TOKEN}
+kubectl --namespace ${NAMESPACE} create secret generic ${CLUSTER_NAME}-node-join-token --from-file=/tmp/node/join-token --dry-run -o yaml | kubectl apply -f -
+rm -rf /tmp/node
+
+# Export CA certificate as a secret so nodes and clusters can use it if needed
+mkdir -p /tmp/ca
+CERT=$(${TCTL} auth export --type=tls)
+echo ${CERT} > /tmp/ca/ca.pem
+kubectl --namespace ${NAMESPACE} create secret generic ${CLUSTER_NAME}-ca --from-file=/tmp/ca/ca.pem --dry-run -o yaml | kubectl apply -f -
+
+# Export CA pin hash as a secret for secure node joins
+CA_PIN_HASH=$(tctl status | grep "CA pin" | awk '{print $3}')
+echo ${CA_PIN_HASH} > /tmp/ca/hash
+kubectl --namespace ${NAMESPACE} create secret generic ${CLUSTER_NAME}-ca-pin --from-file=/tmp/ca/hash --dry-run -o yaml | kubectl apply -f -
+rm -rf /tmp/ca
+
+# If this is a secondary cluster, we need to get the trusted cluster token from the primary that will allow us to register
+if [[ "${CLUSTER_TYPE}" == "secondary" ]]; then
+    GOT_PRIMARY_TRUSTEDCLUSTER_JOIN_TOKEN=false
+    while [[ "${GOT_PRIMARY_TRUSTEDCLUSTER_JOIN_TOKEN}" != "true" ]]; do
+        PRIMARY_TRUSTEDCLUSTER_JOIN_TOKEN=$(kubectl --namespace=${MAIN_CLUSTER_NAME} get secret ${MAIN_CLUSTER_NAME}-trustedcluster-join-token -o jsonpath="{.data['join-token']}" | base64 -d)
+        if [ $? -eq 0 ]; then
+            if [[ "${PRIMARY_TRUSTEDCLUSTER_JOIN_TOKEN}" != "" ]]; then
+                GOT_PRIMARY_TRUSTEDCLUSTER_JOIN_TOKEN=true
+                echo "${PRIMARY_TRUSTEDCLUSTER_JOIN_TOKEN}" > /var/lib/teleport/primary-trustedcluster-join-token
+            fi
+        else
+            sleep 5
+        fi
+    done
+fi

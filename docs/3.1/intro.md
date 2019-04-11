@@ -95,6 +95,16 @@ We also have several guides that go through the most typical configurations and 
 - [OIDC Integration](oidc) - How to integrate Teleport Enterprise with identity providers using OIDC/OAuth2.
 - [Kubernetes Integration](kubernetes_ssh) - How to configure Teleport to serve as a unified gateway for Kubernetes clusters and clusters of regular SSH nodes.
 
+## Support and Contributing
+
+We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. documentation is also available in [the Github repository](https://github.com/gravitational/teleport/tree/master/docs), so feel free to create a PR or file an issue if you think improvements can be made. 
+
+If you still have questions after reviewing our docs, you can also:
+
+* Join the [Teleport Community](https://community.gravitational.com/c/teleport) to ask questions. Our engineers are available there to help you.
+* If you want to contribute to Teleport or file a bug report/issue, you can do so by creating an issue in [Github](https://github.com/gravitational/teleport/).
+* If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://gravitational.com/teleport/) to arrange for a POC.
+
 Teleport is made by [Gravitational](https://gravitational.com/). We hope you
 enjoy using Teleport. If you have comments or questions, feel free to reach out
 to the Gravitational Team:

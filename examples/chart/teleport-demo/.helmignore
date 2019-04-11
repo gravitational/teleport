@@ -1,0 +1,5 @@
+*~
+*.pem
+scripts
+pki
+secrets

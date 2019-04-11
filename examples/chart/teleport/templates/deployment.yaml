@@ -9,6 +9,8 @@ metadata:
 {{- end }}
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.strategy }}
   template:
     metadata:
       labels:
@@ -21,6 +23,7 @@ spec:
 {{ toYaml .Values.annotations | indent 8 }}
 {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -68,7 +71,7 @@ spec:
 {{- if .Values.proxy.tls.enabled }}
       - name: {{ template "teleport.fullname" . }}-tls-web
         secret:
-          secretName: tls-web
+          secretName: {{ .Values.proxy.tls.secretName }}
 {{- end }}
 {{- if .Values.license.enabled }}
       - name: {{ template "teleport.fullname" . }}-license
