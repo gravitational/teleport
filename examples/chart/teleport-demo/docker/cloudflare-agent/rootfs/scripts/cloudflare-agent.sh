@@ -9,6 +9,87 @@ function cloudflareagent_log() {
     echo "[cloudflare-agent] $*"
 }
 
+function process_record() {
+    local RUN_MODE="$1"
+    local REGISTER_DOMAIN="$2"
+    local DNS_RECORD_CONTENT="$3"
+
+    if [[ "${DEBUG}" == "true" ]]; then
+        cloudflareagent_log "register_record()"
+        cloudflareagent_log "RUN_MODE: ${RUN_MODE}"
+        cloudflareagent_log "REGISTER_DOMAIN: ${REGISTER_DOMAIN}"
+        cloudflareagent_log "DNS_RECORD_CONTENT: ${DNS_RECORD_CONTENT}"
+        cloudflareagent_log "---"
+    fi
+
+    if [[ "${REGISTER_DOMAIN}" == "" ]]; then
+        cloudflareagent_log "Domain to register not provided, exiting with error"
+        exit 4
+    fi
+
+    if [[ "${RUN_MODE}" == "create" ]] && [[ "${DNS_RECORD_CONTENT}" == "" ]]; then
+            cloudflareagent_log "Running in create mode and record content not provided, exiting with error"
+            exit 5
+    fi
+
+    # look up zone ID for provided domain
+    ZONE_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X GET "https://api.cloudflare.com/client/v${API_VERSION}/zones?name=${CLOUDFLARE_DOMAIN}" | jq -r '.result[].id')
+    # exit if we can't get it
+    if [[ "${ZONE_ID}" == "null" || "${ZONE_ID}" == "" ]]; then
+        if [[ "${RUN_MODE}" == "create" ]]; then
+            cloudflareagent_log "[create] Couldn't get Cloudflare Zone ID for '${CLOUDFLARE_DOMAIN}' with the provided credentials - exiting with error"
+            exit 1
+        elif [[ "${RUN_MODE}" == "delete" ]]; then
+            cloudflareagent_log "[delete] Couldn't get Cloudflare Zone ID for '${CLOUDFLARE_DOMAIN}' with the provided credentials - exiting"
+            return
+        fi
+    fi
+
+    # look up record ID
+    RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X GET "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records?name=${REGISTER_DOMAIN}" | jq -r '.result[].id')
+    # if it doesn't exist, create/delete a new record
+    if [[ "${RECORD_ID}" == "null" || "${RECORD_ID}" == "" ]]; then
+        if [[ "${RUN_MODE}" == "create" ]]; then
+            cloudflareagent_log "[create] Couldn't get Cloudflare DNS record ID for '${REGISTER_DOMAIN}' within zone '${ZONE_ID}' - creating new record"
+            # create record
+            CREATED_RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" --data ${DNS_RECORD_CONTENT} -X POST "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records" | jq -r '.result.id')
+            # check response
+            if [[ "${CREATED_RECORD_ID}" == "null" || "${CREATED_RECORD_ID}" == "" ]]; then
+                cloudflareagent_log "Couldn't create Cloudflare DNS record for '${REGISTER_DOMAIN}' under '${ZONE_ID}' - exiting with error"
+                exit 2
+            else
+                cloudflareagent_log "Created Cloudflare DNS record ID '${CREATED_RECORD_ID}' for '${REGISTER_DOMAIN}' under '${ZONE_ID}'"
+            fi
+        elif [[ "${RUN_MODE}" == "delete" ]]; then
+            cloudflareagent_log "[delete] Couldn't get Cloudflare DNS record ID for '${REGISTER_DOMAIN}' within zone '${ZONE_ID}' - exiting"
+        fi
+    # if it does exist, update/delete the existing record
+    else
+        if [[ "${RUN_MODE}" == "create" ]]; then
+            cloudflareagent_log "[create] Got Cloudflare DNS record ID '${RECORD_ID}' for '${REGISTER_DOMAIN}' - updating record"
+            # update record
+            UPDATED_RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" --data ${DNS_RECORD_CONTENT} -X PUT "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records/${RECORD_ID}" | jq -r '.result.id')
+            # check response
+            if [[ "${UPDATED_RECORD_ID}" == "null" || "${UPDATED_RECORD_ID}" == "" ]]; then
+                cloudflareagent_log "Couldn't update Cloudflare DNS record for '${REGISTER_DOMAIN}' under '${ZONE_ID}' - exiting with error"
+                exit 3
+            else
+                cloudflareagent_log "Updated Cloudflare DNS record ID '${UPDATED_RECORD_ID}' for '${REGISTER_DOMAIN}' under '${ZONE_ID}'"
+            fi
+        elif [[ "${RUN_MODE}" == "delete" ]]; then
+            cloudflareagent_log "[delete] Got Cloudflare DNS record ID '${RECORD_ID}' for '${REGISTER_DOMAIN}' - deleting record"
+            # update record
+            UPDATED_RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X DELETE "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records/${RECORD_ID}" | jq -r '.result.id')
+            # check response
+            if [[ "${UPDATED_RECORD_ID}" == "null" || "${UPDATED_RECORD_ID}" == "" ]]; then
+                cloudflareagent_log "Couldn't delete Cloudflare DNS record for '${REGISTER_DOMAIN}' under '${ZONE_ID}' - exiting"
+            else
+                cloudflareagent_log "Deleted Cloudflare DNS record ID '${UPDATED_RECORD_ID}' for '${REGISTER_DOMAIN}' under '${ZONE_ID}'"
+            fi
+        fi
+    fi
+}
+
 # default to creation mode if the MODE variable isn't set (to ensure container compatibility with older installations)
 if [[ "${MODE}" == "" ]]; then
     MODE="create"
@@ -24,8 +105,10 @@ if [[ "${MODE}" == "create" ]]; then
 fi
 
 if [[ "${DEBUG}" == true ]]; then
+    cloudflareagent_log "Mode: ${MODE}"
     cloudflareagent_log "Cluster name: ${CLUSTER_NAME}"
     cloudflareagent_log "Cluster type: ${CLUSTER_TYPE}"
+    cloudflareagent_log "Service name: ${SERVICE_NAME}"
     cloudflareagent_log "Domain: ${CLOUDFLARE_DOMAIN}"
     cloudflareagent_log "Register: ${DOMAIN_TO_REGISTER}"
     cloudflareagent_log "Cloudflare TTL: ${CLOUDFLARE_TTL}"
@@ -34,14 +117,12 @@ if [[ "${DEBUG}" == true ]]; then
     cloudflareagent_log "Letsencrypt enabled: ${LETSENCRYPT_ENABLED}"
     cloudflareagent_log "Letsencrypt email address: ${LETSENCRYPT_EMAIL}"
     cloudflareagent_log "---"
-    cloudflareagent_log "Service name: ${SERVICE_NAME}"
-    cloudflareagent_log "---"
-    cloudflareagent_log "Mode: ${MODE}"
 fi
 
-# if this is the main cluster, we create a wildcard record so that kubernetes proxy forwarding from Teleport 3.2 will work
+# if this is the main cluster, we also create a wildcard record so that kubernetes proxy forwarding from Teleport 3.2 will work
+WILDCARD_DOMAIN_TO_REGISTER=""
 if [[ "${CLUSTER_TYPE}" == "primary" ]]; then
-    DOMAIN_TO_REGISTER="*.${DOMAIN_TO_REGISTER}"
+    WILDCARD_DOMAIN_TO_REGISTER="*.${DOMAIN_TO_REGISTER}"
 fi
 
 if [[ "${MODE}" == "create" ]]; then
@@ -61,47 +142,23 @@ if [[ "${MODE}" == "create" ]]; then
     cloudflareagent_log "External IP for '${SERVICE_NAME}' is ready"
     cloudflareagent_log "${EXTERNAL_IP}"
 
-    # look up zone ID for provided domain
-    ZONE_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X GET "https://api.cloudflare.com/client/v${API_VERSION}/zones?name=${CLOUDFLARE_DOMAIN}" | jq -r '.result[].id')
-    # exit if we can't get it
-    if [[ "${ZONE_ID}" == "null" || "${ZONE_ID}" == "" ]]; then
-        cloudflareagent_log "Couldn't get Cloudflare Zone ID for '${CLOUDFLARE_DOMAIN}' with the provided credentials - exiting with error"
-        exit 1
-    fi
-
     # set TTL if provided - if not, omit it so cloudflare uses auto
     if [[ "${CLOUDFLARE_TTL}" != "" ]]; then
         RECORD_CONTENT="{\"type\":\"A\",\"name\":\"${DOMAIN_TO_REGISTER}\",\"content\":\"${EXTERNAL_IP}\",\"proxied\":false,\"ttl\":${CLOUDFLARE_TTL}}"
+        if [[ "${WILDCARD_DOMAIN_TO_REGISTER}" != "" ]]; then
+            WILDCARD_RECORD_CONTENT="{\"type\":\"A\",\"name\":\"${WILDCARD_DOMAIN_TO_REGISTER}\",\"content\":\"${EXTERNAL_IP}\",\"proxied\":false,\"ttl\":${CLOUDFLARE_TTL}}"
+        fi
     else
         RECORD_CONTENT="{\"type\":\"A\",\"name\":\"${DOMAIN_TO_REGISTER}\",\"content\":\"${EXTERNAL_IP}\",\"proxied\":false}"
+        if [[ "${WILDCARD_DOMAIN_TO_REGISTER}" != "" ]]; then
+            WILDCARD_RECORD_CONTENT="{\"type\":\"A\",\"name\":\"${WILDCARD_DOMAIN_TO_REGISTER}\",\"content\":\"${EXTERNAL_IP}\",\"proxied\":false}"
+        fi
     fi
 
-    # look up record ID
-    RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X GET "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records?name=${DOMAIN_TO_REGISTER}" | jq -r '.result[].id')
-    # if it doesn't exist, create a new record
-    if [[ "${RECORD_ID}" == "null" || "${RECORD_ID}" == "" ]]; then
-        cloudflareagent_log "Couldn't get Cloudflare DNS record ID for '${DOMAIN_TO_REGISTER}' within zone '${ZONE_ID}' - creating new record"
-        # create record
-        CREATED_RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" --data ${RECORD_CONTENT} -X POST "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records" | jq -r '.result.id')
-        # check response
-        if [[ "${CREATED_RECORD_ID}" == "null" || "${CREATED_RECORD_ID}" == "" ]]; then
-            cloudflareagent_log "Couldn't create Cloudflare DNS record for '${DOMAIN_TO_REGISTER}' under '${ZONE_ID}' - exiting with error"
-            exit 2
-        else
-            cloudflareagent_log "Created Cloudflare DNS record ID '${CREATED_RECORD_ID}' for '${DOMAIN_TO_REGISTER}' under '${ZONE_ID}'"
-        fi
-    # if it does exist, update the existing record
-    else
-        cloudflareagent_log "Got Cloudflare DNS record ID '${RECORD_ID}' for '${DOMAIN_TO_REGISTER}' - updating record"
-        # update record
-        UPDATED_RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" --data ${RECORD_CONTENT} -X PUT "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records/${RECORD_ID}" | jq -r '.result.id')
-        # check response
-        if [[ "${UPDATED_RECORD_ID}" == "null" || "${UPDATED_RECORD_ID}" == "" ]]; then
-            cloudflareagent_log "Couldn't update Cloudflare DNS record for '${DOMAIN_TO_REGISTER}' under '${ZONE_ID}' - exiting with error"
-            exit 3
-        else
-            cloudflareagent_log "Updated Cloudflare DNS record ID '${UPDATED_RECORD_ID}' for '${DOMAIN_TO_REGISTER}' under '${ZONE_ID}'"
-        fi
+    # do registration
+    process_record create "${DOMAIN_TO_REGISTER}" "${RECORD_CONTENT}"
+    if [[ "${WILDCARD_DOMAIN_TO_REGISTER}" != "" ]]; then
+        process_record create "${WILDCARD_DOMAIN_TO_REGISTER}" "${WILDCARD_RECORD_CONTENT}"
     fi
 
     # run certbot if TLS is enabled and letsencrypt is enabled
@@ -129,28 +186,9 @@ EOF
         sleep 86400
     done
 elif [[ "${MODE}" == "delete" ]]; then
-    # look up zone ID for provided domain
-    ZONE_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X GET "https://api.cloudflare.com/client/v${API_VERSION}/zones?name=${CLOUDFLARE_DOMAIN}" | jq -r '.result[].id')
-    # exit if we can't get it, we don't exit with a failure code when deleting as it's just a best-effort process
-    if [[ "${ZONE_ID}" == "null" || "${ZONE_ID}" == "" ]]; then
-        cloudflareagent_log "Couldn't get Cloudflare Zone ID for '${CLOUDFLARE_DOMAIN}' with the provided credentials - exiting"
-    fi
-
-    # look up record ID
-    RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X GET "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records?name=${DOMAIN_TO_REGISTER}" | jq -r '.result[].id')
-    # if it doesn't exist, just exit
-    if [[ "${RECORD_ID}" == "null" || "${RECORD_ID}" == "" ]]; then
-        cloudflareagent_log "Couldn't get Cloudflare DNS record ID for '${DOMAIN_TO_REGISTER}' within zone '${ZONE_ID}' - exiting"
-    # if it does exist, delete the record
-    else
-        cloudflareagent_log "Got Cloudflare DNS record ID '${RECORD_ID}' for '${DOMAIN_TO_REGISTER}' - deleting record"
-        # delete record
-        DELETED_RECORD_ID=$(curl -s -H "Content-Type: application/json" -H "X-Auth-Key: ${API_KEY}" -H "X-Auth-Email: ${EMAIL}" -X DELETE "https://api.cloudflare.com/client/v${API_VERSION}/zones/${ZONE_ID}/dns_records/${RECORD_ID}" | jq -r '.result.id')
-        # check response
-        if [[ "${DELETED_RECORD_ID}" == "null" || "${DELETED_RECORD_ID}" == "" ]]; then
-            cloudflareagent_log "Couldn't delete Cloudflare DNS record for '${DOMAIN_TO_REGISTER}' under '${ZONE_ID}' - exiting"
-        else
-            cloudflareagent_log "Deleted Cloudflare DNS record ID '${DELETED_RECORD_ID}' for '${DOMAIN_TO_REGISTER}' under '${ZONE_ID}' - done"
-        fi
+    # do deletion
+    process_record delete "${DOMAIN_TO_REGISTER}"
+    if [[ "${WILDCARD_DOMAIN_TO_REGISTER}" != "" ]]; then
+        process_record delete "${WILDCARD_DOMAIN_TO_REGISTER}"
     fi
 fi
