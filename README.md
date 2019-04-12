@@ -33,10 +33,11 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 |---|----
 | [Teleport Website](http://gravitational.com/teleport)  | The official website of the project |
 | [Documentation](http://gravitational.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
-| [Demo Video](https://www.youtube.com/watch?v=7eVAC2U8OtM) | 3-minute video overview of the UI. |
+| [Demo Video](https://www.youtube.com/watch?v=zIuZHYO_cDI) | 3-minute video overview of the UI. |
 | [Teleconsole](http://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
 | [Blog](http://blog.gravitational.com) | Our blog where we publish Teleport news |
 | [Security Updates](https://groups.google.com/forum/#!forum/teleport-community-security) | Teleport Community Edition Security Updates|
+| [Community Forum](https://community.gravitational.com) | Teleport Community Forum|
 
 ## Installing and Running
 
@@ -82,7 +83,7 @@ $ sudo mkdir -p /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 
-If the build succeds the binaries will be placed in 
+If the build succeeds the binaries will be placed in 
 `$GOPATH/src/github.com/gravitational/teleport/build`
 
 NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need
@@ -138,10 +139,13 @@ across many teams within multiple organizations.
 * [User Manual](http://gravitational.com/teleport/docs/user-manual)
 * [FAQ](http://gravitational.com/teleport/docs/faq)
 
-## Contributing
+## Support and Contributing
 
-The best way to contribute is to create issues or pull requests right here on Github. 
-You can also reach the Gravitational team through their [website](https://gravitational.com/)
+We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in Github, so feel free to create a PR or file an issue if you think improvements can be made. If you still have questions after reviewing our docs, you can also:
+
+* Join the [Teleport Community](https://community.gravitational.com/c/teleport) to ask questions. Our engineers are available there to help you.
+* If you want to contribute to Teleport or file a bug report/issue, you can do so by creating an issue here in Github.
+* If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://gravitational.com/teleport/) to arrange for a POC.
 
 ## Is Teleport Secure and Production Ready?
 

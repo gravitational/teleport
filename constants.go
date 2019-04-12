@@ -287,6 +287,9 @@ const (
 	// storage
 	SchemeS3 = "s3"
 
+	// Region is AWS region parameter
+	Region = "region"
+
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
@@ -304,6 +307,9 @@ const (
 
 	// HumanDateFormatMilli is a human readable date formatting with milliseconds
 	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
+
+	// DebugLevel is a debug logging level name
+	DebugLevel = "debug"
 )
 
 // Component generates "component:subcomponent1:subcomponent2" strings used
@@ -479,6 +485,11 @@ const (
 	// KubeSystemMasters is a name of the builtin kubernets group for master nodes
 	KubeSystemMasters = "system:masters"
 
+	// KubeSystemAuthenticated is a builtin group that allows
+	// any user to access common API methods, e.g. discovery methods
+	// required for initial client usage
+	KubeSystemAuthenticated = "system:authenticated"
+
 	// UsageKubeOnly specifies certificate usage metadata
 	// that limits certificate to be only used for kubernetes proxying
 	UsageKubeOnly = "usage:kube"
@@ -492,7 +503,7 @@ const (
 
 const (
 	// OpenBrowserLinux is the command used to open a web browser on Linux.
-	OpenBrowserLinux = "sensible-browser"
+	OpenBrowserLinux = "xdg-open"
 
 	// OpenBrowserDarwin is the command used to open a web browser on macOS/Darwin.
 	OpenBrowserDarwin = "open"
@@ -500,3 +511,6 @@ const (
 	// OpenBrowserWindows is the command used to open a web browser on Windows.
 	OpenBrowserWindows = "rundll32.exe"
 )
+
+// RSAKeySize is the size of the RSA key.
+const RSAKeySize = 2048

@@ -1,6 +1,8 @@
 // Monitor is an example of influxdb + grafana deployment
 // Grafana is available on port 8443
 // Internal influxdb HTTP collector service listens on port 8086
+
+// letsencrypt
 resource "aws_autoscaling_group" "monitor" {
   name                      = "${var.cluster_name}-monitor"
   max_size                  = 1
@@ -13,7 +15,37 @@ resource "aws_autoscaling_group" "monitor" {
   vpc_zone_identifier       = ["${aws_subnet.public.0.id}"]
   // Auto scaling group is associated with internal load balancer for metrics ingestion
   // and proxy load balancer for grafana
-  target_group_arns    = ["${aws_lb_target_group.proxy_grafana.arn}", "${aws_lb_target_group.monitor.arn}"]
+  target_group_arns         = ["${aws_lb_target_group.proxy_grafana.arn}", "${aws_lb_target_group.monitor.arn}"]
+  count                     = "${var.use_acm ? 0 : 1}"
+
+  tag {
+    key =  "TeleportCluster"
+    value = "${var.cluster_name}"
+    propagate_at_launch = true
+  }
+
+  // external autoscale algos can modify these values,
+  // so ignore changes to them
+  lifecycle {
+    ignore_changes = ["desired_capacity", "max_size", "min_size"]
+  }
+}
+
+// ACM
+resource "aws_autoscaling_group" "monitor_acm" {
+  name                      = "${var.cluster_name}-monitor"
+  max_size                  = 1
+  min_size                  = 1
+  health_check_grace_period = 300
+  health_check_type         = "EC2"
+  desired_capacity          = 0
+  force_delete              = false
+  launch_configuration      = "${aws_launch_configuration.monitor.name}"
+  vpc_zone_identifier       = ["${aws_subnet.public.0.id}"]
+  // Auto scaling group is associated with internal load balancer for metrics ingestion
+  // and proxy load balancer for grafana
+  target_group_arns         = ["${aws_lb_target_group.proxy_grafana_acm.arn}", "${aws_lb_target_group.monitor.arn}"]
+  count                     = "${var.use_acm ? 1 : 0}"
 
   tag {
     key =  "TeleportCluster"
@@ -33,12 +65,13 @@ data "template_file" "monitor_user_data" {
 
   vars {
     region = "${var.region}"
-    cluster_name = "${var.cluster_name}"  
+    cluster_name = "${var.cluster_name}"
     influxdb_version = "${var.influxdb_version}"
     grafana_version = "${var.grafana_version}"
     telegraf_version = "${var.telegraf_version}"
     s3_bucket = "${var.s3_bucket_name}"
-    domain_name = "${var.route53_domain}"    
+    domain_name = "${var.route53_domain}"
+    use_acm = "${var.use_acm}"
   }
 }
 
@@ -76,7 +109,7 @@ resource "aws_security_group_rule" "monitor_ingress_allow_ssh" {
   source_security_group_id = "${aws_security_group.bastion.id}"
 }
 
-// Ingress traffic to port 8443 is allowed from everywhere
+// Ingress traffic to SSL port 8443 is allowed from everywhere (letsencrypt)
 resource "aws_security_group_rule" "monitor_ingress_allow_web" {
   type              = "ingress"
   from_port         = 8443
@@ -84,6 +117,18 @@ resource "aws_security_group_rule" "monitor_ingress_allow_web" {
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = "${aws_security_group.monitor.id}"
+  count             = "${var.use_acm ? 0 : 1}"
+}
+
+// Ingress traffic to non-SSL port 8444 is allowed from everywhere (ACM)
+resource "aws_security_group_rule" "monitor_ingress_allow_web_acm" {
+  type              = "ingress"
+  from_port         = 8444
+  to_port           = 8444
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = "${aws_security_group.monitor.id}"
+  count             = "${var.use_acm ? 1 : 0}"
 }
 
 // Influxdb metrics collector traffic is limited to internal VPC CIDR

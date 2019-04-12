@@ -53,6 +53,8 @@ type TestAuthServerConfig struct {
 	AcceptedUsage []string
 	// CipherSuites is the list of ciphers that the server supports.
 	CipherSuites []uint16
+	// Clock is used to control time in tests.
+	Clock clockwork.FakeClock
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -63,6 +65,9 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	if cfg.Dir == "" {
 		return trace.BadParameter("missing parameter Dir")
 	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewFakeClockAt(time.Now())
+	}
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
 	}
@@ -71,8 +76,13 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 
 // CreateUploaderDir creates directory for file uploader service
 func CreateUploaderDir(dir string) error {
-	return os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
+	err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
 		events.SessionLogsDir, defaults.Namespace), teleport.SharedDirMode)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	return nil
 }
 
 // TestAuthServer is auth server using local filesystem backend
@@ -102,10 +112,17 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		TestAuthServerConfig: cfg,
 	}
 	var err error
-	srv.Backend, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: cfg.Dir, PollStreamPeriod: 100 * time.Millisecond})
+	b, err := lite.NewWithConfig(context.Background(), lite.Config{
+		Path:             cfg.Dir,
+		PollStreamPeriod: 100 * time.Millisecond,
+		Clock:            cfg.Clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Wrap backend in sanitizer like in production.
+	srv.Backend = backend.NewSanitizer(b)
 
 	srv.AuditLog, err = events.NewAuditLog(events.AuditLogConfig{
 		DataDir:        cfg.Dir,

@@ -1,0 +1,14 @@
+[Unit]
+Description=Teleport Config Generation Service
+After=network.target cloud-final.service
+Before=teleport.service teleport-acm.service
+
+[Service]
+User=root
+Group=adm
+Type=oneshot
+RuntimeDirectory=teleport
+ExecStart=/usr/bin/teleport-generate-config
+
+[Install]
+WantedBy=multi-user.target

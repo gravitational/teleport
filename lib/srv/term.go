@@ -20,6 +20,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -35,6 +37,12 @@ import (
 	"github.com/kr/pty"
 	log "github.com/sirupsen/logrus"
 )
+
+// LookupUser is used to mock the value returned by user.Lookup(string).
+type LookupUser func(string) (*user.User, error)
+
+// LookupGroup is used to mock the value returned by user.LookupGroup(string).
+type LookupGroup func(string) (*user.Group, error)
 
 // Terminal defines an interface of handy functions for managing a (local or
 // remote) PTY, such as resizing windows, executing commands with a PTY, and
@@ -118,19 +126,30 @@ type terminal struct {
 
 // NewLocalTerminal creates and returns a local PTY.
 func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
-	pty, tty, err := pty.Open()
-	if err != nil {
-		log.Warnf("Could not start PTY %v", err)
-		return nil, err
-	}
-	return &terminal{
+	var err error
+
+	t := &terminal{
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentLocalTerm,
 		}),
 		ctx: ctx,
-		pty: pty,
-		tty: tty,
-	}, nil
+	}
+
+	// Open PTY and corresponding TTY.
+	t.pty, t.tty, err = pty.Open()
+	if err != nil {
+		log.Warnf("Could not start PTY %v", err)
+		return nil, err
+	}
+
+	// Set the TTY owner. Failure is not fatal, for example Teleport is running
+	// on a read-only filesystem, but logging is useful for diagnostic purposes.
+	err = t.setOwner()
+	if err != nil {
+		log.Debugf("Unable to set TTY owner: %v.\n", err)
+	}
+
+	return t, nil
 }
 
 // AddParty adds another participant to this terminal. We will keep the
@@ -292,6 +311,65 @@ func (t *terminal) SetTermType(term string) {
 
 func (t *terminal) SetTerminalModes(termModes ssh.TerminalModes) {
 	return
+}
+
+// getOwner determines the uid, gid, and mode of the TTY similar to OpenSSH:
+// https://github.com/openssh/openssh-portable/blob/ddc0f38/sshpty.c#L164-L215
+func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int, int, os.FileMode, error) {
+	var err error
+	var uid int
+	var gid int
+	var mode os.FileMode
+
+	// Lookup the Unix login for the UID and fallback GID.
+	u, err := lookupUser(login)
+	if err != nil {
+		return 0, 0, 0, trace.Wrap(err)
+	}
+	uid, err = strconv.Atoi(u.Uid)
+	if err != nil {
+		return 0, 0, 0, trace.Wrap(err)
+	}
+
+	// If the tty group exists, use that as the gid of the TTY and set mode to
+	// be u+rw. Otherwise use the group of the user with mode u+rw g+w.
+	group, err := lookupGroup("tty")
+	if err != nil {
+		gid, err = strconv.Atoi(u.Gid)
+		if err != nil {
+			return 0, 0, 0, trace.Wrap(err)
+		}
+		mode = 0620
+	} else {
+		gid, err = strconv.Atoi(group.Gid)
+		if err != nil {
+			return 0, 0, 0, trace.Wrap(err)
+		}
+		mode = 0600
+	}
+
+	return uid, gid, mode, nil
+}
+
+// setOwner changes the owner and mode of the TTY.
+func (t *terminal) setOwner() error {
+	uid, gid, mode, err := getOwner(t.ctx.Identity.Login, user.Lookup, user.LookupGroup)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = os.Chown(t.tty.Name(), uid, gid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = os.Chmod(t.tty.Name(), mode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Debugf("Set permissions on %v to %v:%v with mode %v.", t.tty.Name(), uid, gid, mode)
+
+	return nil
 }
 
 type remoteTerminal struct {

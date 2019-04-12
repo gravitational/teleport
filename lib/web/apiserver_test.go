@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -61,7 +62,6 @@ import (
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -70,7 +70,10 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/golang/protobuf/proto"
 	"github.com/jonboulle/clockwork"
+	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -94,9 +97,12 @@ type WebSuite struct {
 	mockU2F     *mocku2f.Key
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
+	clock       clockwork.Clock
 }
 
-var _ = Suite(&WebSuite{})
+var _ = Suite(&WebSuite{
+	clock: clockwork.NewFakeClock(),
+})
 
 func (s *WebSuite) SetUpSuite(c *C) {
 	var err error
@@ -128,6 +134,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
+		Clock:       clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)),
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
@@ -1387,6 +1394,167 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 
 	// make sure the connector we get back is "foo"
 	c.Assert(out.Auth.OIDC.Name, Equals, "foo")
+}
+
+// TestConstructSSHResponse checks if the secret package uses AES-GCM to
+// encrypt and decrypt data that passes through the ConstructSSHResponse
+// function.
+func (s *WebSuite) TestConstructSSHResponse(c *C) {
+	key, err := secret.NewKey()
+	c.Assert(err, IsNil)
+
+	u, err := url.Parse("http://www.example.com/callback")
+	c.Assert(err, IsNil)
+	query := u.Query()
+	query.Set("secret_key", key.String())
+	u.RawQuery = query.Encode()
+
+	rawresp, err := ConstructSSHResponse(AuthParams{
+		Username:          "foo",
+		Cert:              []byte{0x00},
+		TLSCert:           []byte{0x01},
+		ClientRedirectURL: u.String(),
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(rawresp.Query().Get("secret"), Equals, "")
+	c.Assert(rawresp.Query().Get("secret_key"), Equals, "")
+	c.Assert(rawresp.Query().Get("response"), Not(Equals), "")
+
+	plaintext, err := key.Open([]byte(rawresp.Query().Get("response")))
+	c.Assert(err, IsNil)
+
+	var resp *auth.SSHLoginResponse
+	err = json.Unmarshal(plaintext, &resp)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, "foo")
+	c.Assert(resp.Cert, DeepEquals, []byte{0x00})
+	c.Assert(resp.TLSCert, DeepEquals, []byte{0x01})
+}
+
+// TestConstructSSHResponseLegacy checks if the secret package uses NaCl to
+// encrypt and decrypt data that passes through the ConstructSSHResponse
+// function.
+func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
+	key, err := lemma_secret.NewKey()
+	c.Assert(err, IsNil)
+
+	lemma, err := lemma_secret.New(&lemma_secret.Config{KeyBytes: key})
+	c.Assert(err, IsNil)
+
+	u, err := url.Parse("http://www.example.com/callback")
+	c.Assert(err, IsNil)
+	query := u.Query()
+	query.Set("secret", lemma_secret.KeyToEncodedString(key))
+	u.RawQuery = query.Encode()
+
+	rawresp, err := ConstructSSHResponse(AuthParams{
+		Username:          "foo",
+		Cert:              []byte{0x00},
+		TLSCert:           []byte{0x01},
+		ClientRedirectURL: u.String(),
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(rawresp.Query().Get("secret"), Equals, "")
+	c.Assert(rawresp.Query().Get("secret_key"), Equals, "")
+	c.Assert(rawresp.Query().Get("response"), Not(Equals), "")
+
+	var sealedData *lemma_secret.SealedBytes
+	err = json.Unmarshal([]byte(rawresp.Query().Get("response")), &sealedData)
+	c.Assert(err, IsNil)
+
+	plaintext, err := lemma.Open(sealedData)
+	c.Assert(err, IsNil)
+
+	var resp *auth.SSHLoginResponse
+	err = json.Unmarshal(plaintext, &resp)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, "foo")
+	c.Assert(resp.Cert, DeepEquals, []byte{0x00})
+	c.Assert(resp.TLSCert, DeepEquals, []byte{0x01})
+}
+
+// TestSearchClusterEvents makes sure web API allows querying events by type.
+func (s *WebSuite) TestSearchClusterEvents(c *C) {
+	e1 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.1",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+	e2 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.2",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+	e3 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.3",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+	e4 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.3",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+	e5 := events.EventFields{
+		events.EventID:   uuid.New(),
+		events.EventType: "event.1",
+		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	}
+
+	for _, e := range []events.EventFields{e1, e2, e3, e4, e5} {
+		c.Assert(s.proxyClient.EmitAuditEvent(e.GetType(), e), IsNil)
+	}
+
+	testCases := []struct {
+		// Comment is the test case description.
+		Comment string
+		// Query is the search query sent to the API.
+		Query url.Values
+		// Result is the expected returned list of events.
+		Result []events.EventFields
+	}{
+		{
+			Comment: "Empty query",
+			Query:   url.Values{},
+			Result:  []events.EventFields{e1, e2, e3, e4, e5},
+		},
+		{
+			Comment: "Query by single event type",
+			Query:   url.Values{"include": []string{"event.1"}},
+			Result:  []events.EventFields{e1, e5},
+		},
+		{
+			Comment: "Query by two event types",
+			Query:   url.Values{"include": []string{"event.2;event.3"}},
+			Result:  []events.EventFields{e2, e3, e4},
+		},
+		{
+			Comment: "Query with limit",
+			Query:   url.Values{"include": []string{"event.2;event.3"}, "limit": []string{"1"}},
+			Result:  []events.EventFields{e2},
+		},
+	}
+
+	pack := s.authPack(c, "foo")
+	for _, tc := range testCases {
+		result := s.searchEvents(c, pack.clt, tc.Query, []string{"event.1", "event.2", "event.3"})
+		c.Assert(result, DeepEquals, tc.Result, Commentf(tc.Comment))
+	}
+}
+
+func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) (result []events.EventFields) {
+	response, err := clt.Get(context.Background(), clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), query)
+	c.Assert(err, IsNil)
+	var out eventsListGetResponse
+	c.Assert(json.Unmarshal(response.Bytes(), &out), IsNil)
+	for _, event := range out.Events {
+		if utils.SliceContainsStr(filter, event.GetType()) {
+			result = append(result, event)
+		}
+	}
+	return result
 }
 
 type authProviderMock struct {

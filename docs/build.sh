@@ -11,22 +11,27 @@ rm -f latest.yaml
 # will be set to the latest version after the loop below
 doc_ver=""
 
-for conf_file in $(ls *.yaml | sort); do
-    doc_ver=${conf_file%.yaml}
-    echo "Building docs version --> $doc_ver"
-    mkdocs build --config-file $conf_file || exit $?
-done
+# find all *.yaml files and convert them to array, pick the latest
+cfiles=$(ls *.yaml | sort)
+cfiles_array=($cfiles)
+latest_cfile=$(echo ${cfiles_array[-1]}) # becomes "3.1.yaml"
+latest_ver=${latest_cfile%.yaml}         # becomes "3.1"
+
+# build all documentation versions at the same time (4-8x speedup)
+parallel --will-cite mkdocs build --config-file ::: $cfiles
 
 # drop the 'latest.yml' symlink to the latest version so `mkdocs serve` will
 # automatically serve the latest
-echo "Latest version --> $conf_file"
-ln -fs $conf_file latest.yaml
+echo "Latest version: $latest_ver"
+ln -fs $latest_cfile latest.yaml
 
 # copy the index file which serves /docs requests and redirects
 # visitors to the latest verion of QuickStart
 cp index.html ../build/docs/index.html
 
-# create a symlink to the latest
+# create a symlink called 'latest' to the latest directory, like "3.1"
 cd ../build/docs
 rm -f latest
-ln -s $doc_ver latest
+ln -s $latest_ver latest
+
+echo "The docs have been built and saved in 'build/docs'"

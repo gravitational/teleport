@@ -130,9 +130,6 @@ type InitConfig struct {
 
 	// CipherSuites is a list of ciphersuites that the auth server supports.
 	CipherSuites []uint16
-
-	// KubeconfigPath is an optional path to kubernetes config file
-	KubeconfigPath string
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -425,6 +422,10 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	err = migrateRoleRules(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -510,6 +511,60 @@ func migrateAdminRole(asrv *AuthServer) error {
 	return asrv.UpsertRole(role)
 }
 
+// migrateRoleRules adds missing permissions to roles.
+//
+// Currently it adds read-only permissions for audit events to all roles that
+// have read-only session permissions to make sure audit log tab will work.
+func migrateRoleRules(asrv *AuthServer) error {
+	roles, err := asrv.GetRoles()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, role := range roles {
+		allowRules := role.GetRules(services.Allow)
+		denyRules := role.GetRules(services.Deny)
+		// First make sure access to events hasn't been explicitly denied.
+		if checkRules(denyRules, services.KindEvent, services.RO()) {
+			log.Debugf("Role %q explicitly denies events access.", role.GetName())
+			continue
+		}
+		// Next see if the role already has access to events.
+		if checkRules(allowRules, services.KindEvent, services.RO()) {
+			log.Debugf("Role %q already has events access.", role.GetName())
+			continue
+		}
+		// See if the role has access to sessions.
+		if !checkRules(allowRules, services.KindSession, services.RO()) {
+			log.Debugf("Role %q does not have sessions access.", role.GetName())
+			continue
+		}
+		// If we got here, the role does not yet have events access and
+		// has session access so add a rule for events as well.
+		log.Infof("Adding events access to role %q.", role.GetName())
+		allowRules = append(allowRules, services.NewRule(services.KindEvent, services.RO()))
+		role.SetRules(services.Allow, allowRules)
+		err := asrv.UpsertRole(role)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// checkRules returns true if any of the provided rules contain specified resource/verbs.
+func checkRules(rules []services.Rule, kind string, verbs []string) bool {
+	for _, rule := range rules {
+		if rule.HasResource(kind) || rule.HasResource(services.Wildcard) {
+			for _, verb := range verbs {
+				if rule.HasVerb(verb) || rule.HasVerb(services.Wildcard) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
 func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
@@ -530,12 +585,13 @@ func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
 }
 
 // GenerateIdentity generates identity for the auth server
-func GenerateIdentity(a *AuthServer, id IdentityID, additionalPrincipals []string) (*Identity, error) {
+func GenerateIdentity(a *AuthServer, id IdentityID, additionalPrincipals, dnsNames []string) (*Identity, error) {
 	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
 		Roles:                teleport.Roles{id.Role},
 		AdditionalPrincipals: additionalPrincipals,
+		DNSNames:             dnsNames,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -560,6 +616,8 @@ type Identity struct {
 	KeySigner ssh.Signer
 	// Cert is a parsed SSH certificate
 	Cert *ssh.Certificate
+	// XCert is X509 client certificate
+	XCert *x509.Certificate
 	// ClusterName is a name of host's cluster
 	ClusterName string
 }
@@ -567,11 +625,8 @@ type Identity struct {
 // String returns user-friendly representation of the identity.
 func (i *Identity) String() string {
 	var out []string
-	cert, err := tlsca.ParseCertificatePEM(i.TLSCertBytes)
-	if err != nil {
-		out = append(out, err.Error())
-	} else {
-		out = append(out, fmt.Sprintf("cert(%v issued by %v:%v)", cert.Subject.CommonName, cert.Issuer.CommonName, cert.Issuer.SerialNumber))
+	if i.XCert != nil {
+		out = append(out, fmt.Sprintf("cert(%v issued by %v:%v)", i.XCert.Subject.CommonName, i.XCert.Issuer.CommonName, i.XCert.Issuer.SerialNumber))
 	}
 	for j := range i.TLSCACertsBytes {
 		cert, err := tlsca.ParseCertificatePEM(i.TLSCACertsBytes[j])
@@ -601,18 +656,17 @@ func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
 }
 
 // HasDNSNames returns true if TLS certificate has required DNS names
-func (i *Identity) HasDNSNames(dnsNames []string) (bool, error) {
-	cert, err := tlsca.ParseCertificatePEM(i.TLSCertBytes)
-	if err != nil {
-		return false, trace.Wrap(err)
+func (i *Identity) HasDNSNames(dnsNames []string) bool {
+	if i.XCert == nil {
+		return false
 	}
-	set := utils.StringsSet(cert.DNSNames)
+	set := utils.StringsSet(i.XCert.DNSNames)
 	for _, dnsName := range dnsNames {
 		if _, ok := set[dnsName]; !ok {
-			return false, nil
+			return false
 		}
 	}
-	return true, nil
+	return true
 }
 
 // TLSConfig returns TLS config for mutual TLS authentication
@@ -675,12 +729,13 @@ func ReadIdentityFromKeyPair(keyBytes, sshCertBytes, tlsCertBytes []byte, tlsCAC
 	}
 	if len(tlsCertBytes) != 0 {
 		// just to verify that identity parses properly for future use
-		_, err := ReadTLSIdentityFromKeyPair(keyBytes, tlsCertBytes, tlsCACertsBytes)
+		i, err := ReadTLSIdentityFromKeyPair(keyBytes, tlsCertBytes, tlsCACertsBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		identity.TLSCertBytes = tlsCertBytes
 		identity.TLSCACertsBytes = tlsCACertsBytes
+		identity.XCert = i.XCert
 	}
 	return identity, nil
 }
@@ -719,6 +774,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		KeyBytes:        keyBytes,
 		TLSCertBytes:    certBytes,
 		TLSCACertsBytes: caCertsBytes,
+		XCert:           cert,
 	}
 	// The passed in ciphersuites don't appear to matter here since the returned
 	// *tls.Config is never actually used?

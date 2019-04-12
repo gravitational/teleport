@@ -28,6 +28,8 @@ import (
 const (
 	// EventType is event type/kind
 	EventType = "event"
+	// EventID is a unique event identifier
+	EventID = "uid"
 	// EventTime is event time
 	EventTime = "time"
 	// EventLogin is OS login
@@ -88,6 +90,11 @@ const (
 	// SessionLeaveEvent indicates that someone left a session
 	SessionLeaveEvent = "session.leave"
 
+	// Data transfer events.
+	SessionDataEvent = "session.data"
+	DataTransmitted  = "tx"
+	DataReceived     = "rx"
+
 	// ClientDisconnectEvent is emitted when client is disconnected
 	// by the server due to inactivity or any other reason
 	ClientDisconnectEvent = "client.disconnect"
@@ -108,6 +115,21 @@ const (
 	LoginMethodSAML = "saml"
 	// LoginMethodGithub represents login with Github
 	LoginMethodGithub = "github"
+
+	// UserUpdatedEvent is emitted when the user is created or updated (upsert).
+	UserUpdatedEvent = "user.update"
+
+	// UserDeleteEvent is emitted when the user is deleted.
+	UserDeleteEvent = "user.delete"
+
+	// UserExpires is when the user will expire.
+	UserExpires = "expires"
+
+	// UserRoles is a list of roles for the user.
+	UserRoles = "roles"
+
+	// UserConnector is the connector used to create the user.
+	UserConnector = "connector"
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
@@ -235,6 +257,11 @@ func (f EventFields) AsString() string {
 // GetType returns the type (string) of the event
 func (f EventFields) GetType() string {
 	return f.GetString(EventType)
+}
+
+// GetID returns the unique event ID
+func (f EventFields) GetID() string {
+	return f.GetString(EventID)
 }
 
 // GetString returns a string representation of a logged field

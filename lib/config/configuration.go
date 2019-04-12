@@ -204,7 +204,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	case "stdout", "out", "1":
 		log.SetOutput(os.Stdout)
 	case teleport.Syslog:
-		utils.SwitchLoggingtoSyslog()
+		err := utils.SwitchLoggingtoSyslog()
+		if err != nil {
+			// this error will go to stderr
+			log.Errorf("Failed to switch logging to syslog: %v.", err)
+		}
 	default:
 		// assume it's a file path:
 		logFile, err := os.Create(fc.Logger.Output)
@@ -220,14 +224,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		log.SetLevel(log.InfoLevel)
 	case "err", "error":
 		log.SetLevel(log.ErrorLevel)
-	case "debug":
+	case teleport.DebugLevel:
 		log.SetLevel(log.DebugLevel)
 	case "warn", "warning":
 		log.SetLevel(log.WarnLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: '%v'", fc.Logger.Severity)
 	}
-
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -317,9 +320,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	var err error
 
-	// passhtrough custom certificate authority file
 	if fc.Auth.KubeconfigFile != "" {
-		cfg.Auth.KubeconfigPath = fc.Auth.KubeconfigFile
+		warningMessage := "The auth_service no longer needs kubeconfig_file. It has " +
+			"been moved to proxy_service section. This setting is ignored."
+		log.Warning(warningMessage)
 	}
 	cfg.Auth.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Auth.ProxyProtocol, true)
 	if err != nil {
@@ -516,6 +520,9 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	// apply kubernetes proxy config, by default kube proxy is disabled
 	if fc.Proxy.Kube.Configured() {
 		cfg.Proxy.Kube.Enabled = fc.Proxy.Kube.Enabled()
+	}
+	if fc.Proxy.Kube.KubeconfigFile != "" {
+		cfg.Proxy.Kube.KubeconfigPath = fc.Proxy.Kube.KubeconfigFile
 	}
 	if fc.Proxy.Kube.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.Kube.ListenAddress, int(defaults.KubeProxyListenPort))
@@ -808,6 +815,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	// apply command line --debug flag to override logger severity
+	if fileConf != nil && clf.Debug {
+		fileConf.Logger.Severity = teleport.DebugLevel
+	}
+
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
 	}
@@ -826,10 +839,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Proxy.DisableTLS = clf.DisableTLS
 	}
 
-	// apply --debug flag:
+	// apply --debug flag to config:
 	if clf.Debug {
 		cfg.Console = ioutil.Discard
-		utils.InitLogger(utils.LoggingForDaemon, log.DebugLevel)
 		cfg.Debug = clf.Debug
 	}
 

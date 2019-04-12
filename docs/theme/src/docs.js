@@ -10363,21 +10363,24 @@ __webpack_require__(9);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-// register global vars
+// run it first to reduce jerking of the content and let the browsers (FF)
+// correctly set the scroll position when opening anchor links.
 // modules
+(0, _code.formatCodeBlocks)();
+
+// register global vars
 window.getSearchTerm = _mkdocs.getSearchTerm;
 window.jQuery = _jquery2.default;
 
-(0, _jquery2.default)(document).ready(function () {
-  new _topNav2.default();
-  new _secondaryNav2.default();
-  new _sideNav2.default({ pinned: true });
-  (0, _mkdocs.handleVerSelector)();
-  (0, _mkdocs.handleNavScroll)();
-  (0, _code.formatCodeBlocks)();
-  (0, _buttons.buttonRipple)();
-  (0, _buttons.stopDisabledButtons)();
-});
+new _topNav2.default();
+new _secondaryNav2.default();
+new _sideNav2.default({ pinned: true });
+(0, _buttons.buttonRipple)();
+(0, _buttons.stopDisabledButtons)();
+
+// run it last after all css changes
+(0, _mkdocs.handleVerSelector)();
+(0, _mkdocs.handleNavScroll)();
 
 /***/ }),
 /* 3 */
@@ -10513,13 +10516,13 @@ var TopNav = function () {
       // change cta to teleport demo on teleport pages
       if (this.$cta.length && this.currentPath.includes('/teleport/')) {
         this.$cta.attr('href', '/teleport/demo/');
-        this.$cta.text('Demo Teleport');
+        this.$cta.text('Free 30-Day Eval');
       }
 
       // change cta to telekube demo on telekube pages
       if (this.$cta.length && this.currentPath.includes('/gravity/')) {
         this.$cta.attr('href', '/gravity/demo/');
-        this.$cta.text('Demo Gravity');
+        this.$cta.text('Free 30-Day Eval');
       }
     }
   }]);

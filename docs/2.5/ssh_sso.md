@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The commercial edition of Teleport allows users to retreive their SSH
+The commercial edition of Teleport allows users to retrieve their SSH
 credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign-on) 
 (SSO) system used by the rest of the organization. 
 
@@ -17,7 +17,7 @@ or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 ## How does SSO work with SSH?
 
-From the user's perspective they need to execute the following command to retreive their SSH certificate.
+From the user's perspective they need to execute the following command to retrieve their SSH certificate.
 
 ```bash
 $ tsh login

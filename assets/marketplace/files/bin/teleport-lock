@@ -1,13 +1,17 @@
 #!/bin/bash
-#
 # Locking service makes sure that there is only one auth server performing certain action,
 # for example renewing or getting letsencrypt certificates
 
 set -x
 set -e
 
-# Source variables set up by cloudformation template
+# Source variables from user-data
 . /etc/teleport.d/conf
+
+if [ ! -f /etc/teleport.d/role.auth ]; then
+    echo "Not running 'auth' role, exiting with success"
+    exit 0
+fi
 
 LOCK="/teleport/${TELEPORT_CLUSTER_NAME}"
 NOW=$(date +%s)

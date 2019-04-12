@@ -7,19 +7,27 @@ pipeline {
         timestamps()
     }
     parameters {
-        string(name: 'version', defaultValue: '2.6.1', description: 'Teleport version to build')
-        string(name: 'teleport_license_uri', defaultValue: 's3://', description: 'Path to load license file from')
+        string(name: 'version', defaultValue: '3.1.7', description: 'Teleport version to build')
     }
     stages {
+        stage('Create files/build directory') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'mkdir -p files/build'
+                }
+            }
+        }
         stage('Run Packer to build specified version') {
             steps {
                 dir('assets/marketplace') {
-                    sh """
-BUILD_AMI_NAME=cloudformation-gravitational-teleport-ent-${params.version} \
-TELEPORT_VERSION=${params.version} \
-TELEPORT_LICENSE_URI=${params.teleport_license_uri} \
-make ent-name-build
-"""
+                    sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${params.version} MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${params.version} TELEPORT_VERSION=${params.version} make ent-jenkins-build"
+                }
+            }
+        }
+        stage('Make Enterprise AMIs public') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'make change-amis-to-public-ent'
                 }
             }
         }

@@ -30,8 +30,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -312,6 +314,7 @@ func EventFromChunk(sessionID string, chunk *SessionChunk) (EventFields, error) 
 	fields[EventIndex] = chunk.EventIndex
 	fields[EventTime] = eventStart
 	fields[EventType] = chunk.EventType
+	fields[EventID] = uuid.New()
 	return fields, nil
 }
 

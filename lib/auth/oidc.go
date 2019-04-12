@@ -22,7 +22,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -132,7 +131,8 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
 			events.LoginMethod:        events.LoginMethodOIDC,
 			events.AuthAttemptSuccess: false,
-			events.AuthAttemptErr:     err.Error(),
+			// log the original internal error in audit log
+			events.AuthAttemptErr: trace.Unwrap(err).Error(),
 		})
 	} else {
 		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
@@ -179,8 +179,14 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	// extract claims from both the id token and the userinfo endpoint and merge them
 	claims, err := a.getClaims(oidcClient, connector.GetIssuerURL(), connector.GetScope(), code)
 	if err != nil {
-		return nil, trace.OAuth2(
-			oauth2.ErrorUnsupportedResponseType, "unable to construct claims", q)
+		return nil, trace.WrapWithMessage(
+			// preserve the original error message, to avoid leaking
+			// server errors to the user in the UI, but override
+			// user message to the high level instruction to check audit log for details
+			trace.OAuth2(
+				oauth2.ErrorUnsupportedResponseType, err.Error(), q),
+			"unable to construct claims, check audit log for details",
+		)
 	}
 
 	log.Debugf("OIDC claims: %v.", claims)
@@ -202,66 +208,55 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	}
 	log.Debugf("OIDC user %q expires at: %v.", ident.Email, ident.ExpiresAt)
 
-	response := &OIDCAuthResponse{
-		Identity: services.ExternalIdentity{ConnectorID: connector.GetName(), Username: ident.Email},
-		Req:      *req,
+	if len(connector.GetClaimsToRoles()) == 0 {
+		return nil, trace.BadParameter("no claims to roles mapping, check connector documentation")
+	}
+	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
+
+	// Calculate (figure out name, roles, traits, session TTL) of user and
+	// create the user in the backend.
+	params, err := a.calculateOIDCUser(connector, claims, ident, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := a.createOIDCUser(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
-	if len(connector.GetClaimsToRoles()) != 0 {
-		if err := a.createOIDCUser(connector, ident, claims); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Auth was successful, return session, certificate, etc. to caller.
+	response := &OIDCAuthResponse{
+		Req: *req,
+		Identity: services.ExternalIdentity{
+			ConnectorID: params.connectorName,
+			Username:    params.username,
+		},
+		Username: user.GetName(),
 	}
 
 	if !req.CheckUser {
 		return response, nil
 	}
 
-	user, err := a.Identity.GetUserByOIDCIdentity(services.ExternalIdentity{
-		ConnectorID: req.ConnectorID, Username: ident.Email})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response.Username = user.GetName()
-
-	var roles services.RoleSet
-	roles, err = services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sessionTTL := roles.AdjustSessionTTL(utils.ToTTL(a.clock, ident.ExpiresAt))
-	bearerTokenTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
-
+	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		sess, err := a.NewWebSession(user.GetName())
+		session, err := a.createWebSession(user, params.sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// session will expire based on identity TTL and allowed session TTL
-		sess.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
-		// bearer token will expire based on the expected session renewal
-		sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
-		if err := a.UpsertWebSession(user.GetName(), sess); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		response.Session = sess
+
+		response.Session = session
 	}
 
+	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
-		certTTL := utils.MinTTL(utils.ToTTL(a.clock, ident.ExpiresAt), req.CertTTL)
-		certs, err := a.generateUserCert(certRequest{
-			user:          user,
-			roles:         roles,
-			ttl:           certTTL,
-			publicKey:     req.PublicKey,
-			compatibility: req.Compatibility,
-		})
+		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.Cert = certs.ssh
-		response.TLSCert = certs.tls
+
+		response.Cert = sshCert
+		response.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(services.CertAuthID{
@@ -273,6 +268,7 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		}
 		response.HostSigners = append(response.HostSigners, authority)
 	}
+
 	return response, nil
 }
 
@@ -325,52 +321,72 @@ func claimsToTraitMap(claims jose.Claims) map[string][]string {
 	return traits
 }
 
-func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
-	roles, err := a.buildOIDCRoles(connector, claims)
-	if err != nil {
-		return trace.Wrap(err)
+func (a *AuthServer) calculateOIDCUser(connector services.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
+	var err error
+
+	p := createUserParams{
+		connectorName: connector.GetName(),
+		username:      ident.Email,
 	}
 
-	traits := claimsToTraitMap(claims)
+	p.roles, err = a.buildOIDCRoles(connector, claims)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.traits = claimsToTraitMap(claims)
 
-	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v.", connector.GetName(), ident.Email, roles)
+	// Pick smaller for role: session TTL from role or requested TTL.
+	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleTTL := roles.AdjustSessionTTL(defaults.MaxCertDuration)
+	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+
+	return &p, nil
+}
+
+func (a *AuthServer) createOIDCUser(p *createUserParams) (services.User, error) {
+	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
+
+	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
-			Name:      ident.Email,
+			Name:      p.username,
 			Namespace: defaults.Namespace,
+			Expires:   &expires,
 		},
 		Spec: services.UserSpecV2{
-			Roles:   roles,
-			Traits:  traits,
-			Expires: ident.ExpiresAt,
+			Roles:  p.roles,
+			Traits: p.traits,
 			OIDCIdentities: []services.ExternalIdentity{
-				{
-					ConnectorID: connector.GetName(),
-					Username:    ident.Email,
+				services.ExternalIdentity{
+					ConnectorID: p.connectorName,
+					Username:    p.username,
 				},
 			},
 			CreatedBy: services.CreatedBy{
 				User: services.UserRef{Name: "system"},
-				Time: time.Now().UTC(),
+				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
 					Type:     teleport.ConnectorOIDC,
-					ID:       connector.GetName(),
-					Identity: ident.Email,
+					ID:       p.connectorName,
+					Identity: p.username,
 				},
 			},
 		},
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.GetUser(ident.Email)
+	existingUser, err := a.GetUser(p.username)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -380,7 +396,7 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 
 		// If the exisiting user is a local user, fail and advise how to fix the problem.
 		if connectorRef == nil {
-			return trace.AlreadyExists("local user with name '%v' already exists. Either change "+
+			return nil, trace.AlreadyExists("local user with name '%v' already exists. Either change "+
 				"email in OIDC identity or remove local user and try again.", existingUser.GetName())
 		}
 
@@ -391,10 +407,10 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 	// Upsert the new user creating or updating whatever is in the database.
 	err = a.UpsertUser(user)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	return user, nil
 }
 
 // claimsFromIDToken extracts claims from the ID token.

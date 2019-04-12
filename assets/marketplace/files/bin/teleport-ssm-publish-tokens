@@ -6,7 +6,7 @@
 set -e
 set -o pipefail
 
-# Source variables set up by cloudformation template
+# Source variables from user-data
 . /etc/teleport.d/conf
 
 TCTL=/usr/bin/tctl
@@ -14,14 +14,13 @@ TCTL=/usr/bin/tctl
 # Proxy token authenticates proxies joining the cluster
 PROXY_TOKEN=$(uuid)
 ${TCTL} nodes add --roles=proxy --ttl=4h --token=${PROXY_TOKEN}
-aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/proxy --region ${EC2_REGION} --key-id=${TELEPORT_SSM_KEY_ARN} --type="SecureString" --value="${PROXY_TOKEN}" --overwrite
+aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/proxy --region ${EC2_REGION} --type="SecureString" --value="${PROXY_TOKEN}" --overwrite
 
 # Node token authenticates nodes joining the cluster
 NODE_TOKEN=$(uuid)
 ${TCTL} nodes add --roles=node --ttl=4h --token=${NODE_TOKEN}
-aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/node --region ${EC2_REGION} --key-id=${TELEPORT_SSM_KEY_ARN} --type="SecureString" --value="${NODE_TOKEN}" --overwrite
+aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/node --region ${EC2_REGION} --type="SecureString" --value="${NODE_TOKEN}" --overwrite
 
-# Export CA certificate to SSM parameter store
-# so nodes and proxies can check the identity of the auth server they are connecting to
-CERT=$(${TCTL} auth export --type=tls)
-aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/ca --region ${EC2_REGION} --type="String" --value="${CERT}" --overwrite
+# Export CA pin hash to SSM parameter store
+CA_PIN_HASH=$(tctl status | grep "CA pin" | awk '{print $3}')
+aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/ca-pin-hash --region ${EC2_REGION} --type="String" --value="${CA_PIN_HASH}" --overwrite

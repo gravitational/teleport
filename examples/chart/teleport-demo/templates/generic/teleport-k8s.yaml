@@ -1,0 +1,118 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "teleport.fullname" . }}-impersonator
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - users
+  - serviceaccounts
+  - groups
+  verbs:
+  - impersonate
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "teleport.fullname" . }}-teleport-admin-role
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - jobs
+  - services
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-impersonator
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "teleport.fullname" . }}-impersonator
+subjects:
+- kind: ServiceAccount
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-teleport-admin-role
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "teleport.fullname" . }}-teleport-admin-role
+subjects:
+- kind: Group
+  name: teleport-users
+
+{{- if not (eq (index .Values.extraClusterNames 0) "") -}}
+{{- $root := . -}}
+{{- range .Values.extraClusterNames }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "teleport.fullname" $root }}-{{.}}-impersonator
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "teleport.fullname" $root }}-impersonator
+subjects:
+- kind: ServiceAccount
+  name: {{ template "teleport.fullname" $root }}-{{.}}
+  namespace: {{ template "teleport.fullname" $root }}-{{.}}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "teleport.fullname" $root }}-{{.}}-teleport-admin-role
+  namespace: {{ template "teleport.fullname" $root }}-{{.}}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "teleport.fullname" $root }}-teleport-admin-role
+subjects:
+- kind: Group
+  name: teleport-users
+{{- end -}}
+{{- end -}}
+{{- end }}

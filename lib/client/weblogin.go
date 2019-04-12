@@ -33,11 +33,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
-	"github.com/mailgun/lemma/secret"
+	"github.com/gravitational/teleport/lib/secret"
 	"github.com/pborman/uuid"
 	"github.com/tstranex/u2f"
 )
@@ -135,14 +136,9 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		return nil, trace.Wrap(err)
 	}
 
-	// create one time encoding secret that we will use to verify
-	// callback from proxy that is received over untrusted channel (HTTP)
-	keyBytes, err := secret.NewKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	decryptor, err := secret.New(&secret.Config{KeyBytes: keyBytes})
+	// Create secret key that will be sent with the request and then used the
+	// decrypt the response from the server.
+	key, err := secret.NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,37 +171,30 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		if r.URL.Path != "/callback" {
 			return nil, trace.NotFound("path not found")
 		}
-		encrypted := r.URL.Query().Get("response")
-		if encrypted == "" {
-			return nil, trace.BadParameter("missing required query parameters in %v", r.URL.String())
-		}
 
-		var encryptedData *secret.SealedBytes
-		err := json.Unmarshal([]byte(encrypted), &encryptedData)
+		// Decrypt ciphertext to get login response.
+		plaintext, err := key.Open([]byte(r.URL.Query().Get("response")))
 		if err != nil {
-			return nil, trace.BadParameter("failed to decode response in %v", r.URL.String())
-		}
-
-		out, err := decryptor.Open(encryptedData)
-		if err != nil {
-			return nil, trace.BadParameter("failed to decode response: in %v, err: %v", r.URL.String(), err)
+			return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 		}
 
 		var re *auth.SSHLoginResponse
-		err = json.Unmarshal([]byte(out), &re)
+		err = json.Unmarshal(plaintext, &re)
 		if err != nil {
-			return nil, trace.BadParameter("failed to decode response: in %v, err: %v", r.URL.String(), err)
+			return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 		}
+
 		return re, nil
 	}))
 	defer server.Close()
 
+	// Encode the secret into "secret_key" parameter.
 	u, err := url.Parse(server.URL + "/callback")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	query := u.Query()
-	query.Set("secret", secret.KeyToEncodedString(keyBytes))
+	query.Set("secret_key", key.String())
 	u.RawQuery = query.Encode()
 
 	out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", protocol, "login", "console"), SSOLoginConsoleReq{
@@ -276,8 +265,8 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	case response := <-waitC:
 		log.Debugf("Got response from browser.")
 		return response, nil
-	case <-time.After(60 * time.Second):
-		log.Debugf("Timed out waiting for callback.")
+	case <-time.After(defaults.CallbackTimeout):
+		log.Debugf("Timed out waiting for callback after %v.", defaults.CallbackTimeout)
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-ctx.Done():
 		log.Debugf("Canceled by user.")

@@ -43,6 +43,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	gops "github.com/google/gops/agent"
@@ -181,6 +183,9 @@ func Run(args []string, underTest bool) {
 	app.Flag("proxy", "SSH proxy address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar("TELEPORT_USER").StringVar(&cf.Username)
+	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
+		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
+	}).String()
 
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
@@ -206,7 +211,7 @@ func Run(args []string, underTest bool) {
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
-	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').StringsVar(&cf.Options)
+	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -235,7 +240,7 @@ func Run(args []string, underTest bool) {
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
 	login := app.Command("login", "Log in to a cluster and retrieve the session certificate")
-	login.Flag("out", "Identity output").Short('o').StringVar(&cf.IdentityFileOut)
+	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
 		client.DefaultIdentityFormat,
 		client.IdentityFormatOpenSSH)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
@@ -438,12 +443,6 @@ func onLogin(cf *CLIConf) {
 	// Regular login without -i flag.
 	tc.SaveProfile("")
 
-	// Connect to the Auth Server and fetch the known hosts for this cluster.
-	err = tc.UpdateTrustedCA(cf.Context, key.ClusterName)
-	if err != nil {
-		utils.FatalError(err)
-	}
-
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
 	// advertised settings are picked up.
@@ -496,9 +495,6 @@ func onLogout(cf *CLIConf) {
 		return
 	}
 	profiles := append(available, active)
-
-	// Unlink the current profile.
-	client.UnlinkCurrentProfile()
 
 	// Extract the proxy name.
 	proxyHost, _, err := net.SplitHostPort(cf.Proxy)
@@ -584,10 +580,15 @@ func onListNodes(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+
+	// Get list of all nodes in backend and sort by "Node Name".
 	nodes, err := tc.ListNodes(context.TODO())
 	if err != nil {
 		utils.FatalError(err)
 	}
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].GetHostname() < nodes[j].GetHostname()
+	})
 
 	switch cf.Verbose {
 	// In verbose mode, print everything on a single line and include the Node

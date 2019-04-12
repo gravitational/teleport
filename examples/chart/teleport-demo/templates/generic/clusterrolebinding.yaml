@@ -1,0 +1,63 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "teleport.fullname" . }}-cleaner
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "teleport.fullname" . }}-cleaner
+subjects:
+- kind: ServiceAccount
+  name: {{ template "teleport.serviceAccountName" . }}-cleaner
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "teleport.serviceAccountName" . }}-{{ .Values.mainClusterName }}
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+{{- if not (eq (index .Values.extraClusterNames 0) "") -}}
+{{- $root := . -}}
+{{- range .Values.extraClusterNames }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "teleport.fullname" $root }}-{{ . }}
+  labels:
+{{ include "teleport.labels" $root | indent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "teleport.fullname" $root }}-{{ . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "teleport.serviceAccountName" $root }}-{{ . }}
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
+{{- end -}}
+{{- end -}}
+{{- end }}

@@ -29,14 +29,16 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // Server is a generic implementation of an SSH server. All Teleport
@@ -70,6 +72,10 @@ type Server struct {
 	conns int32
 	// shutdownPollPeriod sets polling period for shutdown
 	shutdownPollPeriod time.Duration
+
+	// insecureSkipHostValidation does not validate the host signers to make sure
+	// they are a valid certificate. Used in tests.
+	insecureSkipHostValidation bool
 }
 
 const (
@@ -111,6 +117,15 @@ func SetShutdownPollPeriod(period time.Duration) ServerOption {
 	}
 }
 
+// SetInsecureSkipHostValidation does not validate the host signers to make sure
+// they are a valid certificate. Used in tests.
+func SetInsecureSkipHostValidation() ServerOption {
+	return func(s *Server) error {
+		s.insecureSkipHostValidation = true
+		return nil
+	}
+}
+
 func NewServer(
 	component string,
 	a utils.NetAddr,
@@ -118,11 +133,7 @@ func NewServer(
 	hostSigners []ssh.Signer,
 	ah AuthMethods,
 	opts ...ServerOption) (*Server, error) {
-
-	err := checkArguments(a, h, hostSigners, ah)
-	if err != nil {
-		return nil, err
-	}
+	var err error
 
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
@@ -147,6 +158,10 @@ func NewServer(
 	}
 	if s.shutdownPollPeriod == 0 {
 		s.shutdownPollPeriod = defaults.ShutdownPollPeriod
+	}
+	err = s.checkArguments(a, h, hostSigners, ah)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, signer := range hostSigners {
@@ -364,10 +379,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 		defaults.DefaultIdleConnectionDuration,
 		s.component)
 
+	// Wrap connection with a tracker used to monitor how much data was
+	// transmitted and received over the connection.
+	wconn := utils.NewTrackingConn(conn)
+
 	// create a new SSH server which handles the handshake (and pass the custom
 	// payload structure which will be populated only when/if this connection
 	// comes from another Teleport proxy):
-	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(conn), &s.cfg)
+	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(wconn), &s.cfg)
 	if err != nil {
 		conn.SetDeadline(time.Time{})
 		return
@@ -413,7 +432,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			go s.newChanHandler.HandleNewChan(conn, sconn, nch)
+			go s.newChanHandler.HandleNewChan(wconn, sconn, nch)
 			// send keepalive pings to the clients
 		case <-keepAliveTick.C:
 			const wantReply = true
@@ -448,7 +467,7 @@ type AuthMethods struct {
 	NoClient  bool
 }
 
-func checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
+func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
 	if a.Addr == "" || a.AddrNetwork == "" {
 		return trace.BadParameter("addr: specify network and the address for listening socket")
 	}
@@ -459,14 +478,39 @@ func checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer,
 	if len(hostSigners) == 0 {
 		return trace.BadParameter("need at least one signer")
 	}
-	for _, s := range hostSigners {
-		if s == nil {
+	for _, signer := range hostSigners {
+		if signer == nil {
 			return trace.BadParameter("host signer can not be nil")
+		}
+		if !s.insecureSkipHostValidation {
+			err := validateHostSigner(signer)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 	if ah.PublicKey == nil && ah.Password == nil && ah.NoClient == false {
 		return trace.BadParameter("need at least one auth method")
 	}
+	return nil
+}
+
+// validateHostSigner make sure the signer is a valid certificate.
+func validateHostSigner(signer ssh.Signer) error {
+	cert, ok := signer.PublicKey().(*ssh.Certificate)
+	if !ok {
+		return trace.BadParameter("only host certificates supported")
+	}
+	if len(cert.ValidPrincipals) == 0 {
+		return trace.BadParameter("at least one valid principal is required in host certificate")
+	}
+
+	certChecker := utils.CertChecker{}
+	err := certChecker.CheckCert(cert.ValidPrincipals[0], cert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 

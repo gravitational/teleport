@@ -305,6 +305,9 @@ func checkDuplicateFlags(current *CmdClause, flagGroups []*flagGroup) error {
 	// Check for duplicates.
 	for _, flags := range flagGroups {
 		for _, flag := range current.flagOrder {
+			if flag.allowDuplicate {
+				continue
+			}
 			if flag.shorthand != 0 {
 				if _, ok := flags.short[string(flag.shorthand)]; ok {
 					return fmt.Errorf("duplicate short flag -%c", flag.shorthand)

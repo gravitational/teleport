@@ -1,19 +1,20 @@
-
-
 # VPC ID used for builds
 BUILD_VPC_ID ?=
 
 # VPC subnet used for builds
 BUILD_SUBNET_ID ?=
 
-# Override for AMI name if needed
-BUILD_AMI_NAME ?=
+# Public AMI name
+PUBLIC_AMI_NAME ?=
+
+# Marketplace AMI name ?=
+MARKETPLACE_AMI_NAME ?=
 
 # Default build region
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 3.0.1
+TELEPORT_VERSION ?= 3.1.7
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -26,192 +27,84 @@ INSTANCE_TYPE ?= t2.micro
 # https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html
 DESTINATION_REGIONS ?= us-west-2,us-east-1,us-east-2,eu-west-1
 
-# Cloudformation stack name to create, e.g. test1
-STACK ?=
-
-# Stack parameters, e.g ParameterKey=KeyName,ParameterValue=KeyName ParameterKey=DomainName,ParameterValue=teleport.example.com ParameterKey=DomainAdminEmail,ParameterValue=admin@example.com ParameterKey=HostedZoneID,ParameterValue=AWSZONEID
-STACK_PARAMS ?=
-
-# License S3 URI for enterprise builds, e.g. s3://example.com/path/to/license
-TELEPORT_LICENSE_URI ?=
-
 # Generate timestamp for builds
 BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
 
-# Jenkins test CloudFormation stack name
-JENKINS_TEST_STACK_NAME ?= jenkins-teleport-quickstart-test-stack
-
-# Jenkins Cloudformation parameters path
-JENKINS_CLOUDFORMATION_PARAMETERS_PATH ?= ./files/build/jenkins-parameters.json
-
-# YAML filename
-CF_YAML_FILENAME ?= ./oss.yaml
-
 # S3 Bucket ID
 S3_BUCKET_ID ?=
+
+# Telegraf version
+TELEGRAF_VERSION ?= 1.9.3
+
+# InfluxDB version
+INFLUXDB_VERSION ?= 1.7.1
+
+# Grafana version
+GRAFANA_VERSION ?= 5.4.3
 export
 
+
+# Build local 'debug' AMI
 .PHONY: oss
 oss: TELEPORT_TYPE=oss
+oss: check-vars
 oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
-	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
+	mkdir -p files/build
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -except teleport-aws-linux-marketplace single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
-.PHONY: oss-name-build
-oss-name-build: TELEPORT_TYPE=oss
-oss-name-build:
-	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
-	packer build -force -var ami_name=$(BUILD_AMI_NAME) template.json
+# Build named 'production' AMI and marketplace version
+.PHONY: oss-jenkins-build
+oss-jenkins-build: TELEPORT_TYPE=oss
+oss-jenkins-build: check-vars
+oss-jenkins-build:
+	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via Jenkins"
+	@echo "Public AMI name: $(PUBLIC_AMI_NAME)"
+	@echo "Marketplace AMI name: $(MARKETPLACE_AMI_NAME)"
+	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
+	mkdir -p files/build
+	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_type=production -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
+.PHONY: change-amis-to-public-oss
+change-amis-to-public-oss:
+	@echo "Making OSS AMIs public"
+	bash files/make-amis-public.sh oss
+
+# Build local 'debug' AMI
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
-ent: check-ent-vars
-	aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem
+ent: check-vars
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
-	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
+	mkdir -p files/build
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -except teleport-aws-linux-marketplace single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
-.PHONY: ent-name-build
-ent-name-build: TELEPORT_TYPE=ent
-ent-name-build: check-ent-vars
-ent-name-build:
-	aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem
-	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
-	packer build -force -var ami_name=$(BUILD_AMI_NAME) template.json
+# Build named 'production' AMI and marketplace version
+.PHONY: ent-jenkins-build
+ent-jenkins-build: TELEPORT_TYPE=ent
+ent-jenkins-build: check-vars
+ent-jenkins-build:
+	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via Jenkins"
+	@echo "Public AMI name: $(PUBLIC_AMI_NAME)"
+	@echo "Marketplace AMI name: $(MARKETPLACE_AMI_NAME)"
+	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
+	mkdir -p files/build
+	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_type=production -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
-.PHONY: update-ami-ids-oss
-update-ami-ids-oss:
-	files/update-ami-ids.sh oss
-
-.PHONY: update-ami-ids-ent
-update-ami-ids-ent:
-	files/update-ami-ids.sh ent
-
-.PHONY: validate-template
-validate-template:
-	aws cloudformation validate-template --template-body file://$(CF_YAML_FILENAME)
+.PHONY: change-amis-to-public-ent
+change-amis-to-public-ent:
+	@echo "Making Enterprise AMIs public"
+	bash files/make-amis-public.sh ent
 
 
-# Stack functionality
-# Create
-.PHONY: create-stack
-create-stack:
-	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
-
-.PHONY: create-stack-vpc
-create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
-create-stack-vpc:
-	$(MAKE) create-stack
-
-
-# Update
-.PHONY: update-stack
-update-stack:
-	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
-
-.PHONY: update-stack-vpc
-update-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
-update-stack-vpc:
-	$(MAKE) update-stack
-
-
-# Describe
-.PHONY: describe-stack
-describe-stack:
-	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK)
-
-.PHONY: describe-stack-outputs
-describe-stack-outputs:
-	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK) --query 'Stacks[].Outputs[]'
-
-.PHONY: describe-stack-outputs-vpc
-describe-stack-outputs-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
-describe-stack-outputs-vpc:
-	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK) --query 'Stacks[].Outputs[]'
-
-
-# Delete
-.PHONY: delete-stack
-delete-stack:
-	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(STACK)
-
-
-# Jenkins helpers
-.PHONY: jenkins-create-stack
-jenkins-create-stack:
-	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://$(CF_YAML_FILENAME) --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
-
-.PHONY: jenkins-create-stack-vpc
-jenkins-create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
-jenkins-create-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
-jenkins-create-stack-vpc:
-	$(MAKE) jenkins-create-stack
-
-.PHONY: jenkins-wait-for-stack-creation
-jenkins-wait-for-stack-creation:
-	aws --region=$(AWS_REGION) cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME)
-
-.PHONY: jenkins-wait-for-stack-creation-vpc
-jenkins-wait-for-stack-creation-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
-jenkins-wait-for-stack-creation-vpc:
-	$(MAKE) jenkins-wait-for-stack-creation
-
-.PHONY: jenkins-describe-stack
-jenkins-describe-stack:
-	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(JENKINS_TEST_STACK_NAME)
-
-.PHONY: jenkins-describe-stack-outputs
-jenkins-describe-stack-outputs:
-	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(JENKINS_TEST_STACK_NAME) --query 'Stacks[].Outputs[]'
-
-.PHONY: jenkins-describe-stack-vpc
-jenkins-describe-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
-jenkins-describe-stack-vpc:
-	$(MAKE) jenkins-describe-stack
-
-.PHONY: jenkins-describe-stack-outputs-vpc
-jenkins-describe-stack-outputs-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
-jenkins-describe-stack-outputs-vpc:
-	@$(MAKE) -s jenkins-describe-stack-outputs
-
-.PHONY: jenkins-get-s3-bucket-id
-jenkins-get-s3-bucket-id:
-	@$(MAKE) -s jenkins-describe-stack-outputs | jq -r '.[] | select(.OutputKey == "S3BucketID") | .OutputValue'
-
-.PHONY: jenkins-delete-s3-bucket
-jenkins-delete-s3-bucket:
-	files/s3-delete-all-object-versions.sh $(S3_BUCKET_ID)
-	aws s3api delete-bucket --region=$(AWS_REGION) --bucket $(S3_BUCKET_ID)
-
-.PHONY: jenkins-delete-stack
-jenkins-delete-stack:
-	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(JENKINS_TEST_STACK_NAME)
-
-.PHONY: jenkins-delete-stack-vpc
-jenkins-delete-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
-jenkins-delete-stack-vpc:
-	$(MAKE) jenkins-delete-stack
-
-.PHONY: jenkins-wait-for-stack-deletion
-jenkins-wait-for-stack-deletion:
-	aws --region=$(AWS_REGION) cloudformation wait stack-delete-complete --stack-name $(JENKINS_TEST_STACK_NAME)
-
-.PHONY: jenkins-wait-for-stack-deletion-vpc
-jenkins-wait-for-stack-deletion-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
-jenkins-wait-for-stack-deletion-vpc:
-	$(MAKE) jenkins-wait-for-stack-deletion
-
-.PHONY: check-ent-vars
-check-ent-vars:
+# Other helpers
+.PHONY: check-vars
+check-vars:
 	@if [ -z "$(TELEPORT_VERSION)" ]; then \
 	  echo "TELEPORT_VERSION is not set"; exit 1; \
-	fi;
-	@if [ -z "$(TELEPORT_LICENSE_URI)" ]; then \
-	  echo "TELEPORT_LICENSE_URI is not set"; exit 1; \
 	fi;

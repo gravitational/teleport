@@ -18,7 +18,6 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
-GOCACHEDIR ?= `go env GOCACHE`
 GOPKGDIR ?= `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
@@ -100,7 +99,7 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	rm -rf $(GOCACHEDIR)
+	go clean -cache
 	rm -rf $(GOPKGDIR)
 	rm -rf teleport
 	rm -rf *.gz
@@ -307,7 +306,7 @@ install: build
 .PHONY: image
 image:
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build . -t quay.io/gravitational/teleport:$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t quay.io/gravitational/teleport:$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish

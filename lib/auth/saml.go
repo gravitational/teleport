@@ -1,3 +1,19 @@
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package auth
 
 import (
@@ -5,7 +21,6 @@ import (
 	"compress/flate"
 	"encoding/base64"
 	"io/ioutil"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -105,47 +120,75 @@ func assertionsToTraitMap(assertionInfo saml2.AssertionInfo) map[string][]string
 	return traits
 }
 
-func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, expiresAt time.Time) error {
-	roles, err := a.buildSAMLRoles(connector, assertionInfo)
-	if err != nil {
-		return trace.Wrap(err)
+func (a *AuthServer) calculateSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
+	var err error
+
+	p := createUserParams{
+		connectorName: connector.GetName(),
+		username:      assertionInfo.NameID,
 	}
 
-	traits := assertionsToTraitMap(assertionInfo)
+	p.roles, err = a.buildSAMLRoles(connector, assertionInfo)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.traits = assertionsToTraitMap(assertionInfo)
 
-	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", connector.GetName(), assertionInfo.NameID, roles)
+	// Pick smaller for role: session TTL from role or requested TTL.
+	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleTTL := roles.AdjustSessionTTL(defaults.MaxCertDuration)
+	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+
+	return &p, nil
+}
+
+func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) {
+	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
+
+	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
+
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
-			Name:      assertionInfo.NameID,
+			Name:      p.username,
 			Namespace: defaults.Namespace,
+			Expires:   &expires,
 		},
 		Spec: services.UserSpecV2{
-			Roles:          roles,
-			Traits:         traits,
-			Expires:        expiresAt,
-			SAMLIdentities: []services.ExternalIdentity{{ConnectorID: connector.GetName(), Username: assertionInfo.NameID}},
+			Roles:  p.roles,
+			Traits: p.traits,
+			SAMLIdentities: []services.ExternalIdentity{
+				services.ExternalIdentity{
+					ConnectorID: p.connectorName,
+					Username:    p.username,
+				},
+			},
 			CreatedBy: services.CreatedBy{
-				User: services.UserRef{Name: "system"},
-				Time: time.Now().UTC(),
+				User: services.UserRef{
+					Name: "system",
+				},
+				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
 					Type:     teleport.ConnectorSAML,
-					ID:       connector.GetName(),
-					Identity: assertionInfo.NameID,
+					ID:       p.connectorName,
+					Identity: p.username,
 				},
 			},
 		},
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.GetUser(assertionInfo.NameID)
+	existingUser, err := a.GetUser(p.username)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -155,7 +198,7 @@ func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionI
 
 		// If the exisiting user is a local user, fail and advise how to fix the problem.
 		if connectorRef == nil {
-			return trace.AlreadyExists("local user with name '%v' already exists. Either change "+
+			return nil, trace.AlreadyExists("local user with name '%v' already exists. Either change "+
 				"NameID in assertion or remove local user and try again.", existingUser.GetName())
 		}
 
@@ -166,10 +209,10 @@ func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionI
 	// Upsert the new user creating or updating whatever is in the database.
 	err = a.UpsertUser(user)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	return user, nil
 }
 
 func parseSAMLInResponseTo(response string) (string, error) {
@@ -293,67 +336,51 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 	}
 	log.Debugf("SAML assertion warnings: %+v.", assertionInfo.WarningInfo)
 
-	log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
 	if len(connector.GetAttributesToRoles()) == 0 {
-		return nil, trace.BadParameter("SAML does not support binding to local users")
+		return nil, trace.BadParameter("no attributes to roles mapping, check connector documentation")
 	}
-	// TODO(klizhentas) use SessionNotOnOrAfter to calculate expiration time
-	expiresAt := a.clock.Now().Add(defaults.CertDuration)
-	if err := a.createSAMLUser(connector, *assertionInfo, expiresAt); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
 
-	identity := services.ExternalIdentity{
-		ConnectorID: request.ConnectorID,
-		Username:    assertionInfo.NameID,
-	}
-	user, err := a.Identity.GetUserBySAMLIdentity(identity)
+	// Calculate (figure out name, roles, traits, session TTL) of user and
+	// create the user in the backend.
+	params, err := a.calculateSAMLUser(connector, *assertionInfo, request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	user, err := a.createSAMLUser(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Auth was successful, return session, certificate, etc. to caller.
 	response := &SAMLAuthResponse{
-		Req:      *request,
-		Identity: identity,
+		Req: *request,
+		Identity: services.ExternalIdentity{
+			ConnectorID: params.connectorName,
+			Username:    params.username,
+		},
 		Username: user.GetName(),
 	}
 
-	var roles services.RoleSet
-	roles, err = services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sessionTTL := roles.AdjustSessionTTL(utils.ToTTL(a.clock, expiresAt))
-	bearerTokenTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
-
+	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
-		sess, err := a.NewWebSession(user.GetName())
+		session, err := a.createWebSession(user, params.sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// session will expire based on identity TTL and allowed session TTL
-		sess.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
-		// bearer token will expire based on the expected session renewal
-		sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
-		if err := a.UpsertWebSession(user.GetName(), sess); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		response.Session = sess
+
+		response.Session = session
 	}
 
+	// If a public key was provided, sign it and return a certificate.
 	if len(request.PublicKey) != 0 {
-		certTTL := utils.MinTTL(sessionTTL, request.CertTTL)
-		certs, err := a.generateUserCert(certRequest{
-			user:          user,
-			roles:         roles,
-			ttl:           certTTL,
-			publicKey:     request.PublicKey,
-			compatibility: request.Compatibility,
-		})
+		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.Cert = certs.ssh
-		response.TLSCert = certs.tls
+
+		response.Cert = sshCert
+		response.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(services.CertAuthID{
@@ -365,5 +392,6 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		}
 		response.HostSigners = append(response.HostSigners, authority)
 	}
+
 	return response, nil
 }

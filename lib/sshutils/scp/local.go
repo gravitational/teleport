@@ -45,7 +45,7 @@ func (l *localFileSystem) MkDir(path string, mode int) error {
 	fileMode := os.FileMode(mode & int(os.ModePerm))
 	err := os.MkdirAll(path, fileMode)
 	if err != nil && !os.IsExist(err) {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
 
 	return nil

@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-node-config
+  namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+data:
+  teleport.yaml: |
+    teleport:
+      log:
+        output: {{ .Values.config.teleport.log.output }}
+        severity: {{ .Values.config.teleport.log.severity }}
+      data_dir: {{ .Values.config.teleport.data_dir }}
+      storage:
+        type: {{ .Values.config.teleport.storage.type }}
+      auth_servers:
+        - {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}:3025
+      auth_token: NODE_JOIN_TOKEN_PLACEHOLDER
+      ca_pin: CA_PIN_HASH_PLACEHOLDER
+
+    auth_service:
+      enabled: no
+
+    ssh_service:
+      enabled: yes
+      {{- if .Values.teleportLabels.node.static }}
+      labels:
+      {{- range $key, $value := .Values.teleportLabels.node.static }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.teleportLabels.node.dynamic }}
+      commands:
+      {{ toYaml .Values.teleportLabels.node.dynamic | indent 6 | trim }}
+      {{- end }}
+
+    proxy_service:
+      enabled: no
+
+{{- if not (eq (index .Values.extraClusterNames 0) "") -}}
+{{- $root := . -}}
+{{- range .Values.extraClusterNames }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "teleport.fullname" $root }}-{{ . }}-node-config
+  namespace: {{ template "teleport.fullname" $root }}-{{ . }}
+  labels:
+{{ include "teleport.labels" $root | indent 4 }}
+data:
+  teleport.yaml: |
+    teleport:
+      log:
+        output: {{ $root.Values.config.teleport.log.output }}
+        severity: {{ $root.Values.config.teleport.log.severity }}
+      data_dir: {{ $root.Values.config.teleport.data_dir }}
+      storage:
+        type: {{ $root.Values.config.teleport.storage.type }}
+      auth_servers:
+        - {{ template "teleport.fullname" $root }}-{{ . }}:3025
+      auth_token: NODE_JOIN_TOKEN_PLACEHOLDER
+      ca_pin: CA_PIN_HASH_PLACEHOLDER
+
+    auth_service:
+      enabled: no
+
+    ssh_service:
+      enabled: yes
+      {{- if $root.Values.teleportLabels.node.static }}
+      labels:
+      {{- range $key, $value := $root.Values.teleportLabels.node.static }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if $root.Values.teleportLabels.node.dynamic }}
+      commands:
+      {{ toYaml $root.Values.teleportLabels.node.dynamic | indent 6 | trim }}
+      {{- end }}
+
+    proxy_service:
+      enabled: no
+{{- end -}}
+{{- end }}

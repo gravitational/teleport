@@ -49,10 +49,11 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/mailgun/lemma/secret"
+	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
 	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
@@ -184,7 +185,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
 	// recorded sessions handlers
-	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.siteEventsGet))                                            // get recorded list of sessions (from events)
+	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.clusterSearchSessionEvents))                               // get recorded list of sessions (from events)
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                               // search site events
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
@@ -896,29 +898,55 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Extract secret out of the request. Look for both "secret" which is the
+	// old format and "secret_key" which is the new fomat. If this is not done,
+	// then users would have to update their callback URL in their identity
+	// provider.
 	values := u.Query()
-	secretKey := values.Get("secret")
-	if secretKey == "" {
+	secretV1 := values.Get("secret")
+	secretV2 := values.Get("secret_key")
+	values.Set("secret", "")
+	values.Set("secret_key", "")
+
+	var ciphertext []byte
+
+	switch {
+	// AES-GCM based symmetric cipher.
+	case secretV2 != "":
+		key, err := secret.ParseKey([]byte(secretV2))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ciphertext, err = key.Seal(out)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	// NaCl based symmetric cipher (legacy).
+	case secretV1 != "":
+		secretKeyBytes, err := lemma_secret.EncodedStringToKey(secretV1)
+		if err != nil {
+			return nil, trace.BadParameter("bad secret")
+		}
+		encryptor, err := lemma_secret.New(&lemma_secret.Config{KeyBytes: secretKeyBytes})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sealedBytes, err := encryptor.Seal(out)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ciphertext, err = json.Marshal(sealedBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
 		return nil, trace.BadParameter("missing secret")
 	}
-	values.Set("secret", "") // remove secret so others can't see it
-	secretKeyBytes, err := secret.EncodedStringToKey(secretKey)
-	if err != nil {
-		return nil, trace.BadParameter("bad secret")
-	}
-	encryptor, err := secret.New(&secret.Config{KeyBytes: secretKeyBytes})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sealedBytes, err := encryptor.Seal(out)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sealedBytesData, err := json.Marshal(sealedBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	values.Set("response", string(sealedBytesData))
+
+	// Place ciphertext into the response body.
+	values.Set("response", string(ciphertext))
+
 	u.RawQuery = values.Encode()
 	return u, nil
 }
@@ -1506,7 +1534,7 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 
 const maxStreamBytes = 5 * 1024 * 1024
 
-// siteEventsGet allows to search for events on site
+// clusterSearchSessionEvents allows to search for session events on a cluster
 //
 // GET /v1/webapi/sites/:site/events
 //
@@ -1517,7 +1545,7 @@ const maxStreamBytes = 5 * 1024 * 1024
 //             the default backend performs exact search: ?key=value means "event
 //             with a field 'key' with value 'value'
 //
-func (h *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 
 	clt, err := ctx.GetUserClient(site)
@@ -1551,6 +1579,78 @@ func (h *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 	return eventsListGetResponse{Events: el}, nil
+}
+
+// clusterSearchEvents returns all audit log events matching the provided criteria
+//
+// GET /v1/webapi/sites/:site/events/search
+//
+// Query parameters:
+//   "from"   : date range from, encoded as RFC3339
+//   "to"     : date range to, encoded as RFC3339
+//   "include": optional semicolon-separated list of event names to return e.g.
+//              include=session.start;session.end, all are returned if empty
+//   "limit"  : optional maximum number of events to return
+//
+func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	values := r.URL.Query()
+	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	to, err := queryTime(values, "to", time.Now().UTC())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	limit, err := queryLimit(values, "limit", defaults.EventsIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	query := url.Values{}
+	if include := values.Get("include"); include != "" {
+		query[events.EventType] = strings.Split(include, ";")
+	}
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	events, err := clt.SearchEvents(from, to, query.Encode(), limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return eventsListGetResponse{Events: events}, nil
+}
+
+// queryTime parses the query string parameter with the specified name as a
+// RFC3339 time and returns it.
+//
+// If there's no such parameter, specified default value is returned.
+func queryTime(query url.Values, name string, def time.Time) (time.Time, error) {
+	str := query.Get(name)
+	if str == "" {
+		return def, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, str)
+	if err != nil {
+		return time.Time{}, trace.BadParameter("failed to parse %v as RFC3339 time: %v", name, str)
+	}
+	return parsed, nil
+}
+
+// queryLimit returns the limit parameter with the specified name from the
+// query string.
+//
+// If there's no such parameter, specified default limit is returned.
+func queryLimit(query url.Values, name string, def int) (int, error) {
+	str := query.Get(name)
+	if str == "" {
+		return def, nil
+	}
+	limit, err := strconv.Atoi(str)
+	if err != nil {
+		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
+	}
+	return limit, nil
 }
 
 type siteSessionStreamGetResponse struct {
