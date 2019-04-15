@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.2.2
+
+This release of Teleport contains a bug fix.
+
+#### Changes
+
+* Fixed issue with `--bind-addr` implementation. [#2650](https://github.com/gravitational/teleport/pull/2650)
+
 ## 3.2.1
 
 This release of Teleport contains a new feature.
