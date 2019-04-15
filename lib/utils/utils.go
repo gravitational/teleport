@@ -18,13 +18,16 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -32,6 +35,49 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 )
+
+// SyncString is a string value
+// that can be concurrently accessed
+type SyncString struct {
+	sync.Mutex
+	string
+}
+
+// Value returns value of the string
+func (s *SyncString) Value() string {
+	s.Lock()
+	defer s.Unlock()
+	return s.string
+}
+
+// Set sets the value of the string
+func (s *SyncString) Set(v string) {
+	s.Lock()
+	defer s.Unlock()
+	s.string = v
+}
+
+// ClickableURL fixes address in url to make sure
+// it's clickable, e.g. it replaces "undefined" address like
+// 0.0.0.0 used in network listeners format with loopback 127.0.0.1
+func ClickableURL(in string) string {
+	out, err := url.Parse(in)
+	if err != nil {
+		return in
+	}
+	host, port, err := net.SplitHostPort(out.Host)
+	if err != nil {
+		return in
+	}
+	ip := net.ParseIP(host)
+	// if address is not an IP, unspecified, e.g. all interfaces 0.0.0.0 or multicast,
+	// replace with localhost that is clickable
+	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() {
+		out.Host = fmt.Sprintf("127.0.0.1:%v", port)
+		return out.String()
+	}
+	return out.String()
+}
 
 // AsBool converts string to bool, in case of the value is empty
 // or unknown, defaults to false

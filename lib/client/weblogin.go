@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -225,6 +226,17 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 		return re, nil
 	})
 
+	redirPath := "/" + uuid.New()
+	// longURL will be set based on the response from the webserver
+	var longURL utils.SyncString
+	mux := http.NewServeMux()
+	mux.Handle("/callback", handler)
+	mux.HandleFunc(redirPath, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, longURL.Value(), http.StatusFound)
+	})
+	redir := httptest.NewServer(mux)
+	defer redir.Close()
+
 	var server *httptest.Server
 	if login.BindAddr != "" {
 		log.Debugf("Binding to %v.", login.BindAddr)
@@ -234,13 +246,16 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 		}
 		server = &httptest.Server{
 			Listener: listener,
-			Config:   &http.Server{Handler: handler},
+			Config:   &http.Server{Handler: mux},
 		}
 		server.Start()
 	} else {
-		server = httptest.NewServer(handler)
+		server = httptest.NewServer(mux)
 	}
 	defer server.Close()
+
+	// redirURL is the short URL presented to the user
+	redirURL := server.URL + redirPath
 
 	u, err := url.Parse(server.URL + "/callback")
 	if err != nil {
@@ -266,18 +281,7 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Start a HTTP server on the client that re-directs to the SAML provider.
-	// This creates nice short URLs and also works around some platforms (like
-	// Windows) that truncate long URLs before passing them to the default browser.
-	redirPath := "/" + uuid.New()
-	redirMux := http.NewServeMux()
-	redirMux.HandleFunc(redirPath, func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, re.RedirectURL, http.StatusFound)
-	})
-	redir := httptest.NewServer(redirMux)
-	defer redir.Close()
-	redirURL := redir.URL + redirPath
+	longURL.Set(re.RedirectURL)
 
 	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
@@ -307,7 +311,7 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 
 	// Print to screen in-case the command that launches the browser did not run.
 	fmt.Printf("If browser window does not open automatically, open it by ")
-	fmt.Printf("clicking on the link:\n %v\n", redirURL)
+	fmt.Printf("clicking on the link:\n %v\n", utils.ClickableURL(redirURL))
 
 	log.Infof("Waiting for response at: %v.", server.URL)
 
