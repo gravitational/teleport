@@ -40,6 +40,9 @@ type Presence interface {
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(namespace string) error
 
+	// DeleteNode deletes node in a namespace
+	DeleteNode(namespace, name string) error
+
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(server Server) (*KeepAlive, error)
@@ -63,6 +66,9 @@ type Presence interface {
 
 	// GetProxies returns a list of registered proxies
 	GetProxies() ([]Server, error)
+
+	// DeleteProxy deletes proxy by name
+	DeleteProxy(name string) error
 
 	// DeleteAllProxies deletes all proxies
 	DeleteAllProxies() error

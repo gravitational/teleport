@@ -304,7 +304,7 @@ start:
 			}
 			out := make([]backend.Event, 0, len(e.Events))
 			for i := range e.Events {
-				event, err := fromEvent(*e.Events[i])
+				event, err := b.fromEvent(b.ctx, *e.Events[i])
 				if err != nil {
 					b.Errorf("Failed to unmarshal event: %v %v.", err, *e.Events[i])
 				} else {
@@ -489,7 +489,17 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 	if len(re.Kvs) == 0 {
 		return trace.NotFound("item %q is not found", string(lease.Key))
 	}
-	_, err = b.client.KeepAliveOnce(ctx, clientv3.LeaseID(lease.ID))
+	// instead of keep-alive on the old lease, setup a new lease
+	// because we would like the event to be generated
+	// which does not happen in case of lease keep-alive
+	var opts []clientv3.OpOption
+	var newLease backend.Lease
+	if err := b.setupLease(ctx, backend.Item{Expires: expires}, &newLease, &opts); err != nil {
+		return trace.Wrap(err)
+	}
+	opts = append(opts, clientv3.WithIgnoreValue())
+	kv := re.Kvs[0]
+	_, err = b.client.Put(ctx, string(kv.Key), "", opts...)
 	return convertErr(err)
 }
 
@@ -559,6 +569,33 @@ func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
 	return backend.TTL(b.clock, expires)
 }
 
+func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend.Event, error) {
+	event := &backend.Event{
+		Type: fromType(e.Type),
+		Item: backend.Item{
+			Key: trimPrefix(e.Kv.Key),
+			ID:  e.Kv.ModRevision,
+		},
+	}
+	if event.Type == backend.OpDelete {
+		return event, nil
+	}
+	// get the new expiration date if it was updated
+	if e.Kv.Lease != 0 {
+		re, err := b.client.TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+		if err != nil {
+			return nil, convertErr(err)
+		}
+		event.Item.Expires = b.clock.Now().UTC().Add(time.Second * time.Duration(re.TTL))
+	}
+	value, err := unmarshal(e.Kv.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	event.Item.Value = value
+	return event, nil
+}
+
 // seconds converts duration to seconds, rounds up to 1 second
 func seconds(ttl time.Duration) int64 {
 	i := int64(ttl / time.Second)
@@ -622,23 +659,4 @@ func trimPrefix(in []byte) []byte {
 
 func prependPrefix(in []byte) string {
 	return keyPrefix + string(in)
-}
-
-func fromEvent(e clientv3.Event) (*backend.Event, error) {
-	event := &backend.Event{
-		Type: fromType(e.Type),
-		Item: backend.Item{
-			Key: trimPrefix(e.Kv.Key),
-			ID:  e.Kv.ModRevision,
-		},
-	}
-	if event.Type == backend.OpDelete {
-		return event, nil
-	}
-	value, err := unmarshal(e.Kv.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	event.Item.Value = value
-	return event, nil
 }

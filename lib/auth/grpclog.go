@@ -22,6 +22,20 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// if we ever would like to turn on logging for GRPC, we could do:
+//
+// import "google.golang.org/grpc/grpclog"
+//
+// func init() {
+//   grpclog.SetLoggerV2(&GLogger{
+//		Entry: logrus.WithFields(
+//			logrus.Fields{
+//				trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
+//			}),
+//	})
+//
+// However for now, it's simply too verbose to turn on at all times
+
 // GLogger implements GRPC logger interface LoggerV2
 type GLogger struct {
 	Entry *logrus.Entry

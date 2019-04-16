@@ -72,33 +72,35 @@ type NodeClient struct {
 //
 func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	proxySession, err := proxy.Client.NewSession()
+	defer proxySession.Close()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	stdout := &bytes.Buffer{}
 	reader, err := proxySession.StdoutPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	done := make(chan struct{})
 	go func() {
 		io.Copy(stdout, reader)
 		close(done)
 	}()
-
-	if err := proxySession.RequestSubsystem("proxysites"); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// this function is async because,
+	// the function call StdoutPipe() could fail if proxy rejected
+	// the session request, and then RequestSubsystem call could hang
+	// forever
+	go func() {
+		if err := proxySession.RequestSubsystem("proxysites"); err != nil {
+			log.Warningf("Failed to request subsystem: %v", err)
+		}
+	}()
 	select {
 	case <-done:
 	case <-time.After(defaults.DefaultDialTimeout):
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
-
 	log.Debugf("Found clusters: %v", stdout.String())
-
 	var sites []services.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
 		return nil, trace.Wrap(err)

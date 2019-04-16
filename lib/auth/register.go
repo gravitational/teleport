@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -45,6 +46,7 @@ func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals, 
 		AdditionalPrincipals: additionalPrincipals,
 		RemoteAddr:           remoteAddr,
 		DNSNames:             dnsNames,
+		NoCache:              true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -254,6 +256,8 @@ type ReRegisterParams struct {
 	PublicTLSKey []byte
 	// PublicSSHKey is a server's public SSH key to sign
 	PublicSSHKey []byte
+	// Rotation is the rotation state of the certificate authority
+	Rotation services.Rotation
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
@@ -270,6 +274,7 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 		DNSNames:             params.DNSNames,
 		PublicTLSKey:         params.PublicTLSKey,
 		PublicSSHKey:         params.PublicSSHKey,
+		Rotation:             &params.Rotation,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

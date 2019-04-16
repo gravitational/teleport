@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,20 +18,100 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
+	log "github.com/sirupsen/logrus"
 )
+
+// Tracer helps to trace execution of functions
+type Tracer struct {
+	// Started records starting time of the call
+	Started time.Time
+	// Description is arbitrary description
+	Description string
+}
+
+// NewTracer returns a new tracer
+func NewTracer(description string) *Tracer {
+	return &Tracer{Started: time.Now().UTC(), Description: description}
+}
+
+// Start logs start of the trace
+func (t *Tracer) Start() *Tracer {
+	log.Debugf("Tracer started %v.", t.Description)
+	return t
+}
+
+// Stop logs stop of the trace
+func (t *Tracer) Stop() *Tracer {
+	log.Debugf("Tracer completed %v in %v.", t.Description, time.Now().Sub(t.Started))
+	return t
+}
+
+// ThisFunction returns calling function name
+func ThisFunction() string {
+	var pc [32]uintptr
+	runtime.Callers(2, pc[:])
+	return runtime.FuncForPC(pc[0]).Name()
+}
+
+// SyncString is a string value
+// that can be concurrently accessed
+type SyncString struct {
+	sync.Mutex
+	string
+}
+
+// Value returns value of the string
+func (s *SyncString) Value() string {
+	s.Lock()
+	defer s.Unlock()
+	return s.string
+}
+
+// Set sets the value of the string
+func (s *SyncString) Set(v string) {
+	s.Lock()
+	defer s.Unlock()
+	s.string = v
+}
+
+// ClickableURL fixes address in url to make sure
+// it's clickable, e.g. it replaces "undefined" address like
+// 0.0.0.0 used in network listeners format with loopback 127.0.0.1
+func ClickableURL(in string) string {
+	out, err := url.Parse(in)
+	if err != nil {
+		return in
+	}
+	host, port, err := net.SplitHostPort(out.Host)
+	if err != nil {
+		return in
+	}
+	ip := net.ParseIP(host)
+	// if address is not an IP, unspecified, e.g. all interfaces 0.0.0.0 or multicast,
+	// replace with localhost that is clickable
+	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() {
+		out.Host = fmt.Sprintf("127.0.0.1:%v", port)
+		return out.String()
+	}
+	return out.String()
+}
 
 // AsBool converts string to bool, in case of the value is empty
 // or unknown, defaults to false
@@ -56,7 +136,7 @@ func ParseBool(value string) (bool, error) {
 	}
 }
 
-// ParseAdvertiseAddress validates advertise address,
+// ParseAdvertiseAddr validates advertise address,
 // makes sure it's not an unreachable or multicast address
 // returns address split into host and port, port could be empty
 // if not specified
@@ -152,6 +232,7 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
+// ReadPath reads file contents
 func ReadPath(path string) ([]byte, error) {
 	if path == "" {
 		return nil, trace.NotFound("empty path")

@@ -92,7 +92,7 @@ type authorizer struct {
 	trust    services.Trust
 }
 
-// AuthzContext is authorization context
+// AuthContext is authorization context
 type AuthContext struct {
 	// User is the user name
 	User services.User
@@ -526,4 +526,4 @@ type RemoteUser struct {
 }
 
 // GetClusterConfigFunc returns a cached services.ClusterConfig.
-type GetClusterConfigFunc func() (services.ClusterConfig, error)
+type GetClusterConfigFunc func(opts ...services.MarshalOption) (services.ClusterConfig, error)

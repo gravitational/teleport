@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		Access:        NewAccessService(s.bk),
 		EventsS:       NewEventsService(s.bk),
 		ChangesC:      make(chan interface{}),
+		ConfigS:       NewClusterConfigurationService(s.bk),
 		Clock:         clock,
 	}
 }
@@ -135,4 +136,8 @@ func (s *ServicesSuite) TestRemoteClustersCRUD(c *check.C) {
 
 func (s *ServicesSuite) TestEvents(c *check.C) {
 	s.suite.Events(c)
+}
+
+func (s *ServicesSuite) TestEventsClusterConfig(c *check.C) {
+	s.suite.EventsClusterConfig(c)
 }

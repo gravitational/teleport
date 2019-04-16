@@ -36,6 +36,26 @@ type UtilsSuite struct {
 
 var _ = check.Suite(&UtilsSuite{})
 
+// TestLinear tests retry logic
+func (s *UtilsSuite) TestLinear(c *check.C) {
+	r, err := NewLinear(LinearConfig{
+		Step: time.Second,
+		Max:  3 * time.Second,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(r.Duration(), check.Equals, time.Duration(0))
+	r.Inc()
+	c.Assert(r.Duration(), check.Equals, time.Second)
+	r.Inc()
+	c.Assert(r.Duration(), check.Equals, 2*time.Second)
+	r.Inc()
+	c.Assert(r.Duration(), check.Equals, 3*time.Second)
+	r.Inc()
+	c.Assert(r.Duration(), check.Equals, 3*time.Second)
+	r.Reset()
+	c.Assert(r.Duration(), check.Equals, time.Duration(0))
+}
+
 func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	// call twice, get same result
 	dir := c.MkDir()
@@ -121,6 +141,26 @@ func (s *UtilsSuite) TestVersions(c *check.C) {
 		} else {
 			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
 		}
+	}
+}
+
+// TestClickableURL tests clickable URL conversions
+func (s *UtilsSuite) TestClickableURL(c *check.C) {
+	testCases := []struct {
+		info string
+		in   string
+		out  string
+	}{
+		{info: "original URL is OK", in: "http://127.0.0.1:3000/hello", out: "http://127.0.0.1:3000/hello"},
+		{info: "unspecified IPV6", in: "http://[::]:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
+		{info: "unspecified IPV4", in: "http://0.0.0.0:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
+		{info: "specified IPV4", in: "http://192.168.1.1:5050/howdy", out: "http://192.168.1.1:5050/howdy"},
+		{info: "specified IPV6", in: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy", out: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy"},
+	}
+	for i, testCase := range testCases {
+		comment := check.Commentf("test case %v %q", i, testCase.info)
+		out := ClickableURL(testCase.in)
+		c.Assert(out, check.Equals, testCase.out, comment)
 	}
 }
 

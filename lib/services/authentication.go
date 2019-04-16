@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -32,6 +33,16 @@ import (
 // AuthPreference is a configuration resource, never create more than one instance
 // of it.
 type AuthPreference interface {
+	// Expiry returns object expiry setting
+	Expiry() time.Time
+	// SetExpiry sets object expiry
+	SetExpiry(time.Time)
+
+	// GetResourceID returns resource ID
+	GetResourceID() int64
+	// SetResourceID sets resource ID
+	SetResourceID(int64)
+
 	// GetType gets the type of authentication: local, saml, or oidc.
 	GetType() string
 	// SetType sets the type of authentication: local, saml, or oidc.
@@ -80,6 +91,9 @@ type AuthPreferenceV2 struct {
 	// Kind is a resource kind - always resource.
 	Kind string `json:"kind"`
 
+	// SubKind is a resource sub kind
+	SubKind string `json:"sub_kind,omitempty"`
+
 	// Version is a resource version.
 	Version string `json:"version"`
 
@@ -88,6 +102,41 @@ type AuthPreferenceV2 struct {
 
 	// Spec is the specification of the resource.
 	Spec AuthPreferenceSpecV2 `json:"spec"`
+}
+
+// SetExpiry sets expiry time for the object
+func (s *AuthPreferenceV2) SetExpiry(expires time.Time) {
+	s.Metadata.SetExpiry(expires)
+}
+
+// Expirey returns object expiry setting
+func (s *AuthPreferenceV2) Expiry() time.Time {
+	return s.Metadata.Expiry()
+}
+
+// GetResourceID returns resource ID
+func (c *AuthPreferenceV2) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *AuthPreferenceV2) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
+// GetKind returns resource kind
+func (c *AuthPreferenceV2) GetKind() string {
+	return c.Kind
+}
+
+// GetSubKind returns resource subkind
+func (c *AuthPreferenceV2) GetSubKind() string {
+	return c.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (c *AuthPreferenceV2) SetSubKind(sk string) {
+	c.SubKind = sk
 }
 
 // GetType returns the type of authentication.
@@ -239,7 +288,7 @@ func GetAuthPreferenceSchema(extensionSchema string) string {
 // mostly adds support for extended versions.
 type AuthPreferenceMarshaler interface {
 	Marshal(c AuthPreference, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte) (AuthPreference, error)
+	Unmarshal(bytes []byte, opts ...MarshalOption) (AuthPreference, error)
 }
 
 var authPreferenceMarshaler AuthPreferenceMarshaler = &TeleportAuthPreferenceMarshaler{}
@@ -259,18 +308,34 @@ func GetAuthPreferenceMarshaler() AuthPreferenceMarshaler {
 type TeleportAuthPreferenceMarshaler struct{}
 
 // Unmarshal unmarshals role from JSON or YAML.
-func (t *TeleportAuthPreferenceMarshaler) Unmarshal(bytes []byte) (AuthPreference, error) {
+func (t *TeleportAuthPreferenceMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (AuthPreference, error) {
 	var authPreference AuthPreferenceV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	err := utils.UnmarshalWithSchema(GetAuthPreferenceSchema(""), &authPreference, bytes)
+	cfg, err := collectOptions(opts)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.Wrap(err)
 	}
 
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(bytes, &authPreference); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	} else {
+		err := utils.UnmarshalWithSchema(GetAuthPreferenceSchema(""), &authPreference, bytes)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	}
+	if cfg.ID != 0 {
+		authPreference.SetResourceID(cfg.ID)
+	}
+	if !cfg.Expires.IsZero() {
+		authPreference.SetExpiry(cfg.Expires)
+	}
 	return &authPreference, nil
 }
 
