@@ -107,7 +107,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 		userErrorMessage := "port forwarding not allowed"
 
 		// emit port forward failure event
-		h.AuditLog.EmitAuditEvent(events.PortForwardEvent, events.EventFields{
+		h.AuditLog.EmitAuditEvent(events.PortForwardFailure, events.EventFields{
 			events.PortForwardAddr:    addr,
 			events.PortForwardSuccess: false,
 			events.PortForwardErr:     systemErrorMessage,
@@ -169,7 +169,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			events.AuthAttemptErr:     err.Error(),
 		}
 		h.Warnf("failed login attempt %#v", fields)
-		h.AuditLog.EmitAuditEvent(events.AuthAttemptEvent, fields)
+		h.AuditLog.EmitAuditEvent(events.AuthAttemptFailure, fields)
 	}
 
 	certChecker := ssh.CertChecker{IsUserAuthority: h.IsUserAuthority}

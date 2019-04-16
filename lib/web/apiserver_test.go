@@ -1399,31 +1399,36 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 	e1 := events.EventFields{
 		events.EventID:   uuid.New(),
 		events.EventType: "event.1",
+		events.EventCode: "event.1",
 		events.EventTime: s.clock.Now().Format(time.RFC3339),
 	}
 	e2 := events.EventFields{
 		events.EventID:   uuid.New(),
 		events.EventType: "event.2",
+		events.EventCode: "event.2",
 		events.EventTime: s.clock.Now().Format(time.RFC3339),
 	}
 	e3 := events.EventFields{
 		events.EventID:   uuid.New(),
 		events.EventType: "event.3",
+		events.EventCode: "event.3",
 		events.EventTime: s.clock.Now().Format(time.RFC3339),
 	}
 	e4 := events.EventFields{
 		events.EventID:   uuid.New(),
 		events.EventType: "event.3",
+		events.EventCode: "event.3",
 		events.EventTime: s.clock.Now().Format(time.RFC3339),
 	}
 	e5 := events.EventFields{
 		events.EventID:   uuid.New(),
 		events.EventType: "event.1",
+		events.EventCode: "event.1",
 		events.EventTime: s.clock.Now().Format(time.RFC3339),
 	}
 
 	for _, e := range []events.EventFields{e1, e2, e3, e4, e5} {
-		c.Assert(s.proxyClient.EmitAuditEvent(e.GetType(), e), IsNil)
+		c.Assert(s.proxyClient.EmitAuditEvent(events.Event{Name: e.GetType()}, e), IsNil)
 	}
 
 	testCases := []struct {

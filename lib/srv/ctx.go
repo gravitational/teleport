@@ -62,7 +62,7 @@ type Server interface {
 	PermitUserEnvironment() bool
 
 	// EmitAuditEvent emits an Audit Event to the Auth Server.
-	EmitAuditEvent(string, events.EventFields)
+	EmitAuditEvent(events.Event, events.EventFields)
 
 	// GetAuditLog returns the Audit Log for this cluster.
 	GetAuditLog() events.IAuditLog

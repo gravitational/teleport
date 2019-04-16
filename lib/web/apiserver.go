@@ -1587,11 +1587,11 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	events, err := clt.SearchEvents(from, to, query.Encode(), limit)
+	fields, err := clt.SearchEvents(from, to, query.Encode(), limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return eventsListGetResponse{Events: events}, nil
+	return eventsListGetResponse{Events: fields}, nil
 }
 
 // queryTime parses the query string parameter with the specified name as a

@@ -207,7 +207,7 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 		dialer = net.Dial
 	}
 	transport := &http.Transport{
-		Dial: dialer,
+		Dial:                  dialer,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 	}
 	params = append(params,
@@ -1642,10 +1642,12 @@ func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 }
 
 // EmitAuditEvent sends an auditable event to the auth server (part of evets.IAuditLog interface)
-func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) error {
+func (c *Client) EmitAuditEvent(event events.Event, fields events.EventFields) error {
 	_, err := c.PostJSON(c.Endpoint("events"), &auditEventReq{
-		Type:   eventType,
+		Event:  event,
 		Fields: fields,
+		// Send "type" as well for backwards compatibility.
+		Type: event.Name,
 	})
 	if err != nil {
 		return trace.Wrap(err)

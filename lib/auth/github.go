@@ -84,13 +84,13 @@ type GithubAuthResponse struct {
 func (a *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
 	re, err := a.validateGithubAuthCallback(q)
 	if err != nil {
-		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		a.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
 			events.LoginMethod:        events.LoginMethodGithub,
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     err.Error(),
 		})
 	} else {
-		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		a.EmitAuditEvent(events.UserSSOLogin, events.EventFields{
 			events.EventUser:          re.Username,
 			events.AuthAttemptSuccess: true,
 			events.LoginMethod:        events.LoginMethodGithub,
@@ -502,7 +502,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
-			c.authServer.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			c.authServer.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
 				events.LoginMethod:        events.LoginMethodGithub,
 				events.AuthAttemptMessage: warningMessage,
 			})

@@ -128,14 +128,14 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	re, err := a.validateOIDCAuthCallback(q)
 	if err != nil {
-		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		a.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
 			events.LoginMethod:        events.LoginMethodOIDC,
 			events.AuthAttemptSuccess: false,
 			// log the original internal error in audit log
 			events.AuthAttemptErr: trace.Unwrap(err).Error(),
 		})
 	} else {
-		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		a.EmitAuditEvent(events.UserSSOLogin, events.EventFields{
 			events.EventUser:          re.Username,
 			events.AuthAttemptSuccess: true,
 			events.LoginMethod:        events.LoginMethodOIDC,
@@ -549,7 +549,7 @@ collect:
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
-			g.auditLog.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			g.auditLog.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
 				events.LoginMethod:        events.LoginMethodOIDC,
 				events.AuthAttemptMessage: warningMessage,
 			})

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -45,6 +46,8 @@ type ForwarderConfig struct {
 	ForwardTo IAuditLog
 	// Clock is a clock to set for tests
 	Clock clockwork.Clock
+	// UID is UID generator
+	UID utils.UID
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -57,6 +60,9 @@ func (s *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
+	}
+	if s.UID == nil {
+		s.UID = utils.NewRealUID()
 	}
 	return nil
 }
@@ -106,14 +112,18 @@ func (l *Forwarder) Close() error {
 }
 
 // EmitAuditEvent emits audit event
-func (l *Forwarder) EmitAuditEvent(eventType string, fields EventFields) error {
+func (l *Forwarder) EmitAuditEvent(event Event, fields EventFields) error {
+	err := UpdateEventFields(event, fields, l.Clock, l.UID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	data, err := json.Marshal(fields)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	chunks := []*SessionChunk{
 		{
-			EventType: eventType,
+			EventType: event.Name,
 			Data:      data,
 			Time:      time.Now().UTC().UnixNano(),
 		},

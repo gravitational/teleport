@@ -313,7 +313,7 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 		return trace.Wrap(err)
 	}
 	l.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
-	return l.EmitAuditEvent(SessionUploadEvent, EventFields{
+	return l.EmitAuditEvent(SessionUpload, EventFields{
 		SessionEventID: string(r.SessionID),
 		URL:            url,
 		EventIndex:     math.MaxInt32,
@@ -349,7 +349,7 @@ func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := l.EmitAuditEvent(chunk.EventType, fields); err != nil {
+		if err := l.EmitAuditEvent(Event{Name: chunk.EventType}, fields); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -842,11 +842,11 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 }
 
 // EmitAuditEvent adds a new event to the log. Part of auth.IAuditLog interface.
-func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
+func (l *AuditLog) EmitAuditEvent(event Event, fields EventFields) error {
 	if l.ExternalLog != nil {
-		return l.ExternalLog.EmitAuditEvent(eventType, fields)
+		return l.ExternalLog.EmitAuditEvent(event, fields)
 	}
-	return l.localLog.EmitAuditEvent(eventType, fields)
+	return l.localLog.EmitAuditEvent(event, fields)
 }
 
 // emitEvent emits event for test purposes

@@ -288,10 +288,10 @@ func (s *Server) Component() string {
 }
 
 // EmitAuditEvent sends an event to the Audit Log.
-func (s *Server) EmitAuditEvent(eventType string, fields events.EventFields) {
+func (s *Server) EmitAuditEvent(event events.Event, fields events.EventFields) {
 	auditLog := s.GetAuditLog()
 	if auditLog != nil {
-		if err := auditLog.EmitAuditEvent(eventType, fields); err != nil {
+		if err := auditLog.EmitAuditEvent(event, fields); err != nil {
 			s.log.Error(err)
 		}
 	} else {
@@ -616,7 +616,7 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 	defer conn.Close()
 
 	// Emit a port forwarding audit event.
-	s.EmitAuditEvent(events.PortForwardEvent, events.EventFields{
+	s.EmitAuditEvent(events.PortForward, events.EventFields{
 		events.PortForwardAddr:    dstAddr,
 		events.PortForwardSuccess: true,
 		events.EventLogin:         s.identityContext.Login,

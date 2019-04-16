@@ -317,7 +317,7 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	alog.Clock = clockwork.NewFakeClockAt(now)
 
 	// emit regular event:
-	err = alog.EmitAuditEvent("user.joined", EventFields{"apples?": "yes"})
+	err = alog.EmitAuditEvent(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
 	c.Assert(err, check.IsNil)
 	logfile := alog.localLog.file.Name()
 	c.Assert(alog.Close(), check.IsNil)
@@ -348,7 +348,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		clock.Advance(duration)
 
 		// emit regular event:
-		err = alog.EmitAuditEvent("user.joined", EventFields{"apples?": "yes"})
+		err = alog.EmitAuditEvent(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
 		c.Assert(err, check.IsNil)
 		logfile := alog.localLog.file.Name()
 
