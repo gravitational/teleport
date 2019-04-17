@@ -164,14 +164,14 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[override]]
   name = "k8s.io/api"
-  branch = "release-1.9"
+  branch = "release-1.13"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  branch = "release-1.9"
+  branch = "release-1.13"
 
 [[constraint]]
-  version = "6.0.0"
+  version = "10.0.0"
   name = "k8s.io/client-go"
 
 [[constraint]]
@@ -181,3 +181,11 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
   version = "=v0.4.9"
+
+[[override]]
+  name = "gopkg.in/yaml.v2"
+  version = "=v2.2.2"
+
+[[override]]
+  name = "github.com/json-iterator/go"
+  version = "=1.1.5"
