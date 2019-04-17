@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -110,13 +111,10 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 	c.Assert(err, check.IsNil)
 	p.backend = backend.NewWrapper(bk)
 
-	cacheDir := c.MkDir()
-	p.cacheBackend, err = lite.NewWithConfig(
-		context.TODO(),
-		lite.Config{
-			Path:      cacheDir,
-			EventsOff: true,
-			Mirror:    true,
+	p.cacheBackend, err = memory.New(
+		memory.Config{
+			Context: context.TODO(),
+			Mirror:  true,
 		})
 	c.Assert(err, check.IsNil)
 
@@ -265,6 +263,50 @@ func (s *CacheSuite) onlyRecentDisconnect(c *check.C) {
 	ca.SetResourceID(out.GetResourceID())
 	services.RemoveCASecrets(ca)
 	fixtures.DeepCompare(c, ca, out)
+}
+
+// TestWatchers tests watchers connected to the cache,
+// verifies that all watchers of the cache will be closed
+// if the underlying watcher to the target backend is closed
+func (s *CacheSuite) TestWatchers(c *check.C) {
+	p := s.newPackForAuth(c)
+	defer p.Close()
+
+	w, err := p.cache.NewWatcher(context.TODO(), services.Watch{Kinds: []services.WatchKind{
+		{
+			Kind: services.KindCertAuthority,
+		},
+	}})
+	c.Assert(err, check.IsNil)
+	defer w.Close()
+
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, backend.OpInit)
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	ca := suite.NewTestCA(services.UserCA, "example.com")
+	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, backend.OpPut)
+		c.Assert(e.Resource.GetKind(), check.Equals, services.KindCertAuthority)
+	case <-time.After(time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	// event has arrived, now close the watchers
+	p.backend.CloseWatchers()
+
+	// make sure watcher has been closed
+	select {
+	case <-w.Done():
+	case <-time.After(time.Second):
+		c.Fatalf("Timeout waiting for close event.")
+	}
 }
 
 func waitForRestart(c *check.C, eventsC <-chan CacheEvent) {

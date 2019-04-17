@@ -244,6 +244,12 @@ func (b *EtcdBackend) Close() error {
 	return b.client.Close()
 }
 
+// CloseWatchers closes all the watchers
+// without closing the backend
+func (b *EtcdBackend) CloseWatchers() {
+	b.buf.Reset()
+}
+
 func (b *EtcdBackend) reconnect() error {
 	clientCertPEM, err := ioutil.ReadFile(b.cfg.TLSCertFile)
 	if err != nil {

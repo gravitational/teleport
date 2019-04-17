@@ -132,6 +132,12 @@ func (s *Wrapper) Close() error {
 	return s.backend.Close()
 }
 
+// CloseWatchers closes all the watchers
+// without closing the backend
+func (s *Wrapper) CloseWatchers() {
+	s.backend.CloseWatchers()
+}
+
 // Clock returns clock used by this backend
 func (s *Wrapper) Clock() clockwork.Clock {
 	return s.backend.Clock()

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -38,13 +39,41 @@ type shardEvent struct {
 }
 
 func (b *DynamoDBBackend) asyncPollStreams(ctx context.Context) error {
-	err := b.pollStreams(ctx)
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Step: b.RetryPeriod / 10,
+		Max:  b.RetryPeriod,
+	})
 	if err != nil {
-		b.Errorf("Poll streams returned with error: %v", err)
+		b.Errorf("Bad retry parameters: %v", err)
+		return trace.Wrap(err)
 	}
-	return err
+
+	for {
+		err := b.pollStreams(ctx)
+		if err != nil {
+			// this is optimization to avoid extra logging
+			// and extra checks, the code path could end up
+			// in ctx.Done() select condition below
+			if b.isClosed() {
+				return trace.Wrap(err)
+			}
+			b.Errorf("Poll streams returned with error: %v.", err)
+		}
+		b.Debugf("Reloading %v.", retry)
+		select {
+		case <-retry.After():
+			retry.Inc()
+		case <-ctx.Done():
+			b.Debugf("Closed, returning from asyncPollStreams loop.")
+			return nil
+		}
+	}
 }
-func (b *DynamoDBBackend) pollStreams(ctx context.Context) error {
+
+func (b *DynamoDBBackend) pollStreams(externalCtx context.Context) error {
+	ctx, cancel := context.WithCancel(externalCtx)
+	defer cancel()
+
 	streamArn, err := b.findStream(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -53,6 +82,26 @@ func (b *DynamoDBBackend) pollStreams(ctx context.Context) error {
 
 	set := make(map[string]struct{})
 	eventsC := make(chan shardEvent)
+
+	refreshShards := func() error {
+		shards, err := b.collectActiveShards(ctx, streamArn)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for i := range shards {
+			shardID := aws.StringValue(shards[i].ShardId)
+			if _, ok := set[shardID]; !ok {
+				b.Debugf("Adding active shard %v.", shardID)
+				set[shardID] = struct{}{}
+				go b.asyncPollShard(ctx, streamArn, shards[i], eventsC)
+			}
+		}
+		return nil
+	}
+
+	if err := refreshShards(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()
@@ -63,25 +112,16 @@ func (b *DynamoDBBackend) pollStreams(ctx context.Context) error {
 			if event.err != nil {
 				delete(set, event.shardID)
 				if event.err != io.EOF {
-					b.Debugf("Shard ID %v closed with error: %v.", event.shardID, event.err)
-				} else {
-					b.Debugf("Shard ID %v exited gracefully.", event.shardID)
+					b.Debugf("Shard ID %v closed with error: %v, reseting buffers.", event.shardID, event.err)
+					return trace.Wrap(event.err)
 				}
+				b.Debugf("Shard ID %v exited gracefully.", event.shardID)
 			} else {
 				b.buf.PushBatch(event.events)
 			}
 		case <-ticker.C:
-			shards, err := b.collectActiveShards(ctx, streamArn)
-			if err != nil {
+			if err := refreshShards(); err != nil {
 				return trace.Wrap(err)
-			}
-			for i := range shards {
-				shardID := aws.StringValue(shards[i].ShardId)
-				if _, ok := set[shardID]; !ok {
-					b.Debugf("Adding active shard %v.", shardID)
-					set[shardID] = struct{}{}
-					go b.asyncPollShard(ctx, streamArn, shards[i], eventsC)
-				}
 			}
 		case <-ctx.Done():
 			b.Debugf("Context is closing, returning.")
@@ -119,6 +159,8 @@ func (b *DynamoDBBackend) pollShard(ctx context.Context, streamArn *string, shar
 	b.signalWatchStart()
 	for {
 		select {
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "context is closing")
 		case <-ticker.C:
 			out, err := b.streams.GetRecordsWithContext(ctx, &dynamodbstreams.GetRecordsInput{
 				ShardIterator: iterator,
@@ -126,16 +168,16 @@ func (b *DynamoDBBackend) pollShard(ctx context.Context, streamArn *string, shar
 			if err != nil {
 				return convertError(err)
 			}
-			b.Debugf("Got %v stream shard records", len(out.Records))
+			b.Debugf("Got %v stream shard records.", len(out.Records))
 			if len(out.Records) == 0 {
 				if out.NextShardIterator == nil {
-					b.Debugf("Shard is closed: %v", aws.StringValue(shard.ShardId))
+					b.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 					return io.EOF
 				}
 				continue
 			}
 			if out.NextShardIterator == nil {
-				b.Debugf("Shard is closed: %v", aws.StringValue(shard.ShardId))
+				b.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 				return io.EOF
 			}
 			events := make([]backend.Event, 0, len(out.Records))

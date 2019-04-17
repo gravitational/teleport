@@ -61,15 +61,27 @@ func NewCircularBuffer(ctx context.Context, size int) (*CircularBuffer, error) {
 	return buf, nil
 }
 
-// Close closes circular buffer and all watchers
-func (c *CircularBuffer) Close() error {
-	c.cancel()
+// Reset resets all events from the queue
+// and closes all active watchers
+func (c *CircularBuffer) Reset() {
 	c.Lock()
 	defer c.Unlock()
 	for _, w := range c.watchers {
 		w.Close()
 	}
 	c.watchers = nil
+	c.start = -1
+	c.end = -1
+	c.size = 0
+	for i := 0; i < len(c.events); i++ {
+		c.events[i] = Event{}
+	}
+}
+
+// Close closes circular buffer and all watchers
+func (c *CircularBuffer) Close() error {
+	c.cancel()
+	c.Reset()
 	return nil
 }
 
@@ -126,7 +138,7 @@ func (c *CircularBuffer) push(r Event) {
 	} else if c.size < len(c.events) {
 		c.end = (c.end + 1) % len(c.events)
 		c.events[c.end] = r
-		c.size += 1
+		c.size++
 	} else {
 		c.end = c.start
 		c.start = (c.start + 1) % len(c.events)

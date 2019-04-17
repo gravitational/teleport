@@ -125,7 +125,7 @@ proxy:
     # We assume TLS is terminated in front of the proxy by default
     enabled: true
     # tweak this if you have multiple proxies in a single namespace
-    fullname: tls-web
+    secretName: tls-web
 
 license:
   ## Set false to run Teleport in Community edition mode

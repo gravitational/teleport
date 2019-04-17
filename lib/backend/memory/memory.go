@@ -133,6 +133,12 @@ func (m *Memory) Close() error {
 	return nil
 }
 
+// CloseWatchers closes all the watchers
+// without closing the backend
+func (m *Memory) CloseWatchers() {
+	m.buf.Reset()
+}
+
 // Clock returns clock used by this backend
 func (m *Memory) Clock() clockwork.Clock {
 	return m.Config.Clock
