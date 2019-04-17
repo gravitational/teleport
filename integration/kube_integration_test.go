@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -854,8 +854,7 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	upgradeRoundTripper := streamspdy.NewSpdyRoundTripper(tlsConfig, true)
+	upgradeRoundTripper := streamspdy.NewSpdyRoundTripper(tlsConfig, true, false)
 	client := &http.Client{
 		Transport: upgradeRoundTripper,
 	}
