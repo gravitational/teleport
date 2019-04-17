@@ -114,19 +114,15 @@ type FileLog struct {
 }
 
 // EmitAuditEvent adds a new event to the log. Part of auth.IFileLog interface.
-func (l *FileLog) EmitAuditEvent(eventType string, fields EventFields) error {
+func (l *FileLog) EmitAuditEvent(event Event, fields EventFields) error {
 	// see if the log needs to be rotated
-	if err := l.rotateLog(); err != nil {
+	err := l.rotateLog()
+	if err != nil {
 		log.Error(err)
 	}
-
-	// set event type, unique ID and time:
-	fields[EventType] = eventType
-	if fields.GetID() == "" {
-		fields[EventID] = l.UIDGenerator.New()
-	}
-	if _, ok := fields[EventTime]; !ok {
-		fields[EventTime] = l.Clock.Now().In(time.UTC).Round(time.Second)
+	err = UpdateEventFields(event, fields, l.Clock, l.UIDGenerator)
+	if err != nil {
+		log.Error(err)
 	}
 	// line is the text to be logged
 	line, err := json.Marshal(fields)
@@ -276,7 +272,7 @@ func (l *FileLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := l.EmitAuditEvent(chunk.EventType, fields); err != nil {
+		if err := l.EmitAuditEvent(Event{Name: chunk.EventType}, fields); err != nil {
 			return trace.Wrap(err)
 		}
 	}

@@ -85,7 +85,7 @@ type Server interface {
 	PermitUserEnvironment() bool
 
 	// EmitAuditEvent emits an Audit Event to the Auth Server.
-	EmitAuditEvent(string, events.EventFields)
+	EmitAuditEvent(events.Event, events.EventFields)
 
 	// GetAuditLog returns the Audit Log for this cluster.
 	GetAuditLog() events.IAuditLog
@@ -489,7 +489,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	if c.session != nil {
 		eventFields[events.SessionEventID] = c.session.id
 	}
-	c.GetServer().GetAuditLog().EmitAuditEvent(events.SessionDataEvent, eventFields)
+	c.GetServer().GetAuditLog().EmitAuditEvent(events.SessionData, eventFields)
 
 	// Emit TX and RX bytes to their respective Prometheus counters.
 	serverTX.Add(float64(txBytes))

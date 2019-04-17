@@ -61,7 +61,7 @@ func (d *MockAuditLog) Close() error {
 	return nil
 }
 
-func (d *MockAuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
+func (d *MockAuditLog) EmitAuditEvent(event Event, fields EventFields) error {
 	return nil
 }
 

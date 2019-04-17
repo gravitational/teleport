@@ -85,7 +85,7 @@ type EventsSuite struct {
 // SessionEventsCRUD covers session events
 func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// Bob has logged in
-	err := s.Log.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+	err := s.Log.EmitAuditEvent(events.UserLocalLogin, events.EventFields{
 		events.LoginMethod:        events.LoginMethodSAML,
 		events.AuthAttemptSuccess: true,
 		events.EventUser:          "bob",

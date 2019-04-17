@@ -285,7 +285,7 @@ func (f *fakeServer) PermitUserEnvironment() bool {
 	return true
 }
 
-func (f *fakeServer) EmitAuditEvent(string, events.EventFields) {
+func (s *fakeServer) EmitAuditEvent(events.Event, events.EventFields) {
 }
 
 func (f *fakeServer) GetAuditLog() events.IAuditLog {
