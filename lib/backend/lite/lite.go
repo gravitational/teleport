@@ -776,6 +776,12 @@ func (l *LiteBackend) Close() error {
 	return l.closeDatabase()
 }
 
+// CloseWatchers closes all the watchers
+// without closing the backend
+func (l *LiteBackend) CloseWatchers() {
+	l.buf.Reset()
+}
+
 func (l *LiteBackend) isClosed() bool {
 	return atomic.LoadInt32(&l.closedFlag) == 1
 }

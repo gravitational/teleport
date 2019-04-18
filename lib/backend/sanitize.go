@@ -162,3 +162,9 @@ func (s *Sanitizer) Close() error {
 func (s *Sanitizer) Clock() clockwork.Clock {
 	return s.backend.Clock()
 }
+
+// CloseWatchers closes all the watchers
+// without closing the backend
+func (s *Sanitizer) CloseWatchers() {
+	s.backend.CloseWatchers()
+}

@@ -205,6 +205,12 @@ func (s *Reporter) Close() error {
 	return s.Backend.Close()
 }
 
+// CloseWatchers closes all the watchers
+// without closing the backend
+func (s *Reporter) CloseWatchers() {
+	s.Backend.CloseWatchers()
+}
+
 // Clock returns clock used by this backend
 func (s *Reporter) Clock() clockwork.Clock {
 	return s.Backend.Clock()

@@ -47,7 +47,10 @@ func (s *BufferSuite) list(c *check.C, bufferSize int, listSize int) {
 	b, err := NewCircularBuffer(context.Background(), bufferSize)
 	c.Assert(err, check.IsNil)
 	defer b.Close()
+	s.listWithBuffer(c, b, bufferSize, listSize)
+}
 
+func (s *BufferSuite) listWithBuffer(c *check.C, b *CircularBuffer, bufferSize int, listSize int) {
 	// empty by default
 	expectEvents(c, b, nil)
 
@@ -75,7 +78,19 @@ func (s *BufferSuite) TestBufferSizes(c *check.C) {
 	s.list(c, 4, 100)
 }
 
-// TestWatcher tests scenarios with watchers
+// TestBufferSizesReset tests various combinations of various
+// buffer sizes and lists with reset
+func (s *BufferSuite) TestBufferSizesReset(c *check.C) {
+	b, err := NewCircularBuffer(context.Background(), 1)
+	c.Assert(err, check.IsNil)
+	defer b.Close()
+
+	s.listWithBuffer(c, b, 1, 100)
+	b.Reset()
+	s.listWithBuffer(c, b, 1, 100)
+}
+
+// TestWatcherSimple tests scenarios with watchers
 func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	ctx := context.TODO()
 	b, err := NewCircularBuffer(ctx, 3)
@@ -90,7 +105,7 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	case e := <-w.Events():
 		c.Assert(e.Type, check.Equals, OpInit)
 	case <-time.After(100 * time.Millisecond):
-		c.Fatalf("timeout waiting for event")
+		c.Fatalf("Timeout waiting for event.")
 	}
 
 	b.Push(Event{Item: Item{ID: 1}})
@@ -99,7 +114,7 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	case e := <-w.Events():
 		c.Assert(e.Item.ID, check.Equals, int64(1))
 	case <-time.After(100 * time.Millisecond):
-		c.Fatalf("timeout waiting for event")
+		c.Fatalf("Timeout waiting for event.")
 	}
 
 	b.Close()
@@ -111,7 +126,56 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	case <-w.Events():
 		c.Fatalf("unexpected event")
 	case <-time.After(100 * time.Millisecond):
-		c.Fatalf("timeout waiting for event")
+		c.Fatalf("Timeout waiting for event.")
+	}
+}
+
+// TestWatcherReset tests scenarios with watchers and buffer resets
+func (s *BufferSuite) TestWatcherReset(c *check.C) {
+	ctx := context.TODO()
+	b, err := NewCircularBuffer(ctx, 3)
+	c.Assert(err, check.IsNil)
+	defer b.Close()
+
+	w, err := b.NewWatcher(ctx, Watch{})
+	c.Assert(err, check.IsNil)
+	defer w.Close()
+
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, OpInit)
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	b.Push(Event{Item: Item{ID: 1}})
+	b.Reset()
+
+	// make sure watcher has been closed
+	select {
+	case <-w.Done():
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("Timeout waiting for close event.")
+	}
+
+	w2, err := b.NewWatcher(ctx, Watch{})
+	c.Assert(err, check.IsNil)
+	defer w2.Close()
+
+	select {
+	case e := <-w2.Events():
+		c.Assert(e.Type, check.Equals, OpInit)
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	b.Push(Event{Item: Item{ID: 2}})
+
+	select {
+	case e := <-w2.Events():
+		c.Assert(e.Item.ID, check.Equals, int64(2))
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("Timeout waiting for event.")
 	}
 }
 

@@ -173,9 +173,9 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 	t1.TextStyle = ui.NewStyle(ui.ColorBlack)
 	t1.Rows = [][]string{
 		[]string{"Interactive Sessions", humanize.FormatFloat("", re.Cluster.InteractiveSessions)},
-		[]string{"Certificate Generate Active Requests", humanize.FormatFloat("", re.Cluster.GenerateRequests)},
-		[]string{"Certificate Generate Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsCount.GetFreq())},
-		[]string{"Certificate Generate Throttled Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsThrottledCount.GetFreq())},
+		[]string{"Cert Gen Active Requests", humanize.FormatFloat("", re.Cluster.GenerateRequests)},
+		[]string{"Cert Gen Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsCount.GetFreq())},
+		[]string{"Cert Gen Throttled Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsThrottledCount.GetFreq())},
 	}
 	for _, rc := range re.Cluster.RemoteClusters {
 		t1.Rows = append(t1.Rows, []string{

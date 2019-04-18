@@ -3,14 +3,11 @@ package backend
 import (
 	"context"
 	"fmt"
-	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
-
-func TestSanitizer(t *testing.T) { check.TestingT(t) }
 
 type Suite struct {
 }
@@ -132,4 +129,10 @@ func (n *nopBackend) Clock() clockwork.Clock {
 // NewWatcher returns a new event watcher
 func (n *nopBackend) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	return nil, nil
+}
+
+// CloseWatchers closes all the watchers
+// without closing the backend
+func (n *nopBackend) CloseWatchers() {
+
 }

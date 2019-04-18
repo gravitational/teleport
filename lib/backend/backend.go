@@ -76,6 +76,10 @@ type Backend interface {
 
 	// Clock returns clock used by this backend
 	Clock() clockwork.Clock
+
+	// CloseWatchers closes all the watchers
+	// without closing the backend
+	CloseWatchers()
 }
 
 // Batch implements some batch methods

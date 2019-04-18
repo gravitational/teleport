@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -63,6 +64,8 @@ type DynamoConfig struct {
 	BufferSize int `json:"buffer_size,omitempty"`
 	// PollStreamPeriod is a polling period for event stream
 	PollStreamPeriod time.Duration `json:"poll_stream_period,omitempty"`
+	// RetryPeriod is a period between dynamo backend retries on failures
+	RetryPeriod time.Duration `json:"retry_period"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -84,6 +87,9 @@ func (cfg *DynamoConfig) CheckAndSetDefaults() error {
 	if cfg.PollStreamPeriod == 0 {
 		cfg.PollStreamPeriod = backend.DefaultPollStreamPeriod
 	}
+	if cfg.RetryPeriod == 0 {
+		cfg.RetryPeriod = defaults.HighResPollingPeriod
+	}
 	return nil
 }
 
@@ -99,6 +105,8 @@ type DynamoDBBackend struct {
 	cancel           context.CancelFunc
 	watchStarted     context.Context
 	signalWatchStart context.CancelFunc
+	// closedFlag is set to indicate that the database is closed
+	closedFlag int32
 }
 
 type record struct {
@@ -326,7 +334,7 @@ func (b *DynamoDBBackend) getAllRecords(ctx context.Context, startKey []byte, en
 			return nil, trace.Wrap(err)
 		}
 		result.records = append(result.records, re.records...)
-		if len(result.records) >= limit || len(result.lastEvaluatedKey) == 0 {
+		if len(result.records) >= limit || len(re.lastEvaluatedKey) == 0 {
 			result.lastEvaluatedKey = nil
 			return &result, nil
 		}
@@ -509,11 +517,26 @@ func (b *DynamoDBBackend) KeepAlive(ctx context.Context, lease backend.Lease, ex
 	return err
 }
 
+func (b *DynamoDBBackend) isClosed() bool {
+	return atomic.LoadInt32(&b.closedFlag) == 1
+}
+
+func (b *DynamoDBBackend) setClosed() {
+	atomic.StoreInt32(&b.closedFlag, 1)
+}
+
 // Close closes the DynamoDB driver
 // and releases associated resources
 func (b *DynamoDBBackend) Close() error {
+	b.setClosed()
 	b.cancel()
 	return b.buf.Close()
+}
+
+// CloseWatchers closes all the watchers
+// without closing the backend
+func (b *DynamoDBBackend) CloseWatchers() {
+	b.buf.Reset()
 }
 
 type tableStatus int
