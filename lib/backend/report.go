@@ -286,6 +286,13 @@ var (
 		},
 		[]string{teleport.ComponentLabel},
 	)
+	watcherQueues = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: teleport.MetricBackendWatcherQueues,
+			Help: "Watcher queue sizes",
+		},
+		[]string{teleport.ComponentLabel},
+	)
 	writeRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendWriteRequests,
@@ -387,6 +394,7 @@ var (
 func init() {
 	// Metrics have to be registered to be exposed:
 	prometheus.MustRegister(watchers)
+	prometheus.MustRegister(watcherQueues)
 	prometheus.MustRegister(requests)
 	prometheus.MustRegister(writeRequests)
 	prometheus.MustRegister(writeRequestsFailed)

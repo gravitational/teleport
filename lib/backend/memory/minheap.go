@@ -18,7 +18,6 @@ package memory
 
 import (
 	"container/heap"
-	"time"
 )
 
 // minHeap implements heap.Interface and holds backend items
@@ -71,13 +70,6 @@ func (mh *minHeap) PopEl() *btreeItem {
 func (mh *minHeap) PeekEl() *btreeItem {
 	items := *mh
 	return items[0]
-}
-
-// update modifies the priority and value of an Item in the queue.
-func (mh *minHeap) UpdateEl(el *btreeItem, expires time.Time) {
-	heap.Remove(mh, el.index)
-	el.Expires = expires
-	heap.Push(mh, el)
 }
 
 func (mh *minHeap) RemoveEl(el *btreeItem) {

@@ -1243,16 +1243,17 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 
 	return cache.New(cfg.setup(cache.Config{
-		Context:       process.ExitContext(),
-		Backend:       reporter,
-		Events:        cfg.services,
-		ClusterConfig: cfg.services,
-		Provisioner:   cfg.services,
-		Trust:         cfg.services,
-		Users:         cfg.services,
-		Access:        cfg.services,
-		Presence:      cfg.services,
-		Component:     teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
+		Context:         process.ExitContext(),
+		Backend:         reporter,
+		Events:          cfg.services,
+		ClusterConfig:   cfg.services,
+		Provisioner:     cfg.services,
+		Trust:           cfg.services,
+		Users:           cfg.services,
+		Access:          cfg.services,
+		Presence:        cfg.services,
+		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
+		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 	}))
 }
 

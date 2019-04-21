@@ -176,6 +176,7 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 		[]string{"Cert Gen Active Requests", humanize.FormatFloat("", re.Cluster.GenerateRequests)},
 		[]string{"Cert Gen Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsCount.GetFreq())},
 		[]string{"Cert Gen Throttled Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsThrottledCount.GetFreq())},
+		[]string{"Auth Watcher Queue Size", humanize.FormatFloat("", re.Cache.QueueSize)},
 	}
 	for _, rc := range re.Cluster.RemoteClusters {
 		t1.Rows = append(t1.Rows, []string{
@@ -383,6 +384,8 @@ type BackendStats struct {
 	// TopRequests is a collection of requests to
 	// backend and their counts
 	TopRequests map[RequestKey]Request
+	// QueueSize is a queue size of the cache watcher
+	QueueSize float64
 }
 
 // SortedTopRequests returns top requests sorted either
@@ -591,6 +594,8 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		stats = nil
 	}
 	collectBackendStats(teleport.ComponentCache, &re.Cache, stats)
+	re.Cache.QueueSize = getComponentGaugeValue(teleport.Component(teleport.ComponentAuth, teleport.ComponentCache),
+		metrics[teleport.MetricBackendWatcherQueues])
 
 	re.Process = ProcessStats{
 		CPUSecondsTotal:     getGaugeValue(metrics[teleport.MetricProcessCPUSecondsTotal]),
@@ -679,6 +684,18 @@ func getRemoteClusters(metric *dto.MetricFamily) []RemoteCluster {
 		out[i] = rc
 	}
 	return out
+}
+
+func getComponentGaugeValue(component string, metric *dto.MetricFamily) float64 {
+	if metric == nil || metric.GetType() != dto.MetricType_GAUGE || len(metric.Metric) == 0 || metric.Metric[0].Gauge == nil || metric.Metric[0].Gauge.Value == nil {
+		return 0
+	}
+	for i := range metric.Metric {
+		if matchesLabelValue(metric.Metric[i].Label, teleport.ComponentLabel, component) {
+			return *metric.Metric[i].Gauge.Value
+		}
+	}
+	return 0
 }
 
 func getGaugeValue(metric *dto.MetricFamily) float64 {

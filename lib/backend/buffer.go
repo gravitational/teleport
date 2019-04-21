@@ -20,9 +20,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/gravitational/teleport"
+
+	radix "github.com/armon/go-radix"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
@@ -38,7 +41,7 @@ type CircularBuffer struct {
 	start    int
 	end      int
 	size     int
-	watchers []*BufferWatcher
+	watchers *watcherTree
 }
 
 // NewCircularBuffer returns a new instance of circular buffer
@@ -51,12 +54,13 @@ func NewCircularBuffer(ctx context.Context, size int) (*CircularBuffer, error) {
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentBuffer,
 		}),
-		ctx:    ctx,
-		cancel: cancel,
-		events: make([]Event, size),
-		start:  -1,
-		end:    -1,
-		size:   0,
+		ctx:      ctx,
+		cancel:   cancel,
+		events:   make([]Event, size),
+		start:    -1,
+		end:      -1,
+		size:     0,
+		watchers: newWatcherTree(),
 	}
 	return buf, nil
 }
@@ -66,10 +70,11 @@ func NewCircularBuffer(ctx context.Context, size int) (*CircularBuffer, error) {
 func (c *CircularBuffer) Reset() {
 	c.Lock()
 	defer c.Unlock()
-	for _, w := range c.watchers {
+	// could close mulitple times
+	c.watchers.walk(func(w *BufferWatcher) {
 		w.Close()
-	}
-	c.watchers = nil
+	})
+	c.watchers = newWatcherTree()
 	c.start = -1
 	c.end = -1
 	c.size = 0
@@ -147,33 +152,51 @@ func (c *CircularBuffer) push(r Event) {
 	c.fanOutEvent(r)
 }
 
-func matchPrefix(prefixes [][]byte, e Event) bool {
-	if len(prefixes) == 0 {
-		return true
-	}
-	for _, prefix := range prefixes {
-		if bytes.HasPrefix(e.Item.Key, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
 func (c *CircularBuffer) fanOutEvent(r Event) {
-	for i, watcher := range c.watchers {
-		if !matchPrefix(watcher.Prefixes, r) {
-			continue
+	var watchersToDelete []*BufferWatcher
+	c.watchers.walkPath(string(r.Item.Key), func(watcher *BufferWatcher) {
+		if watcher.MetricComponent != "" {
+			watcherQueues.WithLabelValues(watcher.MetricComponent).Set(float64(len(watcher.eventsC)))
 		}
 		select {
 		case watcher.eventsC <- r:
 		case <-c.ctx.Done():
 			return
 		default:
-			c.Warningf("Closing %v, buffer overflow at %v elements.", watcher, len(watcher.eventsC))
-			watcher.Close()
-			c.watchers = append(c.watchers[:i], c.watchers[i+1:]...)
+			watchersToDelete = append(watchersToDelete, watcher)
+		}
+	})
+
+	for _, watcher := range watchersToDelete {
+		c.Warningf("Closing %v, buffer overflow at %v elements.", watcher, len(watcher.eventsC))
+		watcher.Close()
+		found := c.watchers.rm(watcher)
+		if !found {
+			c.Debugf("Could not find watcher %v.", watcher)
 		}
 	}
+}
+
+func removeRedundantPrefixes(prefixes [][]byte) [][]byte {
+	if len(prefixes) == 0 {
+		return prefixes
+	}
+	// group adjacent prefixes together
+	sort.Slice(prefixes, func(i, j int) bool {
+		return bytes.Compare(prefixes[i], prefixes[j]) == -1
+	})
+	// j increments only for values with non-redundant prefixes
+	j := 0
+	for i := 1; i < len(prefixes); i++ {
+		// skip keys that have first key as a prefix
+		if bytes.HasPrefix(prefixes[i], prefixes[j]) {
+			continue
+		}
+		j++
+		// assign the first non-matching key to the j
+		prefixes[j] = prefixes[i]
+	}
+	return prefixes[:j+1]
 }
 
 // NewWatcher adds a new watcher to the events buffer
@@ -189,6 +212,16 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 
 	if watch.QueueSize == 0 {
 		watch.QueueSize = len(c.events)
+	}
+
+	if len(watch.Prefixes) == 0 {
+		// if watcher has no prefixes, assume it will match anything
+		// starting from the separator (what includes all keys in backend invariant, see Keys function)
+		watch.Prefixes = append(watch.Prefixes, []byte{Separator})
+	} else {
+		// if watcher's prefixes are redundant, keep only shorter prefixes
+		// to avoid double fan out
+		watch.Prefixes = removeRedundantPrefixes(watch.Prefixes)
 	}
 
 	closeCtx, cancel := context.WithCancel(ctx)
@@ -209,7 +242,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 		w.Close()
 		return nil, trace.BadParameter("buffer overflow")
 	}
-	c.watchers = append(c.watchers, w)
+	c.watchers.add(w)
 	return w, nil
 }
 
@@ -251,4 +284,84 @@ func (w *BufferWatcher) Done() <-chan struct{} {
 func (w *BufferWatcher) Close() error {
 	w.cancel()
 	return nil
+}
+
+func newWatcherTree() *watcherTree {
+	return &watcherTree{
+		Tree: radix.New(),
+	}
+}
+
+type watcherTree struct {
+	*radix.Tree
+}
+
+// add adds buffer watcher to the tree
+func (t *watcherTree) add(w *BufferWatcher) {
+	for _, p := range w.Prefixes {
+		prefix := string(p)
+		val, ok := t.Tree.Get(prefix)
+		var watchers []*BufferWatcher
+		if ok {
+			watchers = val.([]*BufferWatcher)
+		}
+		watchers = append(watchers, w)
+		t.Tree.Insert(prefix, watchers)
+	}
+}
+
+// rm removes the buffer watcher from the prefix tree
+func (t *watcherTree) rm(w *BufferWatcher) bool {
+	if w == nil {
+		return false
+	}
+	var found bool
+	for _, p := range w.Prefixes {
+		prefix := string(p)
+		val, ok := t.Tree.Get(prefix)
+		if !ok {
+			continue
+		}
+		buffers := val.([]*BufferWatcher)
+		prevLen := len(buffers)
+		for i := range buffers {
+			if buffers[i] == w {
+				buffers = append(buffers[:i], buffers[i+1:]...)
+				found = true
+				break
+			}
+		}
+		if len(buffers) == 0 {
+			t.Tree.Delete(prefix)
+		} else if len(buffers) != prevLen {
+			t.Tree.Insert(prefix, buffers)
+		}
+	}
+	return found
+}
+
+// walkFn is a callback executed for every matching watcher
+type walkFn func(w *BufferWatcher)
+
+// walkPath walks the tree above the longest matching prefix
+// and calls fn callback for every buffer watcher
+func (t *watcherTree) walkPath(key string, fn walkFn) {
+	t.Tree.WalkPath(key, func(prefix string, val interface{}) bool {
+		watchers := val.([]*BufferWatcher)
+		for _, w := range watchers {
+			fn(w)
+		}
+		return false
+	})
+}
+
+// walk calls fn for every matching leaf of the tree
+func (t *watcherTree) walk(fn walkFn) {
+	t.Tree.Walk(func(prefix string, val interface{}) bool {
+		watchers := val.([]*BufferWatcher)
+		for _, w := range watchers {
+			fn(w)
+		}
+		return false
+	})
 }
