@@ -167,6 +167,8 @@ type Config struct {
 	Clock clockwork.Clock
 	// Component is a component used in logs
 	Component string
+	// MetricComponent is a component used in metrics
+	MetricComponent string
 	// QueueSize is a desired queue Size
 	QueueSize int
 }
@@ -431,9 +433,10 @@ func (c *Cache) notify(event CacheEvent) {
 //
 func (c *Cache) fetchAndWatch(retry utils.Retry, reloadC <-chan time.Time) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, services.Watch{
-		QueueSize: c.QueueSize,
-		Name:      c.Component,
-		Kinds:     c.watchKinds(),
+		QueueSize:       c.QueueSize,
+		Name:            c.Component,
+		Kinds:           c.watchKinds(),
+		MetricComponent: c.MetricComponent,
 	})
 	if err != nil {
 		c.notify(CacheEvent{Type: WatcherFailed})

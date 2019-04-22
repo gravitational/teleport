@@ -56,6 +56,14 @@
   revision = "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a"
 
 [[projects]]
+  branch = "master"
+  digest = "1:e5ca3dcabf1452b51be600af6e2ce0a93a94978ae231af802cf9736bdbd835cb"
+  name = "github.com/armon/go-radix"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "1a2de0c21c94309923825da3df33a4381872c795"
+
+[[projects]]
   digest = "1:b3d365f0c970ca096f9dff0bb7fb948fe14e97a29d60e61c2861919c8a484780"
   name = "github.com/aws/aws-sdk-go"
   packages = [
@@ -1145,6 +1153,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/Microsoft/go-winio",
+    "github.com/armon/go-radix",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/awserr",
     "github.com/aws/aws-sdk-go/aws/credentials",
@@ -1232,7 +1241,6 @@
     "google.golang.org/grpc",
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/credentials",
-    "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/status",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",

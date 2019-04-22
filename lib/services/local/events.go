@@ -89,9 +89,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 	// sort so that longer prefixes get first
 	sort.Slice(parsers, func(i, j int) bool { return len(parsers[i].prefix()) > len(parsers[j].prefix()) })
 	w, err := e.backend.NewWatcher(ctx, backend.Watch{
-		Name:      watch.Name,
-		Prefixes:  prefixes,
-		QueueSize: watch.QueueSize,
+		Name:            watch.Name,
+		Prefixes:        prefixes,
+		QueueSize:       watch.QueueSize,
+		MetricComponent: watch.MetricComponent,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -659,6 +660,7 @@ func parseServer(event backend.Event, kind string) (services.Resource, error) {
 			kind,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -78,6 +78,9 @@ const (
 	// MetricBackendWatchers is a metric with backend watchers
 	MetricBackendWatchers = "backend_watchers_total"
 
+	// MetricBackendWatcherQueues is a metric with backend watcher queues sizes
+	MetricBackendWatcherQueues = "backend_watcher_queues_total"
+
 	// MetricBackendRequests measures count of backend requests
 	MetricBackendRequests = "backend_requests"
 

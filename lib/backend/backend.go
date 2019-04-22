@@ -122,6 +122,9 @@ type Watch struct {
 	Prefixes [][]byte
 	// QueueSize is an optional queue size
 	QueueSize int
+	// MetricComponent if set will start reporting
+	// with a given component metric
+	MetricComponent string
 }
 
 // String returns a user-friendly description

@@ -33,6 +33,9 @@ type Watch struct {
 
 	// QueueSize is an optional queue size
 	QueueSize int
+
+	// MetricComponent is used for reporting
+	MetricComponent string
 }
 
 // WatchKind specifies resource kind to watch

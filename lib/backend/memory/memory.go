@@ -422,7 +422,11 @@ func (m *Memory) removeExpired() int {
 		}
 		m.heap.PopEl()
 		m.tree.Delete(item)
+		m.Debugf("Removed expired %v %v item.", string(item.Key), item.Expires)
 		removed++
+	}
+	if removed > 0 {
+		m.Debugf("Removed %v expired items.", removed)
 	}
 	return removed
 }
@@ -447,17 +451,10 @@ func (m *Memory) processEvent(event backend.Event) {
 			m.tree.ReplaceOrInsert(item)
 		case !item.Expires.IsZero() && m.Clock().Now().Before(item.Expires):
 			// new item is added, but it has not expired yet
-			if existingItem != nil {
-				// existing item should be updated on the heap
-				if existingItem.index >= 0 {
-					m.heap.UpdateEl(existingItem, item.Expires)
-				} else {
-					m.heap.PushEl(item)
-				}
-			} else {
-				// new item should be added on the heap
-				m.heap.PushEl(item)
+			if existingItem != nil && existingItem.index >= 0 {
+				m.heap.RemoveEl(existingItem)
 			}
+			m.heap.PushEl(item)
 			m.tree.ReplaceOrInsert(item)
 		case !item.Expires.IsZero() && (m.Clock().Now().After(item.Expires) || m.Clock().Now() == item.Expires):
 			// new expired item has added, remove the existing

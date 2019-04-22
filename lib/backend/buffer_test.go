@@ -108,7 +108,7 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Push(Event{Item: Item{ID: 1}})
+	b.Push(Event{Item: Item{Key: []byte{Separator}, ID: 1}})
 
 	select {
 	case e := <-w.Events():
@@ -130,6 +130,71 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	}
 }
 
+// TestRemoveRedundantPrefixes removes redundant prefixes
+func (s *BufferSuite) TestRemoveRedundantPrefixes(c *check.C) {
+	type tc struct {
+		in  [][]byte
+		out [][]byte
+	}
+	tcs := []tc{
+		{
+			in:  [][]byte{},
+			out: [][]byte{},
+		},
+		{
+			in:  [][]byte{[]byte("/a")},
+			out: [][]byte{[]byte("/a")},
+		},
+		{
+			in:  [][]byte{[]byte("/a"), []byte("/")},
+			out: [][]byte{[]byte("/")},
+		},
+		{
+			in:  [][]byte{[]byte("/b"), []byte("/a")},
+			out: [][]byte{[]byte("/a"), []byte("/b")},
+		},
+		{
+			in:  [][]byte{[]byte("/a/b"), []byte("/a"), []byte("/a/b/c"), []byte("/d")},
+			out: [][]byte{[]byte("/a"), []byte("/d")},
+		},
+	}
+	for _, tc := range tcs {
+		c.Assert(removeRedundantPrefixes(tc.in), check.DeepEquals, tc.out)
+	}
+}
+
+// TestWatcherMulti makes sure that watcher
+// with multiple matching prefixes will get an event only once
+func (s *BufferSuite) TestWatcherMulti(c *check.C) {
+	ctx := context.TODO()
+	b, err := NewCircularBuffer(ctx, 3)
+	c.Assert(err, check.IsNil)
+	defer b.Close()
+
+	w, err := b.NewWatcher(ctx, Watch{Prefixes: [][]byte{[]byte("/a"), []byte("/a/b")}})
+	c.Assert(err, check.IsNil)
+	defer w.Close()
+
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, OpInit)
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	b.Push(Event{Item: Item{Key: []byte("/a/b/c"), ID: 1}})
+
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Item.ID, check.Equals, int64(1))
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	c.Assert(len(w.Events()), check.Equals, 0)
+
+}
+
 // TestWatcherReset tests scenarios with watchers and buffer resets
 func (s *BufferSuite) TestWatcherReset(c *check.C) {
 	ctx := context.TODO()
@@ -148,7 +213,7 @@ func (s *BufferSuite) TestWatcherReset(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Push(Event{Item: Item{ID: 1}})
+	b.Push(Event{Item: Item{Key: []byte{Separator}, ID: 1}})
 	b.Reset()
 
 	// make sure watcher has been closed
@@ -169,7 +234,7 @@ func (s *BufferSuite) TestWatcherReset(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Push(Event{Item: Item{ID: 2}})
+	b.Push(Event{Item: Item{Key: []byte{Separator}, ID: 2}})
 
 	select {
 	case e := <-w2.Events():
@@ -177,6 +242,53 @@ func (s *BufferSuite) TestWatcherReset(c *check.C) {
 	case <-time.After(100 * time.Millisecond):
 		c.Fatalf("Timeout waiting for event.")
 	}
+}
+
+// TestWatcherTree tests buffer watcher tree
+func (s *BufferSuite) TestWatcherTree(c *check.C) {
+	t := newWatcherTree()
+	c.Assert(t.rm(nil), check.Equals, false)
+
+	w1 := &BufferWatcher{Watch: Watch{Prefixes: [][]byte{[]byte("/a"), []byte("/a/a1"), []byte("/c")}}}
+	c.Assert(t.rm(w1), check.Equals, false)
+
+	w2 := &BufferWatcher{Watch: Watch{Prefixes: [][]byte{[]byte("/a")}}}
+
+	t.add(w1)
+	t.add(w2)
+
+	var out []*BufferWatcher
+	t.walk(func(w *BufferWatcher) {
+		out = append(out, w)
+	})
+	c.Assert(out, check.HasLen, 4)
+
+	var matched []*BufferWatcher
+	t.walkPath("/c", func(w *BufferWatcher) {
+		matched = append(matched, w)
+	})
+	c.Assert(matched, check.HasLen, 1)
+	c.Assert(matched[0], check.Equals, w1)
+
+	matched = nil
+	t.walkPath("/a", func(w *BufferWatcher) {
+		matched = append(matched, w)
+	})
+	c.Assert(matched, check.HasLen, 2)
+	c.Assert(matched[0], check.Equals, w1)
+	c.Assert(matched[1], check.Equals, w2)
+
+	c.Assert(t.rm(w1), check.Equals, true)
+	c.Assert(t.rm(w1), check.Equals, false)
+
+	matched = nil
+	t.walkPath("/a", func(w *BufferWatcher) {
+		matched = append(matched, w)
+	})
+	c.Assert(matched, check.HasLen, 1)
+	c.Assert(matched[0], check.Equals, w2)
+
+	c.Assert(t.rm(w2), check.Equals, true)
 }
 
 func makeIDs(size int) []int64 {
