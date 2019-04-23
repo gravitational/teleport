@@ -147,6 +147,23 @@ Both variables above are there to deliver the same benefit: they allow Teleport
 administrators to define allowed OS logins via the user database, be it the
 local DB, or an identity manager behind a SAML or OIDC endpoint.
 
+#### An example of a SAML assertion:
+
+Assuming you have the following SAML assertion attribute in your response:
+
+```
+<Attribute Name="http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname">
+        <AttributeValue>firstname.lastname</AttributeValue>
+</Attribute>
+```
+
+... you can use the following format in your role:
+```
+logins:
+   - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
+```
+
+
 ### Role Options
 
 As shown above, a role can define certain restrictions on SSH sessions initiated by users.
