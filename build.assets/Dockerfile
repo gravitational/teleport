@@ -10,10 +10,7 @@ COPY pam/teleport-acct-failure /etc/pam.d
 COPY pam/teleport-session-failure /etc/pam.d
 COPY pam/teleport-success /etc/pam.d
 
-RUN apt-get install -q -y libpam-dev
-RUN apt-get install -q -y libc6-dev-i386
-RUN apt-get install -q -y net-tools
-RUN apt-get install -q -y tree
+RUN apt-get update; apt-get install -q -y libpam-dev libc6-dev-i386 net-tools tree
 
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
      mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
