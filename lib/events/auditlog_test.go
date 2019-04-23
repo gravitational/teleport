@@ -332,7 +332,7 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 // TestLogRotation makes sure that logs are rotated
 // on the day boundary and symlinks are created and updated
 func (a *AuditTestSuite) TestLogRotation(c *check.C) {
-	start := time.Now().In(time.UTC).Round(time.Second)
+	start := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 	clock := clockwork.NewFakeClockAt(start)
 
 	// create audit log, write a couple of events into it, close it
@@ -342,7 +342,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		c.Assert(alog.Close(), check.IsNil)
 	}()
 
-	for _, duration := range []time.Duration{0, time.Hour * 24} {
+	for _, duration := range []time.Duration{0, time.Hour * 25} {
 		// advance time and emit audit event
 		now := start.Add(duration)
 		clock.Advance(duration)
