@@ -39,6 +39,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -1989,8 +1990,8 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 	for i, ch := range spec {
 		endOfToken := false
 		// end of line?
-		if i+1 == specLen {
-			i++
+		if i+utf8.RuneLen(ch) == specLen {
+			i += utf8.RuneLen(ch)
 			endOfToken = true
 		}
 		switch ch {

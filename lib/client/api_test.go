@@ -103,6 +103,16 @@ func (s *APITestSuite) TestParseLabels(c *check.C) {
 	c.Assert(m["role"], check.Equals, "master")
 	c.Assert(m["type"], check.Equals, "database")
 	c.Assert(m["ver"], check.Equals, "mongoDB v1,2")
+
+	// multiple and unicode:
+	m, err = ParseLabelSpec(`服务器环境=测试,操作系统类别=Linux,机房=华北`)
+	c.Assert(err, check.IsNil)
+	c.Assert(m, check.NotNil)
+	c.Assert(m, check.HasLen, 3)
+	c.Assert(m["服务器环境"], check.Equals, "测试")
+	c.Assert(m["操作系统类别"], check.Equals, "Linux")
+	c.Assert(m["机房"], check.Equals, "华北")
+
 	// invalid specs
 	m, err = ParseLabelSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
 	c.Assert(m, check.IsNil)
