@@ -131,7 +131,7 @@ func ProfileFromFile(filePath string) (*ClientProfile, error) {
 }
 
 // SaveTo saves the profile into a given filename, optionally overwriting it.
-func (cp *ClientProfile) SaveTo(filePath string, opts ProfileOptions) error {
+func (cp *ClientProfile) SaveTo(profileAliasPath, filePath string, opts ProfileOptions) error {
 	bytes, err := yaml.Marshal(&cp)
 	if err != nil {
 		return trace.Wrap(err)
@@ -139,10 +139,21 @@ func (cp *ClientProfile) SaveTo(filePath string, opts ProfileOptions) error {
 	if err = ioutil.WriteFile(filePath, bytes, 0660); err != nil {
 		return trace.Wrap(err)
 	}
+	if profileAliasPath != "" && filepath.Base(profileAliasPath) != filepath.Base(filePath) {
+		if err := os.Remove(profileAliasPath); err != nil {
+			log.Warningf("Failed to remove symlink alias: %v", err)
+		}
+		err := os.Symlink(filepath.Base(filePath), profileAliasPath)
+		if err != nil {
+			log.Warningf("Failed to create profile alias: %v", err)
+		}
+	}
 	// set 'current' symlink:
 	if opts&ProfileMakeCurrent != 0 {
 		symlink := filepath.Join(filepath.Dir(filePath), CurrentProfileSymlink)
-		os.Remove(symlink)
+		if err := os.Remove(symlink); err != nil {
+			log.Warningf("Failed to remove symlink: %v", err)
+		}
 		err = os.Symlink(filepath.Base(filePath), symlink)
 	}
 	return trace.Wrap(err)

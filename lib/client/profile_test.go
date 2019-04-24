@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,11 +42,11 @@ func (s *ProfileTestSuite) TestEverything(c *check.C) {
 	pfile := path.Join(home, "test.yaml")
 
 	// save to a file:
-	err := p.SaveTo(pfile, 0)
+	err := p.SaveTo("", pfile, 0)
 	c.Assert(err, check.IsNil)
 
 	// try to save to non-existent dir, should get an error
-	err = p.SaveTo("/bad/directory/profile.yaml", 0)
+	err = p.SaveTo("", "/bad/directory/profile.yaml", 0)
 	c.Assert(err, check.NotNil)
 
 	// make sure there is no symlink:
@@ -55,7 +55,7 @@ func (s *ProfileTestSuite) TestEverything(c *check.C) {
 	c.Assert(os.IsNotExist(err), check.Equals, true)
 
 	// save again, this time with a symlink:
-	p.SaveTo(pfile, ProfileMakeCurrent)
+	p.SaveTo("", pfile, ProfileMakeCurrent)
 	stat, err := os.Stat(symlink)
 	c.Assert(err, check.IsNil)
 	c.Assert(stat.Size() > 10, check.Equals, true)
@@ -67,6 +67,16 @@ func (s *ProfileTestSuite) TestEverything(c *check.C) {
 
 	// load and verify directly
 	clone, err = ProfileFromDir(home, "test")
+	c.Assert(err, check.IsNil)
+	c.Assert(*clone, check.DeepEquals, *p)
+
+	// Save with alias
+	aliasPath := path.Join(home, "alias.yaml")
+	err = p.SaveTo(aliasPath, pfile, ProfileMakeCurrent)
+	c.Assert(err, check.IsNil)
+
+	// Load from alias works
+	clone, err = ProfileFromDir(home, "alias")
 	c.Assert(err, check.IsNil)
 	c.Assert(*clone, check.DeepEquals, *p)
 }
