@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -403,7 +403,7 @@ func onLogin(cf *CLIConf) {
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
-			tc.SaveProfile("")
+			tc.SaveProfile("", "")
 			if err := kubeclient.UpdateKubeconfig(tc); err != nil {
 				utils.FatalError(err)
 			}
@@ -447,7 +447,7 @@ func onLogin(cf *CLIConf) {
 	}
 
 	// Regular login without -i flag.
-	tc.SaveProfile("")
+	tc.SaveProfile(key.ProxyHost, "")
 
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
@@ -500,7 +500,10 @@ func onLogout(cf *CLIConf) {
 		utils.FatalError(err)
 		return
 	}
-	profiles := append(available, active)
+	profiles := append([]*client.ProfileStatus{}, available...)
+	if active != nil {
+		profiles = append(profiles, active)
+	}
 
 	// Extract the proxy name.
 	proxyHost, _, err := net.SplitHostPort(cf.Proxy)
@@ -852,7 +855,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 			fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", cf.Proxy, err)
 		}
 	}
-
 	// 3: override with the CLI flags
 	if cf.Namespace != "" {
 		c.Namespace = cf.Namespace
@@ -860,7 +862,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
-	if cf.Proxy != "" {
+	// if proxy is set, and proxy is not equal to profile's
+	// loaded addresses, override the values
+	if cf.Proxy != "" && c.WebProxyAddr == "" {
 		err = c.ParseProxyHost(cf.Proxy)
 		if err != nil {
 			return nil, trace.Wrap(err)
