@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os/exec"
 	"runtime"
@@ -34,13 +32,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/secret"
-	"github.com/pborman/uuid"
 	"github.com/tstranex/u2f"
 )
 
@@ -79,7 +73,7 @@ type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
 }
 
-// A request from the client for a U2F sign request from the server
+// U2fSignRequestReq is a request from the client for a U2F sign request from the server
 type U2fSignRequestReq struct {
 	User string `json:"user"`
 	Pass string `json:"pass"`
@@ -155,120 +149,20 @@ type SSHLogin struct {
 	BindAddr string
 }
 
-// SSHAgentSSOLogin is used by SSH Agent (tsh) to login using OpenID connect
+// SSHAgentSSOLogin is used by tsh command line utility
+// to login using OpenID connect or SAML using browser
 func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
-	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	rd, err := NewRedirector(login)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create secret key that will be sent with the request and then used the
-	// decrypt the response from the server.
-	key, err := secret.NewKey()
-	if err != nil {
+	if err := rd.Start(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer rd.Close()
 
-	waitC := make(chan *auth.SSHLoginResponse, 1)
-	errorC := make(chan error, 1)
-	proxyURL.Path = "/web/msg/error/login_failed"
-	redirectErrorURL := proxyURL.String()
-	proxyURL.Path = "/web/msg/info/login_success"
-	redirectSuccessURL := proxyURL.String()
-
-	makeHandler := func(fn func(http.ResponseWriter, *http.Request) (*auth.SSHLoginResponse, error)) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			response, err := fn(w, r)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					http.NotFound(w, r)
-					return
-				}
-				errorC <- err
-				http.Redirect(w, r, redirectErrorURL, http.StatusFound)
-				return
-			}
-			waitC <- response
-			http.Redirect(w, r, redirectSuccessURL, http.StatusFound)
-		})
-	}
-
-	handler := makeHandler(func(w http.ResponseWriter, r *http.Request) (*auth.SSHLoginResponse, error) {
-		if r.URL.Path != "/callback" {
-			return nil, trace.NotFound("path not found")
-		}
-
-		// Decrypt ciphertext to get login response.
-		plaintext, err := key.Open([]byte(r.URL.Query().Get("response")))
-		if err != nil {
-			return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
-		}
-
-		var re *auth.SSHLoginResponse
-		err = json.Unmarshal(plaintext, &re)
-		if err != nil {
-			return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
-		}
-
-		return re, nil
-	})
-
-	redirPath := "/" + uuid.New()
-	// longURL will be set based on the response from the webserver
-	var longURL utils.SyncString
-	mux := http.NewServeMux()
-	mux.Handle("/callback", handler)
-	mux.HandleFunc(redirPath, func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, longURL.Value(), http.StatusFound)
-	})
-	redir := httptest.NewServer(mux)
-	defer redir.Close()
-
-	var server *httptest.Server
-	if login.BindAddr != "" {
-		log.Debugf("Binding to %v.", login.BindAddr)
-		listener, err := net.Listen("tcp", login.BindAddr)
-		if err != nil {
-			return nil, trace.Wrap(err, "%v: could not bind to %v, make sure the address is host:port format for ipv4 and [ipv6]:port format for ipv6, and the address is not in use", err, login.BindAddr)
-		}
-		server = &httptest.Server{
-			Listener: listener,
-			Config:   &http.Server{Handler: mux},
-		}
-		server.Start()
-	} else {
-		server = httptest.NewServer(mux)
-	}
-	defer server.Close()
-
-	// redirURL is the short URL presented to the user
-	redirURL := server.URL + redirPath
-
-	u, err := url.Parse(server.URL + "/callback")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	query := u.Query()
-	query.Set("secret_key", key.String())
-	u.RawQuery = query.Encode()
-
-	out, err := clt.PostJSON(login.Context, clt.Endpoint("webapi", login.Protocol, "login", "console"), SSOLoginConsoleReq{
-		RedirectURL:   u.String(),
-		PublicKey:     login.PubKey,
-		CertTTL:       login.TTL,
-		ConnectorID:   login.ConnectorID,
-		Compatibility: login.Compatibility,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var re *SSOLoginConsoleResponse
-	err = json.Unmarshal(out.Bytes(), &re)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	longURL.Set(re.RedirectURL)
+	clickableURL := rd.ClickableURL()
 
 	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
@@ -277,19 +171,19 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 	case teleport.DarwinOS:
 		path, err := exec.LookPath(teleport.OpenBrowserDarwin)
 		if err == nil {
-			execCmd = exec.Command(path, redirURL)
+			execCmd = exec.Command(path, clickableURL)
 		}
 	// Windows.
 	case teleport.WindowsOS:
 		path, err := exec.LookPath(teleport.OpenBrowserWindows)
 		if err == nil {
-			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", redirURL)
+			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)
 		}
 	// Linux or any other operating system.
 	default:
 		path, err := exec.LookPath(teleport.OpenBrowserLinux)
 		if err == nil {
-			execCmd = exec.Command(path, redirURL)
+			execCmd = exec.Command(path, clickableURL)
 		}
 	}
 	if execCmd != nil {
@@ -298,23 +192,21 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 
 	// Print to screen in-case the command that launches the browser did not run.
 	fmt.Printf("If browser window does not open automatically, open it by ")
-	fmt.Printf("clicking on the link:\n %v\n", utils.ClickableURL(redirURL))
-
-	log.Infof("Waiting for response at: %v.", server.URL)
+	fmt.Printf("clicking on the link:\n %v\n", clickableURL)
 
 	select {
-	case err := <-errorC:
+	case err := <-rd.ErrorC():
 		log.Debugf("Got an error: %v.", err)
 		return nil, trace.Wrap(err)
-	case response := <-waitC:
+	case response := <-rd.ResponseC():
 		log.Debugf("Got response from browser.")
 		return response, nil
 	case <-time.After(defaults.CallbackTimeout):
 		log.Debugf("Timed out waiting for callback after %v.", defaults.CallbackTimeout)
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
-	case <-login.Context.Done():
+	case <-rd.Done():
 		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(login.Context.Err())
+		return nil, trace.Wrap(login.Context.Err(), "cancelled by user")
 	}
 }
 
