@@ -251,6 +251,7 @@ type CachePolicy struct {
 	NeverExpires bool
 }
 
+// MakeDefaultConfig returns default client config
 func MakeDefaultConfig() *Config {
 	return &Config{
 		Stdout: os.Stdout,
@@ -287,6 +288,42 @@ type ProfileStatus struct {
 // IsExpired returns true if profile is not expired yet
 func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 	return p.ValidUntil.Sub(clock.Now()) <= 0
+}
+
+// RetryWithRelogin is a helper error handling method,
+// attempts to relogin and retry the function once
+func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
+	err := fn()
+	if err == nil {
+		return nil
+	}
+	// Assume that failed handshake is a result of expired credentials,
+	// retry the login procedure
+	if !utils.IsHandshakeFailedError(err) && !utils.IsCertExpiredError(err) && !trace.IsBadParameter(err) && trace.IsTrustError(err) {
+		return err
+	}
+	key, err := tc.Login(ctx, true)
+	if err != nil {
+		if trace.IsTrustError(err) {
+			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.SSHProxyAddr)
+		}
+		return trace.Wrap(err)
+	}
+	// Save profile to record proxy credentials
+	if err := tc.SaveProfile(key.ProxyHost, "", ProfileCreateNew|ProfileMakeCurrent); err != nil {
+		log.Warningf("Failed to save profile: %v", err)
+		return trace.Wrap(err)
+	}
+	// Override client's auth methods, current cluster and user name
+	authMethod, err := key.AsAuthMethod()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// After successful login we have local agent updated with latest
+	// and greatest auth information, setup client to try only this new
+	// method fetched from key, to isolate the retry
+	tc.Config.AuthMethods = []ssh.AuthMethod{authMethod}
+	return fn()
 }
 
 // readProfile reads in the profile as well as the associated certificate
@@ -559,7 +596,11 @@ func (c *Config) SaveProfile(profileAliasHost, profileDir string, profileOptions
 			opts |= flag
 		}
 	}
-	if err := cp.SaveTo(profileAliasPath, profilePath, opts); err != nil {
+	if err := cp.SaveTo(ProfileLocation{
+		AliasPath: profileAliasPath,
+		Path:      profilePath,
+		Options:   opts,
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1423,10 +1464,6 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		sshConfig.Auth = []ssh.AuthMethod{m}
 		sshClient, err = ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
 		if err != nil {
-			if utils.IsHandshakeFailedError(err) {
-				log.Warn(err)
-				continue
-			}
 			return nil, trace.Wrap(err)
 		}
 		log.Infof(successMsg)
@@ -1434,52 +1471,10 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 	// we have exhausted all auth existing auth methods and local login
 	// is disabled in configuration, or the user refused connecting to untrusted hosts
-	if tc.Config.SkipLocalAuth || tc.localAgent.UserRefusedHosts() {
-		if err == nil {
-			err = trace.BadParameter("failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
-		}
-		return nil, trace.Wrap(err)
+	if err == nil {
+		err = trace.BadParameter("failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
 	}
-	// if we get here, it means we failed to authenticate using stored keys
-	// and we need to ask for the login information
-	// Login reaches out to ping endpoint of the proxy
-	// and has a side effect of updating tc.Config.SSHProxyAddr
-	// and other parameters, that's why they are referenced directly below
-	key, err := tc.Login(ctx, true)
-	if err != nil {
-		// we need to communicate directly to user here,
-		// otherwise user will see endless loop with no explanation
-		if trace.IsTrustError(err) {
-			fmt.Printf("Refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.SSHProxyAddr)
-		}
-		return nil, trace.Wrap(err)
-	}
-	// Save profile to record proxy credentials
-	if err := tc.SaveProfile(key.ProxyHost, "", ProfileCreateNew|ProfileMakeCurrent); err != nil {
-		log.Warningf("Failed to save profile: %v", err)
-	}
-	authMethod, err := key.AsAuthMethod()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// After successful login we have local agent updated with latest
-	// and greatest auth information, try it now
-	sshConfig.Auth = []ssh.AuthMethod{authMethod}
-	sshConfig.User = tc.getProxySSHPrincipal()
-	log.Infof("Connecting proxy=%v login='%v' using local agent.", tc.Config.SSHProxyAddr, sshConfig.User)
-	sshClient, err := ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Debugf(successMsg)
-	proxyClient := makeProxyClient(sshClient, authMethod)
-	// get (and remember) the site info:
-	site, err := proxyClient.currentCluster()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tc.SiteName = site.Name
-	return proxyClient, nil
+	return nil, trace.Wrap(err)
 }
 
 // Logout removes certificate and key for the currently logged in user from
