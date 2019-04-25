@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2019 Gravitational, Inc.
 This file implements the enterprise version of `tctl users` subcommands
 
 */
@@ -7,11 +7,12 @@ This file implements the enterprise version of `tctl users` subcommands
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -19,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/common"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 )
 
@@ -30,6 +32,8 @@ type UserCommandE struct {
 	// Enterprise versions of 'user' CLI subcommands
 	userAdd  *kingpin.CmdClause
 	userList *kingpin.CmdClause
+
+	format string
 
 	username      string
 	roles         []string
@@ -54,9 +58,11 @@ func (cmd *UserCommandE) Initialize(app *kingpin.Application, cfg *service.Confi
 	cmd.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
 		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&cmd.ttl)
+	cmd.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&cmd.format)
 	cmd.userAdd.Alias(AddUserHelp)
 
 	cmd.userList = users.Command("ls", "List all user accounts "+helpPrefix)
+	cmd.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&cmd.format)
 }
 
 // TryRun is executed after the CLI parsing is done. The command must
@@ -81,17 +87,25 @@ func (cmd *UserCommandE) List(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(users) == 0 {
-		fmt.Println("No users found")
-		return nil
+	if cmd.format == teleport.Text {
+		if len(users) == 0 {
+			fmt.Println("No users found")
+			return nil
+		}
+		t := asciitable.MakeTable([]string{"User", "Roles"})
+		for _, u := range users {
+			t.AddRow([]string{
+				u.GetName(), strings.Join(u.GetRoles(), ","),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		out, err := json.MarshalIndent(users, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal users")
+		}
+		fmt.Printf(string(out))
 	}
-	t := asciitable.MakeTable([]string{"User", "Roles"})
-	for _, u := range users {
-		t.AddRow([]string{
-			u.GetName(), strings.Join(u.GetRoles(), ","),
-		})
-	}
-	fmt.Println(t.AsBuffer().String())
 	return nil
 }
 
@@ -118,9 +132,11 @@ func (cmd *UserCommandE) Add(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cmd.UserCommand.PrintSignupURL(client, token, cmd.ttl)
-	fmt.Printf("When the user '%s' activates their account, they will be assigned roles %s\n",
-		cmd.username, cmd.roles)
+	cmd.UserCommand.PrintSignupURL(client, token, cmd.ttl, cmd.format)
+	if cmd.format == teleport.Text {
+		fmt.Printf("When the user '%s' activates their account, they will be assigned roles %s\n",
+			cmd.username, cmd.roles)
+	}
 	return nil
 }
 
