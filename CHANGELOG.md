@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.2.4
+
+This release of Teleport contains multiple bug fixes.
+
+* Read cluster name from `TELEPORT_SITE` environment variable in `tsh`. [#2675](https://github.com/gravitational/teleport/pull/2675)
+* Multiple improvements around logging in and saving `tsh` profiles. [#2657](https://github.com/gravitational/teleport/pull/2657)
+
 ## 3.2.2
 
 This release of Teleport contains a bug fix.
