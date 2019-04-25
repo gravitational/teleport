@@ -130,31 +130,42 @@ func ProfileFromFile(filePath string) (*ClientProfile, error) {
 	return cp, nil
 }
 
+// ProfileLocation specifies profile on -disk location
+// and it's parameters on disk
+type ProfileLocation struct {
+	// AliasPath is an optional alias
+	AliasPath string
+	// Path is a profile file path on disk
+	Path string
+	// Options is a set of profile options
+	Options ProfileOptions
+}
+
 // SaveTo saves the profile into a given filename, optionally overwriting it.
-func (cp *ClientProfile) SaveTo(profileAliasPath, filePath string, opts ProfileOptions) error {
+func (cp *ClientProfile) SaveTo(loc ProfileLocation) error {
 	bytes, err := yaml.Marshal(&cp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = ioutil.WriteFile(filePath, bytes, 0660); err != nil {
+	if err = ioutil.WriteFile(loc.Path, bytes, 0660); err != nil {
 		return trace.Wrap(err)
 	}
-	if profileAliasPath != "" && filepath.Base(profileAliasPath) != filepath.Base(filePath) {
-		if err := os.Remove(profileAliasPath); err != nil {
+	if loc.AliasPath != "" && filepath.Base(loc.AliasPath) != filepath.Base(loc.Path) {
+		if err := os.Remove(loc.AliasPath); err != nil {
 			log.Warningf("Failed to remove symlink alias: %v", err)
 		}
-		err := os.Symlink(filepath.Base(filePath), profileAliasPath)
+		err := os.Symlink(filepath.Base(loc.Path), loc.AliasPath)
 		if err != nil {
 			log.Warningf("Failed to create profile alias: %v", err)
 		}
 	}
 	// set 'current' symlink:
-	if opts&ProfileMakeCurrent != 0 {
-		symlink := filepath.Join(filepath.Dir(filePath), CurrentProfileSymlink)
+	if loc.Options&ProfileMakeCurrent != 0 {
+		symlink := filepath.Join(filepath.Dir(loc.Path), CurrentProfileSymlink)
 		if err := os.Remove(symlink); err != nil {
 			log.Warningf("Failed to remove symlink: %v", err)
 		}
-		err = os.Symlink(filepath.Base(filePath), symlink)
+		err = os.Symlink(filepath.Base(loc.Path), symlink)
 	}
 	return trace.Wrap(err)
 }

@@ -722,6 +722,7 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 	}
 }
 
+// Close closes client and it's operations
 func (client *NodeClient) Close() error {
 	return client.Client.Close()
 }

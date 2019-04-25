@@ -42,11 +42,11 @@ func (s *ProfileTestSuite) TestEverything(c *check.C) {
 	pfile := path.Join(home, "test.yaml")
 
 	// save to a file:
-	err := p.SaveTo("", pfile, 0)
+	err := p.SaveTo(ProfileLocation{Path: pfile})
 	c.Assert(err, check.IsNil)
 
 	// try to save to non-existent dir, should get an error
-	err = p.SaveTo("", "/bad/directory/profile.yaml", 0)
+	err = p.SaveTo(ProfileLocation{Path: "/bad/directory/profile.yaml"})
 	c.Assert(err, check.NotNil)
 
 	// make sure there is no symlink:
@@ -55,7 +55,7 @@ func (s *ProfileTestSuite) TestEverything(c *check.C) {
 	c.Assert(os.IsNotExist(err), check.Equals, true)
 
 	// save again, this time with a symlink:
-	p.SaveTo("", pfile, ProfileMakeCurrent)
+	p.SaveTo(ProfileLocation{Path: pfile, Options: ProfileMakeCurrent})
 	stat, err := os.Stat(symlink)
 	c.Assert(err, check.IsNil)
 	c.Assert(stat.Size() > 10, check.Equals, true)
@@ -72,7 +72,7 @@ func (s *ProfileTestSuite) TestEverything(c *check.C) {
 
 	// Save with alias
 	aliasPath := path.Join(home, "alias.yaml")
-	err = p.SaveTo(aliasPath, pfile, ProfileMakeCurrent)
+	err = p.SaveTo(ProfileLocation{AliasPath: aliasPath, Path: pfile, Options: ProfileMakeCurrent})
 	c.Assert(err, check.IsNil)
 
 	// Load from alias works

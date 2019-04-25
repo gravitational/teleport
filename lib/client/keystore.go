@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -238,7 +239,10 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost string, username string) (*Key, erro
 	// Validate the key loaded from disk.
 	err = key.CheckCert()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// KeyStore should return expired certificates as well
+		if !utils.IsCertExpiredError(err) {
+			return nil, trace.Wrap(err)
+		}
 	}
 	sshCertExpiration, err := key.CertValidBefore()
 	if err != nil {

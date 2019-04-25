@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeclient "github.com/gravitational/teleport/lib/kube/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -153,27 +154,26 @@ type CLIConf struct {
 }
 
 func main() {
-	cmd_line_orig := os.Args[1:]
-	cmd_line := []string{}
+	cmdLineOrig := os.Args[1:]
+	cmdLine := []string{}
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
 	switch path.Base(os.Args[0]) {
 	case "ssh":
-		cmd_line = append([]string{"ssh"}, cmd_line_orig...)
+		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
 	case "scp":
-		cmd_line = append([]string{"scp"}, cmd_line_orig...)
+		cmdLine = append([]string{"scp"}, cmdLineOrig...)
 	default:
-		cmd_line = cmd_line_orig
+		cmdLine = cmdLineOrig
 	}
-	Run(cmd_line, false)
+	Run(cmdLine, false)
 }
 
 const (
 	clusterEnvVar  = "TELEPORT_SITE"
 	clusterHelp    = "Specify the cluster to connect"
 	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
-	authEnvVar     = "TELEPORT_AUTH"
 )
 
 // Run executes TSH client. same as main() but easier to test
@@ -198,7 +198,7 @@ func Run(args []string, underTest bool) {
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
-	app.Flag("auth", "Specify the type of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
+	app.Flag("auth", "Specify the type of authentication connector to use.").StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
@@ -334,7 +334,7 @@ func Run(args []string, underTest bool) {
 	case ls.FullCommand():
 		onListNodes(&cf)
 	case clusters.FullCommand():
-		onListSites(&cf)
+		onListClusters(&cf)
 	case login.FullCommand():
 		onLogin(&cf)
 	case logout.FullCommand():
@@ -365,13 +365,6 @@ func onLogin(cf *CLIConf) {
 		tc  *client.TeleportClient
 		key *client.Key
 	)
-
-	// populate cluster name from environment variables
-	// only if not set by argument (that does not support env variables)
-	clusterName := os.Getenv(clusterEnvVar)
-	if cf.SiteName == "" {
-		cf.SiteName = clusterName
-	}
 
 	if cf.IdentityFileIn != "" {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
@@ -430,7 +423,8 @@ func onLogin(cf *CLIConf) {
 	makeIdentityFile := (cf.IdentityFileOut != "")
 	activateKey := !makeIdentityFile
 
-	if key, err = tc.Login(cf.Context, activateKey); err != nil {
+	key, err = tc.Login(cf.Context, activateKey)
+	if err != nil {
 		utils.FatalError(err)
 	}
 
@@ -599,7 +593,11 @@ func onListNodes(cf *CLIConf) {
 	}
 
 	// Get list of all nodes in backend and sort by "Node Name".
-	nodes, err := tc.ListNodes(context.TODO())
+	var nodes []services.Server
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		nodes, err = tc.ListNodes(cf.Context)
+		return err
+	})
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -658,8 +656,8 @@ func chunkLabels(labels map[string]string, chunkSize int) [][]string {
 	return chunks
 }
 
-// onListSites executes 'tsh sites' command
-func onListSites(cf *CLIConf) {
+// onListClusters executes 'tsh clusters' command
+func onListClusters(cf *CLIConf) {
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
@@ -670,7 +668,11 @@ func onListSites(cf *CLIConf) {
 	}
 	defer proxyClient.Close()
 
-	sites, err := proxyClient.GetSites()
+	var sites []services.Site
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		sites, err = proxyClient.GetSites()
+		return err
+	})
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -697,7 +699,10 @@ func onSSH(cf *CLIConf) {
 	}
 
 	tc.Stdin = os.Stdin
-	if err = tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec); err != nil {
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
+	})
+	if err != nil {
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
@@ -751,7 +756,10 @@ func onJoin(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(fmt.Errorf("'%v' is not a valid session ID (must be GUID)", cf.SessionID))
 	}
-	if err = tc.Join(context.TODO(), cf.Namespace, *sid, nil); err != nil {
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.Join(context.TODO(), cf.Namespace, *sid, nil)
+	})
+	if err != nil {
 		utils.FatalError(err)
 	}
 }
@@ -762,7 +770,10 @@ func onSCP(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	if err := tc.SCP(context.TODO(), cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy, cf.Quiet); err != nil {
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.SCP(context.TODO(), cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy, cf.Quiet)
+	})
+	if err != nil {
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))

@@ -275,7 +275,19 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 // IsHandshakeFailedError specifies whether this error indicates
 // failed handshake
 func IsHandshakeFailedError(err error) bool {
+	if err == nil {
+		return false
+	}
 	return strings.Contains(trace.Unwrap(err).Error(), "ssh: handshake failed")
+}
+
+// IsCertExpiredError specifies whether this error indicates
+// expired SSH certificate
+func IsCertExpiredError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(trace.Unwrap(err).Error(), "ssh: cert has expired")
 }
 
 // IsShellFailedError specifies whether this error indicates
