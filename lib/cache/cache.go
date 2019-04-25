@@ -337,7 +337,7 @@ func (c *Cache) update() {
 			// signal closure to reset the watchers
 			c.Backend.CloseWatchers()
 			if !c.isClosed() {
-				c.Warningf("Re-init the cache on error: %v.", err)
+				c.Warningf("Re-init the cache on error: %v.", trace.Unwrap(err))
 			}
 		}
 		c.Debugf("Reloading %v.", retry)
