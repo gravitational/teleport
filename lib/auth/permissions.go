@@ -193,6 +193,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthConte
 					services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
 					services.NewRule(services.KindNamespace, services.RO()),
 					services.NewRule(services.KindUser, services.RO()),
+					services.NewRule(services.KindRole, services.RO()),
 					services.NewRule(services.KindAuthServer, services.RO()),
 					services.NewRule(services.KindReverseTunnel, services.RO()),
 					services.NewRule(services.KindTunnelConnection, services.RO()),
