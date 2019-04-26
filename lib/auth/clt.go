@@ -270,7 +270,7 @@ func (c *Client) grpc() (proto.AuthServiceClient, error) {
 		}
 		c, err := c.dialContext(context.TODO(), "tcp", addr)
 		if err != nil {
-			log.Debugf("Dial error: %v", err)
+			log.Debugf("Dial to addr %v failed: %v.", addr, err)
 		}
 		return c, err
 	})

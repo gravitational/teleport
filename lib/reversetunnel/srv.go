@@ -21,10 +21,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"net/http"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -241,6 +239,7 @@ func NewServer(cfg Config) (Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		srv.localSites = append(srv.localSites, cluster)
 	}
 
@@ -343,7 +342,11 @@ func (s *server) fetchClusterPeers() error {
 	newConns := make(map[string]services.TunnelConnection)
 	for i := range conns {
 		newConn := conns[i]
-		// filter out peer records for our own proxy
+		// Filter out node tunnels.
+		if newConn.GetType() == services.NodeTunnel {
+			continue
+		}
+		// Filter out peer records for own proxy.
 		if newConn.GetProxyName() == s.ID {
 			continue
 		}
@@ -490,26 +493,95 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
 		"reverse tunnel server")
 
-	ct := nch.ChannelType()
-	if ct != chanHeartbeat {
+	channelType := nch.ChannelType()
+	switch channelType {
+	// Heartbeats can come from nodes or proxies.
+	case chanHeartbeat:
+		s.handleHeartbeat(conn, sconn, nch)
+	// Transport requests come from nodes requesting a connection to the Auth
+	// Server through the reverse tunnel.
+	case chanTransport:
+		s.handleTransport(sconn, nch)
+	default:
 		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
 			nch.ChannelType(), sconn)
-		// if someone is trying to open a new SSH session by talking to a reverse tunnel,
-		// they're most likely using the wrong port number. Lets give them the explicit hint:
-		if ct == "session" {
+
+		// If someone is trying to open a new SSH session by talking to a reverse
+		// tunnel, they're most likely using the wrong port number. Give them an
+		// explicit hint.
+		if channelType == "session" {
 			msg = "Cannot open new SSH session on reverse tunnel. Are you connecting to the right port?"
 		}
-		s.Warning(msg)
+		s.Warn(msg)
 		nch.Reject(ssh.ConnectionFailed, msg)
 		return
 	}
+}
+
+func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
+	s.Debugf("Transport request: %v.", nch.ChannelType())
+	channel, requestCh, err := nch.Accept()
+	if err != nil {
+		sconn.Close()
+		s.Warnf("Failed to accept request: %v.", err)
+		return
+	}
+
+	go proxyTransport(&transportParams{
+		log:          s.Entry,
+		closeContext: s.ctx,
+		authClient:   s.LocalAuthClient,
+		channel:      channel,
+		requestCh:    requestCh,
+		component:    teleport.ComponentReverseTunnelServer,
+	})
+}
+
+func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	s.Debugf("New tunnel from %v.", sconn.RemoteAddr())
 	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
 		s.Error(trace.BadParameter("can't retrieve certificate type in certType"))
 		return
 	}
+
+	// Extract the role. For proxies, it's another cluster asking to join, for
+	// nodes it's a node dialing back.
+	val, ok := sconn.Permissions.Extensions[extCertRole]
+	if !ok {
+		log.Errorf("Failed to accept connection, unknown role: %v.", val)
+		nch.Reject(ssh.ConnectionFailed, "unknown role")
+	}
+	switch {
+	// Node dialing back.
+	case val == string(teleport.RoleNode):
+		s.handleNewNode(conn, sconn, nch)
+	// Proxy dialing back.
+	case val == string(teleport.RoleProxy):
+		s.handleNewCluster(conn, sconn, nch)
+	}
+}
+
+func (s *server) handleNewNode(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
+	cluster, rconn, err := s.upsertNode(conn, sconn)
+	if err != nil {
+		log.Errorf("Failed to upsert node: %v.", err)
+		sconn.Close()
+		return
+	}
+
+	ch, req, err := nch.Accept()
+	if err != nil {
+		log.Errorf("Failed to accept on channel: %v.", err)
+		sconn.Close()
+		return
+	}
+
+	go cluster.handleHeartbeat(rconn, ch, req)
+}
+
+func (s *server) handleNewCluster(conn net.Conn, sshConn *ssh.ServerConn, nch ssh.NewChannel) {
 	// add the incoming site (cluster) to the list of active connections:
-	site, remoteConn, err := s.upsertSite(conn, sconn)
+	site, remoteConn, err := s.upsertSite(conn, sshConn)
 	if err != nil {
 		log.Error(trace.Wrap(err))
 		nch.Reject(ssh.ConnectionFailed, "failed to accept incoming cluster connection")
@@ -519,10 +591,26 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 	ch, req, err := nch.Accept()
 	if err != nil {
 		log.Error(trace.Wrap(err))
-		sconn.Close()
+		sshConn.Close()
 		return
 	}
 	go site.handleHeartbeat(remoteConn, ch, req)
+}
+
+func (s *server) findLocalCluster(sconn *ssh.ServerConn) (*localSite, error) {
+	// Cluster name was extracted from certificate and packed into extensions.
+	clusterName := sconn.Permissions.Extensions[extAuthority]
+	if strings.TrimSpace(clusterName) == "" {
+		return nil, trace.BadParameter("empty cluster name")
+	}
+
+	for _, ls := range s.localSites {
+		if ls.domainName == clusterName {
+			return ls, nil
+		}
+	}
+
+	return nil, trace.BadParameter("local cluster %v not found", clusterName)
 }
 
 // isHostAuthority is called during checking the client key, to see if the signing
@@ -598,37 +686,26 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		authDomain, ok := cert.Extensions[utils.CertExtensionAuthority]
 		if !ok || authDomain == "" {
 			err := trace.BadParameter("missing authority domainName parameter")
-			logger.Warningf("Failed to authenticate host, err: %v.", err)
-			return nil, err
+			logger.Warnf("Failed to authenticate host, err: %v.", err)
+			return nil, trace.Wrap(err)
+		}
+		certRole, ok := cert.Extensions[utils.CertExtensionRole]
+		if !ok || certRole == "" {
+			err := trace.BadParameter("certificate missing role")
+			logger.Warnf("Failed to authenticate host, err: %v.", err)
+			return nil, trace.Wrap(err)
 		}
 		err := s.checkHostCert(logger, conn.User(), authDomain, cert)
 		if err != nil {
-			logger.Warningf("Failed to authenticate host, err: %v.", err)
+			logger.Warnf("Failed to authenticate host, err: %v.", err)
 			return nil, trace.Wrap(err)
 		}
 		return &ssh.Permissions{
 			Extensions: map[string]string{
 				extHost:      conn.User(),
 				extCertType:  extCertTypeHost,
+				extCertRole:  certRole,
 				extAuthority: authDomain,
-			},
-		}, nil
-	case ssh.UserCert:
-		certChecker := utils.CertChecker{
-			CertChecker: ssh.CertChecker{
-				IsUserAuthority: s.isUserAuthority,
-			},
-		}
-		_, err := certChecker.Authenticate(conn, key)
-		if err != nil {
-			logger.Warningf("Failed to authenticate user, err: %v.", err)
-			return nil, err
-		}
-
-		return &ssh.Permissions{
-			Extensions: map[string]string{
-				extHost:     conn.User(),
-				extCertType: extCertTypeUser,
 			},
 		}, nil
 	default:
@@ -671,6 +748,30 @@ func (s *server) checkHostCert(logger *log.Entry, user string, clusterName strin
 	}
 
 	return nil
+}
+
+func (s *server) upsertNode(conn net.Conn, sconn *ssh.ServerConn) (*localSite, *remoteConn, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	cluster, err := s.findLocalCluster(sconn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	nodeID, ok := sconn.Permissions.Extensions[extHost]
+	if !ok {
+		return nil, nil, trace.BadParameter("host id not found")
+	}
+
+	rconn, err := cluster.addConn(nodeID, conn, sconn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	go cluster.registerHeartbeat(time.Now())
+
+	return cluster, rconn, nil
 }
 
 func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
@@ -790,67 +891,6 @@ func (s *server) RemoveSite(domainName string) error {
 	return trace.NotFound("cluster %q is not found", domainName)
 }
 
-type remoteConn struct {
-	sshConn       ssh.Conn
-	conn          net.Conn
-	invalid       int32
-	log           *log.Entry
-	discoveryC    ssh.Channel
-	discoveryErr  error
-	closed        int32
-	lastHeartbeat int64
-}
-
-func (rc *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
-	if rc.discoveryC != nil {
-		return rc.discoveryC, nil
-	}
-	if rc.discoveryErr != nil {
-		return nil, trace.Wrap(rc.discoveryErr)
-	}
-	discoveryC, _, err := rc.sshConn.OpenChannel(chanDiscovery, nil)
-	if err != nil {
-		rc.discoveryErr = err
-		return nil, trace.Wrap(err)
-	}
-	rc.discoveryC = discoveryC
-	return rc.discoveryC, nil
-}
-
-func (rc *remoteConn) String() string {
-	return fmt.Sprintf("remoteConn(remoteAddr=%v)", rc.conn.RemoteAddr())
-}
-
-func (rc *remoteConn) Close() error {
-	if !atomic.CompareAndSwapInt32(&rc.closed, 0, 1) {
-		// already closed
-		return nil
-	}
-	if rc.discoveryC != nil {
-		rc.discoveryC.Close()
-		rc.discoveryC = nil
-	}
-	return rc.sshConn.Close()
-}
-
-func (rc *remoteConn) markInvalid(err error) {
-	atomic.StoreInt32(&rc.invalid, 1)
-}
-
-func (rc *remoteConn) isInvalid() bool {
-	return atomic.LoadInt32(&rc.invalid) == 1
-}
-
-func (rc *remoteConn) setLastHeartbeat(tm time.Time) {
-	atomic.StoreInt64(&rc.lastHeartbeat, tm.UnixNano())
-}
-
-// isReady returns true when connection is ready to be tried,
-// it returns true when connection has received the first heartbeat
-func (rc *remoteConn) isReady() bool {
-	return atomic.LoadInt64(&rc.lastHeartbeat) != 0
-}
-
 // newRemoteSite helper creates and initializes 'remoteSite' instance
 func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	connInfo, err := services.NewTunnelConnection(
@@ -879,11 +919,6 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 		ctx:    closeContext,
 		cancel: cancel,
 		clock:  srv.Clock,
-	}
-
-	// transport uses connection do dial out to the remote address
-	remoteSite.transport = &http.Transport{
-		Dial: remoteSite.dialAccessPoint,
 	}
 
 	// configure access to the full Auth Server API and the cached subset for
@@ -915,7 +950,6 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	}
 	remoteSite.certificateCache = certificateCache
 
-	go remoteSite.periodicSendDiscoveryRequests()
 	go remoteSite.periodicUpdateCertAuthorities()
 
 	return remoteSite, nil
@@ -927,4 +961,5 @@ const (
 	extAuthority    = "auth@teleport"
 	extCertTypeHost = "host"
 	extCertTypeUser = "user"
+	extCertRole     = "role"
 )

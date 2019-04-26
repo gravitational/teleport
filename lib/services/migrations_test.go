@@ -106,6 +106,7 @@ func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {
 		Spec: ReverseTunnelSpecV2{
 			DialAddrs:   in.DialAddrs,
 			ClusterName: in.DomainName,
+			Type:        ProxyTunnel,
 		},
 	}
 	c.Assert(out, DeepEquals, expected)

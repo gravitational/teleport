@@ -23,9 +23,12 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -118,11 +121,16 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 			}, nil
 		}
 		log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
-		client, err := process.newClient(process.Config.AuthServers, identity)
+		client, useTunnel, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &Connector{Client: client, ClientIdentity: identity, ServerIdentity: identity}, nil
+		return &Connector{
+			Client:         client,
+			ClientIdentity: identity,
+			ServerIdentity: identity,
+			UseTunnel:      useTunnel,
+		}, nil
 	case services.RotationStateInProgress:
 		switch rotation.Phase {
 		case services.RotationPhaseInit:
@@ -134,7 +142,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 					ServerIdentity: identity,
 				}, nil
 			}
-			client, err := process.newClient(process.Config.AuthServers, identity)
+			client, useTunnel, err := process.newClient(process.Config.AuthServers, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -142,6 +150,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 				Client:         client,
 				ClientIdentity: identity,
 				ServerIdentity: identity,
+				UseTunnel:      useTunnel,
 			}, nil
 		case services.RotationPhaseUpdateClients:
 			// Clients should use updated credentials,
@@ -156,7 +165,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 					ServerIdentity: identity,
 				}, nil
 			}
-			client, err := process.newClient(process.Config.AuthServers, newIdentity)
+			client, useTunnel, err := process.newClient(process.Config.AuthServers, newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -164,6 +173,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 				Client:         client,
 				ClientIdentity: newIdentity,
 				ServerIdentity: identity,
+				UseTunnel:      useTunnel,
 			}, nil
 		case services.RotationPhaseUpdateServers:
 			// Servers and clients are using new identity credentials, but the
@@ -178,7 +188,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 					ServerIdentity: newIdentity,
 				}, nil
 			}
-			client, err := process.newClient(process.Config.AuthServers, newIdentity)
+			client, useTunnel, err := process.newClient(process.Config.AuthServers, newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -186,6 +196,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 				Client:         client,
 				ClientIdentity: newIdentity,
 				ServerIdentity: newIdentity,
+				UseTunnel:      useTunnel,
 			}, nil
 		case services.RotationPhaseRollback:
 			// In rollback phase, clients and servers should switch back
@@ -198,7 +209,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 					ServerIdentity: identity,
 				}, nil
 			}
-			client, err := process.newClient(process.Config.AuthServers, identity)
+			client, useTunnel, err := process.newClient(process.Config.AuthServers, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -206,6 +217,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 				Client:         client,
 				ClientIdentity: identity,
 				ServerIdentity: identity,
+				UseTunnel:      useTunnel,
 			}, nil
 		default:
 			return nil, trace.BadParameter("unsupported rotation phase: %q", rotation.Phase)
@@ -340,6 +352,23 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Create credentials client that can be passed to the auth.Register. This
+		// client is only used with registering through the proxy. It has to be
+		// created here because lib/client can not be imported in the lib/auth due
+		// to circular imports.
+		var credsClient *client.CredentialsClient
+		if len(process.Config.AuthServers) > 0 {
+			credsClient, err = client.NewCredentialsClient(
+				process.Config.AuthServers[0].String(),
+				lib.IsInsecureDevMode(),
+				nil,
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		identity, err = auth.Register(auth.RegisterParams{
 			DataDir:              process.Config.DataDir,
 			Token:                process.Config.Token,
@@ -353,6 +382,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			CipherSuites:         process.Config.CipherSuites,
 			CAPin:                process.Config.CAPin,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
+			CredsClient:          credsClient,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -368,7 +398,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			ServerIdentity: identity,
 		}
 	} else {
-		client, err := process.newClient(process.Config.AuthServers, identity)
+		client, useTunnel, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -376,6 +406,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			ClientIdentity: identity,
 			ServerIdentity: identity,
 			Client:         client,
+			UseTunnel:      useTunnel,
 		}
 	}
 
@@ -742,7 +773,89 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 	}
 }
 
-func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
+// newClient attempts to connect directly to the Auth Server. If it fails, it
+// falls back to trying to connect to the Auth Server through the proxy.
+func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, bool, error) {
+	directClient, err := process.newClientDirect(authServers, identity)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+
+	// Try and connect to the Auth Server. If the request fails, try and
+	// connect through a tunnel.
+	log.Debugf("Attempting to connect to Auth Server directly.")
+	_, err = directClient.GetLocalClusterName()
+	if err != nil {
+		// Only attempt to connect through the proxy for nodes.
+		if identity.ID.Role != teleport.RoleNode {
+			return nil, false, trace.Wrap(err)
+		}
+
+		log.Debugf("Attempting to connect to Auth Server through tunnel.")
+		tunnelClient, er := process.newClientThroughTunnel(authServers, identity)
+		if er != nil {
+			return nil, false, trace.NewAggregate(err, er)
+		}
+
+		log.Debugf("Connected to Auth Server through tunnel.")
+		return tunnelClient, true, nil
+	}
+
+	log.Debugf("Connected to Auth Server with direct connection.")
+	return directClient, false, nil
+}
+
+// findReverseTunnel uses the web proxy to discover where the SSH reverse tunnel
+// server is running.
+func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string, error) {
+	var errs []error
+	for _, addr := range addrs {
+		// In insecure mode, any certificate is accepted. In secure mode the hosts
+		// CAs are used to validate the certificate on the proxy.
+		clt, err := client.NewCredentialsClient(
+			addr.String(),
+			lib.IsInsecureDevMode(),
+			nil)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		resp, err := clt.Ping(process.ExitContext(), "")
+		if err == nil {
+			// If a tunnel public address is set, return it otherwise return the
+			// tunnel listen address.
+			if resp.Proxy.SSH.TunnelPublicAddr != "" {
+				return resp.Proxy.SSH.TunnelPublicAddr, nil
+			}
+			return resp.Proxy.SSH.TunnelListenAddr, nil
+		}
+		errs = append(errs, err)
+	}
+	return "", trace.NewAggregate(errs...)
+}
+
+func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
+	// Discover address of SSH reverse tunnel server.
+	proxyAddr, err := process.findReverseTunnel(servers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Discovered address for reverse tunnel server: %v.", proxyAddr)
+
+	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := auth.NewTLSClientWithDialer(reversetunnel.TunnelAuthDialer(proxyAddr, identity.SSHClientConfig()), tlsConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clt, nil
+}
+
+func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)

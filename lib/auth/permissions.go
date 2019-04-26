@@ -258,7 +258,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindNamespace, services.RO()),
 						services.NewRule(services.KindRole, services.RO()),
 						services.NewRule(services.KindAuthServer, services.RO()),
-						services.NewRule(services.KindReverseTunnel, services.RO()),
+						services.NewRule(services.KindReverseTunnel, services.RW()),
 						services.NewRule(services.KindTunnelConnection, services.RO()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
 					},

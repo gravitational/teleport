@@ -109,7 +109,7 @@ func (s *AccessService) GetRole(name string) (services.Role, error) {
 	item, err := s.Get(context.TODO(), backend.Key(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("role %v iq not found", name)
+			return nil, trace.NotFound("role %v is not found", name)
 		}
 		return nil, trace.Wrap(err)
 	}

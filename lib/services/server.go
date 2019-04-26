@@ -52,6 +52,10 @@ type Server interface {
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
 	SetRotation(Rotation)
+	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
+	GetUseTunnel() bool
+	// SetUseTunnel sets if a reverse tunnel should be used to connect to this node.
+	SetUseTunnel(bool)
 	// String returns string representation of the server
 	String() string
 	// SetAddr sets server address
@@ -204,6 +208,16 @@ func (s *ServerV2) SetRotation(r Rotation) {
 	s.Spec.Rotation = r
 }
 
+// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
+func (s *ServerV2) GetUseTunnel() bool {
+	return s.Spec.UseTunnel
+}
+
+// SetUseTunnel sets if a reverse tunnel should be used to connect to this node.
+func (s *ServerV2) SetUseTunnel(useTunnel bool) {
+	s.Spec.UseTunnel = useTunnel
+}
+
 // GetHostname returns server hostname
 func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
@@ -319,6 +333,9 @@ func CompareServers(a, b Server) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
+	if a.GetUseTunnel() != b.GetUseTunnel() {
+		return Different
+	}
 	if !utils.StringMapsEqual(a.GetLabels(), b.GetLabels()) {
 		return Different
 	}
@@ -357,6 +374,7 @@ const ServerSpecV2Schema = `{
     "addr": {"type": "string"},
     "public_addr": {"type": "string"},
     "hostname": {"type": "string"},
+    "use_tunnel": {"type": "boolean"},
     "labels": {
       "type": "object",
       "additionalProperties": false,

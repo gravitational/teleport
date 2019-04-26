@@ -11,10 +11,21 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// discoveryRequest is a request sent from a connected proxy with the missing proxies.
 type discoveryRequest struct {
-	ClusterName string            `json:"cluster_name"`
-	ClusterAddr utils.NetAddr     `json:"-"`
-	Proxies     []services.Server `json:"proxies"`
+	// TunnelID identifies who the tunnel is connected to. For trusted clusters,
+	// the TunnelID is the name of the remote cluster (like example.com). For
+	// nodes, it is the nodeID (like 4a050852-23b5-4d6d-a45f-bed02792d453.example.com).
+	TunnelID string `json:"cluster_name"`
+
+	// Type is the type of tunnel, is either node or proxy.
+	Type string `json:"type"`
+
+	// ClusterAddr is the address of the cluster.
+	ClusterAddr utils.NetAddr `json:"-"`
+
+	// Proxies are the missing proxies.
+	Proxies []services.Server `json:"proxies"`
 }
 
 type Proxies []services.Server
@@ -47,17 +58,18 @@ func (proxies Proxies) Equal(other []services.Server) bool {
 }
 
 func (r discoveryRequest) key() agentKey {
-	return agentKey{domainName: r.ClusterName, addr: r.ClusterAddr}
+	return agentKey{tunnelID: r.TunnelID, tunnelType: r.Type, addr: r.ClusterAddr}
 }
 
 func (r discoveryRequest) String() string {
 	return fmt.Sprintf("discovery request, cluster name: %v, address: %v, proxies: %v",
-		r.ClusterName, r.ClusterAddr, Proxies(r.Proxies))
+		r.TunnelID, r.ClusterAddr, Proxies(r.Proxies))
 }
 
 type discoveryRequestRaw struct {
-	ClusterName string            `json:"cluster_name"`
-	Proxies     []json.RawMessage `json:"proxies"`
+	TunnelID string            `json:"cluster_name"`
+	Type     string            `json:"type"`
+	Proxies  []json.RawMessage `json:"proxies"`
 }
 
 func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
@@ -70,7 +82,8 @@ func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
 		}
 		out.Proxies = append(out.Proxies, data)
 	}
-	out.ClusterName = req.ClusterName
+	out.TunnelID = req.TunnelID
+	out.Type = req.Type
 	return json.Marshal(out)
 }
 
@@ -92,6 +105,7 @@ func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
 		}
 		out.Proxies = append(out.Proxies, proxy)
 	}
-	out.ClusterName = raw.ClusterName
+	out.TunnelID = raw.TunnelID
+	out.Type = raw.Type
 	return &out, nil
 }

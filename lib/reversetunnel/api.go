@@ -44,6 +44,10 @@ type DialParams struct {
 	// address, tsh thinks it's connecting via DNS name and that's how it
 	// validates the host certificate.
 	Address string
+
+	// Principals are additonal principals that need to be added to the host
+	// certificate.
+	Principals []string
 }
 
 // CheckAndSetDefaults makes sure the minimal parameters are set.

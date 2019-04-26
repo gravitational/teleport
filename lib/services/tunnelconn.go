@@ -34,8 +34,7 @@ import (
 type TunnelConnection interface {
 	// Resource provides common methods for resource objects
 	Resource
-	// GetClusterName returns name of the cluster
-	// this connection is for
+	// GetClusterName returns name of the cluster this connection is for.
 	GetClusterName() string
 	// GetProxyName returns the proxy name this connection is established to
 	GetProxyName() string
@@ -44,6 +43,10 @@ type TunnelConnection interface {
 	GetLastHeartbeat() time.Time
 	// SetLastHeartbeat sets last heartbeat time
 	SetLastHeartbeat(time.Time)
+	// GetType gets the type of ReverseTunnel.
+	GetType() TunnelType
+	// SetType sets the type of ReverseTunnel.
+	SetType(TunnelType)
 	// Check checks tunnel for errors
 	Check() error
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -146,7 +149,8 @@ func (r *TunnelConnectionV2) Clone() TunnelConnection {
 
 // String returns user-friendly description of this connection
 func (r *TunnelConnectionV2) String() string {
-	return fmt.Sprintf("TunnelConnection(name=%v, cluster=%v, proxy=%v)", r.Metadata.Name, r.Spec.ClusterName, r.Spec.ProxyName)
+	return fmt.Sprintf("TunnelConnection(name=%v, type=%v, cluster=%v, proxy=%v)",
+		r.Metadata.Name, r.Spec.Type, r.Spec.ClusterName, r.Spec.ProxyName)
 }
 
 // GetMetadata returns object metadata
@@ -218,6 +222,19 @@ func (r *TunnelConnectionV2) SetLastHeartbeat(tm time.Time) {
 	r.Spec.LastHeartbeat = tm
 }
 
+// GetType gets the type of ReverseTunnel.
+func (r *TunnelConnectionV2) GetType() TunnelType {
+	if string(r.Spec.Type) == "" {
+		return ProxyTunnel
+	}
+	return r.Spec.Type
+}
+
+// SetType sets the type of ReverseTunnel.
+func (r *TunnelConnectionV2) SetType(tt TunnelType) {
+	r.Spec.Type = tt
+}
+
 // Check returns nil if all parameters are good, error otherwise
 func (r *TunnelConnectionV2) Check() error {
 	if r.Version == "" {
@@ -242,7 +259,8 @@ const TunnelConnectionSpecV2Schema = `{
   "properties": {
     "cluster_name": {"type": "string"},
     "proxy_name": {"type": "string"},
-    "last_heartbeat": {"type": "string"}
+    "last_heartbeat": {"type": "string"},
+    "type": {"type": "string"}
   }
 }`
 

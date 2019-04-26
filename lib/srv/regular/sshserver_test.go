@@ -544,6 +544,16 @@ func mustListen(a utils.NetAddr) net.Listener {
 func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	log.Infof("[TEST START] TestProxyReverseTunnel")
 
+	// Create host key and certificate for proxy.
+	proxyKeys, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+		HostID:   hostID,
+		NodeName: s.server.ClusterName(),
+		Roles:    teleport.Roles{teleport.RoleProxy},
+	})
+	c.Assert(err, IsNil)
+	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
+	c.Assert(err, IsNil)
+
 	reverseTunnelPort := s.freePorts.Pop()
 	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.server.ClusterName(), reverseTunnelPort)}
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
@@ -551,12 +561,13 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		ID:                    hostID,
 		ClusterName:           s.server.ClusterName(),
 		Listener:              mustListen(reverseTunnelAddress),
-		HostSigners:           []ssh.Signer{s.signer},
+		HostSigners:           []ssh.Signer{proxySigner},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
 		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
+		Component:             teleport.ComponentProxy,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -569,6 +580,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		c.MkDir(),
 		"",
 		utils.NetAddr{},
+		SetUUID(hostID),
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
 		SetAuditLog(s.nodeClient),
@@ -584,40 +596,29 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 		Client:      s.proxyClient,
-		HostSigners: []ssh.Signer{s.signer},
-		HostUUID:    hostID,
+		HostSigners: []ssh.Signer{proxySigner},
+		HostUUID:    fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
 		AccessPoint: s.proxyClient,
+		Component:   teleport.ComponentProxy,
 	})
 	c.Assert(err, IsNil)
 
+	// Create a reverse tunnel and remote cluster simulating what the trusted
+	// cluster exchange does.
 	err = s.server.Auth().UpsertReverseTunnel(
 		services.NewReverseTunnel(s.server.ClusterName(), []string{reverseTunnelAddress.String()}))
+	c.Assert(err, IsNil)
+	remoteCluster, err := services.NewRemoteCluster("localhost")
+	c.Assert(err, IsNil)
+	err = s.server.Auth().CreateRemoteCluster(remoteCluster)
 	c.Assert(err, IsNil)
 
 	err = agentPool.FetchAndSyncAgents()
 	c.Assert(err, IsNil)
 
-	eventsC := make(chan string, 1)
-	rsAgent, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
-		Context:       context.TODO(),
-		Addr:          reverseTunnelAddress,
-		RemoteCluster: "remote",
-		Username:      fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
-		Signers:       []ssh.Signer{s.signer},
-		Client:        s.proxyClient,
-		AccessPoint:   s.proxyClient,
-		EventsC:       eventsC,
-	})
+	// Wait for both sites to show up.
+	err = waitForSites(reverseTunnelServer, 2)
 	c.Assert(err, IsNil)
-	rsAgent.Start()
-
-	timeout := time.After(time.Second)
-	select {
-	case event := <-eventsC:
-		c.Assert(event, Equals, reversetunnel.ConnectedEvent)
-	case <-timeout:
-		c.Fatalf("timeout waiting for clusters to connect")
-	}
 
 	sshConfig := &ssh.ClientConfig{
 		User:            s.user,
@@ -755,27 +756,27 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	// start agent and load balance requests
 	eventsC := make(chan string, 2)
 	rsAgent, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
-		Context:       context.TODO(),
-		Addr:          reverseTunnelAddress,
-		RemoteCluster: "remote",
-		Username:      fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
-		Signers:       []ssh.Signer{s.signer},
-		Client:        s.proxyClient,
-		AccessPoint:   s.proxyClient,
-		EventsC:       eventsC,
+		Context:     context.TODO(),
+		Addr:        reverseTunnelAddress,
+		ClusterName: "remote",
+		Username:    fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
+		Signers:     []ssh.Signer{s.signer},
+		Client:      s.proxyClient,
+		AccessPoint: s.proxyClient,
+		EventsC:     eventsC,
 	})
 	c.Assert(err, IsNil)
 	rsAgent.Start()
 
 	rsAgent2, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
-		Context:       context.TODO(),
-		Addr:          reverseTunnelAddress,
-		RemoteCluster: "remote",
-		Username:      fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
-		Signers:       []ssh.Signer{s.signer},
-		Client:        s.proxyClient,
-		AccessPoint:   s.proxyClient,
-		EventsC:       eventsC,
+		Context:     context.TODO(),
+		Addr:        reverseTunnelAddress,
+		ClusterName: "remote",
+		Username:    fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
+		Signers:     []ssh.Signer{s.signer},
+		Client:      s.proxyClient,
+		AccessPoint: s.proxyClient,
+		EventsC:     eventsC,
 	})
 	c.Assert(err, IsNil)
 	rsAgent2.Start()
@@ -1151,6 +1152,24 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 		signer:     usigner,
 		certSigner: ucertSigner,
 	}, nil
+}
+
+func waitForSites(s reversetunnel.Server, count int) error {
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if len(s.GetSites()) == count {
+				return nil
+			}
+		case <-timeout.C:
+			return trace.BadParameter("timed out waiting for clusters")
+		}
+	}
 }
 
 func removeNL(v string) string {

@@ -40,7 +40,7 @@ message Metadata {
 message Rotation {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
-    
+
 	// State could be one of "init" or "in_progress".
 	string State = 1 [(gogoproto.jsontag) = "state,omitempty"];
 	// Phase is the current rotation phase.
@@ -77,14 +77,14 @@ message RotationSchedule {
 // ResorceHeader is a shared resource header
 // used in cases when only type and name is known
 message ResourceHeader {
-    // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
-    // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];    
+	// Kind is a resource kind
+	string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+	// SubKind is an optional resource sub kind, used in some resources
+	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version,omitempty"];
+	string Version = 3 [(gogoproto.jsontag) = "version,omitempty"];
 	// Metadata is User metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty"];
+	Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty"];
 }
 
 // ServerV2 represents a Node, Proxy or Auth server in a Teleport cluster
@@ -96,9 +96,9 @@ message ServerV2 {
     string Kind = 1 [(gogoproto.jsontag) = "kind"];
     // SubKind is an optional resource sub kind, used in some resources
 	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version    
+	// Version is version
     string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata    
+	// Metadata is User metadata
     Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
     // Spec is a server spec
     ServerSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
@@ -116,6 +116,9 @@ message ServerSpecV2  {
 	map <string, CommandLabelV2> CmdLabels = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "cmd_labels,omitempty"];
 	// Rotation specifies server rotation
 	Rotation Rotation  = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty"];
+	// UseTunnel indicates that connections to this server should occur over a
+	// reverse tunnel.
+	bool UseTunnel = 6 [(gogoproto.jsontag) = "use_tunnel,omitempty"];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -142,16 +145,16 @@ message TLSKeyPair {
 message CertAuthorityV2 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
-	// Kind is a resource kind
-	string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    // Kind is a resource kind
+    string Kind = 1 [(gogoproto.jsontag) = "kind"];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];        
-	// Version is version
-	string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is connector metadata
-	Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
-	// Spec contains cert authority specification
-	CertAuthoritySpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+    // Version is version
+    string Version = 3 [(gogoproto.jsontag) = "version"];
+    // Metadata is connector metadata
+    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    // Spec contains cert authority specification
+    CertAuthoritySpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
 }
 
 // CertAuthoritySpecV2 is a host or user certificate authority that
@@ -315,7 +318,7 @@ message ClusterConfigSpecV3 {
 
 	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
     int64 ClientIdleTimeout = 5 [(gogoproto.jsontag) = "client_idle_timeout", (gogoproto.casttype) = "Duration"];
-    
+
 	// DisconnectExpiredCert provides disconnect expired certificate setting -
 	// if true, connections with expired client certificates will get disconnected
 	bool DisconnectExpiredCert = 6 [(gogoproto.jsontag) = "disconnect_expired_cert", (gogoproto.casttype) = "Bool"];
@@ -331,18 +334,18 @@ message ClusterConfigSpecV3 {
 
 // AuditConfig represents audit log settings in the cluster
 message AuditConfig {
-	// Type is audit backend type
-	string Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
-	// Region is a region setting for audit sessions used by cloud providers
-	string Region = 2 [(gogoproto.jsontag) = "region,omitempty"];
-	// AuditSessionsURI is a parameter where to upload sessions
-	string AuditSessionsURI = 3 [(gogoproto.jsontag) = "audit_sessions_uri,omitempty"];
-	// AuditEventsURI is a parameter with all supported outputs
-	// for audit events
+    // Type is audit backend type
+    string Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+    // Region is a region setting for audit sessions used by cloud providers
+    string Region = 2 [(gogoproto.jsontag) = "region,omitempty"];
+    // AuditSessionsURI is a parameter where to upload sessions
+    string AuditSessionsURI = 3 [(gogoproto.jsontag) = "audit_sessions_uri,omitempty"];
+    // AuditEventsURI is a parameter with all supported outputs
+    // for audit events
     StringValues AuditEventsURI = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "audit_events_uri,omitempty", (gogoproto.customtype) = "Strings"];
 	// AuditTableName is a DB table name used for audits
 	// Deprecated in favor of AuditEventsURI
-	// DELETE IN (3.1.0)    
+	// DELETE IN (3.1.0)
 	string AuditTableName = 5 [(gogoproto.jsontag) = "audit_table_name,omitempty"];
 }
 
@@ -543,7 +546,6 @@ message LoginStatus {
     google.protobuf.Timestamp LockedTime = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "locked_time,omitempty"];
 	// LockExpires contains time when this lock will expire
 	google.protobuf.Timestamp LockExpires = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "lock_expires,omitempty"];
-     
 }
 
 // CreatedBy holds information about the person or agent who created the user
@@ -577,16 +579,16 @@ message UserRef {
 
 // ReverseTunnelV2 is version 2 of the resource spec of the reverse tunnel
 message ReverseTunnelV2 {
-    // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
-    // SubKind is an optional resource sub kind, used in some resources
+	// Kind is a resource kind
+	string Kind = 1 [(gogoproto.jsontag) = "kind"];
+	// SubKind is an optional resource sub kind, used in some resources
 	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
+	string Version = 3 [(gogoproto.jsontag) = "version"];
 	// Metadata is a resource metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
-    // Spec is a reverse tunnel specification
-    ReverseTunnelSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+	Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+	// Spec is a reverse tunnel specification
+	ReverseTunnelSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
 }
 
 // ReverseTunnelSpecV2 is a specification for V2 reverse tunnel
@@ -596,23 +598,25 @@ message ReverseTunnelSpecV2 {
 	// DialAddrs is a list of remote address to establish a connection to
 	// it's always SSH over TCP
 	repeated string DialAddrs = 2 [(gogoproto.jsontag) = "dial_addrs,omitempty"];
+	// Type is the type of reverse tunnel, either proxy or node.
+	string Type = 3 [(gogoproto.jsontag) = "type", (gogoproto.casttype) = "TunnelType"];
 }
 
 // TunnelConnectionV2 is version 2 of the resource spec of the tunnel connection
 message TunnelConnectionV2 {
-    option (gogoproto.goproto_stringer) = false;
-    option (gogoproto.stringer) = false;
+	option (gogoproto.goproto_stringer) = false;
+	option (gogoproto.stringer) = false;
 
-    // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
-    // SubKind is an optional resource sub kind, used in some resources
+	// Kind is a resource kind
+	string Kind = 1 [(gogoproto.jsontag) = "kind"];
+	// SubKind is an optional resource sub kind, used in some resources
 	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
+	string Version = 3 [(gogoproto.jsontag) = "version"];
 	// Metadata is a resource metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
-    // Spec is a tunnel specification
-    TunnelConnectionSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+	Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+	// Spec is a tunnel specification
+	TunnelConnectionSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
 }
 
 // TunnelConnectionSpecV2 is a specification for V2 tunnel connection
@@ -622,5 +626,7 @@ message TunnelConnectionSpecV2 {
 	// ProxyName is the name of the proxy server
 	string ProxyName = 2 [(gogoproto.jsontag) = "proxy_name"];
 	// LastHeartbeat is a time of the last heartbeat
-    google.protobuf.Timestamp LastHeartbeat = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "last_heartbeat,omitempty"];
+	google.protobuf.Timestamp LastHeartbeat = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "last_heartbeat,omitempty"];
+	// Type is the type of reverse tunnel, either proxy or node.
+	string Type = 4 [(gogoproto.jsontag) = "type", (gogoproto.casttype) = "TunnelType"];
 }

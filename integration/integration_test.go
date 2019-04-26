@@ -1763,6 +1763,150 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(main.Stop(true), check.IsNil)
 }
 
+// TestDiscoveryNode makes sure the discovery protocol works with nodes.
+func (s *IntSuite) TestDiscoveryNode(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	// Create and start load balancer for proxies.
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(s.getPorts(1)[0])))
+	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	c.Assert(err, check.IsNil)
+	c.Assert(lb.Listen(), check.IsNil)
+	go lb.Serve()
+	defer lb.Close()
+
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
+		tconf := service.MakeDefaultConfig()
+		tconf.Console = nil
+
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+			utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        frontend.String(),
+			},
+		}
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return c, nil, nil, tconf
+	}
+	main := s.newTeleportWithConfig(mainConfig())
+	defer main.Stop(true)
+
+	proxyOneAddr := utils.MustParseAddr(net.JoinHostPort(Loopback, main.GetPortReverseTunnel()))
+	lb.AddBackend(*proxyOneAddr)
+
+	// Create a Teleport instance with a Node.
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = "cluster-main-node"
+		tconf.Console = nil
+		tconf.Token = "token"
+		tconf.AuthServers = []utils.NetAddr{
+			utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, main.GetPortWeb()),
+			},
+		}
+
+		tconf.Auth.Enabled = false
+
+		tconf.Proxy.Enabled = false
+
+		tconf.SSH.Enabled = true
+
+		return tconf
+	}
+	_, err = main.StartNode(nodeConfig())
+	c.Assert(err, check.IsNil)
+
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), Site, 1)
+
+	// Create a Teleport instance with a Proxy.
+	nodePorts := s.getPorts(3)
+	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	proxyConfig := ProxyConfig{
+		Name:              "cluster-main-proxy",
+		SSHPort:           proxySSHPort,
+		WebPort:           proxyWebPort,
+		ReverseTunnelPort: proxyReverseTunnelPort,
+	}
+	err = main.StartProxy(proxyConfig)
+	c.Assert(err, check.IsNil)
+
+	// Add second proxy as a backend to the load balancer.
+	lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
+
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), Site, 2)
+
+	// Execute the connection via first proxy.
+	cfg := ClientConfig{
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    "cluster-main-node",
+	}
+	output, err := runCommand(main, []string{"echo", "hello world"}, cfg, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(output, check.Equals, "hello world\n")
+
+	// Execute the connection via second proxy, should work. This command is
+	// tried 10 times with 250 millisecond delay between each attempt to allow
+	// the discovery request to be received and the connection added to the agent
+	// pool.
+	cfgProxy := ClientConfig{
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    "cluster-main-node",
+		//Port:    remote.GetPortSSHInt(),
+		Proxy: &proxyConfig,
+	}
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 10)
+	c.Assert(err, check.IsNil)
+	c.Assert(output, check.Equals, "hello world\n")
+
+	// now disconnect the main proxy and make sure it will reconnect eventually
+	lb.RemoveBackend(*proxyOneAddr)
+
+	// requests going via main proxy will fail
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
+	c.Assert(err, check.NotNil)
+
+	// requests going via second proxy will succeed
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(output, check.Equals, "hello world\n")
+
+	// Connect the main proxy back and make sure agents have reconnected over time.
+	// This command is tried 10 times with 250 millisecond delay between each
+	// attempt to allow the discovery request to be received and the connection
+	// added to the agent pool.
+	lb.AddBackend(*proxyOneAddr)
+	time.Sleep(30 * time.Second)
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 40)
+	c.Assert(err, check.IsNil)
+	c.Assert(output, check.Equals, "hello world\n")
+
+	// Stop one of proxies on the main cluster.
+	err = main.StopProxy()
+	c.Assert(err, check.IsNil)
+
+	// Wait for the remote cluster to detect the outbound connection is gone.
+	waitForProxyCount(main, Site, 1)
+
+	// Stop both clusters and remaining nodes.
+	c.Assert(main.Stop(true), check.IsNil)
+}
+
 // waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
 func waitForActiveTunnelConnections(c *check.C, t *TeleInstance, clusterName string, expectedCount int) {
 	var lastCount int

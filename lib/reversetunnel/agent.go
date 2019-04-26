@@ -23,7 +23,6 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"sync"
 	"time"
@@ -62,8 +61,10 @@ const (
 type AgentConfig struct {
 	// Addr is target address to dial
 	Addr utils.NetAddr
-	// RemoteCluster is a remote cluster name to connect to
-	RemoteCluster string
+	// ClusterName is the name of the cluster the tunnel is connected to. When the
+	// agent is running in a proxy, it's the name of the remote cluster, when the
+	// agent is running in a node, it's the name of the local cluster.
+	ClusterName string
 	// Signers contains authentication signers
 	Signers []ssh.Signer
 	// Client is a client to the local auth servers
@@ -87,6 +88,9 @@ type AgentConfig struct {
 	EventsC chan string
 	// KubeDialAddr is a dial address for kubernetes proxy
 	KubeDialAddr utils.NetAddr
+	// Server is a SSH server that can handle a connection (perform a handshake
+	// then process). Only set with the agent is running within a node.
+	Server ServerHandler
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -171,9 +175,9 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 
 func (a *Agent) String() string {
 	if len(a.DiscoverProxies) == 0 {
-		return fmt.Sprintf("agent(%v) -> %v:%v", a.getState(), a.RemoteCluster, a.Addr.String())
+		return fmt.Sprintf("agent(%v) -> %v:%v", a.getState(), a.ClusterName, a.Addr.String())
 	}
-	return fmt.Sprintf("agent(%v) -> %v:%v, discover %v", a.getState(), a.RemoteCluster, a.Addr.String(), Proxies(a.DiscoverProxies))
+	return fmt.Sprintf("agent(%v) -> %v:%v, discover %v", a.getState(), a.ClusterName, a.Addr.String(), Proxies(a.DiscoverProxies))
 }
 
 func (a *Agent) getLastStateChange() time.Time {
@@ -225,7 +229,7 @@ func (a *Agent) Wait() error {
 // connectedTo returns true if connected services.Server passed in.
 func (a *Agent) connectedTo(proxy services.Server) bool {
 	principals := a.getPrincipals()
-	proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.RemoteCluster)
+	proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.ClusterName)
 	if _, ok := principals[proxyID]; ok {
 		return true
 	}
@@ -307,121 +311,6 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		}
 	}
 	return conn, err
-}
-
-// proxyTransport runs as a goroutine running inside a reverse tunnel client
-// and it establishes and maintains the following remote connection:
-//
-// tsh -> proxy(also reverse-tunnel-server) -> reverse-tunnel-agent
-//
-// ch   : SSH channel which received "teleport-transport" out-of-band request
-// reqC : request payload
-func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
-	a.Debugf("proxyTransport")
-	defer ch.Close()
-
-	// always push space into stderr to make sure the caller can always
-	// safely call read(stderr) without blocking. this stderr is only used
-	// to request proxying of TCP/IP via reverse tunnel.
-	fmt.Fprint(ch.Stderr(), " ")
-
-	var req *ssh.Request
-	select {
-	case <-a.ctx.Done():
-		a.Infof("is closed, returning")
-		return
-	case req = <-reqC:
-		if req == nil {
-			a.Infof("connection closed, returning")
-			return
-		}
-	case <-time.After(defaults.DefaultDialTimeout):
-		a.Warningf("timeout waiting for dial")
-		return
-	}
-
-	server := string(req.Payload)
-	var servers []string
-
-	// if the request is for the special string @remote-auth-server, then get the
-	// list of auth servers and return that. otherwise try and connect to the
-	// passed in server.
-	switch server {
-	case RemoteAuthServer:
-		authServers, err := a.Client.GetAuthServers()
-		if err != nil {
-			a.Warningf("Unable retrieve list of remote Auth Servers: %v.", err)
-			return
-		}
-		if len(authServers) == 0 {
-			a.Warningf("No remote Auth Servers returned by client.")
-			return
-		}
-		for _, as := range authServers {
-			servers = append(servers, as.GetAddr())
-		}
-	case RemoteKubeProxy:
-		// kubernetes is not configured, reject the connection
-		if a.KubeDialAddr.IsEmpty() {
-			req.Reply(false, []byte("connection rejected: configure kubernetes proxy for this cluster."))
-			return
-		}
-		servers = append(servers, a.KubeDialAddr.Addr)
-	default:
-		servers = append(servers, server)
-	}
-
-	a.Debugf("Received out-of-band proxy transport request: %v", servers)
-
-	var conn net.Conn
-	var err error
-
-	// loop over all servers and try and connect to one of them
-	for _, s := range servers {
-		conn, err = net.Dial("tcp", s)
-		if err == nil {
-			break
-		}
-
-		// log the reason we were not able to connect
-		a.Debugf(trace.DebugReport(err))
-	}
-
-	// if we were not able to connect to any server, write the last connection
-	// error to stderr of the caller (via SSH channel) so the error will be
-	// propagated all the way back to the client (most likely tsh)
-	if err != nil {
-		fmt.Fprint(ch.Stderr(), err.Error())
-		req.Reply(false, []byte(err.Error()))
-		return
-	}
-
-	if conn == nil {
-		a.Warningf("No error, but conn is nil: %v", conn)
-	}
-
-	// successfully dialed
-	req.Reply(true, []byte("connected"))
-	a.Debugf("Successfully dialed to %v, start proxying.", server)
-
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		// make sure that we close the client connection on a channel
-		// close, otherwise the other goroutine would never know
-		// as it will block on read from the connection
-		defer conn.Close()
-		io.Copy(conn, ch)
-	}()
-
-	go func() {
-		defer wg.Done()
-		io.Copy(ch, conn)
-	}()
-
-	wg.Wait()
 }
 
 // run is the main agent loop. It tries to establish a connection to the
@@ -537,7 +426,17 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				a.Warningf("Failed to accept request: %v.", err)
 				continue
 			}
-			go a.proxyTransport(ch, req)
+			go proxyTransport(&transportParams{
+				log:          a.Entry,
+				closeContext: a.ctx,
+				authClient:   a.Client,
+				kubeDialAddr: a.KubeDialAddr,
+				channel:      ch,
+				requestCh:    req,
+				sconn:        conn.Conn,
+				server:       a.Server,
+				component:    teleport.ComponentReverseTunnelAgent,
+			})
 		// new discovery request
 		case nch := <-newDiscoveryC:
 			if nch == nil {
@@ -593,16 +492,27 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 const (
-	chanHeartbeat        = "teleport-heartbeat"
-	chanAccessPoint      = "teleport-access-point"
-	chanTransport        = "teleport-transport"
+	// chanTransport is a channel type that can be used to open a net.Conn
+	// through the reverse tunnel server. Used for trusted clusters and dial back
+	// nodes.
+	chanTransport = "teleport-transport"
+
+	// chanTransportDialReq is the first (and only) request sent on a
+	// chanTransport channel. It's payload is the address of the host a
+	// connection should be established to.
 	chanTransportDialReq = "teleport-transport-dial"
-	chanDiscovery        = "teleport-discovery"
+
+	chanHeartbeat    = "teleport-heartbeat"
+	chanDiscovery    = "teleport-discovery"
+	chanDiscoveryReq = "discovery"
 )
 
 const (
+	// LocalNode is a special non-resolvable address that indicates the request
+	// wants to connect to a dialed back node.
+	LocalNode = "@local-node"
 	// RemoteAuthServer is a special non-resolvable address that indicates client
-	// requests  a connection to the remote auth server.
+	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
 	// RemoteKubeProxy is a special non-resolvable address that indicates that clients
 	// requests a connection to the remote kubernetes proxy.

@@ -572,10 +572,6 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 		"luna3:22",
 	})
 
-	c.Assert(conf.Global.Keys[0].PrivateKey, check.Equals, "private key")
-	c.Assert(conf.Global.Keys[0].Cert, check.Equals, "node.cert")
-	c.Assert(conf.Global.Keys[1].PrivateKeyFile, check.Equals, "/proxy.key.file")
-	c.Assert(conf.Global.Keys[1].CertFile, check.Equals, "/proxy.cert.file")
 	c.Assert(conf.Auth.Authorities[0].Type, check.Equals, services.HostCA)
 	c.Assert(conf.Auth.Authorities[0].DomainName, check.Equals, "example.com")
 	c.Assert(conf.Auth.Authorities[0].CheckingKeys[0], check.Equals, "checking key 1")
