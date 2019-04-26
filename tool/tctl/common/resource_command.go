@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2017 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -132,11 +133,11 @@ func (g *ResourceCommand) Get(client auth.ClientI) error {
 	// Note that only YAML is officially supported. Support for text and JSON
 	// is experimental.
 	switch g.format {
-	case formatYAML:
+	case teleport.YAML:
 		return collection.writeYAML(os.Stdout)
-	case formatText:
+	case teleport.Text:
 		return collection.writeText(os.Stdout)
-	case formatJSON:
+	case teleport.JSON:
 		return collection.writeJSON(os.Stdout)
 	}
 	return trace.BadParameter("unsupported format")
@@ -162,7 +163,7 @@ func (u *ResourceCommand) Create(client auth.ClientI) error {
 			}
 			return trace.Wrap(err)
 		}
-		count += 1
+		count++
 
 		// locate the creator function for a given resource kind:
 		creator, found := u.CreateHandlers[ResourceKind(raw.Kind)]
@@ -271,6 +272,11 @@ func (d *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	}
 
 	switch d.ref.Kind {
+	case services.KindNode:
+		if err = client.DeleteNode(defaults.Namespace, d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("node %v has been deleted\n", d.ref.Name)
 	case services.KindUser:
 		if err = client.DeleteUser(d.ref.Name); err != nil {
 			return trace.Wrap(err)
