@@ -22,166 +22,118 @@ type Event struct {
 	Name string
 	// Code is the unique event code.
 	Code string
-	// Severity is the event severity (info, warning, error).
-	Severity string
-	// Message contains the default event message template.
-	Message string
 }
 
 var (
 	// UserLocalLogin is emitted when a local user successfully logs in.
 	UserLocalLogin = Event{
-		Name:     UserLoginEvent,
-		Code:     UserLocalLoginCode,
-		Severity: SeverityInfo,
-		Message:  "Local user {{.user}} successfully logged in",
+		Name: UserLoginEvent,
+		Code: UserLocalLoginCode,
 	}
 	// UserLocalLoginFailure is emitted when a local user login attempt fails.
 	UserLocalLoginFailure = Event{
-		Name:     UserLoginEvent,
-		Code:     UserLocalLoginFailureCode,
-		Severity: SeverityWarning,
-		Message:  "Local user {{.user}} login failed: {{.error}}",
+		Name: UserLoginEvent,
+		Code: UserLocalLoginFailureCode,
 	}
 	// UserSSOLogin is emitted when an SSO user successfully logs in.
 	UserSSOLogin = Event{
-		Name:     UserLoginEvent,
-		Code:     UserSSOLoginCode,
-		Severity: SeverityInfo,
-		Message:  "SSO user {{.user}} successfully logged in",
+		Name: UserLoginEvent,
+		Code: UserSSOLoginCode,
 	}
 	// UserSSOLoginFailure is emitted when an SSO user login attempt fails.
 	UserSSOLoginFailure = Event{
-		Name:     UserLoginEvent,
-		Code:     UserSSOLoginFailureCode,
-		Severity: SeverityWarning,
-		Message:  "SSO user login failed: {{.error}}",
+		Name: UserLoginEvent,
+		Code: UserSSOLoginFailureCode,
 	}
 	// SessionStart is emitted when a user starts a new session.
 	SessionStart = Event{
-		Name:     SessionStartEvent,
-		Code:     SessionStartCode,
-		Severity: SeverityInfo,
-		Message:  "User {{.user}} has started a session",
+		Name: SessionStartEvent,
+		Code: SessionStartCode,
 	}
 	// SessionJoin is emitted when a user joins the session.
 	SessionJoin = Event{
-		Name:     SessionJoinEvent,
-		Code:     SessionJoinCode,
-		Severity: SeverityInfo,
-		Message:  "User {{.user}} has joined the session",
+		Name: SessionJoinEvent,
+		Code: SessionJoinCode,
 	}
 	// TerminalResize is emitted when a user resizes the terminal.
 	TerminalResize = Event{
-		Name:     ResizeEvent,
-		Code:     TerminalResizeCode,
-		Severity: SeverityInfo,
-		Message:  "User {{.user}} resized the terminal",
+		Name: ResizeEvent,
+		Code: TerminalResizeCode,
 	}
 	// SessionLeave is emitted when a user leaves the session.
 	SessionLeave = Event{
-		Name:     SessionLeaveEvent,
-		Code:     SessionLeaveCode,
-		Severity: SeverityInfo,
-		Message:  "User {{.user}} has left the session",
+		Name: SessionLeaveEvent,
+		Code: SessionLeaveCode,
 	}
 	// SessionEnd is emitted when a user ends the session.
 	SessionEnd = Event{
-		Name:     SessionEndEvent,
-		Code:     SessionEndCode,
-		Severity: SeverityInfo,
-		Message:  "User {{.user}} has ended the session",
+		Name: SessionEndEvent,
+		Code: SessionEndCode,
 	}
 	// SessionUpload is emitted after a session recording has been uploaded.
 	SessionUpload = Event{
-		Name:     SessionUploadEvent,
-		Code:     SessionUploadCode,
-		Severity: SeverityInfo,
-		Message:  "Recorded session has been uploaded",
+		Name: SessionUploadEvent,
+		Code: SessionUploadCode,
 	}
 	// Subsystem is emitted when a user requests a new subsystem.
 	Subsystem = Event{
-		Name:     SubsystemEvent,
-		Code:     SubsystemCode,
-		Severity: SeverityInfo,
-		Message:  "User {{.user}} requested subsystem {{.name}}",
+		Name: SubsystemEvent,
+		Code: SubsystemCode,
 	}
 	// SubsystemFailure is emitted when a user subsystem request fails.
 	SubsystemFailure = Event{
-		Name:     SubsystemEvent,
-		Code:     SubsystemFailureCode,
-		Severity: SeverityError,
-		Message:  "User {{.user}} subsystem {{.name}} request failed: {{.exitError}}",
+		Name: SubsystemEvent,
+		Code: SubsystemFailureCode,
 	}
 	// Exec is emitted when a user executes a command on a node.
 	Exec = Event{
-		Name:     ExecEvent,
-		Code:     ExecCode,
-		Severity: SeverityInfo,
-		Message:  `User {{.user}} executed a command on node {{index . "addr.remote"}}`,
+		Name: ExecEvent,
+		Code: ExecCode,
 	}
 	// ExecFailure is emitted when a user command execution fails.
 	ExecFailure = Event{
-		Name:     ExecEvent,
-		Code:     ExecFailureCode,
-		Severity: SeverityError,
-		Message:  `User {{.user}} command execution on node {{index . "addr.remote"}} failed: {{.exitError}}`,
+		Name: ExecEvent,
+		Code: ExecFailureCode,
 	}
 	// PortForward is emitted when a user requests port forwarding.
 	PortForward = Event{
-		Name:     PortForwardEvent,
-		Code:     PortForwardCode,
-		Severity: SeverityInfo,
-		Message:  "User {{.user}} started port forwarding",
+		Name: PortForwardEvent,
+		Code: PortForwardCode,
 	}
 	// PortForwardFailure is emitted when a port forward request fails.
 	PortForwardFailure = Event{
-		Name:     PortForwardEvent,
-		Code:     PortForwardFailureCode,
-		Severity: SeverityError,
-		Message:  "User {{.user}} port forwarding request failed: {{.error}}",
+		Name: PortForwardEvent,
+		Code: PortForwardFailureCode,
 	}
 	// SCPDownload is emitted when a user downloads a file.
 	SCPDownload = Event{
-		Name:     SCPEvent,
-		Code:     SCPDownloadCode,
-		Severity: SeverityInfo,
-		Message:  `User {{.user}} downloaded a file from node {{index . "addr.remote"}}`,
+		Name: SCPEvent,
+		Code: SCPDownloadCode,
 	}
 	// SCPDownloadFailure is emitted when a file download fails.
 	SCPDownloadFailure = Event{
-		Name:     SCPEvent,
-		Code:     SCPDownloadFailureCode,
-		Severity: SeverityError,
-		Message:  `User {{.user}} file download attempt from node {{index . "addr.remote"}} failed: {{.exitError}}`,
+		Name: SCPEvent,
+		Code: SCPDownloadFailureCode,
 	}
 	// SCPUpload is emitted when a user uploads a file.
 	SCPUpload = Event{
-		Name:     SCPEvent,
-		Code:     SCPUploadCode,
-		Severity: SeverityInfo,
-		Message:  `User {{.user}} uploaded a file to node {{index . "addr.remote"}}`,
+		Name: SCPEvent,
+		Code: SCPUploadCode,
 	}
 	// SCPUploadFailure is emitted when a file upload fails.
 	SCPUploadFailure = Event{
-		Name:     SCPEvent,
-		Code:     SCPUploadFailureCode,
-		Severity: SeverityError,
-		Message:  `User {{.user}} file upload attempt to node {{index . "addr.remote"}} failed: {{.exitError}}`,
+		Name: SCPEvent,
+		Code: SCPUploadFailureCode,
 	}
 	// ClientDisconnect is emitted when a user session is disconnected.
 	ClientDisconnect = Event{
-		Name:     ClientDisconnectEvent,
-		Code:     ClientDisconnectCode,
-		Severity: SeverityInfo,
-		Message:  "User {{.user}} has been disconnected: {{.reason}}",
+		Name: ClientDisconnectEvent,
+		Code: ClientDisconnectCode,
 	}
 	// AuthAttemptFailure is emitted upon a failed authentication attempt.
 	AuthAttemptFailure = Event{
-		Name:     AuthAttemptEvent,
-		Code:     AuthAttemptFailureCode,
-		Severity: SeverityWarning,
-		Message:  "User {{.user}} failed auth attempt: {{.error}}",
+		Name: AuthAttemptEvent,
+		Code: AuthAttemptFailureCode,
 	}
 )
 

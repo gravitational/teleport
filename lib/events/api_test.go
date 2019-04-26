@@ -56,10 +56,8 @@ func (a *AuditAPITestSuite) TestFields(c *check.C) {
 
 func (a *AuditAPITestSuite) TestUpdateFields(c *check.C) {
 	event := Event{
-		Name:     "test.event",
-		Code:     "TEST0001I",
-		Severity: SeverityInfo,
-		Message:  "User {{.user}} logged in via {{.method}}",
+		Name: "test.event",
+		Code: "TEST0001I",
 	}
 	fields := EventFields{
 		EventUser:   "test@example.com",
@@ -69,13 +67,11 @@ func (a *AuditAPITestSuite) TestUpdateFields(c *check.C) {
 
 	// Check the fields have been updated appropriately.
 	c.Assert(fields, check.DeepEquals, EventFields{
-		EventType:     event.Name,
-		EventID:       fixtures.UUID,
-		EventCode:     event.Code,
-		EventTime:     time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC),
-		EventSeverity: SeverityInfo,
-		EventUser:     "test@example.com",
-		EventMessage:  "User test@example.com logged in via oidc",
-		LoginMethod:   LoginMethodOIDC,
+		EventType:   event.Name,
+		EventID:     fixtures.UUID,
+		EventCode:   event.Code,
+		EventTime:   time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC),
+		EventUser:   "test@example.com",
+		LoginMethod: LoginMethodOIDC,
 	})
 }
