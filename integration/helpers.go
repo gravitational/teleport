@@ -283,7 +283,12 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 }
 
 func (s *InstanceSecrets) GetIdentity() *auth.Identity {
-	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, s.Cert, s.TLSCert, [][]byte{s.TLSCACert})
+	i, err := auth.ReadIdentityFromKeyPair(&auth.PackedKeys{
+		Key:        s.PrivKey,
+		Cert:       s.Cert,
+		TLSCert:    s.TLSCert,
+		TLSCACerts: [][]byte{s.TLSCACert},
+	})
 	fatalIf(err)
 	return i
 }

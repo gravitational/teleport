@@ -140,6 +140,10 @@ type Server struct {
 	// heartbeat sends updates about this server
 	// back to auth server
 	heartbeat *srv.Heartbeat
+
+	// useTunnel is used to inform other components that this server is
+	// requesting connections to it come over a reverse tunnel.
+	useTunnel bool
 }
 
 // GetClock returns server clock implementation
@@ -234,6 +238,12 @@ func (s *Server) Start() error {
 		s.updateLabels()
 	}
 	go s.heartbeat.Run()
+
+	// If the server requested connections to it arrive over a reverse tunnel,
+	// don't call Start() which listens on a socket, return right away.
+	if s.useTunnel {
+		return nil
+	}
 	return s.srv.Start()
 }
 
@@ -249,6 +259,12 @@ func (s *Server) Serve(l net.Listener) error {
 // Wait waits until server stops
 func (s *Server) Wait() {
 	s.srv.Wait(context.TODO())
+}
+
+// HandleConnection is called after a connection has been accepted and starts
+// to perform the SSH handshake immediately.
+func (s *Server) HandleConnection(conn net.Conn) {
+	s.srv.HandleConnection(conn)
 }
 
 // RotationGetter returns rotation state
@@ -375,6 +391,13 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 func SetPAMConfig(pamConfig *pam.Config) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
+		return nil
+	}
+}
+
+func SetUseTunnel(useTunnel bool) ServerOption {
+	return func(s *Server) error {
+		s.useTunnel = useTunnel
 		return nil
 	}
 }
@@ -583,6 +606,7 @@ func (s *Server) GetInfo() services.Server {
 			CmdLabels: services.LabelsToV2(s.getCommandLabels()),
 			Addr:      s.AdvertiseAddr(),
 			Hostname:  s.hostname,
+			UseTunnel: s.useTunnel,
 		},
 	}
 }

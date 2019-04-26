@@ -39,6 +39,10 @@ type ReverseTunnel interface {
 	GetClusterName() string
 	// SetClusterName sets cluster name
 	SetClusterName(name string)
+	// GetType gets the type of ReverseTunnel.
+	GetType() TunnelType
+	// SetType sets the type of ReverseTunnel.
+	SetType(TunnelType)
 	// GetDialAddrs returns list of dial addresses for this cluster
 	GetDialAddrs() []string
 	// Check checks tunnel for errors
@@ -160,6 +164,19 @@ func (r *ReverseTunnelV2) GetClusterName() string {
 	return r.Spec.ClusterName
 }
 
+// GetType gets the type of ReverseTunnel.
+func (r *ReverseTunnelV2) GetType() TunnelType {
+	if string(r.Spec.Type) == "" {
+		return ProxyTunnel
+	}
+	return r.Spec.Type
+}
+
+// SetType sets the type of ReverseTunnel.
+func (r *ReverseTunnelV2) SetType(tt TunnelType) {
+	r.Spec.Type = tt
+}
+
 // GetDialAddrs returns list of dial addresses for this cluster
 func (r *ReverseTunnelV2) GetDialAddrs() []string {
 	return r.Spec.DialAddrs
@@ -195,6 +212,7 @@ const ReverseTunnelSpecV2Schema = `{
   "required": ["cluster_name", "dial_addrs"],
   "properties": {
     "cluster_name": {"type": "string"},
+    "type": {"type": "string"},
     "dial_addrs": {
       "type": "array",
       "items": {
@@ -229,6 +247,7 @@ func (r *ReverseTunnelV1) V2() *ReverseTunnelV2 {
 		},
 		Spec: ReverseTunnelSpecV2{
 			ClusterName: r.DomainName,
+			Type:        ProxyTunnel,
 			DialAddrs:   r.DialAddrs,
 		},
 	}
@@ -360,3 +379,14 @@ func (*TeleportTunnelMarshaler) MarshalReverseTunnel(rt ReverseTunnel, opts ...M
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}
 }
+
+const (
+	// NodeTunnel is a tunnel where the node connects to the proxy (dial back).
+	NodeTunnel TunnelType = "node"
+
+	// ProxyTunnel is a tunnel where a proxy connects to the proxy (trusted cluster).
+	ProxyTunnel TunnelType = "proxy"
+)
+
+// TunnelType is the type of tunnel. Either node or proxy.
+type TunnelType string

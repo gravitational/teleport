@@ -20,8 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -33,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
@@ -572,80 +569,6 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	}}))
 }
 
-// TestMigrateIdentity tests migration of the identity
-func (s *AuthSuite) TestMigrateIdentity(c *C) {
-	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
-
-	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
-
-	role := teleport.RoleAdmin
-	id := IdentityID{
-		HostUUID: "test",
-		NodeName: "test",
-		Role:     role,
-	}
-	packedKeys, err := s.a.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:   id.HostUUID,
-		NodeName: id.NodeName,
-		Roles:    teleport.Roles{id.Role},
-	})
-	c.Assert(err, IsNil)
-	err = writeKeys(s.dataDir, id, packedKeys.Key, packedKeys.Cert, packedKeys.TLSCert, packedKeys.TLSCACerts[0])
-	c.Assert(err, IsNil)
-
-	oldid, err := readIdentityCompat(s.dataDir, id)
-	c.Assert(err, IsNil)
-
-	// migrate identities to the new format
-	err = migrateIdentities(s.dataDir)
-	c.Assert(err, IsNil)
-
-	// identity has been migrated, old identity has been removed
-	_, err = readIdentityCompat(s.dataDir, id)
-	fixtures.ExpectNotFound(c, err)
-
-	newid, err := ReadLocalIdentity(filepath.Join(s.dataDir, teleport.ComponentProcess), id)
-	newid.ID.NodeName = id.NodeName
-	c.Assert(err, IsNil)
-
-	fixtures.DeepCompare(c, newid, oldid)
-
-	// migrate identities to the new format does nothing
-	// if migration has already happened
-	err = migrateIdentities(s.dataDir)
-	c.Assert(err, IsNil)
-
-	newid, err = ReadLocalIdentity(filepath.Join(s.dataDir, teleport.ComponentProcess), id)
-	newid.ID.NodeName = id.NodeName
-	c.Assert(err, IsNil)
-
-	fixtures.DeepCompare(c, newid, oldid)
-}
-
-// TestMigrateAdminRole tests migration of the admin role
-func (s *AuthSuite) TestMigrateAdminRole(c *C) {
-	defaultRole := services.NewAdminRole()
-	defaultRole.SetKubeGroups(services.Allow, nil)
-	err := s.a.UpsertRole(defaultRole)
-	c.Assert(err, IsNil)
-
-	err = migrateAdminRole(s.a)
-	c.Assert(err, IsNil)
-
-	out, err := s.a.GetRole(defaultRole.GetName())
-	c.Assert(err, IsNil)
-	c.Assert(out.GetKubeGroups(services.Allow), DeepEquals, modules.GetModules().DefaultKubeGroups())
-
-	// second call does nothing
-	err = migrateAdminRole(s.a)
-	c.Assert(err, IsNil)
-	out, err = s.a.GetRole(defaultRole.GetName())
-	c.Assert(err, IsNil)
-	c.Assert(out.GetKubeGroups(services.Allow), DeepEquals, modules.GetModules().DefaultKubeGroups())
-}
-
 // TestMigrateRoleRules ensures that roles get updated with events access
 // during migration.
 func (s *AuthSuite) TestMigrateRoleRules(c *C) {
@@ -732,24 +655,4 @@ func (s *AuthSuite) TestMigrateRoleRules(c *C) {
 		c.Assert(retrievedRole.GetRules(services.Allow), DeepEquals,
 			tc.ExpectedAllowRules, Commentf(tc.Comment))
 	}
-}
-
-// writeKeys saves the key/cert pair for a given domain onto disk. This usually means the
-// domain trusts us (signed our public key)
-func writeKeys(dataDir string, id IdentityID, key []byte, sshCert []byte, tlsCert []byte, tlsCACert []byte) error {
-	path := keysPath(dataDir, id)
-
-	if err := ioutil.WriteFile(path.key, key, teleport.FileMaskOwnerOnly); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ioutil.WriteFile(path.sshCert, sshCert, teleport.FileMaskOwnerOnly); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ioutil.WriteFile(path.tlsCert, tlsCert, teleport.FileMaskOwnerOnly); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ioutil.WriteFile(path.tlsCACert, tlsCACert, teleport.FileMaskOwnerOnly); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }

@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -33,6 +34,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
+
+// ServerHandler implements an interface which can handle a connection
+// (perform a handshake then process). This is needed because importing
+// lib/srv in lib/reversetunnel causes a circular import.
+type ServerHandler interface {
+	// HandleConnection performs a handshake then process the connection.
+	HandleConnection(conn net.Conn)
+}
 
 // AgentPool manages the pool of outbound reverse tunnel agents.
 // The agent pool watches the reverse tunnel entries created by the admin and
@@ -70,6 +79,12 @@ type AgentPoolConfig struct {
 	Clock clockwork.Clock
 	// KubeDialAddr is an address of a kubernetes proxy
 	KubeDialAddr utils.NetAddr
+	// Server is a SSH server that can handle a connection (perform a handshake
+	// then process). Only set with the agent is running within a node.
+	Server ServerHandler
+	// Component is the Teleport component this agent pool is running in. It can
+	// either be proxy (trusted clusters) or node (dial back).
+	Component string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -288,9 +303,18 @@ func (m *AgentPool) pollAndSyncAgents() {
 }
 
 func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) error {
+	// If the component connecting is a proxy, get the cluster name from the
+	// tunnelID (where it is the name of the remote cluster). If it's a node, get
+	// the cluster name from the agent pool configuration itself (where it is
+	// the name of the local cluster).
+	clusterName := key.tunnelID
+	if key.tunnelType == string(services.NodeTunnel) {
+		clusterName = m.cfg.Cluster
+	}
+
 	agent, err := NewAgent(AgentConfig{
 		Addr:            key.addr,
-		RemoteCluster:   key.domainName,
+		ClusterName:     clusterName,
 		Username:        m.cfg.HostUUID,
 		Signers:         m.cfg.HostSigners,
 		Client:          m.cfg.Client,
@@ -299,6 +323,7 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 		DiscoveryC:      m.discoveryC,
 		DiscoverProxies: discoverProxies,
 		KubeDialAddr:    m.cfg.KubeDialAddr,
+		Server:          m.cfg.Server,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -320,7 +345,7 @@ func (m *AgentPool) Counts() map[string]int {
 	out := make(map[string]int)
 
 	for key, agents := range m.agents {
-		out[key.domainName] += len(agents)
+		out[key.tunnelID] += len(agents)
 	}
 
 	return out
@@ -336,7 +361,7 @@ func (m *AgentPool) reportStats() {
 	}
 
 	for key, agents := range m.agents {
-		m.Debugf("Outbound tunnel for %v connected to %v proxies.", key.domainName, len(agents))
+		m.Debugf("Outbound tunnel for %v connected to %v proxies.", key.tunnelID, len(agents))
 
 		countPerState := map[string]int{
 			agentStateConnecting:   0,
@@ -349,7 +374,7 @@ func (m *AgentPool) reportStats() {
 			countPerState[a.getState()]++
 		}
 		for state, count := range countPerState {
-			gauge, err := trustedClustersStats.GetMetricWithLabelValues(key.domainName, state)
+			gauge, err := trustedClustersStats.GetMetricWithLabelValues(key.tunnelID, state)
 			if err != nil {
 				m.Warningf("Failed to get gauge: %v.", err)
 				continue
@@ -357,7 +382,7 @@ func (m *AgentPool) reportStats() {
 			gauge.Set(float64(count))
 		}
 		if logReport {
-			m.WithFields(log.Fields{"target": key.domainName, "stats": countPerState}).Info("Outbound tunnel stats.")
+			m.WithFields(log.Fields{"target": key.tunnelID, "stats": countPerState}).Info("Outbound tunnel stats.")
 		}
 	}
 }
@@ -366,12 +391,37 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	m.Lock()
 	defer m.Unlock()
 
-	keys, err := tunnelsToAgentKeys(tunnels)
+	// Filter out tunnels based off if the AgentPool is running in the proxy
+	// or node.
+	//
+	// For proxies, get all tunnels of type proxy.
+	//
+	// For nodes, get all tunnels of type node and with the same UUID as the host.
+	// For nodes, because the AgentPool is running in the host, this ensures it
+	// only picks up tunnels for itself.
+	filtered := make([]services.ReverseTunnel, 0, len(tunnels))
+	switch m.cfg.Component {
+	case teleport.ComponentProxy:
+		for _, t := range tunnels {
+			if t.GetType() == services.ProxyTunnel {
+				filtered = append(filtered, t)
+			}
+		}
+	case teleport.ComponentNode:
+		for _, t := range tunnels {
+			if t.GetType() == services.NodeTunnel && t.GetName() == m.cfg.HostUUID {
+				filtered = append(filtered, t)
+			}
+		}
+	}
+
+	keys, err := tunnelsToAgentKeys(filtered)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	agentsToAdd, agentsToRemove := diffTunnels(m.agents, keys)
+
 	// remove agents from deleted reverse tunnels
 	for _, key := range agentsToRemove {
 		m.closeAgents(&key)
@@ -434,7 +484,7 @@ func tunnelToAgentKeys(tunnel services.ReverseTunnel) ([]agentKey, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out[i] = agentKey{addr: *netaddr, domainName: tunnel.GetClusterName()}
+		out[i] = agentKey{addr: *netaddr, tunnelType: string(tunnel.GetType()), tunnelID: tunnel.GetClusterName()}
 	}
 	return out, nil
 }
@@ -456,11 +506,21 @@ func diffTunnels(existingTunnels map[agentKey][]*Agent, arrivedKeys map[agentKey
 	return agentsToAdd, agentsToRemove
 }
 
+// agentKey is used to uniquely identify agents.
 type agentKey struct {
-	domainName string
-	addr       utils.NetAddr
+	// tunnelID identifies who the tunnel is connected to. For trusted clusters,
+	// the tunnelID is the name of the remote cluster (like example.com). For
+	// nodes, it is the nodeID (like 4a050852-23b5-4d6d-a45f-bed02792d453.example.com).
+	tunnelID string
+
+	// tunnelType is the type of tunnel, is either node or proxy.
+	tunnelType string
+
+	// addr is the address this tunnel is agent is connected to. For example:
+	// proxy.example.com:3024.
+	addr utils.NetAddr
 }
 
 func (a *agentKey) String() string {
-	return fmt.Sprintf("agent(%v, %v)", a.domainName, a.addr.String())
+	return fmt.Sprintf("agentKey(tunnelID=%v, type=%v, addr=%v)", a.tunnelID, a.tunnelType, a.addr.String())
 }

@@ -1,3 +1,19 @@
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package auth
 
 import (
@@ -130,7 +146,13 @@ func (p *ProcessStorage) ReadIdentity(name string, role teleport.Role) (*Identit
 	if err := utils.UnmarshalWithSchema(GetIdentitySchema(), &res, item.Value); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	return ReadIdentityFromKeyPair(res.Spec.Key, res.Spec.SSHCert, res.Spec.TLSCert, res.Spec.TLSCACerts)
+	return ReadIdentityFromKeyPair(&PackedKeys{
+		Key:        res.Spec.Key,
+		Cert:       res.Spec.SSHCert,
+		TLSCert:    res.Spec.TLSCert,
+		TLSCACerts: res.Spec.TLSCACerts,
+		SSHCACerts: res.Spec.SSHCACerts,
+	})
 }
 
 // WriteIdentity writes identity to the backend.
@@ -148,6 +170,7 @@ func (p *ProcessStorage) WriteIdentity(name string, id Identity) error {
 			SSHCert:    id.CertBytes,
 			TLSCert:    id.TLSCertBytes,
 			TLSCACerts: id.TLSCACertsBytes,
+			SSHCACerts: id.SSHCACertBytes,
 		},
 	}
 	if err := res.CheckAndSetDefaults(); err != nil {
@@ -220,6 +243,9 @@ func (s *IdentityV2) CheckAndSetDefaults() error {
 	if len(s.Spec.TLSCACerts) == 0 {
 		return trace.BadParameter("missing parameter TLSCACerts")
 	}
+	if len(s.Spec.SSHCACerts) == 0 {
+		return trace.BadParameter("missing parameter SSH CA bytes")
+	}
 	return nil
 }
 
@@ -234,6 +260,9 @@ type IdentitySpecV2 struct {
 	// TLSCACert is a list of PEM encoded x509 certificate of the
 	// certificate authority of the cluster.
 	TLSCACerts [][]byte `json:"tls_ca_certs,omitempty"`
+	// SSHCACerts is a list of SSH certificate authorities encoded in the
+	// authorized_keys format.
+	SSHCACerts [][]byte `json:"ssh_ca_certs,omitempty"`
 }
 
 // IdentitySpecV2Schema is a schema for identity spec.
@@ -246,6 +275,10 @@ const IdentitySpecV2Schema = `{
     "ssh_cert": {"type": "string"},
     "tls_cert": {"type": "string"},
     "tls_ca_certs": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "ssh_ca_certs": {
       "type": "array",
       "items": {"type": "string"}
     }

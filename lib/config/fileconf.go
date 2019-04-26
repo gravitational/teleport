@@ -29,7 +29,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
@@ -125,6 +124,7 @@ var (
 		"seed_config":             false,
 		"public_addr":             false,
 		"ssh_public_addr":         false,
+		"tunnel_public_addr":      false,
 		"cache":                   true,
 		"ttl":                     false,
 		"issuer":                  false,
@@ -367,11 +367,6 @@ type Global struct {
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
 	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
-
-	// Keys holds the list of SSH key/cert pairs used by all services
-	// Each service (like proxy, auth, node) can find the key it needs
-	// by looking into certificate
-	Keys []KeyPair `yaml:"keys,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
@@ -753,6 +748,11 @@ type Proxy struct {
 	// The hosts in PublicAddr are included in the list of host principals
 	// on the SSH certificate.
 	SSHPublicAddr utils.Strings `yaml:"ssh_public_addr,omitempty"`
+
+	// TunnelPublicAddr sets the hostport the proxy advertises for the tunnel
+	// endpoint. The hosts in PublicAddr are included in the list of host
+	// principals on the SSH certificate.
+	TunnelPublicAddr utils.Strings `yaml:"tunnel_public_addr,omitempty"`
 }
 
 // Kube is a `kubernetes_service`
@@ -789,46 +789,6 @@ func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
-}
-
-// KeyPair is a pair of private key and certificates
-type KeyPair struct {
-	// PrivateKeyFile is a path to file with private key
-	PrivateKeyFile string `yaml:"private_key_file"`
-	// CertFile is a path to file with OpenSSH certificate
-	CertFile string `yaml:"cert_file"`
-	// PrivateKey is PEM encoded OpenSSH private key
-	PrivateKey string `yaml:"private_key"`
-	// Cert is certificate in OpenSSH authorized keys format
-	Cert string `yaml:"cert"`
-	// TLSCert is TLS certificate in PEM format
-	TLSCert string `yaml:"tls_cert"`
-	// TLSCACert is TLS certificate in PEM format for trusted CA
-	TLSCACert string `yaml:"tls_ca_cert"`
-}
-
-// Identity parses keypair into auth server identity
-func (k *KeyPair) Identity() (*auth.Identity, error) {
-	var keyBytes []byte
-	var err error
-	if k.PrivateKeyFile != "" {
-		keyBytes, err = ioutil.ReadFile(k.PrivateKeyFile)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
-	} else {
-		keyBytes = []byte(k.PrivateKey)
-	}
-	var certBytes []byte
-	if k.CertFile != "" {
-		certBytes, err = ioutil.ReadFile(k.CertFile)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
-	} else {
-		certBytes = []byte(k.Cert)
-	}
-	return auth.ReadIdentityFromKeyPair(keyBytes, certBytes, []byte(k.TLSCert), [][]byte{[]byte(k.TLSCACert)})
 }
 
 // Authority is a host or user certificate authority that

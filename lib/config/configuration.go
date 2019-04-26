@@ -283,14 +283,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			})
 		}
 	}
-	// add static signed keypairs supplied from configs
-	for i := range fc.Global.Keys {
-		identity, err := fc.Global.Keys[i].Identity()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Identities = append(cfg.Identities, identity)
-	}
 
 	// Apply configuration for "auth_service", "proxy_service", and
 	// "ssh_service" if it's enabled.
@@ -551,6 +543,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.SSHPublicAddrs = addrs
+	}
+	if len(fc.Proxy.TunnelPublicAddr) != 0 {
+		addrs, err := fc.Proxy.TunnelPublicAddr.Addrs(defaults.SSHProxyTunnelListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.TunnelPublicAddrs = addrs
 	}
 
 	return nil

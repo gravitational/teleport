@@ -298,6 +298,11 @@ type ProxyConfig struct {
 	// list of host principals on the TLS and SSH certificate.
 	SSHPublicAddrs []utils.NetAddr
 
+	// TunnelPublicAddrs is a list of the public addresses the proxy advertises
+	// for the tunnel endpoint. The hosts in in PublicAddr are included in the
+	// list of host principals on the TLS and SSH certificate.
+	TunnelPublicAddrs []utils.NetAddr
+
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
 }

@@ -47,11 +47,6 @@ teleport:
     - period: 10m10s
       average: 170
       burst: 171
-  keys:
-  - cert: node.cert
-    private_key: !!binary cHJpdmF0ZSBrZXk=
-  - cert_file: /proxy.cert.file
-    private_key_file: /proxy.key.file
   cache:
     enabled: yes
     ttl: 20h

@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"crypto/x509"
 	"io/ioutil"
 	"strings"
@@ -52,7 +53,7 @@ func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals, 
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
+	identity, err := ReadIdentityFromKeyPair(keys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,6 +89,16 @@ type RegisterParams struct {
 	CAPin string
 	// CAPath is the path to the CA file.
 	CAPath string
+	// CredsClient is a client that can fetch host credentials.
+	CredsClient CredGetter
+}
+
+// CredGetter is an interface for a client that can be used to get host
+// credentials. This interface is needed because lib/client can not be imported
+// in lib/auth due to circular imports.
+type CredGetter interface {
+	// HostCredentials are used to get a server host credentials.
+	HostCredentials(context.Context, RegisterUsingTokenRequest) (*PackedKeys, error)
 }
 
 // Register is used to generate host keys when a node or proxy are running on
@@ -97,15 +108,67 @@ type RegisterParams struct {
 func Register(params RegisterParams) (*Identity, error) {
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
-	tok, err := readToken(params.Token)
+	token, err := readToken(params.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Attempt to register through the auth server, if it fails, try and
+	// register through the proxy server.
+	ident, err := registerThroughAuth(token, params)
+	if err != nil {
+		// If no params client was set this is a proxy and fail right away.
+		if params.CredsClient == nil {
+			log.Debugf("Missing client, failing with error from Auth Server: %v.", err)
+			return nil, trace.Wrap(err)
+		}
+
+		ident, er := registerThroughProxy(token, params)
+		if er != nil {
+			return nil, trace.NewAggregate(err, er)
+		}
+
+		log.Debugf("Successfully registered through proxy server.")
+		return ident, nil
+	}
+
+	log.Debugf("Successfully registered through auth server.")
+	return ident, nil
+}
+
+// registerThroughProxy is used to register through the proxy server.
+func registerThroughProxy(token string, params RegisterParams) (*Identity, error) {
+	log.Debugf("Attempting to register through proxy server.")
+
+	keys, err := params.CredsClient.HostCredentials(context.Background(),
+		RegisterUsingTokenRequest{
+			Token:                token,
+			HostID:               params.ID.HostUUID,
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keys.Key = params.PrivateKey
+
+	return ReadIdentityFromKeyPair(keys)
+}
+
+// registerThroughAuth is used to register through the auth server.
+func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
+	log.Debugf("Attempting to register through auth server.")
+
+	var client *Client
+	var err error
+
 	// Build a client to the Auth Server. If a CA pin is specified require the
 	// Auth Server is validated. Otherwise attempt to use the CA file on disk
 	// but if it's not available connect without validating the Auth Server CA.
-	var client *Client
 	switch {
 	case params.CAPin != "":
 		client, err = pinRegisterClient(params)
@@ -119,7 +182,7 @@ func Register(params RegisterParams) (*Identity, error) {
 
 	// Get the SSH and X509 certificates for a node.
 	keys, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:                tok,
+		Token:                token,
 		HostID:               params.ID.HostUUID,
 		NodeName:             params.ID.NodeName,
 		Role:                 params.ID.Role,
@@ -131,9 +194,9 @@ func Register(params RegisterParams) (*Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(
-		params.PrivateKey, keys.Cert, keys.TLSCert, keys.TLSCACerts)
+	return ReadIdentityFromKeyPair(keys)
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
@@ -279,7 +342,9 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(params.PrivateKey, keys.Cert, keys.TLSCert, keys.TLSCACerts)
+	keys.Key = params.PrivateKey
+
+	return ReadIdentityFromKeyPair(keys)
 }
 
 func readToken(token string) (string, error) {
@@ -304,6 +369,8 @@ type PackedKeys struct {
 	Cert []byte `json:"cert"`
 	// TLSCert is an X509 certificate
 	TLSCert []byte `json:"tls_cert"`
-	// TLSCACerts is a list of certificate authorities
+	// TLSCACerts is a list of TLS certificate authorities.
 	TLSCACerts [][]byte `json:"tls_ca_certs"`
+	// SSHCACerts is a list of SSH certificate authorities.
+	SSHCACerts [][]byte `json:"ssh_ca_certs"`
 }

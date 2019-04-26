@@ -156,17 +156,23 @@ type RoleConfig struct {
 	Console     io.Writer
 }
 
-// Connector has all resources process needs to connect
-// to other parts of the cluster: client and identity
+// Connector has all resources process needs to connect to other parts of the
+// cluster: client and identity.
 type Connector struct {
 	// ClientIdentity is the identity to be used in internal cluster
 	// clients to the auth service.
 	ClientIdentity *auth.Identity
+
 	// ServerIdentity is the identity to be used in servers - serving SSH
 	// and x509 certificates to clients.
 	ServerIdentity *auth.Identity
+
 	// Client is authenticated client with credentials from ClientIdenity.
 	Client *auth.Client
+
+	// UseTunnel indicates if the client is connected directly to the Auth Server
+	// (false) or through the proxy (true).
+	UseTunnel bool
 }
 
 // Close closes resources associated with connector
@@ -1314,14 +1320,18 @@ func (process *TeleportProcess) initSSH() error {
 	eventsC := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
 
-	var s *regular.Server
-
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentNode, process.id),
 	})
 
+	var conn *Connector
+	var s *regular.Server
+	var agentPool *reversetunnel.AgentPool
+
 	process.RegisterCriticalFunc("ssh.node", func() error {
+		var ok bool
 		var event Event
+
 		select {
 		case event = <-eventsC:
 			log.Debugf("Received event %q.", event.Name)
@@ -1330,7 +1340,7 @@ func (process *TeleportProcess) initSSH() error {
 			return nil
 		}
 
-		conn, ok := (event.Payload).(*Connector)
+		conn, ok = (event.Payload).(*Connector)
 		if !ok {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
@@ -1358,13 +1368,6 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		listener, err := process.importOrCreateListener(teleport.ComponentNode, cfg.SSH.Addr.Addr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// clean up unused descriptors passed for proxy, but not used by it
-		warnOnErr(process.closeImportedDescriptors(teleport.ComponentNode))
-
 		s, err = regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -1384,6 +1387,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetMACAlgorithms(cfg.MACAlgorithms),
 			regular.SetPAMConfig(cfg.SSH.PAM),
 			regular.SetRotationGetter(process.getRotation),
+			regular.SetUseTunnel(conn.UseTunnel),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1397,19 +1401,66 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
-		log.Infof("Service is starting on %v %v.", cfg.SSH.Addr.Addr, process.Config.CachePolicy)
-		utils.Consolef(cfg.Console, teleport.ComponentNode, "Service is starting on %v.", cfg.SSH.Addr.Addr)
-		go s.Serve(listener)
+		if !conn.UseTunnel {
+			listener, err := process.importOrCreateListener(teleport.ComponentNode, cfg.SSH.Addr.Addr)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			// clean up unused descriptors passed for proxy, but not used by it
+			warnOnErr(process.closeImportedDescriptors(teleport.ComponentNode))
 
-		// broadcast that the node has started
-		process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
+			log.Infof("Service is starting on %v %v.", cfg.SSH.Addr.Addr, process.Config.CachePolicy)
+			utils.Consolef(cfg.Console, teleport.ComponentNode, "Service is starting on %v.", cfg.SSH.Addr.Addr)
 
-		// block and wait while the node is running
+			// Start the SSH server. This kicks off updating labels, starting the
+			// heartbeat, and accepting connections.
+			go s.Serve(listener)
+
+			// Broadcast that the node has started.
+			process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
+		} else {
+			// Start the SSH server. This kicks off updating labels and starting the
+			// heartbeat.
+			s.Start()
+
+			// Start upserting reverse tunnel in a loop while the process is running.
+			go process.upsertTunnelForever(conn)
+
+			// Create and start an agent pool.
+			agentPool, err = reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
+				Component:   teleport.ComponentNode,
+				HostUUID:    conn.ServerIdentity.ID.HostUUID,
+				Client:      conn.Client,
+				AccessPoint: conn.Client,
+				HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
+				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				Server:      s,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			err = agentPool.Start()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			log.Infof("Service is starting in tunnel mode.")
+
+			// Broadcast that the node has started.
+			process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
+		}
+
+		// Block and wait while the node is running.
 		s.Wait()
+		if conn.UseTunnel {
+			agentPool.Wait()
+		}
+
 		log.Infof("Exited.")
 		return nil
 	})
-	// execute this when process is asked to exit:
+
+	// Execute this when process is asked to exit.
 	process.onExit("ssh.shutdown", func(payload interface{}) {
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
@@ -1422,10 +1473,46 @@ func (process *TeleportProcess) initSSH() error {
 				warnOnErr(s.Shutdown(payloadContext(payload)))
 			}
 		}
+		if conn.UseTunnel {
+			agentPool.Stop()
+		}
+
 		log.Infof("Exited.")
 	})
 
 	return nil
+}
+
+func (process *TeleportProcess) upsertTunnelForever(conn *Connector) {
+	proxyAddr, err := process.findReverseTunnel(process.Config.AuthServers)
+	if err != nil {
+		log.Debugf("Failed to discover proxy address: %v.", err)
+	}
+
+	process.upsertTunnel(conn, proxyAddr)
+
+	for {
+		select {
+		case <-process.ExitContext().Done():
+			return
+		case <-time.Tick(defaults.ReverseTunnelAgentHeartbeatPeriod):
+			process.upsertTunnel(conn, proxyAddr)
+		}
+	}
+}
+
+func (process *TeleportProcess) upsertTunnel(conn *Connector, proxyAddr string) {
+	reverseTunnel := services.NewReverseTunnel(
+		conn.ServerIdentity.ID.HostUUID,
+		[]string{proxyAddr},
+	)
+	reverseTunnel.SetType(services.NodeTunnel)
+	reverseTunnel.SetExpiry(process.Clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
+
+	err := conn.Client.UpsertReverseTunnel(reverseTunnel)
+	if err != nil {
+		log.Debugf("Failed to upsert reverse tunnel: %v.", err)
+	}
 }
 
 // registerWithAuthServer uses one time provisioning token obtained earlier
@@ -1619,6 +1706,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	case teleport.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.RemoteKubeProxy})
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
+		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
 		// Automatically add wildcards for every proxy public address for k8s SNI routing
 		if process.Config.Proxy.Kube.Enabled {
@@ -1850,6 +1938,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		HostSigners:  []ssh.Signer{conn.ServerIdentity.KeySigner},
 		Cluster:      conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 		KubeDialAddr: utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
+		Component:    teleport.ComponentProxy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1915,7 +2004,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Enabled: cfg.Proxy.Kube.Enabled,
 			},
 			SSH: client.SSHProxySettings{
-				ListenAddr: cfg.Proxy.SSHAddr.String(),
+				ListenAddr:       cfg.Proxy.SSHAddr.String(),
+				TunnelListenAddr: cfg.Proxy.ReverseTunnelListenAddr.String(),
 			},
 		}
 		if len(cfg.Proxy.PublicAddrs) > 0 {
@@ -1923,6 +2013,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		if len(cfg.Proxy.SSHPublicAddrs) > 0 {
 			proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
+		}
+		if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
+			proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
 		}
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()

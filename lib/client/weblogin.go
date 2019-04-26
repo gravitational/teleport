@@ -35,6 +35,8 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -119,9 +121,17 @@ type CreateSSHCertWithU2FReq struct {
 	Compatibility string `json:"compatibility,omitempty"`
 }
 
-type sealData struct {
-	Value []byte `json:"value"`
-	Nonce []byte `json:"nonce"`
+// PingResponse contains data about the Teleport server like supported
+// authentication types, server version, etc.
+type PingResponse struct {
+	// Auth contains the forms of authentication the auth server supports.
+	Auth AuthenticationSettings `json:"auth"`
+	// Proxy contains the proxy settings.
+	Proxy ProxySettings `json:"proxy"`
+	// ServerVersion is the version of Teleport that is running.
+	ServerVersion string `json:"server_version"`
+	// MinClientVersion is the minimum client version required by the server.
+	MinClientVersion string `json:"min_client_version"`
 }
 
 // SSHLogin contains SSH login parameters
@@ -149,9 +159,167 @@ type SSHLogin struct {
 	BindAddr string
 }
 
-// SSHAgentSSOLogin is used by tsh command line utility
-// to login using OpenID connect or SAML using browser
-func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
+// ProxySettings contains basic information about proxy settings
+type ProxySettings struct {
+	// Kube is a kubernetes specific proxy section
+	Kube KubeProxySettings `json:"kube"`
+	// SSH is SSH specific proxy settings
+	SSH SSHProxySettings `json:"ssh"`
+}
+
+// KubeProxySettings is kubernetes proxy settings
+type KubeProxySettings struct {
+	// Enabled is true when kubernetes proxy is enabled
+	Enabled bool `json:"enabled,omitempty"`
+	// PublicAddr is a kubernetes proxy public address if set
+	PublicAddr string `json:"public_addr,omitempty"`
+}
+
+// SSHProxySettings is SSH specific proxy settings.
+type SSHProxySettings struct {
+	// ListenAddr is the address that the SSH proxy is listening for
+	// connections on.
+	ListenAddr string `json:"listen_addr,omitempty"`
+
+	// TunnelListenAddr
+	TunnelListenAddr string `json:"tunnel_listen_addr,omitempty"`
+
+	// PublicAddr is the public address of the HTTP proxy.
+	PublicAddr string `json:"public_addr,omitempty"`
+
+	// SSHPublicAddr is the public address of the SSH proxy.
+	SSHPublicAddr string `json:"ssh_public_addr,omitempty"`
+
+	// TunnelPublicAddr is the public address of the SSH reverse tunnel.
+	TunnelPublicAddr string `json:"ssh_tunnel_public_addr,omitempty"`
+}
+
+// PingResponse contains the form of authentication the auth server supports.
+type AuthenticationSettings struct {
+	// Type is the type of authentication, can be either local or oidc.
+	Type string `json:"type"`
+	// SecondFactor is the type of second factor to use in authentication.
+	// Supported options are: off, otp, and u2f.
+	SecondFactor string `json:"second_factor,omitempty"`
+	// U2F contains the Universal Second Factor settings needed for authentication.
+	U2F *U2FSettings `json:"u2f,omitempty"`
+	// OIDC contains OIDC connector settings needed for authentication.
+	OIDC *OIDCSettings `json:"oidc,omitempty"`
+	// SAML contains SAML connector settings needed for authentication.
+	SAML *SAMLSettings `json:"saml,omitempty"`
+	// Github contains Github connector settings needed for authentication.
+	Github *GithubSettings `json:"github,omitempty"`
+}
+
+// U2FSettings contains the AppID for Universal Second Factor.
+type U2FSettings struct {
+	// AppID is the U2F AppID.
+	AppID string `json:"app_id"`
+}
+
+// SAMLSettings contains the Name and Display string for SAML
+type SAMLSettings struct {
+	// Name is the internal name of the connector.
+	Name string `json:"name"`
+	// Display is the display name for the connector.
+	Display string `json:"display"`
+}
+
+// OIDCSettings contains the Name and Display string for OIDC.
+type OIDCSettings struct {
+	// Name is the internal name of the connector.
+	Name string `json:"name"`
+	// Display is the display name for the connector.
+	Display string `json:"display"`
+}
+
+// GithubSettings contains the Name and Display string for Github connector.
+type GithubSettings struct {
+	// Name is the internal name of the connector
+	Name string `json:"name"`
+	// Display is the connector display name
+	Display string `json:"display"`
+}
+
+// CredentialsClient is used to fetch user and host credentials from the
+// HTTPS web proxy.
+type CredentialsClient struct {
+	log *logrus.Entry
+	clt *WebClient
+	url *url.URL
+}
+
+// NewCredentialsClient creates a new client to the HTTPS web proxy.
+func NewCredentialsClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*CredentialsClient, error) {
+	log := logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.ComponentClient,
+	})
+	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v)", proxyAddr, insecure)
+
+	// validate proxyAddr:
+	host, port, err := net.SplitHostPort(proxyAddr)
+	if err != nil || host == "" || port == "" {
+		if err != nil {
+			log.Error(err)
+		}
+		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+	}
+	proxyAddr = "https://" + net.JoinHostPort(host, port)
+	u, err := url.Parse(proxyAddr)
+	if err != nil {
+		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+	}
+
+	var opts []roundtrip.ClientParam
+
+	if insecure {
+		// Skip https cert verification, print a warning that this is insecure.
+		fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
+		opts = append(opts, roundtrip.HTTPClient(NewInsecureWebClient()))
+	} else if pool != nil {
+		// use custom set of trusted CAs
+		opts = append(opts, roundtrip.HTTPClient(newClientWithPool(pool)))
+	}
+
+	clt, err := NewWebClient(proxyAddr, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &CredentialsClient{
+		log: log,
+		clt: clt,
+		url: u,
+	}, nil
+}
+
+// Ping serves two purposes. The first is to validate the HTTP endpoint of a
+// Teleport proxy. This leads to better user experience: users get connection
+// errors before being asked for passwords. The second is to return the form
+// of authentication that the server supports. This also leads to better user
+// experience: users only get prompted for the type of authentication the server supports.
+func (c *CredentialsClient) Ping(ctx context.Context, connectorName string) (*PingResponse, error) {
+	endpoint := c.clt.Endpoint("webapi", "ping")
+	if connectorName != "" {
+		endpoint = c.clt.Endpoint("webapi", "ping", connectorName)
+	}
+
+	response, err := c.clt.Get(ctx, endpoint, url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var pr *PingResponse
+	err = json.Unmarshal(response.Bytes(), &pr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pr, nil
+}
+
+// SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
+func (c *CredentialsClient) SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 	rd, err := NewRedirector(login)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -210,134 +378,9 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 	}
 }
 
-// PingResponse contains data about the Teleport server like supported
-// authentication types, server version, etc.
-type PingResponse struct {
-	// Auth contains the forms of authentication the auth server supports.
-	Auth AuthenticationSettings `json:"auth"`
-	// Proxy contains the proxy settings.
-	Proxy ProxySettings `json:"proxy"`
-	// ServerVersion is the version of Teleport that is running.
-	ServerVersion string `json:"server_version"`
-	// MinClientVersion is the minimum client version required by the server.
-	MinClientVersion string `json:"min_client_version"`
-}
-
-// ProxySettings contains basic information about proxy settings
-type ProxySettings struct {
-	// Kube is a kubernetes specific proxy section
-	Kube KubeProxySettings `json:"kube"`
-	// SSH is SSH specific proxy settings
-	SSH SSHProxySettings `json:"ssh"`
-}
-
-// KubeProxySettings is kubernetes proxy settings
-type KubeProxySettings struct {
-	// Enabled is true when kubernetes proxy is enabled
-	Enabled bool `json:"enabled,omitempty"`
-	// PublicAddr is a kubernetes proxy public address if set
-	PublicAddr string `json:"public_addr,omitempty"`
-}
-
-// SSHProxySettings is SSH specific proxy settings.
-type SSHProxySettings struct {
-	// ListenAddr is the address that the SSH proxy is listening for
-	// connections on.
-	ListenAddr string `json:"listen_addr,omitempty"`
-
-	// PublicAddr is the public address of the HTTP proxy.
-	PublicAddr string `json:"public_addr,omitempty"`
-
-	// SSHPublicAddr is the public address of the SSH proxy.
-	SSHPublicAddr string `json:"ssh_public_addr,omitempty"`
-}
-
-// PingResponse contains the form of authentication the auth server supports.
-type AuthenticationSettings struct {
-	// Type is the type of authentication, can be either local or oidc.
-	Type string `json:"type"`
-	// SecondFactor is the type of second factor to use in authentication.
-	// Supported options are: off, otp, and u2f.
-	SecondFactor string `json:"second_factor,omitempty"`
-	// U2F contains the Universal Second Factor settings needed for authentication.
-	U2F *U2FSettings `json:"u2f,omitempty"`
-	// OIDC contains OIDC connector settings needed for authentication.
-	OIDC *OIDCSettings `json:"oidc,omitempty"`
-	// SAML contains SAML connector settings needed for authentication.
-	SAML *SAMLSettings `json:"saml,omitempty"`
-	// Github contains Github connector settings needed for authentication.
-	Github *GithubSettings `json:"github,omitempty"`
-}
-
-// U2FSettings contains the AppID for Universal Second Factor.
-type U2FSettings struct {
-	// AppID is the U2F AppID.
-	AppID string `json:"app_id"`
-}
-
-// SAMLSettings contains the Name and Display string for SAML
-type SAMLSettings struct {
-	// Name is the internal name of the connector.
-	Name string `json:"name"`
-	// Display is the display name for the connector.
-	Display string `json:"display"`
-}
-
-// OIDCSettings contains the Name and Display string for OIDC.
-type OIDCSettings struct {
-	// Name is the internal name of the connector.
-	Name string `json:"name"`
-	// Display is the display name for the connector.
-	Display string `json:"display"`
-}
-
-// GithubSettings contains the Name and Display string for Github connector.
-type GithubSettings struct {
-	// Name is the internal name of the connector
-	Name string `json:"name"`
-	// Display is the connector display name
-	Display string `json:"display"`
-}
-
-// Ping serves two purposes. The first is to validate the HTTP endpoint of a Teleport proxy. This leads
-// to better user experience: users get connection errors before being asked for passwords. The second
-// is to return the form of authentication that the server supports. This also leads to better user
-// experience: users only get prompted for the type of authentication the server supports.
-func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool, connectorName string) (*PingResponse, error) {
-	clt, _, err := initClient(proxyAddr, insecure, pool)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	endpoint := clt.Endpoint("webapi", "ping")
-	if connectorName != "" {
-		endpoint = clt.Endpoint("webapi", "ping", connectorName)
-	}
-
-	response, err := clt.Get(ctx, endpoint, url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var pr *PingResponse
-	err = json.Unmarshal(response.Bytes(), &pr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return pr, nil
-}
-
-// SSHAgentLogin issues call to web proxy and receives temp certificate
-// if credentials are valid
-//
-// proxyAddr must be specified as host:port
-func SSHAgentLogin(ctx context.Context, proxyAddr, user, password, otpToken string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, compatibility string) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(proxyAddr, insecure, pool)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
+// SSHAgentLogin is used by tsh to fetch local user credentials.
+func (c *CredentialsClient) SSHAgentLogin(ctx context.Context, user string, password string, otpToken string, pubKey []byte, ttl time.Duration, compatibility string) (*auth.SSHLoginResponse, error) {
+	re, err := c.clt.PostJSON(ctx, c.clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:          user,
 		Password:      password,
 		OTPToken:      otpToken,
@@ -358,17 +401,13 @@ func SSHAgentLogin(ctx context.Context, proxyAddr, user, password, otpToken stri
 	return out, nil
 }
 
-// SSHAgentU2FLogin requests a U2F sign request (authentication challenge) via the proxy.
-// If the credentials are valid, the proxy wiil return a challenge.
-// We then call the official u2f-host binary to perform the signing and pass the signature to the proxy.
-// If the authentication succeeds, we will get a temporary certificate back
-func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, compatibility string) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(proxyAddr, insecure, pool)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	u2fSignRequest, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
+// SSHAgentU2FLogin requests a U2F sign request (authentication challenge) via
+// the proxy. If the credentials are valid, the proxy wiil return a challenge.
+// We then call the official u2f-host binary to perform the signing and pass
+// the signature to the proxy. If the authentication succeeds, we will get a
+// temporary certificate back.
+func (c *CredentialsClient) SSHAgentU2FLogin(ctx context.Context, user string, password string, pubKey []byte, ttl time.Duration, compatibility string) (*auth.SSHLoginResponse, error) {
+	u2fSignRequest, err := c.clt.PostJSON(ctx, c.clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
 		User: user,
 		Pass: password,
 	})
@@ -377,7 +416,7 @@ func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pub
 	}
 
 	// Pass the JSON-encoded data undecoded to the u2f-host binary
-	facet := "https://" + strings.ToLower(proxyAddr)
+	facet := "https://" + strings.ToLower(c.url.String())
 	cmd := exec.Command("u2f-host", "-aauthenticate", "-o", facet)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -399,7 +438,7 @@ func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pub
 
 	// The origin URL is passed back base64-encoded and the keyHandle is passed back as is.
 	// A very long proxy hostname or keyHandle can overflow a fixed-size buffer.
-	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(proxyAddr)*4/3
+	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(c.url.String())*4/3
 	signResponseBuf := make([]byte, signResponseLen)
 	signResponseLen, err = io.ReadFull(stdout, signResponseBuf)
 	// unexpected EOF means we have read the data completely.
@@ -427,7 +466,7 @@ func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pub
 		return nil, trace.Wrap(err)
 	}
 
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
+	re, err := c.clt.PostJSON(ctx, c.clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
 		User:            user,
 		U2FSignResponse: *u2fSignResponse,
 		PubKey:          pubKey,
@@ -447,39 +486,18 @@ func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pub
 	return out, nil
 }
 
-// initClient creates and initializes HTTPS client for talking to teleport proxy HTTPS
-// endpoint.
-func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClient, *url.URL, error) {
-	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v)", proxyAddr, insecure)
-
-	// validate proxyAddr:
-	host, port, err := net.SplitHostPort(proxyAddr)
-	if err != nil || host == "" || port == "" {
-		if err != nil {
-			log.Error(err)
-		}
-		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
-	}
-	proxyAddr = "https://" + net.JoinHostPort(host, port)
-	u, err := url.Parse(proxyAddr)
+// HostCredentials is used to fetch host credentials for a node.
+func (c *CredentialsClient) HostCredentials(ctx context.Context, req auth.RegisterUsingTokenRequest) (*auth.PackedKeys, error) {
+	resp, err := c.clt.PostJSON(ctx, c.clt.Endpoint("webapi", "host", "credentials"), req)
 	if err != nil {
-		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+		return nil, trace.Wrap(err)
 	}
 
-	var opts []roundtrip.ClientParam
-
-	if insecure {
-		// skip https cert verification, oh no!
-		fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
-		opts = append(opts, roundtrip.HTTPClient(NewInsecureWebClient()))
-	} else if pool != nil {
-		// use custom set of trusted CAs
-		opts = append(opts, roundtrip.HTTPClient(newClientWithPool(pool)))
-	}
-
-	clt, err := NewWebClient(proxyAddr, opts...)
+	var packedKeys *auth.PackedKeys
+	err = json.Unmarshal(resp.Bytes(), &packedKeys)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return clt, u, nil
+
+	return packedKeys, nil
 }
