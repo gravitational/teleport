@@ -613,8 +613,8 @@ func (c *Cache) GetNodes(namespace string, opts ...services.MarshalOption) ([]se
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation
-func (c *Cache) GetReverseTunnels() ([]services.ReverseTunnel, error) {
-	return c.presenceCache.GetReverseTunnels()
+func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
+	return c.presenceCache.GetReverseTunnels(services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetProxies is a part of auth.AccessPoint implementation

@@ -360,17 +360,17 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) err
 }
 
 // GetReverseTunnel returns reverse tunnel by name
-func (s *PresenceService) GetReverseTunnel(name string) (services.ReverseTunnel, error) {
+func (s *PresenceService) GetReverseTunnel(name string, opts ...services.MarshalOption) (services.ReverseTunnel, error) {
 	item, err := s.Get(context.TODO(), backend.Key(reverseTunnelsPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 }
 
 // GetReverseTunnels returns a list of registered servers
-func (s *PresenceService) GetReverseTunnels() ([]services.ReverseTunnel, error) {
+func (s *PresenceService) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
 	startKey := backend.Key(reverseTunnelsPrefix)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -379,7 +379,7 @@ func (s *PresenceService) GetReverseTunnels() ([]services.ReverseTunnel, error) 
 	tunnels := make([]services.ReverseTunnel, len(result.Items))
 	for i, item := range result.Items {
 		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(
-			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			item.Value, services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

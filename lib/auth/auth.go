@@ -1365,8 +1365,8 @@ func (a *AuthServer) GetNodes(namespace string, opts ...services.MarshalOption) 
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetReverseTunnels() ([]services.ReverseTunnel, error) {
-	return a.GetCache().GetReverseTunnels()
+func (a *AuthServer) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
+	return a.GetCache().GetReverseTunnels(opts...)
 }
 
 // GetProxies is a part of auth.AccessPoint implementation

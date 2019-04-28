@@ -223,7 +223,7 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 		dialer = net.Dial
 	}
 	transport := &http.Transport{
-		Dial:                  dialer,
+		Dial: dialer,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 	}
 	params = append(params,
@@ -952,12 +952,12 @@ func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
 }
 
 // GetReverseTunnel returns reverse tunnel by name
-func (c *Client) GetReverseTunnel(name string) (services.ReverseTunnel, error) {
+func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (services.ReverseTunnel, error) {
 	return nil, trace.NotImplemented("not implemented")
 }
 
 // GetReverseTunnels returns the list of created reverse tunnels
-func (c *Client) GetReverseTunnels() ([]services.ReverseTunnel, error) {
+func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
 	out, err := c.Get(c.Endpoint("reversetunnels"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
