@@ -43,7 +43,7 @@ type Announcer interface {
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
 type ReadAccessPoint interface {
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels() ([]services.ReverseTunnel, error)
+	GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error)
 
 	// GetClusterName returns cluster name
 	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)

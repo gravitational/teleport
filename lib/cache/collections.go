@@ -189,7 +189,7 @@ func (c *reverseTunnel) erase() error {
 }
 
 func (c *reverseTunnel) fetch() error {
-	resources, err := c.Presence.GetReverseTunnels()
+	resources, err := c.Presence.GetReverseTunnels(services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}

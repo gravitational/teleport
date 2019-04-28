@@ -598,21 +598,21 @@ func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel) error {
 	return a.authServer.UpsertReverseTunnel(r)
 }
 
-func (a *AuthWithRoles) GetReverseTunnel(name string) (services.ReverseTunnel, error) {
+func (a *AuthWithRoles) GetReverseTunnel(name string, opts ...services.MarshalOption) (services.ReverseTunnel, error) {
 	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetReverseTunnel(name)
+	return a.authServer.GetReverseTunnel(name, opts...)
 }
 
-func (a *AuthWithRoles) GetReverseTunnels() ([]services.ReverseTunnel, error) {
+func (a *AuthWithRoles) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
 	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetReverseTunnels()
+	return a.authServer.GetReverseTunnels(opts...)
 }
 
 func (a *AuthWithRoles) DeleteReverseTunnel(domainName string) error {

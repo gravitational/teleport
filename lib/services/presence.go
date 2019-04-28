@@ -77,10 +77,10 @@ type Presence interface {
 	UpsertReverseTunnel(tunnel ReverseTunnel) error
 
 	// GetReverseTunnel returns reverse tunnel by name
-	GetReverseTunnel(name string) (ReverseTunnel, error)
+	GetReverseTunnel(name string, opts ...MarshalOption) (ReverseTunnel, error)
 
 	// GetReverseTunnels returns a list of registered servers
-	GetReverseTunnels() ([]ReverseTunnel, error)
+	GetReverseTunnels(opts ...MarshalOption) ([]ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(domainName string) error
