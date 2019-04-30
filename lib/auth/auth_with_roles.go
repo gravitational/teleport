@@ -392,6 +392,10 @@ func (a *AuthWithRoles) NewWatcher(ctx context.Context, watch services.Watch) (s
 			if err := a.action(defaults.Namespace, services.KindProxy, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		case services.KindAuthServer:
+			if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		case services.KindTunnelConnection:
 			if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
@@ -550,6 +554,22 @@ func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetAuthServers()
+}
+
+// DeleteAllAuthServers deletes all auth servers
+func (a *AuthWithRoles) DeleteAllAuthServers() error {
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllAuthServers()
+}
+
+// DeleteAuthServer deletes auth server by name
+func (a *AuthWithRoles) DeleteAuthServer(name string) error {
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAuthServer(name)
 }
 
 func (a *AuthWithRoles) UpsertProxy(s services.Server) error {

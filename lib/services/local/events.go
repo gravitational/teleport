@@ -76,6 +76,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			parser = newNodeParser()
 		case services.KindProxy:
 			parser = newProxyParser()
+		case services.KindAuthServer:
+			parser = newAuthServerParser()
 		case services.KindTunnelConnection:
 			parser = newTunnelConnectionParser()
 		case services.KindReverseTunnel:
@@ -565,6 +567,28 @@ func (p *proxyParser) match(key []byte) bool {
 
 func (p *proxyParser) parse(event backend.Event) (services.Resource, error) {
 	return parseServer(event, services.KindProxy)
+}
+
+func newAuthServerParser() *authServerParser {
+	return &authServerParser{
+		matchPrefix: backend.Key(authServersPrefix),
+	}
+}
+
+type authServerParser struct {
+	matchPrefix []byte
+}
+
+func (p *authServerParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *authServerParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *authServerParser) parse(event backend.Event) (services.Resource, error) {
+	return parseServer(event, services.KindAuthServer)
 }
 
 func newTunnelConnectionParser() *tunnelConnectionParser {

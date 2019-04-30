@@ -668,7 +668,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		// rollback cycle.
 		case "", services.RotationStateStandby:
 			if principalsOrDNSNamesChanged {
-				process.Infof("Service %v has updated principals to %q, DNS Names to %q, going to request new principals and update.", id.Role, additionalPrincipals)
+				process.Infof("Service %v has updated principals to %q, DNS Names to %q, going to request new principals and update.", id.Role, additionalPrincipals, dnsNames)
 				identity, err := process.reRegister(conn, additionalPrincipals, dnsNames, remote)
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -820,7 +820,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 			return "", trace.Wrap(err)
 		}
 
-		resp, err := clt.Ping(process.ExitContext(), "")
+		resp, err := clt.Find(process.ExitContext())
 		if err == nil {
 			// If a tunnel public address is set, return it otherwise return the
 			// tunnel listen address.

@@ -324,7 +324,7 @@ type transportParams struct {
 	component    string
 	log          *logrus.Entry
 	closeContext context.Context
-	authClient   auth.ClientI
+	authClient   auth.AccessPoint
 	channel      ssh.Channel
 	requestCh    <-chan *ssh.Request
 
