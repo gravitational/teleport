@@ -158,25 +158,22 @@ func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
 }
 
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
-	err := params.CheckAndSetDefaults()
-	if err != nil {
+	// If any of the search names match a node that has self registered itself over
+	// the tunnel, return a connection to that node.
+	conn, err := s.dialTunnel(params)
+	if err == nil {
+		return conn, nil
+	}
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Try and see if any of the principals match a node that is heartbeating
-	// over the tunnel. If a matching node is found, connect to it over the tunnel.
-	rconn, ok := s.findMatchingConn(params.Principals)
-	if ok {
-		return s.chanTransportConn(rconn)
-	}
-
+	// If the proxy is in recording mode use the agent to dial and build a
+	// in-memory forwarding server.
 	clusterConfig, err := s.accessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// if the proxy is in recording mode use the agent to dial and build a
-	// in-memory forwarding server
 	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
 		if params.UserAgent == nil {
 			return nil, trace.BadParameter("user agent missing")
@@ -184,21 +181,33 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 		return s.dialWithAgent(params)
 	}
 
-	return s.DialTCP(params.From, params.To)
+	// Attempt to perform a direct TCP dial.
+	return s.DialTCP(params)
 }
 
-func (s *localSite) DialTCP(from net.Addr, to net.Addr) (net.Conn, error) {
-	s.log.Debugf("Dialing from %v to %v", from, to)
+// dialTunnel connects to the target host through a tunnel.
+func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
+	s.log.Debugf("Tunnel dialing to %v.", params.SearchNames)
+	rconn, ok := s.findMatchingConn(params.SearchNames)
+	if ok {
+		return s.chanTransportConn(rconn)
+	}
 
-	dialer := proxy.DialerFromEnvironment(to.String())
-	return dialer.DialTimeout(to.Network(), to.String(), defaults.DefaultDialTimeout)
+	return nil, trace.NotFound("no tunnel found")
+}
+
+func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
+	s.log.Debugf("Dialing from %v to %v.", params.From, params.To)
+
+	dialer := proxy.DialerFromEnvironment(params.To.String())
+	return dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
 }
 
 func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	s.log.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
 
 	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
+	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.SearchNames)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,11 +248,11 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
-// findMatchingConn iterates over passed in principals looking for matching
+// findMatchingConn iterates over passed in search names looking for matching
 // remote connections.
-func (s *localSite) findMatchingConn(principals []string) (*remoteConn, bool) {
-	for _, principal := range principals {
-		rconn, err := s.getConn(principal)
+func (s *localSite) findMatchingConn(searchNames []string) (*remoteConn, bool) {
+	for _, name := range searchNames {
+		rconn, err := s.getConn(name)
 		if err == nil {
 			return rconn, true
 		}
@@ -387,9 +396,13 @@ func (s *localSite) getConn(addr string) (*remoteConn, error) {
 func (s *localSite) chanTransportConn(rconn *remoteConn) (net.Conn, error) {
 	s.log.Debugf("Connecting to %v through tunnel.", rconn.conn.RemoteAddr())
 
-	conn, err := connectProxyTransport(rconn.sconn, LocalNode)
+	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
+		Address: LocalNode,
+	})
 	if err != nil {
-		rconn.markInvalid(err)
+		if markInvalid {
+			rconn.markInvalid(err)
+		}
 		return nil, trace.Wrap(err)
 	}
 

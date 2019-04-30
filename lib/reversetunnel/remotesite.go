@@ -451,38 +451,38 @@ func (s *remoteSite) periodicUpdateCertAuthorities() {
 }
 
 func (s *remoteSite) DialAuthServer() (conn net.Conn, err error) {
-	return s.connThroughTunnel(RemoteAuthServer)
+	return s.connThroughTunnel(&dialReq{
+		Address: RemoteAuthServer,
+	})
 }
 
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
-	err := params.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	clusterConfig, err := s.localAccessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// if the proxy is in recording mode use the agent to dial and build a
-	// in-memory forwarding server
+	// If the proxy is in recording mode use the agent to dial and build a
+	// in-memory forwarding server.
 	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
 		if params.UserAgent == nil {
 			return nil, trace.BadParameter("user agent missing")
 		}
 		return s.dialWithAgent(params)
 	}
-	return s.DialTCP(params.From, params.To)
+	return s.DialTCP(params)
 }
 
-func (s *remoteSite) DialTCP(from, to net.Addr) (net.Conn, error) {
-	s.Debugf("Dialing from %v to %v", from, to)
+func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
+	s.Debugf("Dialing from %v to %v.", params.From, params.To)
 
-	conn, err := s.connThroughTunnel(to.String())
+	conn, err := s.connThroughTunnel(&dialReq{
+		Address:     params.To.String(),
+		SearchNames: params.SearchNames,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -494,12 +494,15 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	s.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
 
 	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
+	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.SearchNames)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	targetConn, err := s.connThroughTunnel(params.To.String())
+	targetConn, err := s.connThroughTunnel(&dialReq{
+		Address:     params.To.String(),
+		SearchNames: params.SearchNames,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -538,15 +541,16 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *remoteSite) connThroughTunnel(addr string) (net.Conn, error) {
+func (s *remoteSite) connThroughTunnel(req *dialReq) (net.Conn, error) {
 	var err error
 
-	s.Debugf("Requesting connection to remote site with payload: %v.", addr)
+	s.Debugf("Requesting connection to %v %v in remote cluster %v.",
+		req.Address, req.SearchNames, s.domainName)
 
 	// Loop through existing remote connections and try and establish a
 	// connection over the "reverse tunnel".
 	for i := 0; i < s.connectionCount(); i++ {
-		conn, err := s.chanTransportConn(addr)
+		conn, err := s.chanTransportConn(req)
 		if err == nil {
 			return conn, nil
 		}
@@ -561,15 +565,17 @@ func (s *remoteSite) connThroughTunnel(addr string) (net.Conn, error) {
 	return nil, err
 }
 
-func (s *remoteSite) chanTransportConn(addr string) (net.Conn, error) {
+func (s *remoteSite) chanTransportConn(req *dialReq) (net.Conn, error) {
 	rconn, err := s.nextConn()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := connectProxyTransport(rconn.sconn, addr)
+	conn, markInvalid, err := connectProxyTransport(rconn.sconn, req)
 	if err != nil {
-		rconn.markInvalid(err)
+		if markInvalid {
+			rconn.markInvalid(err)
+		}
 		return nil, trace.Wrap(err)
 	}
 

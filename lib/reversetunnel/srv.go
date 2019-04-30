@@ -528,12 +528,13 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	}
 
 	go proxyTransport(&transportParams{
-		log:          s.Entry,
-		closeContext: s.ctx,
-		authClient:   s.LocalAccessPoint,
-		channel:      channel,
-		requestCh:    requestCh,
-		component:    teleport.ComponentReverseTunnelServer,
+		log:              s.Entry,
+		closeContext:     s.ctx,
+		authClient:       s.LocalAccessPoint,
+		channel:          channel,
+		requestCh:        requestCh,
+		component:        teleport.ComponentReverseTunnelServer,
+		localClusterName: s.ClusterName,
 	})
 }
 

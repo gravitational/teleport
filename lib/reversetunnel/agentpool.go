@@ -85,6 +85,8 @@ type AgentPoolConfig struct {
 	// Component is the Teleport component this agent pool is running in. It can
 	// either be proxy (trusted clusters) or node (dial back).
 	Component string
+	// ReverseTunnelServer holds all reverse tunnel connections.
+	ReverseTunnelServer Server
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -313,17 +315,19 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 	}
 
 	agent, err := NewAgent(AgentConfig{
-		Addr:            key.addr,
-		ClusterName:     clusterName,
-		Username:        m.cfg.HostUUID,
-		Signers:         m.cfg.HostSigners,
-		Client:          m.cfg.Client,
-		AccessPoint:     m.cfg.AccessPoint,
-		Context:         m.ctx,
-		DiscoveryC:      m.discoveryC,
-		DiscoverProxies: discoverProxies,
-		KubeDialAddr:    m.cfg.KubeDialAddr,
-		Server:          m.cfg.Server,
+		Addr:                key.addr,
+		ClusterName:         clusterName,
+		Username:            m.cfg.HostUUID,
+		Signers:             m.cfg.HostSigners,
+		Client:              m.cfg.Client,
+		AccessPoint:         m.cfg.AccessPoint,
+		Context:             m.ctx,
+		DiscoveryC:          m.discoveryC,
+		DiscoverProxies:     discoverProxies,
+		KubeDialAddr:        m.cfg.KubeDialAddr,
+		Server:              m.cfg.Server,
+		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
+		LocalClusterName:    m.cfg.Cluster,
 	})
 	if err != nil {
 		return trace.Wrap(err)

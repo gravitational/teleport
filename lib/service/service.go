@@ -1930,20 +1930,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	// Register reverse tunnel agents pool
-	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		HostUUID:     conn.ServerIdentity.ID.HostUUID,
-		Client:       conn.Client,
-		AccessPoint:  accessPoint,
-		HostSigners:  []ssh.Signer{conn.ServerIdentity.KeySigner},
-		Cluster:      conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-		KubeDialAddr: utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
-		Component:    teleport.ComponentProxy,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
@@ -2096,6 +2082,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.BroadcastEvent(Event{Name: ProxySSHReady, Payload: nil})
 		return nil
 	})
+
+	// Create and register reverse tunnel AgentPool.
+	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
+		Component:           teleport.ComponentProxy,
+		HostUUID:            conn.ServerIdentity.ID.HostUUID,
+		Client:              conn.Client,
+		AccessPoint:         accessPoint,
+		HostSigners:         []ssh.Signer{conn.ServerIdentity.KeySigner},
+		Cluster:             conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
+		ReverseTunnelServer: tsrv,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	process.RegisterCriticalFunc("proxy.reversetunnel.agent", func() error {
 		log := logrus.WithFields(logrus.Fields{

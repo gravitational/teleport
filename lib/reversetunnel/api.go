@@ -24,7 +24,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/trace"
 )
 
 // DialParams is a list of parameters used to Dial to a node within a cluster.
@@ -45,21 +44,10 @@ type DialParams struct {
 	// validates the host certificate.
 	Address string
 
-	// Principals are additonal principals that need to be added to the host
-	// certificate.
-	Principals []string
-}
-
-// CheckAndSetDefaults makes sure the minimal parameters are set.
-func (d *DialParams) CheckAndSetDefaults() error {
-	if d.From == nil {
-		return trace.BadParameter("parameter From required")
-	}
-	if d.To == nil {
-		return trace.BadParameter("parameter To required")
-	}
-
-	return nil
+	// SearchNames is a list of names a server may be known as. Used to search
+	// in the list of nodes that have self registered themselves with the proxy
+	// as nodes that should be connected to over a tunnel.
+	SearchNames []string
 }
 
 // RemoteSite represents remote teleport site that can be accessed via
@@ -76,7 +64,7 @@ type RemoteSite interface {
 	// DialTCP dials any address within the site network,
 	// ignores recording mode and always uses TCP dial, used
 	// in components that need direct dialer.
-	DialTCP(fromAddr, toAddr net.Addr) (net.Conn, error)
+	DialTCP(DialParams) (net.Conn, error)
 	// GetLastConnected returns last time the remote site was seen connected
 	GetLastConnected() time.Time
 	// GetName returns site name (identified by authority domain's name)

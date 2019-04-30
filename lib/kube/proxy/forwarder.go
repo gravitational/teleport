@@ -253,15 +253,17 @@ type cluster struct {
 }
 
 func (c *cluster) Dial(_, _ string) (net.Conn, error) {
-	return c.RemoteSite.DialTCP(
-		&c.remoteAddr,
-		&utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr})
+	return c.RemoteSite.DialTCP(reversetunnel.DialParams{
+		From: &c.remoteAddr,
+		To:   &utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
+	})
 }
 
 func (c *cluster) DialWithContext(ctx context.Context, _, _ string) (net.Conn, error) {
-	return c.RemoteSite.DialTCP(
-		&c.remoteAddr,
-		&utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr})
+	return c.RemoteSite.DialTCP(reversetunnel.DialParams{
+		From: &c.remoteAddr,
+		To:   &utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
+	})
 }
 
 // handlerWithAuthFunc is http handler with passed auth context

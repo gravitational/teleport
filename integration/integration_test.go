@@ -1208,7 +1208,12 @@ func (s *IntSuite) TestHA(c *check.C) {
 	}
 
 	cmd := []string{"echo", "hello world"}
-	tc, err := b.NewClient(ClientConfig{Login: username, Cluster: "cluster-a", Host: Loopback, Port: sshPort})
+	tc, err := b.NewClient(ClientConfig{
+		Login:   username,
+		Cluster: "cluster-a",
+		Host:    Loopback,
+		Port:    sshPort,
+	})
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -1225,6 +1230,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 	}
 	c.Assert(err, check.IsNil)
 	c.Assert(output.String(), check.Equals, "hello world\n")
+
 	// stop auth server a now
 	c.Assert(a.Stop(true), check.IsNil)
 
@@ -1507,10 +1513,10 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	// as it's used
 	makeConfig := func(enableSSH bool) ([]*InstanceSecrets, *service.Config) {
 		tconf := service.MakeDefaultConfig()
-		tconf.SSH.Enabled = enableSSH
 		tconf.Console = nil
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = enableSSH
 		return nil, tconf
 	}
 	lib.SetInsecureDevMode(true)
@@ -1567,14 +1573,19 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	}
 
 	cmd := []string{"echo", "hello world"}
-	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: clusterAux, Host: Loopback, Port: sshPort})
+
+	// Try and connect to a node in the Aux cluster from the Main cluster using
+	// direct dialing.
+	tc, err := main.NewClient(ClientConfig{
+		Login:   username,
+		Cluster: clusterAux,
+		Host:    Loopback,
+		Port:    sshPort,
+	})
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
 	c.Assert(err, check.IsNil)
-	// try to execute an SSH command using the same old client  to Site-B
-	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
-	// and 'tc' (client) is also supposed to reconnect
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(context.TODO(), cmd, false)
@@ -1639,6 +1650,158 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	c.Assert(output.String(), check.Equals, "hello world\n")
 
 	// stop clusters and remaining nodes
+	c.Assert(main.Stop(true), check.IsNil)
+	c.Assert(aux.Stop(true), check.IsNil)
+}
+
+func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
+	username := s.me.Username
+
+	clusterMain := "cluster-main"
+	clusterAux := "cluster-aux"
+	main := NewInstance(InstanceConfig{ClusterName: clusterMain, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	aux := NewInstance(InstanceConfig{ClusterName: clusterAux, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+
+	// main cluster has a local user and belongs to role "main-devs"
+	mainDevs := "main-devs"
+	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins: []string{username},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	main.AddUserWithRole(username, role)
+
+	// for role mapping test we turn on Web API on the main cluster
+	// as it's used
+	makeConfig := func(enableSSH bool) ([]*InstanceSecrets, *service.Config) {
+		tconf := service.MakeDefaultConfig()
+		tconf.Console = nil
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = enableSSH
+		return nil, tconf
+	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	c.Assert(main.CreateEx(makeConfig(false)), check.IsNil)
+	c.Assert(aux.CreateEx(makeConfig(true)), check.IsNil)
+
+	// auxiliary cluster has a role aux-devs
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "devs" to local role "local-devs"
+	auxDevs := "aux-devs"
+	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins: []string{username},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	err = aux.Process.GetAuthServer().UpsertRole(role)
+	c.Assert(err, check.IsNil)
+	trustedClusterToken := "trusted-cluster-token"
+	err = main.Process.GetAuthServer().UpsertToken(
+		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
+	c.Assert(err, check.IsNil)
+	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
+		{Remote: mainDevs, Local: []string{auxDevs}},
+	})
+
+	// modify trusted cluster resource name so it would not
+	// match the cluster name to check that it does not matter
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+
+	c.Assert(main.Start(), check.IsNil)
+	c.Assert(aux.Start(), check.IsNil)
+
+	err = trustedCluster.CheckAndSetDefaults()
+	c.Assert(err, check.IsNil)
+
+	// try and upsert a trusted cluster
+	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+
+	// Create a Teleport instance with a node that dials back to the aux cluster.
+	tunnelNodeHostname := "cluster-aux-node"
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = tunnelNodeHostname
+		tconf.Console = nil
+		tconf.Token = "token"
+		tconf.AuthServers = []utils.NetAddr{
+			utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, aux.GetPortWeb()),
+			},
+		}
+		tconf.Auth.Enabled = false
+		tconf.Proxy.Enabled = false
+		tconf.SSH.Enabled = true
+		return tconf
+	}
+	_, err = aux.StartNode(nodeConfig())
+	c.Assert(err, check.IsNil)
+
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime := time.Now().Add(time.Second * 10)
+	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two clusters do not see each other: tunnels are not working")
+		}
+	}
+
+	// Wait for both nodes to show up before attempting to dial to them.
+	err = waitForNodeCount(main, clusterAux, 2)
+	c.Assert(err, check.IsNil)
+
+	cmd := []string{"echo", "hello world"}
+
+	// Try and connect to a node in the Aux cluster from the Main cluster using
+	// direct dialing.
+	tc, err := main.NewClient(ClientConfig{
+		Login:   username,
+		Cluster: clusterAux,
+		Host:    Loopback,
+		Port:    aux.GetPortSSHInt(),
+	})
+	c.Assert(err, check.IsNil)
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+	c.Assert(err, check.IsNil)
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tc.SSH(context.TODO(), cmd, false)
+		if err == nil {
+			break
+		}
+	}
+	c.Assert(err, check.IsNil)
+	c.Assert(output.String(), check.Equals, "hello world\n")
+
+	// Try and connect to a node in the Aux cluster from the Main cluster using
+	// tunnel dialing.
+	tunnelClient, err := main.NewClient(ClientConfig{
+		Login:   username,
+		Cluster: clusterAux,
+		Host:    tunnelNodeHostname,
+	})
+	c.Assert(err, check.IsNil)
+	tunnelOutput := &bytes.Buffer{}
+	tunnelClient.Stdout = tunnelOutput
+	c.Assert(err, check.IsNil)
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tunnelClient.SSH(context.Background(), cmd, false)
+		if err == nil {
+			break
+		}
+	}
+	c.Assert(err, check.IsNil)
+	c.Assert(tunnelOutput.String(), check.Equals, "hello world\n")
+
+	// Stop clusters and remaining nodes.
 	c.Assert(main.Stop(true), check.IsNil)
 	c.Assert(aux.Stop(true), check.IsNil)
 }
@@ -1867,8 +2030,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 		Login:   s.me.Username,
 		Cluster: Site,
 		Host:    "cluster-main-node",
-		//Port:    remote.GetPortSSHInt(),
-		Proxy: &proxyConfig,
+		Proxy:   &proxyConfig,
 	}
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 10)
 	c.Assert(err, check.IsNil)
@@ -1876,6 +2038,10 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 
 	// now disconnect the main proxy and make sure it will reconnect eventually
 	lb.RemoveBackend(*proxyOneAddr)
+
+	// Once the proxy is removed, only one proxy is left. Wait for the now
+	// invalid tunnel connection to TTL and be removed.
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), Site, 1)
 
 	// requests going via main proxy will fail
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
@@ -1891,7 +2057,10 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	// attempt to allow the discovery request to be received and the connection
 	// added to the agent pool.
 	lb.AddBackend(*proxyOneAddr)
-	time.Sleep(30 * time.Second)
+
+	// Once the proxy is added a matching tunnel connection should be created.
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), Site, 2)
+
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 40)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
@@ -1943,18 +2112,42 @@ func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	return trace.BadParameter("proxy count on %v: %v", clusterName, counts[clusterName])
 }
 
+// waitForNodeCount waits for a certain number of nodes to show up in the remote site.
+func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
+	for i := 0; i < 30; i++ {
+		remoteSite, err := t.Tunnel.GetSite(clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		accessPoint, err := remoteSite.CachingAccessPoint()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		nodes, err := accessPoint.GetNodes(defaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(nodes) == count {
+			return nil
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	return trace.BadParameter("did not find %v nodes", count)
+}
+
 // waitForTunnelConnections waits for remote tunnels connections
 func waitForTunnelConnections(c *check.C, authServer *auth.AuthServer, clusterName string, expectedCount int) {
 	var conns []services.TunnelConnection
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 30; i++ {
 		conns, err := authServer.Presence.GetTunnelConnections(clusterName)
 		if err != nil {
 			c.Fatal(err)
 		}
-		if len(conns) >= expectedCount {
+		if len(conns) == expectedCount {
 			return
 		}
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(1 * time.Second)
 	}
 	c.Fatalf("proxy count on %v: %v, expected %v", clusterName, len(conns), expectedCount)
 }
