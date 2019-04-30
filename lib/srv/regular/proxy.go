@@ -284,9 +284,9 @@ func (t *proxySubsys) proxyToHost(
 		}
 	}
 
-	// Create a slice of principals that will be added into the host certificate.
+	// Create a slice of name that will be added into the host certificate.
 	// Here t.host is either an IP address or a DNS name as the user requested.
-	principals := []string{t.host}
+	searchNames := []string{t.host}
 
 	// Resolve the IP address to dial to because the hostname may not be
 	// DNS resolvable.
@@ -300,7 +300,7 @@ func (t *proxySubsys) proxyToHost(
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		principals = append(principals, host, fmt.Sprintf("%v.%v", server.GetName(), t.clusterName))
+		searchNames = append(searchNames, host, fmt.Sprintf("%v.%v", server.GetName(), t.clusterName))
 	} else {
 		if !specifiedPort {
 			t.port = strconv.Itoa(defaults.SSHServerListenPort)
@@ -318,11 +318,11 @@ func (t *proxySubsys) proxyToHost(
 		Addr:        serverAddr,
 	}
 	conn, err := site.Dial(reversetunnel.DialParams{
-		From:       remoteAddr,
-		To:         toAddr,
-		UserAgent:  t.agent,
-		Address:    t.host,
-		Principals: principals,
+		From:        remoteAddr,
+		To:          toAddr,
+		UserAgent:   t.agent,
+		Address:     t.host,
+		SearchNames: searchNames,
 	})
 	if err != nil {
 		return trace.Wrap(err)
