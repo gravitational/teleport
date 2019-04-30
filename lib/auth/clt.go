@@ -1185,6 +1185,16 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	return re, nil
 }
 
+// DeleteAllAuthServers deletes all auth servers
+func (c *Client) DeleteAllAuthServers() error {
+	return trace.NotImplemented("not implemented")
+}
+
+// DeleteAuthServer deletes auth server by name
+func (c *Client) DeleteAuthServer(name string) error {
+	return trace.NotImplemented("not implemented")
+}
+
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertProxy(s services.Server) error {

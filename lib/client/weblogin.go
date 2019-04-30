@@ -318,6 +318,24 @@ func (c *CredentialsClient) Ping(ctx context.Context, connectorName string) (*Pi
 	return pr, nil
 }
 
+// Find is like ping, but used by servers to only fetch discovery data,
+// without auth connector data, it is designed for servers in IOT mode
+// to fetch proxy public addresses on a large scale.
+func (c *CredentialsClient) Find(ctx context.Context) (*PingResponse, error) {
+	response, err := c.clt.Get(ctx, c.clt.Endpoint("webapi", "find"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var pr *PingResponse
+	err = json.Unmarshal(response.Bytes(), &pr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pr, nil
+}
+
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
 func (c *CredentialsClient) SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 	rd, err := NewRedirector(login)

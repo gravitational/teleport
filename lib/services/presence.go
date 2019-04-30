@@ -60,6 +60,12 @@ type Presence interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertAuthServer(server Server) error
 
+	// DeleteAuthServer deletes auth server by name
+	DeleteAuthServer(name string) error
+
+	// DeleteAllAuthServers deletes all auth servers
+	DeleteAllAuthServers() error
+
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertProxy(server Server) error

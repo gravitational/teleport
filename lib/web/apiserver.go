@@ -153,6 +153,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// query the authentication configuration for a specific connector.
 	h.GET("/webapi/ping", httplib.MakeHandler(h.ping))
 	h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
+	// find is like ping, but is faster because it is optimized for servers
+	// and does not fetch the data that servers don't need, e.g.
+	// OIDC connectors and auth preferences
+	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
@@ -508,6 +512,14 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 
 	return client.PingResponse{
 		Auth:             defaultSettings,
+		Proxy:            h.cfg.ProxySettings,
+		ServerVersion:    teleport.Version,
+		MinClientVersion: teleport.MinClientVersion,
+	}, nil
+}
+
+func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return client.PingResponse{
 		Proxy:            h.cfg.ProxySettings,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,

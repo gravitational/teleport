@@ -1073,6 +1073,73 @@ func (s *CacheSuite) TestProxies(c *check.C) {
 	c.Assert(out, check.HasLen, 0)
 }
 
+// TestAuthServers tests auth servers cache
+func (s *CacheSuite) TestAuthServers(c *check.C) {
+	p := s.newPackForProxy(c)
+	defer p.Close()
+
+	server := suite.NewServer(services.KindAuthServer, "srv1", "127.0.0.1:2022", defaults.Namespace)
+	err := p.presenceS.UpsertAuthServer(server)
+	c.Assert(err, check.IsNil)
+
+	out, err := p.presenceS.GetAuthServers()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	srv := out[0]
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetAuthServers()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	srv.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, srv, out[0])
+
+	// update srv parameters
+	srv.SetAddr("127.0.0.2:2033")
+
+	err = p.presenceS.UpsertAuthServer(srv)
+	c.Assert(err, check.IsNil)
+
+	out, err = p.presenceS.GetAuthServers()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	srv = out[0]
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetAuthServers()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	srv.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, srv, out[0])
+
+	err = p.presenceS.DeleteAllAuthServers()
+	c.Assert(err, check.IsNil)
+
+	select {
+	case <-p.eventsC:
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetAuthServers()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
+}
+
 type proxyEvents struct {
 	sync.Mutex
 	watchers []services.Watcher

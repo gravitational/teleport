@@ -63,6 +63,9 @@ type ReadAccessPoint interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]services.Server, error)
 
+	// GetAuthServers returns a list of auth servers registered in the cluster
+	GetAuthServers() ([]services.Server, error)
+
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error)
 

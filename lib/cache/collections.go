@@ -93,6 +93,11 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[string]collec
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[watch.Kind] = &proxy{watch: watch, Cache: c}
+		case services.KindAuthServer:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[watch.Kind] = &authServer{watch: watch, Cache: c}
 		case services.KindReverseTunnel:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -300,6 +305,72 @@ func (c *proxy) processEvent(event services.Event) error {
 }
 
 func (c *proxy) watchKind() services.WatchKind {
+	return c.watch
+}
+
+type authServer struct {
+	*Cache
+	watch services.WatchKind
+}
+
+// erase erases all data in the collection
+func (c *authServer) erase() error {
+	if err := c.presenceCache.DeleteAllAuthServers(); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *authServer) fetch() error {
+	resources, err := c.Presence.GetAuthServers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := c.erase(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, resource := range resources {
+		c.setTTL(resource)
+		if err := c.presenceCache.UpsertAuthServer(resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *authServer) processEvent(event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		err := c.presenceCache.DeleteAuthServer(event.Resource.GetName())
+		if err != nil {
+			// resource could be missing in the cache
+			// expired or not created, if the first consumed
+			// event is delete
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(services.Server)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		if err := c.presenceCache.UpsertAuthServer(resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *authServer) watchKind() services.WatchKind {
 	return c.watch
 }
 
