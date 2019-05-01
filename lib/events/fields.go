@@ -17,13 +17,10 @@ limitations under the License.
 package events
 
 import (
-	"bytes"
-	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -46,33 +43,8 @@ func UpdateEventFields(event Event, fields EventFields, clock clockwork.Clock, u
 	if event.Code != "" {
 		additionalFields[EventCode] = event.Code
 	}
-	if event.Severity != "" {
-		additionalFields[EventSeverity] = event.Severity
-	}
-	if event.Message != "" {
-		additionalFields[EventMessage], err = renderEventMessage(event.Message, fields)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	for k, v := range additionalFields {
 		fields[k] = v
 	}
 	return nil
-}
-
-func renderEventMessage(defaultMessage string, fields EventFields) (string, error) {
-	messageTemplate := fields.GetMessage()
-	if messageTemplate == "" {
-		messageTemplate = defaultMessage
-	}
-	template, err := template.New("message").Parse(messageTemplate)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var b bytes.Buffer
-	if err := template.Execute(&b, fields); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return b.String(), nil
 }

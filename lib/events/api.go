@@ -32,10 +32,6 @@ const (
 	EventID = "uid"
 	// EventCode is a code that uniquely identifies a particular event type
 	EventCode = "code"
-	// EventSeverity contains event severity (info, warning, error)
-	EventSeverity = "severity"
-	// EventMessage contains human-friendly event message
-	EventMessage = "message"
 	// EventTime is event time
 	EventTime = "time"
 	// EventLogin is OS login
@@ -54,13 +50,6 @@ const (
 	RemoteAddr = "addr.remote"
 	// EventCursor is an event ID (used as cursor value for enumeration, not stored)
 	EventCursor = "id"
-
-	// SeverityInfo represents severity for informational events.
-	SeverityInfo = "info"
-	// SeverityWarning represents severity for events that need attention.
-	SeverityWarning = "warning"
-	// SeverityError represents severity for events caused by an error.
-	SeverityError = "error"
 
 	// EventIndex is an event index as received from the logging server
 	EventIndex = "ei"
@@ -285,11 +274,6 @@ func (f EventFields) GetCode() string {
 // GetTimestamp returns the event timestamp (when it was emitted)
 func (f EventFields) GetTimestamp() time.Time {
 	return f.GetTime(EventTime)
-}
-
-// GetMessage returns the event user message
-func (f EventFields) GetMessage() string {
-	return f.GetString(EventMessage)
 }
 
 // GetString returns a string representation of a logged field
