@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -370,7 +370,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	addrs := []utils.NetAddr{{
 		AddrNetwork: addr.Network(),
 		Addr:        addr.String()}}
-	return NewTLSClient(addrs, tlsConfig)
+	return NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
 }
 
 // TestTLSServerConfig is a configuration for test TLS server
@@ -521,7 +521,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess services.WebSession) (*Clie
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	addrs := []utils.NetAddr{utils.FromAddr(t.Listener.Addr())}
-	return NewTLSClient(addrs, tlsConfig)
+	return NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
 }
 
 // CertPool returns cert pool that auth server represents
@@ -557,7 +557,7 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 // but forces the client to be recreated
 func (t *TestTLSServer) CloneClient(clt *Client) *Client {
 	addr := []utils.NetAddr{{Addr: t.Addr().String(), AddrNetwork: t.Addr().Network()}}
-	newClient, err := NewTLSClient(addr, clt.TLSConfig())
+	newClient, err := NewTLSClient(ClientConfig{Addrs: addr, TLS: clt.TLSConfig()})
 	if err != nil {
 		panic(err)
 	}
@@ -571,7 +571,7 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 	addrs := []utils.NetAddr{utils.FromAddr(t.Listener.Addr())}
-	return NewTLSClient(addrs, tlsConfig)
+	return NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
 }
 
 // Addr returns address of TLS server

@@ -186,7 +186,10 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	}
 
 	if proxy.teleportClient.SkipLocalAuth {
-		return auth.NewTLSClientWithDialer(dialer, proxy.teleportClient.TLS)
+		return auth.NewTLSClient(auth.ClientConfig{
+			DialContext: dialer,
+			TLS:         proxy.teleportClient.TLS,
+		})
 	}
 
 	// Because Teleport clients can't be configured (yet), they take the default
@@ -212,7 +215,10 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	if len(tlsConfig.Certificates) == 0 {
 		return nil, trace.BadParameter("no TLS keys found for user %v, please relogin to get new credentials", proxy.teleportClient.Username)
 	}
-	clt, err := auth.NewTLSClientWithDialer(dialer, tlsConfig)
+	clt, err := auth.NewTLSClient(auth.ClientConfig{
+		DialContext: dialer,
+		TLS:         tlsConfig,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -53,6 +53,7 @@ import (
 	"github.com/tstranex/u2f"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -63,6 +64,7 @@ const (
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
+// Dialer defines dialer function
 type Dialer func(network, addr string) (net.Conn, error)
 
 // Client is HTTP Auth API client. It works by connecting to auth servers
@@ -73,8 +75,7 @@ type Dialer func(network, addr string) (net.Conn, error)
 // in lib/auth/tun.go
 type Client struct {
 	sync.Mutex
-	tlsConfig   *tls.Config
-	dialContext DialContext
+	ClientConfig
 	roundtrip.Client
 	transport  *http.Transport
 	conn       *grpc.ClientConn
@@ -86,7 +87,7 @@ type Client struct {
 // TLSConfig returns TLS config used by the client, could return nil
 // if the client is not using TLS
 func (c *Client) TLSConfig() *tls.Config {
-	return c.tlsConfig
+	return c.ClientConfig.TLS
 }
 
 // DialContext is a function that dials to the specified address
@@ -154,11 +155,61 @@ func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
 	}
 }
 
-// NewTLSClientWithDialer returns new TLS client that uses mutual TLS authenticate
+// ClientConfig contains configuration of the client
+type ClientConfig struct {
+	// Addrs is a list of addresses to dial
+	Addrs []utils.NetAddr
+	// DialContext is a custom dialer, if provided
+	// is used instead of the list of addresses
+	DialContext DialContext
+	// KeepAlivePeriod defines period between keep alives
+	KeepAlivePeriod time.Duration
+	// KeepAliveCount specifies amount of missed keep alives
+	// to wait for until declaring connection as broken
+	KeepAliveCount int
+	// TLS is a TLS config
+	TLS *tls.Config
+}
+
+// CheckAndSetDefaults checks and sets default config values
+func (c *ClientConfig) CheckAndSetDefaults() error {
+	if len(c.Addrs) == 0 && c.DialContext == nil {
+		return trace.BadParameter("set parameter Addrs or DialContext")
+	}
+	if c.TLS == nil {
+		return trace.BadParameter("missing parameter TLS")
+	}
+	if c.KeepAlivePeriod == 0 {
+		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+	}
+	if c.KeepAliveCount == 0 {
+		c.KeepAliveCount = defaults.KeepAliveCountMax
+	}
+	if c.DialContext == nil {
+		c.DialContext = NewAddrDialer(c.Addrs)
+	}
+	if c.TLS.ServerName == "" {
+		c.TLS.ServerName = teleport.APIDomain
+	}
+	// this logic is necessary to force client to always send certificate
+	// regardless of the server setting, otherwise client may pick
+	// not to send the client certificate by looking at certificate request
+	if len(c.TLS.Certificates) != 0 {
+		cert := c.TLS.Certificates[0]
+		c.TLS.Certificates = nil
+		c.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return &cert, nil
+		}
+	}
+
+	return nil
+}
+
+// NewTLSClient returns a new TLS client that uses mutual TLS authentication
 // and dials the remote server using dialer
-func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...roundtrip.ClientParam) (*Client, error) {
-	if cfg.ServerName == "" {
-		cfg.ServerName = teleport.APIDomain
+func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
@@ -166,9 +217,9 @@ func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...
 		// to make sure client verifies the DNS name of the API server
 		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
-		DialContext:           dialContext,
+		DialContext:           cfg.DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
-		TLSClientConfig:       cfg,
+		TLSClientConfig:       cfg.TLS,
 
 		// Increase the size of the connection pool. This substantially improves the
 		// performance of Teleport under load as it reduces the number of TLS
@@ -180,16 +231,6 @@ func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...
 		// are closed. Leaving this unset will lead to connections open forever and
 		// will cause memory leaks in a long running process.
 		IdleConnTimeout: defaults.HTTPIdleTimeout,
-	}
-	// this logic is necessary to force client to always send certificate
-	// regardless of the server setting, otherwise client may pick
-	// not to send the client certificate by looking at certificate request
-	if len(cfg.Certificates) != 0 {
-		cert := cfg.Certificates[0]
-		cfg.Certificates = nil
-		cfg.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return &cert, nil
-		}
 	}
 
 	clientParams := append(
@@ -204,46 +245,9 @@ func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...
 		return nil, trace.Wrap(err)
 	}
 	return &Client{
-		tlsConfig:   cfg,
-		dialContext: dialContext,
-		Client:      *roundtripClient,
-		transport:   transport,
-	}, nil
-}
-
-// NewTLSClient returns new client using TLS mutual authentication
-func NewTLSClient(addrs []utils.NetAddr, cfg *tls.Config, params ...roundtrip.ClientParam) (*Client, error) {
-	return NewTLSClientWithDialer(NewAddrDialer(addrs), cfg, params...)
-}
-
-// NewAuthClient returns a new instance of the client which talks to
-// an Auth server API (aka "site API") via HTTP-over-SSH
-func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Client, error) {
-	if dialer == nil {
-		dialer = net.Dial
-	}
-	transport := &http.Transport{
-		Dial: dialer,
-		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
-	}
-	params = append(params,
-		roundtrip.HTTPClient(&http.Client{
-			Transport: transport,
-		}),
-		roundtrip.SanitizerEnabled(true),
-		// TODO (ekontsevoy) this tracer pollutes the logs making it harder to work
-		// on issues that have nothing to do with the auth API, consider activating it
-		// via special environment variable?
-		// roundtrip.Tracer(NewTracer),
-	)
-
-	c, err := roundtrip.NewClient(addr, CurrentVersion, params...)
-	if err != nil {
-		return nil, err
-	}
-	return &Client{
-		Client:    *c,
-		transport: transport,
+		ClientConfig: cfg,
+		Client:       *roundtripClient,
+		transport:    transport,
 	}, nil
 }
 
@@ -268,17 +272,23 @@ func (c *Client) grpc() (proto.AuthServiceClient, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
-		c, err := c.dialContext(context.TODO(), "tcp", addr)
+		c, err := c.DialContext(context.TODO(), "tcp", addr)
 		if err != nil {
 			log.Debugf("Dial to addr %v failed: %v.", addr, err)
 		}
 		return c, err
 	})
-	tlsConfig := c.tlsConfig.Clone()
+	tlsConfig := c.TLS.Clone()
 	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
+	log.Debugf("GRPC(): keep alive %v count: %v.", c.KeepAlivePeriod, c.KeepAliveCount)
 	conn, err := grpc.Dial(teleport.APIDomain,
 		dialer,
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    c.KeepAlivePeriod,
+			Timeout: c.KeepAlivePeriod * time.Duration(c.KeepAliveCount),
+		}),
+	)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

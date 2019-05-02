@@ -1645,7 +1645,10 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 		utils.FromAddr(otherServer.Listener.Addr()),
 		utils.FromAddr(s.server.Listener.Addr()),
 	}
-	client, err := NewTLSClient(addrs, tlsConfig)
+	client, err := NewTLSClient(ClientConfig{
+		Addrs: addrs,
+		TLS:   tlsConfig,
+	})
 	c.Assert(err, check.IsNil)
 
 	// Requests should fail.
@@ -1666,7 +1669,7 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 		utils.FromAddr(otherServer.Listener.Addr()),
 		utils.FromAddr(s.server.Listener.Addr()),
 	}
-	client, err := NewTLSClient(addrs, tlsConfig)
+	client, err := NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
 	c.Assert(err, check.IsNil)
 
 	// couple of runs to get enough connections

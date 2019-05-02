@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -158,11 +157,10 @@ func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.Clie
 // the logged in user.
 func (c *SessionContext) newRemoteClient(cluster reversetunnel.RemoteSite) (auth.ClientI, net.Conn, error) {
 	clt, err := c.tryRemoteTLSClient(cluster)
-	if err == nil {
-		return clt, nil, nil
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
-	log.Debugf("could not use TLS client to %v, error: %v", cluster.GetName(), err)
-	return c.newRemoteTunClient(cluster)
+	return clt, nil, nil
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
@@ -229,60 +227,7 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewTLSClientWithDialer(clusterDialer(cluster), tlsConfig)
-}
-
-// newRemoteTunClient returns a client using legacy SSH tunnel authentication to a remote cluster with the role of
-// the logged in user
-func (c *SessionContext) newRemoteTunClient(site reversetunnel.RemoteSite) (auth.ClientI, net.Conn, error) {
-	var err error
-	var netConn net.Conn
-
-	sshDialer := func(network, addr string) (net.Conn, error) {
-		// first get a net.Conn (tcp connection) to the remote auth server. no
-		// authentication has occurred.
-		netConn, err = site.DialAuthServer()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// get the principal and authMethods we will use to authenticate on the
-		// remote cluster from our local cluster
-		agent, cert, err := c.GetAgent()
-		if err != nil {
-			netConn.Close()
-			return nil, trace.Wrap(err)
-		}
-		signers, err := agent.Signers()
-		if err != nil {
-			netConn.Close()
-			return nil, trace.Wrap(err)
-		}
-		// build a ssh connection to the remote auth server
-		config := &ssh.ClientConfig{
-			User:    cert.ValidPrincipals[0],
-			Auth:    []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-			Timeout: defaults.DefaultDialTimeout,
-		}
-		sshConn, sshChans, sshReqs, err := ssh.NewClientConn(netConn, reversetunnel.RemoteAuthServer, config)
-		if err != nil {
-			err = netConn.Close()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return nil, trace.Wrap(err)
-		}
-		client := ssh.NewClient(sshConn, sshChans, sshReqs)
-
-		// dial again to the HTTP server
-		return client.Dial(network, addr)
-	}
-
-	clt, err := auth.NewClient("http://stub:0", sshDialer)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return clt, netConn, nil
+	return auth.NewTLSClient(auth.ClientConfig{DialContext: clusterDialer(cluster), TLS: tlsConfig})
 }
 
 // GetUser returns the authenticated teleport user
@@ -628,7 +573,10 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
 
-	userClient, err := auth.NewTLSClient(s.authServers, tlsConfig)
+	userClient, err := auth.NewTLSClient(auth.ClientConfig{
+		Addrs: s.authServers,
+		TLS:   tlsConfig,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

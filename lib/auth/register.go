@@ -228,7 +228,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 		log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
 	}
 
-	client, err := NewTLSClient(params.Servers, tlsConfig)
+	client, err := NewTLSClient(ClientConfig{Addrs: params.Servers, TLS: tlsConfig})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -260,7 +260,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// an attacker were to MITM this connection the CA pin will not match below.
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.InsecureSkipVerify = true
-	client, err := NewTLSClient(params.Servers, tlsConfig)
+	client, err := NewTLSClient(ClientConfig{Addrs: params.Servers, TLS: tlsConfig})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -294,7 +294,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	certPool.AddCert(tlsCA)
 	tlsConfig.RootCAs = certPool
 
-	client, err = NewTLSClient(params.Servers, tlsConfig)
+	client, err = NewTLSClient(ClientConfig{Addrs: params.Servers, TLS: tlsConfig})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
