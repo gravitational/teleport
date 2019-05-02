@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -102,7 +102,10 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// connecting to the remote one (it is used to find the right certificate
 		// authority to verify)
 		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
-		clt, err := auth.NewTLSClientWithDialer(s.authServerContextDialer, tlsConfig)
+		clt, err := auth.NewTLSClient(auth.ClientConfig{
+			DialContext: s.authServerContextDialer,
+			TLS:         tlsConfig,
+		})
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
