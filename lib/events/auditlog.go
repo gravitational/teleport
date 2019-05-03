@@ -30,7 +30,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -998,7 +997,7 @@ func (l *AuditLog) periodicSpaceMonitor() {
 		case <-ticker.C:
 			// Find out what percentage of disk space is used. If the syscall fails,
 			// emit that to prometheus as well.
-			usedPercent, err := percentUsed(l.DataDir)
+			usedPercent, err := utils.PercentUsed(l.DataDir)
 			if err != nil {
 				auditFailedDisk.Inc()
 				log.Warnf("Disk space monitoring failed: %v.", err)
@@ -1016,17 +1015,4 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			return
 		}
 	}
-}
-
-// percentUsed returns percentage of disk space used. The percentage of disk
-// space used is calculated from (total blocks - free blocks)/total blocks.
-// The value is rounded to the nearest whole integer.
-func percentUsed(path string) (float64, error) {
-	var stat syscall.Statfs_t
-	err := syscall.Statfs(path, &stat)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	ratio := float64(stat.Blocks-stat.Bfree) / float64(stat.Blocks)
-	return math.Round(ratio * 100), nil
 }
