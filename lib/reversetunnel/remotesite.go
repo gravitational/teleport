@@ -103,8 +103,8 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// authority to verify)
 		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
 		clt, err := auth.NewTLSClient(auth.ClientConfig{
-			DialContext: s.authServerContextDialer,
-			TLS:         tlsConfig,
+			Dialer: auth.ContextDialerFunc(s.authServerContextDialer),
+			TLS:    tlsConfig,
 		})
 		if err != nil {
 			return nil, false, trace.Wrap(err)

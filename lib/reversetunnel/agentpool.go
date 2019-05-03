@@ -87,6 +87,8 @@ type AgentPoolConfig struct {
 	Component string
 	// ReverseTunnelServer holds all reverse tunnel connections.
 	ReverseTunnelServer Server
+	// ProxyAddr if set, points to the address of the ssh proxy
+	ProxyAddr string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -159,7 +161,7 @@ func (m *AgentPool) processDiscoveryRequests() {
 	for {
 		select {
 		case <-m.ctx.Done():
-			m.Debugf("closing")
+			m.Debugf("Closing.")
 			return
 		case req := <-m.discoveryC:
 			if req == nil {
@@ -197,7 +199,7 @@ func (m *AgentPool) tryDiscover(req discoveryRequest) {
 			filtered = append(filtered, proxy)
 		}
 	}
-	m.Debugf("tryDiscover original(%v) -> filtered(%v)", proxies, filtered)
+	m.Debugf("TryDiscover original(%v) -> filtered(%v).", proxies, filtered)
 	// nothing to do
 	if len(filtered) == 0 {
 		return
@@ -227,7 +229,7 @@ func (m *AgentPool) tryDiscover(req discoveryRequest) {
 // FetchAndSyncAgents executes one time fetch and sync request
 // (used in tests instead of polling)
 func (m *AgentPool) FetchAndSyncAgents() error {
-	tunnels, err := m.cfg.AccessPoint.GetReverseTunnels()
+	tunnels, err := m.getReverseTunnels()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -297,7 +299,7 @@ func (m *AgentPool) pollAndSyncAgents() {
 		case <-ticker.C:
 			err := m.FetchAndSyncAgents()
 			if err != nil {
-				m.Warningf("failed to get reverse tunnels: %v", err)
+				m.Warningf("Failed to get reverse tunnels: %v.", err)
 				continue
 			}
 		}
@@ -355,6 +357,29 @@ func (m *AgentPool) Counts() map[string]int {
 	return out
 }
 
+// getReverseTunnels always returns a builtin node tunnel
+// that has to be established
+func (m *AgentPool) getReverseTunnels() ([]services.ReverseTunnel, error) {
+	// Proxy uses reverse tunnels for bookkeeping
+	// purposes - to communicate that trusted cluster has been
+	// deleted and all agents have to be closed.
+	// Nodes do not have this need as the agent pool should
+	// exist as long as the node is running.
+	switch m.cfg.Component {
+	case teleport.ComponentProxy:
+		return m.cfg.AccessPoint.GetReverseTunnels()
+	case teleport.ComponentNode:
+		reverseTunnel := services.NewReverseTunnel(
+			m.cfg.HostUUID,
+			[]string{m.cfg.ProxyAddr},
+		)
+		reverseTunnel.SetType(services.NodeTunnel)
+		return []services.ReverseTunnel{reverseTunnel}, nil
+	default:
+		return nil, trace.BadParameter("unsupported component %q", m.cfg.Component)
+	}
+}
+
 // reportStats submits report about agents state once in a while at info
 // level. Always logs more detailed information at debug level.
 func (m *AgentPool) reportStats() {
@@ -395,31 +420,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	m.Lock()
 	defer m.Unlock()
 
-	// Filter out tunnels based off if the AgentPool is running in the proxy
-	// or node.
-	//
-	// For proxies, get all tunnels of type proxy.
-	//
-	// For nodes, get all tunnels of type node and with the same UUID as the host.
-	// For nodes, because the AgentPool is running in the host, this ensures it
-	// only picks up tunnels for itself.
-	filtered := make([]services.ReverseTunnel, 0, len(tunnels))
-	switch m.cfg.Component {
-	case teleport.ComponentProxy:
-		for _, t := range tunnels {
-			if t.GetType() == services.ProxyTunnel {
-				filtered = append(filtered, t)
-			}
-		}
-	case teleport.ComponentNode:
-		for _, t := range tunnels {
-			if t.GetType() == services.NodeTunnel && t.GetName() == m.cfg.HostUUID {
-				filtered = append(filtered, t)
-			}
-		}
-	}
-
-	keys, err := tunnelsToAgentKeys(filtered)
+	keys, err := tunnelsToAgentKeys(tunnels)
 	if err != nil {
 		return trace.Wrap(err)
 	}

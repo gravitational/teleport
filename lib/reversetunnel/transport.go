@@ -40,24 +40,30 @@ import (
 )
 
 // TunnelAuthDialer connects to the Auth Server through the reverse tunnel.
-func TunnelAuthDialer(proxyAddr string, sshConfig *ssh.ClientConfig) auth.DialContext {
-	return func(ctx context.Context, network string, addr string) (net.Conn, error) {
-		// Connect to the reverse tunnel server.
-		dialer := proxy.DialerFromEnvironment(proxyAddr)
-		sconn, err := dialer.Dial("tcp", proxyAddr, sshConfig)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+type TunnelAuthDialer struct {
+	// ProxyAddr is the address of the proxy
+	ProxyAddr string
+	// ClientConfig is SSH tunnel client config
+	ClientConfig *ssh.ClientConfig
+}
 
-		// Build a net.Conn over the tunnel.
-		conn, _, err := connectProxyTransport(sconn.Conn, &dialReq{
-			Address: RemoteAuthServer,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return conn, nil
+// DialContext dials auth server via SSH tunnel
+func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+	// Connect to the reverse tunnel server.
+	dialer := proxy.DialerFromEnvironment(t.ProxyAddr)
+	sconn, err := dialer.Dial("tcp", t.ProxyAddr, t.ClientConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	// Build a net.Conn over the tunnel.
+	conn, _, err := connectProxyTransport(sconn.Conn, &dialReq{
+		Address: RemoteAuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
 }
 
 // transportParams are used to build a connection to the target host.

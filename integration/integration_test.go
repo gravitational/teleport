@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -1048,7 +1049,7 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 		c.Assert(roots.Subjects(), check.HasLen, 2)
 
 		// wait for active tunnel connections to be established
-		waitForActiveTunnelConnections(c, b, a.Secrets.SiteName, 1)
+		waitForActiveTunnelConnections(c, b.Tunnel, a.Secrets.SiteName, 1)
 
 		// via tunnel b->a:
 		tc, err = b.NewClient(ClientConfig{
@@ -1857,7 +1858,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 		WebPort:           proxyWebPort,
 		ReverseTunnelPort: proxyReverseTunnelPort,
 	}
-	err = main.StartProxy(proxyConfig)
+	_, err = main.StartProxy(proxyConfig)
 	c.Assert(err, check.IsNil)
 
 	// add second proxy as a backend to the load balancer
@@ -1993,7 +1994,8 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	_, err = main.StartNode(nodeConfig())
 	c.Assert(err, check.IsNil)
 
-	waitForTunnelConnections(c, main.Process.GetAuthServer(), Site, 1)
+	// wait for active tunnel connections to be established
+	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
 
 	// Create a Teleport instance with a Proxy.
 	nodePorts := s.getPorts(3)
@@ -2004,13 +2006,13 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 		WebPort:           proxyWebPort,
 		ReverseTunnelPort: proxyReverseTunnelPort,
 	}
-	err = main.StartProxy(proxyConfig)
+	proxyTunnel, err := main.StartProxy(proxyConfig)
 	c.Assert(err, check.IsNil)
 
 	// Add second proxy as a backend to the load balancer.
 	lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
 
-	waitForTunnelConnections(c, main.Process.GetAuthServer(), Site, 2)
+	waitForActiveTunnelConnections(c, proxyTunnel, Site, 1)
 
 	// Execute the connection via first proxy.
 	cfg := ClientConfig{
@@ -2077,11 +2079,11 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 }
 
 // waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
-func waitForActiveTunnelConnections(c *check.C, t *TeleInstance, clusterName string, expectedCount int) {
+func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
 	var lastCount int
 	var lastErr error
 	for i := 0; i < 20; i++ {
-		cluster, err := t.Tunnel.GetSite(clusterName)
+		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
 			lastErr = err
 			continue

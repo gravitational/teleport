@@ -737,10 +737,10 @@ type ProxyConfig struct {
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
-func (i *TeleInstance) StartProxy(cfg ProxyConfig) error {
+func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error) {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	tconf := service.MakeDefaultConfig()
@@ -779,7 +779,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) error {
 	// compose this "cluster".
 	process, err := service.NewTeleport(tconf)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	i.Nodes = append(i.Nodes, process)
 
@@ -793,12 +793,26 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) error {
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := startAndWait(process, expectedEvents)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
+	// receipt of a ProxyReverseTunnelReady event
+	var tunnel reversetunnel.Server
+	for _, re := range receivedEvents {
+		switch re.Name {
+		case service.ProxyReverseTunnelReady:
+			ts, ok := re.Payload.(reversetunnel.Server)
+			if ok {
+				tunnel = ts
+				break
+			}
+		}
 	}
 
 	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
-	return nil
+	return tunnel, nil
 }
 
 // Reset re-creates the teleport instance based on the same configuration
