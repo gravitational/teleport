@@ -41,7 +41,7 @@
     "babel-preset-es2015": "6.24.1",
     "babel-preset-react": "6.24.1",
     "body-parser": "1.18.3",
-    "bootstrap-sass": "3.3.7",
+    "bootstrap-sass": "3.4.1",
     "css-loader": "1.0.1",
     "eslint": "5.16.0",
     "eslint-import-resolver-webpack": "0.10.1",
