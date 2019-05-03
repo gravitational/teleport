@@ -104,6 +104,9 @@ type localSite struct {
 
 // GetTunnelsCount always the number of tunnel connections to this cluster.
 func (s *localSite) GetTunnelsCount() int {
+	s.Lock()
+	defer s.Unlock()
+
 	return len(s.remoteConns)
 }
 

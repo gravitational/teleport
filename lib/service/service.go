@@ -169,10 +169,25 @@ type Connector struct {
 
 	// Client is authenticated client with credentials from ClientIdenity.
 	Client *auth.Client
+}
 
-	// UseTunnel indicates if the client is connected directly to the Auth Server
-	// (false) or through the proxy (true).
-	UseTunnel bool
+// TunnelProxy if non-empty, indicates that the client is connected to the Auth Server
+// through the reverse SSH tunnel proxy
+func (c *Connector) TunnelProxy() string {
+	if c.Client == nil || c.Client.Dialer == nil {
+		return ""
+	}
+	tun, ok := c.Client.Dialer.(*reversetunnel.TunnelAuthDialer)
+	if !ok {
+		return ""
+	}
+	return tun.ProxyAddr
+}
+
+// UseTunnel indicates if the client is connected directly to the Auth Server
+// (false) or through the proxy (true).
+func (c *Connector) UseTunnel() bool {
+	return c.TunnelProxy() != ""
 }
 
 // Close closes resources associated with connector
@@ -1387,7 +1402,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetMACAlgorithms(cfg.MACAlgorithms),
 			regular.SetPAMConfig(cfg.SSH.PAM),
 			regular.SetRotationGetter(process.getRotation),
-			regular.SetUseTunnel(conn.UseTunnel),
+			regular.SetUseTunnel(conn.UseTunnel()),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1401,7 +1416,7 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
-		if !conn.UseTunnel {
+		if !conn.UseTunnel() {
 			listener, err := process.importOrCreateListener(teleport.ComponentNode, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1423,13 +1438,11 @@ func (process *TeleportProcess) initSSH() error {
 			// heartbeat.
 			s.Start()
 
-			// Start upserting reverse tunnel in a loop while the process is running.
-			go process.upsertTunnelForever(conn)
-
 			// Create and start an agent pool.
 			agentPool, err = reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 				Component:   teleport.ComponentNode,
 				HostUUID:    conn.ServerIdentity.ID.HostUUID,
+				ProxyAddr:   conn.TunnelProxy(),
 				Client:      conn.Client,
 				AccessPoint: conn.Client,
 				HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -1452,7 +1465,7 @@ func (process *TeleportProcess) initSSH() error {
 
 		// Block and wait while the node is running.
 		s.Wait()
-		if conn.UseTunnel {
+		if conn.UseTunnel() {
 			agentPool.Wait()
 		}
 
@@ -1473,7 +1486,7 @@ func (process *TeleportProcess) initSSH() error {
 				warnOnErr(s.Shutdown(payloadContext(payload)))
 			}
 		}
-		if conn.UseTunnel {
+		if conn.UseTunnel() {
 			agentPool.Stop()
 		}
 
@@ -1481,38 +1494,6 @@ func (process *TeleportProcess) initSSH() error {
 	})
 
 	return nil
-}
-
-func (process *TeleportProcess) upsertTunnelForever(conn *Connector) {
-	proxyAddr, err := process.findReverseTunnel(process.Config.AuthServers)
-	if err != nil {
-		log.Debugf("Failed to discover proxy address: %v.", err)
-	}
-
-	process.upsertTunnel(conn, proxyAddr)
-
-	for {
-		select {
-		case <-process.ExitContext().Done():
-			return
-		case <-time.Tick(defaults.ReverseTunnelAgentHeartbeatPeriod):
-			process.upsertTunnel(conn, proxyAddr)
-		}
-	}
-}
-
-func (process *TeleportProcess) upsertTunnel(conn *Connector, proxyAddr string) {
-	reverseTunnel := services.NewReverseTunnel(
-		conn.ServerIdentity.ID.HostUUID,
-		[]string{proxyAddr},
-	)
-	reverseTunnel.SetType(services.NodeTunnel)
-	reverseTunnel.SetExpiry(process.Clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
-
-	err := conn.Client.UpsertReverseTunnel(reverseTunnel)
-	if err != nil {
-		log.Debugf("Failed to upsert reverse tunnel: %v.", err)
-	}
 }
 
 // registerWithAuthServer uses one time provisioning token obtained earlier

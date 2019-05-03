@@ -121,7 +121,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 			}, nil
 		}
 		log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
-		client, useTunnel, err := process.newClient(process.Config.AuthServers, identity)
+		client, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -129,7 +129,6 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 			Client:         client,
 			ClientIdentity: identity,
 			ServerIdentity: identity,
-			UseTunnel:      useTunnel,
 		}, nil
 	case services.RotationStateInProgress:
 		switch rotation.Phase {
@@ -142,7 +141,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 					ServerIdentity: identity,
 				}, nil
 			}
-			client, useTunnel, err := process.newClient(process.Config.AuthServers, identity)
+			client, err := process.newClient(process.Config.AuthServers, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -150,7 +149,6 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 				Client:         client,
 				ClientIdentity: identity,
 				ServerIdentity: identity,
-				UseTunnel:      useTunnel,
 			}, nil
 		case services.RotationPhaseUpdateClients:
 			// Clients should use updated credentials,
@@ -165,7 +163,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 					ServerIdentity: identity,
 				}, nil
 			}
-			client, useTunnel, err := process.newClient(process.Config.AuthServers, newIdentity)
+			client, err := process.newClient(process.Config.AuthServers, newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -173,7 +171,6 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 				Client:         client,
 				ClientIdentity: newIdentity,
 				ServerIdentity: identity,
-				UseTunnel:      useTunnel,
 			}, nil
 		case services.RotationPhaseUpdateServers:
 			// Servers and clients are using new identity credentials, but the
@@ -188,7 +185,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 					ServerIdentity: newIdentity,
 				}, nil
 			}
-			client, useTunnel, err := process.newClient(process.Config.AuthServers, newIdentity)
+			client, err := process.newClient(process.Config.AuthServers, newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -196,7 +193,6 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 				Client:         client,
 				ClientIdentity: newIdentity,
 				ServerIdentity: newIdentity,
-				UseTunnel:      useTunnel,
 			}, nil
 		case services.RotationPhaseRollback:
 			// In rollback phase, clients and servers should switch back
@@ -209,7 +205,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 					ServerIdentity: identity,
 				}, nil
 			}
-			client, useTunnel, err := process.newClient(process.Config.AuthServers, identity)
+			client, err := process.newClient(process.Config.AuthServers, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -217,7 +213,6 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 				Client:         client,
 				ClientIdentity: identity,
 				ServerIdentity: identity,
-				UseTunnel:      useTunnel,
 			}, nil
 		default:
 			return nil, trace.BadParameter("unsupported rotation phase: %q", rotation.Phase)
@@ -398,7 +393,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			ServerIdentity: identity,
 		}
 	} else {
-		client, useTunnel, err := process.newClient(process.Config.AuthServers, identity)
+		client, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -406,7 +401,6 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			ClientIdentity: identity,
 			ServerIdentity: identity,
 			Client:         client,
-			UseTunnel:      useTunnel,
 		}
 	}
 
@@ -775,10 +769,10 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 // newClient attempts to connect directly to the Auth Server. If it fails, it
 // falls back to trying to connect to the Auth Server through the proxy.
-func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, bool, error) {
+func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
 	directClient, err := process.newClientDirect(authServers, identity)
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Try and connect to the Auth Server. If the request fails, try and
@@ -788,21 +782,21 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	if err != nil {
 		// Only attempt to connect through the proxy for nodes.
 		if identity.ID.Role != teleport.RoleNode {
-			return nil, false, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		log.Debugf("Attempting to connect to Auth Server through tunnel.")
 		tunnelClient, er := process.newClientThroughTunnel(authServers, identity)
 		if er != nil {
-			return nil, false, trace.NewAggregate(err, er)
+			return nil, trace.NewAggregate(err, er)
 		}
 
 		log.Debugf("Connected to Auth Server through tunnel.")
-		return tunnelClient, true, nil
+		return tunnelClient, nil
 	}
 
 	log.Debugf("Connected to Auth Server with direct connection.")
-	return directClient, false, nil
+	return directClient, nil
 }
 
 // findReverseTunnel uses the web proxy to discover where the SSH reverse tunnel
@@ -848,8 +842,11 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 	}
 
 	clt, err := auth.NewTLSClient(auth.ClientConfig{
-		DialContext: reversetunnel.TunnelAuthDialer(proxyAddr, identity.SSHClientConfig()),
-		TLS:         tlsConfig,
+		Dialer: &reversetunnel.TunnelAuthDialer{
+			ProxyAddr:    proxyAddr,
+			ClientConfig: identity.SSHClientConfig(),
+		},
+		TLS: tlsConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

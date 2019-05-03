@@ -164,10 +164,10 @@ func (c *SessionContext) newRemoteClient(cluster reversetunnel.RemoteSite) (auth
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
-func clusterDialer(remoteCluster reversetunnel.RemoteSite) auth.DialContext {
-	return func(in context.Context, network, _ string) (net.Conn, error) {
+func clusterDialer(remoteCluster reversetunnel.RemoteSite) auth.ContextDialer {
+	return auth.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		return remoteCluster.DialAuthServer()
-	}
+	})
 }
 
 // tryRemoteTLSClient tries creating TLS client and using it (the client may not be available
@@ -227,7 +227,7 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewTLSClient(auth.ClientConfig{DialContext: clusterDialer(cluster), TLS: tlsConfig})
+	return auth.NewTLSClient(auth.ClientConfig{Dialer: clusterDialer(cluster), TLS: tlsConfig})
 }
 
 // GetUser returns the authenticated teleport user

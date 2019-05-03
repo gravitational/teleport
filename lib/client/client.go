@@ -181,14 +181,14 @@ func (proxy *ProxyClient) ConnectToCurrentCluster(ctx context.Context, quiet boo
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
-	dialer := func(ctx context.Context, network, _ string) (net.Conn, error) {
+	dialer := auth.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return proxy.dialAuthServer(ctx, clusterName)
-	}
+	})
 
 	if proxy.teleportClient.SkipLocalAuth {
 		return auth.NewTLSClient(auth.ClientConfig{
-			DialContext: dialer,
-			TLS:         proxy.teleportClient.TLS,
+			Dialer: dialer,
+			TLS:    proxy.teleportClient.TLS,
 		})
 	}
 
@@ -216,8 +216,8 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		return nil, trace.BadParameter("no TLS keys found for user %v, please relogin to get new credentials", proxy.teleportClient.Username)
 	}
 	clt, err := auth.NewTLSClient(auth.ClientConfig{
-		DialContext: dialer,
-		TLS:         tlsConfig,
+		Dialer: dialer,
+		TLS:    tlsConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

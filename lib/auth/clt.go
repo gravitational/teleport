@@ -90,8 +90,20 @@ func (c *Client) TLSConfig() *tls.Config {
 	return c.ClientConfig.TLS
 }
 
+// ContextDialer represents network dialer interface that uses context
+type ContextDialer interface {
+	// DialContext is a function that dials to the specified address
+	DialContext(in context.Context, network, addr string) (net.Conn, error)
+}
+
+// ContextDialerFunc is a function wrapper that implements
+// ContextDialer interface
+type ContextDialerFunc func(in context.Context, network, addr string) (net.Conn, error)
+
 // DialContext is a function that dials to the specified address
-type DialContext func(in context.Context, network, addr string) (net.Conn, error)
+func (f ContextDialerFunc) DialContext(in context.Context, network, addr string) (net.Conn, error) {
+	return f(in, network, addr)
+}
 
 // EncodeClusterName encodes cluster name in the SNI hostname
 func EncodeClusterName(clusterName string) string {
@@ -121,12 +133,12 @@ func DecodeClusterName(serverName string) (string, error) {
 }
 
 // NewAddrDialer returns new dialer from a list of addresses
-func NewAddrDialer(addrs []utils.NetAddr) DialContext {
+func NewAddrDialer(addrs []utils.NetAddr) ContextDialer {
 	dialer := net.Dialer{
 		Timeout:   defaults.DefaultDialTimeout,
 		KeepAlive: defaults.ReverseTunnelAgentHeartbeatPeriod,
 	}
-	return func(in context.Context, network, _ string) (net.Conn, error) {
+	return ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		var err error
 		var conn net.Conn
 		for _, addr := range addrs {
@@ -138,7 +150,7 @@ func NewAddrDialer(addrs []utils.NetAddr) DialContext {
 		}
 		// not wrapping on purpose to preserve the original error
 		return nil, err
-	}
+	})
 }
 
 // ClientTimeout sets idle and dial timeouts of the HTTP transport
@@ -159,9 +171,9 @@ func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
 type ClientConfig struct {
 	// Addrs is a list of addresses to dial
 	Addrs []utils.NetAddr
-	// DialContext is a custom dialer, if provided
+	// Dialer is a custom dialer, if provided
 	// is used instead of the list of addresses
-	DialContext DialContext
+	Dialer ContextDialer
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration
 	// KeepAliveCount specifies amount of missed keep alives
@@ -173,7 +185,7 @@ type ClientConfig struct {
 
 // CheckAndSetDefaults checks and sets default config values
 func (c *ClientConfig) CheckAndSetDefaults() error {
-	if len(c.Addrs) == 0 && c.DialContext == nil {
+	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or DialContext")
 	}
 	if c.TLS == nil {
@@ -185,8 +197,8 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.KeepAliveCount == 0 {
 		c.KeepAliveCount = defaults.KeepAliveCountMax
 	}
-	if c.DialContext == nil {
-		c.DialContext = NewAddrDialer(c.Addrs)
+	if c.Dialer == nil {
+		c.Dialer = NewAddrDialer(c.Addrs)
 	}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = teleport.APIDomain
@@ -217,7 +229,7 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		// to make sure client verifies the DNS name of the API server
 		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
-		DialContext:           cfg.DialContext,
+		DialContext:           cfg.Dialer.DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 		TLSClientConfig:       cfg.TLS,
 
@@ -272,7 +284,7 @@ func (c *Client) grpc() (proto.AuthServiceClient, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
-		c, err := c.DialContext(context.TODO(), "tcp", addr)
+		c, err := c.Dialer.DialContext(context.TODO(), "tcp", addr)
 		if err != nil {
 			log.Debugf("Dial to addr %v failed: %v.", addr, err)
 		}
