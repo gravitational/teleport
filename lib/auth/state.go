@@ -24,9 +24,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/legacy"
-	"github.com/gravitational/teleport/lib/backend/legacy/dir"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -38,26 +35,6 @@ import (
 // and keeps local process credentials - x509 and SSH certs and keys.
 type ProcessStorage struct {
 	backend.Backend
-}
-
-// NewProcessStorage returns a new instance of the process storage.
-func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
-	if path == "" {
-		return nil, trace.BadParameter("missing parameter path")
-	}
-	litebk, err := lite.NewWithConfig(ctx, lite.Config{Path: path, EventsOff: true})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Import storage data
-	err = legacy.Import(ctx, litebk, func() (legacy.Exporter, error) {
-		return dir.New(legacy.Params{"path": path})
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &ProcessStorage{Backend: litebk}, nil
 }
 
 // Close closes all resources used by process storage backend.

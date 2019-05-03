@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -112,10 +112,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		TestAuthServerConfig: cfg,
 	}
 	var err error
-	b, err := lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             cfg.Dir,
-		PollStreamPeriod: 100 * time.Millisecond,
-		Clock:            cfg.Clock,
+	b, err := memory.New(memory.Config{
+		Context:   context.Background(),
+		Clock:     cfg.Clock,
+		EventsOff: false,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
