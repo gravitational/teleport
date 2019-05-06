@@ -1423,6 +1423,7 @@ func eventsTestKinds(tests []eventTest) []services.WatchKind {
 	return out
 }
 
+// ExpectResource expects a Put event of a certain resource
 func ExpectResource(c *check.C, w services.Watcher, timeout time.Duration, resource services.Resource) {
 	timeoutC := time.After(timeout)
 waitLoop:
@@ -1451,13 +1452,14 @@ waitLoop:
 	}
 }
 
+// ExpectDeleteResource expects a delete event of a certain kind
 func ExpectDeleteResource(c *check.C, w services.Watcher, timeout time.Duration, resource services.Resource) {
 	timeoutC := time.After(timeout)
 waitLoop:
 	for {
 		select {
 		case <-timeoutC:
-			c.Fatalf("Timeout waiting for event")
+			c.Fatalf("Timeout waiting for delete resource %v", resource)
 		case <-w.Done():
 			c.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
