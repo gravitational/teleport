@@ -155,10 +155,14 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 	if m.tree.Get(&btreeItem{Item: i}) != nil {
 		return nil, trace.AlreadyExists("key %q already exists", string(i.Key))
 	}
-	m.processEvent(backend.Event{
+	event := backend.Event{
 		Type: backend.OpPut,
 		Item: i,
-	})
+	}
+	m.processEvent(event)
+	if !m.EventsOff {
+		m.buf.Push(event)
+	}
 	return m.newLease(i), nil
 }
 
@@ -289,10 +293,14 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey []byte) error
 	m.removeExpired()
 	re := m.getRange(ctx, startKey, endKey, backend.NoLimit)
 	for _, item := range re.Items {
-		m.processEvent(backend.Event{
+		event := backend.Event{
 			Type: backend.OpDelete,
 			Item: item,
-		})
+		}
+		m.processEvent(event)
+		if !m.EventsOff {
+			m.buf.Push(event)
+		}
 	}
 	return nil
 }
