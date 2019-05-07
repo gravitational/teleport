@@ -1241,8 +1241,8 @@ func (s *IntSuite) TestHA(c *check.C) {
 	// try to execute an SSH command using the same old client  to Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
+	for i := 0; i < 30; i++ {
+		time.Sleep(1 * time.Second)
 		err = tc.SSH(context.TODO(), cmd, false)
 		if err == nil {
 			break
