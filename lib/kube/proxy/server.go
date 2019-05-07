@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 
 	"github.com/gravitational/trace"
@@ -105,7 +106,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server := &TLSServer{
 		TLSServerConfig: cfg,
 		Server: &http.Server{
-			Handler: limiter,
+			Handler:           limiter,
+			ReadHeaderTimeout: defaults.DefaultDialTimeout * 2,
 		},
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient

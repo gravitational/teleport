@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -501,6 +502,15 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// before we do anything reset the SIGINT handler back to the default
 	system.ResetInterruptSignalHandler()
+
+	// If FIPS mode was requested make sure binary is build against BoringCrypto.
+	if cfg.FIPS {
+		if !modules.GetModules().IsBoringBinary() {
+			return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
+				"that Enterprise release was downloaded from " +
+				"https://dashboard.gravitational.com")
+		}
+	}
 
 	if err := validateConfig(cfg); err != nil {
 		return nil, trace.Wrap(err, "configuration error")
@@ -1647,7 +1657,8 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic))
 
 	server := &http.Server{
-		Handler: mux,
+		Handler:           mux,
+		ReadHeaderTimeout: defaults.DefaultDialTimeout,
 	}
 
 	log.Infof("Starting diagnostic service on %v.", process.Config.DiagnosticAddr.Addr)
@@ -1998,6 +2009,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ProxyWebAddr:  cfg.Proxy.WebAddr,
 				ProxySettings: proxySettings,
 				CipherSuites:  cfg.CipherSuites,
+				FIPS:          cfg.FIPS,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2012,7 +2024,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			listeners.web = tls.NewListener(listeners.web, tlsConfig)
 		}
 		webServer = &http.Server{
-			Handler: proxyLimiter,
+			Handler:           proxyLimiter,
+			ReadHeaderTimeout: defaults.DefaultDialTimeout,
 		}
 		process.RegisterCriticalFunc("proxy.web", func() error {
 			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Web proxy service is starting on %v.", cfg.Proxy.WebAddr.Addr)

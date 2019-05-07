@@ -210,6 +210,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 				SessionRecording: tt.inRecordLocation,
 				Audit:            services.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
+				LocalAuth:        services.NewBool(true),
 			})
 			c.Assert(err, check.IsNil)
 
@@ -789,6 +790,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: services.RecordAtNode,
+		LocalAuth:        services.NewBool(true),
 	})
 	c.Assert(err, check.IsNil)
 
@@ -970,6 +972,7 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 
 		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 			SessionRecording: tt.inRecordLocation,
+			LocalAuth:        services.NewBool(true),
 		})
 		c.Assert(err, check.IsNil)
 
@@ -2217,6 +2220,7 @@ func (s *IntSuite) TestExternalClient(c *check.C) {
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
 			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 				SessionRecording: tt.inRecordLocation,
+				LocalAuth:        services.NewBool(true),
 			})
 			c.Assert(err, check.IsNil)
 
@@ -2309,6 +2313,7 @@ func (s *IntSuite) TestControlMaster(c *check.C) {
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
 			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 				SessionRecording: tt.inRecordLocation,
+				LocalAuth:        services.NewBool(true),
 			})
 			c.Assert(err, check.IsNil)
 
@@ -2407,6 +2412,7 @@ func (s *IntSuite) TestProxyHostKeyCheck(c *check.C) {
 			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 				SessionRecording:    services.RecordAtProxy,
 				ProxyChecksHostKeys: tt.inHostKeyCheck,
+				LocalAuth:           services.NewBool(true),
 			})
 			c.Assert(err, check.IsNil)
 
@@ -2455,6 +2461,7 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
 		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 			SessionRecording: services.RecordOff,
+			LocalAuth:        services.NewBool(true),
 		})
 		c.Assert(err, check.IsNil)
 
@@ -3378,6 +3385,7 @@ func (s *IntSuite) TestList(c *check.C) {
 	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
 		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 			SessionRecording: services.RecordOff,
+			LocalAuth:        services.NewBool(true),
 		})
 		c.Assert(err, check.IsNil)
 
@@ -3521,6 +3529,7 @@ func (s *IntSuite) TestMultipleSignup(c *check.C) {
 	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
 		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 			SessionRecording: services.RecordAtNode,
+			LocalAuth:        services.NewBool(true),
 		})
 		c.Assert(err, check.IsNil)
 

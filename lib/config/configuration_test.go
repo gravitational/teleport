@@ -390,6 +390,7 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 		},
 	}))
 	c.Assert(cfg.Auth.ClusterName.GetClusterName(), check.Equals, "magadan")
+	c.Assert(cfg.Auth.ClusterConfig.GetLocalAuth(), check.Equals, true)
 	c.Assert(cfg.AdvertiseIP, check.Equals, "10.10.10.1")
 
 	c.Assert(cfg.Proxy.Enabled, check.Equals, true)
@@ -767,5 +768,56 @@ func (s *ConfigTestSuite) TestLicenseFile(c *check.C) {
 		}, cfg)
 		c.Assert(err, check.IsNil)
 		c.Assert(cfg.Auth.LicenseFile, check.Equals, tc.result)
+	}
+}
+
+// TestFIPS makes sure configuration is correctly updated/enforced when in
+// FedRAMP/FIPS 140-2 mode.
+func (s *ConfigTestSuite) TestFIPS(c *check.C) {
+	tests := []struct {
+		inConfigString string
+		inFIPSMode     bool
+		outError       bool
+	}{
+		{
+			inConfigString: configWithoutFIPSKex,
+			inFIPSMode:     true,
+			outError:       true,
+		},
+		{
+			inConfigString: configWithoutFIPSKex,
+			inFIPSMode:     false,
+			outError:       false,
+		},
+		{
+			inConfigString: configWithFIPSKex,
+			inFIPSMode:     true,
+			outError:       false,
+		},
+		{
+			inConfigString: configWithFIPSKex,
+			inFIPSMode:     false,
+			outError:       false,
+		},
+	}
+
+	for i, tt := range tests {
+		comment := check.Commentf("Test %v", i)
+
+		clf := CommandLineFlags{
+			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+			FIPS:         tt.inFIPSMode,
+		}
+
+		cfg := service.MakeDefaultConfig()
+		service.ApplyDefaults(cfg)
+		service.ApplyFIPSDefaults(cfg)
+
+		err := Configure(&clf, cfg)
+		if tt.outError {
+			c.Assert(err, check.NotNil, comment)
+		} else {
+			c.Assert(err, check.IsNil, comment)
+		}
 	}
 }

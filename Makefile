@@ -26,19 +26,27 @@ CGOFLAG ?= CGO_ENABLED=1
 
 OS ?= `go env GOOS`
 ARCH ?= `go env GOARCH`
+FIPS ?=
 RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
+
+# FIPS support must be requested at build time.
+FIPS_MESSAGE := "without FIPS support"
+ifneq ("$(FIPS)","")
+FIPS_TAG := fips
+FIPS_MESSAGE := "with FIPS support"
+endif
 
 # PAM support will only be built into Teleport if headers exist at build time.
 PAM_MESSAGE := "without PAM support"
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
-PAMFLAGS := -tags pam
+PAM_TAG := pam
 PAM_MESSAGE := "with PAM support"
 endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_MESSAGE) and $(FIPS_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
@@ -68,15 +76,15 @@ all: $(VERSRC)
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build $(PAMFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build $(PAMFLAGS) -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 #
 # make full - Builds Teleport binaries with the built-in web assets and
@@ -189,7 +197,7 @@ test: $(VERSRC)
 .PHONY: integration
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test $(PAMFLAGS) -v ./integration/... -check.v
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" -v ./integration/... -check.v
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile

@@ -160,17 +160,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// set cluster config
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
-	})
+	err = srv.AuthServer.SetClusterConfig(services.DefaultClusterConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.SetClusterConfig(clusterConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	// set cluster name in the backend
 	err = srv.AuthServer.SetClusterName(clusterName)
 	if err != nil {

@@ -61,7 +61,8 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 		Address: RemoteAuthServer,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		err2 := sconn.Close()
+		return nil, trace.NewAggregate(err, err2)
 	}
 	return conn, nil
 }
@@ -160,7 +161,7 @@ func connectProxyTransport(sconn ssh.Conn, req *dialReq) (net.Conn, bool, error)
 		return nil, false, trace.Errorf(strings.TrimSpace(string(errMessage)))
 	}
 
-	return utils.NewChConn(sconn, channel), false, nil
+	return utils.NewExclusiveChConn(sconn, channel), false, nil
 }
 
 // proxyTransport runs either in the agent or reverse tunnel itself. It's

@@ -116,6 +116,10 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		"Enables reading of ~/.tsh/environment when creating a session").Hidden().BoolVar(&ccf.PermitUserEnvironment)
 	start.Flag("insecure",
 		"Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
+	start.Flag("fips",
+		"Start Teleport in FedRAMP/FIPS 140-2 mode.").
+		Default("false").
+		BoolVar(&ccf.FIPS)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -137,8 +141,13 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		utils.FatalError(err)
 	}
 
-	// create the default configuration:
+	// Create default configuration.
 	conf = service.MakeDefaultConfig()
+
+	// If FIPS mode is specified update defaults to be FIPS appropriate.
+	if ccf.FIPS {
+		service.ApplyFIPSDefaults(conf)
+	}
 
 	// execute the selected command unless we're running tests
 	switch command {
