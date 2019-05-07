@@ -21,6 +21,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -33,6 +34,8 @@ type PipeNetConn struct {
 	remoteAddr net.Addr
 }
 
+// NewPipeNetConn returns a net.Conn like object
+// using Pipe as an underlying implementation over reader, writer and closer
 func NewPipeNetConn(reader io.Reader,
 	writer io.Writer,
 	closer io.Closer,
@@ -102,34 +105,72 @@ func SplitReaders(r1 io.Reader, r2 io.Reader) io.Reader {
 	return reader
 }
 
-func NewChConn(conn ssh.Conn, ch ssh.Channel) *chConn {
-	c := &chConn{}
+// NewChConn returns a new net.Conn implemented over
+// SSH channel
+func NewChConn(conn ssh.Conn, ch ssh.Channel) *ChConn {
+	c := &ChConn{}
 	c.Channel = ch
 	c.conn = conn
 	return c
 }
 
-type chConn struct {
-	ssh.Channel
-	conn ssh.Conn
+// NewExclusiveChConn returns a new net.Conn implemented over
+// SSH channel, whenever this connection closes
+func NewExclusiveChConn(conn ssh.Conn, ch ssh.Channel) *ChConn {
+	c := &ChConn{
+		exclusive: true,
+	}
+	c.Channel = ch
+	c.conn = conn
+	return c
 }
 
-func (c *chConn) LocalAddr() net.Addr {
+// ChConn is a net.Conn like object
+// that uses SSH channel
+type ChConn struct {
+	ssh.Channel
+	conn ssh.Conn
+	// exclusive indicates that whenever this channel connection
+	// is getting closed, the underlying connection is closed as well
+	exclusive bool
+}
+
+// Close closes channel and if the ChConn is exclusive, connection as well
+func (c *ChConn) Close() error {
+	err := c.Channel.Close()
+	if !c.exclusive {
+		return trace.Wrap(err)
+	}
+	err2 := c.conn.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+// LocalAddr returns a local address of a connection
+// Uses underlying net.Conn implementation
+func (c *ChConn) LocalAddr() net.Addr {
 	return c.conn.LocalAddr()
 }
 
-func (c *chConn) RemoteAddr() net.Addr {
+// RemoteAddr returns a remote address of a connection
+// Uses underlying net.Conn implementation
+func (c *ChConn) RemoteAddr() net.Addr {
 	return c.conn.RemoteAddr()
 }
 
-func (c *chConn) SetDeadline(t time.Time) error {
+// SetDeadline sets a connection deadline
+// ignored for the channel connection
+func (c *ChConn) SetDeadline(t time.Time) error {
 	return nil
 }
 
-func (c *chConn) SetReadDeadline(t time.Time) error {
+// SetReadDeadline sets a connection read deadline
+// ignored for the channel connection
+func (c *ChConn) SetReadDeadline(t time.Time) error {
 	return nil
 }
 
-func (c *chConn) SetWriteDeadline(t time.Time) error {
+// SetWriteDeadline sets write deadline on a connection
+// ignored for the channel connection
+func (c *ChConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
