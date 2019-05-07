@@ -24,6 +24,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -112,7 +113,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server := &TLSServer{
 		TLSServerConfig: cfg,
 		Server: &http.Server{
-			Handler: limiter,
+			Handler:           limiter,
+			ReadHeaderTimeout: defaults.DefaultDialTimeout,
 		},
 		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,

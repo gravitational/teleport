@@ -1647,7 +1647,8 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic))
 
 	server := &http.Server{
-		Handler: mux,
+		Handler:           mux,
+		ReadHeaderTimeout: defaults.DefaultDialTimeout,
 	}
 
 	log.Infof("Starting diagnostic service on %v.", process.Config.DiagnosticAddr.Addr)
@@ -2012,7 +2013,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			listeners.web = tls.NewListener(listeners.web, tlsConfig)
 		}
 		webServer = &http.Server{
-			Handler: proxyLimiter,
+			Handler:           proxyLimiter,
+			ReadHeaderTimeout: defaults.DefaultDialTimeout,
 		}
 		process.RegisterCriticalFunc("proxy.web", func() error {
 			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Web proxy service is starting on %v.", cfg.Proxy.WebAddr.Addr)
