@@ -24,6 +24,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ProxyGetter is an service that gets proxies
+type ProxyGetter interface {
+	// GetProxies returns a list of registered proxies
+	GetProxies() ([]Server, error)
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
@@ -70,8 +76,8 @@ type Presence interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertProxy(server Server) error
 
-	// GetProxies returns a list of registered proxies
-	GetProxies() ([]Server, error)
+	// ProxyGetter gets a list of proxies
+	ProxyGetter
 
 	// DeleteProxy deletes proxy by name
 	DeleteProxy(name string) error

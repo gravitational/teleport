@@ -226,16 +226,10 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	s.Lock()
 	defer s.Unlock()
 
-	cn, err := s.localAccessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	rconn := newRemoteConn(&connConfig{
 		conn:        conn,
 		sconn:       sconn,
 		accessPoint: s.localAccessPoint,
-		tunnelID:    cn.GetClusterName(),
 		tunnelType:  string(services.ProxyTunnel),
 		proxyName:   s.connInfo.GetProxyName(),
 		clusterName: s.domainName,
@@ -292,6 +286,19 @@ func (s *remoteSite) deleteConnectionRecord() {
 	s.localAccessPoint.DeleteTunnelConnection(s.connInfo.GetClusterName(), s.connInfo.GetName())
 }
 
+// fanOutProxies is a non-blocking call that puts the new proxies
+// list so that remote connection can notify the remote agent
+// about the list update
+func (s *remoteSite) fanOutProxies(proxies []services.Server) {
+	s.Lock()
+	defer s.Unlock()
+	for _, conn := range s.connections {
+		if err := conn.updateProxies(proxies); err != nil {
+			conn.markInvalid(err)
+		}
+	}
+}
+
 // handleHearbeat receives heartbeat messages from the connected agent
 // if the agent has missed several heartbeats in a row, Proxy marks
 // the connection as invalid.
@@ -300,11 +307,23 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		s.Infof("Cluster connection closed.")
 		conn.Close()
 	}()
+	firstHeartbeat := true
 	for {
 		select {
 		case <-s.ctx.Done():
 			s.Infof("closing")
 			return
+		case proxies := <-conn.newProxiesC:
+			req := discoveryRequest{
+				ClusterName: s.srv.ClusterName,
+				Type:        string(conn.tunnelType),
+				Proxies:     proxies,
+			}
+			if err := conn.sendDiscoveryRequest(req); err != nil {
+				s.Debugf("Marking connection invalid on error: %v.", err)
+				conn.markInvalid(err)
+				return
+			}
 		case req := <-reqC:
 			if req == nil {
 				s.Infof("Cluster agent disconnected.")
@@ -315,6 +334,15 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				}
 				return
 			}
+			if firstHeartbeat {
+				// as soon as the agent connects and sends a first heartbeat
+				// send it the list of current proxies back
+				current := s.srv.proxyWatcher.GetCurrent()
+				if len(current) > 0 {
+					conn.updateProxies(current)
+				}
+				firstHeartbeat = false
+			}
 			var timeSent time.Time
 			var roundtrip time.Duration
 			if req.Payload != nil {
@@ -323,7 +351,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				}
 			}
 			if roundtrip != 0 {
-				s.WithFields(log.Fields{"latency": roundtrip}).Debugf("ping <- %v", conn.conn.RemoteAddr())
+				s.WithFields(log.Fields{"latency": roundtrip}).Debugf("Ping <- %v.", conn.conn.RemoteAddr())
 			} else {
 				s.Debugf("Ping <- %v.", conn.conn.RemoteAddr())
 			}

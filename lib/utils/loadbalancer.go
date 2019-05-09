@@ -72,7 +72,7 @@ type LoadBalancer struct {
 func (l *LoadBalancer) trackConnection(backend NetAddr, conn net.Conn) int64 {
 	l.Lock()
 	defer l.Unlock()
-	l.connID += 1
+	l.connID++
 	tracker, ok := l.connections[backend]
 	if !ok {
 		tracker = make(map[int64]net.Conn)
@@ -107,7 +107,7 @@ func (l *LoadBalancer) AddBackend(b NetAddr) {
 	l.Lock()
 	defer l.Unlock()
 	l.backends = append(l.backends, b)
-	l.Debugf("backends %v", l.backends)
+	l.Debugf("Backends %v.", l.backends)
 }
 
 // RemoveBackend removes backend
@@ -190,23 +190,24 @@ func (l *LoadBalancer) Serve() error {
 			}
 			select {
 			case <-backoffTimer.C:
-				l.Debugf("backoff on network error")
+				l.Debugf("Backoff on network error.")
 			case <-l.ctx.Done():
 				return trace.ConnectionProblem(nil, "context is closing")
 			}
+		} else {
+			go l.forwardConnection(conn)
 		}
-		go l.forwardConnection(conn)
 	}
 }
 
 func (l *LoadBalancer) forwardConnection(conn net.Conn) {
 	err := l.forward(conn)
 	if err != nil {
-		l.Warningf("failed to forward connection: %v", err)
+		l.Warningf("Failed to forward connection: %v.", err)
 	}
 }
 
-// this is to workaround issue https://github.com/golang/go/issues/10527
+// Wait is here to workaround issue https://github.com/golang/go/issues/10527
 // in tests
 func (l *LoadBalancer) Wait() {
 	<-l.waitCtx.Done()
