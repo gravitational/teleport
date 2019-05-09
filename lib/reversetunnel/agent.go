@@ -444,15 +444,15 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				reverseTunnelServer: a.ReverseTunnelServer,
 				localClusterName:    a.LocalClusterName,
 			})
-		// new discovery request
+		// new discovery request channel
 		case nch := <-newDiscoveryC:
 			if nch == nil {
 				continue
 			}
-			a.Debugf("discovery request: %v", nch.ChannelType())
+			a.Debugf("Discovery request channel opened: %v.", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.Warningf("failed to accept request: %v", err)
+				a.Warningf("Failed to accept discovery channel request: %v.", err)
 				continue
 			}
 			go a.handleDiscovery(ch, req)
@@ -467,30 +467,30 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
 func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
-	a.Debugf("handleDiscovery")
+	a.Debugf("handleDiscovery requests channel.")
 	defer ch.Close()
 
 	for {
 		var req *ssh.Request
 		select {
 		case <-a.ctx.Done():
-			a.Infof("is closed, returning")
+			a.Infof("Closed, returning.")
 			return
 		case req = <-reqC:
 			if req == nil {
-				a.Infof("connection closed, returning")
+				a.Infof("Connection closed, returning")
 				return
 			}
 			r, err := unmarshalDiscoveryRequest(req.Payload)
 			if err != nil {
-				a.Warningf("bad payload: %v", err)
+				a.Warningf("Bad payload: %v.", err)
 				return
 			}
 			r.ClusterAddr = a.Addr
 			select {
 			case a.DiscoveryC <- r:
 			case <-a.ctx.Done():
-				a.Infof("is closed, returning")
+				a.Infof("Closed, returning.")
 				return
 			default:
 			}

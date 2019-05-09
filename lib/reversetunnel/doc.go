@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 /*
-package reversetunnel provides interfaces for accessing remote clusters
+Package reversetunnel provides interfaces for accessing remote clusters
    via reverse tunnels and directly.
 
 Reverse Tunnels
@@ -45,8 +45,7 @@ proxies in cluster.
 
 * Initially Proxy Agent connects to Proxy 1.
 * Proxy 1 starts sending information about all available proxies
-that have not received connection from the Proxy Agent yet. This
-process is called "sending discovery request".
+to the the Proxy Agent . This process is called "sending discovery request".
 
 
 +----------+
