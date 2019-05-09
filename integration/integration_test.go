@@ -1900,9 +1900,22 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	// now disconnect the main proxy and make sure it will reconnect eventually
 	lb.RemoveBackend(mainProxyAddr)
 
-	// requests going via main proxy will fail
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
-	c.Assert(err, check.NotNil)
+	//
+	// Once the proxy is removed, only one proxy is left. Wait for the now
+	// invalid tunnel connection to TTL and be removed.
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), remote.Secrets.SiteName, 1)
+
+	//// requests going via main proxy will fail
+	//output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
+	//c.Assert(err, check.NotNil)
+
+	fmt.Printf("=======================================\n")
+	fmt.Printf("=======================================\n")
+	fmt.Printf("=======================================\n")
+	fmt.Printf("=======================================\n")
+	fmt.Printf("=======================================\n")
+	fmt.Printf("=======================================\n")
+	fmt.Printf("=======================================\n")
 
 	// requests going via second proxy will succeed
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
@@ -1914,6 +1927,11 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	// attempt to allow the discovery request to be received and the connection
 	// added to the agent pool.
 	lb.AddBackend(mainProxyAddr)
+
+	//
+	// Once the proxy is added a matching tunnel connection should be created.
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), remote.Secrets.SiteName, 2)
+
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 40)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
