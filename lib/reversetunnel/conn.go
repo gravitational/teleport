@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -44,8 +43,11 @@ type remoteConn struct {
 	mu  sync.Mutex
 	log *logrus.Entry
 
-	// discoveryCh is the channel over which discovery requests are sent.
+	// discoveryCh is the SSH channel over which discovery requests are sent.
 	discoveryCh ssh.Channel
+
+	// newProxiesC is a list used to nofity about new proxies
+	newProxiesC chan []services.Server
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
@@ -81,10 +83,6 @@ type connConfig struct {
 	// accessPoint provides access to the Auth Server API.
 	accessPoint auth.AccessPoint
 
-	// tunnelID is the tunnel ID. This is either the cluster name (trusted
-	// clusters) or hostUUID.clusterName (nodes dialing back).
-	tunnelID string
-
 	// tunnelType is the type of tunnel connection, either proxy or node.
 	tunnelType string
 
@@ -93,6 +91,10 @@ type connConfig struct {
 
 	// clusterName is the name of the cluster this tunnel is associated with.
 	clusterName string
+
+	// nodeID is used when tunnelType is node and is set
+	// to the node UUID dialing back
+	nodeID string
 }
 
 func newRemoteConn(cfg *connConfig) *remoteConn {
@@ -100,15 +102,12 @@ func newRemoteConn(cfg *connConfig) *remoteConn {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: "discovery",
 		}),
-		connConfig: cfg,
-		clock:      clockwork.NewRealClock(),
+		connConfig:  cfg,
+		clock:       clockwork.NewRealClock(),
+		newProxiesC: make(chan []services.Server, 10),
 	}
 
 	c.closeContext, c.closeCancel = context.WithCancel(context.Background())
-
-	// Continue sending periodic discovery requests over this connection so
-	// that all local proxies can be discovered.
-	go c.periodicSendDiscoveryRequests()
 
 	return c
 }
@@ -162,7 +161,7 @@ func (c *remoteConn) markInvalid(err error) {
 
 	atomic.StoreInt32(&c.invalid, 1)
 	c.lastError = err
-	c.log.Errorf("Disconnecting connection to %v: %v.", c.conn.RemoteAddr(), err)
+	c.log.Errorf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
 }
 
 func (c *remoteConn) isInvalid() bool {
@@ -171,6 +170,14 @@ func (c *remoteConn) isInvalid() bool {
 
 func (c *remoteConn) setLastHeartbeat(tm time.Time) {
 	atomic.StoreInt64(&c.lastHeartbeat, tm.UnixNano())
+}
+
+func (c *remoteConn) getLastHeartbeat() time.Time {
+	unixNano := atomic.LoadInt64(&c.lastHeartbeat)
+	if unixNano == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, unixNano)
 }
 
 // isReady returns true when connection is ready to be tried,
@@ -199,99 +206,21 @@ func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
 	return c.discoveryCh, nil
 }
 
-func (c *remoteConn) periodicSendDiscoveryRequests() {
-	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
-	defer ticker.Stop()
-
-	if err := c.findAndSend(); err != nil {
-		c.log.Warnf("Failed to send discovery request: %v.", err)
-	}
-
-	for {
-		select {
-		case <-ticker.C:
-			err := c.findAndSend()
-			if err != nil {
-				c.log.Warnf("Failed to send discovery request: %v.", err)
-			}
-		case <-c.closeContext.Done():
-			return
-		}
-	}
-}
-
-// sendDiscovery requests sends special "Discovery Requests" back to the
-// connected agent. Discovery request consists of the proxies that are part
-// of the cluster, but did not receive the connection from the agent. Agent
-// will act on a discovery request attempting to establish connection to the
-// proxies that were not discovered.
-func (c *remoteConn) findAndSend() error {
-	// Find all proxies that don't have a connection to a remote agent. If all
-	// proxies have connections, return right away.
-	disconnectedProxies, err := c.findDisconnectedProxies()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(disconnectedProxies) == 0 {
+// updateProxies is a non-blocking call that puts the new proxies
+// list so that remote connection can notify the remote agent
+// about the list update
+func (c *remoteConn) updateProxies(proxies []services.Server) error {
+	select {
+	case c.newProxiesC <- proxies:
 		return nil
+	default:
+		return trace.ConnectionProblem(nil, "discovery channel overflow at %v", len(c.newProxiesC))
 	}
-
-	c.log.Debugf("Proxy %v sending %v discovery request with tunnel ID: %v and disconnected proxies: %v.",
-		c.proxyName, string(c.tunnelType), c.tunnelID, Proxies(disconnectedProxies))
-
-	req := discoveryRequest{
-		TunnelID: c.tunnelID,
-		Type:     string(c.tunnelType),
-		Proxies:  disconnectedProxies,
-	}
-
-	err = c.sendDiscoveryRequests(req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
-// findDisconnectedProxies finds proxies that do not have inbound reverse tunnel
-// connections.
-func (c *remoteConn) findDisconnectedProxies() ([]services.Server, error) {
-	// Find all proxies that have connection from the remote domain.
-	conns, err := c.accessPoint.GetTunnelConnections(c.clusterName, services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connected := make(map[string]bool)
-	for _, conn := range conns {
-		if c.isOnline(conn) {
-			connected[conn.GetProxyName()] = true
-		}
-	}
-
-	// Build a list of local proxies that do not have a remote connection to them.
-	var missing []services.Server
-	proxies, err := c.accessPoint.GetProxies()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for i := range proxies {
-		proxy := proxies[i]
-
-		// A proxy should never add itself to the list of missing proxies.
-		if proxy.GetName() == c.proxyName {
-			continue
-		}
-
-		if !connected[proxy.GetName()] {
-			missing = append(missing, proxy)
-		}
-	}
-
-	return missing, nil
-}
-
-// sendDiscoveryRequests sends a discovery request with missing proxies.
-func (c *remoteConn) sendDiscoveryRequests(req discoveryRequest) error {
+// sendDiscoveryRequest sends a discovery request with up to date
+// list of connected proxies
+func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 	discoveryCh, err := c.openDiscoveryChannel()
 	if err != nil {
 		return trace.Wrap(err)
