@@ -29,7 +29,7 @@ import (
 
 // discoveryRequest is a request sent from a connected proxy with the missing proxies.
 type discoveryRequest struct {
-	// ClusterName is a cluster name of the discovery request
+	// ClusterName is the name of the cluster that sends the discovery request.
 	ClusterName string `json:"cluster_name"`
 
 	// Type is the type of tunnel, is either node or proxy.
@@ -38,7 +38,7 @@ type discoveryRequest struct {
 	// ClusterAddr is the address of the cluster.
 	ClusterAddr utils.NetAddr `json:"-"`
 
-	// Proxies are the existing proxies.
+	// Proxies is a list of proxies in the cluster sending the discovery request.
 	Proxies []services.Server `json:"proxies"`
 }
 
