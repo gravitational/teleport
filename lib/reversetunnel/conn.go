@@ -93,9 +93,48 @@ type connConfig struct {
 
 	// clusterName is the name of the cluster this tunnel is associated with.
 	clusterName string
+
+	// heartbeatInterval is how often a heartbeat message is sent from the
+	// remote conn to the agent on the other side.
+	heartbeatInterval time.Duration
 }
 
-func newRemoteConn(cfg *connConfig) *remoteConn {
+func (c *connConfig) CheckAndSetDefaults() error {
+	if c.conn == nil {
+		return trace.BadParameter("conn is required")
+	}
+	if c.sconn == nil {
+		return trace.BadParameter("ssh conn is required")
+	}
+	if c.accessPoint == nil {
+		return trace.BadParameter("an access point is required")
+	}
+	if c.tunnelID == "" {
+		return trace.BadParameter("tunnel ID is required")
+	}
+	if c.tunnelType == "" {
+		return trace.BadParameter("tunnel type is required")
+	}
+	if c.proxyName == "" {
+		return trace.BadParameter("proxy name is required")
+	}
+	if c.clusterName == "" {
+		return trace.BadParameter("cluster name is required")
+	}
+
+	if c.heartbeatInterval == 0 {
+		c.heartbeatInterval = defaults.ReverseTunnelAgentHeartbeatPeriod
+	}
+
+	return nil
+}
+
+func newRemoteConn(cfg *connConfig) (*remoteConn, error) {
+	err := cfg.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c := &remoteConn{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: "discovery",
@@ -110,7 +149,7 @@ func newRemoteConn(cfg *connConfig) *remoteConn {
 	// that all local proxies can be discovered.
 	go c.periodicSendDiscoveryRequests()
 
-	return c
+	return c, nil
 }
 
 func (c *remoteConn) String() string {
@@ -163,6 +202,8 @@ func (c *remoteConn) markInvalid(err error) {
 	atomic.StoreInt32(&c.invalid, 1)
 	c.lastError = err
 	c.log.Errorf("Disconnecting connection to %v: %v.", c.conn.RemoteAddr(), err)
+
+	fmt.Printf("--> marking invalid.\n")
 }
 
 func (c *remoteConn) isInvalid() bool {
@@ -183,6 +224,7 @@ func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
 	var err error
 
 	if c.isInvalid() {
+		fmt.Printf("--> returning last error: %v.\n", c.lastError)
 		return nil, trace.Wrap(c.lastError)
 	}
 
@@ -193,6 +235,7 @@ func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
 
 	c.discoveryCh, _, err = c.sconn.OpenChannel(chanDiscovery, nil)
 	if err != nil {
+		fmt.Printf("--> attempted to open chanDiscovery: %v.\n", err)
 		c.markInvalid(err)
 		return nil, trace.Wrap(err)
 	}

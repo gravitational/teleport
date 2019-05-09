@@ -104,6 +104,21 @@ type dialReq struct {
 	SearchNames []string `json:"search_names,omitempty"`
 }
 
+func checkAddress(component string, address string) error {
+	switch component {
+	// If the transport is tunneling through a proxy server, only non-resolvable
+	// address for auth server is supported.
+	case teleport.ComponentReverseTunnelServer:
+		if address != RemoteAuthServer {
+			return trace.BadParameter("invalid address %v", address)
+		}
+	// If the transport is from one cluster to another, all addresses are supported.
+	case teleport.ComponentReverseTunnelAgent:
+	}
+
+	return nil
+}
+
 // parseDialReq parses the dial request. Is backward compatible with legacy
 // payload.
 func parseDialReq(payload []byte) *dialReq {
@@ -194,6 +209,12 @@ func proxyTransport(p *transportParams) {
 
 	dreq := parseDialReq(req.Payload)
 	p.log.Debugf("Received out-of-band proxy transport request for %v %v.", dreq.Address, dreq.SearchNames)
+
+	err := checkAddress(p.component, dreq.Address)
+	if err != nil {
+		p.log.Warnf("Transport request failed: %v.", err)
+		return
+	}
 
 	// Handle special non-resolvable addresses first.
 	switch dreq.Address {

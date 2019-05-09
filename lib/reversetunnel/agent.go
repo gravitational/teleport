@@ -120,6 +120,7 @@ func (a *AgentConfig) CheckAndSetDefaults() error {
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
 	}
+
 	return nil
 }
 
@@ -148,6 +149,9 @@ type Agent struct {
 	// principals is the list of principals of the server this agent
 	// is currently connected to
 	principals []string
+	// heartbeatInterval is how often a heartbeat message is sent from the
+	// agent to the remote conn on the other side.
+	heartbeatInterval time.Duration
 }
 
 // NewAgent returns a new reverse tunnel agent
@@ -155,12 +159,19 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	clusterConfig, err := cfg.AccessPoint.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(cfg.Context)
 	a := &Agent{
-		AgentConfig: cfg,
-		ctx:         ctx,
-		cancel:      cancel,
-		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
+		AgentConfig:       cfg,
+		ctx:               ctx,
+		cancel:            cancel,
+		authMethods:       []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
+		heartbeatInterval: clusterConfig.GetKeepAliveInterval(),
 	}
 	if len(cfg.DiscoverProxies) == 0 {
 		a.state = agentStateConnecting
@@ -216,6 +227,7 @@ func (a *Agent) getState() string {
 
 // Close signals to close all connections and operations
 func (a *Agent) Close() error {
+	fmt.Printf("--> Closing agent.\n")
 	a.cancel()
 	return nil
 }
@@ -387,7 +399,8 @@ const ConnectedEvent = "connected"
 // remote proxy
 func (a *Agent) processRequests(conn *ssh.Client) error {
 	defer conn.Close()
-	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+
+	ticker := time.NewTicker(a.heartbeatInterval)
 	defer ticker.Stop()
 
 	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)

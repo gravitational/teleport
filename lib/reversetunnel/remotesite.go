@@ -230,16 +230,24 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterConfig, err := s.localAccessPoint.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	rconn := newRemoteConn(&connConfig{
-		conn:        conn,
-		sconn:       sconn,
-		accessPoint: s.localAccessPoint,
-		tunnelID:    cn.GetClusterName(),
-		tunnelType:  string(services.ProxyTunnel),
-		proxyName:   s.connInfo.GetProxyName(),
-		clusterName: s.domainName,
+	rconn, err := newRemoteConn(&connConfig{
+		conn:              conn,
+		sconn:             sconn,
+		accessPoint:       s.localAccessPoint,
+		tunnelID:          cn.GetClusterName(),
+		tunnelType:        string(services.ProxyTunnel),
+		proxyName:         s.connInfo.GetProxyName(),
+		clusterName:       s.domainName,
+		heartbeatInterval: clusterConfig.GetKeepAliveInterval(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	s.connections = append(s.connections, rconn)
 	s.lastUsed = 0
@@ -570,6 +578,8 @@ func (s *remoteSite) chanTransportConn(req *dialReq) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	fmt.Printf("--> got rconn: %v.\n", rconn)
 
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, req)
 	if err != nil {

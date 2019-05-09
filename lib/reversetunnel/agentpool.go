@@ -119,6 +119,7 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	ctx, cancel := context.WithCancel(cfg.Context)
 	pool := &AgentPool{
 		agents:     make(map[agentKey][]*Agent),
@@ -330,6 +331,7 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 		Server:              m.cfg.Server,
 		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
 		LocalClusterName:    m.cfg.Cluster,
+		//HeartbeatInterval:   m.heartbeatInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)

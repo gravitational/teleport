@@ -267,15 +267,25 @@ func (s *localSite) addConn(nodeID string, conn net.Conn, sconn ssh.Conn) (*remo
 	s.Lock()
 	defer s.Unlock()
 
-	rconn := newRemoteConn(&connConfig{
-		conn:        conn,
-		sconn:       sconn,
-		accessPoint: s.accessPoint,
-		tunnelID:    nodeID,
-		tunnelType:  string(services.NodeTunnel),
-		proxyName:   s.srv.ID,
-		clusterName: s.domainName,
+	clusterConfig, err := s.accessPoint.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rconn, err := newRemoteConn(&connConfig{
+		conn:              conn,
+		sconn:             sconn,
+		accessPoint:       s.accessPoint,
+		tunnelID:          nodeID,
+		tunnelType:        string(services.NodeTunnel),
+		proxyName:         s.srv.ID,
+		clusterName:       s.domainName,
+		heartbeatInterval: clusterConfig.GetKeepAliveInterval(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s.remoteConns[nodeID] = rconn
 
 	return rconn, nil
