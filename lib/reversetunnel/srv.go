@@ -103,6 +103,10 @@ type server struct {
 	ctx context.Context
 
 	*log.Entry
+
+	// proxyWatcher monitors changes to the proxies
+	// and broadcasts updates
+	proxyWatcher *services.ProxyWatcher
 }
 
 // DirectCluster is used to access cluster directly
@@ -217,7 +221,24 @@ func NewServer(cfg Config) (Server, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	ctx, cancel := context.WithCancel(cfg.Context)
+
+	entry := log.WithFields(log.Fields{
+		trace.Component: cfg.Component,
+	})
+	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
+		Context:   ctx,
+		Component: cfg.Component,
+		Client:    cfg.LocalAuthClient,
+		Entry:     entry,
+		ProxiesC:  make(chan []services.Server, 10),
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	srv := &server{
 		Config:           cfg,
 		localSites:       []*localSite{},
@@ -228,10 +249,9 @@ func NewServer(cfg Config) (Server, error) {
 		limiter:          cfg.Limiter,
 		ctx:              ctx,
 		cancel:           cancel,
+		proxyWatcher:     proxyWatcher,
 		clusterPeers:     make(map[string]*clusterPeers),
-		Entry: log.WithFields(log.Fields{
-			trace.Component: cfg.Component,
-		}),
+		Entry:            entry,
 	}
 
 	for _, clusterInfo := range cfg.DirectClusters {
@@ -243,7 +263,6 @@ func NewServer(cfg Config) (Server, error) {
 		srv.localSites = append(srv.localSites, cluster)
 	}
 
-	var err error
 	s, err := sshutils.NewServer(
 		teleport.ComponentReverseTunnelServer,
 		// TODO(klizhentas): improve interface, use struct instead of parameter list
@@ -312,6 +331,10 @@ func (s *server) periodicFunctions() {
 		case <-s.ctx.Done():
 			s.Debugf("Closing.")
 			return
+			// proxies have been updated, notify connected agents
+			// about the update
+		case proxies := <-s.proxyWatcher.ProxiesC:
+			s.fanOutProxies(proxies)
 		case <-ticker.C:
 			err := s.fetchClusterPeers()
 			if err != nil {
@@ -553,10 +576,10 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		nch.Reject(ssh.ConnectionFailed, "unknown role")
 	}
 	switch {
-	// Node dialing back.
+	// Node is dialing back.
 	case val == string(teleport.RoleNode):
 		s.handleNewNode(conn, sconn, nch)
-	// Proxy dialing back.
+	// Proxy is dialing back.
 	case val == string(teleport.RoleProxy):
 		s.handleNewCluster(conn, sconn, nch)
 	}
@@ -582,7 +605,7 @@ func (s *server) handleNewNode(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 
 func (s *server) handleNewCluster(conn net.Conn, sshConn *ssh.ServerConn, nch ssh.NewChannel) {
 	// add the incoming site (cluster) to the list of active connections:
-	site, remoteConn, err := s.upsertSite(conn, sshConn)
+	site, remoteConn, err := s.upsertRemoteCluster(conn, sshConn)
 	if err != nil {
 		log.Error(trace.Wrap(err))
 		nch.Reject(ssh.ConnectionFailed, "failed to accept incoming cluster connection")
@@ -770,12 +793,10 @@ func (s *server) upsertNode(conn net.Conn, sconn *ssh.ServerConn) (*localSite, *
 		return nil, nil, trace.Wrap(err)
 	}
 
-	go cluster.registerHeartbeat(time.Now())
-
 	return cluster, rconn, nil
 }
 
-func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
+func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if strings.TrimSpace(domainName) == "" {
 		return nil, nil, trace.BadParameter("cannot create reverse tunnel: empty cluster name")
@@ -890,6 +911,19 @@ func (s *server) RemoveSite(domainName string) error {
 		}
 	}
 	return trace.NotFound("cluster %q is not found", domainName)
+}
+
+// fanOutProxies is a non-blocking call that updated the watches proxies
+// list and notifies all clusters about the proxy list change
+func (s *server) fanOutProxies(proxies []services.Server) {
+	s.Lock()
+	defer s.Unlock()
+	for _, cluster := range s.localSites {
+		cluster.fanOutProxies(proxies)
+	}
+	for _, cluster := range s.remoteSites {
+		cluster.fanOutProxies(proxies)
+	}
 }
 
 // newRemoteSite helper creates and initializes 'remoteSite' instance

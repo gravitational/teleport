@@ -1,3 +1,19 @@
+/*
+Copyright 2016-2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package reversetunnel
 
 import (
@@ -13,10 +29,8 @@ import (
 
 // discoveryRequest is a request sent from a connected proxy with the missing proxies.
 type discoveryRequest struct {
-	// TunnelID identifies who the tunnel is connected to. For trusted clusters,
-	// the TunnelID is the name of the remote cluster (like example.com). For
-	// nodes, it is the nodeID (like 4a050852-23b5-4d6d-a45f-bed02792d453.example.com).
-	TunnelID string `json:"cluster_name"`
+	// ClusterName is a cluster name of the discovery request
+	ClusterName string `json:"cluster_name"`
 
 	// Type is the type of tunnel, is either node or proxy.
 	Type string `json:"type"`
@@ -24,12 +38,14 @@ type discoveryRequest struct {
 	// ClusterAddr is the address of the cluster.
 	ClusterAddr utils.NetAddr `json:"-"`
 
-	// Proxies are the missing proxies.
+	// Proxies are the existing proxies.
 	Proxies []services.Server `json:"proxies"`
 }
 
+// Proxies is a list of proxies to discover
 type Proxies []services.Server
 
+// String returns text representation of the proxies
 func (proxies Proxies) String() string {
 	var out []string
 	for _, proxy := range proxies {
@@ -38,6 +54,7 @@ func (proxies Proxies) String() string {
 	return strings.Join(out, ",")
 }
 
+// Equal compares two lists of proxies as sets
 func (proxies Proxies) Equal(other []services.Server) bool {
 	if len(proxies) != len(other) {
 		return false
@@ -58,18 +75,18 @@ func (proxies Proxies) Equal(other []services.Server) bool {
 }
 
 func (r discoveryRequest) key() agentKey {
-	return agentKey{tunnelID: r.TunnelID, tunnelType: r.Type, addr: r.ClusterAddr}
+	return agentKey{clusterName: r.ClusterName, tunnelType: r.Type, addr: r.ClusterAddr}
 }
 
 func (r discoveryRequest) String() string {
 	return fmt.Sprintf("discovery request, cluster name: %v, address: %v, proxies: %v",
-		r.TunnelID, r.ClusterAddr, Proxies(r.Proxies))
+		r.ClusterName, r.ClusterAddr, Proxies(r.Proxies))
 }
 
 type discoveryRequestRaw struct {
-	TunnelID string            `json:"cluster_name"`
-	Type     string            `json:"type"`
-	Proxies  []json.RawMessage `json:"proxies"`
+	ClusterName string            `json:"cluster_name"`
+	Type        string            `json:"type"`
+	Proxies     []json.RawMessage `json:"proxies"`
 }
 
 func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
@@ -82,30 +99,30 @@ func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
 		}
 		out.Proxies = append(out.Proxies, data)
 	}
-	out.TunnelID = req.TunnelID
+	out.ClusterName = req.ClusterName
 	out.Type = req.Type
 	return json.Marshal(out)
 }
 
 func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
 	if len(data) == 0 {
-		return nil, trace.BadParameter("missing payload")
+		return nil, trace.BadParameter("missing payload in discovery request")
 	}
 	var raw discoveryRequestRaw
-	err := json.Unmarshal(data, &raw)
+	err := utils.FastUnmarshal(data, &raw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	m := services.GetServerMarshaler()
 	var out discoveryRequest
 	for _, bytes := range raw.Proxies {
-		proxy, err := m.UnmarshalServer([]byte(bytes), services.KindProxy)
+		proxy, err := m.UnmarshalServer([]byte(bytes), services.KindProxy, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		out.Proxies = append(out.Proxies, proxy)
 	}
-	out.TunnelID = raw.TunnelID
+	out.ClusterName = raw.ClusterName
 	out.Type = raw.Type
 	return &out, nil
 }

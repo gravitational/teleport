@@ -2046,7 +2046,8 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 
 	// Once the proxy is removed, only one proxy is left. Wait for the now
 	// invalid tunnel connection to TTL and be removed.
-	waitForTunnelConnections(c, main.Process.GetAuthServer(), Site, 1)
+	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
+	waitForActiveTunnelConnections(c, proxyTunnel, Site, 1)
 
 	// requests going via main proxy will fail
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
@@ -2064,7 +2065,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	lb.AddBackend(*proxyOneAddr)
 
 	// Once the proxy is added a matching tunnel connection should be created.
-	waitForTunnelConnections(c, main.Process.GetAuthServer(), Site, 2)
+	waitForActiveTunnelConnections(c, proxyTunnel, Site, 1)
 
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 40)
 	c.Assert(err, check.IsNil)

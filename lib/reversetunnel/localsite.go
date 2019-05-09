@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -271,55 +271,27 @@ func (s *localSite) addConn(nodeID string, conn net.Conn, sconn ssh.Conn) (*remo
 		conn:        conn,
 		sconn:       sconn,
 		accessPoint: s.accessPoint,
-		tunnelID:    nodeID,
 		tunnelType:  string(services.NodeTunnel),
 		proxyName:   s.srv.ID,
 		clusterName: s.domainName,
+		nodeID:      nodeID,
 	})
 	s.remoteConns[nodeID] = rconn
 
 	return rconn, nil
 }
 
-func (s *localSite) registerHeartbeat(t time.Time) {
-	// Creates a services.TunnelConnection that looks like: e53470b8-91bd-4ab4-a3c4-c2ec290f7d42-example.com
-	// where "e53470b8-91bd-4ab4-a3c4-c2ec290f7d42-example.com" is the proxy.
-	tunnelConn, err := services.NewTunnelConnection(
-		fmt.Sprintf("%v-%v", s.srv.ID, s.domainName),
-		services.TunnelConnectionSpecV2{
-			Type:        services.NodeTunnel,
-			ClusterName: s.domainName,
-			ProxyName:   s.srv.ID,
-		},
-	)
-	tunnelConn.SetLastHeartbeat(t)
-	tunnelConn.SetExpiry(s.clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
-
-	err = s.accessPoint.UpsertTunnelConnection(tunnelConn)
-	if err != nil {
-		s.log.Warnf("Failed to register heartbeat: %v.", err)
-	}
-}
-
-func (s *localSite) hasValidConnections() bool {
+// fanOutProxies is a non-blocking call that puts the new proxies
+// list so that remote connection can notify the remote agent
+// about the list update
+func (s *localSite) fanOutProxies(proxies []services.Server) {
 	s.Lock()
 	defer s.Unlock()
-
-	for _, rconn := range s.remoteConns {
-		if !rconn.isInvalid() {
-			return true
+	for _, conn := range s.remoteConns {
+		if err := conn.updateProxies(proxies); err != nil {
+			conn.markInvalid(err)
 		}
 	}
-	return false
-}
-
-func (s *localSite) deleteConnectionRecord(clusterName string, proxyID string) error {
-	err := s.accessPoint.DeleteTunnelConnection(clusterName, proxyID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 // handleHearbeat receives heartbeat messages from the connected agent
@@ -331,24 +303,37 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 		rconn.Close()
 	}()
 
+	firstHeartbeat := true
 	for {
 		select {
 		case <-s.srv.ctx.Done():
 			s.log.Infof("closing")
 			return
+		case proxies := <-rconn.newProxiesC:
+			req := discoveryRequest{
+				ClusterName: s.srv.ClusterName,
+				Type:        string(rconn.tunnelType),
+				Proxies:     proxies,
+			}
+			if err := rconn.sendDiscoveryRequest(req); err != nil {
+				s.log.Debugf("Marking connection invalid on error: %v.", err)
+				rconn.markInvalid(err)
+				return
+			}
 		case req := <-reqC:
 			if req == nil {
 				s.log.Infof("Cluster agent disconnected.")
 				rconn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
-
-				if !s.hasValidConnections() {
-					err := s.deleteConnectionRecord(s.domainName, s.srv.ID)
-					if err != nil {
-						s.log.Debugf("Failed to delete connection record: %v.", err)
-					}
-					s.log.Debugf("Deleted connection record.")
-				}
 				return
+			}
+			if firstHeartbeat {
+				// as soon as the agent connects and sends a first heartbeat
+				// send it the list of current proxies back
+				current := s.srv.proxyWatcher.GetCurrent()
+				if len(current) > 0 {
+					rconn.updateProxies(current)
+				}
+				firstHeartbeat = false
 			}
 			var timeSent time.Time
 			var roundtrip time.Duration
@@ -358,13 +343,12 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				}
 			}
 			if roundtrip != 0 {
-				s.log.WithFields(log.Fields{"latency": roundtrip}).Debugf("ping <- %v", rconn.conn.RemoteAddr())
+				s.log.WithFields(log.Fields{"latency": roundtrip}).Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
 			} else {
 				log.Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
 			}
 			tm := time.Now().UTC()
 			rconn.setLastHeartbeat(tm)
-			go s.registerHeartbeat(tm)
 		// Since we block on select, time.After is re-created everytime we process
 		// a request.
 		case <-time.After(defaults.ReverseTunnelOfflineThreshold):
@@ -379,7 +363,7 @@ func (s *localSite) getConn(addr string) (*remoteConn, error) {
 
 	// Loop over all connections and remove and invalid connections from the
 	// connection map.
-	for key, _ := range s.remoteConns {
+	for key := range s.remoteConns {
 		if s.remoteConns[key].isInvalid() {
 			delete(s.remoteConns, key)
 		}

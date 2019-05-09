@@ -73,7 +73,7 @@ func LatestTunnelConnection(conns []TunnelConnection) (TunnelConnection, error) 
 	return lastConn, nil
 }
 
-// IsTunnelConnectionStatus returns tunnel connection status based on the last
+// TunnelConnectionStatus returns tunnel connection status based on the last
 // heartbeat time recorded for a connection
 func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection) string {
 	diff := clock.Now().Sub(conn.GetLastHeartbeat())
