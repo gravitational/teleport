@@ -19,6 +19,7 @@ package utils
 import (
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -128,6 +129,8 @@ func NewExclusiveChConn(conn ssh.Conn, ch ssh.Channel) *ChConn {
 // ChConn is a net.Conn like object
 // that uses SSH channel
 type ChConn struct {
+	mu sync.Mutex
+
 	ssh.Channel
 	conn ssh.Conn
 	// exclusive indicates that whenever this channel connection
@@ -137,6 +140,9 @@ type ChConn struct {
 
 // Close closes channel and if the ChConn is exclusive, connection as well
 func (c *ChConn) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	err := c.Channel.Close()
 	if !c.exclusive {
 		return trace.Wrap(err)

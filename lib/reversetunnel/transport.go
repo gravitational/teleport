@@ -56,9 +56,11 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 		return nil, trace.Wrap(err)
 	}
 
-	// Build a net.Conn over the tunnel.
+	// Build a net.Conn over the tunnel. Make this an exclusive connection:
+	// close the net.Conn as well as the channel upon close.
 	conn, _, err := connectProxyTransport(sconn.Conn, &dialReq{
-		Address: RemoteAuthServer,
+		Address:   RemoteAuthServer,
+		Exclusive: true,
 	})
 	if err != nil {
 		err2 := sconn.Close()
@@ -102,6 +104,10 @@ type dialReq struct {
 	// SearchNames is a list of aliases for the host. SearchNames is used when
 	// dialing through a tunnel.
 	SearchNames []string `json:"search_names,omitempty"`
+
+	// Exclusive indicates if the connection should be closed or only the
+	// channel upon calling close on the net.Conn.
+	Exclusive bool
 }
 
 // parseDialReq parses the dial request. Is backward compatible with legacy
@@ -161,7 +167,10 @@ func connectProxyTransport(sconn ssh.Conn, req *dialReq) (net.Conn, bool, error)
 		return nil, false, trace.Errorf(strings.TrimSpace(string(errMessage)))
 	}
 
-	return utils.NewExclusiveChConn(sconn, channel), false, nil
+	if req.Exclusive {
+		return utils.NewExclusiveChConn(sconn, channel), false, nil
+	}
+	return utils.NewChConn(sconn, channel), false, nil
 }
 
 // proxyTransport runs either in the agent or reverse tunnel itself. It's

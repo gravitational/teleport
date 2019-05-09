@@ -1845,7 +1845,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(remote.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1861,7 +1861,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 		WebPort:           proxyWebPort,
 		ReverseTunnelPort: proxyReverseTunnelPort,
 	}
-	_, err = main.StartProxy(proxyConfig)
+	secondProxy, err := main.StartProxy(proxyConfig)
 	c.Assert(err, check.IsNil)
 
 	// add second proxy as a backend to the load balancer
@@ -1869,7 +1869,8 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 
 	// At this point the main cluster should observe two tunnels
 	// connected to it from remote cluster
-	waitForTunnelConnections(c, main.Process.GetAuthServer(), remote.Secrets.SiteName, 2)
+	waitForActiveTunnelConnections(c, main.Tunnel, "cluster-remote", 1)
+	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
 	// execute the connection via first proxy
 	cfg := ClientConfig{
@@ -1897,14 +1898,15 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 
-	// now disconnect the main proxy and make sure it will reconnect eventually
+	// Now disconnect the main proxy and make sure it will reconnect eventually.
 	lb.RemoveBackend(mainProxyAddr)
+	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
-	// requests going via main proxy will fail
+	// Requests going via main proxy should fail.
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.NotNil)
 
-	// requests going via second proxy will succeed
+	// Requests going via second proxy should succeed.
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
@@ -1914,6 +1916,12 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	// attempt to allow the discovery request to be received and the connection
 	// added to the agent pool.
 	lb.AddBackend(mainProxyAddr)
+
+	// Once the proxy is added a matching tunnel connection should be created.
+	waitForActiveTunnelConnections(c, main.Tunnel, "cluster-remote", 1)
+	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
+
+	// Requests going via main proxy should succeed.
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 40)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
@@ -1942,7 +1950,8 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(s.getPorts(1)[0])))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	c.Assert(err, check.IsNil)
-	c.Assert(lb.Listen(), check.IsNil)
+	err = lb.Listen()
+	c.Assert(err, check.IsNil)
 	go lb.Serve()
 	defer lb.Close()
 
@@ -1970,8 +1979,22 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	main := s.newTeleportWithConfig(mainConfig())
 	defer main.Stop(true)
 
-	proxyOneAddr := utils.MustParseAddr(net.JoinHostPort(Loopback, main.GetPortReverseTunnel()))
-	lb.AddBackend(*proxyOneAddr)
+	// Create a Teleport instance with a Proxy.
+	nodePorts := s.getPorts(3)
+	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	proxyConfig := ProxyConfig{
+		Name:              "cluster-main-proxy",
+		SSHPort:           proxySSHPort,
+		WebPort:           proxyWebPort,
+		ReverseTunnelPort: proxyReverseTunnelPort,
+	}
+	proxyTunnel, err := main.StartProxy(proxyConfig)
+	c.Assert(err, check.IsNil)
+
+	proxyOneBackend := utils.MustParseAddr(net.JoinHostPort(Loopback, main.GetPortReverseTunnel()))
+	lb.AddBackend(*proxyOneBackend)
+	proxyTwoBackend := utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort)))
+	lb.AddBackend(*proxyTwoBackend)
 
 	// Create a Teleport instance with a Node.
 	nodeConfig := func() *service.Config {
@@ -1997,24 +2020,8 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	_, err = main.StartNode(nodeConfig())
 	c.Assert(err, check.IsNil)
 
-	// wait for active tunnel connections to be established
+	// Wait for active tunnel connections to be established.
 	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
-
-	// Create a Teleport instance with a Proxy.
-	nodePorts := s.getPorts(3)
-	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
-	proxyConfig := ProxyConfig{
-		Name:              "cluster-main-proxy",
-		SSHPort:           proxySSHPort,
-		WebPort:           proxyWebPort,
-		ReverseTunnelPort: proxyReverseTunnelPort,
-	}
-	proxyTunnel, err := main.StartProxy(proxyConfig)
-	c.Assert(err, check.IsNil)
-
-	// Add second proxy as a backend to the load balancer.
-	lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
-
 	waitForActiveTunnelConnections(c, proxyTunnel, Site, 1)
 
 	// Execute the connection via first proxy.
@@ -2041,52 +2048,43 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 
-	// now disconnect the main proxy and make sure it will reconnect eventually
-	lb.RemoveBackend(*proxyOneAddr)
+	// Remove second proxy from LB.
+	lb.RemoveBackend(*proxyTwoBackend)
+	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
 
-	// Once the proxy is removed, only one proxy is left. Wait for the now
-	// invalid tunnel connection to TTL and be removed.
+	// Requests going via main proxy will succeed. Requests going via second
+	// proxy will fail.
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(output, check.Equals, "hello world\n")
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
+	c.Assert(err, check.NotNil)
+
+	// Add second proxy back to LB, both should have a connection.
+	lb.AddBackend(*proxyTwoBackend)
 	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
 	waitForActiveTunnelConnections(c, proxyTunnel, Site, 1)
 
-	// requests going via main proxy will fail
+	// Requests going via both proxies will succeed.
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
-	c.Assert(err, check.NotNil)
-
-	// requests going via second proxy will succeed
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(output, check.Equals, "hello world\n")
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 40)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 
-	// Connect the main proxy back and make sure agents have reconnected over time.
-	// This command is tried 10 times with 250 millisecond delay between each
-	// attempt to allow the discovery request to be received and the connection
-	// added to the agent pool.
-	lb.AddBackend(*proxyOneAddr)
-
-	// Once the proxy is added a matching tunnel connection should be created.
-	waitForActiveTunnelConnections(c, proxyTunnel, Site, 1)
-
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 40)
+	// Stop everything.
+	err = proxyTunnel.Shutdown(context.Background())
 	c.Assert(err, check.IsNil)
-	c.Assert(output, check.Equals, "hello world\n")
-
-	// Stop one of proxies on the main cluster.
-	err = main.StopProxy()
+	err = main.Stop(true)
 	c.Assert(err, check.IsNil)
-
-	// Wait for the remote cluster to detect the outbound connection is gone.
-	waitForProxyCount(main, Site, 1)
-
-	// Stop both clusters and remaining nodes.
-	c.Assert(main.Stop(true), check.IsNil)
 }
 
 // waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
 func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
 	var lastCount int
 	var lastErr error
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 30; i++ {
 		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
 			lastErr = err
@@ -2096,7 +2094,7 @@ func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clu
 		if lastCount >= expectedCount {
 			return
 		}
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(1 * time.Second)
 	}
 	c.Fatalf("Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
 }

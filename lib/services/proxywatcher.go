@@ -273,8 +273,8 @@ func (p *ProxyWatcher) processEvent(event Event, proxies map[string]Server) bool
 	switch event.Type {
 	case backend.OpDelete:
 		delete(proxies, event.Resource.GetName())
-		// always return true if the proxy has been deleted to trigger
-		// broadcast cleanup
+		// Always return true if the proxy has been deleted to trigger
+		// broadcast cleanup.
 		return true
 	case backend.OpPut:
 		_, existed := proxies[event.Resource.GetName()]
