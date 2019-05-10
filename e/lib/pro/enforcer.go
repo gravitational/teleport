@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/gravitational/teleport/e/lib/constants"
@@ -87,18 +86,32 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 	if !config.NoStart {
 		enforcer.Debug("Starting enforcer.")
 		go enforcer.periodicHeartbeat(ctx)
-		go enforcer.enforcer(ctx)
+		go enforcer.startReporting(ctx)
 	}
 	return enforcer, nil
 }
 
-func (e *Enforcer) enforcer(ctx context.Context) {
-	ticker := time.NewTicker(constants.EnforcementInterval)
+func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
+	ticker := time.NewTicker(constants.HeartbeatInterval)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ticker.C:
 			err := e.processLicenseCheckResult()
+			if err != nil {
+				log.Error(trace.DebugReport(err))
+			}
+
+			duration, err := e.getUsageDuration()
+			if err != nil && !trace.IsNotFound(err) {
+				log.Error(trace.DebugReport(err))
+				continue
+			}
+
+			duration += constants.HeartbeatInterval
+
+			err = e.setUsageDuration(duration)
 			if err != nil {
 				log.Error(trace.DebugReport(err))
 			}
@@ -109,16 +122,21 @@ func (e *Enforcer) enforcer(ctx context.Context) {
 	}
 }
 
-func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
-	ticker := time.NewTicker(constants.LicenseCheckInterval)
+func (e *Enforcer) startReporting(ctx context.Context) {
+	ticker := time.NewTicker(constants.ReportingInterval)
 	defer ticker.Stop()
+
 	for {
+		// We will send a heartbeat to Houston when starting the
+		// application to verify that the license is valid.
+		err := e.report(ctx)
+		if err != nil {
+			log.Debug(trace.DebugReport(err))
+		}
+
 		select {
 		case <-ticker.C:
-			err := e.heartbeat(ctx)
-			if err != nil {
-				log.Debug(trace.DebugReport(err))
-			}
+			continue
 		case <-ctx.Done():
 			e.Debug("Heartbeat loop is exiting.")
 			return
@@ -126,26 +144,77 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 	}
 }
 
-func (e *Enforcer) heartbeat(ctx context.Context) error {
-	out, err := e.WebClient.Get(ctx, e.Endpoint("heartbeat"), url.Values{})
+func (e *Enforcer) report(ctx context.Context) error {
+	// Body is the JSON body of a heartbeat POST request
+	type Body struct {
+		// EndTime is the end of a usage period
+		EndTime   time.Time `json:"end_time"`
+		// StartTime is the start of a usage period
+		StartTime time.Time `json:"start_time"`
+	}
+
+	duration, err := e.getUsageDuration()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	body := Body{
+		EndTime: time.Now().UTC(),
+		StartTime: time.Now().UTC().Add(-duration),
+	}
+
+	out, err := e.WebClient.PostJSON(ctx, e.Endpoint("heartbeat"), body)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	heartbeat, err := types.UnmarshalHeartbeat(out.Bytes())
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	err = e.SetLicenseCheckHeartbeat(*heartbeat)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+
+	// As we just reported the usage, we can safely reset it to 0
+	return trace.Wrap(e.setUsageDuration(constants.NoUsage))
 }
 
 const (
 	heartbeatPrefix = "heartbeat"
 	valPrefix       = "val"
+	usagePrefix     = "usage"
 )
+
+func (e *Enforcer) setUsageDuration(duration time.Duration) error {
+	item := backend.Item{
+		Key:   backend.Key(heartbeatPrefix, usagePrefix),
+		Value: []byte(duration.String()),
+	}
+
+	_, err := e.Put(context.TODO(), item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (e *Enforcer) getUsageDuration() (time.Duration, error) {
+	item, err := e.Backend.Get(context.TODO(), backend.Key(heartbeatPrefix, usagePrefix))
+	if err != nil {
+		return constants.NoUsage, trace.Wrap(err)
+	}
+
+	duration, err := time.ParseDuration(string(item.Value))
+	if err != nil {
+		return constants.NoUsage, trace.Wrap(err)
+	}
+
+	return duration, nil
+}
 
 // SetLicenseCheckHeartbeat saves the license check heartbeat into the database
 func (e *Enforcer) SetLicenseCheckHeartbeat(heartbeat types.Heartbeat) error {
