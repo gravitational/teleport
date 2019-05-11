@@ -29,6 +29,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// NewProxyWatcherFunc creates a new instance of proxy watcher,
+// used in tests
+type NewProxyWatcherFunc func() (*ProxyWatcher, error)
+
 // NewProxyWatcher returns a new instance of changeset
 func NewProxyWatcher(cfg ProxyWatcherConfig) (*ProxyWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -41,7 +45,10 @@ func NewProxyWatcher(cfg ProxyWatcherConfig) (*ProxyWatcher, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(cfg.Context)
 	p := &ProxyWatcher{
+		ctx:                ctx,
+		cancel:             cancel,
 		RWMutex:            &sync.RWMutex{},
 		retry:              retry,
 		ProxyWatcherConfig: cfg,
@@ -64,6 +71,9 @@ type ProxyWatcher struct {
 	// current is a list of the current servers
 	// as reported by the watcher
 	current []Server
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // ProxyWatcherConfig configures proxy watcher
@@ -136,6 +146,18 @@ type ProxyWatcherClient interface {
 	Events
 }
 
+// Done returns a channel that signals
+// proxy watcher closure
+func (p *ProxyWatcher) Done() <-chan struct{} {
+	return p.ctx.Done()
+}
+
+// Close closes proxy watcher and cancells all the functions
+func (p *ProxyWatcher) Close() error {
+	p.cancel()
+	return nil
+}
+
 // watchProxies watches new proxies added and removed to the cluster
 // and when this happens, notifies all connected agents
 // about the proxy set change via discovery requests
@@ -152,7 +174,7 @@ func (p *ProxyWatcher) watchProxies() {
 		select {
 		case <-p.retry.After():
 			p.retry.Inc()
-		case <-p.Context.Done():
+		case <-p.ctx.Done():
 			p.Debugf("Closed, returning from update loop.")
 			return
 		}
@@ -195,7 +217,7 @@ func (p *ProxyWatcher) watch() error {
 	case <-reloadC:
 		p.Debugf("Triggering scheduled reload.")
 		return nil
-	case <-p.Context.Done():
+	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.Context.Err(), "context is closing")
 	case event := <-watcher.Events():
 		if event.Type != backend.OpInit {
@@ -214,7 +236,7 @@ func (p *ProxyWatcher) watch() error {
 	p.setCurrent(proxies)
 	select {
 	case p.ProxiesC <- proxies:
-	case <-p.Context.Done():
+	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.Context.Err(), "context is closing")
 	}
 	for {
@@ -224,7 +246,7 @@ func (p *ProxyWatcher) watch() error {
 		case <-reloadC:
 			p.Debugf("Triggering scheduled reload.")
 			return nil
-		case <-p.Context.Done():
+		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.Context.Err(), "context is closing")
 		case event := <-watcher.Events():
 			updated := p.processEvent(event, proxySet)
