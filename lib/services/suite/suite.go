@@ -89,17 +89,21 @@ func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...
 	}
 }
 
+// ServicesTestSuite is an acceptance test suite
+// for services. It is used for local implementations and implementations
+// using GRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
-	Access        services.Access
-	CAS           services.Trust
-	PresenceS     services.Presence
-	ProvisioningS services.Provisioner
-	WebS          services.Identity
-	ConfigS       services.ClusterConfiguration
-	EventsS       services.Events
-	UsersS        services.UsersService
-	ChangesC      chan interface{}
-	Clock         clockwork.FakeClock
+	Access          services.Access
+	CAS             services.Trust
+	PresenceS       services.Presence
+	ProvisioningS   services.Provisioner
+	WebS            services.Identity
+	ConfigS         services.ClusterConfiguration
+	EventsS         services.Events
+	UsersS          services.UsersService
+	ChangesC        chan interface{}
+	Clock           clockwork.FakeClock
+	NewProxyWatcher services.NewProxyWatcherFunc
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -1354,6 +1358,58 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 		},
 	}
 	s.runEventsTests(c, testCases)
+}
+
+// ProxyWatcher tests proxy watcher
+func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
+	proxy := NewServer(services.KindProxy, "proxy1", "127.0.0.1:2023", defaults.Namespace)
+	c.Assert(s.PresenceS.UpsertProxy(proxy), check.IsNil)
+
+	w, err := s.NewProxyWatcher()
+	c.Assert(err, check.IsNil)
+	defer w.Close()
+
+	// the first event is always the current list of proxies
+	select {
+	case changeset := <-w.ProxiesC:
+		c.Assert(changeset, check.HasLen, 1)
+		out, err := s.PresenceS.GetProxies()
+		c.Assert(err, check.IsNil)
+		fixtures.DeepCompare(c, changeset[0], out[0])
+	case <-w.Done():
+		c.Fatalf("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for the first event")
+	}
+
+	// add a second proxy
+	proxy2 := NewServer(services.KindProxy, "proxy2", "127.0.0.1:2023", defaults.Namespace)
+	c.Assert(s.PresenceS.UpsertProxy(proxy2), check.IsNil)
+
+	// watcher should detect the proxy list change
+	select {
+	case changeset := <-w.ProxiesC:
+		c.Assert(changeset, check.HasLen, 2)
+	case <-w.Done():
+		c.Fatalf("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for the first event")
+	}
+
+	c.Assert(s.PresenceS.DeleteProxy(proxy.GetName()), check.IsNil)
+
+	// watcher should detect the proxy list change
+	select {
+	case changeset := <-w.ProxiesC:
+		c.Assert(changeset, check.HasLen, 1)
+		out, err := s.PresenceS.GetProxies()
+		c.Assert(err, check.IsNil)
+		fixtures.DeepCompare(c, changeset[0], out[0])
+	case <-w.Done():
+		c.Fatalf("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for the first event")
+	}
 }
 
 func (s *ServicesTestSuite) runEventsTests(c *check.C, testCases []eventTest) {

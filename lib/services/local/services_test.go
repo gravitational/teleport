@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -57,16 +58,36 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
+	type client struct {
+		*PresenceService
+		*EventsService
+	}
+
+	eventsService := NewEventsService(s.bk)
+	presenceService := NewPresenceService(s.bk)
+
 	s.suite = &suite.ServicesTestSuite{
 		CAS:           NewCAService(s.bk),
-		PresenceS:     NewPresenceService(s.bk),
+		PresenceS:     presenceService,
 		ProvisioningS: NewProvisioningService(s.bk),
 		WebS:          NewIdentityService(s.bk),
 		Access:        NewAccessService(s.bk),
-		EventsS:       NewEventsService(s.bk),
+		EventsS:       eventsService,
 		ChangesC:      make(chan interface{}),
 		ConfigS:       NewClusterConfigurationService(s.bk),
 		Clock:         clock,
+		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
+			return services.NewProxyWatcher(services.ProxyWatcherConfig{
+				Context:     context.TODO(),
+				Component:   "test",
+				RetryPeriod: 200 * time.Millisecond,
+				Client: &client{
+					PresenceService: presenceService,
+					EventsService:   eventsService,
+				},
+				ProxiesC: make(chan []services.Server, 10),
+			})
+		},
 	}
 }
 
@@ -140,4 +161,8 @@ func (s *ServicesSuite) TestEvents(c *check.C) {
 
 func (s *ServicesSuite) TestEventsClusterConfig(c *check.C) {
 	s.suite.EventsClusterConfig(c)
+}
+
+func (s *ServicesSuite) TestProxyWatcher(c *check.C) {
+	s.suite.ProxyWatcher(c)
 }
