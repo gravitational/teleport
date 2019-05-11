@@ -167,9 +167,9 @@ func connectProxyTransport(sconn ssh.Conn, req *dialReq) (net.Conn, bool, error)
 		return nil, false, trace.Errorf(strings.TrimSpace(string(errMessage)))
 	}
 
-	//if req.Exclusive {
-	//	return utils.NewExclusiveChConn(sconn, channel), false, nil
-	//}
+	if req.Exclusive {
+		return utils.NewExclusiveChConn(sconn, channel), false, nil
+	}
 	return utils.NewChConn(sconn, channel), false, nil
 }
 
