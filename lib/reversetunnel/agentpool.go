@@ -56,6 +56,8 @@ type AgentPool struct {
 	discoveryC chan *discoveryRequest
 	// lastReport is the last time the agent has reported the stats
 	lastReport time.Time
+
+	lastDiscoveryRequest map[agentKey]*discoveryRequest
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -121,11 +123,12 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	pool := &AgentPool{
-		agents:     make(map[agentKey][]*Agent),
-		cfg:        cfg,
-		ctx:        ctx,
-		cancel:     cancel,
-		discoveryC: make(chan *discoveryRequest),
+		agents:               make(map[agentKey][]*Agent),
+		cfg:                  cfg,
+		ctx:                  ctx,
+		cancel:               cancel,
+		discoveryC:           make(chan *discoveryRequest),
+		lastDiscoveryRequest: make(map[agentKey]*discoveryRequest),
 	}
 	pool.Entry = log.WithFields(log.Fields{
 		trace.Component: teleport.ComponentReverseTunnelAgent,
@@ -158,6 +161,9 @@ func (m *AgentPool) Wait() error {
 }
 
 func (m *AgentPool) processDiscoveryRequests() {
+	//ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+	//defer ticker.Stop()
+
 	for {
 		select {
 		case <-m.ctx.Done():
@@ -168,7 +174,15 @@ func (m *AgentPool) processDiscoveryRequests() {
 				m.Debugf("Channel closed.")
 				return
 			}
+
+			//// Save last discoveryRequest so it can be periodically re-tried.
+			//m.lastDiscoveryRequest[req.key()] = req
+
 			m.tryDiscover(*req)
+			//case <-ticker.C:
+			//	for _, req := range m.lastDiscoveryRequest {
+			//		m.tryDiscover(*req)
+			//	}
 		}
 	}
 }

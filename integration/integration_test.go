@@ -1861,7 +1861,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 		WebPort:           proxyWebPort,
 		ReverseTunnelPort: proxyReverseTunnelPort,
 	}
-	_, err = main.StartProxy(proxyConfig)
+	secondProxy, err := main.StartProxy(proxyConfig)
 	c.Assert(err, check.IsNil)
 
 	// add second proxy as a backend to the load balancer
@@ -1869,7 +1869,9 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 
 	// At this point the main cluster should observe two tunnels
 	// connected to it from remote cluster
-	waitForTunnelConnections(c, main.Process.GetAuthServer(), remote.Secrets.SiteName, 2)
+	//waitForTunnelConnections(c, main.Process.GetAuthServer(), remote.Secrets.SiteName, 2)
+	waitForActiveTunnelConnections(c, main.Tunnel, "cluster-remote", 1)
+	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
 	// execute the connection via first proxy
 	cfg := ClientConfig{
@@ -1897,19 +1899,17 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 
-	// now disconnect the main proxy and make sure it will reconnect eventually
+	// Now disconnect the main proxy and make sure it will reconnect eventually.
 	lb.RemoveBackend(mainProxyAddr)
 
-	//
-	// Once the proxy is removed, only one proxy is left. Wait for the now
-	// invalid tunnel connection to TTL and be removed.
-	waitForTunnelConnections(c, main.Process.GetAuthServer(), remote.Secrets.SiteName, 1)
+	waitForExactTunnelCount(c, main.Tunnel, "cluster-remote", 0)
+	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
-	// requests going via main proxy will fail
+	// Requests going via main proxy should fail.
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.NotNil)
 
-	// requests going via second proxy will succeed
+	// Requests going via second proxy should succeed.
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
@@ -1920,10 +1920,11 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	// added to the agent pool.
 	lb.AddBackend(mainProxyAddr)
 
-	//
 	// Once the proxy is added a matching tunnel connection should be created.
-	waitForTunnelConnections(c, main.Process.GetAuthServer(), remote.Secrets.SiteName, 2)
+	waitForActiveTunnelConnections(c, main.Tunnel, "cluster-remote", 1)
+	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
+	// Requests going via main proxy should succeed.
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 40)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
@@ -2096,12 +2097,30 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func waitForExactTunnelCount(c *check.C, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
+	var lastCount int
+	var lastErr error
+	for i := 0; i < 20; i++ {
+		cluster, err := tunnel.GetSite(clusterName)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		lastCount = cluster.GetTunnelsCount()
+		if lastCount == expectedCount {
+			return
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	c.Fatalf("Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
+}
+
 // waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
 func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
 	var lastCount int
 	var lastErr error
-	for i := 0; i < 20; i++ {
-		//for i := 0; i < 30; i++ {
+	//for i := 0; i < 20; i++ {
+	for i := 0; i < 30; i++ {
 		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
 			lastErr = err
@@ -2109,11 +2128,11 @@ func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clu
 		}
 		lastCount = cluster.GetTunnelsCount()
 		fmt.Printf("--> clusterName: %v, %v.\n", clusterName, lastCount)
-		if lastCount == expectedCount {
+		if lastCount >= expectedCount {
 			return
 		}
-		//time.Sleep(1 * time.Second)
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(1 * time.Second)
+		//time.Sleep(250 * time.Millisecond)
 	}
 	c.Fatalf("Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
 }
