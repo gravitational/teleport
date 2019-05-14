@@ -2024,8 +2024,8 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Wait for active tunnel connections to be established.
-	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
-	waitForActiveTunnelConnections(c, proxyTunnel, Site, 1)
+	waitForExactTunnelCount(c, main.Tunnel, Site, 1)
+	waitForExactTunnelCount(c, proxyTunnel, Site, 1)
 
 	// Execute the connection via first proxy.
 	cfg := ClientConfig{
@@ -2051,10 +2051,10 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 
-	// Shutdown the second proxy and remove it from the LB.
-	err = proxyTunnel.Shutdown(context.Background())
-	c.Assert(err, check.IsNil)
+	// Remove second proxy from LB, only the first one should have connection.
 	lb.RemoveBackend(*proxyTwoBackend)
+	waitForExactTunnelCount(c, main.Tunnel, Site, 1)
+	waitForExactTunnelCount(c, proxyTunnel, Site, 0)
 
 	// Requests going via main proxy will succeed. Requests going via second
 	// proxy will fail.
@@ -2064,23 +2064,10 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
 	c.Assert(err, check.NotNil)
 
-	// Re-start the Proxy and add it back to the LB.
-	morePorts := s.getPorts(3)
-	proxyReverseTunnelPort, proxyWebPort, proxySSHPort = morePorts[0], morePorts[1], morePorts[2]
-	proxyConfig = ProxyConfig{
-		Name:              "cluster-main-proxy",
-		SSHPort:           proxySSHPort,
-		WebPort:           proxyWebPort,
-		ReverseTunnelPort: proxyReverseTunnelPort,
-	}
-	proxyTunnel, err = main.StartProxy(proxyConfig)
-	c.Assert(err, check.IsNil)
-	proxyTwoBackend = utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort)))
+	// Add second proxy back to LB, both should have a connection.
 	lb.AddBackend(*proxyTwoBackend)
-
-	// For for reverse tunnels to show up on both proxies.
-	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
-	waitForActiveTunnelConnections(c, proxyTunnel, Site, 1)
+	waitForExactTunnelCount(c, main.Tunnel, Site, 1)
+	waitForExactTunnelCount(c, proxyTunnel, Site, 1)
 
 	// Requests going via both proxies will succeed.
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
