@@ -103,7 +103,7 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 
-	// find 10 free litening ports to use
+	// Find AllocatePortsNum free listening ports to use.
 	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum)
 	if err != nil {
 		c.Fatal(err)
@@ -2044,6 +2044,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 		Host:    "cluster-main-node",
 		Proxy:   &proxyConfig,
 	}
+
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 10)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
@@ -2060,7 +2061,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
 	c.Assert(err, check.NotNil)
 
-	// Add second proxy back to LB, both should have a connection.
+	// Add second proxy to LB, both should have a connection.
 	lb.AddBackend(*proxyTwoBackend)
 	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
 	waitForActiveTunnelConnections(c, proxyTunnel, Site, 1)
@@ -3674,7 +3675,7 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 		if err == nil {
 			break
 		}
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(1 * time.Second)
 	}
 	return output.String(), trace.Wrap(err)
 }

@@ -230,6 +230,21 @@ func (a *Agent) Wait() error {
 	return nil
 }
 
+func (a *Agent) isDiscovering(proxy services.Server) bool {
+	for _, discoverProxy := range a.DiscoverProxies {
+		if a.getState() != agentStateDiscovering && a.getState() != agentStateConnecting {
+			continue
+		}
+
+		proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.ClusterName)
+		discoverID := fmt.Sprintf("%v.%v", discoverProxy.GetName(), a.ClusterName)
+		if proxyID == discoverID {
+			return true
+		}
+	}
+	return false
+}
+
 // connectedTo returns true if connected services.Server passed in.
 func (a *Agent) connectedTo(proxy services.Server) bool {
 	principals := a.getPrincipals()
@@ -352,8 +367,10 @@ func (a *Agent) run() {
 			conn.Close()
 			return
 		}
+		a.Debugf("Agent discovered proxy: %v.", a.getPrincipalsList())
 		a.setState(agentStateDiscovered)
 	} else {
+		a.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
 		a.setState(agentStateConnected)
 	}
 

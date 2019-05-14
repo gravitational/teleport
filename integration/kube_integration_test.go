@@ -87,7 +87,7 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 
-	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum, utils.PortStartingNumber+AllocatePortsNum+1)
+	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum)
 	if err != nil {
 		c.Fatal(err)
 	}
