@@ -189,7 +189,7 @@ func (m *AgentPool) processDiscoveryRequests() {
 
 func foundInOneOf(proxy services.Server, agents []*Agent) bool {
 	for _, agent := range agents {
-		if agent.connectedTo(proxy) {
+		if agent.isDiscovering(proxy) || agent.connectedTo(proxy) {
 			return true
 		}
 	}
@@ -203,8 +203,8 @@ func (m *AgentPool) tryDiscover(req discoveryRequest) {
 
 	matchKey := req.key()
 
-	// if one of the proxies have been discovered or connected to
-	// remove proxy from discovery request
+	// If one of the proxies have been discovered or connected to
+	// remove proxy from discovery request.
 	var filtered Proxies
 	agents := m.agents[matchKey]
 	for i := range proxies {
@@ -234,9 +234,9 @@ func (m *AgentPool) tryDiscover(req discoveryRequest) {
 		return true
 	})
 
-	// if we haven't found any discovery agent
+	// If not agent is running, add one.
 	if !foundAgent {
-		m.addAgent(req.key(), req.Proxies)
+		m.addAgent(req.key(), filtered)
 	}
 }
 
@@ -404,7 +404,11 @@ func (m *AgentPool) reportStats() {
 	}
 
 	for key, agents := range m.agents {
-		m.Debugf("Outbound tunnel for %v connected to %v proxies.", key.clusterName, len(agents))
+		tunnelID := key.clusterName
+		if m.cfg.Component == teleport.ComponentNode {
+			tunnelID = m.cfg.HostUUID
+		}
+		m.Debugf("Outbound tunnel for %v connected to %v proxies.", tunnelID, len(agents))
 
 		countPerState := map[string]int{
 			agentStateConnecting:   0,
