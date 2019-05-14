@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gravitational/teleport/e/lib/pro"
@@ -37,7 +38,7 @@ func (ap *AuthPlugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Reque
 	if ap.enforcer == nil {
 		return types.NewHeartbeat(), nil
 	}
-	return ap.enforcer.GetLicenseCheckResult()
+	return ap.enforcer.GetLicenseCheckResult(context.TODO())
 }
 
 // plugin is the auth plugin

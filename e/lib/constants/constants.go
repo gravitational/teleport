@@ -32,9 +32,6 @@ const (
 	// HeartbeatInterval is how often Teleport Pro records usage and
 	// enforces the validity of the current license
 	HeartbeatInterval = 5 * time.Minute
-	// NoUsage is an empty usage duration which is used to initialize usage
-	// reporting.
-	NoUsage = 0 * time.Second
 
 	// GravitationalSupportURL is company support website URL
 	GravitationalSupportURL = "https://support.gravitational.com"

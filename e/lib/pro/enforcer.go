@@ -98,20 +98,20 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			err := e.processLicenseCheckResult()
+			err := e.processLicenseCheckResult(ctx)
 			if err != nil {
 				log.Error(trace.DebugReport(err))
 			}
 
-			duration, err := e.getUsageDuration()
-			if err != nil && !trace.IsNotFound(err) {
+			duration, err := e.getUsageDuration(ctx)
+			if err != nil {
 				log.Error(trace.DebugReport(err))
 				continue
 			}
 
 			duration += constants.HeartbeatInterval
 
-			err = e.setUsageDuration(duration)
+			err = e.setUsageDuration(ctx, duration)
 			if err != nil {
 				log.Error(trace.DebugReport(err))
 			}
@@ -148,18 +148,18 @@ func (e *Enforcer) report(ctx context.Context) error {
 	// Body is the JSON body of a heartbeat POST request
 	type Body struct {
 		// EndTime is the end of a usage period
-		EndTime   time.Time `json:"end_time"`
+		EndTime time.Time `json:"end_time"`
 		// StartTime is the start of a usage period
 		StartTime time.Time `json:"start_time"`
 	}
 
-	duration, err := e.getUsageDuration()
+	duration, err := e.getUsageDuration(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	body := Body{
-		EndTime: time.Now().UTC(),
+		EndTime:   time.Now().UTC(),
 		StartTime: time.Now().UTC().Add(-duration),
 	}
 
@@ -179,7 +179,7 @@ func (e *Enforcer) report(ctx context.Context) error {
 	}
 
 	// As we just reported the usage, we can safely reset it to 0
-	return trace.Wrap(e.setUsageDuration(constants.NoUsage))
+	return trace.Wrap(e.setUsageDuration(ctx, 0))
 }
 
 const (
@@ -188,13 +188,13 @@ const (
 	usagePrefix     = "usage"
 )
 
-func (e *Enforcer) setUsageDuration(duration time.Duration) error {
+func (e *Enforcer) setUsageDuration(ctx context.Context, duration time.Duration) error {
 	item := backend.Item{
 		Key:   backend.Key(heartbeatPrefix, usagePrefix),
 		Value: []byte(duration.String()),
 	}
 
-	_, err := e.Put(context.TODO(), item)
+	_, err := e.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -202,15 +202,19 @@ func (e *Enforcer) setUsageDuration(duration time.Duration) error {
 	return nil
 }
 
-func (e *Enforcer) getUsageDuration() (time.Duration, error) {
-	item, err := e.Backend.Get(context.TODO(), backend.Key(heartbeatPrefix, usagePrefix))
+func (e *Enforcer) getUsageDuration(ctx context.Context) (time.Duration, error) {
+	item, err := e.Backend.Get(ctx, backend.Key(heartbeatPrefix, usagePrefix))
 	if err != nil {
-		return constants.NoUsage, trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			err = nil
+		}
+
+		return 0, trace.Wrap(err)
 	}
 
 	duration, err := time.ParseDuration(string(item.Value))
 	if err != nil {
-		return constants.NoUsage, trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
 	return duration, nil
@@ -234,8 +238,8 @@ func (e *Enforcer) SetLicenseCheckHeartbeat(heartbeat types.Heartbeat) error {
 }
 
 // getLicenseCheckHeartbeat returns the latest license check heartbeat
-func (e *Enforcer) getLicenseCheckHeartbeat() (*types.Heartbeat, error) {
-	item, err := e.Backend.Get(context.TODO(), backend.Key(heartbeatPrefix, valPrefix))
+func (e *Enforcer) getLicenseCheckHeartbeat(ctx context.Context) (*types.Heartbeat, error) {
+	item, err := e.Backend.Get(ctx, backend.Key(heartbeatPrefix, valPrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,8 +251,8 @@ func (e *Enforcer) getLicenseCheckHeartbeat() (*types.Heartbeat, error) {
 }
 
 // GetLicenseCheckResult returns the last license check result
-func (e *Enforcer) GetLicenseCheckResult() (*types.Heartbeat, error) {
-	heartbeat, err := e.getLicenseCheckHeartbeat()
+func (e *Enforcer) GetLicenseCheckResult(ctx context.Context) (*types.Heartbeat, error) {
+	heartbeat, err := e.getLicenseCheckHeartbeat(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -273,8 +277,8 @@ func (e *Enforcer) GetLicenseCheckResult() (*types.Heartbeat, error) {
 
 // processLicenseCheckResult implements "enforcement" policies, right now it
 // only logs all messages received from the control plane into Teleport logs
-func (e *Enforcer) processLicenseCheckResult() error {
-	heartbeat, err := e.GetLicenseCheckResult()
+func (e *Enforcer) processLicenseCheckResult(ctx context.Context) error {
+	heartbeat, err := e.GetLicenseCheckResult(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
