@@ -575,8 +575,8 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	buff := make([]byte, MaxVersionStringBytes)
 	n, err := c.Conn.Read(buff)
 	if err != nil {
-		// EOF happens quite often, don't pollute the logs with EOF
-		if err != io.EOF {
+		// EOF happens quite often, don't pollute the logs with it
+		if !trace.IsEOF(err) {
 			log.Error(err)
 		}
 		return n, err
