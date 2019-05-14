@@ -162,7 +162,8 @@ func (m *AgentPool) Wait() error {
 
 func (m *AgentPool) processDiscoveryRequests() {
 	//ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
-	//defer ticker.Stop()
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -175,14 +176,14 @@ func (m *AgentPool) processDiscoveryRequests() {
 				return
 			}
 
-			//// Save last discoveryRequest so it can be periodically re-tried.
-			//m.lastDiscoveryRequest[req.key()] = req
+			// Save last discoveryRequest so it can be periodically re-tried.
+			m.lastDiscoveryRequest[req.key()] = req
 
 			m.tryDiscover(*req)
-			//case <-ticker.C:
-			//	for _, req := range m.lastDiscoveryRequest {
-			//		m.tryDiscover(*req)
-			//	}
+		case <-ticker.C:
+			for _, req := range m.lastDiscoveryRequest {
+				m.tryDiscover(*req)
+			}
 		}
 	}
 }

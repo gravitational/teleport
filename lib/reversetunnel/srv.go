@@ -321,8 +321,6 @@ func (s *server) disconnectClusters() error {
 }
 
 func (s *server) periodicFunctions() {
-	var proxies []services.Server
-
 	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
 	defer ticker.Stop()
 
@@ -335,11 +333,9 @@ func (s *server) periodicFunctions() {
 			s.Debugf("Closing.")
 			return
 		// Proxies have been updated, notify connected agents about the update.
-		case proxies = <-s.proxyWatcher.ProxiesC:
+		case proxies := <-s.proxyWatcher.ProxiesC:
 			s.fanOutProxies(proxies)
 		case <-ticker.C:
-			s.fanOutProxies(proxies)
-
 			err := s.fetchClusterPeers()
 			if err != nil {
 				s.Warningf("Failed to fetch cluster peers: %v.", err)
