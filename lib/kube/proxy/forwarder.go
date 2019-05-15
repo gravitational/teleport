@@ -878,9 +878,21 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 		tlsConfig:   tlsConfig,
 	}
 
+	var transport http.RoundTripper = f.newTransport(sess.Dial, tlsConfig)
+
+	// when running inside Kubernetes cluster, kubeconfig provides a
+	// transport wrapper that adds service account token to requests
+	//
+	// when forwarding request to a remote cluster, this is not needed
+	// as the proxy uses client cert auth to reach out to remote proxy
+	// which will then use its own transport wrapper
+	if !ctx.cluster.isRemote && f.creds.cfg.WrapTransport != nil {
+		transport = f.creds.cfg.WrapTransport(transport)
+	}
+
 	fwd, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),
-		forward.RoundTripper(f.newTransport(sess.Dial, tlsConfig)),
+		forward.RoundTripper(transport),
 		forward.WebsocketDial(sess.Dial),
 		forward.Logger(log.StandardLogger()),
 	)
