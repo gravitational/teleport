@@ -10,6 +10,7 @@ COPY pam/teleport-acct-failure /etc/pam.d
 COPY pam/teleport-session-failure /etc/pam.d
 COPY pam/teleport-success /etc/pam.d
 
+RUN apt-get update
 RUN apt-get install -q -y libpam-dev
 RUN apt-get install -q -y libc6-dev-i386
 RUN apt-get install -q -y net-tools
