@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"time"
 
 	"github.com/gravitational/teleport/lib/session"
@@ -169,6 +170,15 @@ const (
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
 	TerminalSize = "size" // expressed as 'W:H'
+
+	// SessionUploadIndex is a very large number of the event index
+	// to indicate that this is the last event in the chain
+	// used for the last event of the sesion - session upload
+	SessionUploadIndex = math.MaxInt32
+	// SessionDataIndex is a very large number of the event index
+	// to indicate one of the last session events, used to report
+	// data transfer
+	SessionDataIndex = math.MaxInt32 - 1
 )
 
 const (

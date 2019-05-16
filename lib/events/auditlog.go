@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -348,7 +347,7 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	return l.EmitAuditEvent(SessionUpload, EventFields{
 		SessionEventID: string(r.SessionID),
 		URL:            url,
-		EventIndex:     math.MaxInt32,
+		EventIndex:     SessionUploadIndex,
 	})
 }
 
