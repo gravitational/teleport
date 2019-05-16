@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -330,27 +329,19 @@ func (p *PortList) PopIntSlice(num int) []int {
 	return ports
 }
 
-// PortStartingNumber is a smallest port number in tests.
+// PortStartingNumber is a starting port number for tests
 const PortStartingNumber = 20000
 
-// PortEndingNumber is the largest port to use in tests.
-const PortEndingNumber = 50000
-
 // GetFreeTCPPorts returns n ports starting from port 20000.
-func GetFreeTCPPorts(n int) (PortList, error) {
-	rand.Seed(time.Now().UnixNano())
-
-	result := map[string]bool{}
-	for i := 0; i < n; i++ {
-		portNum := PortStartingNumber + rand.Intn(PortEndingNumber-PortStartingNumber)
-		result[strconv.Itoa(portNum)] = true
-	}
-
+func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	list := make(PortList, 0, n)
-	for k, _ := range result {
-		list = append(list, k)
+	start := PortStartingNumber
+	if len(offset) != 0 {
+		start = offset[0]
 	}
-
+	for i := start; i < start+n; i++ {
+		list = append(list, strconv.Itoa(i))
+	}
 	return list, nil
 }
 
