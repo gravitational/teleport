@@ -485,6 +485,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 		events.EventUser:       c.Identity.TeleportUser,
 		events.LocalAddr:       c.Conn.LocalAddr().String(),
 		events.RemoteAddr:      c.Conn.RemoteAddr().String(),
+		events.EventIndex:      events.SessionDataIndex,
 	}
 	if c.session != nil {
 		eventFields[events.SessionEventID] = c.session.id
