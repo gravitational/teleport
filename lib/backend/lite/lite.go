@@ -577,7 +577,13 @@ func (l *LiteBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 
 // getInTransaction returns an item, works in transaction
 func (l *LiteBackend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, item *backend.Item) error {
-	now := l.clock.Now().UTC()
+	// When in mirror mode, don't set the current time so the SELECT query
+	// returns expired items.
+	var now time.Time
+	if !l.Mirror {
+		now = l.clock.Now().UTC()
+	}
+
 	q, err := tx.PrepareContext(ctx,
 		"SELECT key, value, expires, modified FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
 	if err != nil {
@@ -606,8 +612,15 @@ func (l *LiteBackend) GetRange(ctx context.Context, startKey []byte, endKey []by
 	if limit <= 0 {
 		limit = backend.DefaultLargeLimit
 	}
+
+	// When in mirror mode, don't set the current time so the SELECT query
+	// returns expired items.
+	var now time.Time
+	if !l.Mirror {
+		now = l.clock.Now().UTC()
+	}
+
 	var result backend.GetResult
-	now := l.clock.Now().UTC()
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(ctx,
 			"SELECT key, value, expires, modified FROM kv WHERE (key >= ? and key <= ?) AND (expires is NULL or expires > ?) ORDER BY key LIMIT ?")

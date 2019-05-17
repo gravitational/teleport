@@ -227,10 +227,9 @@ func (m *AgentPool) tryDiscover(req discoveryRequest) {
 		}
 		if filtered.Equal(agent.DiscoverProxies) {
 			foundAgent = true
-			agent.Debugf("agent is already discovering the same proxies as requested in %v", filtered)
+			agent.Debugf("Agent is already discovering the same proxies as requested in %v.", filtered)
 			return false
 		}
-		agent.Debugf("is obsolete, going to close", agent.getState(), agent.DiscoverProxies)
 		return true
 	})
 

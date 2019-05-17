@@ -136,6 +136,15 @@ func (p *ProxyWatcher) GetCurrent() []Server {
 func (p *ProxyWatcher) setCurrent(proxies []Server) {
 	p.Lock()
 	defer p.Unlock()
+
+	// Log the updated list of proxies. Useful for debugging to verify proxies
+	// are being added and removed from the cluster.
+	names := make([]string, 0, len(proxies))
+	for _, proxy := range proxies {
+		names = append(names, proxy.GetName())
+	}
+	p.Debugf("List of known proxies updated: %q.", names)
+
 	p.current = proxies
 }
 

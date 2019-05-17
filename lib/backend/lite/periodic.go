@@ -64,6 +64,12 @@ func (l *LiteBackend) runPeriodicOperations() {
 }
 
 func (l *LiteBackend) removeExpiredKeys() error {
+	// In mirror mode, don't expire any elements. This allows the cache to setup
+	// a watch and expire elements as the events roll in.
+	if l.Mirror {
+		return nil
+	}
+
 	now := l.clock.Now().UTC()
 	return l.inTransaction(l.ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(l.ctx,

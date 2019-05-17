@@ -145,5 +145,4 @@ func (s *LiteSuite) TestImport(c *check.C) {
 	imported, err = b.Imported(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(imported, check.Equals, true)
-
 }
