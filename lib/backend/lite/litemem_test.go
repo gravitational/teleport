@@ -106,3 +106,13 @@ func (s *LiteMemSuite) TestConcurrentOperations(c *check.C) {
 	s.suite.B2 = bk
 	s.suite.ConcurrentOperations(c)
 }
+
+func (s *LiteMemSuite) TestMirror(c *check.C) {
+	mem, err := NewWithConfig(context.Background(), Config{
+		Memory:           true,
+		Mirror:           true,
+		PollStreamPeriod: 300 * time.Millisecond,
+	})
+	c.Assert(err, check.IsNil)
+	s.suite.Mirror(c, mem)
+}
