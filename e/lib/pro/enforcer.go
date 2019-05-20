@@ -92,18 +92,18 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 }
 
 func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
-	ticker := time.NewTicker(constants.HeartbeatInterval)
+	ticker := e.Clock().NewTicker(constants.HeartbeatInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-ticker.Chan():
 			err := e.processLicenseCheckResult(ctx)
 			if err != nil {
 				log.Error(trace.DebugReport(err))
 			}
 
-			duration, err := e.getUsageDuration(ctx)
+			duration, err := e.GetUsageDuration(ctx)
 			if err != nil {
 				log.Error(trace.DebugReport(err))
 				continue
@@ -111,7 +111,7 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 
 			duration += constants.HeartbeatInterval
 
-			err = e.setUsageDuration(ctx, duration)
+			err = e.SetUsageDuration(ctx, duration)
 			if err != nil {
 				log.Error(trace.DebugReport(err))
 			}
@@ -123,7 +123,7 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 }
 
 func (e *Enforcer) startReporting(ctx context.Context) {
-	ticker := time.NewTicker(constants.ReportingInterval)
+	ticker := e.Clock().NewTicker(constants.ReportingInterval)
 	defer ticker.Stop()
 
 	for {
@@ -135,7 +135,7 @@ func (e *Enforcer) startReporting(ctx context.Context) {
 		}
 
 		select {
-		case <-ticker.C:
+		case <-ticker.Chan():
 			continue
 		case <-ctx.Done():
 			e.Debug("Heartbeat loop is exiting.")
@@ -153,14 +153,14 @@ func (e *Enforcer) report(ctx context.Context) error {
 		StartTime time.Time `json:"start_time"`
 	}
 
-	duration, err := e.getUsageDuration(ctx)
+	duration, err := e.GetUsageDuration(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	body := Body{
-		EndTime:   time.Now().UTC(),
-		StartTime: time.Now().UTC().Add(-duration),
+		EndTime:   e.Clock().Now().UTC(),
+		StartTime: e.Clock().Now().UTC().Add(-duration),
 	}
 
 	out, err := e.WebClient.PostJSON(ctx, e.Endpoint("heartbeat"), body)
@@ -179,7 +179,7 @@ func (e *Enforcer) report(ctx context.Context) error {
 	}
 
 	// As we just reported the usage, we can safely reset it to 0
-	return trace.Wrap(e.setUsageDuration(ctx, 0))
+	return trace.Wrap(e.SetUsageDuration(ctx, 0))
 }
 
 const (
@@ -188,7 +188,8 @@ const (
 	usagePrefix     = "usage"
 )
 
-func (e *Enforcer) setUsageDuration(ctx context.Context, duration time.Duration) error {
+// SetUsageDuration sets the unreported usage duration to a new value
+func (e *Enforcer) SetUsageDuration(ctx context.Context, duration time.Duration) error {
 	item := backend.Item{
 		Key:   backend.Key(heartbeatPrefix, usagePrefix),
 		Value: []byte(duration.String()),
@@ -202,7 +203,8 @@ func (e *Enforcer) setUsageDuration(ctx context.Context, duration time.Duration)
 	return nil
 }
 
-func (e *Enforcer) getUsageDuration(ctx context.Context) (time.Duration, error) {
+// GetUsageDuration returns the usage duration that wasn't reported yet
+func (e *Enforcer) GetUsageDuration(ctx context.Context) (time.Duration, error) {
 	item, err := e.Backend.Get(ctx, backend.Key(heartbeatPrefix, usagePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
