@@ -404,7 +404,13 @@ const ConnectedEvent = "connected"
 // remote proxy
 func (a *Agent) processRequests(conn *ssh.Client) error {
 	defer conn.Close()
-	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+
+	clusterConfig, err := a.AccessPoint.GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ticker := time.NewTicker(clusterConfig.GetKeepAliveInterval())
 	defer ticker.Stop()
 
 	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
