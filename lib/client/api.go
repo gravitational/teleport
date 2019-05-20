@@ -718,10 +718,6 @@ type TeleportClient struct {
 	// eventsCh is a channel used to inform clients about events have that
 	// occurred during the session.
 	eventsCh chan events.EventFields
-
-	// credClient is a client to the proxy server used to initially fetch
-	// credentials.
-	credClient *CredentialsClient
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -773,15 +769,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// into it. Delays in pulling messages off the global SSH request channel
 	// could lead to the connection hanging.
 	tc.eventsCh = make(chan events.EventFields, 1024)
-
-	// Create a client that can be used for the initial fetch of credentials.
-	tc.credClient, err = NewCredentialsClient(
-		c.WebProxyAddr,
-		c.InsecureSkipVerify,
-		loopbackPool(c.WebProxyAddr))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// sometimes we need to use external auth without using local auth
 	// methods, e.g. in automation daemons
@@ -1519,7 +1506,12 @@ func (tc *TeleportClient) LogoutAll() error {
 func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, error) {
 	// Ping the endpoint to see if it's up and find the type of authentication
 	// supported.
-	pr, err := tc.credClient.Ping(ctx, tc.AuthConnector)
+	pr, err := Ping(
+		ctx,
+		tc.WebProxyAddr,
+		tc.InsecureSkipVerify,
+		loopbackPool(tc.WebProxyAddr),
+		tc.AuthConnector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1803,13 +1795,16 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 	}
 
 	// ask the CA (via proxy) to sign our public key:
-	response, err := tc.credClient.SSHAgentLogin(
+	response, err := SSHAgentLogin(
 		ctx,
+		tc.WebProxyAddr,
 		tc.Config.Username,
 		password,
 		otpToken,
 		pub,
 		tc.KeyTTL,
+		tc.InsecureSkipVerify,
+		loopbackPool(tc.WebProxyAddr),
 		tc.CertificateFormat)
 
 	return response, trace.Wrap(err)
@@ -1819,7 +1814,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
 	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
-	response, err := tc.credClient.SSHAgentSSOLogin(SSHLogin{
+	response, err := SSHAgentSSOLogin(SSHLogin{
 		Context:       ctx,
 		ConnectorID:   connectorID,
 		PubKey:        pub,
@@ -1827,6 +1822,9 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 		Protocol:      protocol,
 		Compatibility: tc.CertificateFormat,
 		BindAddr:      tc.BindAddr,
+		ProxyAddr:     tc.WebProxyAddr,
+		Insecure:      tc.InsecureSkipVerify,
+		Pool:          loopbackPool(tc.WebProxyAddr),
 	})
 	return response, trace.Wrap(err)
 }
@@ -1844,12 +1842,15 @@ func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLo
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := tc.credClient.SSHAgentU2FLogin(
+	response, err := SSHAgentU2FLogin(
 		ctx,
+		tc.WebProxyAddr,
 		tc.Config.Username,
 		password,
 		pub,
 		tc.KeyTTL,
+		tc.InsecureSkipVerify,
+		loopbackPool(tc.WebProxyAddr),
 		tc.CertificateFormat)
 
 	return response, trace.Wrap(err)

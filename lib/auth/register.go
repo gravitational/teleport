@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -89,17 +90,14 @@ type RegisterParams struct {
 	CAPin string
 	// CAPath is the path to the CA file.
 	CAPath string
-	// CredsClient is a client that can fetch host credentials.
-	CredsClient CredGetter
+	// GetHostCredentials is a client that can fetch host credentials.
+	GetHostCredentials HostCredentials
 }
 
 // CredGetter is an interface for a client that can be used to get host
 // credentials. This interface is needed because lib/client can not be imported
 // in lib/auth due to circular imports.
-type CredGetter interface {
-	// HostCredentials are used to get a server host credentials.
-	HostCredentials(context.Context, RegisterUsingTokenRequest) (*PackedKeys, error)
-}
+type HostCredentials func(context.Context, string, bool, RegisterUsingTokenRequest) (*PackedKeys, error)
 
 // Register is used to generate host keys when a node or proxy are running on
 // different hosts than the auth server. This method requires provisioning
@@ -118,7 +116,7 @@ func Register(params RegisterParams) (*Identity, error) {
 	ident, err := registerThroughAuth(token, params)
 	if err != nil {
 		// If no params client was set this is a proxy and fail right away.
-		if params.CredsClient == nil {
+		if params.GetHostCredentials == nil {
 			log.Debugf("Missing client, failing with error from Auth Server: %v.", err)
 			return nil, trace.Wrap(err)
 		}
@@ -140,7 +138,13 @@ func Register(params RegisterParams) (*Identity, error) {
 func registerThroughProxy(token string, params RegisterParams) (*Identity, error) {
 	log.Debugf("Attempting to register through proxy server.")
 
-	keys, err := params.CredsClient.HostCredentials(context.Background(),
+	if len(params.Servers) == 0 {
+		return nil, trace.BadParameter("no auth servers set")
+	}
+
+	keys, err := params.GetHostCredentials(context.Background(),
+		params.Servers[0].String(),
+		lib.IsInsecureDevMode(),
 		RegisterUsingTokenRequest{
 			Token:                token,
 			HostID:               params.ID.HostUUID,
