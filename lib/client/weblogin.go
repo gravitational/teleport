@@ -241,16 +241,8 @@ type GithubSettings struct {
 	Display string `json:"display"`
 }
 
-// CredentialsClient is used to fetch user and host credentials from the
-// HTTPS web proxy.
-type CredentialsClient struct {
-	log *logrus.Entry
-	clt *WebClient
-	url *url.URL
-}
-
-// NewCredentialsClient creates a new client to the HTTPS web proxy.
-func NewCredentialsClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*CredentialsClient, error) {
+// initClient creates a new client to the HTTPS web proxy.
+func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClient, *url.URL, error) {
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentClient,
 	})
@@ -262,12 +254,12 @@ func NewCredentialsClient(proxyAddr string, insecure bool, pool *x509.CertPool) 
 		if err != nil {
 			log.Error(err)
 		}
-		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
 	proxyAddr = "https://" + net.JoinHostPort(host, port)
 	u, err := url.Parse(proxyAddr)
 	if err != nil {
-		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
 
 	var opts []roundtrip.ClientParam
@@ -283,14 +275,10 @@ func NewCredentialsClient(proxyAddr string, insecure bool, pool *x509.CertPool) 
 
 	clt, err := NewWebClient(proxyAddr, opts...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return &CredentialsClient{
-		log: log,
-		clt: clt,
-		url: u,
-	}, nil
+	return clt, u, nil
 }
 
 // Ping serves two purposes. The first is to validate the HTTP endpoint of a
@@ -298,13 +286,18 @@ func NewCredentialsClient(proxyAddr string, insecure bool, pool *x509.CertPool) 
 // errors before being asked for passwords. The second is to return the form
 // of authentication that the server supports. This also leads to better user
 // experience: users only get prompted for the type of authentication the server supports.
-func (c *CredentialsClient) Ping(ctx context.Context, connectorName string) (*PingResponse, error) {
-	endpoint := c.clt.Endpoint("webapi", "ping")
-	if connectorName != "" {
-		endpoint = c.clt.Endpoint("webapi", "ping", connectorName)
+func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool, connectorName string) (*PingResponse, error) {
+	clt, _, err := initClient(proxyAddr, insecure, pool)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	response, err := c.clt.Get(ctx, endpoint, url.Values{})
+	endpoint := clt.Endpoint("webapi", "ping")
+	if connectorName != "" {
+		endpoint = clt.Endpoint("webapi", "ping", connectorName)
+	}
+
+	response, err := clt.Get(ctx, endpoint, url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -321,8 +314,13 @@ func (c *CredentialsClient) Ping(ctx context.Context, connectorName string) (*Pi
 // Find is like ping, but used by servers to only fetch discovery data,
 // without auth connector data, it is designed for servers in IOT mode
 // to fetch proxy public addresses on a large scale.
-func (c *CredentialsClient) Find(ctx context.Context) (*PingResponse, error) {
-	response, err := c.clt.Get(ctx, c.clt.Endpoint("webapi", "find"), url.Values{})
+func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (*PingResponse, error) {
+	clt, _, err := initClient(proxyAddr, insecure, pool)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.Get(ctx, clt.Endpoint("webapi", "find"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -337,7 +335,7 @@ func (c *CredentialsClient) Find(ctx context.Context) (*PingResponse, error) {
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func (c *CredentialsClient) SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
+func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 	rd, err := NewRedirector(login)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -397,8 +395,13 @@ func (c *CredentialsClient) SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResp
 }
 
 // SSHAgentLogin is used by tsh to fetch local user credentials.
-func (c *CredentialsClient) SSHAgentLogin(ctx context.Context, user string, password string, otpToken string, pubKey []byte, ttl time.Duration, compatibility string) (*auth.SSHLoginResponse, error) {
-	re, err := c.clt.PostJSON(ctx, c.clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
+func SSHAgentLogin(ctx context.Context, proxyAddr string, user string, password string, otpToken string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, compatibility string) (*auth.SSHLoginResponse, error) {
+	clt, _, err := initClient(proxyAddr, insecure, pool)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:          user,
 		Password:      password,
 		OTPToken:      otpToken,
@@ -424,8 +427,13 @@ func (c *CredentialsClient) SSHAgentLogin(ctx context.Context, user string, pass
 // We then call the official u2f-host binary to perform the signing and pass
 // the signature to the proxy. If the authentication succeeds, we will get a
 // temporary certificate back.
-func (c *CredentialsClient) SSHAgentU2FLogin(ctx context.Context, user string, password string, pubKey []byte, ttl time.Duration, compatibility string) (*auth.SSHLoginResponse, error) {
-	u2fSignRequest, err := c.clt.PostJSON(ctx, c.clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
+func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, compatibility string) (*auth.SSHLoginResponse, error) {
+	clt, _, err := initClient(proxyAddr, insecure, pool)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	u2fSignRequest, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
 		User: user,
 		Pass: password,
 	})
@@ -434,7 +442,7 @@ func (c *CredentialsClient) SSHAgentU2FLogin(ctx context.Context, user string, p
 	}
 
 	// Pass the JSON-encoded data undecoded to the u2f-host binary
-	facet := "https://" + strings.ToLower(c.url.String())
+	facet := "https://" + strings.ToLower(proxyAddr)
 	cmd := exec.Command("u2f-host", "-aauthenticate", "-o", facet)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -456,7 +464,7 @@ func (c *CredentialsClient) SSHAgentU2FLogin(ctx context.Context, user string, p
 
 	// The origin URL is passed back base64-encoded and the keyHandle is passed back as is.
 	// A very long proxy hostname or keyHandle can overflow a fixed-size buffer.
-	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(c.url.String())*4/3
+	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(proxyAddr)*4/3
 	signResponseBuf := make([]byte, signResponseLen)
 	signResponseLen, err = io.ReadFull(stdout, signResponseBuf)
 	// unexpected EOF means we have read the data completely.
@@ -484,7 +492,7 @@ func (c *CredentialsClient) SSHAgentU2FLogin(ctx context.Context, user string, p
 		return nil, trace.Wrap(err)
 	}
 
-	re, err := c.clt.PostJSON(ctx, c.clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
+	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
 		User:            user,
 		U2FSignResponse: *u2fSignResponse,
 		PubKey:          pubKey,
@@ -505,8 +513,13 @@ func (c *CredentialsClient) SSHAgentU2FLogin(ctx context.Context, user string, p
 }
 
 // HostCredentials is used to fetch host credentials for a node.
-func (c *CredentialsClient) HostCredentials(ctx context.Context, req auth.RegisterUsingTokenRequest) (*auth.PackedKeys, error) {
-	resp, err := c.clt.PostJSON(ctx, c.clt.Endpoint("webapi", "host", "credentials"), req)
+func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req auth.RegisterUsingTokenRequest) (*auth.PackedKeys, error) {
+	clt, _, err := initClient(proxyAddr, insecure, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "host", "credentials"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
