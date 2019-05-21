@@ -373,7 +373,7 @@ There are two ways to create invitation tokens:
 You can pick your own tokens and add them to the auth server's config file: 
 
 ```bash
-# Config section in `/etc/teleport/teleport.yaml` file for the auth server
+# Config section in `/etc/teleport.yaml` file for the auth server
 auth_service:
     enabled: true
     #
