@@ -554,7 +554,7 @@ func ParseShortcut(in string) (string, error) {
 	case "remote_cluster", "remote_clusters", "rc", "rcs":
 		return KindRemoteCluster, nil
 	}
-	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'kind/name', for example 'role/admin'", in)
+	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'role/admin'", in)
 }
 
 // ParseRef parses resource reference eg daemonsets/ds1
