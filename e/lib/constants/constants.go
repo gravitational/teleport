@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	// apiHostEnvVar is used to "flip" the URL of Houston API to
+	// ApiHostEnvVar is used to "flip" the URL of Houston API to
 	// point it to staging/development servers
-	apiHostEnvVar = "HOUSTON_HOSTPORT"
+	ApiHostEnvVar = "HOUSTON_HOSTPORT"
 )

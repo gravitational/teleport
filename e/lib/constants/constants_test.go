@@ -16,12 +16,12 @@ type ConstantSuite struct {
 var _ = check.Suite(&ConstantSuite{})
 
 func (s *ConstantSuite) SetUpTest(c *check.C) {
-	s.houstonHost = os.Getenv(apiHostEnvVar)
+	s.houstonHost = os.Getenv(ApiHostEnvVar)
 }
 
 func (s *ConstantSuite) TearDownTest(c *check.C) {
 	if s.houstonHost != "" {
-		os.Setenv(apiHostEnvVar, s.houstonHost)
+		os.Setenv(ApiHostEnvVar, s.houstonHost)
 	}
 }
 
@@ -32,14 +32,14 @@ func (s *ConstantSuite) TestFunctions(c *check.C) {
 	c.Assert(GetControlPlaneAPIURL(), check.Equals, "https://dashboard-api.gravitational.com:443/api")
 
 	// test custom host+port behavior
-	os.Setenv(apiHostEnvVar, "test.localhost:5000")
+	os.Setenv(ApiHostEnvVar, "test.localhost:5000")
 
 	c.Assert(GetControlPlaneAPIHost(), check.Equals, "test.localhost")
 	c.Assert(GetControlPlaneAPIAddr(), check.Equals, "test.localhost:5000")
 	c.Assert(GetControlPlaneAPIURL(), check.Equals, "https://test.localhost:5000/api")
 
 	// test custom host (without port) behavior
-	os.Setenv(apiHostEnvVar, "dev.localhost")
+	os.Setenv(ApiHostEnvVar, "dev.localhost")
 
 	c.Assert(GetControlPlaneAPIHost(), check.Equals, "dev.localhost")
 	c.Assert(GetControlPlaneAPIAddr(), check.Equals, "dev.localhost:443")
