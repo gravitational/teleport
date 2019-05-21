@@ -745,7 +745,7 @@ Static tokens are defined ahead of time by an administrator and stored
 in the auth server's config file:
 
 ```yaml
-# Config section in `/etc/teleport/teleport.yaml` file for the auth server
+# Config section in `/etc/teleport.yaml` file for the auth server
 auth_service:
     enabled: true
     tokens:
