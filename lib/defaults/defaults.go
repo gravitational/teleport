@@ -233,12 +233,8 @@ const (
 )
 
 var (
-	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
-	ReverseTunnelAgentHeartbeatPeriod = 5 * time.Second
-
-	// ReverseTunnelOfflineThreshold is the threshold of missed heartbeats
-	// after which we are going to declare the reverse tunnel offline
-	ReverseTunnelOfflineThreshold = 5 * ReverseTunnelAgentHeartbeatPeriod
+	// ResyncInterval is how often tunnels are resynced.
+	ResyncInterval = 5 * time.Second
 
 	// ServerAnnounceTTL is a period between heartbeats
 	// Median sleep time between node pings is this value / 2 + random

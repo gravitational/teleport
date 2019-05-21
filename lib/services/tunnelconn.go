@@ -75,9 +75,9 @@ func LatestTunnelConnection(conns []TunnelConnection) (TunnelConnection, error) 
 
 // TunnelConnectionStatus returns tunnel connection status based on the last
 // heartbeat time recorded for a connection
-func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection) string {
+func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection, offlineThreshold time.Duration) string {
 	diff := clock.Now().Sub(conn.GetLastHeartbeat())
-	if diff < defaults.ReverseTunnelOfflineThreshold {
+	if diff < offlineThreshold {
 		return teleport.RemoteClusterStatusOnline
 	}
 	return teleport.RemoteClusterStatusOffline

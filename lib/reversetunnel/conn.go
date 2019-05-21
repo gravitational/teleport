@@ -95,6 +95,10 @@ type connConfig struct {
 	// nodeID is used when tunnelType is node and is set
 	// to the node UUID dialing back
 	nodeID string
+
+	// offlineThreshold is how long to wait for a keep alive message before
+	// marking a reverse tunnel connection as invalid.
+	offlineThreshold time.Duration
 }
 
 func newRemoteConn(cfg *connConfig) *remoteConn {
@@ -252,5 +256,6 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 }
 
 func (c *remoteConn) isOnline(conn services.TunnelConnection) bool {
-	return services.TunnelConnectionStatus(c.clock, conn) == teleport.RemoteClusterStatusOnline
+	tunnelStatus := services.TunnelConnectionStatus(c.clock, conn, c.offlineThreshold)
+	return tunnelStatus == teleport.RemoteClusterStatusOnline
 }
