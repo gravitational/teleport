@@ -133,10 +133,10 @@ func DecodeClusterName(serverName string) (string, error) {
 }
 
 // NewAddrDialer returns new dialer from a list of addresses
-func NewAddrDialer(addrs []utils.NetAddr) ContextDialer {
+func NewAddrDialer(addrs []utils.NetAddr, keepAliveInterval time.Duration) ContextDialer {
 	dialer := net.Dialer{
 		Timeout:   defaults.DefaultDialTimeout,
-		KeepAlive: defaults.ReverseTunnelAgentHeartbeatPeriod,
+		KeepAlive: keepAliveInterval,
 	}
 	return ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		var err error
@@ -198,7 +198,7 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 		c.KeepAliveCount = defaults.KeepAliveCountMax
 	}
 	if c.Dialer == nil {
-		c.Dialer = NewAddrDialer(c.Addrs)
+		c.Dialer = NewAddrDialer(c.Addrs, c.KeepAlivePeriod)
 	}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = teleport.APIDomain

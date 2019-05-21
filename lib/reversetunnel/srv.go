@@ -107,6 +107,10 @@ type server struct {
 	// proxyWatcher monitors changes to the proxies
 	// and broadcasts updates
 	proxyWatcher *services.ProxyWatcher
+
+	// offlineThreshold is how long to wait for a keep alive message before
+	// marking a reverse tunnel connection as invalid.
+	offlineThreshold time.Duration
 }
 
 // DirectCluster is used to access cluster directly
@@ -222,6 +226,12 @@ func NewServer(cfg Config) (Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	clusterConfig, err := cfg.LocalAccessPoint.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	offlineThreshold := time.Duration(clusterConfig.GetKeepAliveCountMax()) * clusterConfig.GetKeepAliveInterval()
+
 	ctx, cancel := context.WithCancel(cfg.Context)
 
 	entry := log.WithFields(log.Fields{
@@ -252,6 +262,7 @@ func NewServer(cfg Config) (Server, error) {
 		proxyWatcher:     proxyWatcher,
 		clusterPeers:     make(map[string]*clusterPeers),
 		Entry:            entry,
+		offlineThreshold: offlineThreshold,
 	}
 
 	for _, clusterInfo := range cfg.DirectClusters {
@@ -321,7 +332,7 @@ func (s *server) disconnectClusters() error {
 }
 
 func (s *server) periodicFunctions() {
-	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
 
 	if err := s.fetchClusterPeers(); err != nil {
@@ -402,7 +413,7 @@ func (s *server) reportClusterStats() error {
 func (s *server) addClusterPeers(conns map[string]services.TunnelConnection) error {
 	for key := range conns {
 		connInfo := conns[key]
-		peer, err := newClusterPeer(s, connInfo)
+		peer, err := newClusterPeer(s, connInfo, s.offlineThreshold)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -513,7 +524,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	// Apply read/write timeouts to the server connection.
 	conn = utils.ObeyIdleTimeout(conn,
-		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
+		s.offlineThreshold,
 		"reverse tunnel server")
 
 	channelType := nch.ChannelType()
@@ -951,9 +962,10 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 				"cluster": domainName,
 			},
 		}),
-		ctx:    closeContext,
-		cancel: cancel,
-		clock:  srv.Clock,
+		ctx:              closeContext,
+		cancel:           cancel,
+		clock:            srv.Clock,
+		offlineThreshold: srv.offlineThreshold,
 	}
 
 	// configure access to the full Auth Server API and the cached subset for

@@ -66,6 +66,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 				"cluster": domainName,
 			},
 		}),
+		offlineThreshold: srv.offlineThreshold,
 	}, nil
 }
 
@@ -100,6 +101,10 @@ type localSite struct {
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
+
+	// offlineThreshold is how long to wait for a keep alive message before
+	// marking a reverse tunnel connection as invalid.
+	offlineThreshold time.Duration
 }
 
 // GetTunnelsCount always the number of tunnel connections to this cluster.
@@ -268,13 +273,14 @@ func (s *localSite) addConn(nodeID string, conn net.Conn, sconn ssh.Conn) (*remo
 	defer s.Unlock()
 
 	rconn := newRemoteConn(&connConfig{
-		conn:        conn,
-		sconn:       sconn,
-		accessPoint: s.accessPoint,
-		tunnelType:  string(services.NodeTunnel),
-		proxyName:   s.srv.ID,
-		clusterName: s.domainName,
-		nodeID:      nodeID,
+		conn:             conn,
+		sconn:            sconn,
+		accessPoint:      s.accessPoint,
+		tunnelType:       string(services.NodeTunnel),
+		proxyName:        s.srv.ID,
+		clusterName:      s.domainName,
+		nodeID:           nodeID,
+		offlineThreshold: s.offlineThreshold,
 	})
 	s.remoteConns[nodeID] = rconn
 
@@ -349,10 +355,9 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			}
 			tm := time.Now().UTC()
 			rconn.setLastHeartbeat(tm)
-		// Since we block on select, time.After is re-created everytime we process
-		// a request.
-		case <-time.After(defaults.ReverseTunnelOfflineThreshold):
-			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", defaults.ReverseTunnelOfflineThreshold))
+		// Note that time.After is re-created everytime a request is processed.
+		case <-time.After(s.offlineThreshold):
+			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 		}
 	}
 }
