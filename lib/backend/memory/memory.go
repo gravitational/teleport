@@ -53,9 +53,9 @@ type Config struct {
 	EventsOff bool
 	// BufferSize sets up event buffer size
 	BufferSize int
-	// Mirror turns on mirror mode for the backend,
-	// which will use record IDs for Put and PutRange passed from
-	// the resources, not generate a new one
+	// Mirror mode is used when the memory backend is used for caching. In mirror
+	// mode, record IDs for Put and PutRange requests are re-used (instead of
+	// generating fresh ones) and expiration is turned off.
 	Mirror bool
 }
 
@@ -418,6 +418,12 @@ func (m *Memory) newLease(item backend.Item) *backend.Lease {
 // removeExpired makes a pass through map and removes expired elements
 // returns the number of expired elements removed
 func (m *Memory) removeExpired() int {
+	// In mirror mode, don't expire any elements. This allows the cache to setup
+	// a watch and expire elements as the events roll in.
+	if m.Mirror {
+		return 0
+	}
+
 	removed := 0
 	now := m.Clock().Now().UTC()
 	for {
@@ -432,6 +438,16 @@ func (m *Memory) removeExpired() int {
 		m.tree.Delete(item)
 		m.Debugf("Removed expired %v %v item.", string(item.Key), item.Expires)
 		removed++
+
+		event := backend.Event{
+			Type: backend.OpDelete,
+			Item: backend.Item{
+				Key: item.Key,
+			},
+		}
+		if !m.EventsOff {
+			m.buf.Push(event)
+		}
 	}
 	if removed > 0 {
 		m.Debugf("Removed %v expired items.", removed)

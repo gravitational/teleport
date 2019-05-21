@@ -382,10 +382,12 @@ func (s *BackendSuite) Events(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Create a new watcher for the test prefix.
 	watcher, err := s.B.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
 	c.Assert(err, check.IsNil)
 	defer watcher.Close()
 
+	// Make sure INIT event is emitted.
 	select {
 	case e := <-watcher.Events():
 		c.Assert(string(e.Type), check.Equals, string(backend.OpInit))
@@ -395,13 +397,16 @@ func (s *BackendSuite) Events(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
+	// Add item to backend.
 	item := &backend.Item{Key: prefix("b"), Value: []byte("val")}
 	_, err = s.B.Put(ctx, *item)
 	c.Assert(err, check.IsNil)
 
+	// Make sure item was added into backend.
 	item, err = s.B.Get(ctx, item.Key)
 	c.Assert(err, check.IsNil)
 
+	// Make sure a PUT event is emitted.
 	select {
 	case e := <-watcher.Events():
 		c.Assert(e.Type, check.Equals, backend.OpPut)
@@ -413,9 +418,58 @@ func (s *BackendSuite) Events(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
+	// Delete item from backend.
 	err = s.B.Delete(ctx, item.Key)
 	c.Assert(err, check.IsNil)
 
+	// Make sure item is no longer in backend.
+	_, err = s.B.Get(ctx, item.Key)
+	c.Assert(err, check.NotNil)
+
+	// Make sure a DELETE event is emitted.
+	select {
+	case e := <-watcher.Events():
+		c.Assert(e.Type, check.Equals, backend.OpDelete)
+		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
+	case <-watcher.Done():
+		c.Fatalf("Watcher has unexpectedly closed.")
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	// Add item to backend with a 1 second TTL.
+	item = &backend.Item{
+		Key:     prefix("c"),
+		Value:   []byte("val"),
+		Expires: time.Now().Add(1 * time.Second),
+	}
+	_, err = s.B.Put(ctx, *item)
+	c.Assert(err, check.IsNil)
+
+	// Make sure item was added into backend.
+	item, err = s.B.Get(ctx, item.Key)
+	c.Assert(err, check.IsNil)
+
+	// Make sure a PUT event is emitted.
+	select {
+	case e := <-watcher.Events():
+		c.Assert(e.Type, check.Equals, backend.OpPut)
+		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
+		c.Assert(string(e.Item.Value), check.Equals, string(item.Value))
+	case <-watcher.Done():
+		c.Fatalf("Watcher has unexpectedly closed.")
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	// Wait a few second for the item to expire.
+	time.Sleep(3 * time.Second)
+
+	// Make sure item has been removed.
+	_, err = s.B.Get(ctx, item.Key)
+	c.Assert(err, check.NotNil)
+
+	// Make sure a DELETE event is emitted.
 	select {
 	case e := <-watcher.Events():
 		c.Assert(e.Type, check.Equals, backend.OpDelete)
@@ -583,6 +637,88 @@ func (s *BackendSuite) ConcurrentOperations(c *check.C) {
 			c.Fatalf("timeout waiting for goroutines to finish")
 		}
 	}
+}
+
+// Mirror tests mirror mode for backends (used in caches). Only some backends
+// support mirror mode (like memory).
+func (s *BackendSuite) Mirror(c *check.C, b backend.Backend) {
+	prefix := MakePrefix()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create a new watcher for the test prefix.
+	watcher, err := b.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	c.Assert(err, check.IsNil)
+	defer watcher.Close()
+
+	// Make sure INIT event is emitted.
+	select {
+	case e := <-watcher.Events():
+		c.Assert(string(e.Type), check.Equals, string(backend.OpInit))
+	case <-watcher.Done():
+		c.Fatalf("Watcher has unexpectedly closed.")
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	// Add item to backend with a 1 second TTL.
+	item := &backend.Item{
+		Key:     prefix("a"),
+		Value:   []byte("val"),
+		Expires: time.Now().Add(1 * time.Second),
+	}
+	_, err = b.Put(ctx, *item)
+	c.Assert(err, check.IsNil)
+
+	// Make sure item was added into backend.
+	item, err = b.Get(ctx, item.Key)
+	c.Assert(err, check.IsNil)
+
+	// Save the original ID, later in this test after an update, the ID should
+	// not have changed in mirror mode.
+	originalID := item.ID
+
+	// Make sure a PUT event is emitted.
+	select {
+	case e := <-watcher.Events():
+		c.Assert(e.Type, check.Equals, backend.OpPut)
+		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
+		c.Assert(string(e.Item.Value), check.Equals, string(item.Value))
+	case <-watcher.Done():
+		c.Fatalf("Watcher has unexpectedly closed.")
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	// Wait 1 second for the item to expire.
+	time.Sleep(time.Second)
+
+	// Make sure item has not been removed.
+	nitem, err := b.Get(ctx, item.Key)
+	c.Assert(err, check.IsNil)
+	c.Assert(string(item.Key), check.Equals, string(nitem.Key))
+	c.Assert(string(item.Value), check.Equals, string(nitem.Value))
+
+	// Make sure a DELETE event was not emitted.
+	select {
+	case e := <-watcher.Events():
+		c.Fatalf("Received event: %v.", e)
+	case <-watcher.Done():
+		c.Fatalf("Watcher has unexpectedly closed.")
+	case <-time.After(2 * time.Second):
+	}
+
+	// Update the existing item.
+	_, err = b.Put(ctx, backend.Item{
+		Key:   prefix("a"),
+		Value: []byte("val2"),
+	})
+	c.Assert(err, check.IsNil)
+
+	// Get update item and make sure that the ID has not changed.
+	item, err = b.Get(ctx, prefix("a"))
+	c.Assert(err, check.IsNil)
+	c.Assert(item.ID, check.Equals, originalID)
 }
 
 // MakePrefix returns function that appends unique prefix

@@ -65,7 +65,8 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 	b, err := newBackend()
 	if err != nil {
 		if strings.Contains(err.Error(), "connection refused") {
-			fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
+			fmt.Printf("WARNING: etcd cluster is not available: %v.\n", err)
+			fmt.Printf("WARNING: Start examples/etcd/start-etcd.sh.\n")
 			s.skip = true
 			c.Skip(err.Error())
 		}

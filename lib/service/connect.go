@@ -350,22 +350,6 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			return nil, trace.Wrap(err)
 		}
 
-		// Create credentials client that can be passed to the auth.Register. This
-		// client is only used with registering through the proxy. It has to be
-		// created here because lib/client can not be imported in the lib/auth due
-		// to circular imports.
-		var credsClient *client.CredentialsClient
-		if len(process.Config.AuthServers) > 0 {
-			credsClient, err = client.NewCredentialsClient(
-				process.Config.AuthServers[0].String(),
-				lib.IsInsecureDevMode(),
-				nil,
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
 		identity, err = auth.Register(auth.RegisterParams{
 			DataDir:              process.Config.DataDir,
 			Token:                process.Config.Token,
@@ -379,7 +363,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			CipherSuites:         process.Config.CipherSuites,
 			CAPin:                process.Config.CAPin,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
-			CredsClient:          credsClient,
+			GetHostCredentials:   client.HostCredentials,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -808,15 +792,10 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		clt, err := client.NewCredentialsClient(
+		resp, err := client.Find(process.ExitContext(),
 			addr.String(),
 			lib.IsInsecureDevMode(),
 			nil)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		resp, err := clt.Find(process.ExitContext())
 		if err == nil {
 			return tunnelAddr(resp.Proxy)
 		}

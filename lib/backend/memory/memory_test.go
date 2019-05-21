@@ -108,3 +108,11 @@ func (s *MemorySuite) TestConcurrentOperations(c *check.C) {
 	s.suite.B2 = bk
 	s.suite.ConcurrentOperations(c)
 }
+
+func (s *MemorySuite) TestMirror(c *check.C) {
+	mem, err := New(Config{
+		Mirror: true,
+	})
+	c.Assert(err, check.IsNil)
+	s.suite.Mirror(c, mem)
+}
