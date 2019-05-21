@@ -122,10 +122,10 @@ const (
 	// KindConnectors is a shortcut for all authentication connector types.
 	KindConnectors = "connectors"
 
-	// KindAuthPreference is the type of authentication for this cluster.
+	// KindClusterAuthPreference is the type of authentication for this cluster.
 	KindClusterAuthPreference = "cluster_auth_preference"
 
-	// KindAuthPreference is the type of authentication for this cluster.
+	// MetaNameClusterAuthPreference is the type of authentication for this cluster.
 	MetaNameClusterAuthPreference = "cluster-auth-preference"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
@@ -152,7 +152,7 @@ const (
 	// KindAuthConnector allows access to OIDC and SAML connectors.
 	KindAuthConnector = "auth_connector"
 
-	// KindTunnelConection specifies connection of a reverse tunnel to proxy
+	// KindTunnelConnection specifies connection of a reverse tunnel to proxy
 	KindTunnelConnection = "tunnel_connection"
 
 	// KindRemoteCluster represents remote cluster connected via reverse tunnel
@@ -162,7 +162,7 @@ const (
 	// KindInviteToken is a local user invite token
 	KindInviteToken = "invite_token"
 
-	// KindIdenity is local on disk identity resource
+	// KindIdentity is local on disk identity resource
 	KindIdentity = "identity"
 
 	// KindState is local on disk process state
@@ -203,6 +203,7 @@ const (
 	VerbRotate = "rotate"
 )
 
+// CollectOptions collects all options from functional arg and returns config
 func CollectOptions(opts []MarshalOption) (*MarshalConfig, error) {
 	var cfg MarshalConfig
 	for _, o := range opts {
@@ -223,7 +224,7 @@ func collectOptions(opts []MarshalOption) (*MarshalConfig, error) {
 	return &cfg, nil
 }
 
-// MarshalConfig specify marshalling options
+// MarshalConfig specifies marshalling options
 type MarshalConfig struct {
 	// Version specifies particular version we should marshal resources with
 	Version string
@@ -455,7 +456,7 @@ type Resource interface {
 	SetResourceID(int64)
 }
 
-// GetResourceID returns resource ID
+// GetID returns resource ID
 func (m *Metadata) GetID() int64 {
 	return m.ID
 }
@@ -485,7 +486,7 @@ func (m *Metadata) SetExpiry(expires time.Time) {
 	m.Expires = &expires
 }
 
-// Expires returns object expiry setting.
+// Expiry returns object expiry setting.
 func (m *Metadata) Expiry() time.Time {
 	if m.Expires == nil {
 		return time.Time{}
@@ -553,7 +554,7 @@ func ParseShortcut(in string) (string, error) {
 	case "remote_cluster", "remote_clusters", "rc", "rcs":
 		return KindRemoteCluster, nil
 	}
-	return "", trace.BadParameter("unsupported resource: %v", in)
+	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'kind/name', for example 'role/admin'", in)
 }
 
 // ParseRef parses resource reference eg daemonsets/ds1
@@ -594,10 +595,12 @@ type Ref struct {
 	Name string
 }
 
-func (r *Ref) IsEmtpy() bool {
+// IsEmpty checks whether the provided resource name is empty
+func (r *Ref) IsEmpty() bool {
 	return r.Name == ""
 }
 
+// Set sets the name of the resource
 func (r *Ref) Set(v string) error {
 	out, err := ParseRef(v)
 	if err != nil {
