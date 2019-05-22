@@ -299,9 +299,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 	// Assume that failed handshake is a result of expired credentials,
 	// retry the login procedure
-	if !utils.IsHandshakeFailedError(err) && !utils.IsCertExpiredError(err) && !trace.IsBadParameter(err) && trace.IsTrustError(err) {
+	if !utils.IsHandshakeFailedError(err) && !utils.IsCertExpiredError(err) && !trace.IsBadParameter(err) && !trace.IsTrustError(err) {
 		return err
 	}
+	log.Debugf("Activating relogin on %v.", err)
 	key, err := tc.Login(ctx, true)
 	if err != nil {
 		if trace.IsTrustError(err) {
