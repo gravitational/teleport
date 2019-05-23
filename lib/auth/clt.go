@@ -398,12 +398,12 @@ func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, 
 	return sess, nil
 }
 
-// DeleteSession deletes a session by ID
-func (c *Client) DeleteSession(namespace, id string) error {
+// DeleteSession removes an active session from the backend.
+func (c *Client) DeleteSession(namespace string, id session.ID) error {
 	if namespace == "" {
 		return trace.BadParameter(MissingNamespaceError)
 	}
-	_, err := c.Delete(c.Endpoint("namespaces", namespace, "sessions", id))
+	_, err := c.Delete(c.Endpoint("namespaces", namespace, "sessions", string(id)))
 	return trace.Wrap(err)
 }
 

@@ -266,14 +266,14 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 			s.log.Errorf("Unable to close session %v: %v", sess.id, err)
 		}
 
-		// mark it as inactive in the DB
+		// Remove the session from the backend.
 		if s.srv.GetSessionServer() != nil {
-			False := false
-			s.srv.GetSessionServer().UpdateSession(rsession.UpdateRequest{
-				ID:        sess.id,
-				Active:    &False,
-				Namespace: s.srv.GetNamespace(),
-			})
+			err := s.srv.GetSessionServer().DeleteSession(s.srv.GetNamespace(), sess.id)
+			if err != nil {
+				s.log.Errorf("Failed to remove active session: %v: %v. "+
+					"Access to backend may be degraded, check connectivity to backend.",
+					sess.id, err)
+			}
 		}
 	}
 	go lingerAndDie()
@@ -796,11 +796,9 @@ func (s *session) heartbeat(ctx *ServerContext) {
 		case <-tickerCh.C:
 			partyList := s.exportPartyMembers()
 
-			var active = true
 			err := sessionServer.UpdateSession(rsession.UpdateRequest{
 				Namespace: s.getNamespace(),
 				ID:        s.id,
-				Active:    &active,
 				Parties:   &partyList,
 			})
 			if err != nil {
