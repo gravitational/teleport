@@ -151,6 +151,14 @@ func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
 	return a.sessions.UpdateSession(req)
 }
 
+// DeleteSession removes an active session from the backend.
+func (a *AuthWithRoles) DeleteSession(namespace string, id session.ID) error {
+	if err := a.action(namespace, services.KindSSHSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.sessions.DeleteSession(namespace, id)
+}
+
 func (a *AuthWithRoles) CreateCertAuthority(ca services.CertAuthority) error {
 	return trace.BadParameter("not implemented")
 }
