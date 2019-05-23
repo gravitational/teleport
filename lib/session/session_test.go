@@ -85,10 +85,10 @@ func (s *SessionSuite) TestSessionsCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
+	// Create session.
 	sess := Session{
 		ID:             NewID(),
 		Namespace:      defaults.Namespace,
-		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "bob",
 		LastActive:     s.clock.Now().UTC(),
@@ -96,24 +96,13 @@ func (s *SessionSuite) TestSessionsCRUD(c *C) {
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
+	// Make sure only one session exists.
 	out, err = s.srv.GetSessions(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []Session{sess})
 
+	// Make sure the session is the one created above.
 	s2, err := s.srv.GetSession(defaults.Namespace, sess.ID)
-	c.Assert(err, IsNil)
-	c.Assert(s2, DeepEquals, &sess)
-
-	// Mark session inactive
-	err = s.srv.UpdateSession(UpdateRequest{
-		ID:        sess.ID,
-		Namespace: defaults.Namespace,
-		Active:    Bool(false),
-	})
-	c.Assert(err, IsNil)
-
-	sess.Active = false
-	s2, err = s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s2, DeepEquals, &sess)
 
@@ -125,10 +114,19 @@ func (s *SessionSuite) TestSessionsCRUD(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// Verify update was applied.
 	sess.TerminalParams = TerminalParams{W: 101, H: 101}
 	s2, err = s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s2, DeepEquals, &sess)
+
+	// Remove the session.
+	err = s.srv.DeleteSession(defaults.Namespace, sess.ID)
+	c.Assert(err, IsNil)
+
+	// Make sure session no longer exists.
+	_, err = s.srv.GetSession(defaults.Namespace, sess.ID)
+	c.Assert(err, NotNil)
 }
 
 // TestSessionsInactivity makes sure that session will be marked
@@ -137,7 +135,6 @@ func (s *SessionSuite) TestSessionsInactivity(c *C) {
 	sess := Session{
 		ID:             NewID(),
 		Namespace:      defaults.Namespace,
-		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "bob",
 		LastActive:     s.clock.Now().UTC(),
@@ -160,7 +157,6 @@ func (s *SessionSuite) TestPartiesCRUD(c *C) {
 	sess := Session{
 		ID:             NewID(),
 		Namespace:      defaults.Namespace,
-		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "vincent",
 		LastActive:     s.clock.Now().UTC(),

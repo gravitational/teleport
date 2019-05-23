@@ -146,6 +146,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	// active sesssions
 	srv.POST("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
 	srv.PUT("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
+	srv.DELETE("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.deleteSession))
 	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
 	srv.POST("/:version/namespaces/:namespace/sessions/:id/slice", srv.withAuth(srv.postSessionSlice))
@@ -1065,6 +1066,14 @@ func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.R
 	}
 	req.Update.Namespace = namespace
 	if err := auth.UpdateSession(req.Update); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+func (s *APIServer) deleteSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	err := auth.DeleteSession(p.ByName("namespace"), session.ID(p.ByName("id")))
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil

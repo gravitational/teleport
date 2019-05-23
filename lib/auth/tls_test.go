@@ -862,7 +862,6 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 
 	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 	sess := session.Session{
-		Active:         true,
 		ID:             session.NewID(),
 		TerminalParams: session.TerminalParams{W: 100, H: 100},
 		Created:        date,
