@@ -158,9 +158,11 @@ func (e *Enforcer) report(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	now := e.Clock().Now().UTC()
+
 	body := Body{
-		EndTime:   e.Clock().Now().UTC(),
-		StartTime: e.Clock().Now().UTC().Add(-duration),
+		EndTime:   now,
+		StartTime: now.Add(-duration),
 	}
 
 	out, err := e.WebClient.PostJSON(ctx, e.Endpoint("heartbeat"), body)

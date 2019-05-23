@@ -32,11 +32,11 @@ type IntSuite struct {
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.clock = clockwork.NewFakeClock()
-	s.houstonHost = os.Getenv(constants.ApiHostEnvVar)
+	s.houstonHost = os.Getenv(constants.APIHostEnvVar)
 }
 
 func (s *IntSuite) TearDownSuite(c *check.C) {
-	os.Setenv(constants.ApiHostEnvVar, s.houstonHost)
+	os.Setenv(constants.APIHostEnvVar, s.houstonHost)
 	s.cancel()
 }
 
@@ -83,7 +83,7 @@ func (s *IntSuite) advance() {
 // can successfully contact Houston.
 func (s *IntSuite) TestReporting(c *check.C) {
 	// Make sure we're using the correct Houston endpoint
-	os.Setenv(constants.ApiHostEnvVar, "localhost:10000")
+	os.Setenv(constants.APIHostEnvVar, "localhost:10000")
 
 	s.init(c)
 	s.advance()
@@ -96,8 +96,8 @@ func (s *IntSuite) TestReporting(c *check.C) {
 // TestFailedReporting checks that the usage duration is being retained if
 // Teleport can't reach Houston.
 func (s *IntSuite) TestFailedReporting(c *check.C) {
-	// Set the api host so something where Houston isn't running on
-	os.Setenv(constants.ApiHostEnvVar, "test.localhost:5000")
+	// Set the api host to something where Houston isn't running on
+	os.Setenv(constants.APIHostEnvVar, "test.localhost:5000")
 
 	s.init(c)
 	s.advance()

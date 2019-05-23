@@ -24,5 +24,5 @@ tmp
 *.test
 
 # Empty target files for Makefile
-start_houston
-build_houston
+start-houston
+build-houston

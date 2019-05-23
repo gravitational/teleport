@@ -114,15 +114,15 @@ test:
 	go vet ./lib/...
 
 .PHONY: integration
-integration: start_houston
+integration: start-houston
 	go test -v ./integration/... -check.v
-	$(MAKE) stop_houston
+	$(MAKE) stop-houston
 
-build_houston:
+build-houston:
 	sudo $(MAKE) -C $(HOUSTON_DIR) image
-	@touch build_houston
+	@touch build-houston
 
-start_houston: build_houston
+start-houston: build-houston
 	@docker run -d --rm=true \
 		-e HOUSTON_API_HOST="localhost" \
 		-e HOUSTON_WEB_HOST="web.localhost" \
@@ -146,12 +146,12 @@ start_houston: build_houston
 		-e HOUSTON_SALESFORCE_PASSWORD="$(HOUSTON_SALESFORCE_PASSWORD)" \
 		-p 10000:10000 \
 	       	houston:0.0.1 /opt/houston/houston
-	@touch start_houston
+	@touch start-houston
 
-.PHONY: stop_houston
-stop_houston:
+.PHONY: stop-houston
+stop-houston:
 	docker stop $$(docker ps -q --filter ancestor=houston:0.0.1)
-	@rm start_houston
+	@rm start-houston
 
 .PHONY: image
 image:
