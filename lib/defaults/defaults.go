@@ -332,7 +332,7 @@ var (
 // services (SSH, auth, proxy)
 const (
 	// Number of max. simultaneous connections to a service
-	LimiterMaxConnections = 1000
+	LimiterMaxConnections = 15000
 
 	// Number of max. simultaneous connected users/logins
 	LimiterMaxConcurrentUsers = 250
