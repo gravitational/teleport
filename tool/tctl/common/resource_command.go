@@ -90,7 +90,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	<resource name>  Resource name to delete
 
 	Examples:
-	$ tctl rm role/admin
+	$ tctl rm connector/github
 	$ tctl rm cluster/main`).SetValue(&rc.ref)
 
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
