@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/trace"
@@ -78,6 +77,10 @@ type remoteSite struct {
 	// state has been changed, the tunnel will reconnect to re-create the client
 	// with new settings.
 	remoteCA services.CertAuthority
+
+	// offlineThreshold is how long to wait for a keep alive message before
+	// marking a reverse tunnel connection as invalid.
+	offlineThreshold time.Duration
 }
 
 func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
@@ -227,12 +230,13 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	defer s.Unlock()
 
 	rconn := newRemoteConn(&connConfig{
-		conn:        conn,
-		sconn:       sconn,
-		accessPoint: s.localAccessPoint,
-		tunnelType:  string(services.ProxyTunnel),
-		proxyName:   s.connInfo.GetProxyName(),
-		clusterName: s.domainName,
+		conn:             conn,
+		sconn:            sconn,
+		accessPoint:      s.localAccessPoint,
+		tunnelType:       string(services.ProxyTunnel),
+		proxyName:        s.connInfo.GetProxyName(),
+		clusterName:      s.domainName,
+		offlineThreshold: s.offlineThreshold,
 	})
 
 	s.connections = append(s.connections, rconn)
@@ -245,7 +249,7 @@ func (s *remoteSite) GetStatus() string {
 	if err != nil {
 		return teleport.RemoteClusterStatusOffline
 	}
-	return services.TunnelConnectionStatus(s.clock, connInfo)
+	return services.TunnelConnectionStatus(s.clock, connInfo, s.offlineThreshold)
 }
 
 func (s *remoteSite) copyConnInfo() services.TunnelConnection {
@@ -272,7 +276,7 @@ func (s *remoteSite) getLastConnInfo() (services.TunnelConnection, error) {
 func (s *remoteSite) registerHeartbeat(t time.Time) {
 	connInfo := s.copyConnInfo()
 	connInfo.SetLastHeartbeat(t)
-	connInfo.SetExpiry(s.clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
+	connInfo.SetExpiry(s.clock.Now().Add(s.offlineThreshold))
 	s.setLastConnInfo(connInfo)
 	err := s.localAccessPoint.UpsertTunnelConnection(connInfo)
 	if err != nil {
@@ -307,6 +311,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		s.Infof("Cluster connection closed.")
 		conn.Close()
 	}()
+
 	firstHeartbeat := true
 	for {
 		select {
@@ -358,9 +363,9 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			tm := time.Now().UTC()
 			conn.setLastHeartbeat(tm)
 			go s.registerHeartbeat(tm)
-		// since we block on select, time.After is re-created everytime we process a request.
-		case <-time.After(defaults.ReverseTunnelOfflineThreshold):
-			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", defaults.ReverseTunnelOfflineThreshold))
+		// Note that time.After is re-created everytime a request is processed.
+		case <-time.After(s.offlineThreshold):
+			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 		}
 	}
 }

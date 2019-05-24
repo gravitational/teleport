@@ -66,7 +66,8 @@ import (
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
 // work faster but consuming more CPU (useful for integration testing)
 func SetTestTimeouts(t time.Duration) {
-	defaults.ReverseTunnelAgentHeartbeatPeriod = t
+	defaults.KeepAliveInterval = t
+	defaults.ResyncInterval = t
 	defaults.ServerKeepAliveTTL = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t

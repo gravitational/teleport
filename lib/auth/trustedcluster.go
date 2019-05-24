@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
@@ -339,6 +340,13 @@ func (a *AuthServer) GetRemoteCluster(clusterName string) (services.RemoteCluste
 }
 
 func (a *AuthServer) updateRemoteClusterStatus(remoteCluster services.RemoteCluster) error {
+	clusterConfig, err := a.GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	keepAliveCountMax := clusterConfig.GetKeepAliveCountMax()
+	keepAliveInterval := clusterConfig.GetKeepAliveInterval()
+
 	// fetch tunnel connections for the cluster to update runtime status
 	connections, err := a.GetTunnelConnections(remoteCluster.GetName())
 	if err != nil {
@@ -347,7 +355,9 @@ func (a *AuthServer) updateRemoteClusterStatus(remoteCluster services.RemoteClus
 	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	lastConn, err := services.LatestTunnelConnection(connections)
 	if err == nil {
-		remoteCluster.SetConnectionStatus(services.TunnelConnectionStatus(a.clock, lastConn))
+		offlineThreshold := time.Duration(keepAliveCountMax) * keepAliveInterval
+		tunnelStatus := services.TunnelConnectionStatus(a.clock, lastConn, offlineThreshold)
+		remoteCluster.SetConnectionStatus(tunnelStatus)
 		remoteCluster.SetLastHeartbeat(lastConn.GetLastHeartbeat())
 	}
 	return nil

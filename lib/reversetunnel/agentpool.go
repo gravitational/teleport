@@ -161,7 +161,7 @@ func (m *AgentPool) Wait() error {
 }
 
 func (m *AgentPool) processDiscoveryRequests() {
-	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
 
 	for {
@@ -298,7 +298,7 @@ func (m *AgentPool) closeAgents(matchKey *agentKey) {
 }
 
 func (m *AgentPool) pollAndSyncAgents() {
-	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
 	m.FetchAndSyncAgents()
 	for {

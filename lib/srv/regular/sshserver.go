@@ -624,6 +624,7 @@ func (s *Server) getServerInfo() (services.Server, error) {
 		}
 	}
 	server.SetTTL(s.clock, defaults.ServerAnnounceTTL)
+	server.SetPublicAddr(s.proxyPublicAddr.String())
 	return server, nil
 }
 

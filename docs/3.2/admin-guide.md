@@ -267,8 +267,7 @@ teleport:
       - aes192-ctr
       - aes256-ctr
       - aes128-gcm@openssh.com
-      - arcfour256
-      - arcfour128
+      - chacha20-poly1305@openssh.com
 
     # Key exchange algorithms that the server supports. This section only needs
     # to be set if you want to override the defaults.
@@ -277,31 +276,18 @@ teleport:
       - ecdh-sha2-nistp256
       - ecdh-sha2-nistp384
       - ecdh-sha2-nistp521
-      - diffie-hellman-group14-sha1
-      - diffie-hellman-group1-sha1
 
     # Message authentication code (MAC) algorithms that the server supports.
     # This section only needs to be set if you want to override the defaults.
     mac_algos:
       - hmac-sha2-256-etm@openssh.com
       - hmac-sha2-256
-      - hmac-sha1
-      - hmac-sha1-96
 
     # List of the supported ciphersuites. If this section is not specified,
     # only the default ciphersuites are enabled.
     ciphersuites:
-       - tls-rsa-with-aes-128-cbc-sha # default
-       - tls-rsa-with-aes-256-cbc-sha # default
-       - tls-rsa-with-aes-128-cbc-sha256
        - tls-rsa-with-aes-128-gcm-sha256
        - tls-rsa-with-aes-256-gcm-sha384
-       - tls-ecdhe-ecdsa-with-aes-128-cbc-sha
-       - tls-ecdhe-ecdsa-with-aes-256-cbc-sha
-       - tls-ecdhe-rsa-with-aes-128-cbc-sha
-       - tls-ecdhe-rsa-with-aes-256-cbc-sha
-       - tls-ecdhe-ecdsa-with-aes-128-cbc-sha256
-       - tls-ecdhe-rsa-with-aes-128-cbc-sha256
        - tls-ecdhe-rsa-with-aes-128-gcm-sha256
        - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
        - tls-ecdhe-rsa-with-aes-256-gcm-sha384
@@ -745,7 +731,7 @@ Static tokens are defined ahead of time by an administrator and stored
 in the auth server's config file:
 
 ```yaml
-# Config section in `/etc/teleport/teleport.yaml` file for the auth server
+# Config section in `/etc/teleport.yaml` file for the auth server
 auth_service:
     enabled: true
     tokens:
