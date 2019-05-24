@@ -26,12 +26,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/peer"
 )
 
 // GRPCServer is GPRC Auth Server API
@@ -115,6 +117,16 @@ func (g *GRPCServer) UpsertNode(ctx context.Context, server *services.ServerV2) 
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
+
+	// Extract peer (remote host) from context and if the server sent 0.0.0.0 as
+	// its address (meaning it did not set an advertise address) update it with
+	// the address of the peer.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unable to find peer"))
+	}
+	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), p.Addr.String()))
+
 	keepAlive, err := auth.UpsertNode(server)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
