@@ -25,7 +25,7 @@ source /etc/teleport.d/conf
 echo ${LOCAL_HOSTNAME} > /var/lib/teleport/host_uuid
 chown -R teleport:adm /var/lib/teleport
 touch /etc/teleport.yaml
-chown 664 /etc/teleport.yaml
+chmod 664 /etc/teleport.yaml
 
 # Use letsencrypt by default unless we are explicitly using ACM here
 if [[ "${USE_ACM}" != "true" ]]; then
