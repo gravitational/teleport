@@ -63,6 +63,7 @@ There are two ways this can be done:
 ```yaml
 # snippet from /etc/teleport.yaml on the proxy service deployed outside k8s:
 proxy_service:
+  kubernetes:
     kubeconfig_file: /path/to/kubeconfig
 ```
 
@@ -111,8 +112,7 @@ There is also an example of this usage within the [example Teleport Helm chart](
 ## Kubernetes RBAC
 
 Once you perform the steps above, your Teleport instance should become a fully functional Kubernetes API
-proxy. The next step is to configure Teleport to assign the correct Kubernetes 
-groups to Teleport users.
+proxy. The next step is to configure Teleport to assign the correct Kubernetes groups to Teleport users.
 
 Mapping Kubernetes groups to Teleport users depends on how Teleport is
 configured. In this guide we'll look at two common configurations:
