@@ -1852,6 +1852,9 @@ If using Teleport Enterprise SSO with enterprise-grade identity providers (using
 `kubernetes_groups` are assigned to Teleport Roles as shown in the Teleport Enterprise [RBAC](ssh_rbac.md#roles)
 section.
 
+You may also find it useful to read our [Kubernetes guide](kubernetes_ssh.md) which contains some more specific examples
+and instructions. 
+
 ### Multiple Kubernetes Clusters
 
 You can take advantage of the [Trusted Clusters](#trusted-clusters) feature
