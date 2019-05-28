@@ -104,7 +104,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 		}
 		exists = (err == nil)
 		if cmd.base.IsForced() == false && exists {
-			return trace.AlreadyExists("connector '%s' already exists", connectorName)
+			return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
 		}
 
 		// If the connector being pushed to the backend does not have a signing key
@@ -136,7 +136,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 		}
 		exists = (err == nil)
 		if cmd.base.IsForced() == false && exists {
-			return trace.AlreadyExists("connector '%s' already exists", connectorName)
+			return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
 		}
 		err = client.UpsertOIDCConnector(conn)
 
