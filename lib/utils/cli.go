@@ -265,6 +265,7 @@ Try '{{.App.Name}} help [command]' to get help for a given command.
 {{end}}\
 
 {{ if .Context.SelectedCommand }}\
+Aliases:
 {{ range .Context.SelectedCommand.Aliases}}\
 {{ . }}
 {{end}}\
