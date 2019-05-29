@@ -1,3 +1,4 @@
+
 # FAQ
 
 ### Can I use Teleport in production today?
@@ -26,6 +27,20 @@ Admin Manual.
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
 behind-firewall clusters refer to [Trusted Clusters](admin-guide.md#trusted-clusters) 
 section of the Admin Manual.
+
+### What's Teleport scalability and hardware recommendations?
+
+We recommend setting up Teleport with a [High Availabity configuration](admin-guide.md#high-availability). Below is our recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please [get in touch](mailto:info@gravitational.com) and we can help architect the best solution for you. 
+
+Scenario | Max Recommended Count | Proxy | Auth server
+------------ | -------------|---------|-------
+Teleport nodes connected to auth server | 10,000 |2x  2-4 vCPUs/8GB RAM | 2x 4-8 vCPUs/16GB RAM
+Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |2x 4-8 vCPUs/16+GB RAM
+
+
+* Teleport 4.1 release will focus on increasing Teleport IoT supported count to 10,000
+
+
 
 ### Does Web UI support copy and paste?
 
