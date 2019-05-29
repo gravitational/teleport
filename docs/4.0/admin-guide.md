@@ -11,7 +11,8 @@ section on our web site and run:
 
 ```
 $ tar -xzf teleport-binary-release.tar.gz
-$ sudo make install
+$ cd teleport
+$ sudo ./install
 ```
 
 ### Installing from Source
@@ -159,7 +160,8 @@ Let's cover some of these flags in more detail:
 
 * `--insecure-no-tls` flag tells Teleport proxy to not generate default self-signed TLS
   certificates. This is useful when running Teleport on kubernetes (behind reverse
-  proxy) or behind things like AWS ELB, where SSL termination is provided externally.
+  proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination 
+  is provided externally.
   The possible values are `true` or  `false`. The default value is `false`.
 
 * `--roles` flag tells Teleport which services to start. It is a comma-separated
