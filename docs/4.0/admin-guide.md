@@ -11,8 +11,7 @@ section on our web site and run:
 
 ```
 $ tar -xzf teleport-binary-release.tar.gz
-$ cd teleport
-$ sudo ./install
+$ sudo make install
 ```
 
 ### Installing from Source
@@ -2119,12 +2118,13 @@ which makes it easy to tell if a specific version is recommended for production 
 When running multiple binaries of Teleport within a cluster (nodes, proxies,
 clients, etc), the following rules apply:
 
-* Patch versions are always compatible, for example any 2.4.1 compoment will
-  work with any 2.4.3 component.
+* Patch versions are always compatible, for example any 4.0.1 compoment will
+  work with any 4.0.3 component.
 * Other versions are always compatible with their **previous** release. This
-  means you must not attempt to upgrade from 2.3 straight to 2.5. You must
-  upgrade to 2.4 first.
+  means you must not attempt to upgrade from 3.3 straight to 3.5. You must
+  upgrade to 3.4 first.
 * Teleport clients (`tsh` for users and `tctl` for admins) may not be compatible if older than the auth or the proxy server. They will print an error if there is an incompatibility.
+* While 4.0 is a major release. 3.2 can be upgraded to 4.0 using the same upgrade sequence below. 
 
 ### Upgrade Sequence
 
