@@ -18,6 +18,10 @@ See `web/README.md` for more info.
 
 ## Running Locally
 
+First time users will need to install MkDocs https://www.mkdocs.org/#installation.
+
+`brew install parallel` 
+
 To run the latest version of the docs on [http://127.0.0.1:8000](http://127.0.0.1:8000/quickstart):
 
 ```bash
