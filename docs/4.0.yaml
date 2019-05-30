@@ -6,8 +6,8 @@ site_author: Gravitational Inc
 copyright: Gravitational Inc, 2016-19
 
 # output directory:
-site_dir: ../build/docs/3.2
-docs_dir: "3.2"
+site_dir: ../build/docs/4.0
+docs_dir: "4.0"
 
 theme: readthedocs
 theme_dir: theme
@@ -19,7 +19,7 @@ markdown_extensions:
 extra_css: []
 extra_javascript: []
 extra:    
-    version: 3.2
+    version: 4.0
 pages:
     - Documentation:
         - Introduction: intro.md
