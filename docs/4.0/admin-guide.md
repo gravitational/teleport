@@ -1588,9 +1588,9 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 value is `host:port`, Teleport will prepend `http`.
 
 It's important to note that in order for Teleport to use HTTP CONNECT tunnelling, the `HTTP_PROXY` and `HTTPS_PROXY`
-environment variables must be set within Teleport's environment. When launching Teleport with systemd, this will
-probably involve adding some lines to your systemd unit file. You can also optionally set the `NO_PROXY` environment
-variable to avoid use of the proxy when accessing specified hosts/netmasks:
+environment variables must be set within Teleport's environment. You can also optionally set the `NO_PROXY` environment
+variable to avoid use of the proxy when accessing specified hosts/netmasks. When launching Teleport with systemd, this
+will probably involve adding some lines to your systemd unit file:
 
 ```
 [Service]
