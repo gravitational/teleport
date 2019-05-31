@@ -1587,6 +1587,18 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 `scheme://host:port` where scheme is either `https` or `http`. If the
 value is `host:port`, Teleport will prepend `http`.
 
+It's important to note that in order for Teleport to use HTTP CONNECT tunnelling, the `HTTP_PROXY` and `HTTPS_PROXY`
+environment variables must be set within Teleport's environment. When launching Teleport with systemd, this will
+probably involve adding some lines to your systemd unit file. You can also optionally set the `NO_PROXY` environment
+variable to avoid use of the proxy when accessing specified hosts/netmasks:
+
+```
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:8080/"
+Environment="HTTPS_PROXY=http://proxy.example.com:8080/"
+Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
+```
+
 !!! tip "Note":
     `localhost` and `127.0.0.1` are invalid values for the proxy host. If for
     some reason your proxy runs locally, you'll need to provide some other DNS
