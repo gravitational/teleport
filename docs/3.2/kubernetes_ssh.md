@@ -46,19 +46,14 @@ Let's take a closer look at the available Kubernetes settings:
 * `listen_addr` defines which network interface and port the Teleport proxy server
   should bind to. It defaults to port 3026 on all NICs.
 
-## Impersonation
-
-The next step is to configure Teleport Proxy to be able to impersonate Kubernetes principals within a given group 
-using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
+## Connecting the Teleport proxy to Kubernetes
 
 There are two ways this can be done:
 
-1. Deploy Teleport Proxy service as a Kubernetes pod inside the Kubernetes
-   cluster you want the proxy to have access to. No configuration changes are
-   required in this case.
-2. Deploy the Teleport proxy service outside of Kubernetes and update the
-   Teleport Proxy configuration with Kubernetes credentials. In this case, we
-   need to update `/etc/teleport.yaml` of the proxy service as shown below:
+1. Deploy Teleport Proxy service as a Kubernetes pod inside the Kubernetes cluster you want the proxy to have access to.
+   No Teleport configuration changes are required in this case.
+2. Deploy the Teleport proxy service outside of Kubernetes and update the Teleport Proxy configuration with Kubernetes
+   credentials. In this case, we need to update `/etc/teleport.yaml` for the proxy service as shown below:
 
 ```yaml
 # snippet from /etc/teleport.yaml on the proxy service deployed outside k8s:
@@ -67,16 +62,21 @@ proxy_service:
     kubeconfig_file: /path/to/kubeconfig
 ```
 
-To retrieve the Kubernetes credentials for the Teleport proxy service, you have
-to authenticate against your Kubernetes cluster directly then copy the file to
-`/path/to/kubeconfig` on the Teleport proxy server.
+To retrieve the Kubernetes credentials for the Teleport proxy service, you have to authenticate against your Kubernetes
+cluster directly then copy the file to `/path/to/kubeconfig` on the Teleport proxy server.
 
-Unfortunately for GKE users, GKE requires its own client-side extensions to
-authenticate, so we've created a [simple script](https://github.com/gravitational/teleport/blob/master/examples/gke-auth/get-kubeconfig.sh)
-you can run to generate `kubeconfig` for the Teleport proxy service.
+Unfortunately for GKE users, GKE requires its own client-side extensions to authenticate, so we've created a
+[simple script](https://github.com/gravitational/teleport/blob/master/examples/gke-auth/get-kubeconfig.sh) you can run
+to generate a `kubeconfig` file for the Teleport proxy service.
+
+## Impersonation
+
+The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group 
+using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation). 
 
 If Teleport is running inside the cluster using a Kubernetes `ServiceAccount`, here's an example of the permissions that
-the `ServiceAccount` will need to be able to use impersonation:
+the `ServiceAccount` will need to be able to use impersonation (change `teleport-serviceaccount` to the name of the
+`ServiceAccount` that's being used):
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -103,11 +103,16 @@ roleRef:
   name: teleport-impersonation
 subjects:
 - kind: ServiceAccount
+  # this should be changed to the name of the Kubernetes ServiceAccount being used
   name: teleport-serviceaccount
   namespace: default
 ```
 
-There is also an example of this usage within the [example Teleport Helm chart](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport).
+There is also an [example of this usage](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/templates/clusterrole.yaml)
+within the [example Teleport Helm chart](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/).
+
+If Teleport is running outside of the Kubernetes cluster, you will need to ensure that the principal used to connect to
+Kubernetes via the `kubeconfig` file has the same impersonation permissions as are described in the `ClusterRole` above.
 
 ## Kubernetes RBAC
 
