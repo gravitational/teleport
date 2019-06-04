@@ -107,7 +107,9 @@ type dialReq struct {
 
 	// Exclusive indicates if the connection should be closed or only the
 	// channel upon calling close on the net.Conn.
-	Exclusive bool
+	Exclusive bool `json:"exclusive"`
+
+	Legacy bool `json:"legacy"`
 }
 
 // parseDialReq parses the dial request. Is backward compatible with legacy
@@ -127,6 +129,15 @@ func parseDialReq(payload []byte) *dialReq {
 
 // marshalDialReq marshals the dial request to send over the wire.
 func marshalDialReq(req *dialReq) ([]byte, error) {
+	// DELETE IN: 4.1.0
+	//
+	// For backward compatibility, if the request is going to a legacy cluster
+	// (cluster running Teleport older than 4.0.0), don't use new JSON format,
+	// use raw string.
+	if req.Legacy {
+		return []byte(req.Address), nil
+	}
+
 	bytes, err := json.Marshal(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
