@@ -604,6 +604,22 @@ func (s *remoteSite) chanTransportConn(req *dialReq) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// DELETE IN: 4.1.0
+	//
+	// Ask remote cluster for the version it's running. If the server does not
+	// reply, mark request as legacy so it can be appropriately marshaled.
+	ok, payload, err := rconn.sconn.SendRequest("version", true, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !ok {
+		req.Legacy = true
+		s.Debugf("Connecting to legacy cluster (older than 4.0.0).")
+		fmt.Printf("--> Connecting to legacy cluster (older than 4.0.0).")
+	} else {
+		s.Debugf("Connecting to Teleport %v cluster.", string(payload))
+	}
+
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, req)
 	if err != nil {
 		if markInvalid {
