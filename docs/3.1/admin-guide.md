@@ -1324,7 +1324,7 @@ $ tsh ssh host
 
 # SSH into the host located in another cluster called "east"
 # The connection is established through main.example.com:
-$ tsh --cluster=east ssh host
+$ tsh ssh --cluster=east host
 
 # See what other clusters are available
 $ tsh clusters
@@ -1463,7 +1463,7 @@ main           online
 east           online
 
 # see the list of machines (nodes) behind the eastern cluster:
-$ tsh --cluster=east ls
+$ tsh ls --cluster=east
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
@@ -1471,7 +1471,7 @@ db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
 db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 
 # SSH into any node in "east":
-$ tsh --cluster=east ssh root@db1.east
+$ tsh ssh --cluster=east root@db1.east
 ```
 
 ### Disabling Trust
