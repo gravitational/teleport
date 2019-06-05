@@ -101,14 +101,16 @@ type dialReq struct {
 	// special non-resolvable address like @remote-auth-server.
 	Address string `json:"address,omitempty"`
 
-	// SearchNames is a list of aliases for the host. SearchNames is used when
+	// ServerID is the hostUUID.clusterName of th enode. ServerID is used when
 	// dialing through a tunnel.
-	SearchNames []string `json:"search_names,omitempty"`
+	ServerID string `json:"server_id,omitempty"`
 
 	// Exclusive indicates if the connection should be closed or only the
 	// channel upon calling close on the net.Conn.
 	Exclusive bool `json:"exclusive"`
 
+	// DELETE IN: 4.1.0
+	// Legacy indicates this request will be marshaled in the old format.
 	Legacy bool `json:"legacy"`
 }
 
@@ -173,7 +175,7 @@ func connectProxyTransport(sconn ssh.Conn, req *dialReq) (net.Conn, bool, error)
 		// passed to us via stderr.
 		errMessage, _ := ioutil.ReadAll(channel.Stderr())
 		if errMessage == nil {
-			errMessage = []byte(fmt.Sprintf("failed connecting to %v %v", req.Address, req.SearchNames))
+			errMessage = []byte(fmt.Sprintf("failed connecting to %v [%v]", req.Address, req.ServerID))
 		}
 		return nil, false, trace.Errorf(strings.TrimSpace(string(errMessage)))
 	}
@@ -213,7 +215,7 @@ func proxyTransport(p *transportParams) {
 	var servers []string
 
 	dreq := parseDialReq(req.Payload)
-	p.log.Debugf("Received out-of-band proxy transport request for %v %v.", dreq.Address, dreq.SearchNames)
+	p.log.Debugf("Received out-of-band proxy transport request for %v [%v].", dreq.Address, dreq.ServerID)
 
 	// Handle special non-resolvable addresses first.
 	switch dreq.Address {
@@ -273,7 +275,7 @@ func proxyTransport(p *transportParams) {
 	// Get a connection to the target address. If a tunnel exists with matching
 	// search names, connection over the tunnel is returned. Otherwise a direct
 	// net.Dial is performed.
-	conn, err := getConn(p, servers, dreq.SearchNames)
+	conn, err := getConn(p, servers, dreq.ServerID)
 	if err != nil {
 		errorMessage := fmt.Sprintf("connection rejected: %v", err)
 		fmt.Fprint(p.channel.Stderr(), errorMessage)
@@ -283,7 +285,7 @@ func proxyTransport(p *transportParams) {
 
 	// Dail was successful.
 	req.Reply(true, []byte("Connected."))
-	p.log.Debugf("Successfully dialed to %v %v, start proxying.", dreq.Address, dreq.SearchNames)
+	p.log.Debugf("Successfully dialed to %v %v, start proxying.", dreq.Address, dreq.ServerID)
 
 	errorCh := make(chan error, 2)
 
@@ -317,11 +319,11 @@ func proxyTransport(p *transportParams) {
 // getConn checks if the local site holds a connection to the target host,
 // and if it does, attempts to dial through the tunnel. Otherwise directly
 // dials to host.
-func getConn(p *transportParams, servers []string, searchNames []string) (net.Conn, error) {
+func getConn(p *transportParams, servers []string, serverID string) (net.Conn, error) {
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
-	p.log.Debugf("Attempting to dial through tunnel with search names %v.", searchNames)
-	conn, err := tunnelDial(p.reverseTunnelServer, p.localClusterName, searchNames)
+	p.log.Debugf("Attempting to dial through tunnel with server ID %v.", serverID)
+	conn, err := tunnelDial(p.reverseTunnelServer, p.localClusterName, serverID)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -337,13 +339,13 @@ func getConn(p *transportParams, servers []string, searchNames []string) (net.Co
 		return conn, nil
 	}
 
-	p.log.Debugf("Returning connection dialed through tunnel with search names %v.", searchNames)
+	p.log.Debugf("Returning connection dialed through tunnel with server ID %v.", serverID)
 	return conn, nil
 }
 
 // tunnelDial looks up the search names in the local site for a matching tunnel
 // connection. If a connection exists, it's used to dial through the tunnel.
-func tunnelDial(tunnelServer Server, localClusterName string, searchNames []string) (net.Conn, error) {
+func tunnelDial(tunnelServer Server, localClusterName string, serverID string) (net.Conn, error) {
 	// Extract the local site from the tunnel server. If no tunnel server
 	// exists, then exit right away this code may be running outside of a
 	// remote site.
@@ -360,7 +362,7 @@ func tunnelDial(tunnelServer Server, localClusterName string, searchNames []stri
 	}
 
 	conn, err := localCluster.dialTunnel(DialParams{
-		SearchNames: searchNames,
+		ServerID: serverID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
