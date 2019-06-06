@@ -1006,7 +1006,7 @@ This setup works as follows:
    "main" must authenticate "east" (cluster-to-cluster authentication) when the
    tunnel is established, and "east" must trust users connecting from "main"
    (user authentication).
-3. Users of "main" must use `tsh --cluster=east` flag if they want to connect to any nodes in "east".
+3. Users of "main" must use `tsh` commands with the `--cluster=east` flag if they want to connect to any nodes in "east".
 4. Users of "main" can see other trusted clusters connected to "main" by running `tsh clusters`
 
 ### Example Configuration
@@ -1098,7 +1098,7 @@ main           online
 east           online
 
 # see the list of machines (nodes) behind the eastern cluster:
-$ tsh --cluster=east ls
+$ tsh ls --cluster=east
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
@@ -1106,7 +1106,7 @@ db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
 db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 
 # SSH into any node in "east":
-$ tsh --cluster=east ssh root@db1.east
+$ tsh ssh --cluster=east root@db1.east
 ```
 
 ## Github OAuth 2.0
