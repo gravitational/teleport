@@ -15,6 +15,12 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 * Enable/disable trust between clusters.
 * Establish permissions mapping between clusters using Teleport roles.
 
+!!! tip "Teleport Node Tunneling":
+    If you have a large amount of devices on different networks, such as 
+    managed IoT devices or a couples of nodes on a different network you can utilize 
+    the [Teleport Node Tunneling](quickstart/#adding-a-node-located-behind-nat-teleport-node-tunneling).
+
+
 ## Introduction
 
 As explained in the [architecture document](architecture/#core-concepts),
