@@ -834,9 +834,16 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 	}
 
-	// apply command line --debug flag to override logger severity
-	if fileConf != nil && clf.Debug {
-		fileConf.Logger.Severity = teleport.DebugLevel
+	// Apply command line --debug flag to override logger severity.
+	if clf.Debug {
+		// If debug logging is requested and no file configuration exists, set the
+		// log level right away. Otherwise allow the command line flag to override
+		// logger severity in file configuration.
+		if fileConf == nil {
+			log.SetLevel(log.DebugLevel)
+		} else {
+			fileConf.Logger.Severity = teleport.DebugLevel
+		}
 	}
 
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {

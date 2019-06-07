@@ -429,7 +429,7 @@ Now you can use `--cluster` flag with any `tsh` command. For example, to list SS
 are members of "production" cluster, simply do:
 
 ```bash
-$ tsh --proxy=work --cluster=production ls
+$ tsh --proxy=work ls --cluster=production
 Node Name     Node ID       Address            Labels
 ---------     -------       -------            ------
 db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
@@ -439,7 +439,7 @@ db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
 Similarly, if you want to SSH into `db-1` inside "production" cluster:
 
 ```bash
-$ tsh --proxy=work --cluster=production ssh db-1
+$ tsh --proxy=work ssh --cluster=production db-1
 ```
 
 This is possible even if nodes of the "production" cluster are located behind a firewall
