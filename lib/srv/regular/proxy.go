@@ -284,23 +284,28 @@ func (t *proxySubsys) proxyToHost(
 		}
 	}
 
-	// Create a slice of name that will be added into the host certificate.
+	// Create a slice of principals that will be added into the host certificate.
 	// Here t.host is either an IP address or a DNS name as the user requested.
-	searchNames := []string{t.host}
+	principals := []string{t.host}
+
+	// Used to store the server ID (hostUUID.clusterName) of a Teleport node.
+	var serverID string
 
 	// Resolve the IP address to dial to because the hostname may not be
 	// DNS resolvable.
 	var serverAddr string
 	if server != nil {
-		serverAddr = server.GetAddr()
+		// Add hostUUID.clusterName to list of principals.
+		serverID = fmt.Sprintf("%v.%v", server.GetName(), t.clusterName)
+		principals = append(principals, serverID)
 
-		// Update the list of principals with the IP address the node self reported
-		// itself as as well as the hostUUID.clusterName.
+		// Add IP address node self reported to list of principals.
+		serverAddr = server.GetAddr()
 		host, _, err := net.SplitHostPort(serverAddr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		searchNames = append(searchNames, host, fmt.Sprintf("%v.%v", server.GetName(), t.clusterName))
+		principals = append(principals, host)
 	} else {
 		if !specifiedPort {
 			t.port = strconv.Itoa(defaults.SSHServerListenPort)
@@ -318,11 +323,12 @@ func (t *proxySubsys) proxyToHost(
 		Addr:        serverAddr,
 	}
 	conn, err := site.Dial(reversetunnel.DialParams{
-		From:        remoteAddr,
-		To:          toAddr,
-		UserAgent:   t.agent,
-		Address:     t.host,
-		SearchNames: searchNames,
+		From:       remoteAddr,
+		To:         toAddr,
+		UserAgent:  t.agent,
+		Address:    t.host,
+		ServerID:   serverID,
+		Principals: principals,
 	})
 	if err != nil {
 		return trace.Wrap(err)

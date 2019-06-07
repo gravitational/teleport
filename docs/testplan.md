@@ -165,7 +165,7 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh -p 22 node.exampl
 tsh --proxy=proxy.example.com --user=<username> --insecure ssh -A -p 22 node.example.com
 
 # the --cluster flag is used to connect to a node in a remote cluster.
-tsh --proxy=proxy.example.com --user=<username> --insecure --cluster=foo.com ssh -p 22 node.foo.com
+tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com -p 22 node.foo.com
 ```
 
 ## Web UI

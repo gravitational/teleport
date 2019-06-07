@@ -317,19 +317,71 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 
 func (a *Agent) connect() (conn *ssh.Client, err error) {
 	for _, authMethod := range a.authMethods {
-		// if http_proxy is set, dial through the proxy
+		// Create a dialer (that respects HTTP proxies) and connect to remote host.
 		dialer := proxy.DialerFromEnvironment(a.Addr.Addr)
-		conn, err = dialer.Dial(a.Addr.AddrNetwork, a.Addr.Addr, &ssh.ClientConfig{
+		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, defaults.DefaultDialTimeout)
+		if err != nil {
+			a.Debugf("Dial to %v failed: %v.", a.Addr.Addr, err)
+			continue
+		}
+
+		// Build a new client connection. This is done to get access to incoming
+		// global requests which dialer.Dial would not provide.
+		conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: a.hostKeyCallback,
 			Timeout:         defaults.DefaultDialTimeout,
 		})
-		if conn != nil {
-			break
+		if err != nil {
+			a.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
+			continue
+		}
+
+		// Create an empty channel and close it right away. This will prevent
+		// ssh.NewClient from attempting to process any incoming requests.
+		emptyCh := make(chan *ssh.Request)
+		close(emptyCh)
+
+		client := ssh.NewClient(conn, chans, emptyCh)
+
+		// Start a goroutine to process global requests from the server.
+		go a.handleGlobalRequests(a.ctx, reqs)
+
+		return client, nil
+	}
+	return nil, trace.BadParameter("failed to dial: all auth methods failed")
+}
+
+// handleGlobalRequests processes global requests from the server.
+func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
+	for {
+		select {
+		case r := <-requestCh:
+			// When the channel is closing, nil is returned.
+			if r == nil {
+				return
+			}
+
+			switch r.Type {
+			case versionRequest:
+				err := r.Reply(true, []byte(teleport.Version))
+				if err != nil {
+					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					continue
+				}
+			default:
+				// This handles keep-alive messages and matches the behaviour of OpenSSH.
+				err := r.Reply(false, nil)
+				if err != nil {
+					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					continue
+				}
+			}
+		case <-ctx.Done():
+			return
 		}
 	}
-	return conn, err
 }
 
 // run is the main agent loop. It tries to establish a connection to the

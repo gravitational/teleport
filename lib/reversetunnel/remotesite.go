@@ -513,8 +513,8 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 	s.Debugf("Dialing from %v to %v.", params.From, params.To)
 
 	conn, err := s.connThroughTunnel(&dialReq{
-		Address:     params.To.String(),
-		SearchNames: params.SearchNames,
+		Address:  params.To.String(),
+		ServerID: params.ServerID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -527,14 +527,14 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	s.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
 
 	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.SearchNames)
+	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	targetConn, err := s.connThroughTunnel(&dialReq{
-		Address:     params.To.String(),
-		SearchNames: params.SearchNames,
+		Address:  params.To.String(),
+		ServerID: params.ServerID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -577,8 +577,8 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 func (s *remoteSite) connThroughTunnel(req *dialReq) (net.Conn, error) {
 	var err error
 
-	s.Debugf("Requesting connection to %v %v in remote cluster %v.",
-		req.Address, req.SearchNames, s.domainName)
+	s.Debugf("Requesting connection to %v [%v] in remote cluster.",
+		req.Address, req.ServerID)
 
 	// Loop through existing remote connections and try and establish a
 	// connection over the "reverse tunnel".
@@ -602,6 +602,17 @@ func (s *remoteSite) chanTransportConn(req *dialReq) (net.Conn, error) {
 	rconn, err := s.nextConn()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// DELETE IN: 4.1.0
+	//
+	// Get the version of the remote cluster. If some error occurs (sever does
+	// not respond, times out) then be safe and send request in legacy format.
+	_, err = sendVersionRequest(rconn.sconn, s.ctx)
+	if err != nil {
+		s.Debugf("Connection to %v [%v] using legacy format.",
+			req.Address, req.ServerID)
+		req.Legacy = true
 	}
 
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, req)

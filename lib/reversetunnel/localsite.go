@@ -195,13 +195,19 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 
 // dialTunnel connects to the target host through a tunnel.
 func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
-	s.log.Debugf("Tunnel dialing to %v.", params.SearchNames)
-	rconn, ok := s.findMatchingConn(params.SearchNames)
-	if ok {
-		return s.chanTransportConn(rconn)
+	rconn, err := s.getConn(params.ServerID)
+	if err != nil {
+		return nil, trace.NotFound("no tunnel connection found: %v", err)
 	}
 
-	return nil, trace.NotFound("no tunnel found")
+	s.log.Debugf("Tunnel dialing to %v.", params.ServerID)
+
+	conn, err := s.chanTransportConn(rconn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
 }
 
 func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
@@ -215,7 +221,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	s.log.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
 
 	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.SearchNames)
+	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -254,18 +260,6 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 
 	return conn, nil
-}
-
-// findMatchingConn iterates over passed in search names looking for matching
-// remote connections.
-func (s *localSite) findMatchingConn(searchNames []string) (*remoteConn, bool) {
-	for _, name := range searchNames {
-		rconn, err := s.getConn(name)
-		if err == nil {
-			return rconn, true
-		}
-	}
-	return nil, false
 }
 
 func (s *localSite) addConn(nodeID string, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
@@ -376,7 +370,7 @@ func (s *localSite) getConn(addr string) (*remoteConn, error) {
 
 	rconn, ok := s.remoteConns[addr]
 	if !ok {
-		return nil, trace.BadParameter("no reverse tunnel for %v found", addr)
+		return nil, trace.NotFound("no reverse tunnel for %v found", addr)
 	}
 	if !rconn.isReady() {
 		return nil, trace.NotFound("%v is offline: no active tunnels found", addr)

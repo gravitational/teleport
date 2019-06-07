@@ -1203,7 +1203,7 @@ $ tsh ssh host
 
 # SSH into the host located in another cluster called "east"
 # The connection is established through main.example.com:
-$ tsh --cluster=east ssh host
+$ tsh ssh --cluster=east host
 
 # See what other clusters are available
 $ tsh clusters
@@ -1342,7 +1342,7 @@ main           online
 east           online
 
 # see the list of machines (nodes) behind the eastern cluster:
-$ tsh --cluster=east ls
+$ tsh ls --cluster=east
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
@@ -1350,7 +1350,7 @@ db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
 db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 
 # SSH into any node in "east":
-$ tsh --cluster=east ssh root@db1.east
+$ tsh ssh --cluster=east root@db1.east
 ```
 
 ### Disabling Trust
@@ -1478,6 +1478,18 @@ proxy.
 The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 `scheme://host:port` where scheme is either `https` or `http`. If the
 value is `host:port`, Teleport will prepend `http`.
+
+It's important to note that in order for Teleport to use HTTP CONNECT tunnelling, the `HTTP_PROXY` and `HTTPS_PROXY`
+environment variables must be set within Teleport's environment. You can also optionally set the `NO_PROXY` environment
+variable to avoid use of the proxy when accessing specified hosts/netmasks. When launching Teleport with systemd, this
+will probably involve adding some lines to your systemd unit file:
+
+```
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:8080/"
+Environment="HTTPS_PROXY=http://proxy.example.com:8080/"
+Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
+```
 
 !!! tip "Note":
     `localhost` and `127.0.0.1` are invalid values for the proxy host. If for
