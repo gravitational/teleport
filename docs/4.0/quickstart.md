@@ -163,17 +163,19 @@ new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022
 !!! tip "NOTE": 
     Teleport also supports static pre-defined invitation tokens which can be set in the [configuration file](admin-guide.md#adding-nodes-to-the-cluster)
 
-## Adding a node located behind NAT - Teleport Node Tunneling
-With the current setup you've only been able to add nodes that have direct acess to the authentication server
-and within the internal IP range of the cluster. We recommend setting up a [Trusted Cluster](../admin-guide/#trusted-clusters)
-if you have workloads split across different networks / clouds. 
+## Adding a node located behind NAT
+With the current setup you've only been able to add nodes that have direct acess to the 
+authentication server and within the internal IP range of the cluster. We recommend 
+setting up a [Trusted Cluster](../admin-guide/#trusted-clusters) if you have workloads split
+ across different networks / clouds. 
 
-Teleport Node Tunneling lets you add a node to an exsiting Teleport Cluster. This can be useful for IoT applications or 
-for managing a couple of servers in a different network.  
+Teleport Node Tunneling lets you add a node to an exsiting Teleport Cluster. This can be 
+useful for IoT applications or for managing a couple of servers in a different network.  
 
-Similar to [Adding Nodes to Cluster](/quickstart/#adding-nodes-to-cluster), use `tctl` to create a single-use token fro a node,
-but this time you'll replace the auth-server IP with the URL of the Proxy Server. In the Example below, we've replaced the Auth 
-IP to the Proxy server address `teleport.example.com`.  
+Similar to [Adding Nodes to Cluster](/quickstart/#adding-nodes-to-cluster), use `tctl` to
+create a single-use token fro a node, but this time you'll replace the auth-server IP with
+the URL of the Proxy Server. In the Example below, we've replaced the Auth IP to the Proxy
+server address `teleport.example.com`.  
 
 ```bash
 $ sudo tctl nodes add
