@@ -57,9 +57,9 @@ and run it under `$USER`, in this case you will not be able to login as someone 
 If you wish to deploy Teleport inside a Docker container:
 
 ```
-# This command will pull the Teleport container image for version 2.7.3
+# This command will pull the Teleport container image for version 3.2.6
 # Replace 2.7.3 with the version you need:
-$ docker pull quay.io/gravitational/teleport:2.7.3
+$ docker pull quay.io/gravitational/teleport:3.2.6
 ```
 
 ## Building Teleport
