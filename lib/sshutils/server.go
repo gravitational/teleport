@@ -475,8 +475,11 @@ type AuthMethods struct {
 }
 
 func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
-	if a.Addr == "" || a.AddrNetwork == "" {
-		return trace.BadParameter("addr: specify network and the address for listening socket")
+	// If the server is not in tunnel mode, an address must be specified.
+	if s.listener != nil {
+		if a.Addr == "" || a.AddrNetwork == "" {
+			return trace.BadParameter("addr: specify network and the address for listening socket")
+		}
 	}
 
 	if h == nil {

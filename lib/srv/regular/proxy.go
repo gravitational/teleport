@@ -270,12 +270,20 @@ func (t *proxySubsys) proxyToHost(
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server services.Server
 	for i := range servers {
+		// If the server has connected over a reverse tunnel, match only on hostname.
+		if servers[i].GetUseTunnel() {
+			if t.host == servers[i].GetHostname() {
+				server = servers[i]
+				break
+			}
+			continue
+		}
+
 		ip, port, err := net.SplitHostPort(servers[i].GetAddr())
 		if err != nil {
 			t.log.Error(err)
 			continue
 		}
-
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
 			if !specifiedPort || t.port == port {
 				server = servers[i]
@@ -299,13 +307,15 @@ func (t *proxySubsys) proxyToHost(
 		serverID = fmt.Sprintf("%v.%v", server.GetName(), t.clusterName)
 		principals = append(principals, serverID)
 
-		// Add IP address node self reported to list of principals.
+		// Add IP address (if it exists) of the node to list of principals.
 		serverAddr = server.GetAddr()
-		host, _, err := net.SplitHostPort(serverAddr)
-		if err != nil {
-			return trace.Wrap(err)
+		if serverAddr != "" {
+			host, _, err := net.SplitHostPort(serverAddr)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			principals = append(principals, host)
 		}
-		principals = append(principals, host)
 	} else {
 		if !specifiedPort {
 			t.port = strconv.Itoa(defaults.SSHServerListenPort)

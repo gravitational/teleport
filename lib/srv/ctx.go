@@ -107,6 +107,10 @@ type Server interface {
 
 	// GetInfo returns a services.Server that represents this server.
 	GetInfo() services.Server
+
+	// UseTunnel used to determine if this node has connected to this cluster
+	// using reverse tunnel.
+	UseTunnel() bool
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -483,9 +487,11 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 		events.SessionServerID: c.GetServer().ID(),
 		events.EventLogin:      c.Identity.Login,
 		events.EventUser:       c.Identity.TeleportUser,
-		events.LocalAddr:       c.Conn.LocalAddr().String(),
 		events.RemoteAddr:      c.Conn.RemoteAddr().String(),
 		events.EventIndex:      events.SessionDataIndex,
+	}
+	if !c.srv.UseTunnel() {
+		eventFields[events.LocalAddr] = c.Conn.LocalAddr().String()
 	}
 	if c.session != nil {
 		eventFields[events.SessionEventID] = c.session.id

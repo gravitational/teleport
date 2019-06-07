@@ -471,7 +471,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// defaults for the SSH service:
 	cfg.SSH.Enabled = true
-	cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
