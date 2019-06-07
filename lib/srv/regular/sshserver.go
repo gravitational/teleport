@@ -183,6 +183,12 @@ func (s *Server) GetPAM() (*pam.Config, error) {
 	return s.pamConfig, nil
 }
 
+// UseTunnel used to determine if this node has connected to this cluster
+// using reverse tunnel.
+func (s *Server) UseTunnel() bool {
+	return s.useTunnel
+}
+
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
 // and this is a Teleport node.
 func (s *Server) isAuditedAtProxy() bool {
@@ -594,6 +600,12 @@ func (s *Server) getRole() teleport.Role {
 
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() services.Server {
+	// Only set the address for non-tunnel nodes.
+	var addr string
+	if !s.useTunnel {
+		addr = s.AdvertiseAddr()
+	}
+
 	return &services.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,
@@ -604,7 +616,7 @@ func (s *Server) GetInfo() services.Server {
 		},
 		Spec: services.ServerSpecV2{
 			CmdLabels: services.LabelsToV2(s.getCommandLabels()),
-			Addr:      s.AdvertiseAddr(),
+			Addr:      addr,
 			Hostname:  s.hostname,
 			UseTunnel: s.useTunnel,
 		},
