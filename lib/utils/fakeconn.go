@@ -22,8 +22,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/trace"
+
+	"github.com/sirupsen/logrus"
 )
 
 // PipeNetConn implemetns net.Conn from io.Reader,io.Writer and io.Closer
@@ -138,6 +141,30 @@ type ChConn struct {
 	exclusive bool
 }
 
+// UseTunnel makes a channel request asking for the type of connection. If
+// the other side does not respond (older cluster) or takes to long to
+// respond, be on the safe side and assume it's not a tunnel connection.
+func (c *ChConn) UseTunnel() bool {
+	responseCh := make(chan bool, 1)
+
+	go func() {
+		ok, err := c.SendRequest(ConnectionTypeRequest, true, nil)
+		if err != nil {
+			responseCh <- false
+			return
+		}
+		responseCh <- ok
+	}()
+
+	select {
+	case response := <-responseCh:
+		return response
+	case <-time.After(1 * time.Second):
+		logrus.Debugf("Timed out waiting for response: returning false.")
+		return false
+	}
+}
+
 // Close closes channel and if the ChConn is exclusive, connection as well
 func (c *ChConn) Close() error {
 	c.mu.Lock()
@@ -180,3 +207,9 @@ func (c *ChConn) SetReadDeadline(t time.Time) error {
 func (c *ChConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
+
+const (
+	// ConnectionTypeRequest is a request sent over a SSH channel that returns a
+	// boolean which indicates the connection type (direct or tunnel).
+	ConnectionTypeRequest = "x-teleport-connection-type"
+)
