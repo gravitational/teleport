@@ -626,7 +626,6 @@ func onListNodes(cf *CLIConf) {
 	case false:
 		t := asciitable.MakeTable([]string{"Node Name", "Address", "Labels"})
 		for _, n := range nodes {
-
 			labelChunks := chunkLabels(n.GetAllLabels(), 2)
 			for i, v := range labelChunks {
 				var hostname string
