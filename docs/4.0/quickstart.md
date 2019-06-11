@@ -182,7 +182,7 @@ $ sudo tctl nodes add
 
 The invite token: n92bb958ce97f761da978d08c35c54a5c
 Run this on the new node to join the cluster:
-teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=teleport.example.com
+teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=teleport-proxy.example.com
 ```
 
 !!! tip "NOTE": 

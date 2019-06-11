@@ -228,7 +228,10 @@ teleport:
     advertise_ip: 10.1.0.5
 
     # list of auth servers in a cluster. you will have more than one auth server
-    # if you configure teleport auth to run in HA configuration
+    # if you configure teleport auth to run in HA configuration.
+    # If adding a node located behind NAT, use the Proxy URL. e.g. 
+    #  auth_servers:
+    #     - teleport-proxy.example.com:3080
     auth_servers:
         - 10.1.0.5:3025
         - 10.1.0.6:3025
@@ -783,8 +786,13 @@ following command on a new node to add it to a cluster:
 # adding a new regular SSH node to the cluster:
 $ teleport start --roles=node --token=secret-token-value --auth-server=10.0.10.5
 
+# adding a new regular SSH node using Teleport Node Tunneling.
+$ teleport start --roles=node --token=secret-token-value --auth-server=teleport-proxy.example.com:3080
+
 # adding a new proxy service on the cluster:
 $ teleport start --roles=proxy --token=secret-token-value --auth-server=10.0.10.5
+
+
 ```
 
 As new nodes come online, they start sending ping requests every few seconds
