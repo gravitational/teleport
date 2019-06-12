@@ -49,7 +49,7 @@ cat > csr <<EOF
 {
   "hosts": [
   ],
-  "CN": "jenkins",
+  "CN": "teleport",
   "names": [{
         "O": "system:masters"
     }],
@@ -76,7 +76,7 @@ spec:
   usages:
   - digital signature
   - key encipherment
-  - server auth
+  - client auth
 EOF
 kubectl certificate approve ${REQUEST_ID}
 
@@ -100,13 +100,13 @@ clusters:
 contexts:
 - context:
     cluster: k8s
-    user: jenkins
+    user: teleport
   name: k8s
 current-context: k8s
 kind: Config
 preferences: {}
 users:
-- name: jenkins
+- name: teleport
   user:
     client-certificate-data: $(cat server.crt | base64 ${BASE64_WRAP_FLAG})
     client-key-data: $(cat server-key.pem | base64 ${BASE64_WRAP_FLAG})
