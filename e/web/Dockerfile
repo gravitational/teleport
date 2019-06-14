@@ -1,6 +1,9 @@
 FROM node:8.11.2-slim
 
-RUN apt-get update && apt-get install -y python python-dev python-pip
+# Fixes jessie repository
+RUN sed -i '/jessie-updates/d' /etc/apt/sources.list
+
+RUN apt-get update && apt-get install git -y && apt-get install -y python python-dev python-pip
 
 RUN npm i npm@6.4.1 -g
 
