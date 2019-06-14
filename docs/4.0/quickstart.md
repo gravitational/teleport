@@ -63,9 +63,9 @@ Congratulations - you are now running Teleport!
 If you wish to deploy Teleport inside a Docker container:
 
 ```
-# This command will pull the Teleport container image for version 2.7.3
+# This command will pull the Teleport container image for version 4.0.0-rc.2
 # Replace 2.7.3 with the version you want to run:
-$ docker pull quay.io/gravitational/teleport:2.7.3
+$ docker pull quay.io/gravitational/teleport:4.0.0-rc.2
 ```
 
 ## Creating Users

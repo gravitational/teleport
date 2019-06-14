@@ -1393,6 +1393,24 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		// Provide helpful log message if listen_addr or public_addr are not being
+		// used (tunnel is used to connect to cluster).
+		//
+		// If a tunnel is not being used, set the default here (could not be done in
+		// file configuration because at that time it's not known if server is
+		// joining cluster directly or through a tunnel).
+		if conn.UseTunnel() {
+			if !cfg.SSH.Addr.IsEmpty() {
+				log.Info("Connected to cluster over tunnel connection, ignoring listen_addr setting.")
+			}
+			if len(cfg.SSH.PublicAddrs) > 0 {
+				log.Info("Connected to cluster over tunnel connection, ignoring public_addr setting.")
+			}
+		}
+		if !conn.UseTunnel() && cfg.SSH.Addr.IsEmpty() {
+			cfg.SSH.Addr = *defaults.SSHServerListenAddr()
+		}
+
 		s, err = regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -1730,6 +1748,9 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		}
 	}
 	for _, addr := range addrs {
+		if addr.IsEmpty() {
+			continue
+		}
 		host, err := utils.Host(addr.Addr)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

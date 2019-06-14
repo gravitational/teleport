@@ -119,9 +119,12 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 		events.EventNamespace:  s.srv.GetNamespace(),
 		events.EventLogin:      ctx.Identity.Login,
 		events.EventUser:       ctx.Identity.TeleportUser,
-		events.LocalAddr:       ctx.Conn.LocalAddr().String(),
 		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
 		events.SessionServerID: ctx.srv.ID(),
+	}
+	// Local address only makes sense for non-tunnel nodes.
+	if !ctx.srv.UseTunnel() {
+		sessionJoinEvent[events.LocalAddr] = ctx.Conn.LocalAddr().String()
 	}
 
 	// Emit session join event to Audit Log.
@@ -253,9 +256,10 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 
 		// send an event indicating that this session has ended
 		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
-			events.SessionEventID: string(sess.id),
-			events.EventUser:      party.user,
-			events.EventNamespace: s.srv.GetNamespace(),
+			events.SessionEventID:  string(sess.id),
+			events.SessionServerID: party.ctx.srv.ID(),
+			events.EventUser:       party.user,
+			events.EventNamespace:  s.srv.GetNamespace(),
 		})
 
 		// close recorder to free up associated resources
@@ -311,12 +315,13 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 
 	// Build the resize event.
 	resizeEvent := events.EventFields{
-		events.EventType:      events.ResizeEvent,
-		events.EventNamespace: s.srv.GetNamespace(),
-		events.SessionEventID: sid,
-		events.EventLogin:     ctx.Identity.Login,
-		events.EventUser:      ctx.Identity.TeleportUser,
-		events.TerminalSize:   params.Serialize(),
+		events.EventType:       events.ResizeEvent,
+		events.EventNamespace:  s.srv.GetNamespace(),
+		events.SessionEventID:  sid,
+		events.SessionServerID: ctx.srv.ID(),
+		events.EventLogin:      ctx.Identity.Login,
+		events.EventUser:       ctx.Identity.TeleportUser,
+		events.TerminalSize:    params.Serialize(),
 	}
 
 	// Report the updated window size to the event log (this is so the sessions
@@ -607,17 +612,21 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 
 	params := s.term.GetTerminalParams()
 
-	// emit "new session created" event:
-	s.recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, events.EventFields{
+	// Emit "new session created" event.
+	eventFields := events.EventFields{
 		events.EventNamespace:  ctx.srv.GetNamespace(),
 		events.SessionEventID:  string(s.id),
 		events.SessionServerID: ctx.srv.ID(),
 		events.EventLogin:      ctx.Identity.Login,
 		events.EventUser:       ctx.Identity.TeleportUser,
-		events.LocalAddr:       ctx.Conn.LocalAddr().String(),
 		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
 		events.TerminalSize:    params.Serialize(),
-	})
+	}
+	// Local address only makes sense for non-tunnel nodes.
+	if !ctx.srv.UseTunnel() {
+		eventFields[events.LocalAddr] = ctx.Conn.LocalAddr().String()
+	}
+	s.recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, eventFields)
 
 	// Start a heartbeat that marks this session as active with current members
 	// of party in the backend.

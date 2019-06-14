@@ -105,6 +105,12 @@ type Server struct {
 	// forwarding server.
 	termHandlers *srv.TermHandlers
 
+	// useTunnel indicates of this server is connected over a reverse tunnel.
+	useTunnel bool
+
+	// address is the name of the host certificate.
+	address string
+
 	// ciphers is a list of ciphers that the server supports. If omitted,
 	// the defaults will be used.
 	ciphers []string
@@ -138,6 +144,12 @@ type ServerConfig struct {
 	SrcAddr         net.Addr
 	DstAddr         net.Addr
 	HostCertificate ssh.Signer
+
+	// UseTunnel indicates of this server is connected over a reverse tunnel.
+	UseTunnel bool
+
+	// Address is the name of the host certificate.
+	Address string
 
 	// Ciphers is a list of ciphers that the server supports. If omitted,
 	// the defaults will be used.
@@ -218,6 +230,8 @@ func New(c ServerConfig) (*Server, error) {
 		clientConn:      clientConn,
 		userAgent:       c.UserAgent,
 		hostCertificate: c.HostCertificate,
+		useTunnel:       c.UseTunnel,
+		address:         c.Address,
 		authClient:      c.AuthClient,
 		auditLog:        c.AuthClient,
 		authService:     c.AuthClient,
@@ -324,6 +338,12 @@ func (s *Server) GetSessionServer() session.Service {
 // server runs in-memory, it does not support PAM.
 func (s *Server) GetPAM() (*pam.Config, error) {
 	return nil, trace.BadParameter("PAM not supported by forwarding server")
+}
+
+// UseTunnel used to determine if this node has connected to this cluster
+// using reverse tunnel.
+func (s *Server) UseTunnel() bool {
+	return s.useTunnel
 }
 
 // GetInfo returns a services.Server that represents this server.
@@ -487,7 +507,10 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 	clientConfig.KeyExchanges = s.kexAlgorithms
 	clientConfig.MACs = s.macAlgorithms
 
-	dstAddr := s.targetConn.RemoteAddr().String()
+	// Destination address is used to validate a connection was established to
+	// the correct host. It must occur in the list of principals presented by
+	// the remote server.
+	dstAddr := net.JoinHostPort(s.address, "0")
 	client, err := proxy.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

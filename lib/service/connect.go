@@ -58,7 +58,8 @@ func (process *TeleportProcess) reconnectToAuthService(role teleport.Role) (*Con
 				}
 			}
 		}
-		process.Infof("%v failed attempt connecting to auth server: %v.", role, err)
+		process.Errorf("%v failed to establish connection to cluster: %v.", role, err)
+
 		// Wait in between attempts, but return if teleport is shutting down
 		select {
 		case <-time.After(retryTime):
@@ -371,7 +372,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		process.deleteKeyPair(role, reason)
 	}
 
-	log.Infof("%v has successfully registered with the cluster.", role)
+	log.Infof("%v has obtained credentials to connect to cluster.", role)
 	var connector *Connector
 	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
 		connector = &Connector{
@@ -768,13 +769,13 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	if err != nil {
 		// Only attempt to connect through the proxy for nodes.
 		if identity.ID.Role != teleport.RoleNode {
-			return nil, trace.Wrap(err)
+			return nil, trace.Unwrap(err)
 		}
 
 		log.Debugf("Attempting to connect to Auth Server through tunnel.")
-		tunnelClient, er := process.newClientThroughTunnel(authServers, identity)
-		if er != nil {
-			return nil, trace.NewAggregate(err, er)
+		tunnelClient, err := process.newClientThroughTunnel(authServers, identity)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		log.Debugf("Connected to Auth Server through tunnel.")
@@ -866,6 +867,13 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Check connectivity to cluster. If the request fails, unwrap the error to
+	// get the underlying error.
+	_, err = clt.GetLocalClusterName()
+	if err != nil {
+		return nil, trace.Unwrap(err)
 	}
 
 	return clt, nil
