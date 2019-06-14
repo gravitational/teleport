@@ -32,6 +32,8 @@ type Label struct {
 
 // Server describes a server for webapp
 type Server struct {
+	// Tunnel indicates of this server is connected over a reverse tunnel.
+	Tunnel bool `json:"tunnel"`
 	// Name is this server name
 	Name string `json:"id"`
 	// ClusterName is this server cluster name
@@ -84,10 +86,11 @@ func MakeServers(clusterName string, servers []services.Server) []Server {
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
+			Labels:      uiLabels,
 			Name:        server.GetName(),
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
-			Labels:      uiLabels,
+			Tunnel:      server.GetUseTunnel(),
 		})
 	}
 
