@@ -611,8 +611,13 @@ func onListNodes(cf *CLIConf) {
 	case true:
 		t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
 		for _, n := range nodes {
+			addr := n.GetAddr()
+			if n.GetUseTunnel() {
+				addr = "⟵ Tunnel"
+			}
+
 			t.AddRow([]string{
-				n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString(),
+				n.GetHostname(), n.GetName(), addr, n.LabelsString(),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
@@ -628,6 +633,9 @@ func onListNodes(cf *CLIConf) {
 				if i == 0 {
 					hostname = n.GetHostname()
 					addr = n.GetAddr()
+					if n.GetUseTunnel() {
+						addr = "⟵ Tunnel"
+					}
 				}
 				t.AddRow([]string{hostname, addr, strings.Join(v, ", ")})
 			}

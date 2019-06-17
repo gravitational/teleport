@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -483,7 +485,7 @@ func (s *remoteSite) periodicUpdateCertAuthorities() {
 	}
 }
 
-func (s *remoteSite) DialAuthServer() (conn net.Conn, err error) {
+func (s *remoteSite) DialAuthServer() (net.Conn, error) {
 	return s.connThroughTunnel(&dialReq{
 		Address: RemoteAuthServer,
 	})
@@ -540,13 +542,12 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// create a forwarding server that serves a single ssh connection on it. we
-	// don't need to close this server it will close and release all resources
+	// Create a forwarding server that serves a single SSH connection on it. This
+	// server does not need to close, it will close and release all resources
 	// once conn is closed.
 	//
-	// note, a localClient is passed to the forwarding server, that's to make
-	// sure that the session gets recorded in the local cluster instead of the
-	// remote cluster.
+	// Note: A localClient is passed to the forwarding server to make sure the
+	// session gets recorded in the local cluster instead of the remote cluster.
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.localClient,
 		UserAgent:       params.UserAgent,
@@ -558,6 +559,8 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
 		MACAlgorithms:   s.srv.Config.MACAlgorithms,
 		DataDir:         s.srv.Config.DataDir,
+		Address:         params.Address,
+		UseTunnel:       targetConn.UseTunnel(),
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
@@ -565,7 +568,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 	go remoteServer.Serve()
 
-	// return a connection to the forwarding server
+	// Return a connection to the forwarding server.
 	conn, err := remoteServer.Dial()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -574,7 +577,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *remoteSite) connThroughTunnel(req *dialReq) (net.Conn, error) {
+func (s *remoteSite) connThroughTunnel(req *dialReq) (*utils.ChConn, error) {
 	var err error
 
 	s.Debugf("Requesting connection to %v [%v] in remote cluster.",
@@ -598,7 +601,7 @@ func (s *remoteSite) connThroughTunnel(req *dialReq) (net.Conn, error) {
 	return nil, err
 }
 
-func (s *remoteSite) chanTransportConn(req *dialReq) (net.Conn, error) {
+func (s *remoteSite) chanTransportConn(req *dialReq) (*utils.ChConn, error) {
 	rconn, err := s.nextConn()
 	if err != nil {
 		return nil, trace.Wrap(err)

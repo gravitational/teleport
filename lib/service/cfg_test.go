@@ -49,7 +49,6 @@ func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 
 	localAuthAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3025"}
 	localProxyAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3023"}
-	localSSHAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3022"}
 
 	// data dir, hostname and auth server
 	c.Assert(config.DataDir, check.Equals, defaults.DataDir)
@@ -67,7 +66,6 @@ func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 
 	// SSH section
 	ssh := config.SSH
-	c.Assert(ssh.Addr, check.DeepEquals, localSSHAddr)
 	c.Assert(ssh.Limiter.MaxConnections, check.Equals, int64(defaults.LimiterMaxConnections))
 	c.Assert(ssh.Limiter.MaxNumberOfUsers, check.Equals, defaults.LimiterMaxConcurrentUsers)
 

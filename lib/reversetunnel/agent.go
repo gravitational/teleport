@@ -494,7 +494,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			if req == nil {
 				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
 			}
-		// new transport request:
+		// Handle transport requests.
 		case nch := <-newTransportC:
 			if nch == nil {
 				continue
@@ -502,11 +502,11 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			a.Debugf("Transport request: %v.", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.Warningf("Failed to accept request: %v.", err)
+				a.Warningf("Failed to accept transport request: %v.", err)
 				continue
 			}
 
-			go proxyTransport(&transportParams{
+			t := &transport{
 				log:                 a.Entry,
 				closeContext:        a.ctx,
 				authClient:          a.Client,
@@ -518,7 +518,8 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				component:           teleport.ComponentReverseTunnelAgent,
 				reverseTunnelServer: a.ReverseTunnelServer,
 				localClusterName:    a.LocalClusterName,
-			})
+			}
+			go t.start()
 		// new discovery request channel
 		case nch := <-newDiscoveryC:
 			if nch == nil {

@@ -121,9 +121,9 @@ func Register(params RegisterParams) (*Identity, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		ident, er := registerThroughProxy(token, params)
-		if er != nil {
-			return nil, trace.NewAggregate(err, er)
+		ident, err = registerThroughProxy(token, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		log.Debugf("Successfully registered through proxy server.")
@@ -156,7 +156,7 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 			PublicSSHKey:         params.PublicSSHKey,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Unwrap(err)
 	}
 	keys.Key = params.PrivateKey
 

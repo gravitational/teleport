@@ -315,3 +315,7 @@ func (f *fakeServer) GetClock() clockwork.Clock {
 func (f *fakeServer) GetInfo() services.Server {
 	return nil
 }
+
+func (f *fakeServer) UseTunnel() bool {
+	return false
+}

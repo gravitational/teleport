@@ -561,7 +561,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		return
 	}
 
-	go proxyTransport(&transportParams{
+	t := &transport{
 		log:              s.Entry,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
@@ -569,7 +569,8 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,
 		localClusterName: s.ClusterName,
-	})
+	}
+	go t.start()
 }
 
 func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {

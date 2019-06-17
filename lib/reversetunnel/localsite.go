@@ -166,16 +166,6 @@ func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
 }
 
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
-	// If any of the search names match a node that has self registered itself over
-	// the tunnel, return a connection to that node.
-	conn, err := s.dialTunnel(params)
-	if err == nil {
-		return conn, nil
-	}
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
 	// If the proxy is in recording mode use the agent to dial and build a
 	// in-memory forwarding server.
 	clusterConfig, err := s.accessPoint.GetClusterConfig()
@@ -193,9 +183,68 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	return s.DialTCP(params)
 }
 
+func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
+	s.log.Debugf("Dialing from %v to %v.", params.From, params.To)
+
+	conn, _, err := s.getConn(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
+}
+
+func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
+	s.log.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
+
+	// If server ID matches a node that has self registered itself over the tunnel,
+	// return a connection to that node. Otherwise net.Dial to the target host.
+	targetConn, useTunnel, err := s.getConn(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get a host certificate for the forwarding node from the cache.
+	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create a forwarding server that serves a single SSH connection on it. This
+	// server does not need to close, it will close and release all resources
+	// once conn is closed.
+	serverConfig := forward.ServerConfig{
+		AuthClient:      s.client,
+		UserAgent:       params.UserAgent,
+		TargetConn:      targetConn,
+		SrcAddr:         params.From,
+		DstAddr:         params.To,
+		HostCertificate: hostCertificate,
+		Ciphers:         s.srv.Config.Ciphers,
+		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
+		MACAlgorithms:   s.srv.Config.MACAlgorithms,
+		DataDir:         s.srv.Config.DataDir,
+		Address:         params.Address,
+		UseTunnel:       useTunnel,
+	}
+	remoteServer, err := forward.New(serverConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go remoteServer.Serve()
+
+	// Return a connection to the forwarding server.
+	conn, err := remoteServer.Dial()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
+}
+
 // dialTunnel connects to the target host through a tunnel.
 func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
-	rconn, err := s.getConn(params.ServerID)
+	rconn, err := s.getRemoteConn(params.ServerID)
 	if err != nil {
 		return nil, trace.NotFound("no tunnel connection found: %v", err)
 	}
@@ -210,56 +259,28 @@ func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
-	s.log.Debugf("Dialing from %v to %v.", params.From, params.To)
-
-	dialer := proxy.DialerFromEnvironment(params.To.String())
-	return dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
-}
-
-func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
-	s.log.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
-
-	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
+func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, err error) {
+	// If server ID matches a node that has self registered itself over the tunnel,
+	// return a connection to that node. Otherwise net.Dial to the target host.
+	conn, err = s.dialTunnel(params)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsNotFound(err) {
+			return nil, false, trace.Wrap(err)
+		}
+
+		// If no tunnel connection was found, dial to the target host.
+		dialer := proxy.DialerFromEnvironment(params.To.String())
+		conn, err = dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
+		if err != nil {
+			return nil, false, trace.Wrap(err)
+		}
+
+		// Return a direct dialed connection.
+		return conn, false, nil
 	}
 
-	// get a net.Conn to the target server
-	targetConn, err := net.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
-	if err != nil {
-		return nil, err
-	}
-
-	// create a forwarding server that serves a single ssh connection on it. we
-	// don't need to close this server it will close and release all resources
-	// once conn is closed.
-	serverConfig := forward.ServerConfig{
-		AuthClient:      s.client,
-		UserAgent:       params.UserAgent,
-		TargetConn:      targetConn,
-		SrcAddr:         params.From,
-		DstAddr:         params.To,
-		HostCertificate: hostCertificate,
-		Ciphers:         s.srv.Config.Ciphers,
-		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
-		MACAlgorithms:   s.srv.Config.MACAlgorithms,
-		DataDir:         s.srv.Config.DataDir,
-	}
-	remoteServer, err := forward.New(serverConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	go remoteServer.Serve()
-
-	// return a connection to the forwarding server
-	conn, err := remoteServer.Dial()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return conn, nil
+	// Return a tunnel dialed connection.
+	return conn, true, nil
 }
 
 func (s *localSite) addConn(nodeID string, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
@@ -356,7 +377,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 	}
 }
 
-func (s *localSite) getConn(addr string) (*remoteConn, error) {
+func (s *localSite) getRemoteConn(addr string) (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 

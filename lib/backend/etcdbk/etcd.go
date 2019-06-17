@@ -646,8 +646,7 @@ func convertErr(err error) error {
 			return trace.BadParameter(err.Error())
 		}
 	}
-	// bad cluster endpoints, which are not etcd servers
-	return trace.ConnectionProblem(err, "bad cluster endpoints")
+	return trace.ConnectionProblem(err, err.Error())
 }
 
 func fromType(eventType mvccpb.Event_EventType) backend.OpType {
