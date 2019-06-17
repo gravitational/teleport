@@ -169,11 +169,11 @@ authentication server and within the internal IP range of the cluster. We recomm
 setting up a [Trusted Cluster](../admin-guide/#trusted-clusters) if you have workloads split
  across different networks / clouds. 
 
-Teleport Node Tunneling lets you add a node to an exsiting Teleport Cluster. This can be 
+Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be 
 useful for IoT applications or for managing a couple of servers in a different network.  
 
 Similar to [Adding Nodes to Cluster](/quickstart/#adding-nodes-to-cluster), use `tctl` to
-create a single-use token fro a node, but this time you'll replace the auth-server IP with
+create a single-use token for a node, but this time you'll replace the auth-server IP with
 the URL of the Proxy Server. In the Example below, we've replaced the Auth IP to the Proxy
 server address `teleport.example.com`.  
 
