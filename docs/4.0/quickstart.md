@@ -165,7 +165,7 @@ new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022
 
 ## Adding a node located behind NAT
 With the current setup you've only been able to add nodes that have direct access to the 
-authentication server and within the internal IP range of the cluster. We recommend 
+auth server and within the internal IP range of the cluster. We recommend 
 setting up a [Trusted Cluster](../admin-guide/#trusted-clusters) if you have workloads split
  across different networks / clouds. 
 
@@ -173,9 +173,9 @@ Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. Thi
 useful for IoT applications or for managing a couple of servers in a different network.  
 
 Similar to [Adding Nodes to Cluster](/quickstart/#adding-nodes-to-cluster), use `tctl` to
-create a single-use token for a node, but this time you'll replace the auth-server IP with
-the URL of the Proxy Server. In the Example below, we've replaced the Auth IP to the Proxy
-server address `teleport.example.com`.  
+create a single-use token for a node, but this time you'll replace the auth server IP with
+the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy
+web endpoint `teleport.example.com`.  
 
 ```bash
 $ sudo tctl nodes add
@@ -185,8 +185,10 @@ Run this on the new node to join the cluster:
 teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=teleport-proxy.example.com
 ```
 
-!!! tip "NOTE": 
-    The Proxy will require port `3025` to be open so it can add the new node to the Auth server. 
+Using the ports in the default configuration, the node needs to be able to talk to ports 3080
+and 3024 on the proxy. Port 3080 is used to initially fetch the credentials (SSH and TLS certificates) 
+and for discovery (where is the reverse tunnel running, in this case 3024). Port 3024 is used to
+establish a connection to the Auth Server through the proxy.
 
 ## Using Node Labels
 

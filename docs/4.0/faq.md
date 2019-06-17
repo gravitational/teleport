@@ -31,9 +31,9 @@ section of the Admin Manual.
 ### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster? 
 
 This has been a long standing [request](https://github.com/gravitational/teleport/issues/803) of Teleport and
-it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluster and node Client
-change the node config option `--auth-server` to point to the Proxy Server URL. As defined in 
-[Adding a node located behind NAT - Teleport Node Tunneling](quickstart/#adding-a-node-located-behind-nat-teleport-node-tunneling)
+it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluster, change the node config
+option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr` 
+in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](quickstart/#adding-a-node-located-behind-nat-teleport-node-tunneling)
 
 ### What's Teleport scalability and hardware recommendations?
 
