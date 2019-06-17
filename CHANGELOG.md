@@ -1,5 +1,43 @@
 # Changelog
 
+## 4.0.0
+
+This is a major Teleport release which introduces support for Teleport Internet of Things (IoT). In addition to this new feature this release includes usability, performance, and bug fixes listed below.
+
+## New Features
+
+### Teleport for IoT
+
+With Teleport 4.0, nodes gain the ability to use reverse tunnels to dial back to a Teleport cluster to bypass firewall restrictions. This allows connections even to nodes that a cluster does not have direct network access to. Customers that have been using Trusted Clusters to achieve this can now utilize a unified interface to access all nodes within their infrastructure.
+
+### FedRamp Compliance
+
+With this release of Teleport, we have built out the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments.
+
+## Improvements
+
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](https://gravitational.com/teleport/faq/#whats-teleport-scalability-and-hardware-recommendations)
+* Added ability to delete node using `tctl rm`. #2685
+* Output of `tsh ls` is now sorted by node name. #2534
+
+## Bug Fixes
+
+* Switched to `xdg-open` to open a browser window on Linux. #2536
+* Increased SSO callback timeout to 180 seconds. #2533
+* Set permissions on TTY similar to OpenSSH. #2508
+
+The lists of improvements and bug fixes above mention only the significant changes, please take a look at the complete list on Github for more.
+
+## Upgrading
+
+Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport)
+
+Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend creating a backup of the backend datastore (DynamoDB, etcd, or dir) before upgrading a cluster to Teleport 4.0 to allow downgrades.
+
+### Notes on compatibility
+
+Teleport has always validated host certificates when a client connects to a server, however prior to Teleport 4.0, Teleport did not validate the host the user requests a connection to is in the list of principals on the certificate. To ensure a seamless upgrade, make sure the hosts you connect to have the appropriate address set in `public_addr` in `teleport.yaml` before upgrading.
+
 ## 3.2.4
 
 This release of Teleport contains multiple bug fixes.
