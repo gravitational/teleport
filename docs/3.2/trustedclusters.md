@@ -54,10 +54,10 @@ _permissions mapping_ takes place.
 
 ## Cluster Setup 
 
-When you first setup a cluster it's important to correctly set the Cluster name.
-The cluster name is set via the [Configuation File](admin-guide/#configuration-file) using 
-the `cluster_name` option.  We recommend picking a short alais for your cluster as it'll 
-be used with the `tsh` command to login to a a cluster. 
+When you first setup a cluster it's important to correctly set the cluster name.
+The cluster name is set via the [Configuration File](admin-guide/#configuration-file) using 
+the `cluster_name` option.  We recommend picking a short alias for your cluster as it'll 
+be used with the `tsh` command to login to a cluster. 
 
 ```
 # This section configures the 'auth service':
