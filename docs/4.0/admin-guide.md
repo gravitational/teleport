@@ -786,13 +786,11 @@ following command on a new node to add it to a cluster:
 # adding a new regular SSH node to the cluster:
 $ teleport start --roles=node --token=secret-token-value --auth-server=10.0.10.5
 
-# adding a new regular SSH node using Teleport Node Tunneling.
+# adding a new regular SSH node using Teleport Node Tunneling:
 $ teleport start --roles=node --token=secret-token-value --auth-server=teleport-proxy.example.com:3080
 
 # adding a new proxy service on the cluster:
 $ teleport start --roles=proxy --token=secret-token-value --auth-server=10.0.10.5
-
-
 ```
 
 As new nodes come online, they start sending ping requests every few seconds
