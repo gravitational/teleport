@@ -17,14 +17,14 @@ With this release of Teleport, we have built out the foundation to help Teleport
 ## Improvements
 
 * Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](https://gravitational.com/teleport/faq/#whats-teleport-scalability-and-hardware-recommendations)
-* Added ability to delete node using `tctl rm`. #2685
-* Output of `tsh ls` is now sorted by node name. #2534
+* Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
+* Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 
 ## Bug Fixes
 
-* Switched to `xdg-open` to open a browser window on Linux. #2536
-* Increased SSO callback timeout to 180 seconds. #2533
-* Set permissions on TTY similar to OpenSSH. #2508
+* Switched to `xdg-open` to open a browser window on Linux. [#2536](https://github.com/gravitational/teleport/pull/2536)
+* Increased SSO callback timeout to 180 seconds. [#2533](https://github.com/gravitational/teleport/pull/2533)
+* Set permissions on TTY similar to OpenSSH. [#2508](https://github.com/gravitational/teleport/pull/2508)
 
 The lists of improvements and bug fixes above mention only the significant changes, please take a look at the complete list on Github for more.
 
