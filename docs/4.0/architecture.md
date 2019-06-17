@@ -176,7 +176,7 @@ in the table below:
 
 Data Type        | Supported Back-ends       | Notes
 -----------------|---------------------------|---------
-Cluster state    | `dir`, `etcd`, `dynamodb` | If multi-server (HA) configuration is used with `dir` backend, users must use NFS or similar networked filesystem to keep the `data_dir` in sync between the auth servers.
+Cluster state    | `dir`, `etcd`, `dynamodb` | Multi-server (HA) configuration is only supported using `etcd` and `dynamodb` back-ends. 
 Audit Log Events | `dir`, `dynamodb`         | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions.
 Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` is used for the audit log.
 
