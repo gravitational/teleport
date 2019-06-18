@@ -20,7 +20,6 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
-
 ignored = ["github.com/Sirupsen/logrus"]
 
 [prune]
@@ -184,7 +183,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/golang/protobuf"
-  version = "=v1.1.0"
+  version = "=v1.3.1"
 
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
@@ -194,3 +193,6 @@ ignored = ["github.com/Sirupsen/logrus"]
   name = "github.com/jonboulle/clockwork"
   branch = "master"
 
+[[constraint]]
+  name = "cloud.google.com/go"
+  version = "=v0.41.0"

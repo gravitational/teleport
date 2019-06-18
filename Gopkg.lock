@@ -2,6 +2,27 @@
 
 
 [[projects]]
+  digest = "1:d9881c4f9ce895d9d39e33a7b70c245ab3097a54136b9d183448a9c8af19a1b0"
+  name = "cloud.google.com/go"
+  packages = [
+    "compute/metadata",
+    "firestore",
+    "firestore/apiv1",
+    "firestore/apiv1/admin",
+    "iam",
+    "internal",
+    "internal/btree",
+    "internal/fields",
+    "internal/optional",
+    "internal/trace",
+    "internal/version",
+    "storage",
+  ]
+  pruneopts = "NUT"
+  revision = "cf81fad90a1a1de334c4fc27e23eb9a4224b627a"
+  version = "v0.41.0"
+
+[[projects]]
   branch = "master"
   digest = "1:81f8c061c3d18ed1710957910542bc17d2b789c6cd19e0f654c30b35fd255ca5"
   name = "github.com/Azure/go-ansiterm"
@@ -242,6 +263,17 @@
   version = "v2.7.0"
 
 [[projects]]
+  digest = "1:94cd476f8156d6c830e108e3e89db65ca7852697a2983731f7d23260e17ae339"
+  name = "github.com/fsouza/fake-gcs-server"
+  packages = [
+    "fakestorage",
+    "internal/backend",
+  ]
+  pruneopts = "NUT"
+  revision = "647c736ea8b26d0e4f71fa166eef0976fd177a4c"
+  version = "v1.9.0"
+
+[[projects]]
   digest = "1:abfe129dc92b16fbf0cc9d6336096a2823151756f62072a700eb10754141b38e"
   name = "github.com/ghodss/yaml"
   packages = ["."]
@@ -329,19 +361,22 @@
   revision = "fca8c8854093a154ff1eb580aae10276ad6b1b5f"
 
 [[projects]]
-  digest = "1:9a797c98c105ce6e3b7c6177ae099da0e608edd80f428c59119ccf92b717383f"
+  digest = "1:99d26c39807a3709c762366daaaa7b58805163882d9cea00076327583984f5b1"
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
+    "protoc-gen-go/descriptor",
     "ptypes",
     "ptypes/any",
     "ptypes/duration",
     "ptypes/empty",
+    "ptypes/struct",
     "ptypes/timestamp",
+    "ptypes/wrappers",
   ]
   pruneopts = "NUT"
-  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
-  version = "v1.1.0"
+  revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
+  version = "v1.3.1"
 
 [[projects]]
   branch = "master"
@@ -372,6 +407,14 @@
   version = "v0.3.1"
 
 [[projects]]
+  digest = "1:4b76f3e067eed897a45242383a2aa4d0a2fdbf73a8d00c03167dba80c43630b1"
+  name = "github.com/googleapis/gax-go"
+  packages = ["v2"]
+  pruneopts = "NUT"
+  revision = "bd5b16380fd03dc758d11cef74ba2e3bc8b0e8c2"
+  version = "v2.0.5"
+
+[[projects]]
   digest = "1:06a7dadb7b760767341ffb6c8d377238d68a1226f2b21b5d497d2e3f6ecf6b4e"
   name = "github.com/googleapis/gnostic"
   packages = [
@@ -382,6 +425,14 @@
   pruneopts = "NUT"
   revision = "7c663266750e7d82587642f65e60bc4083f1f84e"
   version = "v0.2.0"
+
+[[projects]]
+  digest = "1:3c8c26bb118e3f02230d4f5f30b972dbfe0c6b371acea8f190aa99ceaaae7028"
+  name = "github.com/gorilla/mux"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "00bdffe0f3c77e27d2cf6f5c70232a2d3e4d9c15"
+  version = "v1.7.3"
 
 [[projects]]
   digest = "1:5e23b6ca0e5d6de56abb84a8ce9fbdd37ebe07fea63f9f55c077b25f6d40ec55"
@@ -409,17 +460,6 @@
   revision = "742f2714c145075a68df26ccc25bc05545310f3a"
 
 [[projects]]
-  digest = "1:637144c8995935a3a02d03ade2d1374abeac2a47fdafb798a05642d3e19ff86c"
-  name = "github.com/gravitational/license"
-  packages = [
-    ".",
-    "constants",
-  ]
-  pruneopts = "NUT"
-  revision = "4f189e3bd6e3fa5dee7522341fae24342c6b35cd"
-  version = "0.0.6"
-
-[[projects]]
   digest = "1:9f8b10110aeb7160b903de8bc72e11df95302b090d8a5d345a07144415d3bd35"
   name = "github.com/gravitational/oxy"
   packages = [
@@ -431,18 +471,6 @@
   pruneopts = "NUT"
   revision = "e4a7e35311e6c4da4cf9e73c6a3d8cf523937211"
   version = "1.0.2"
-
-[[projects]]
-  digest = "1:9886b8d44d98b6521bbec88954396cd6ca85f2247946bbd568b1c00a8b7bf6c1"
-  name = "github.com/gravitational/reporting"
-  packages = [
-    ".",
-    "client",
-    "types",
-  ]
-  pruneopts = "NUT"
-  revision = "ac7b85c75c4ccc89f7891be4612bc2a8e4238640"
-  version = "0.0.6"
 
 [[projects]]
   digest = "1:1920655c8439bf875819f7d8db882b089f3ca6cb9b3c9ca6413bc2ec2217ea82"
@@ -481,6 +509,14 @@
   ]
   pruneopts = "NUT"
   revision = "9cad4c3443a7200dd6400aef47183728de563a38"
+
+[[projects]]
+  digest = "1:67474f760e9ac3799f740db2c489e6423a4cde45520673ec123ac831ad849cb8"
+  name = "github.com/hashicorp/golang-lru"
+  packages = ["simplelru"]
+  pruneopts = "NUT"
+  revision = "7087cb70de9f7a8bc0a10c375cb0d2280a8edf9c"
+  version = "v0.5.1"
 
 [[projects]]
   branch = "master"
@@ -848,6 +884,32 @@
   revision = "3988ac14d6f66842abf574a0615d2935ef5dab9d"
 
 [[projects]]
+  digest = "1:59a0bfab08de2de3bfe8d36dbeff8cd15c71ed83c08fe11f7545a436aa2a31cc"
+  name = "go.opencensus.io"
+  packages = [
+    ".",
+    "internal",
+    "internal/tagencoding",
+    "metric/metricdata",
+    "metric/metricproducer",
+    "plugin/ocgrpc",
+    "plugin/ochttp",
+    "plugin/ochttp/propagation/b3",
+    "resource",
+    "stats",
+    "stats/internal",
+    "stats/view",
+    "tag",
+    "trace",
+    "trace/internal",
+    "trace/propagation",
+    "trace/tracestate",
+  ]
+  pruneopts = "NUT"
+  revision = "9c377598961b706d1542bd2d84d538b5094d596e"
+  version = "v0.22.0"
+
+[[projects]]
   branch = "master"
   digest = "1:d53159fbd36af90d2d9a48a68342e09e944a6171a6389be69fd4277d02781994"
   name = "golang.org/x/crypto"
@@ -871,10 +933,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:0fcfb2bfaeb68353db0d1611bec6a7f5488214d522988e7ad7d4b5e91fbd2d0e"
+  digest = "1:c0a943c59d69fcb2b1573934d39e92024a78f16a752b83348520ba9ad93e97df"
   name = "golang.org/x/net"
   packages = [
     "context",
+    "context/ctxhttp",
     "http/httpguts",
     "http2",
     "http2/hpack",
@@ -887,6 +950,20 @@
   ]
   pruneopts = "NUT"
   revision = "8a410e7b638dca158bf9e766925842f6651ff828"
+
+[[projects]]
+  branch = "master"
+  digest = "1:1519760444b90c560eb01373869bc66fd539e6fe1bf77af22047c43edc40ab35"
+  name = "golang.org/x/oauth2"
+  packages = [
+    ".",
+    "google",
+    "internal",
+    "jws",
+    "jwt",
+  ]
+  pruneopts = "NUT"
+  revision = "0f29369cfe4552d0e4bcddc57cc75f4d7e672a33"
 
 [[projects]]
   branch = "master"
@@ -924,15 +1001,68 @@
   revision = "19e51611da83d6be54ddafce4a4af510cb3e9ea4"
 
 [[projects]]
-  branch = "master"
-  digest = "1:93180612a69db36a06d801302b867d53a50a8a5f0943b34db66adc0574ea57df"
-  name = "google.golang.org/genproto"
-  packages = ["googleapis/rpc/status"]
+  digest = "1:8ac57facf58c64a2d7d449f23b63c5abd5139973b869dcefdee5fdbfa6f0f8bc"
+  name = "google.golang.org/api"
+  packages = [
+    "gensupport",
+    "googleapi",
+    "googleapi/internal/uritemplates",
+    "googleapi/transport",
+    "internal",
+    "iterator",
+    "option",
+    "storage/v1",
+    "transport",
+    "transport/grpc",
+    "transport/http",
+    "transport/http/internal/propagation",
+  ]
   pruneopts = "NUT"
-  revision = "ee236bd376b077c7a89f260c026c4735b195e459"
+  revision = "721295fe20d585ce7e948146f82188429d14da33"
+  version = "v0.5.0"
 
 [[projects]]
-  digest = "1:3adb043907fccd1aeeebe8ad20d3769975a97336a712efd4a0bee076d9f7de0c"
+  digest = "1:a955e7c44c2be14b61aa2ddda744edfdfbc6817e993703a16e303c277ba84449"
+  name = "google.golang.org/appengine"
+  packages = [
+    ".",
+    "internal",
+    "internal/app_identity",
+    "internal/base",
+    "internal/datastore",
+    "internal/log",
+    "internal/modules",
+    "internal/remote_api",
+    "internal/socket",
+    "internal/urlfetch",
+    "socket",
+    "urlfetch",
+  ]
+  pruneopts = "NUT"
+  revision = "b2f4a3cf3c67576a2ee09e1fe62656a5086ce880"
+  version = "v1.6.1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:bff49059440ffa6e2b4a94c6ae04cbc5423ddc22c1964984ee2239a94e1b1a73"
+  name = "google.golang.org/genproto"
+  packages = [
+    "googleapis/api/annotations",
+    "googleapis/firestore/admin/v1",
+    "googleapis/firestore/v1",
+    "googleapis/iam/v1",
+    "googleapis/longrunning",
+    "googleapis/rpc/code",
+    "googleapis/rpc/status",
+    "googleapis/type/expr",
+    "googleapis/type/latlng",
+    "protobuf/field_mask",
+  ]
+  pruneopts = "NUT"
+  revision = "6af8c5fc6601ab6b41cd32742a65ce2f5bd9db57"
+
+[[projects]]
+  digest = "1:8b9513d634c3ab6d0ae70c27d1f45c188faca1ffb1d6b932b35ac5172fb0da88"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -942,6 +1072,7 @@
     "codes",
     "connectivity",
     "credentials",
+    "credentials/oauth",
     "encoding",
     "encoding/proto",
     "grpclog",
@@ -1145,6 +1276,9 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "cloud.google.com/go/firestore",
+    "cloud.google.com/go/firestore/apiv1/admin",
+    "cloud.google.com/go/storage",
     "github.com/Microsoft/go-winio",
     "github.com/armon/go-radix",
     "github.com/aws/aws-sdk-go/aws",
@@ -1169,6 +1303,7 @@
     "github.com/davecgh/go-spew/spew",
     "github.com/docker/docker/pkg/term",
     "github.com/dustin/go-humanize",
+    "github.com/fsouza/fake-gcs-server/fakestorage",
     "github.com/ghodss/yaml",
     "github.com/gizak/termui",
     "github.com/gizak/termui/widgets",
@@ -1177,7 +1312,6 @@
     "github.com/gogo/protobuf/types",
     "github.com/gokyle/hotp",
     "github.com/golang/protobuf/proto",
-    "github.com/golang/protobuf/ptypes/duration",
     "github.com/golang/protobuf/ptypes/empty",
     "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/google/btree",
@@ -1186,13 +1320,10 @@
     "github.com/gravitational/configure/jsonschema",
     "github.com/gravitational/form",
     "github.com/gravitational/kingpin",
-    "github.com/gravitational/license",
     "github.com/gravitational/oxy/connlimit",
     "github.com/gravitational/oxy/forward",
     "github.com/gravitational/oxy/ratelimit",
     "github.com/gravitational/oxy/utils",
-    "github.com/gravitational/reporting/client",
-    "github.com/gravitational/reporting/types",
     "github.com/gravitational/roundtrip",
     "github.com/gravitational/trace",
     "github.com/gravitational/trace/trail",
@@ -1231,6 +1362,9 @@
     "golang.org/x/net/websocket",
     "golang.org/x/text/encoding",
     "golang.org/x/text/encoding/unicode",
+    "google.golang.org/api/iterator",
+    "google.golang.org/api/option",
+    "google.golang.org/genproto/googleapis/firestore/admin/v1",
     "google.golang.org/grpc",
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/credentials",
