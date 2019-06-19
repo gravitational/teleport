@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -25,10 +26,13 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
+	lsecret "github.com/mailgun/lemma/secret"
 	"github.com/pborman/uuid"
 )
 
@@ -131,6 +135,11 @@ func (rd *Redirector) Start() error {
 	}
 	query := u.Query()
 	query.Set("secret_key", rd.key.String())
+	// DELETE IN: 4.1.0
+	//
+	// Send the key with the legacy parameter name using the legacy encoding to
+	// support older clusters.
+	query.Set("secret", base64.StdEncoding.EncodeToString(rd.key))
 	u.RawQuery = query.Encode()
 
 	out, err := rd.proxyClient.PostJSON(rd.Context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), SSOLoginConsoleReq{
@@ -189,7 +198,7 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SS
 	}
 
 	// Decrypt ciphertext to get login response.
-	plaintext, err := rd.key.Open([]byte(r.URL.Query().Get("response")))
+	plaintext, err := rd.open([]byte(r.URL.Query().Get("response")))
 	if err != nil {
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 	}
@@ -201,6 +210,62 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SS
 	}
 
 	return re, nil
+}
+
+// DELETE IN: 4.1.0
+//
+// open will first attempt to decrypt with Teleport secret package, and if it
+// fails, fallback to legacy lemma package.
+func (rd *Redirector) open(ciphertext []byte) ([]byte, error) {
+	plaintext, err := rd.key.Open(ciphertext)
+	if err != nil {
+		// If this binary was build against BoringCrypto, NaCl is not supported,
+		// return right away.
+		if modules.GetModules().IsBoringBinary() {
+			return nil, trace.Wrap(err)
+		}
+
+		plaintext, err = rd.legacyOpen(ciphertext)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		log.Debugf("Decrypted payload using legacy lemma secret package.")
+		return plaintext, nil
+	}
+
+	log.Debugf("Decrypted payload using Teleport secret package.")
+	return plaintext, nil
+}
+
+// DELETE IN: 4.1.0
+//
+// legacyOpen uses the legacy lemma package to attempt to decrypt ciphertext.
+func (rd *Redirector) legacyOpen(ciphertext []byte) ([]byte, error) {
+	// Convert byte slice key to byte array.
+	var keyBytes [32]byte
+	copy(keyBytes[:], rd.key)
+
+	// Unmarshal ciphertext into sealed bytes data structure that lemma uses.
+	var sealedBytes *lsecret.SealedBytes
+	err := json.Unmarshal(ciphertext, &sealedBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Instantiate lemma and decrypt.
+	decryptor, err := lsecret.New(&lsecret.Config{
+		KeyBytes: &keyBytes,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	plaintext, err := decryptor.Open(sealedBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return plaintext, nil
 }
 
 // Close closes redirector and releases all resources
