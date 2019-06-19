@@ -11,6 +11,7 @@ benefits of Teleport Enterprise.
 ---------|--------------
 |[Role Based Access Control (RBAC)](#rbac)|Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions.
 |[Single Sign-On (SSO)](#sso)| Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them.
+|[FedRAMP/FIPS](#fedrampfips) | With Teleport 4.0, we have built out the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments.
 |Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times.
 
 !!! tip "Contact Information":
@@ -83,3 +84,20 @@ See the [SSO for SSH](ssh_sso.md) chapter for more details.
 
 !!! tip "Contact Information":
     For more information about Teleport Enterprise or Telekube please reach out us to `sales@gravitational.com` or fill out the contact for on our [website](http://gravitational.com/demo)
+
+
+## FedRAMP/FIPS 
+
+With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
+the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2),
+also known as the Federal Information Processing Standard, which is the US 
+government approved standard for cryptographic modules.
+
+Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/). 
+Look for `Linux 64-bit (FedRAMP/FIPS)`. 
+
+Using `teleport start --fips` Teleport will start in FIPS mode, Teleport will 
+configure the TLS and SSH servers with FIPS compliant cryptographic algorithms. 
+In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to start.
+In addition, Teleport checks if the binary was compiled against an approved
+cryptographic module (BoringCrypto) and fails to start if it was not.
