@@ -45,7 +45,7 @@ The following core concepts are integral to understanding the Teleport architect
    users to groups (roles) and restrict each role to a subset of actions on a subset of
    nodes in a cluster.
 
-* **Certificates**. Teleport uses SSH certificates to authenticate nodes and users within
+* **SSH Certificates**. Teleport uses SSH certificates to authenticate nodes and users within
    a cluster. Teleport does not allow public key or password-based SSH authentication.
 
 * **Dynamic Configuration**. Nearly everything in Teleport can be configured via the
@@ -108,7 +108,7 @@ node:
     for the two-step authentication. The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
 
 !!! warning "Warning":
-	Do not use a self-signed certificate in production!
+	Do not use a self-signed SSL/HTTPS certificates when creating production! 
 
 If the credentials are correct, the auth server generates and signs a new certificate and returns
 it to a client via the proxy. The client stores this key and will use it for subsequent
@@ -220,7 +220,7 @@ Let's explore each of the Teleport services in detail.
 The auth server acts as a certificate authority (CA) for the cluster. Teleport security is
 based on SSH certificates and every certificate must be signed by the cluster auth server.
 
-There are two types of [certificates](#certificates) the auth server can sign:
+There are two types of [certificates](#ssh-certificates) the auth server can sign:
 
 * **Host certificates** are used to add new nodes to a cluster.
 * **User certificates** are used to authenticate users when they try to log into a cluster node.
@@ -328,7 +328,7 @@ Once the client has obtained a short lived certificate, it can use it to authent
     Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`
 
 
-## Certificates
+## SSH Certificates
 
 Teleport uses standard SSH certificates for client and host authentication.
 
