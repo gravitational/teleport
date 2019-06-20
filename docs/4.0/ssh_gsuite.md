@@ -15,7 +15,7 @@ like:
     an SSO provider.
 
 
-## Configure G Suites
+## Configure G Suite
 
 1. Obtain OAuth 2.0 credentials  [https://developers.google.com/identity/protocols/OpenIDConnect](https://developers.google.com/identity/protocols/OpenIDConnect)
 
@@ -28,7 +28,7 @@ like:
 4. Make Application Type Public & Setup Domain Verification 
 ![Setup Application Type](img/gsuite/gsuite-3-oauth.png)
 
-5. Copy Oauth Client ID and Client Secret for YAML Below.
+5. Copy OAuth Client ID and Client Secret for YAML Below.
 ![Copy Client Secret](img/gsuite/gsuite-5-copy-client-id.png)
 
 6. To allow for fine grained role based access control (RBAC) you'll first need to
@@ -46,7 +46,7 @@ Write down this template as `gsuite-connector.yaml`:
 kind: oidc
 version: v2
 metadata:
-  name: gsuite
+  name: GSuite
 spec:
   redirect_url: https://localhost:3080/v1/webapi/oidc/callback
   client_id: exampleclientid11234.apps.googleusercontent.com
@@ -69,17 +69,19 @@ $ tctl create gsuite-connector.yaml
 
 ## Create Teleport Roles
 
-We are going to create 2 roles, privileged role admin who is able to login as
-root and is capable of administrating the cluster and non-privileged dev.
+We are going to create 2 roles:
+-  privileged role admin who is able to login as root and is capable of administrating 
+the cluster and non-privileged dev.
+- non-privileged dev
 
 ```yaml
-kind: "role"
-version: "v3"
+kind: role
+version: v3
 metadata:
-  name: "admin"
+  name: admin
 spec:
   options:
-    max_session_ttl: "24h"
+    max_session_ttl: 24h
   allow:
     logins: [root]
     node_labels:
@@ -90,18 +92,18 @@ spec:
 ```
 
 Devs are only allowed to login to nodes labelled with `access: relaxed`
-teleport label. Developers can log in as either `ubuntu` to a username that
+Teleport label. Developers can log in as either `ubuntu` or a username that
 arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access.
+obtain admin access to Teleport.
 
 ```yaml
-kind: "role"
-version: "v3"
+kind: role
+version: v3
 metadata:
-  name: "dev"
+  name: dev
 spec:
   options:
-    max_session_ttl: "24h"
+    max_session_ttl: 24h
   allow:
     logins: [ "{{external.username}}", ubuntu ]
     node_labels:
@@ -119,7 +121,7 @@ $ tctl create dev.yaml
 ![Login with Gsuite](img/gsuite/gsuite-6-loginwithgsuite.png)
 
 
-The Web UI will now contain a new button: "Login with gsuite". The CLI is
+The Web UI will now contain a new button: "Login with GSuite". The CLI is
 the same as before:
 
 ```bsh
@@ -136,7 +138,7 @@ automatically in a browser).
 
 ## Troubleshooting
 
-If you get "access denied errors" the number one place to check is the audit
+If you get "access denied" errors the number one place to check is the audit
 log on the Teleport auth server. It is located in `/var/lib/teleport/log` by
 default and it will contain the detailed reason why a user's login was denied.
 
@@ -150,9 +152,9 @@ Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bsh
-$ sudo journalctl -fu teleport
+$ sudo journalctl -f teleport
 ```
 
-If you wish to increase the verbocity of Teleport's syslog, you can pass
+If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
 

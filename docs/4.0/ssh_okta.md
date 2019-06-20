@@ -102,13 +102,13 @@ We are going to create 2 roles, privileged role admin who is able to login as
 root and is capable of administrating the cluster and non-privileged dev.
 
 ```yaml
-kind: "role"
-version: "v3"
+kind: role
+version: v3
 metadata:
-  name: "admin"
+  name: admin
 spec:
   options:
-    max_session_ttl: "24h"
+    max_session_ttl: 24h
   allow:
     logins: [root]
     node_labels:
@@ -121,13 +121,13 @@ spec:
 The developer role:
 
 ```yaml
-kind: "role"
-version: "v3"
+kind: role
+version: v3
 metadata:
-  name: "dev"
+  name: dev
 spec:
   options:
-    max_session_ttl: "24h"
+    max_session_ttl: 24h
   allow:
     logins: [ "{{external.username}}", ubuntu ]
     node_labels:
@@ -179,9 +179,9 @@ Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bsh
-$ sudo journalctl -fu teleport
+$ sudo journalctl -f teleport
 ```
 
-If you wish to increase the verbocity of Teleport's syslog, you can pass
+If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
 
