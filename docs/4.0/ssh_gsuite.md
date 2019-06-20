@@ -70,9 +70,9 @@ $ tctl create gsuite-connector.yaml
 ## Create Teleport Roles
 
 We are going to create 2 roles:
--  privileged role admin who is able to login as root and is capable of administrating 
-the cluster and non-privileged dev.
-- non-privileged dev
+-  Privileged role admin who is able to login as root and is capable of administrating 
+the cluster
+- Non-privileged dev
 
 ```yaml
 kind: role
@@ -152,7 +152,7 @@ Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bsh
-$ sudo journalctl -f teleport
+$ sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
