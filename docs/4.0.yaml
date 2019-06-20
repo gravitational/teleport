@@ -37,6 +37,7 @@ pages:
         - Okta: ssh_okta.md
         - Active Directory (ADFS): ssh_adfs.md
         - One Login: ssh_one_login.md
+        - G Suite: ssh_gsuite.md
         - OIDC: oidc.md
         - Trusted Clusters: trustedclusters.md
         - Kubernetes Guide: kubernetes_ssh.md
