@@ -1943,6 +1943,10 @@ configure your load balancer to forward the ports you specified for
 for your users, while the remaining ports should do TCP level forwarding, since
 Teleport will handle its own SSL on top of that with its own certificates.
 
+!!! tip "NOTE":
+    If you terminate TLS with your own certificate at a load balancer you'll need 
+    to Teleport with `--insecure`
+
 If your load balancer supports health checks, configure it to hit the
 `/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the
 proxy is running without problems.
