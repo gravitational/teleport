@@ -179,7 +179,7 @@ Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bsh
-$ sudo journalctl -f teleport
+$ sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
