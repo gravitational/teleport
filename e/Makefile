@@ -52,8 +52,8 @@ clean:
 	@echo "---> Cleaning up Enterprise build artifacts."
 	rm -rf $(BUILDDIR)
 	rm -rf *gz
-	rm build_houston
-	rm start_houston
+	-rm build_houston
+	-rm start_houston
 
 # make release - Produces a binary release tarball.
 .PHONY:
