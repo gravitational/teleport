@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.1
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed issue that caused processes to be spawned with an incorrect GID. [#2791](https://github.com/gravitational/teleport/pull/2791)
+* Fixed host certificate principal generation to only include hosts or IP addresses. [#2790](https://github.com/gravitational/teleport/pull/2790)
+* Fixed issue preventing tsh 4.0 from connection to 3.2 clusters. [#2784](https://github.com/gravitational/teleport/pull/2784)
+
 ## 4.0.0
 
 This is a major Teleport release which introduces support for Teleport Internet of Things (IoT). In addition to this new feature this release includes usability, performance, and bug fixes listed below.
