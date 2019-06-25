@@ -124,12 +124,15 @@ This role declares:
 
 Next, create a SAML connector [resource](admin-guide#resources):
 
-```bash
+```yaml
 kind: saml
 version: v2
 metadata:
   name: "adfs"
 spec:
+  # display allows to set the caption of the "login" button
+  # in the Web interface
+  display: "Login with MS Active Directory"
   provider: "adfs"
   acs: "https://localhost:3080/v1/webapi/saml/acs"
   entity_descriptor_url: "https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml"
@@ -165,7 +168,7 @@ certificates.
 
 ## Testing
 
-The Web UI will now contain a new button: "Login with OneLogin". The CLI is 
+The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is 
 the same as before:
 
 ```bash
