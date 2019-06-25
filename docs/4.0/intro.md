@@ -18,7 +18,7 @@ Teleport aims to be a cloud-native SSH solution, i.e. it makes it natural to thi
 environments, not servers. Below is the list of most popular Teleport features:
 
 * Single SSH/Kubernetes access gateway for an entire organization.
-* Certificate based authentication instead of static keys.
+* SSH certificate based authentication instead of static keys.
 * The ability to manage trust between teams, organizations and data centers.
 * SSH/Kubernetes access into behind-firewall environments without any open ports.
 * Role-based access control (RBAC) for SSH.
