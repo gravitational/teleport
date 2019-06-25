@@ -280,4 +280,3 @@ We hope this quickstart guide has helped you to quickly set up and play with Tel
 - Use a configuration file instead of command line flags because it gives you 
   more flexibility.
 - Review the [Architecture Overview](architecture.md), [Admin Manual](admin-guide.md) and [User Manual](user-manual.md) for a better understanding of Teleport.
-
