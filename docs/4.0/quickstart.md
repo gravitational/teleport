@@ -273,7 +273,7 @@ $ tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
 We hope this quickstart guide has helped you to quickly set up and play with Teleport. For production environments, we strongly recommend the following:
 
 - Install HTTPS certificates for every Teleport proxy. If setting up in a HA config 
-  on AWS, GCP or another cloud you'll likely terminate SSL at a Load Balancer. In 
+  on AWS, GCP or another cloud you'll likely terminate TLS at a Load Balancer. In 
   this case you'll need to start teleport with `--insecure`
 - Run Teleport `auth` on isolated servers. The auth service can run in a 
   highly available (HA) configuration.
