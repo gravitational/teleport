@@ -865,10 +865,16 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	// If the request contains 0.0.0.0, this implies an advertise IP was not
 	// specified on the node. Try and guess what the address by replacing 0.0.0.0
 	// with the RemoteAddr as known to the Auth Server.
-	req.AdditionalPrincipals = utils.ReplaceInSlice(
-		req.AdditionalPrincipals,
-		defaults.AnyAddress,
-		req.RemoteAddr)
+	if utils.SliceContainsStr(req.AdditionalPrincipals, defaults.AnyAddress) {
+		remoteHost, err := utils.Host(req.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		req.AdditionalPrincipals = utils.ReplaceInSlice(
+			req.AdditionalPrincipals,
+			defaults.AnyAddress,
+			remoteHost)
+	}
 
 	var cryptoPubKey crypto.PublicKey
 	var privateKeyPEM, pubSSHKey []byte

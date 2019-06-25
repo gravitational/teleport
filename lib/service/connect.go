@@ -616,11 +616,25 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		defaults.Localhost,
 	)
 
-	principalsOrDNSNamesChanged := (len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals)) ||
-		(len(dnsNames) != 0 && !conn.ServerIdentity.HasDNSNames(dnsNames))
+	// If advertise_ip, public_addr, or listen_addr in file configuration were
+	// updated, the list of principals (SSH) and DNS names (TLS) on the
+	// certificate need to be updated.
+	var principalsChanged bool
+	if len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals) {
+		principalsChanged = true
+		log.Debugf("Rotation in progress, updating SSH principals from %v to %v.",
+			conn.ServerIdentity.Cert.ValidPrincipals, additionalPrincipals)
+	}
+	var dnsNamesChanged bool
+	if len(dnsNames) != 0 && !conn.ServerIdentity.HasDNSNames(dnsNames) {
+		log.Debugf("Rotation in progress, updating x590 DNS names in SAN from %v to %v.",
+			conn.ServerIdentity.XCert.DNSNames, dnsNames)
+		dnsNamesChanged = true
+	}
 
-	if local.Matches(remote) && !principalsOrDNSNamesChanged {
-		// nothing to do, local state and rotation state are in sync
+	// If the local state matches remote state and neither principals or DNS
+	// names changed, nothing to do. CA is in sync.
+	if local.Matches(remote) && !(principalsChanged || dnsNamesChanged) {
 		return &rotationStatus{}, nil
 	}
 
@@ -648,7 +662,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		// that the old node came up and missed the whole rotation
 		// rollback cycle.
 		case "", services.RotationStateStandby:
-			if principalsOrDNSNamesChanged {
+			if principalsChanged || dnsNamesChanged {
 				process.Infof("Service %v has updated principals to %q, DNS Names to %q, going to request new principals and update.", id.Role, additionalPrincipals, dnsNames)
 				identity, err := process.reRegister(conn, additionalPrincipals, dnsNames, remote)
 				if err != nil {

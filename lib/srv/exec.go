@@ -309,36 +309,60 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 		teleport.SSHTeleportClusterName + "=" + clusterName.GetClusterName(),
 	}
 	c.Dir = osUser.HomeDir
-	c.SysProcAttr = &syscall.SysProcAttr{}
 
-	// execute the command under requested user's UID:GID
-	me, err := user.Current()
+	// Lookup all groups the user is a member of.
+	userGroups, err := osUser.GroupIds()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if me.Uid != osUser.Uid || me.Gid != osUser.Gid {
-		userGroups, err := osUser.GroupIds()
+	groups := make([]uint32, 0)
+	for _, sgid := range userGroups {
+		igid, err := strconv.Atoi(sgid)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.Warnf("Cannot interpret user group: '%v'", sgid)
+		} else {
+			groups = append(groups, uint32(igid))
 		}
-		groups := make([]uint32, 0)
-		for _, sgid := range userGroups {
-			igid, err := strconv.Atoi(sgid)
-			if err != nil {
-				log.Warnf("Cannot interpret user group: '%v'", sgid)
-			} else {
-				groups = append(groups, uint32(igid))
-			}
-		}
-		if len(groups) == 0 {
-			groups = append(groups, uint32(gid))
-		}
-		c.SysProcAttr.Credential = &syscall.Credential{
+	}
+	if len(groups) == 0 {
+		groups = append(groups, uint32(gid))
+	}
+
+	// Only set process credentials if the UID/GID of the requesting user are
+	// different than the process (Teleport).
+	//
+	// Note, the above is important because setting the credentials struct
+	// triggers calling of the SETUID and SETGID syscalls during process start.
+	// If the caller does not have permission to call those two syscalls (for
+	// example, if Teleport is started from a shell), this will prevent the
+	// process from spawning shells with the error: "operation not permitted". To
+	// workaround this, the credentials struct is only set if the credentials
+	// are different from the process itself. If the credentials are not, simply
+	// pick up the ambient credentials of the process.
+	var credentials *syscall.Credential
+	if strconv.Itoa(os.Getuid()) != osUser.Uid || strconv.Itoa(os.Getgid()) != osUser.Gid {
+		credentials = &syscall.Credential{
 			Uid:    uint32(uid),
 			Gid:    uint32(gid),
 			Groups: groups,
 		}
-		c.SysProcAttr.Setsid = true
+		log.Debugf("Creating process with UID %v, GID: %v, and Groups: %v.",
+			uid, gid, groups)
+	} else {
+		log.Debugf("Credential process with ambient credentials UID %v, GID: %v, Groups: %v.",
+			uid, gid, groups)
+	}
+
+	// Filling out syscall.SysProcAttr will trigger calling of certain syscalls
+	// during process start.
+	c.SysProcAttr = &syscall.SysProcAttr{
+		// Call SETUID and SETGID syscalls if credentials is not nil to set the
+		// process UID and GID. See "man 7 credentials" for more details.
+		Credential: credentials,
+
+		// Call the SETSID syscall which will "create a new session if the calling
+		// process is not a process group leader". See "man 2 setsid" for more details.
+		Setsid: true,
 	}
 
 	// apply environment variables passed from the client

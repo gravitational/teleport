@@ -1,6 +1,6 @@
-<h1>SSH Authentication with One Login</h1>
+<h1>SSH Authentication with OneLogin</h1>
 
-This guide will cover how to configure [One Login](https://www.onelogin.com/) to issue
+This guide will cover how to configure [OneLogin](https://www.onelogin.com/) to issue
 SSH credentials to specific groups of users. When used in combination with role
 based access control (RBAC) it allows SSH administrators to define policies
 like:
@@ -28,7 +28,7 @@ auth_service:
 
 ## Configure Application
 
-Using One Login control panel, create a SAML 2.0 Web App in SAML configuration
+Using OneLogin control panel, create a SAML 2.0 Web App in SAML configuration
 section:
 
 ![Create APP](img/onelogin-saml-1.png?raw=true)
@@ -109,13 +109,13 @@ We are going to create 2 roles, privileged role admin who is able to login as
 root and is capable of administrating the cluster and non-privileged dev.
 
 ```yaml
-kind: "role"
-version: "v3"
+kind: role
+version: v3"
 metadata:
-  name: "admin"
+  name: admin
 spec:
   options:
-    max_session_ttl: "24h"
+    max_session_ttl: 24h
   allow:
     logins: [root]
     node_labels:
@@ -126,15 +126,15 @@ spec:
 ```
 
 Devs are only allowed to login to nodes labelled with `access: relaxed`
-teleport label. Developers can log in as either `ubuntu` to a username that
+Teleport label. Developers can log in as either `ubuntu` to a username that
 arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access.
+obtain admin access to Teleport.
 
 ```yaml
-kind: "role"
-version: "v3"
+kind: role
+version: v3
 metadata:
-  name: "dev"
+  name: dev
 spec:
   options:
     max_session_ttl: "24h"
@@ -185,6 +185,6 @@ diagnosed using Teleport's `stderr` log, which is usually available via:
 $ sudo journalctl -fu teleport
 ```
 
-If you wish to increase the verbocity of Teleport's syslog, you can pass
+If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
 
