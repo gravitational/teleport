@@ -1540,25 +1540,24 @@ func (c *Client) GetSignupTokenData(token string) (user string, otpQRCode []byte
 	return tokenData.User, tokenData.QRImg, nil
 }
 
-// GenerateUserCert takes the public key in the OpenSSH `authorized_keys` plain
+// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 // text format, signs it using User Certificate Authority signing key and
-// returns the resulting certificate.
-func (c *Client) GenerateUserCert(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, error) {
-	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs"),
-		generateUserCertReq{
-			Key:           key,
-			User:          user,
-			TTL:           ttl,
-			Compatibility: compatibility,
-		})
+// returns the resulting certificates.
+func (c *Client) GenerateUserCerts(ctx context.Context, key []byte, user string, ttl time.Duration, compatibility string) (*proto.Certs, error) {
+	clt, err := c.grpc()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var cert string
-	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
-		return nil, trace.Wrap(err)
+	certs, err := clt.GenerateUserCerts(ctx, &proto.UserCertsRequest{
+		Key:           key,
+		Username:      user,
+		Ttl:           ttl,
+		Compatibility: compatibility,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
 	}
-	return []byte(cert), nil
+	return certs, nil
 }
 
 // GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
@@ -2603,10 +2602,10 @@ type IdentityService interface {
 	// resulting certificate.
 	GenerateHostCert(key []byte, hostID, nodeName string, principals []string, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
 
-	// GenerateUserCert takes the public key in the OpenSSH `authorized_keys`
-	// plain text format, signs it using User Certificate Authority signing key and returns the
-	// resulting certificate.
-	GenerateUserCert(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, error)
+	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
+	// text format, signs it using User Certificate Authority signing key and
+	// returns the resulting certificates.
+	GenerateUserCerts(ctx context.Context, key []byte, user string, ttl time.Duration, compatibility string) (*proto.Certs, error)
 
 	// GetSignupTokenData returns token data for a valid token
 	GetSignupTokenData(token string) (user string, otpQRCode []byte, e error)

@@ -333,11 +333,13 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	// sign it and produce a cert:
-	key.Cert, err = clusterApi.GenerateUserCert(key.Pub, a.genUser, a.genTTL, certificateFormat)
+	// Request signed certs from `auth` server.
+	certs, err := clusterApi.GenerateUserCerts(context.TODO(), key.Pub, a.genUser, a.genTTL, certificateFormat)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	key.Cert = certs.SSH
+	key.TLSCert = certs.TLS
 
 	var certAuthorities []services.CertAuthority
 	if a.outputFormat == client.IdentityFormatFile {

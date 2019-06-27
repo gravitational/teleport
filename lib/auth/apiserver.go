@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -77,7 +78,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
-	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert))
+	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert)) // DELETE IN: 4.2.0
 
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
@@ -667,6 +668,7 @@ func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.R
 	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
 
+// DELETE IN: 4.2.0
 type generateUserCertReq struct {
 	Key           []byte        `json:"key"`
 	User          string        `json:"user"`
@@ -674,6 +676,7 @@ type generateUserCertReq struct {
 	Compatibility string        `json:"compatibility,omitempty"`
 }
 
+// DELETE IN: 4.2.0
 func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req *generateUserCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -683,11 +686,11 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, certificateFormat)
+	certs, err := auth.GenerateUserCerts(context.TODO(), req.Key, req.User, req.TTL, certificateFormat)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return string(cert), nil
+	return string(certs.SSH), nil
 }
 
 type signInReq struct {
