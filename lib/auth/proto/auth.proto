@@ -3,6 +3,7 @@ package proto;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/duration.proto";
 import "github.com/gravitational/teleport/lib/services/types.proto";
 
 option (gogoproto.marshaler_all) = true;
@@ -73,6 +74,27 @@ message WatchKind {
     string Name = 3  [(gogoproto.jsontag) = "name"];
 }
 
+// Set of certificates corresponding to a single public key.
+message Certs {
+    // SSH X509 cert (PEM-encoded).
+    bytes SSH = 1 [(gogoproto.jsontag) = "ssh,omitempty"];
+    // TLS X509 cert (PEM-encoded).
+    bytes TLS = 2 [(gogoproto.jsontag) = "tls,omitempty"];
+}
+
+// UserCertRequest specifies certificate-generation parameters
+// for a user.  Used by `tctl auth sign`.
+message UserCertsRequest {
+    // Key is a public key to be signed.
+    bytes Key = 1 [(gogoproto.jsontag) = "key"];
+    // Username of key owner.
+    string Username = 2 [(gogoproto.jsontag) = "username"];
+    // TTL to be applied to the certificates.
+    google.protobuf.Duration TTL = 3 [(gogoproto.stdduration) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "ttl"];
+    // Compatibility encodes the desired certificate format.
+    string Compatibility = 4 [(gogoproto.jsontag) = "compatability,omitempty"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -81,4 +103,6 @@ service AuthService {
     rpc WatchEvents(Watch) returns (stream Event);
     // UpsertNode upserts node
     rpc UpsertNode(services.ServerV2) returns (services.KeepAlive);
+    // GenerateUserCerts generates a set of user certificates for use by `tctl auth sign`.
+    rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
 }
