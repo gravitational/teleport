@@ -21846,7 +21846,6 @@ webpackJsonp([0],[
 	  id: undefined,
 	  namespace: undefined,
 	  login: undefined,
-	  active: undefined,
 	  created: undefined,
 	  last_active: undefined,
 	  server_id: undefined,
@@ -21880,9 +21879,7 @@ webpackJsonp([0],[
 
 	  var jsonArray = json || [];
 	  var newState = defaultState().withMutations(function (newState) {
-	    return jsonArray.filter(function (item) {
-	      return item.active === true;
-	    }).forEach(function (item) {
+	    return jsonArray.forEach(function (item) {
 	      var rec = createSessionRec(siteId, item);
 	      newState.set(rec.id, rec);
 	    });
