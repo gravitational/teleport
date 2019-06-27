@@ -13644,7 +13644,6 @@ var ActiveSessionRec = Object(immutable["Record"])({
   id: undefined,
   namespace: undefined,
   login: undefined,
-  active: undefined,
   created: undefined,
   last_active: undefined,
   server_id: undefined,
@@ -13677,9 +13676,7 @@ function activeSessionStore_receive(state, _ref) {
 
   var jsonArray = json || [];
   var newState = activeSessionStore_defaultState().withMutations(function (newState) {
-    return jsonArray.filter(function (item) {
-      return item.active === true;
-    }).forEach(function (item) {
+    return jsonArray.forEach(function (item) {
       var rec = createSessionRec(siteId, item);
       newState.set(rec.id, rec);
     });
