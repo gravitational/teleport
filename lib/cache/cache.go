@@ -542,7 +542,12 @@ func (c *Cache) processEvent(event services.Event) error {
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (c *Cache) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
-	return c.trustCache.GetCertAuthority(id, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
+	ca, err := c.trustCache.GetCertAuthority(id, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
+	// this is to prevent unexpected situations during cache reload
+	if trace.IsNotFound(err) {
+		return c.Trust.GetCertAuthority(id, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
+	}
+	return ca, err
 }
 
 // GetCertAuthorities returns a list of authorities of a given type
