@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.2
+
+* Fixed an issue that caused active sessions not to be shown. [#2801](https://github.com/gravitational/teleport/issues/2801)
+* Fixed further issues with host certificate principal generation. [#2812](https://github.com/gravitational/teleport/pull/2812)
+* Fixed issue where fetching CA would sometimes return not found. [#2805](https://github.com/gravitational/teleport/pull/2805)
+
 ## 4.0.1
 
 This release of Teleport contains multiple bug fixes.
