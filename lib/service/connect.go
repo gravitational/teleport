@@ -600,6 +600,37 @@ type rotationStatus struct {
 	ca services.CertAuthority
 }
 
+// checkPrincipals returns a boolean that indicates the host certificate
+// needs to be regenerated.
+func checkPrincipals(conn *Connector, additionalPrincipals []string, dnsNames []string) bool {
+	var principalsChanged bool
+	var dnsNamesChanged bool
+
+	// Remove 0.0.0.0 (meaning advertise_ip has not) if it exists in the list of
+	// principals. The 0.0.0.0 values tells the auth server to "guess" the nodes
+	// IP. If 0.0.0.0 is not removed, a check is performed if it exists in the
+	// list of principals in the certificate. Since it never exists in the list
+	// of principals (auth server will always remove it before issuing a
+	// certificate) regeneration is always requested.
+	principalsToCheck := utils.RemoveFromSlice(additionalPrincipals, defaults.AnyAddress)
+
+	// If advertise_ip, public_addr, or listen_addr in file configuration were
+	// updated, the list of principals (SSH) or DNS names (TLS) on the
+	// certificate need to be updated.
+	if len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(principalsToCheck) {
+		principalsChanged = true
+		log.Debugf("Rotation in progress, adding %v to SSH principals %v.",
+			additionalPrincipals, conn.ServerIdentity.Cert.ValidPrincipals)
+	}
+	if len(dnsNames) != 0 && !conn.ServerIdentity.HasDNSNames(dnsNames) {
+		dnsNamesChanged = true
+		log.Debugf("Rotation in progress, adding %v to x590 DNS names in SAN %v.",
+			dnsNames, conn.ServerIdentity.XCert.DNSNames)
+	}
+
+	return principalsChanged || dnsNamesChanged
+}
+
 // rotate is called to check if rotation should be triggered.
 func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2, remote services.Rotation) (*rotationStatus, error) {
 	id := conn.ClientIdentity.ID
@@ -610,31 +641,13 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		return nil, trace.Wrap(err)
 	}
 
-	additionalPrincipals = utils.ReplaceInSlice(
-		additionalPrincipals,
-		defaults.AnyAddress,
-		defaults.Localhost,
-	)
-
-	// If advertise_ip, public_addr, or listen_addr in file configuration were
-	// updated, the list of principals (SSH) and DNS names (TLS) on the
-	// certificate need to be updated.
-	var principalsChanged bool
-	if len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals) {
-		principalsChanged = true
-		log.Debugf("Rotation in progress, updating SSH principals from %v to %v.",
-			conn.ServerIdentity.Cert.ValidPrincipals, additionalPrincipals)
-	}
-	var dnsNamesChanged bool
-	if len(dnsNames) != 0 && !conn.ServerIdentity.HasDNSNames(dnsNames) {
-		log.Debugf("Rotation in progress, updating x590 DNS names in SAN from %v to %v.",
-			conn.ServerIdentity.XCert.DNSNames, dnsNames)
-		dnsNamesChanged = true
-	}
+	// Check if any of the SSH principals or TLS DNS names have changed and the
+	// host credentials need to be regenerated.
+	regenerateCertificate := checkPrincipals(conn, additionalPrincipals, dnsNames)
 
 	// If the local state matches remote state and neither principals or DNS
 	// names changed, nothing to do. CA is in sync.
-	if local.Matches(remote) && !(principalsChanged || dnsNamesChanged) {
+	if local.Matches(remote) && !regenerateCertificate {
 		return &rotationStatus{}, nil
 	}
 
@@ -662,7 +675,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		// that the old node came up and missed the whole rotation
 		// rollback cycle.
 		case "", services.RotationStateStandby:
-			if principalsChanged || dnsNamesChanged {
+			if regenerateCertificate {
 				process.Infof("Service %v has updated principals to %q, DNS Names to %q, going to request new principals and update.", id.Role, additionalPrincipals, dnsNames)
 				identity, err := process.reRegister(conn, additionalPrincipals, dnsNames, remote)
 				if err != nil {
