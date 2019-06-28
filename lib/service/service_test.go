@@ -24,6 +24,7 @@ import (
 
 	"strconv"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -118,6 +119,68 @@ func (s *ServiceTestSuite) TestMonitor(c *check.C) {
 	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: nil})
 	err = waitForStatus(endpoint, http.StatusOK)
 	c.Assert(err, check.IsNil)
+}
+
+// TestCheckPrincipals checks certificates regeneration only requests
+// regeneration when the principals change.
+func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
+	dataDir := c.MkDir()
+
+	// Create a test auth server to extract the server identity (SSH and TLS
+	// certificates).
+	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir: dataDir,
+	})
+	c.Assert(err, check.IsNil)
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	c.Assert(err, check.IsNil)
+	defer tlsServer.Close()
+
+	testConnector := &Connector{
+		ServerIdentity: tlsServer.Identity,
+	}
+
+	var tests = []struct {
+		inPrincipals  []string
+		inDNS         []string
+		outRegenerate bool
+	}{
+		// If nothing has been updated, don't regenerate certificate.
+		{
+			inPrincipals:  []string{},
+			inDNS:         []string{},
+			outRegenerate: false,
+		},
+		// Don't regenerate certificate if the node does not know it's own address.
+		{
+			inPrincipals:  []string{"0.0.0.0"},
+			inDNS:         []string{},
+			outRegenerate: false,
+		},
+		// If a new SSH principal is found, regenerate certificate.
+		{
+			inPrincipals:  []string{"1.1.1.1"},
+			inDNS:         []string{},
+			outRegenerate: true,
+		},
+		// If a new TLS DNS name is found, regenerate certificate.
+		{
+			inPrincipals:  []string{},
+			inDNS:         []string{"server.example.com"},
+			outRegenerate: true,
+		},
+		// Don't regenerate certificate if additional principals is already on the
+		// certificate.
+		{
+			inPrincipals:  []string{"test-tls-server"},
+			inDNS:         []string{},
+			outRegenerate: false,
+		},
+	}
+	for _, tt := range tests {
+		ok := checkPrincipals(testConnector, tt.inPrincipals, tt.inDNS)
+		c.Assert(ok, check.Equals, tt.outRegenerate)
+	}
 }
 
 func waitForStatus(diagAddr string, statusCodes ...int) error {
