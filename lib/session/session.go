@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
@@ -111,8 +112,6 @@ type Session struct {
 	TerminalParams TerminalParams `json:"terminal_params"`
 	// Login is a login used by all parties joining the session
 	Login string `json:"login"`
-	// Active indicates if the session is active
-	Active bool `json:"active"`
 	// Created records the information about the time when session
 	// was created
 	Created time.Time `json:"created"`
@@ -218,7 +217,6 @@ func Bool(val bool) *bool {
 type UpdateRequest struct {
 	ID             ID              `json:"id"`
 	Namespace      string          `json:"namespace"`
-	Active         *bool           `json:"active"`
 	TerminalParams *TerminalParams `json:"terminal_params"`
 
 	// Parties allows to update the list of session parties. nil means
@@ -264,6 +262,9 @@ type Service interface {
 	// UpdateSession updates certain session parameters (last_active, terminal
 	// parameters) other parameters will not be updated.
 	UpdateSession(req UpdateRequest) error
+
+	// DeleteSession removes an active session from the backend.
+	DeleteSession(namespace string, id ID) error
 }
 
 type server struct {
@@ -421,9 +422,6 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 		if req.TerminalParams != nil {
 			session.TerminalParams = *req.TerminalParams
 		}
-		if req.Active != nil {
-			session.Active = *req.Active
-		}
 		if req.Parties != nil {
 			session.Parties = *req.Parties
 		}
@@ -449,6 +447,24 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 		}
 	}
 	return trace.ConnectionProblem(nil, "failed concurrently update the session")
+}
+
+// DeleteSession removes an active session from the backend.
+func (s *server) DeleteSession(namespace string, id ID) error {
+	if !services.IsValidNamespace(namespace) {
+		return trace.BadParameter("invalid namespace %q", namespace)
+	}
+	err := id.Check()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.bk.Delete(context.TODO(), activeKey(namespace, string(id)))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // discardSessionServer discards all information about sessions given to it.
@@ -479,6 +495,11 @@ func (d *discardSessionServer) CreateSession(sess Session) error {
 
 // UpdateSession always returns nil, does nothing.
 func (d *discardSessionServer) UpdateSession(req UpdateRequest) error {
+	return nil
+}
+
+// DeleteSession removes an active session from the backend.
+func (d *discardSessionServer) DeleteSession(namespace string, id ID) error {
 	return nil
 }
 

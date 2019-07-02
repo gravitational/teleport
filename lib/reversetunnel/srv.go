@@ -103,6 +103,14 @@ type server struct {
 	ctx context.Context
 
 	*log.Entry
+
+	// proxyWatcher monitors changes to the proxies
+	// and broadcasts updates
+	proxyWatcher *services.ProxyWatcher
+
+	// offlineThreshold is how long to wait for a keep alive message before
+	// marking a reverse tunnel connection as invalid.
+	offlineThreshold time.Duration
 }
 
 // DirectCluster is used to access cluster directly
@@ -217,7 +225,30 @@ func NewServer(cfg Config) (Server, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	clusterConfig, err := cfg.LocalAccessPoint.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	offlineThreshold := time.Duration(clusterConfig.GetKeepAliveCountMax()) * clusterConfig.GetKeepAliveInterval()
+
 	ctx, cancel := context.WithCancel(cfg.Context)
+
+	entry := log.WithFields(log.Fields{
+		trace.Component: cfg.Component,
+	})
+	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
+		Context:   ctx,
+		Component: cfg.Component,
+		Client:    cfg.LocalAuthClient,
+		Entry:     entry,
+		ProxiesC:  make(chan []services.Server, 10),
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	srv := &server{
 		Config:           cfg,
 		localSites:       []*localSite{},
@@ -228,10 +259,10 @@ func NewServer(cfg Config) (Server, error) {
 		limiter:          cfg.Limiter,
 		ctx:              ctx,
 		cancel:           cancel,
+		proxyWatcher:     proxyWatcher,
 		clusterPeers:     make(map[string]*clusterPeers),
-		Entry: log.WithFields(log.Fields{
-			trace.Component: cfg.Component,
-		}),
+		Entry:            entry,
+		offlineThreshold: offlineThreshold,
 	}
 
 	for _, clusterInfo := range cfg.DirectClusters {
@@ -243,7 +274,6 @@ func NewServer(cfg Config) (Server, error) {
 		srv.localSites = append(srv.localSites, cluster)
 	}
 
-	var err error
 	s, err := sshutils.NewServer(
 		teleport.ComponentReverseTunnelServer,
 		// TODO(klizhentas): improve interface, use struct instead of parameter list
@@ -302,8 +332,9 @@ func (s *server) disconnectClusters() error {
 }
 
 func (s *server) periodicFunctions() {
-	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
+
 	if err := s.fetchClusterPeers(); err != nil {
 		s.Warningf("Failed to fetch cluster peers: %v.", err)
 	}
@@ -312,6 +343,9 @@ func (s *server) periodicFunctions() {
 		case <-s.ctx.Done():
 			s.Debugf("Closing.")
 			return
+		// Proxies have been updated, notify connected agents about the update.
+		case proxies := <-s.proxyWatcher.ProxiesC:
+			s.fanOutProxies(proxies)
 		case <-ticker.C:
 			err := s.fetchClusterPeers()
 			if err != nil {
@@ -379,7 +413,7 @@ func (s *server) reportClusterStats() error {
 func (s *server) addClusterPeers(conns map[string]services.TunnelConnection) error {
 	for key := range conns {
 		connInfo := conns[key]
-		peer, err := newClusterPeer(s, connInfo)
+		peer, err := newClusterPeer(s, connInfo, s.offlineThreshold)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -490,7 +524,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	// Apply read/write timeouts to the server connection.
 	conn = utils.ObeyIdleTimeout(conn,
-		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
+		s.offlineThreshold,
 		"reverse tunnel server")
 
 	channelType := nch.ChannelType()
@@ -527,7 +561,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		return
 	}
 
-	go proxyTransport(&transportParams{
+	t := &transport{
 		log:              s.Entry,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
@@ -535,7 +569,8 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,
 		localClusterName: s.ClusterName,
-	})
+	}
+	go t.start()
 }
 
 func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
@@ -553,10 +588,10 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		nch.Reject(ssh.ConnectionFailed, "unknown role")
 	}
 	switch {
-	// Node dialing back.
+	// Node is dialing back.
 	case val == string(teleport.RoleNode):
 		s.handleNewNode(conn, sconn, nch)
-	// Proxy dialing back.
+	// Proxy is dialing back.
 	case val == string(teleport.RoleProxy):
 		s.handleNewCluster(conn, sconn, nch)
 	}
@@ -582,7 +617,7 @@ func (s *server) handleNewNode(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 
 func (s *server) handleNewCluster(conn net.Conn, sshConn *ssh.ServerConn, nch ssh.NewChannel) {
 	// add the incoming site (cluster) to the list of active connections:
-	site, remoteConn, err := s.upsertSite(conn, sshConn)
+	site, remoteConn, err := s.upsertRemoteCluster(conn, sshConn)
 	if err != nil {
 		log.Error(trace.Wrap(err))
 		nch.Reject(ssh.ConnectionFailed, "failed to accept incoming cluster connection")
@@ -770,12 +805,10 @@ func (s *server) upsertNode(conn net.Conn, sconn *ssh.ServerConn) (*localSite, *
 		return nil, nil, trace.Wrap(err)
 	}
 
-	go cluster.registerHeartbeat(time.Now())
-
 	return cluster, rconn, nil
 }
 
-func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
+func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if strings.TrimSpace(domainName) == "" {
 		return nil, nil, trace.BadParameter("cannot create reverse tunnel: empty cluster name")
@@ -798,7 +831,7 @@ func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite
 			return nil, nil, trace.Wrap(err)
 		}
 	} else {
-		site, err = newRemoteSite(s, domainName)
+		site, err = newRemoteSite(s, domainName, sshConn.Conn)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -892,8 +925,21 @@ func (s *server) RemoveSite(domainName string) error {
 	return trace.NotFound("cluster %q is not found", domainName)
 }
 
+// fanOutProxies is a non-blocking call that updated the watches proxies
+// list and notifies all clusters about the proxy list change
+func (s *server) fanOutProxies(proxies []services.Server) {
+	s.Lock()
+	defer s.Unlock()
+	for _, cluster := range s.localSites {
+		cluster.fanOutProxies(proxies)
+	}
+	for _, cluster := range s.remoteSites {
+		cluster.fanOutProxies(proxies)
+	}
+}
+
 // newRemoteSite helper creates and initializes 'remoteSite' instance
-func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
+func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite, error) {
 	connInfo, err := services.NewTunnelConnection(
 		fmt.Sprintf("%v-%v", srv.ID, domainName),
 		services.TunnelConnectionSpecV2{
@@ -917,9 +963,10 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 				"cluster": domainName,
 			},
 		}),
-		ctx:    closeContext,
-		cancel: cancel,
-		clock:  srv.Clock,
+		ctx:              closeContext,
+		cancel:           cancel,
+		clock:            srv.Clock,
+		offlineThreshold: srv.offlineThreshold,
 	}
 
 	// configure access to the full Auth Server API and the cached subset for
@@ -933,13 +980,26 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	}
 	remoteSite.remoteClient = clt
 
-	// configure access to the cached subset of the Auth Server API of the remote
-	// cluster this remote site provides access to.
-	accessPoint, err := srv.newAccessPoint(clt, []string{"reverse", domainName})
+	// DELETE IN: 4.1.0
+	//
+	// Try to get the version of Teleport the remote cluster is running. Older
+	// versions of Teleport don't support the Watch endpoints needed for the
+	// cache, for those clusters, don't use a cache.
+	version, err := sendVersionRequest(sconn, closeContext)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		remoteSite.Debugf("Connected to legacy cluster %v, not using cache.", domainName)
+		remoteSite.remoteAccessPoint = clt
+	} else {
+		remoteSite.Debugf("Connected to cluster %v running Teleport %v, using cache.", domainName, version)
+
+		// Configure access to the cached subset of the Auth Server API of the remote
+		// cluster this remote site provides access to.
+		accessPoint, err := srv.newAccessPoint(clt, []string{"reverse", domainName})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		remoteSite.remoteAccessPoint = accessPoint
 	}
-	remoteSite.remoteAccessPoint = accessPoint
 
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each site (instead of creating it in
@@ -956,6 +1016,38 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	return remoteSite, nil
 }
 
+// sendVersionRequest sends a request for the version remote Teleport cluster.
+// If a response is not received within one second, it's assumed it's a legacy
+// cluster.
+func sendVersionRequest(sconn ssh.Conn, closeContext context.Context) (string, error) {
+	errorCh := make(chan error, 1)
+	versionCh := make(chan string, 1)
+
+	go func() {
+		ok, payload, err := sconn.SendRequest(versionRequest, true, nil)
+		if err != nil {
+			errorCh <- err
+			return
+		}
+		if !ok {
+			errorCh <- trace.BadParameter("no response to %v request", versionRequest)
+			return
+		}
+		versionCh <- string(payload)
+	}()
+
+	select {
+	case ver := <-versionCh:
+		return ver, nil
+	case err := <-errorCh:
+		return "", trace.Wrap(err)
+	case <-time.After(defaults.ReadHeadersTimeout):
+		return "", trace.BadParameter("timeout waiting for version")
+	case <-closeContext.Done():
+		return "", closeContext.Err()
+	}
+}
+
 const (
 	extHost         = "host@teleport"
 	extCertType     = "certtype@teleport"
@@ -963,4 +1055,6 @@ const (
 	extCertTypeHost = "host"
 	extCertTypeUser = "user"
 	extCertRole     = "role"
+
+	versionRequest = "x-teleport-version"
 )

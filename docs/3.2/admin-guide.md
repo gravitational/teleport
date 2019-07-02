@@ -267,8 +267,7 @@ teleport:
       - aes192-ctr
       - aes256-ctr
       - aes128-gcm@openssh.com
-      - arcfour256
-      - arcfour128
+      - chacha20-poly1305@openssh.com
 
     # Key exchange algorithms that the server supports. This section only needs
     # to be set if you want to override the defaults.
@@ -277,31 +276,18 @@ teleport:
       - ecdh-sha2-nistp256
       - ecdh-sha2-nistp384
       - ecdh-sha2-nistp521
-      - diffie-hellman-group14-sha1
-      - diffie-hellman-group1-sha1
 
     # Message authentication code (MAC) algorithms that the server supports.
     # This section only needs to be set if you want to override the defaults.
     mac_algos:
       - hmac-sha2-256-etm@openssh.com
       - hmac-sha2-256
-      - hmac-sha1
-      - hmac-sha1-96
 
     # List of the supported ciphersuites. If this section is not specified,
     # only the default ciphersuites are enabled.
     ciphersuites:
-       - tls-rsa-with-aes-128-cbc-sha # default
-       - tls-rsa-with-aes-256-cbc-sha # default
-       - tls-rsa-with-aes-128-cbc-sha256
        - tls-rsa-with-aes-128-gcm-sha256
        - tls-rsa-with-aes-256-gcm-sha384
-       - tls-ecdhe-ecdsa-with-aes-128-cbc-sha
-       - tls-ecdhe-ecdsa-with-aes-256-cbc-sha
-       - tls-ecdhe-rsa-with-aes-128-cbc-sha
-       - tls-ecdhe-rsa-with-aes-256-cbc-sha
-       - tls-ecdhe-ecdsa-with-aes-128-cbc-sha256
-       - tls-ecdhe-rsa-with-aes-128-cbc-sha256
        - tls-ecdhe-rsa-with-aes-128-gcm-sha256
        - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
        - tls-ecdhe-rsa-with-aes-256-gcm-sha384
@@ -745,7 +731,7 @@ Static tokens are defined ahead of time by an administrator and stored
 in the auth server's config file:
 
 ```yaml
-# Config section in `/etc/teleport/teleport.yaml` file for the auth server
+# Config section in `/etc/teleport.yaml` file for the auth server
 auth_service:
     enabled: true
     tokens:
@@ -1463,7 +1449,7 @@ main           online
 east           online
 
 # see the list of machines (nodes) behind the eastern cluster:
-$ tsh --cluster=east ls
+$ tsh ls --cluster=east
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
@@ -1471,7 +1457,7 @@ db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
 db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 
 # SSH into any node in "east":
-$ tsh --cluster=east ssh root@db1.east
+$ tsh ssh --cluster=east root@db1.east
 ```
 
 ### Disabling Trust
@@ -1599,6 +1585,18 @@ proxy.
 The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 `scheme://host:port` where scheme is either `https` or `http`. If the
 value is `host:port`, Teleport will prepend `http`.
+
+It's important to note that in order for Teleport to use HTTP CONNECT tunnelling, the `HTTP_PROXY` and `HTTPS_PROXY`
+environment variables must be set within Teleport's environment. You can also optionally set the `NO_PROXY` environment
+variable to avoid use of the proxy when accessing specified hosts/netmasks. When launching Teleport with systemd, this
+will probably involve adding some lines to your systemd unit file:
+
+```
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:8080/"
+Environment="HTTPS_PROXY=http://proxy.example.com:8080/"
+Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
+```
 
 !!! tip "Note":
     `localhost` and `127.0.0.1` are invalid values for the proxy host. If for
@@ -1866,6 +1864,9 @@ If using Teleport Enterprise SSO with enterprise-grade identity providers (using
 `kubernetes_groups` are assigned to Teleport Roles as shown in the Teleport Enterprise [RBAC](ssh_rbac.md#roles)
 section.
 
+You may also find it useful to read our [Kubernetes guide](kubernetes_ssh.md) which contains some more specific examples
+and instructions. 
+
 ### Multiple Kubernetes Clusters
 
 You can take advantage of the [Trusted Clusters](#trusted-clusters) feature
@@ -1941,6 +1942,10 @@ configure your load balancer to forward the ports you specified for
 `web_listen_addr` can terminate TLS with your own certificate that is valid
 for your users, while the remaining ports should do TCP level forwarding, since
 Teleport will handle its own SSL on top of that with its own certificates.
+
+!!! tip "NOTE":
+    If you terminate TLS with your own certificate at a load balancer you'll need 
+    to Teleport with `--insecure`
 
 If your load balancer supports health checks, configure it to hit the
 `/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the

@@ -133,10 +133,10 @@ func DecodeClusterName(serverName string) (string, error) {
 }
 
 // NewAddrDialer returns new dialer from a list of addresses
-func NewAddrDialer(addrs []utils.NetAddr) ContextDialer {
+func NewAddrDialer(addrs []utils.NetAddr, keepAliveInterval time.Duration) ContextDialer {
 	dialer := net.Dialer{
 		Timeout:   defaults.DefaultDialTimeout,
-		KeepAlive: defaults.ReverseTunnelAgentHeartbeatPeriod,
+		KeepAlive: keepAliveInterval,
 	}
 	return ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		var err error
@@ -198,7 +198,7 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 		c.KeepAliveCount = defaults.KeepAliveCountMax
 	}
 	if c.Dialer == nil {
-		c.Dialer = NewAddrDialer(c.Addrs)
+		c.Dialer = NewAddrDialer(c.Addrs, c.KeepAlivePeriod)
 	}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = teleport.APIDomain
@@ -398,12 +398,12 @@ func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, 
 	return sess, nil
 }
 
-// DeleteSession deletes a session by ID
-func (c *Client) DeleteSession(namespace, id string) error {
+// DeleteSession removes an active session from the backend.
+func (c *Client) DeleteSession(namespace string, id session.ID) error {
 	if namespace == "" {
 		return trace.BadParameter(MissingNamespaceError)
 	}
-	_, err := c.Delete(c.Endpoint("namespaces", namespace, "sessions", id))
+	_, err := c.Delete(c.Endpoint("namespaces", namespace, "sessions", string(id)))
 	return trace.Wrap(err)
 }
 

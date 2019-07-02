@@ -32,6 +32,19 @@ const EmptyValue = ({ text='Empty' }) => (
   </small>
 );
 
+const Tunnel = () => (
+  <span style={{ cursor: "default" }} title="This node is connected to cluster through reverse tunnel">{`⟵ tunnel`}</span>
+)
+
+const AddressCell = ({ rowIndex, data, ...props }) => {
+  const { addr, tunnel } = data[rowIndex]
+  return (
+    <Cell {...props}>
+      { tunnel ? <Tunnel /> : addr }
+    </Cell>
+  )
+}
+
 const TagCell = ({ rowIndex, data, ...props }) => {
   const { tags } = data[rowIndex];
   let $content = tags.map((item, index) => (
@@ -233,16 +246,15 @@ class NodeList extends React.Component {
                 }
                 cell={<TextCell /> }
               />
-              <Column
-                columnKey="addr"
-                header={
+                <Column
+                  header={
                   <SortHeaderCell
                     sortDir={this.state.colSortDirs.addr}
                     onSortChange={this.onSortChange}
                     title="Address"
                   />
                 }
-                cell={<TextCell /> }
+                cell={<AddressCell /> }
               />
               <Column
                 header={<Cell>Labels</Cell> }

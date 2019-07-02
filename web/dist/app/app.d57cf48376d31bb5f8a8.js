@@ -5154,10 +5154,34 @@ var nodeList_EmptyValue = function EmptyValue(_ref) {
   );
 };
 
-var nodeList_TagCell = function TagCell(_ref2) {
+var nodeList_Tunnel = function Tunnel() {
+  return react_default.a.createElement(
+    'span',
+    { style: { cursor: "default" }, title: 'This node is connected to cluster through reverse tunnel' },
+    '\u27F5 tunnel'
+  );
+};
+
+var nodeList_AddressCell = function AddressCell(_ref2) {
   var rowIndex = _ref2.rowIndex,
       data = _ref2.data,
       props = nodeList_objectWithoutProperties(_ref2, ['rowIndex', 'data']);
+
+  var _data$rowIndex = data[rowIndex],
+      addr = _data$rowIndex.addr,
+      tunnel = _data$rowIndex.tunnel;
+
+  return react_default.a.createElement(
+    table_TableCell,
+    props,
+    tunnel ? react_default.a.createElement(nodeList_Tunnel, null) : addr
+  );
+};
+
+var nodeList_TagCell = function TagCell(_ref3) {
+  var rowIndex = _ref3.rowIndex,
+      data = _ref3.data,
+      props = nodeList_objectWithoutProperties(_ref3, ['rowIndex', 'data']);
 
   var tags = data[rowIndex].tags;
 
@@ -5187,7 +5211,7 @@ var nodeList_LoginCell = function (_React$Component) {
   nodeList_inherits(LoginCell, _React$Component);
 
   function LoginCell() {
-    var _ref3;
+    var _ref4;
 
     var _temp, _this, _ret;
 
@@ -5197,7 +5221,7 @@ var nodeList_LoginCell = function (_React$Component) {
       args[_key] = arguments[_key];
     }
 
-    return _ret = (_temp = (_this = nodeList_possibleConstructorReturn(this, (_ref3 = LoginCell.__proto__ || Object.getPrototypeOf(LoginCell)).call.apply(_ref3, [this].concat(args))), _this), _this.onKeyPress = function (e) {
+    return _ret = (_temp = (_this = nodeList_possibleConstructorReturn(this, (_ref4 = LoginCell.__proto__ || Object.getPrototypeOf(LoginCell)).call.apply(_ref4, [this].concat(args))), _this), _this.onKeyPress = function (e) {
       if (e.key === 'Enter' && e.target.value) {
         var url = _this.makeUrl(e.target.value);
         services_history.push(url);
@@ -5215,9 +5239,9 @@ var nodeList_LoginCell = function (_React$Component) {
       var _props = this.props,
           data = _props.data,
           rowIndex = _props.rowIndex;
-      var _data$rowIndex = data[rowIndex],
-          siteId = _data$rowIndex.siteId,
-          id = _data$rowIndex.id;
+      var _data$rowIndex2 = data[rowIndex],
+          siteId = _data$rowIndex2.siteId,
+          id = _data$rowIndex2.id;
 
       return config["a" /* default */].getTerminalLoginUrl({
         siteId: siteId,
@@ -5431,13 +5455,12 @@ var nodeList_NodeList = function (_React$Component2) {
               cell: react_default.a.createElement(table_TableTextCell, null)
             }),
             react_default.a.createElement(Column, {
-              columnKey: 'addr',
               header: react_default.a.createElement(table_SortHeaderCell, {
                 sortDir: this.state.colSortDirs.addr,
                 onSortChange: this.onSortChange,
                 title: 'Address'
               }),
-              cell: react_default.a.createElement(table_TableTextCell, null)
+              cell: react_default.a.createElement(nodeList_AddressCell, null)
             }),
             react_default.a.createElement(Column, {
               header: react_default.a.createElement(
@@ -6387,7 +6410,8 @@ var nodeStore_ServerRec = function (_Record) {
   siteId: '',
   hostname: '',
   tags: new immutable["List"](),
-  addr: ''
+  addr: '',
+  tunnel: false
 }));
 
 var nodeStore_NodeStoreRec = function (_Record2) {
@@ -13620,7 +13644,6 @@ var ActiveSessionRec = Object(immutable["Record"])({
   id: undefined,
   namespace: undefined,
   login: undefined,
-  active: undefined,
   created: undefined,
   last_active: undefined,
   server_id: undefined,
@@ -13653,9 +13676,7 @@ function activeSessionStore_receive(state, _ref) {
 
   var jsonArray = json || [];
   var newState = activeSessionStore_defaultState().withMutations(function (newState) {
-    return jsonArray.filter(function (item) {
-      return item.active === true;
-    }).forEach(function (item) {
+    return jsonArray.forEach(function (item) {
       var rec = createSessionRec(siteId, item);
       newState.set(rec.id, rec);
     });

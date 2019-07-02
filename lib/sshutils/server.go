@@ -475,8 +475,11 @@ type AuthMethods struct {
 }
 
 func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
-	if a.Addr == "" || a.AddrNetwork == "" {
-		return trace.BadParameter("addr: specify network and the address for listening socket")
+	// If the server is not in tunnel mode, an address must be specified.
+	if s.listener != nil {
+		if a.Addr == "" || a.AddrNetwork == "" {
+			return trace.BadParameter("addr: specify network and the address for listening socket")
+		}
 	}
 
 	if h == nil {
@@ -575,8 +578,8 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	buff := make([]byte, MaxVersionStringBytes)
 	n, err := c.Conn.Read(buff)
 	if err != nil {
-		// EOF happens quite often, don't pollute the logs with EOF
-		if err != io.EOF {
+		// EOF happens quite often, don't pollute the logs with it
+		if !trace.IsEOF(err) {
 			log.Error(err)
 		}
 		return n, err

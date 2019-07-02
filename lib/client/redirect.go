@@ -67,12 +67,7 @@ type Redirector struct {
 
 // NewRedirector returns new local web server redirector
 func NewRedirector(login SSHLogin) (*Redirector, error) {
-	//clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-
-	clt, err := NewCredentialsClient(login.ProxyAddr, login.Insecure, login.Pool)
+	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,8 +83,8 @@ func NewRedirector(login SSHLogin) (*Redirector, error) {
 	rd := &Redirector{
 		context:     context,
 		cancel:      cancel,
-		proxyClient: clt.clt,
-		proxyURL:    clt.url,
+		proxyClient: clt,
+		proxyURL:    proxyURL,
 		SSHLogin:    login,
 		mux:         http.NewServeMux(),
 		key:         key,

@@ -56,40 +56,17 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 		return nil, trace.Wrap(err)
 	}
 
-	// Build a net.Conn over the tunnel.
+	// Build a net.Conn over the tunnel. Make this an exclusive connection:
+	// close the net.Conn as well as the channel upon close.
 	conn, _, err := connectProxyTransport(sconn.Conn, &dialReq{
-		Address: RemoteAuthServer,
+		Address:   RemoteAuthServer,
+		Exclusive: true,
 	})
 	if err != nil {
 		err2 := sconn.Close()
 		return nil, trace.NewAggregate(err, err2)
 	}
 	return conn, nil
-}
-
-// transportParams are used to build a connection to the target host.
-type transportParams struct {
-	component    string
-	log          *logrus.Entry
-	closeContext context.Context
-	authClient   auth.AccessPoint
-	channel      ssh.Channel
-	requestCh    <-chan *ssh.Request
-
-	// localClusterName is the name of the cluster that the transport code is
-	// running in.
-	localClusterName string
-
-	// kubeDialAddr is the address of the Kubernetes proxy.
-	kubeDialAddr utils.NetAddr
-
-	// sconn is a SSH connection to the remote host. Used for dial back nodes.
-	sconn ssh.Conn
-	// server is the underlying SSH server. Used for dial back nodes.
-	server ServerHandler
-
-	// reverseTunnelServer holds all reverse tunnel connections.
-	reverseTunnelServer Server
 }
 
 // dialReq is a request for the address to connect to. Supports special
@@ -99,9 +76,17 @@ type dialReq struct {
 	// special non-resolvable address like @remote-auth-server.
 	Address string `json:"address,omitempty"`
 
-	// SearchNames is a list of aliases for the host. SearchNames is used when
+	// ServerID is the hostUUID.clusterName of th enode. ServerID is used when
 	// dialing through a tunnel.
-	SearchNames []string `json:"search_names,omitempty"`
+	ServerID string `json:"server_id,omitempty"`
+
+	// Exclusive indicates if the connection should be closed or only the
+	// channel upon calling close on the net.Conn.
+	Exclusive bool `json:"exclusive"`
+
+	// DELETE IN: 4.1.0
+	// Legacy indicates this request will be marshaled in the old format.
+	Legacy bool `json:"legacy"`
 }
 
 // parseDialReq parses the dial request. Is backward compatible with legacy
@@ -121,6 +106,15 @@ func parseDialReq(payload []byte) *dialReq {
 
 // marshalDialReq marshals the dial request to send over the wire.
 func marshalDialReq(req *dialReq) ([]byte, error) {
+	// DELETE IN: 4.1.0
+	//
+	// For backward compatibility, if the request is going to a legacy cluster
+	// (cluster running Teleport older than 4.0.0), don't use new JSON format,
+	// use raw string.
+	if req.Legacy {
+		return []byte(req.Address), nil
+	}
+
 	bytes, err := json.Marshal(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -130,7 +124,7 @@ func marshalDialReq(req *dialReq) ([]byte, error) {
 
 // connectProxyTransport opens a channel over the remote tunnel and connects
 // to the requested host.
-func connectProxyTransport(sconn ssh.Conn, req *dialReq) (net.Conn, bool, error) {
+func connectProxyTransport(sconn ssh.Conn, req *dialReq) (*utils.ChConn, bool, error) {
 	channel, _, err := sconn.OpenChannel(chanTransport, nil)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
@@ -156,18 +150,47 @@ func connectProxyTransport(sconn ssh.Conn, req *dialReq) (net.Conn, bool, error)
 		// passed to us via stderr.
 		errMessage, _ := ioutil.ReadAll(channel.Stderr())
 		if errMessage == nil {
-			errMessage = []byte(fmt.Sprintf("failed connecting to %v %v", req.Address, req.SearchNames))
+			errMessage = []byte(fmt.Sprintf("failed connecting to %v [%v]", req.Address, req.ServerID))
 		}
 		return nil, false, trace.Errorf(strings.TrimSpace(string(errMessage)))
 	}
 
-	return utils.NewExclusiveChConn(sconn, channel), false, nil
+	if req.Exclusive {
+		return utils.NewExclusiveChConn(sconn, channel), false, nil
+	}
+	return utils.NewChConn(sconn, channel), false, nil
 }
 
-// proxyTransport runs either in the agent or reverse tunnel itself. It's
-// used to establish connections from remote clusters into the main cluster
-// or for remote nodes that have no direct network access to the cluster.
-func proxyTransport(p *transportParams) {
+// transport is used to build a connection to the target host.
+type transport struct {
+	component    string
+	log          *logrus.Entry
+	closeContext context.Context
+	authClient   auth.AccessPoint
+	channel      ssh.Channel
+	requestCh    <-chan *ssh.Request
+
+	// localClusterName is the name of the cluster that the transport code is
+	// running in.
+	localClusterName string
+
+	// kubeDialAddr is the address of the Kubernetes proxy.
+	kubeDialAddr utils.NetAddr
+
+	// sconn is a SSH connection to the remote host. Used for dial back nodes.
+	sconn ssh.Conn
+	// server is the underlying SSH server. Used for dial back nodes.
+	server ServerHandler
+
+	// reverseTunnelServer holds all reverse tunnel connections.
+	reverseTunnelServer Server
+}
+
+// start will start the transporting data over the tunnel. This function will
+// typically run in the agent or reverse tunnel server. It's used to establish
+// connections from remote clusters into the main cluster or for remote nodes
+// that have no direct network access to the cluster.
+func (p *transport) start() {
 	defer p.channel.Close()
 
 	// Always push space into stderr to make sure the caller can always
@@ -193,7 +216,7 @@ func proxyTransport(p *transportParams) {
 	var servers []string
 
 	dreq := parseDialReq(req.Payload)
-	p.log.Debugf("Received out-of-band proxy transport request for %v %v.", dreq.Address, dreq.SearchNames)
+	p.log.Debugf("Received out-of-band proxy transport request for %v [%v].", dreq.Address, dreq.ServerID)
 
 	// Handle special non-resolvable addresses first.
 	switch dreq.Address {
@@ -253,7 +276,7 @@ func proxyTransport(p *transportParams) {
 	// Get a connection to the target address. If a tunnel exists with matching
 	// search names, connection over the tunnel is returned. Otherwise a direct
 	// net.Dial is performed.
-	conn, err := getConn(p, servers, dreq.SearchNames)
+	conn, useTunnel, err := p.getConn(servers, dreq.ServerID)
 	if err != nil {
 		errorMessage := fmt.Sprintf("connection rejected: %v", err)
 		fmt.Fprint(p.channel.Stderr(), errorMessage)
@@ -261,9 +284,16 @@ func proxyTransport(p *transportParams) {
 		return
 	}
 
-	// Dail was successful.
+	// Dial was successful.
 	req.Reply(true, []byte("Connected."))
-	p.log.Debugf("Successfully dialed to %v %v, start proxying.", dreq.Address, dreq.SearchNames)
+	p.log.Debugf("Successfully dialed to %v %v, start proxying.", dreq.Address, dreq.ServerID)
+
+	// Start processing channel requests. Pass in a context that wraps the passed
+	// in context with a context that closes when this function returns to
+	// mitigate a goroutine leak.
+	ctx, cancel := context.WithCancel(p.closeContext)
+	defer cancel()
+	go p.handleChannelRequests(ctx, useTunnel)
 
 	errorCh := make(chan error, 2)
 
@@ -294,43 +324,72 @@ func proxyTransport(p *transportParams) {
 	}
 }
 
+// handleChannelRequests processes client requests from the reverse tunnel
+// server.
+func (p *transport) handleChannelRequests(closeContext context.Context, useTunnel bool) {
+	for {
+		select {
+		case req := <-p.requestCh:
+			if req == nil {
+				return
+			}
+			switch req.Type {
+			case utils.ConnectionTypeRequest:
+				err := req.Reply(useTunnel, nil)
+				if err != nil {
+					p.log.Debugf("Failed to reply to %v request: %v.", req.Type, err)
+					continue
+				}
+			default:
+				err := req.Reply(false, nil)
+				if err != nil {
+					p.log.Debugf("Failed to reply to %v request: %v.", req.Type, err)
+					continue
+				}
+			}
+		case <-closeContext.Done():
+			return
+		}
+	}
+}
+
 // getConn checks if the local site holds a connection to the target host,
 // and if it does, attempts to dial through the tunnel. Otherwise directly
 // dials to host.
-func getConn(p *transportParams, servers []string, searchNames []string) (net.Conn, error) {
+func (p *transport) getConn(servers []string, serverID string) (net.Conn, bool, error) {
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
-	p.log.Debugf("Attempting to dial through tunnel with search names %v.", searchNames)
-	conn, err := tunnelDial(p.reverseTunnelServer, p.localClusterName, searchNames)
+	p.log.Debugf("Attempting to dial through tunnel with server ID %v.", serverID)
+	conn, err := p.tunnelDial(serverID)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+			return nil, false, trace.Wrap(err)
 		}
 
 		p.log.Debugf("Attempting to dial directly %v.", servers)
 		conn, err = directDial(servers)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, false, trace.Wrap(err)
 		}
 
 		p.log.Debugf("Returning direct dialed connection to %v.", servers)
-		return conn, nil
+		return conn, false, nil
 	}
 
-	p.log.Debugf("Returning connection dialed through tunnel with search names %v.", searchNames)
-	return conn, nil
+	p.log.Debugf("Returning connection dialed through tunnel with server ID %v.", serverID)
+	return conn, true, nil
 }
 
 // tunnelDial looks up the search names in the local site for a matching tunnel
 // connection. If a connection exists, it's used to dial through the tunnel.
-func tunnelDial(tunnelServer Server, localClusterName string, searchNames []string) (net.Conn, error) {
+func (p *transport) tunnelDial(serverID string) (net.Conn, error) {
 	// Extract the local site from the tunnel server. If no tunnel server
 	// exists, then exit right away this code may be running outside of a
 	// remote site.
-	if tunnelServer == nil {
+	if p.reverseTunnelServer == nil {
 		return nil, trace.NotFound("not found")
 	}
-	cluster, err := tunnelServer.GetSite(localClusterName)
+	cluster, err := p.reverseTunnelServer.GetSite(p.localClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -340,7 +399,7 @@ func tunnelDial(tunnelServer Server, localClusterName string, searchNames []stri
 	}
 
 	conn, err := localCluster.dialTunnel(DialParams{
-		SearchNames: searchNames,
+		ServerID: serverID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

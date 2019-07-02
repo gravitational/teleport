@@ -23,10 +23,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -133,7 +133,7 @@ func (p *clusterPeers) DialTCP(params DialParams) (conn net.Conn, err error) {
 }
 
 // newClusterPeer returns new cluster peer
-func newClusterPeer(srv *server, connInfo services.TunnelConnection) (*clusterPeer, error) {
+func newClusterPeer(srv *server, connInfo services.TunnelConnection, offlineThreshold time.Duration) (*clusterPeer, error) {
 	clusterPeer := &clusterPeer{
 		srv:      srv,
 		connInfo: connInfo,
@@ -143,6 +143,8 @@ func newClusterPeer(srv *server, connInfo services.TunnelConnection) (*clusterPe
 				"cluster": connInfo.GetClusterName(),
 			},
 		}),
+		clock:            clockwork.NewRealClock(),
+		offlineThreshold: offlineThreshold,
 	}
 
 	return clusterPeer, nil
@@ -154,6 +156,13 @@ type clusterPeer struct {
 	log      *log.Entry
 	connInfo services.TunnelConnection
 	srv      *server
+
+	// clock is used to control time in tests.
+	clock clockwork.Clock
+
+	// offlineThreshold is how long to wait for a keep alive message before
+	// marking a reverse tunnel connection as invalid.
+	offlineThreshold time.Duration
 }
 
 func (s *clusterPeer) CachingAccessPoint() (auth.AccessPoint, error) {
@@ -169,11 +178,7 @@ func (s *clusterPeer) String() string {
 }
 
 func (s *clusterPeer) GetStatus() string {
-	diff := time.Now().Sub(s.connInfo.GetLastHeartbeat())
-	if diff > defaults.ReverseTunnelOfflineThreshold {
-		return teleport.RemoteClusterStatusOffline
-	}
-	return teleport.RemoteClusterStatusOnline
+	return services.TunnelConnectionStatus(s.clock, s.connInfo, s.offlineThreshold)
 }
 
 func (s *clusterPeer) GetName() string {

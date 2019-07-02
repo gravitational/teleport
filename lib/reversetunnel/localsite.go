@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 				"cluster": domainName,
 			},
 		}),
+		offlineThreshold: srv.offlineThreshold,
 	}, nil
 }
 
@@ -100,6 +101,10 @@ type localSite struct {
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
+
+	// offlineThreshold is how long to wait for a keep alive message before
+	// marking a reverse tunnel connection as invalid.
+	offlineThreshold time.Duration
 }
 
 // GetTunnelsCount always the number of tunnel connections to this cluster.
@@ -161,16 +166,6 @@ func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
 }
 
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
-	// If any of the search names match a node that has self registered itself over
-	// the tunnel, return a connection to that node.
-	conn, err := s.dialTunnel(params)
-	if err == nil {
-		return conn, nil
-	}
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
 	// If the proxy is in recording mode use the agent to dial and build a
 	// in-memory forwarding server.
 	clusterConfig, err := s.accessPoint.GetClusterConfig()
@@ -188,41 +183,35 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	return s.DialTCP(params)
 }
 
-// dialTunnel connects to the target host through a tunnel.
-func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
-	s.log.Debugf("Tunnel dialing to %v.", params.SearchNames)
-	rconn, ok := s.findMatchingConn(params.SearchNames)
-	if ok {
-		return s.chanTransportConn(rconn)
-	}
-
-	return nil, trace.NotFound("no tunnel found")
-}
-
 func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	s.log.Debugf("Dialing from %v to %v.", params.From, params.To)
 
-	dialer := proxy.DialerFromEnvironment(params.To.String())
-	return dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
+	conn, _, err := s.getConn(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
 }
 
 func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	s.log.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
 
-	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.SearchNames)
+	// If server ID matches a node that has self registered itself over the tunnel,
+	// return a connection to that node. Otherwise net.Dial to the target host.
+	targetConn, useTunnel, err := s.getConn(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// get a net.Conn to the target server
-	targetConn, err := net.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
+	// Get a host certificate for the forwarding node from the cache.
+	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	// create a forwarding server that serves a single ssh connection on it. we
-	// don't need to close this server it will close and release all resources
+	// Create a forwarding server that serves a single SSH connection on it. This
+	// server does not need to close, it will close and release all resources
 	// once conn is closed.
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.client,
@@ -235,6 +224,8 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
 		MACAlgorithms:   s.srv.Config.MACAlgorithms,
 		DataDir:         s.srv.Config.DataDir,
+		Address:         params.Address,
+		UseTunnel:       useTunnel,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
@@ -242,7 +233,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 	go remoteServer.Serve()
 
-	// return a connection to the forwarding server
+	// Return a connection to the forwarding server.
 	conn, err := remoteServer.Dial()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -251,16 +242,45 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
-// findMatchingConn iterates over passed in search names looking for matching
-// remote connections.
-func (s *localSite) findMatchingConn(searchNames []string) (*remoteConn, bool) {
-	for _, name := range searchNames {
-		rconn, err := s.getConn(name)
-		if err == nil {
-			return rconn, true
-		}
+// dialTunnel connects to the target host through a tunnel.
+func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
+	rconn, err := s.getRemoteConn(params.ServerID)
+	if err != nil {
+		return nil, trace.NotFound("no tunnel connection found: %v", err)
 	}
-	return nil, false
+
+	s.log.Debugf("Tunnel dialing to %v.", params.ServerID)
+
+	conn, err := s.chanTransportConn(rconn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
+}
+
+func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, err error) {
+	// If server ID matches a node that has self registered itself over the tunnel,
+	// return a connection to that node. Otherwise net.Dial to the target host.
+	conn, err = s.dialTunnel(params)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, false, trace.Wrap(err)
+		}
+
+		// If no tunnel connection was found, dial to the target host.
+		dialer := proxy.DialerFromEnvironment(params.To.String())
+		conn, err = dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
+		if err != nil {
+			return nil, false, trace.Wrap(err)
+		}
+
+		// Return a direct dialed connection.
+		return conn, false, nil
+	}
+
+	// Return a tunnel dialed connection.
+	return conn, true, nil
 }
 
 func (s *localSite) addConn(nodeID string, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
@@ -268,58 +288,31 @@ func (s *localSite) addConn(nodeID string, conn net.Conn, sconn ssh.Conn) (*remo
 	defer s.Unlock()
 
 	rconn := newRemoteConn(&connConfig{
-		conn:        conn,
-		sconn:       sconn,
-		accessPoint: s.accessPoint,
-		tunnelID:    nodeID,
-		tunnelType:  string(services.NodeTunnel),
-		proxyName:   s.srv.ID,
-		clusterName: s.domainName,
+		conn:             conn,
+		sconn:            sconn,
+		accessPoint:      s.accessPoint,
+		tunnelType:       string(services.NodeTunnel),
+		proxyName:        s.srv.ID,
+		clusterName:      s.domainName,
+		nodeID:           nodeID,
+		offlineThreshold: s.offlineThreshold,
 	})
 	s.remoteConns[nodeID] = rconn
 
 	return rconn, nil
 }
 
-func (s *localSite) registerHeartbeat(t time.Time) {
-	// Creates a services.TunnelConnection that looks like: e53470b8-91bd-4ab4-a3c4-c2ec290f7d42-example.com
-	// where "e53470b8-91bd-4ab4-a3c4-c2ec290f7d42-example.com" is the proxy.
-	tunnelConn, err := services.NewTunnelConnection(
-		fmt.Sprintf("%v-%v", s.srv.ID, s.domainName),
-		services.TunnelConnectionSpecV2{
-			Type:        services.NodeTunnel,
-			ClusterName: s.domainName,
-			ProxyName:   s.srv.ID,
-		},
-	)
-	tunnelConn.SetLastHeartbeat(t)
-	tunnelConn.SetExpiry(s.clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
-
-	err = s.accessPoint.UpsertTunnelConnection(tunnelConn)
-	if err != nil {
-		s.log.Warnf("Failed to register heartbeat: %v.", err)
-	}
-}
-
-func (s *localSite) hasValidConnections() bool {
+// fanOutProxies is a non-blocking call that puts the new proxies
+// list so that remote connection can notify the remote agent
+// about the list update
+func (s *localSite) fanOutProxies(proxies []services.Server) {
 	s.Lock()
 	defer s.Unlock()
-
-	for _, rconn := range s.remoteConns {
-		if !rconn.isInvalid() {
-			return true
+	for _, conn := range s.remoteConns {
+		if err := conn.updateProxies(proxies); err != nil {
+			conn.markInvalid(err)
 		}
 	}
-	return false
-}
-
-func (s *localSite) deleteConnectionRecord(clusterName string, proxyID string) error {
-	err := s.accessPoint.DeleteTunnelConnection(clusterName, proxyID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 // handleHearbeat receives heartbeat messages from the connected agent
@@ -331,24 +324,37 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 		rconn.Close()
 	}()
 
+	firstHeartbeat := true
 	for {
 		select {
 		case <-s.srv.ctx.Done():
 			s.log.Infof("closing")
 			return
+		case proxies := <-rconn.newProxiesC:
+			req := discoveryRequest{
+				ClusterName: s.srv.ClusterName,
+				Type:        string(rconn.tunnelType),
+				Proxies:     proxies,
+			}
+			if err := rconn.sendDiscoveryRequest(req); err != nil {
+				s.log.Debugf("Marking connection invalid on error: %v.", err)
+				rconn.markInvalid(err)
+				return
+			}
 		case req := <-reqC:
 			if req == nil {
 				s.log.Infof("Cluster agent disconnected.")
 				rconn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
-
-				if !s.hasValidConnections() {
-					err := s.deleteConnectionRecord(s.domainName, s.srv.ID)
-					if err != nil {
-						s.log.Debugf("Failed to delete connection record: %v.", err)
-					}
-					s.log.Debugf("Deleted connection record.")
-				}
 				return
+			}
+			if firstHeartbeat {
+				// as soon as the agent connects and sends a first heartbeat
+				// send it the list of current proxies back
+				current := s.srv.proxyWatcher.GetCurrent()
+				if len(current) > 0 {
+					rconn.updateProxies(current)
+				}
+				firstHeartbeat = false
 			}
 			var timeSent time.Time
 			var roundtrip time.Duration
@@ -358,28 +364,26 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				}
 			}
 			if roundtrip != 0 {
-				s.log.WithFields(log.Fields{"latency": roundtrip}).Debugf("ping <- %v", rconn.conn.RemoteAddr())
+				s.log.WithFields(log.Fields{"latency": roundtrip}).Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
 			} else {
 				log.Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
 			}
 			tm := time.Now().UTC()
 			rconn.setLastHeartbeat(tm)
-			go s.registerHeartbeat(tm)
-		// Since we block on select, time.After is re-created everytime we process
-		// a request.
-		case <-time.After(defaults.ReverseTunnelOfflineThreshold):
-			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", defaults.ReverseTunnelOfflineThreshold))
+		// Note that time.After is re-created everytime a request is processed.
+		case <-time.After(s.offlineThreshold):
+			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 		}
 	}
 }
 
-func (s *localSite) getConn(addr string) (*remoteConn, error) {
+func (s *localSite) getRemoteConn(addr string) (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	// Loop over all connections and remove and invalid connections from the
 	// connection map.
-	for key, _ := range s.remoteConns {
+	for key := range s.remoteConns {
 		if s.remoteConns[key].isInvalid() {
 			delete(s.remoteConns, key)
 		}
@@ -387,7 +391,7 @@ func (s *localSite) getConn(addr string) (*remoteConn, error) {
 
 	rconn, ok := s.remoteConns[addr]
 	if !ok {
-		return nil, trace.BadParameter("no reverse tunnel for %v found", addr)
+		return nil, trace.NotFound("no reverse tunnel for %v found", addr)
 	}
 	if !rconn.isReady() {
 		return nil, trace.NotFound("%v is offline: no active tunnels found", addr)

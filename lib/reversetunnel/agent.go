@@ -230,6 +230,21 @@ func (a *Agent) Wait() error {
 	return nil
 }
 
+func (a *Agent) isDiscovering(proxy services.Server) bool {
+	for _, discoverProxy := range a.DiscoverProxies {
+		if a.getState() != agentStateDiscovering && a.getState() != agentStateConnecting {
+			continue
+		}
+
+		proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.ClusterName)
+		discoverID := fmt.Sprintf("%v.%v", discoverProxy.GetName(), a.ClusterName)
+		if proxyID == discoverID {
+			return true
+		}
+	}
+	return false
+}
+
 // connectedTo returns true if connected services.Server passed in.
 func (a *Agent) connectedTo(proxy services.Server) bool {
 	principals := a.getPrincipals()
@@ -302,19 +317,71 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 
 func (a *Agent) connect() (conn *ssh.Client, err error) {
 	for _, authMethod := range a.authMethods {
-		// if http_proxy is set, dial through the proxy
+		// Create a dialer (that respects HTTP proxies) and connect to remote host.
 		dialer := proxy.DialerFromEnvironment(a.Addr.Addr)
-		conn, err = dialer.Dial(a.Addr.AddrNetwork, a.Addr.Addr, &ssh.ClientConfig{
+		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, defaults.DefaultDialTimeout)
+		if err != nil {
+			a.Debugf("Dial to %v failed: %v.", a.Addr.Addr, err)
+			continue
+		}
+
+		// Build a new client connection. This is done to get access to incoming
+		// global requests which dialer.Dial would not provide.
+		conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: a.hostKeyCallback,
 			Timeout:         defaults.DefaultDialTimeout,
 		})
-		if conn != nil {
-			break
+		if err != nil {
+			a.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
+			continue
+		}
+
+		// Create an empty channel and close it right away. This will prevent
+		// ssh.NewClient from attempting to process any incoming requests.
+		emptyCh := make(chan *ssh.Request)
+		close(emptyCh)
+
+		client := ssh.NewClient(conn, chans, emptyCh)
+
+		// Start a goroutine to process global requests from the server.
+		go a.handleGlobalRequests(a.ctx, reqs)
+
+		return client, nil
+	}
+	return nil, trace.BadParameter("failed to dial: all auth methods failed")
+}
+
+// handleGlobalRequests processes global requests from the server.
+func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
+	for {
+		select {
+		case r := <-requestCh:
+			// When the channel is closing, nil is returned.
+			if r == nil {
+				return
+			}
+
+			switch r.Type {
+			case versionRequest:
+				err := r.Reply(true, []byte(teleport.Version))
+				if err != nil {
+					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					continue
+				}
+			default:
+				// This handles keep-alive messages and matches the behaviour of OpenSSH.
+				err := r.Reply(false, nil)
+				if err != nil {
+					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					continue
+				}
+			}
+		case <-ctx.Done():
+			return
 		}
 	}
-	return conn, err
 }
 
 // run is the main agent loop. It tries to establish a connection to the
@@ -352,8 +419,10 @@ func (a *Agent) run() {
 			conn.Close()
 			return
 		}
+		a.Debugf("Agent discovered proxy: %v.", a.getPrincipalsList())
 		a.setState(agentStateDiscovered)
 	} else {
+		a.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
 		a.setState(agentStateConnected)
 	}
 
@@ -387,7 +456,13 @@ const ConnectedEvent = "connected"
 // remote proxy
 func (a *Agent) processRequests(conn *ssh.Client) error {
 	defer conn.Close()
-	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+
+	clusterConfig, err := a.AccessPoint.GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ticker := time.NewTicker(clusterConfig.GetKeepAliveInterval())
 	defer ticker.Stop()
 
 	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
@@ -419,7 +494,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			if req == nil {
 				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
 			}
-		// new transport request:
+		// Handle transport requests.
 		case nch := <-newTransportC:
 			if nch == nil {
 				continue
@@ -427,11 +502,11 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			a.Debugf("Transport request: %v.", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.Warningf("Failed to accept request: %v.", err)
+				a.Warningf("Failed to accept transport request: %v.", err)
 				continue
 			}
 
-			go proxyTransport(&transportParams{
+			t := &transport{
 				log:                 a.Entry,
 				closeContext:        a.ctx,
 				authClient:          a.Client,
@@ -443,16 +518,17 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				component:           teleport.ComponentReverseTunnelAgent,
 				reverseTunnelServer: a.ReverseTunnelServer,
 				localClusterName:    a.LocalClusterName,
-			})
-		// new discovery request
+			}
+			go t.start()
+		// new discovery request channel
 		case nch := <-newDiscoveryC:
 			if nch == nil {
 				continue
 			}
-			a.Debugf("discovery request: %v", nch.ChannelType())
+			a.Debugf("Discovery request channel opened: %v.", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.Warningf("failed to accept request: %v", err)
+				a.Warningf("Failed to accept discovery channel request: %v.", err)
 				continue
 			}
 			go a.handleDiscovery(ch, req)
@@ -467,30 +543,30 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
 func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
-	a.Debugf("handleDiscovery")
+	a.Debugf("handleDiscovery requests channel.")
 	defer ch.Close()
 
 	for {
 		var req *ssh.Request
 		select {
 		case <-a.ctx.Done():
-			a.Infof("is closed, returning")
+			a.Infof("Closed, returning.")
 			return
 		case req = <-reqC:
 			if req == nil {
-				a.Infof("connection closed, returning")
+				a.Infof("Connection closed, returning")
 				return
 			}
 			r, err := unmarshalDiscoveryRequest(req.Payload)
 			if err != nil {
-				a.Warningf("bad payload: %v", err)
+				a.Warningf("Bad payload: %v.", err)
 				return
 			}
 			r.ClusterAddr = a.Addr
 			select {
 			case a.DiscoveryC <- r:
 			case <-a.ctx.Done():
-				a.Infof("is closed, returning")
+				a.Infof("Closed, returning.")
 				return
 			default:
 			}
