@@ -95,13 +95,13 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 	}
 	if !config.NoStart {
 		enforcer.Debug("Starting enforcer.")
-		go enforcer.periodicHeartbeat(ctx)
-		go enforcer.startReporting(ctx)
+		go enforcer.startRecordingUsage(ctx)
+		go enforcer.startReportingUsage(ctx)
 	}
 	return enforcer, nil
 }
 
-func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
+func (e *Enforcer) startRecordingUsage(ctx context.Context) {
 	ticker := e.Clock().NewTicker(constants.HeartbeatInterval)
 	defer ticker.Stop()
 
@@ -113,18 +113,7 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 				log.Error(trace.DebugReport(err))
 			}
 
-			duration, err := e.GetUsageDuration(ctx)
-			if err != nil {
-				log.Error(trace.DebugReport(err))
-				continue
-			}
-
-			duration += constants.HeartbeatInterval
-
-			err = e.SetUsageDuration(ctx, duration)
-			if err != nil {
-				log.Error(trace.DebugReport(err))
-			}
+			e.RecordUsage(ctx, constants.HeartbeatInterval)
 		case <-ctx.Done():
 			e.Debug("Enforce loop is exiting.")
 			return
@@ -132,14 +121,14 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 	}
 }
 
-func (e *Enforcer) startReporting(ctx context.Context) {
+func (e *Enforcer) startReportingUsage(ctx context.Context) {
 	ticker := e.Clock().NewTicker(constants.ReportingInterval)
 	defer ticker.Stop()
 
 	for {
 		// We will send a heartbeat to Houston when starting the
 		// application to verify that the license is valid.
-		err := e.report(ctx)
+		err := e.ReportUsage(ctx)
 		if err != nil {
 			log.Debug(trace.DebugReport(err))
 		}
@@ -154,7 +143,25 @@ func (e *Enforcer) startReporting(ctx context.Context) {
 	}
 }
 
-func (e *Enforcer) report(ctx context.Context) error {
+// RecordUsage records additional usage in the datastore
+func (e *Enforcer) RecordUsage(ctx context.Context, newUsage time.Duration) {
+	duration, err := e.GetUsageDuration(ctx)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return
+	}
+
+	duration += newUsage
+
+	err = e.SetUsageDuration(ctx, duration)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+	}
+}
+
+// ReportUsage gets the current usage duration from the datastore and sends it
+// to Houston
+func (e *Enforcer) ReportUsage(ctx context.Context) error {
 	// Body is the JSON body of a heartbeat POST request
 	type Body struct {
 		// EndTime is the end of a usage period

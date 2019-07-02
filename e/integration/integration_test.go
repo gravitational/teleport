@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/pro"
 	"github.com/gravitational/teleport/lib/backend/lite"
 
-	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
 
@@ -22,7 +21,6 @@ func Test(t *testing.T) {
 }
 
 type IntSuite struct {
-	clock       clockwork.FakeClock
 	cancel      context.CancelFunc
 	ctx         context.Context
 	enforcer    *pro.Enforcer
@@ -31,7 +29,6 @@ type IntSuite struct {
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
-	s.clock = clockwork.NewFakeClock()
 	s.houstonHost = os.Getenv(constants.APIHostEnvVar)
 }
 
@@ -44,7 +41,6 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 // custom control logic before the initialization of an "enforcer"
 func (s *IntSuite) init(c *check.C) {
 	backend, err := lite.NewWithConfig(s.ctx, lite.Config{
-		Clock: s.clock,
 		Path:  c.MkDir(),
 	})
 	c.Assert(err, check.IsNil)
@@ -53,30 +49,9 @@ func (s *IntSuite) init(c *check.C) {
 		Backend:        backend,
 		LicenseKeyPair: fixtures.TestLicenseKeyPair(c),
 		Insecure:       true,
+		NoStart:        true,
 	})
 	c.Assert(err, check.IsNil)
-
-	s.clock.BlockUntil(2)
-}
-
-// advance advances the fake clock until the "reporting interval" is reached.
-// We have to do this in increments of "heartbeats" to imitate the real world
-// usage.
-func (s *IntSuite) advance() {
-	intervals := int(constants.ReportingInterval / constants.HeartbeatInterval)
-	for ; intervals != -1; intervals-- {
-		s.clock.Advance(constants.HeartbeatInterval)
-
-		// The next statement is a bit unfortunate. Ideally, we would
-		// use clock.BlockUntil to block until the go routines are
-		// waiting again, but this somehow doesn't work.
-		// We need to wait until the usage is recorded in the backend
-		// before we can query it.
-		// The sleep duration of 30 milliseconds was found using trial
-		// and error. This might behave differently on the CI system
-		// though.
-		time.Sleep(30 * time.Millisecond)
-	}
 }
 
 // TestReporting checks that the usage duration is getting reset if Teleport
@@ -84,9 +59,10 @@ func (s *IntSuite) advance() {
 func (s *IntSuite) TestReporting(c *check.C) {
 	// Make sure we're using the correct Houston endpoint
 	os.Setenv(constants.APIHostEnvVar, "localhost:10000")
-
 	s.init(c)
-	s.advance()
+
+	s.enforcer.RecordUsage(s.ctx, 30*time.Minute)
+	s.enforcer.ReportUsage(s.ctx)
 
 	duration, err := s.enforcer.GetUsageDuration(s.ctx)
 	c.Assert(err, check.IsNil)
@@ -98,9 +74,10 @@ func (s *IntSuite) TestReporting(c *check.C) {
 func (s *IntSuite) TestFailedReporting(c *check.C) {
 	// Set the api host to something where Houston isn't running on
 	os.Setenv(constants.APIHostEnvVar, "test.localhost:5000")
-
 	s.init(c)
-	s.advance()
+
+	s.enforcer.RecordUsage(s.ctx, 30*time.Minute)
+	s.enforcer.ReportUsage(s.ctx)
 
 	duration, err := s.enforcer.GetUsageDuration(s.ctx)
 	c.Assert(err, check.IsNil)
