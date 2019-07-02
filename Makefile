@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.0.0-rc.4
+VERSION=4.1.0-alpha.1
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -24,8 +24,8 @@ GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
 
-OS ?= `go env GOOS`
-ARCH ?= `go env GOARCH`
+OS ?= $(shell go env GOOS)
+ARCH ?= $(shell go env GOARCH)
 FIPS ?=
 RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 

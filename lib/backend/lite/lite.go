@@ -39,7 +39,9 @@ import (
 
 const (
 	// BackendName is the name of this backend
-	BackendName                          = "sqlite"
+	BackendName = "sqlite"
+	// AlternativeName is another name of this backend.
+	AlternativeName                      = "dir"
 	defaultDirMode           os.FileMode = 0770
 	defaultDBFile                        = "sqlite.db"
 	slowTransactionThreshold             = time.Second
