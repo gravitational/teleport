@@ -27,6 +27,10 @@ type Enforcer struct {
 	backend.Backend
 	// Entry is used for logging
 	*log.Entry
+	// ClusterID is the ID of the cluster that this process is running on
+	ClusterID string
+	// HostID is the UUID of this specific host / node
+	HostID string
 }
 
 // EnforcerConfig is enforcer configuration
@@ -40,6 +44,10 @@ type EnforcerConfig struct {
 	Insecure bool
 	// NoStart is used in tests to skip starting goroutines
 	NoStart bool
+	// ClusterID is the ID of the cluster that this process is running on
+	ClusterID string
+	// HostID is the UUID of this specific host / node
+	HostID string
 }
 
 // Check makes sure that enforcer config is valid
@@ -77,6 +85,8 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 		return nil, trace.Wrap(err)
 	}
 	enforcer := &Enforcer{
+		ClusterID: config.ClusterID,
+		HostID:    config.HostID,
 		WebClient: client,
 		Backend:   config.Backend,
 		Entry: log.WithFields(log.Fields{
@@ -151,6 +161,10 @@ func (e *Enforcer) report(ctx context.Context) error {
 		EndTime time.Time `json:"end_time"`
 		// StartTime is the start of a usage period
 		StartTime time.Time `json:"start_time"`
+		// ClusterID is the ID of the cluster
+		ClusterID string `json:"cluster_id"`
+		// HostID is the UUID of this specific host / node
+		HostID string `json:"host_id"`
 	}
 
 	duration, err := e.GetUsageDuration(ctx)
@@ -163,6 +177,8 @@ func (e *Enforcer) report(ctx context.Context) error {
 	body := Body{
 		EndTime:   now,
 		StartTime: now.Add(-duration),
+		HostID:    e.HostID,
+		ClusterID: e.ClusterID,
 	}
 
 	out, err := e.WebClient.PostJSON(ctx, e.Endpoint("heartbeat"), body)

@@ -121,6 +121,8 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 		Backend:        config.Teleport.GetBackend(),
 		LicenseKeyPair: config.Teleport.LicenseKeyPair,
 		Insecure:       config.Insecure,
+		ClusterID:      anonymizer.Anonymize([]byte(clusterConfig.GetClusterID())),
+		HostID:         anonymizer.Anonymize([]byte(config.Teleport.Config.HostUUID)),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
