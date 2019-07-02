@@ -409,51 +409,6 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = migrateRoleRules(asrv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DELETE IN: 4.1
-// migrateRoleRules adds missing permissions to roles.
-//
-// Currently it adds read-only permissions for audit events to all roles that
-// have read-only session permissions to make sure audit log tab will work.
-func migrateRoleRules(asrv *AuthServer) error {
-	roles, err := asrv.GetRoles()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, role := range roles {
-		allowRules := role.GetRules(services.Allow)
-		denyRules := role.GetRules(services.Deny)
-		// First make sure access to events hasn't been explicitly denied.
-		if checkRules(denyRules, services.KindEvent, services.RO()) {
-			log.Debugf("Role %q explicitly denies events access.", role.GetName())
-			continue
-		}
-		// Next see if the role already has access to events.
-		if checkRules(allowRules, services.KindEvent, services.RO()) {
-			log.Debugf("Role %q already has events access.", role.GetName())
-			continue
-		}
-		// See if the role has access to sessions.
-		if !checkRules(allowRules, services.KindSession, services.RO()) {
-			log.Debugf("Role %q does not have sessions access.", role.GetName())
-			continue
-		}
-		// If we got here, the role does not yet have events access and
-		// has session access so add a rule for events as well.
-		log.Infof("Adding events access to role %q.", role.GetName())
-		allowRules = append(allowRules, services.NewRule(services.KindEvent, services.RO()))
-		role.SetRules(services.Allow, allowRules)
-		err := asrv.UpsertRole(role)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 

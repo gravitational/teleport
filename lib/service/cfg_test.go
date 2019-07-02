@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/backend/legacy/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -61,7 +61,7 @@ func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 	c.Assert(auth.SSHAddr, check.DeepEquals, localAuthAddr)
 	c.Assert(auth.Limiter.MaxConnections, check.Equals, int64(defaults.LimiterMaxConnections))
 	c.Assert(auth.Limiter.MaxNumberOfUsers, check.Equals, defaults.LimiterMaxConcurrentUsers)
-	c.Assert(config.Auth.StorageConfig.Type, check.Equals, dir.GetName())
+	c.Assert(config.Auth.StorageConfig.Type, check.Equals, lite.GetName())
 	c.Assert(auth.StorageConfig.Params[defaults.BackendPath], check.Equals, filepath.Join(config.DataDir, defaults.BackendDir))
 
 	// SSH section

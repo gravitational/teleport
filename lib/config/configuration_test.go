@@ -28,9 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/backend/legacy"
-	"github.com/gravitational/teleport/lib/backend/legacy/boltbk"
-	"github.com/gravitational/teleport/lib/backend/legacy/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
@@ -419,7 +417,7 @@ func (s *ConfigTestSuite) TestApplyConfigNoneEnabled(c *check.C) {
 
 func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
 	read := func(val string) *service.Config {
-		// default value is dir backend
+		// Default value is lite backend.
 		conf, err := ReadConfig(bytes.NewBufferString(val))
 		c.Assert(err, check.IsNil)
 		c.Assert(conf, check.NotNil)
@@ -430,52 +428,37 @@ func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
 		return cfg
 	}
 
-	// default value is dir backend
+	// Default value is lite backend.
 	cfg := read(`teleport:
   data_dir: /var/lib/teleport
 `)
-
-	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, dir.GetName())
+	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, lite.GetName())
 	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, filepath.Join("/var/lib/teleport", defaults.BackendDir))
 
-	// with dir backend, if no path is specified, a good one is picked
+	// If no path is specified, the default is picked. In addition, internally
+	// dir gets converted into lite.
 	cfg = read(`teleport:
-  data_dir: /var/lib/teleport
-  storage:
-    type: dir
+     data_dir: /var/lib/teleport
+     storage:
+       type: dir
 `)
-
-	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, dir.GetName())
+	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, lite.GetName())
 	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, filepath.Join("/var/lib/teleport", defaults.BackendDir))
 
-	// with dir backend, custom path is honored
+	// Support custom paths for dir/lite backends.
 	cfg = read(`teleport:
-  data_dir: /var/lib/teleport
-  storage:
-    type: dir
-    path: /var/lib/teleport/mybackend
+     data_dir: /var/lib/teleport
+     storage:
+       type: dir
+       path: /var/lib/teleport/mybackend
 `)
-
-	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, dir.GetName())
+	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, lite.GetName())
 	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, "/var/lib/teleport/mybackend")
 
-	// if there was a prior usage of bolt, bolt is picked as a default value
-	tempDir := c.MkDir()
-	_, err := boltbk.New(legacy.Params{defaults.BackendPath: tempDir})
-	c.Assert(err, check.IsNil)
-
-	cfg = read(fmt.Sprintf(`teleport:
-  data_dir: %v
-`, tempDir))
-
-	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, boltbk.GetName())
-	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, tempDir)
-
-	// kubernetes proxy is disabled by default
+	// Kubernetes proxy is disabled by default.
 	cfg = read(`teleport:
-  data_dir: /var/lib/teleport
+     data_dir: /var/lib/teleport
 `)
-
 	c.Assert(cfg.Proxy.Kube.Enabled, check.Equals, false)
 }
 
