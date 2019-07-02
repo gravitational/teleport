@@ -523,35 +523,35 @@ func ParseShortcut(in string) (string, error) {
 		return "", trace.BadParameter("missing resource name")
 	}
 	switch strings.ToLower(in) {
-	case "role", "roles":
+	case KindRole, "roles":
 		return KindRole, nil
-	case "namespaces", "ns":
+	case KindNamespace, "namespaces", "ns":
 		return KindNamespace, nil
-	case "auth_servers", "auth":
+	case KindAuthServer, "auth_servers", "auth":
 		return KindAuthServer, nil
-	case "proxies":
+	case KindProxy, "proxies":
 		return KindProxy, nil
-	case "nodes", "node":
+	case KindNode, "nodes":
 		return KindNode, nil
-	case "oidc":
+	case KindOIDCConnector:
 		return KindOIDCConnector, nil
-	case "saml":
+	case KindSAMLConnector:
 		return KindSAMLConnector, nil
-	case "github":
+	case KindGithubConnector:
 		return KindGithubConnector, nil
-	case "connectors", "connector":
+	case KindConnectors, "connector":
 		return KindConnectors, nil
-	case "user", "users":
+	case KindUser, "users":
 		return KindUser, nil
-	case "cert_authorities", "cas":
+	case KindCertAuthority, "cert_authorities", "cas":
 		return KindCertAuthority, nil
-	case "reverse_tunnels", "rts":
+	case KindReverseTunnel, "reverse_tunnels", "rts":
 		return KindReverseTunnel, nil
-	case "trusted_cluster", "tc", "cluster", "clusters":
+	case KindTrustedCluster, "tc", "cluster", "clusters":
 		return KindTrustedCluster, nil
-	case "cluster_authentication_preferences", "cap":
+	case KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
 		return KindClusterAuthPreference, nil
-	case "remote_cluster", "remote_clusters", "rc", "rcs":
+	case KindRemoteCluster, "remote_clusters", "rc", "rcs":
 		return KindRemoteCluster, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
