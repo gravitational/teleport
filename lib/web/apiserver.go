@@ -690,7 +690,13 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 			CheckUser:         true,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// redirect to an error page
+		pathToError := url.URL{
+			Path:     "/web/msg/error/login_failed",
+			RawQuery: url.Values{"details": []string{err.Error()}}.Encode(),
+		}
+		http.Redirect(w, r, pathToError.String(), http.StatusFound)
+		return nil, nil
 	}
 	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
 	return nil, nil
