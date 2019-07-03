@@ -20,6 +20,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -37,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeclient "github.com/gravitational/teleport/lib/kube/client"
@@ -869,6 +872,12 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		}
 		c.AuthMethods = []ssh.AuthMethod{identityAuth}
 
+		if len(key.TLSCert) > 0 {
+			c.TLS, err = key.ClientTLSConfig()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 		// check the expiration date
 		expiryDate, _ = key.CertValidBefore()
 		if expiryDate.Before(time.Now()) {
@@ -988,6 +997,91 @@ func refuseArgs(command string, args []string) {
 	}
 }
 
+// rawIdentity encodes the basic components of an identity file.
+type rawIdentity struct {
+	PrivateKey []byte
+	Certs      struct {
+		SSH []byte
+		TLS []byte
+	}
+	CACerts struct {
+		SSH [][]byte
+		TLS [][]byte
+	}
+}
+
+// decodeIdentity attempts to break up the contents of an identity file
+// into its respective components.
+func decodeIdentity(r io.Reader) (*rawIdentity, error) {
+	scanner := bufio.NewScanner(r)
+	var ident rawIdentity
+	// Subslice of scanner's buffer pointing to current line
+	// with leading and trailing whitespace trimmed.
+	var line []byte
+	// Attempt to scan to the next line.
+	scanln := func() bool {
+		if !scanner.Scan() {
+			line = nil
+			return false
+		}
+		line = bytes.TrimSpace(scanner.Bytes())
+		return true
+	}
+	// Check if the current line starts with prefix `p`.
+	peekln := func(p string) bool {
+		return bytes.HasPrefix(line, []byte(p))
+	}
+	// Get an "owned" copy of the current line.
+	cloneln := func() []byte {
+		ln := make([]byte, len(line))
+		copy(ln, line)
+		return ln
+	}
+	// Scan through all lines of identity file.  Lines with a known prefix
+	// are copied out of the scanner's buffer.  All others are ignored.
+	for scanln() {
+		switch {
+		case peekln("ssh"):
+			ident.Certs.SSH = cloneln()
+		case peekln("@cert-authority"):
+			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
+		case peekln("-----BEGIN"):
+			// Current line marks the beginning of a PEM block.  Consume all
+			// lines until a corresponding END is found.
+			var pemBlock []byte
+			for {
+				pemBlock = append(pemBlock, line...)
+				pemBlock = append(pemBlock, '\n')
+				if peekln("-----END") {
+					break
+				}
+				if !scanln() {
+					// If scanner has terminated in the middle of a PEM block, either
+					// the reader encountered an error, or the PEM block is a fragment.
+					if err := scanner.Err(); err != nil {
+						return nil, trace.Wrap(err)
+					}
+					return nil, trace.BadParameter("invalid PEM block (fragment)")
+				}
+			}
+			// Decide where to place the pem block based on
+			// which pem blocks have already been found.
+			switch {
+			case ident.PrivateKey == nil:
+				ident.PrivateKey = pemBlock
+			case ident.Certs.TLS == nil:
+				ident.Certs.TLS = pemBlock
+			default:
+				ident.CACerts.TLS = append(ident.CACerts.TLS, pemBlock)
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ident, nil
+}
+
 // loadIdentity loads the private key + certificate from a file
 // Returns:
 //	 - client key: user's private key+cert
@@ -1004,53 +1098,22 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 	defer f.Close()
-	var (
-		keyBuf  bytes.Buffer
-		state   int // 0: not found, 1: found beginning, 2: found ending
-		cert    []byte
-		caCerts [][]byte
-	)
-	// read the identity file line by line:
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if state != 1 {
-			if strings.HasPrefix(line, "ssh") {
-				cert = []byte(line)
-				continue
-			}
-			if strings.HasPrefix(line, "@cert-authority") {
-				caCerts = append(caCerts, []byte(line))
-				continue
-			}
-		}
-		if state == 0 && strings.HasPrefix(line, "-----BEGIN") {
-			state = 1
-			keyBuf.WriteString(line)
-			keyBuf.WriteRune('\n')
-			continue
-		}
-		if state == 1 {
-			keyBuf.WriteString(line)
-			if strings.HasPrefix(line, "-----END") {
-				state = 2
-			} else {
-				keyBuf.WriteRune('\n')
-			}
-		}
+	ident, err := decodeIdentity(f)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to parse identity file")
 	}
 	// did not find the certificate in the file? look in a separate file with
 	// -cert.pub prefix
-	if len(cert) == 0 {
+	if len(ident.Certs.SSH) == 0 {
 		certFn := idFn + "-cert.pub"
 		log.Infof("Certificate not found in %s. Looking in %s.", idFn, certFn)
-		cert, err = ioutil.ReadFile(certFn)
+		ident.Certs.SSH, err = ioutil.ReadFile(certFn)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
 	// validate both by parsing them:
-	privKey, err := ssh.ParseRawPrivateKey(keyBuf.Bytes())
+	privKey, err := ssh.ParseRawPrivateKey(ident.PrivateKey)
 	if err != nil {
 		return nil, nil, trace.BadParameter("invalid identity: %s. %v", idFn, err)
 	}
@@ -1058,11 +1121,31 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	// validate TLS Cert (if present):
+	if len(ident.Certs.TLS) > 0 {
+		_, err := tls.X509KeyPair(ident.Certs.TLS, ident.PrivateKey)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+	// Validate TLS CA certs (if present).
+	var trustedCA []auth.TrustedCerts
+	if len(ident.CACerts.TLS) > 0 {
+		var trustedCerts auth.TrustedCerts
+		pool := x509.NewCertPool()
+		for i, certPEM := range ident.CACerts.TLS {
+			if !pool.AppendCertsFromPEM(certPEM) {
+				return nil, nil, trace.BadParameter("identity file contains invalid TLS CA cert (#%v)", i+1)
+			}
+			trustedCerts.TLSCertificates = append(trustedCerts.TLSCertificates, certPEM)
+		}
+		trustedCA = []auth.TrustedCerts{trustedCerts}
+	}
 	var hostAuthFunc ssh.HostKeyCallback = nil
 	// validate CA (cluster) cert
-	if len(caCerts) > 0 {
+	if len(ident.CACerts.SSH) > 0 {
 		var trustedKeys []ssh.PublicKey
-		for _, caCert := range caCerts {
+		for _, caCert := range ident.CACerts.SSH {
 			_, _, publicKey, _, _, err := ssh.ParseKnownHosts(caCert)
 			if err != nil {
 				return nil, nil, trace.BadParameter("CA cert parsing error: %v. cert line :%v",
@@ -1089,9 +1172,11 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 		}
 	}
 	return &client.Key{
-		Priv: keyBuf.Bytes(),
-		Pub:  signer.PublicKey().Marshal(),
-		Cert: cert,
+		Priv:      ident.PrivateKey,
+		Pub:       signer.PublicKey().Marshal(),
+		Cert:      ident.Certs.SSH,
+		TLSCert:   ident.Certs.TLS,
+		TrustedCA: trustedCA,
 	}, hostAuthFunc, nil
 }
 

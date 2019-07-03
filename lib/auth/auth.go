@@ -403,8 +403,8 @@ type certRequest struct {
 	usage []string
 }
 
-// GenerateUserCerts is used to generate user certificate, used internally for tests
-func (a *AuthServer) GenerateUserCerts(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, []byte, error) {
+// GenerateUserTestCerts is used to generate user certificate, used internally for tests
+func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, []byte, error) {
 	user, err := a.Identity.GetUser(username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

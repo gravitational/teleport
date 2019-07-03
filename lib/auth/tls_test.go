@@ -1274,7 +1274,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	nopClient, err := s.server.NewClient(TestNop())
 	c.Assert(err, check.IsNil)
 
-	_, err = nopClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	_, err = nopClient.GenerateUserCerts(context.TODO(), pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
 	c.Assert(err, check.ErrorMatches, "this request can be only executed by an admin")
@@ -1283,7 +1283,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	userClient2, err := s.server.NewClient(TestUser(user2.GetName()))
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient2.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	_, err = userClient2.GenerateUserCerts(context.TODO(), pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
 	c.Assert(err, check.ErrorMatches, "this request can be only executed by an admin")
@@ -1292,10 +1292,10 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	adminClient, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	cert, err := adminClient.GenerateUserCert(pub, user1.GetName(), 40*time.Hour, teleport.CertificateFormatStandard)
+	userCerts, err := adminClient.GenerateUserCerts(context.TODO(), pub, user1.GetName(), 40*time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.IsNil)
 
-	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(userCerts.SSH)
 	c.Assert(err, check.IsNil)
 	parsedCert, _ := parsedKey.(*ssh.Certificate)
 	validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
@@ -1313,9 +1313,9 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	err = s.server.Auth().UpsertRole(userRole)
 	c.Assert(err, check.IsNil)
 
-	cert, err = adminClient.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
+	userCerts, err = adminClient.GenerateUserCerts(context.TODO(), pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.IsNil)
-	parsedKey, _, _, _, err = ssh.ParseAuthorizedKey(cert)
+	parsedKey, _, _, _, err = ssh.ParseAuthorizedKey(userCerts.SSH)
 	c.Assert(err, check.IsNil)
 	parsedCert, _ = parsedKey.(*ssh.Certificate)
 
@@ -1324,10 +1324,10 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	c.Assert(exists, check.Equals, true)
 
 	// apply HTTP Auth to generate user cert:
-	cert, err = adminClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	userCerts, err = adminClient.GenerateUserCerts(context.TODO(), pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.IsNil)
 
-	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(userCerts.SSH)
 	c.Assert(err, check.IsNil)
 }
 

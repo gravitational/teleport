@@ -412,7 +412,7 @@ func GenerateUserCreds(process *service.TeleportProcess, username string) (*User
 		return nil, trace.Wrap(err)
 	}
 	a := process.GetAuthServer()
-	sshCert, x509Cert, err := a.GenerateUserCerts(pub, username, time.Hour, teleport.CertificateFormatStandard)
+	sshCert, x509Cert, err := a.GenerateUserTestCerts(pub, username, time.Hour, teleport.CertificateFormatStandard)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -592,7 +592,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// sign user's keys:
 		ttl := 24 * time.Hour
-		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserCerts(user.Key.Pub, teleUser.GetName(), ttl, teleport.CertificateFormatStandard)
+		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserTestCerts(user.Key.Pub, teleUser.GetName(), ttl, teleport.CertificateFormatStandard)
 		if err != nil {
 			return err
 		}
