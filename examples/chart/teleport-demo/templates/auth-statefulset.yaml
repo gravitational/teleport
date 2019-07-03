@@ -35,6 +35,12 @@ spec:
 {{- if not .Values.proxy.tls.enabled }}
         - --insecure-no-tls
 {{- end }}
+        livenessProbe:
+          httpGet:
+            port: 54321
+            path: /healthz
+          initialDelaySeconds: 5
+          periodSeconds: 5
         env:
         - name: ROLE
           value: auth
@@ -193,6 +199,12 @@ spec:
 {{- if not $root.Values.proxy.tls.enabled }}
         - --insecure-no-tls
 {{- end }}
+        livenessProbe:
+          httpGet:
+            port: 54321
+            path: /healthz
+          initialDelaySeconds: 5
+          periodSeconds: 5
         env:
         - name: ROLE
           value: auth

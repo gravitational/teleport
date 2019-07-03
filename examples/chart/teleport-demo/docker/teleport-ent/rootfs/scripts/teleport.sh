@@ -15,7 +15,8 @@ fi
 
 # start teleport daemon
 # run in background to keep executing this script
-teleport start -c /tmp/teleport.yaml "$@" &
+# expose diagnostic endpoints on port 54321 for kubernetes liveness/ready checks
+teleport start --diag-addr=0.0.0.0:54321 -c /tmp/teleport.yaml "$@" &
 
 # add roles to auth servers
 if [[ "${ROLE}" == "auth" ]]; then
