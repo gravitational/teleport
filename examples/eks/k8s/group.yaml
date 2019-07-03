@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: 2019-03-11T03:04:09Z
+  name: view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: view
+
