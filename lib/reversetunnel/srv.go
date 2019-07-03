@@ -980,26 +980,13 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
-	// DELETE IN: 4.1.0
-	//
-	// Try to get the version of Teleport the remote cluster is running. Older
-	// versions of Teleport don't support the Watch endpoints needed for the
-	// cache, for those clusters, don't use a cache.
-	version, err := sendVersionRequest(sconn, closeContext)
+	// Configure access to the cached subset of the Auth Server API of the remote
+	// cluster this remote site provides access to.
+	accessPoint, err := srv.newAccessPoint(clt, []string{"reverse", domainName})
 	if err != nil {
-		remoteSite.Debugf("Connected to legacy cluster %v, not using cache.", domainName)
-		remoteSite.remoteAccessPoint = clt
-	} else {
-		remoteSite.Debugf("Connected to cluster %v running Teleport %v, using cache.", domainName, version)
-
-		// Configure access to the cached subset of the Auth Server API of the remote
-		// cluster this remote site provides access to.
-		accessPoint, err := srv.newAccessPoint(clt, []string{"reverse", domainName})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		remoteSite.remoteAccessPoint = accessPoint
+		return nil, trace.Wrap(err)
 	}
+	remoteSite.remoteAccessPoint = accessPoint
 
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each site (instead of creating it in

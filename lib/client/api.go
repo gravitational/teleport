@@ -520,34 +520,11 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 		return trace.Wrap(err)
 	}
 
-	// DELETE IN: 3.1.0
-	// The "proxy_host" field (and associated ports) have been deprecated and
-	// replaced with "proxy_web_addr" and "proxy_ssh_addr".
-	if cp.ProxyHost != "" {
-		if cp.ProxyWebPort == 0 {
-			cp.ProxyWebPort = defaults.HTTPListenPort
-		}
-		if cp.ProxySSHPort == 0 {
-			cp.ProxySSHPort = defaults.SSHProxyListenPort
-		}
-		c.WebProxyAddr = net.JoinHostPort(cp.ProxyHost, strconv.Itoa(cp.ProxyWebPort))
-		c.SSHProxyAddr = net.JoinHostPort(cp.ProxyHost, strconv.Itoa(cp.ProxySSHPort))
-	}
-
 	c.Username = cp.Username
 	c.SiteName = cp.SiteName
 	c.KubeProxyAddr = cp.KubeProxyAddr
-
-	// UPDATE IN: 3.1.0
-	// Remove the above DELETE IN block and below if statements and always set
-	// WebProxyAddr and SSHProxyAddr. This needs to be done right now to support
-	// backward compatibility with Teleport 2.0.
-	if cp.WebProxyAddr != "" {
-		c.WebProxyAddr = cp.WebProxyAddr
-	}
-	if cp.SSHProxyAddr != "" {
-		c.SSHProxyAddr = cp.SSHProxyAddr
-	}
+	c.WebProxyAddr = cp.WebProxyAddr
+	c.SSHProxyAddr = cp.SSHProxyAddr
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {

@@ -21,8 +21,6 @@ package auth
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/backend/legacy"
-	"github.com/gravitational/teleport/lib/backend/legacy/dir"
 	"github.com/gravitational/teleport/lib/backend/lite"
 
 	"github.com/gravitational/trace"
@@ -34,13 +32,9 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 		return nil, trace.BadParameter("missing parameter path")
 	}
 
-	litebk, err := lite.NewWithConfig(ctx, lite.Config{Path: path, EventsOff: true})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Import storage data
-	err = legacy.Import(ctx, litebk, func() (legacy.Exporter, error) {
-		return dir.New(legacy.Params{"path": path})
+	litebk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:      path,
+		EventsOff: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

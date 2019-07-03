@@ -607,17 +607,6 @@ func (s *remoteSite) chanTransportConn(req *dialReq) (*utils.ChConn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN: 4.1.0
-	//
-	// Get the version of the remote cluster. If some error occurs (sever does
-	// not respond, times out) then be safe and send request in legacy format.
-	_, err = sendVersionRequest(rconn.sconn, s.ctx)
-	if err != nil {
-		s.Debugf("Connection to %v [%v] using legacy format.",
-			req.Address, req.ServerID)
-		req.Legacy = true
-	}
-
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, req)
 	if err != nil {
 		if markInvalid {
