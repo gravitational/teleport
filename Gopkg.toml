@@ -193,3 +193,8 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
   version = "=v0.4.9"
+
+[[constraint]]
+  name = "github.com/jonboulle/clockwork"
+  branch = "master"
+
