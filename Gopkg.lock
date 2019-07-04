@@ -514,11 +514,12 @@
   revision = "0b12d6b5"
 
 [[projects]]
-  digest = "1:f6144d249e2ddd5e33537e64710e5ffabdd4f75ee72b00e91090586af3e09b23"
+  branch = "master"
+  digest = "1:a92a261b44f2cf39cb3185dec2334de8bf2c2b2673077ec44b6f827a6efb282c"
   name = "github.com/jonboulle/clockwork"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "ed104f61ea4877bea08af6f759805674861e968d"
+  revision = "62fb9bc030d14f92c58df3c1601e50a0e445edef"
 
 [[projects]]
   digest = "1:42c47ace7ccb114261ef7e0d418d274921514ab50a3bf6bdb9e51c3dde8ce13d"
@@ -1241,6 +1242,7 @@
     "google.golang.org/grpc",
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/credentials",
+    "google.golang.org/grpc/keepalive",
     "google.golang.org/grpc/status",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",

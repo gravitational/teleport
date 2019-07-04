@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -807,7 +808,7 @@ func (a *AuthWithRoles) NewKeepAliver(ctx context.Context) (services.KeepAliver,
 	return nil, trace.NotImplemented("not implemented")
 }
 
-func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
+func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, key []byte, username string, ttl time.Duration, compatibility string) (*proto.Certs, error) {
 	// This endpoint is only accessible to tctl.
 	if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
 		return nil, trace.AccessDenied("this request can be only executed by an admin")
@@ -837,7 +838,10 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 		return nil, trace.Wrap(err)
 	}
 
-	return certs.ssh, nil
+	return &proto.Certs{
+		SSH: certs.ssh,
+		TLS: certs.tls,
+	}, nil
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1, ttl time.Duration) (token string, e error) {
