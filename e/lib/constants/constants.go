@@ -26,11 +26,12 @@ const (
 	// MaxControlPlaneUnreachableDuration is a duration value of MaxControlPlaneUnreachableHours
 	MaxControlPlaneUnreachableDuration = MaxControlPlaneUnreachableHours * time.Hour
 
-	// LicenseCheckInterval is how often Teleport Pro reaches out to the
-	// control plane to perform a license check
-	LicenseCheckInterval = 5 * time.Minute
-	// EnforcementInterval is how often enforcement checks are turned on
-	EnforcementInterval = 5 * time.Minute
+	// ReportingInterval is how often Teleport Pro reaches out to the
+	// control plane to perform a license check and report usage
+	ReportingInterval = 6 * time.Hour
+	// HeartbeatInterval is how often Teleport Pro records usage and
+	// enforces the validity of the current license
+	HeartbeatInterval = 5 * time.Minute
 
 	// GravitationalSupportURL is company support website URL
 	GravitationalSupportURL = "https://support.gravitational.com"
@@ -39,8 +40,7 @@ const (
 )
 
 var (
-
-	// apiHostEnvVar is used to "flip" the URL of Houston API to
+	// APIHostEnvVar is used to "flip" the URL of Houston API to
 	// point it to staging/development servers
-	apiHostEnvVar = "HOUSTON_HOSTPORT"
+	APIHostEnvVar = "HOUSTON_HOSTPORT"
 )

@@ -53,7 +53,7 @@ func (s *EnforcerSuite) TestEnforcer(c *check.C) {
 	err := s.enforcer.SetLicenseCheckHeartbeat(*h)
 	c.Assert(err, check.IsNil)
 
-	res, err := s.enforcer.GetLicenseCheckResult()
+	res, err := s.enforcer.GetLicenseCheckResult(context.TODO())
 	c.Assert(err, check.IsNil)
 	c.Assert(res, check.DeepEquals, h)
 }
@@ -65,7 +65,7 @@ func (s *EnforcerSuite) TestEnforcerUnreachable(c *check.C) {
 	err := s.enforcer.SetLicenseCheckHeartbeat(*h)
 	c.Assert(err, check.IsNil)
 
-	res, err := s.enforcer.GetLicenseCheckResult()
+	res, err := s.enforcer.GetLicenseCheckResult(context.TODO())
 	c.Assert(err, check.IsNil)
 	c.Assert(len(res.Spec.Notifications), check.Equals, 1)
 }

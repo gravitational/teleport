@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/gravitational/teleport/e/lib/constants"
@@ -28,6 +27,10 @@ type Enforcer struct {
 	backend.Backend
 	// Entry is used for logging
 	*log.Entry
+	// ClusterID is the ID of the cluster that this process is running on
+	ClusterID string
+	// HostID is the UUID of this specific host / node
+	HostID string
 }
 
 // EnforcerConfig is enforcer configuration
@@ -41,6 +44,10 @@ type EnforcerConfig struct {
 	Insecure bool
 	// NoStart is used in tests to skip starting goroutines
 	NoStart bool
+	// ClusterID is the ID of the cluster that this process is running on
+	ClusterID string
+	// HostID is the UUID of this specific host / node
+	HostID string
 }
 
 // Check makes sure that enforcer config is valid
@@ -78,6 +85,8 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 		return nil, trace.Wrap(err)
 	}
 	enforcer := &Enforcer{
+		ClusterID: config.ClusterID,
+		HostID:    config.HostID,
 		WebClient: client,
 		Backend:   config.Backend,
 		Entry: log.WithFields(log.Fields{
@@ -86,22 +95,25 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 	}
 	if !config.NoStart {
 		enforcer.Debug("Starting enforcer.")
-		go enforcer.periodicHeartbeat(ctx)
-		go enforcer.enforcer(ctx)
+		go enforcer.startRecordingUsage(ctx)
+		go enforcer.startReportingUsage(ctx)
 	}
 	return enforcer, nil
 }
 
-func (e *Enforcer) enforcer(ctx context.Context) {
-	ticker := time.NewTicker(constants.EnforcementInterval)
+func (e *Enforcer) startRecordingUsage(ctx context.Context) {
+	ticker := e.Clock().NewTicker(constants.HeartbeatInterval)
 	defer ticker.Stop()
+
 	for {
 		select {
-		case <-ticker.C:
-			err := e.processLicenseCheckResult()
+		case <-ticker.Chan():
+			err := e.processLicenseCheckResult(ctx)
 			if err != nil {
 				log.Error(trace.DebugReport(err))
 			}
+
+			e.RecordUsage(ctx, constants.HeartbeatInterval)
 		case <-ctx.Done():
 			e.Debug("Enforce loop is exiting.")
 			return
@@ -109,16 +121,21 @@ func (e *Enforcer) enforcer(ctx context.Context) {
 	}
 }
 
-func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
-	ticker := time.NewTicker(constants.LicenseCheckInterval)
+func (e *Enforcer) startReportingUsage(ctx context.Context) {
+	ticker := e.Clock().NewTicker(constants.ReportingInterval)
 	defer ticker.Stop()
+
 	for {
+		// We will send a heartbeat to Houston when starting the
+		// application to verify that the license is valid.
+		err := e.ReportUsage(ctx)
+		if err != nil {
+			log.Debug(trace.DebugReport(err))
+		}
+
 		select {
-		case <-ticker.C:
-			err := e.heartbeat(ctx)
-			if err != nil {
-				log.Debug(trace.DebugReport(err))
-			}
+		case <-ticker.Chan():
+			continue
 		case <-ctx.Done():
 			e.Debug("Heartbeat loop is exiting.")
 			return
@@ -126,26 +143,109 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 	}
 }
 
-func (e *Enforcer) heartbeat(ctx context.Context) error {
-	out, err := e.WebClient.Get(ctx, e.Endpoint("heartbeat"), url.Values{})
+// RecordUsage records additional usage in the datastore
+func (e *Enforcer) RecordUsage(ctx context.Context, newUsage time.Duration) {
+	duration, err := e.GetUsageDuration(ctx)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return
+	}
+
+	duration += newUsage
+
+	err = e.SetUsageDuration(ctx, duration)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+	}
+}
+
+// ReportUsage gets the current usage duration from the datastore and sends it
+// to Houston
+func (e *Enforcer) ReportUsage(ctx context.Context) error {
+	// Body is the JSON body of a heartbeat POST request
+	type Body struct {
+		// EndTime is the end of a usage period
+		EndTime time.Time `json:"end_time"`
+		// StartTime is the start of a usage period
+		StartTime time.Time `json:"start_time"`
+		// ClusterID is the ID of the cluster
+		ClusterID string `json:"cluster_id"`
+		// HostID is the UUID of this specific host / node
+		HostID string `json:"host_id"`
+	}
+
+	duration, err := e.GetUsageDuration(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	now := e.Clock().Now().UTC()
+
+	body := Body{
+		EndTime:   now,
+		StartTime: now.Add(-duration),
+		HostID:    e.HostID,
+		ClusterID: e.ClusterID,
+	}
+
+	out, err := e.WebClient.PostJSON(ctx, e.Endpoint("heartbeat"), body)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	heartbeat, err := types.UnmarshalHeartbeat(out.Bytes())
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	err = e.SetLicenseCheckHeartbeat(*heartbeat)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+
+	// As we just reported the usage, we can safely reset it to 0
+	return trace.Wrap(e.SetUsageDuration(ctx, 0))
 }
 
 const (
 	heartbeatPrefix = "heartbeat"
 	valPrefix       = "val"
+	usagePrefix     = "usage"
 )
+
+// SetUsageDuration sets the unreported usage duration to a new value
+func (e *Enforcer) SetUsageDuration(ctx context.Context, duration time.Duration) error {
+	item := backend.Item{
+		Key:   backend.Key(heartbeatPrefix, usagePrefix),
+		Value: []byte(duration.String()),
+	}
+
+	_, err := e.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// GetUsageDuration returns the usage duration that wasn't reported yet
+func (e *Enforcer) GetUsageDuration(ctx context.Context) (time.Duration, error) {
+	item, err := e.Backend.Get(ctx, backend.Key(heartbeatPrefix, usagePrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			err = nil
+		}
+
+		return 0, trace.Wrap(err)
+	}
+
+	duration, err := time.ParseDuration(string(item.Value))
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return duration, nil
+}
 
 // SetLicenseCheckHeartbeat saves the license check heartbeat into the database
 func (e *Enforcer) SetLicenseCheckHeartbeat(heartbeat types.Heartbeat) error {
@@ -165,8 +265,8 @@ func (e *Enforcer) SetLicenseCheckHeartbeat(heartbeat types.Heartbeat) error {
 }
 
 // getLicenseCheckHeartbeat returns the latest license check heartbeat
-func (e *Enforcer) getLicenseCheckHeartbeat() (*types.Heartbeat, error) {
-	item, err := e.Backend.Get(context.TODO(), backend.Key(heartbeatPrefix, valPrefix))
+func (e *Enforcer) getLicenseCheckHeartbeat(ctx context.Context) (*types.Heartbeat, error) {
+	item, err := e.Backend.Get(ctx, backend.Key(heartbeatPrefix, valPrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -178,8 +278,8 @@ func (e *Enforcer) getLicenseCheckHeartbeat() (*types.Heartbeat, error) {
 }
 
 // GetLicenseCheckResult returns the last license check result
-func (e *Enforcer) GetLicenseCheckResult() (*types.Heartbeat, error) {
-	heartbeat, err := e.getLicenseCheckHeartbeat()
+func (e *Enforcer) GetLicenseCheckResult(ctx context.Context) (*types.Heartbeat, error) {
+	heartbeat, err := e.getLicenseCheckHeartbeat(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -204,8 +304,8 @@ func (e *Enforcer) GetLicenseCheckResult() (*types.Heartbeat, error) {
 
 // processLicenseCheckResult implements "enforcement" policies, right now it
 // only logs all messages received from the control plane into Teleport logs
-func (e *Enforcer) processLicenseCheckResult() error {
-	heartbeat, err := e.GetLicenseCheckResult()
+func (e *Enforcer) processLicenseCheckResult(ctx context.Context) error {
+	heartbeat, err := e.GetLicenseCheckResult(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

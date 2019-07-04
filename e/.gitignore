@@ -23,3 +23,6 @@ tmp
 # test binaries produced by go
 *.test
 
+# Empty target files for Makefile
+start-houston
+build-houston
