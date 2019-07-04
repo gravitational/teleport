@@ -34,7 +34,7 @@ TF_VAR_s3_bucket_name ?=
 TF_VAR_email ?=
 
 # Setup grafana password for "admin" user. Grafana will be served on https://cluster.example.com:8443 after install
-export TF_VAR_grafana_pass="setup some password here"
+export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"
 TF_VAR_grafana_pass ?=
 
 # (optional) Set to true to use ACM (Amazon Certificate Manager) to provision certificates rather than Letsencrypt
