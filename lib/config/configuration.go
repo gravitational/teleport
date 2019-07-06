@@ -57,7 +57,7 @@ type CommandLineFlags struct {
 	// --name flag
 	NodeName string
 	// --auth-server flag
-	AuthServerAddr string
+	AuthServerAddr []string
 	// --token flag
 	AuthToken string
 	// CAPin is the hash of the SKPI of the root CA. Used to verify the cluster
@@ -933,17 +933,19 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// apply --auth-server flag:
-	if clf.AuthServerAddr != "" {
+	if len(clf.AuthServerAddr) > 0 {
 		if cfg.Auth.Enabled {
 			log.Warnf("not starting the local auth service. --auth-server flag tells to connect to another auth server")
 			cfg.Auth.Enabled = false
 		}
-		addr, err := utils.ParseHostPortAddr(clf.AuthServerAddr, int(defaults.AuthListenPort))
-		if err != nil {
-			return trace.Wrap(err)
+		cfg.AuthServers = make([]utils.NetAddr, 0, len(clf.AuthServerAddr))
+		for _, as := range clf.AuthServerAddr {
+			addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
+			if err != nil {
+				return trace.BadParameter("cannot parse auth server address: '%v'", as)
+			}
+			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
-		log.Infof("Using auth server: %v", addr.FullAddress())
-		cfg.AuthServers = []utils.NetAddr{*addr}
 	}
 
 	// apply --name flag:
