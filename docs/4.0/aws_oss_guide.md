@@ -120,8 +120,14 @@ it’s approved successfully.
 
 #### Step 1: Subscribe to Teleport Community Edition 
 Subscribe to the Teleport Community Edition on the [AWS Marketplace](https://aws.amazon.com/marketplace/pp/B07FYTZB9B). 
-![AWS Intro Image](img/aws-intro.png)
 
+![AWS Intro Image](img/aws/aws-intro.png)
+
+![AWS Launch via EC2](img/aws/launch-through-ec2.png)
+
+
+#### Select Right size image
+![AWS Instance Size ](img/aws/aws-pick-instance-size.png)
 
 
 4. Make sure to write appropriate values to /etc/teleport.d/conf via user-data 
@@ -212,8 +218,6 @@ and in teleport.yaml I had:
         period: 1h0m0s
 ```
 
-https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html 
-^ looks like it can be done with CLI 
 
 TODO https://github.com/gravitational/teleport/issues/1175 
  https://github.com/gravitational/teleport/issues/1346 
