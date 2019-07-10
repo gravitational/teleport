@@ -1,0 +1,183 @@
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package local
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
+	"gopkg.in/check.v1"
+)
+
+func TestResourceHelpers(t *testing.T) { check.TestingT(t) }
+
+type ResourceSuite struct {
+	bk backend.Backend
+}
+
+var _ = fmt.Printf
+var _ = check.Suite(&ResourceSuite{})
+
+func (r *ResourceSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests(testing.Verbose())
+}
+
+func (r *ResourceSuite) SetUpTest(c *check.C) {
+	var err error
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	r.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+		Path:             c.MkDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
+	})
+	c.Assert(err, check.IsNil)
+}
+
+func (r *ResourceSuite) TearDownTest(c *check.C) {
+	c.Assert(r.bk.Close(), check.IsNil)
+}
+
+func (r *ResourceSuite) dumpResources(c *check.C) []services.Resource {
+	startKey := []byte{0}
+	endKey := []byte{
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	}
+	result, err := r.bk.GetRange(context.TODO(), startKey, endKey, 0)
+	c.Assert(err, check.IsNil)
+	var resources []services.Resource
+	for _, item := range result.Items {
+		rsc, err := DeitemizeResource(item)
+		c.Assert(err, check.IsNil)
+		resources = append(resources, rsc)
+	}
+	return resources
+}
+
+func (r *ResourceSuite) runCreationChecks(c *check.C, resources ...services.Resource) {
+	err := CreateResources(r.bk, resources...)
+	c.Assert(err, check.IsNil)
+	dump := r.dumpResources(c)
+Outer:
+	for _, exp := range resources {
+		for _, got := range dump {
+			if got.GetKind() == exp.GetKind() && got.GetName() == exp.GetName() && got.Expiry() == exp.Expiry() {
+				continue Outer
+			}
+		}
+		c.Errorf("Missing expected resource kind=%s,name=%s,expiry=%v", exp.GetKind(), exp.GetName(), exp.Expiry().String())
+	}
+}
+
+func (r *ResourceSuite) TestUserResource(c *check.C) {
+	alice := newUser("alice", nil)
+	bob := newUser("bob", nil)
+	// Check basic dynamic item creation
+	r.runCreationChecks(c, alice, bob)
+	// Check that dynamically created item is compatible with service
+	s := NewIdentityService(r.bk)
+	b, err := s.GetUser("bob")
+	c.Assert(err, check.IsNil)
+	if !bob.Equals(b) {
+		c.Errorf("dynamically inserted user does not match")
+	}
+}
+
+func (r *ResourceSuite) TestCertAuthorityResource(c *check.C) {
+	userCA := suite.NewTestCA(services.UserCA, "example.com")
+	hostCA := suite.NewTestCA(services.HostCA, "example.com")
+	// Check basic dynamic item creation
+	r.runCreationChecks(c, userCA, hostCA)
+	// Check that dynamically created item is compatible with service
+	s := NewCAService(r.bk)
+	err := s.CompareAndSwapCertAuthority(userCA, userCA)
+	c.Assert(err, check.IsNil)
+}
+
+func (r *ResourceSuite) TestTrustedClusterResource(c *check.C) {
+	foo, err := services.NewTrustedCluster("foo", services.TrustedClusterSpecV2{
+		Enabled:              true,
+		Roles:                []string{"bar", "baz"},
+		Token:                "qux",
+		ProxyAddress:         "quux",
+		ReverseTunnelAddress: "quuz",
+	})
+	c.Assert(err, check.IsNil)
+
+	bar, err := services.NewTrustedCluster("bar", services.TrustedClusterSpecV2{
+		Enabled:              false,
+		Roles:                []string{"baz", "aux"},
+		Token:                "quux",
+		ProxyAddress:         "quuz",
+		ReverseTunnelAddress: "corge",
+	})
+	c.Assert(err, check.IsNil)
+	// Check basic dynamic item creation
+	r.runCreationChecks(c, foo, bar)
+}
+
+func (r *ResourceSuite) TestGithubConnectorResource(c *check.C) {
+	connector := &services.GithubConnectorV3{
+		Kind:    services.KindGithubConnector,
+		Version: services.V3,
+		Metadata: services.Metadata{
+			Name:      "github",
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.GithubConnectorSpecV3{
+			ClientID:     "aaa",
+			ClientSecret: "bbb",
+			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+			Display:      "Github",
+			TeamsToLogins: []services.TeamMapping{
+				{
+					Organization: "gravitational",
+					Team:         "admins",
+					Logins:       []string{"admin"},
+					KubeGroups:   []string{"system:masters"},
+				},
+			},
+		},
+	}
+	// Check basic dynamic item creation
+	r.runCreationChecks(c, connector)
+}
+
+func newUser(name string, roles []string) services.User {
+	return &services.UserV2{
+		Kind:    services.KindUser,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      name,
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.UserSpecV2{
+			Roles: roles,
+		},
+	}
+}
