@@ -407,6 +407,9 @@ func onLogin(cf *CLIConf) {
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
+			if err := tc.GenerateCertsForCluster(cf.Context, cf.SiteName); err != nil {
+				utils.FatalError(err)
+			}
 			tc.SaveProfile("", "")
 			if err := kubeclient.UpdateKubeconfig(tc); err != nil {
 				utils.FatalError(err)

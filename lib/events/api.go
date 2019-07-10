@@ -112,6 +112,8 @@ const (
 	LoginMethod = "method"
 	// LoginMethodLocal represents login with username/password
 	LoginMethodLocal = "local"
+	// LoginMethodClientCert represents login with client certificate
+	LoginMethodClientCert = "client.cert"
 	// LoginMethodOIDC represents login with OIDC
 	LoginMethodOIDC = "oidc"
 	// LoginMethodSAML represents login with SAML

@@ -139,7 +139,7 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCerts
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	certs, err := auth.AuthWithRoles.GenerateUserCerts(ctx, req.Key, req.Username, req.Ttl, req.Compatibility)
+	certs, err := auth.AuthWithRoles.GenerateUserCerts(ctx, *req)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -174,6 +174,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			user:       authContext.User,
 			checker:    authContext.Checker,
+			identity:   authContext.Identity,
 			sessions:   g.SessionService,
 			alog:       g.AuthServer.IAuditLog,
 		},

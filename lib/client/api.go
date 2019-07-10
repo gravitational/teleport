@@ -813,6 +813,16 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 	return retval, nil
 }
 
+// GenerateCertsForCluster generates certificates for the user
+// that have a metadata instructing server to route the requests to the cluster
+func (tc *TeleportClient) GenerateCertsForCluster(ctx context.Context, routeToCluster string) error {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return proxyClient.GenerateCertsForCluster(ctx, routeToCluster)
+}
+
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 //

@@ -33,11 +33,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
 
@@ -106,6 +108,52 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 		return nil, trace.Wrap(err)
 	}
 	return sites, nil
+}
+
+// GenerateCertsForCluster generates certificates for the user
+// that have a metadata instructing server to route the requests to the cluster
+func (proxy *ProxyClient) GenerateCertsForCluster(ctx context.Context, routeToCluster string) error {
+	localAgent := proxy.teleportClient.LocalAgent()
+	key, err := localAgent.GetKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cert, err := key.SSHCert()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tlsCert, err := key.TLSCertificate()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clt, err := proxy.ConnectToCluster(ctx, clusterName, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req := proto.UserCertsRequest{
+		Username:       cert.KeyId,
+		PublicKey:      key.Pub,
+		Expires:        time.Unix(int64(cert.ValidBefore), 0),
+		RouteToCluster: routeToCluster,
+	}
+	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
+		req.Format = teleport.CertificateFormatOldSSH
+	}
+
+	certs, err := clt.GenerateUserCerts(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	key.Cert = certs.SSH
+	key.TLSCert = certs.TLS
+
+	// save the cert to the local storage (~/.tsh usually):
+	_, err = localAgent.AddKey(key)
+	return trace.Wrap(err)
 }
 
 // FindServersByLabels returns list of the nodes which have labels exactly matching

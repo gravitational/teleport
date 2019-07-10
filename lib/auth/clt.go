@@ -1543,17 +1543,12 @@ func (c *Client) GetSignupTokenData(token string) (user string, otpQRCode []byte
 // GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 // text format, signs it using User Certificate Authority signing key and
 // returns the resulting certificates.
-func (c *Client) GenerateUserCerts(ctx context.Context, key []byte, user string, ttl time.Duration, compatibility string) (*proto.Certs, error) {
+func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
 	clt, err := c.grpc()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := clt.GenerateUserCerts(ctx, &proto.UserCertsRequest{
-		Key:           key,
-		Username:      user,
-		Ttl:           ttl,
-		Compatibility: compatibility,
-	})
+	certs, err := clt.GenerateUserCerts(ctx, &req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2605,7 +2600,7 @@ type IdentityService interface {
 	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
-	GenerateUserCerts(ctx context.Context, key []byte, user string, ttl time.Duration, compatibility string) (*proto.Certs, error)
+	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
 	// GetSignupTokenData returns token data for a valid token
 	GetSignupTokenData(token string) (user string, otpQRCode []byte, e error)

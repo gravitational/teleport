@@ -687,7 +687,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		return nil, trace.Wrap(err, "failed to parse TLS certificate")
 	}
 
-	id, err := tlsca.FromSubject(cert.Subject)
+	id, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -3,12 +3,12 @@ package proto;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
-import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 import "github.com/gravitational/teleport/lib/services/types.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
-option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.goproto_getters_all) = true;
 
 // Operation identifies type of operation
 enum Operation {
@@ -83,16 +83,23 @@ message Certs {
 }
 
 // UserCertRequest specifies certificate-generation parameters
-// for a user.  Used by `tctl auth sign`.
+// for a user.
 message UserCertsRequest {
-    // Key is a public key to be signed.
-    bytes Key = 1 [(gogoproto.jsontag) = "key"];
+    // PublicKey is a public key to be signed.
+    bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key"];
     // Username of key owner.
     string Username = 2 [(gogoproto.jsontag) = "username"];
-    // TTL to be applied to the certificates.
-    google.protobuf.Duration TTL = 3 [(gogoproto.stdduration) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "ttl"];
-    // Compatibility encodes the desired certificate format.
-    string Compatibility = 4 [(gogoproto.jsontag) = "compatability,omitempty"];
+	// Expires is a desired time of the expiry of the certificate, could
+    // be adjusted based on the permissions
+	google.protobuf.Timestamp Expires = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "expires,omitempty"];
+    // Format encodes the desired SSH Certificate format (either old ssh compatibility
+    // format to remove some metadata causing trouble with old SSH servers)
+    // or standard SSH cert format with custom extensions
+    string Format = 4 [(gogoproto.jsontag) = "format,omitempty"];
+    // RouteToCluster is an optional cluster name to add to the certificate,
+    // so that requests originating with this certificate will be redirected
+    // to this cluster
+    string RouteToCluster = 5 [(gogoproto.jsontag) = "route_to_cluster,omitempty"];
 }
 
 // AuthService is authentication/authorization service implementation

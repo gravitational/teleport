@@ -76,6 +76,11 @@ type Identity struct {
 	Principals []string
 	// KubernetesGroups is a list of Kubernetes groups allowed
 	KubernetesGroups []string
+	// Expires specifies whenever the session will expire
+	Expires time.Time
+	// RouteToCluster specifies the target cluster
+	// if present in the session
+	RouteToCluster string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -98,17 +103,22 @@ func (id *Identity) Subject() pkix.Name {
 	subject.OrganizationalUnit = append([]string{}, id.Usage...)
 	subject.Locality = append([]string{}, id.Principals...)
 	subject.Province = append([]string{}, id.KubernetesGroups...)
+	subject.StreetAddress = []string{id.RouteToCluster}
 	return subject
 }
 
 // FromSubject returns identity from subject name
-func FromSubject(subject pkix.Name) (*Identity, error) {
+func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 	i := &Identity{
 		Username:         subject.CommonName,
 		Groups:           subject.Organization,
 		Usage:            subject.OrganizationalUnit,
 		Principals:       subject.Locality,
 		KubernetesGroups: subject.Province,
+		Expires:          expires,
+	}
+	if len(subject.StreetAddress) > 0 {
+		i.RouteToCluster = subject.StreetAddress[0]
 	}
 	if err := i.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -179,7 +189,7 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		// BasicConstraintsValid is true to not allow any intermediate certs.
 		BasicConstraintsValid: true,
-		IsCA: false,
+		IsCA:                  false,
 	}
 
 	// sort out principals into DNS names and IP addresses
