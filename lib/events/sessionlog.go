@@ -213,12 +213,12 @@ func (sl *DiskSessionLogger) finalize() error {
 
 // eventsFileName consists of session id and the first global event index recorded there
 func eventsFileName(dataDir string, sessionID session.ID, eventIndex int64) string {
-	return filepath.Join(dataDir, fmt.Sprintf("%v-%v.events.gz", sessionID.String(), eventIndex))
+	return filepath.Join(dataDir, fmt.Sprintf("%v-%v.%v", sessionID.String(), eventIndex, eventsSuffix))
 }
 
 // chunksFileName consists of session id and the first global offset recorded
 func chunksFileName(dataDir string, sessionID session.ID, offset int64) string {
-	return filepath.Join(dataDir, fmt.Sprintf("%v-%v.chunks.gz", sessionID.String(), offset))
+	return filepath.Join(dataDir, fmt.Sprintf("%v-%v.%v", sessionID.String(), offset, chunksSuffix))
 }
 
 func (sl *DiskSessionLogger) openEventsFile(eventIndex int64) error {
@@ -483,3 +483,11 @@ func newGzipReader(file *os.File) (*gzipReader, error) {
 		file:       file,
 	}, nil
 }
+
+const (
+	// eventsSuffix is the suffix of the archive that contians session events.
+	eventsSuffix = "events.gz"
+
+	// chunksSuffix is the suffix of the archive that contains session chunks.
+	chunksSuffix = "chunks.gz"
+)
