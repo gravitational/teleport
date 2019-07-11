@@ -32,7 +32,8 @@ import (
 
 // Extract extracts the contents of the specified tarball under dir. The
 // resulting files and directories are created using the current user context.
-// Extract is safe in that it won't allow extracting files out of dir.
+// Extract will only unarchive files into dir, and will fail if the tarball
+// tries to write files outside of dir.
 func Extract(r io.Reader, dir string) error {
 	tarball := tar.NewReader(r)
 
@@ -105,16 +106,13 @@ func sanitizeTarPath(header *tar.Header, dir string) error {
 
 func writeFile(path string, r io.Reader, mode os.FileMode) error {
 	err := withDir(path, func() error {
-		out, err := os.Create(path)
+		// Create file only if it does not exist to prevent overwriting existing
+		// files (like session recordings).
+		out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
 		defer out.Close()
-
-		err = out.Chmod(mode)
-		if err != nil {
-			return trace.ConvertSystemError(err)
-		}
 
 		_, err = io.Copy(out, r)
 		return trace.Wrap(err)
