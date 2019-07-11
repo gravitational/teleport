@@ -329,3 +329,29 @@ print-version:
 .PHONY: chart-ent
 chart-ent:
 	$(MAKE) -C e chart
+
+TARBALL_DIR ?= /tmp/teleport-tarballs
+
+# build .pkg
+.PHONY: pkg
+pkg:
+	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -s $(TARBALL_DIR)
+	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
+
+# build .rpm
+.PHONY: rpm
+rpm:
+	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) -s $(TARBALL_DIR)
+	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
+
+# build .deb
+.PHONY: deb
+deb:
+	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) -s $(TARBALL_DIR)
+	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
