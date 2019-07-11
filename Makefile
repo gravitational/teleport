@@ -346,7 +346,7 @@ rpm:
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) -s $(TARBALL_DIR)
-	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
+	if [ -f e/Makefile ]; then $(MAKE) -C e rpm; fi
 
 # build .deb
 .PHONY: deb
@@ -354,4 +354,4 @@ deb:
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) -s $(TARBALL_DIR)
-	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
+	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi

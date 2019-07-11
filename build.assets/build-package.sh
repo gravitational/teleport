@@ -245,8 +245,8 @@ else
         fpm \
         --input-type dir \
         --output-type ${PACKAGE_TYPE} \
-        --name ${OUTPUT_NAME} \
-        --version ${TELEPORT_VERSION} \
+        --name ${TAR_PATH} \
+        --version "${TELEPORT_VERSION}" \
         --maintainer "${MAINTAINER}" \
         --url "${URL}" \
         --license "${LICENSE}" \
