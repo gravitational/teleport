@@ -276,3 +276,9 @@ func (f EventFields) GetTime(key string) time.Time {
 	}
 	return v
 }
+
+// HasField returns true if the field exists in the event.
+func (f EventFields) HasField(key string) bool {
+	_, ok := f[key]
+	return ok
+}

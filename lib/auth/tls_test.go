@@ -17,11 +17,15 @@ limitations under the License.
 package auth
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -40,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"gopkg.in/check.v1"
@@ -846,6 +851,163 @@ func (s *TLSSuite) TestTokens(c *check.C) {
 	out, err := clt.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}})
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Not(check.Equals), 0)
+}
+
+func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
+	serverID, err := s.server.Identity.ID.HostID()
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		inServerID string
+		outError   bool
+	}{
+		// Invalid.
+		{
+			inServerID: "00000000-0000-0000-0000-000000000000",
+			outError:   true,
+		},
+		// Valid.
+		{
+			inServerID: serverID,
+			outError:   false,
+		},
+	}
+	for _, tt := range tests {
+		clt, err := s.server.NewClient(TestServerID(s.server.Identity.ID.HostUUID))
+		c.Assert(err, check.IsNil)
+
+		sessionID := session.NewID()
+
+		recording, err := makeSessionRecording(sessionID.String(), tt.inServerID)
+		c.Assert(err, check.IsNil)
+
+		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+		sess := session.Session{
+			ID:             sessionID,
+			TerminalParams: session.TerminalParams{W: 100, H: 100},
+			Created:        date,
+			LastActive:     date,
+			Login:          "bob",
+			Namespace:      defaults.Namespace,
+		}
+		c.Assert(clt.CreateSession(sess), check.IsNil)
+
+		err = clt.UploadSessionRecording(events.SessionRecording{
+			Namespace: defaults.Namespace,
+			SessionID: sess.ID,
+			Recording: recording,
+		})
+		c.Assert(err != nil, check.Equals, tt.outError)
+	}
+}
+
+func makeSessionRecording(sessionID string, serverID string) (io.Reader, error) {
+	marshal := func(f events.EventFields) []byte {
+		data, err := json.Marshal(f)
+		if err != nil {
+			panic(err)
+		}
+		return data
+	}
+
+	var zbuf bytes.Buffer
+	zw := gzip.NewWriter(&zbuf)
+
+	zw.Name = fmt.Sprintf("%v-0.events", sessionID)
+	_, err := zw.Write(marshal(events.EventFields{
+		events.SessionServerID: serverID,
+	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = zw.Close()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var tbuf bytes.Buffer
+	tw := tar.NewWriter(&tbuf)
+
+	hdr := &tar.Header{
+		Name: fmt.Sprintf("%v-0.events.gz", sessionID),
+		Mode: 0600,
+		Size: int64(zbuf.Len()),
+	}
+	err = tw.WriteHeader(hdr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, err = tw.Write(zbuf.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = tw.Close()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &tbuf, nil
+}
+
+func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
+	serverID, err := s.server.Identity.ID.HostID()
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		inServerID string
+		outError   bool
+	}{
+		// Invalid.
+		{
+			inServerID: "00000000-0000-0000-0000-000000000000",
+			outError:   true,
+		},
+		// Valid.
+		{
+			inServerID: serverID,
+			outError:   false,
+		},
+	}
+	for _, tt := range tests {
+		clt, err := s.server.NewClient(TestServerID(s.server.Identity.ID.HostUUID))
+		c.Assert(err, check.IsNil)
+
+		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+		sess := session.Session{
+			ID:             session.NewID(),
+			TerminalParams: session.TerminalParams{W: 100, H: 100},
+			Created:        date,
+			LastActive:     date,
+			Login:          "bob",
+			Namespace:      defaults.Namespace,
+		}
+		c.Assert(clt.CreateSession(sess), check.IsNil)
+
+		marshal := func(f events.EventFields) []byte {
+			data, err := json.Marshal(f)
+			if err != nil {
+				panic(err)
+			}
+			return data
+		}
+
+		err = clt.PostSessionSlice(events.SessionSlice{
+			Namespace: defaults.Namespace,
+			SessionID: string(sess.ID),
+			Chunks: []*events.SessionChunk{
+				&events.SessionChunk{
+					Time:       time.Now().UTC().UnixNano(),
+					EventIndex: 0,
+					EventType:  events.SessionStartEvent,
+					Data: marshal(events.EventFields{
+						events.SessionServerID: tt.inServerID,
+					}),
+				},
+			},
+			Version: events.V3,
+		})
+		c.Assert(err != nil, check.Equals, tt.outError)
+	}
 }
 
 func (s *TLSSuite) TestSharedSessions(c *check.C) {

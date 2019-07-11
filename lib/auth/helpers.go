@@ -492,6 +492,16 @@ func TestBuiltin(role teleport.Role) TestIdentity {
 	}
 }
 
+// TestServerID returns a TestIdentity for a node with the passed in serverID.
+func TestServerID(serverID string) TestIdentity {
+	return TestIdentity{
+		I: BuiltinRole{
+			Role:     teleport.RoleNode,
+			Username: serverID,
+		},
+	}
+}
+
 // NewClientFromWebSession returns new authenticated client from web session
 func (t *TestTLSServer) NewClientFromWebSession(sess services.WebSession) (*Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)

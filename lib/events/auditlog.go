@@ -282,18 +282,21 @@ func (l *SessionRecording) CheckAndSetDefaults() error {
 	return nil
 }
 
-// UploadSessionRecording uploads session recording to the audit server
-// TODO(klizhentas) add protection against overwrites from different nodes
+// UploadSessionRecording persists the session recording locally or to third
+// party storage.
 func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// This function runs on the Auth Server. If no upload handler is defined
+	// (for example, not going to S3) then unarchive it to Auth Server disk.
 	if l.UploadHandler == nil {
-		// unpack the tarball locally to sessions directory
 		err := utils.Extract(r.Recording, filepath.Join(l.DataDir, l.ServerID, SessionLogsDir, r.Namespace))
 		return trace.Wrap(err)
 	}
-	// use upload handler
+
+	// Upload session recording to endpoint defined in file configuration. Like S3.
 	start := time.Now()
 	url, err := l.UploadHandler.Upload(context.TODO(), r.SessionID, r.Recording)
 	if err != nil {
