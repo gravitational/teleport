@@ -345,7 +345,9 @@ endif
 pkg:
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
-	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg $(TARBALL_PATH_SECTION)
+	# arch and runtime are currently ignored on OS X
+	# we pass them through for consistency - they will be dropped by the build script
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
 # build .rpm
