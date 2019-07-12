@@ -19,13 +19,10 @@ package utils
 import (
 	"net"
 	"strings"
-	"testing"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 )
-
-func TestAddrStruct(t *testing.T) { TestingT(t) }
 
 type AddrTestSuite struct {
 }
