@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -30,6 +31,8 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
 )
+
+func TestUtils(t *testing.T) { check.TestingT(t) }
 
 type UtilsSuite struct {
 }
