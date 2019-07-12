@@ -274,5 +274,3 @@ fi
 
 # clean up temporary directory
 rm -rf ${TMPDIR}
-
-
