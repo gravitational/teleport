@@ -26,7 +26,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-func Test(t *testing.T) { check.TestingT(t) }
+func TestParse(t *testing.T) { check.TestingT(t) }
 
 type ParseSuite struct{}
 
