@@ -1919,8 +1919,6 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			log.Info(err)
-			// clear session just in case if the authentication request is not valid
-			ClearSession(w)
 			return nil, trace.Wrap(err)
 		}
 		siteName := p.ByName("site")
