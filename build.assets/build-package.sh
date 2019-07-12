@@ -242,7 +242,7 @@ else
     rm -vf ${OUTPUT_FILENAME}
 
     # build for other platforms
-    docker run -v ${TMPDIR}:/src -it --rm ${DOCKER_IMAGE} \
+    docker run -v ${TMPDIR}:/src --rm ${DOCKER_IMAGE} \
         fpm \
         --input-type dir \
         --output-type ${PACKAGE_TYPE} \
