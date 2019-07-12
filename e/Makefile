@@ -193,3 +193,37 @@ uninstall-chart:
 upgrade-chart: VERSION := $(shell $(MAKE) -s -C .. print-version)
 upgrade-chart: chart
 	helm upgrade teleport teleport-$(VERSION).tgz
+
+RUNTIME_SECTION ?=
+TARBALL_PATH_SECTION ?=
+
+ifneq ("$(RUNTIME)", "")
+	RUNTIME_SECTION := -r $(RUNTIME)
+endif
+ifneq ("$(ENT_TARBALL_PATH)", "")
+	TARBALL_PATH_SECTION := -s $(ENT_TARBALL_PATH)
+endif
+
+# build .pkg
+.PHONY: pkg
+pkg:
+	cp ../build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	# arch and runtime are currently ignored on OS X
+	# we pass them through for consistency - they will be dropped by the build script
+	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p pkg -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
+# build .rpm
+.PHONY: rpm
+rpm:
+	cp ../build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
+# build .deb
+.PHONY: deb
+deb:
+	cp ../build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
