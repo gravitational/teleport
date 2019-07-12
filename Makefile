@@ -330,14 +330,6 @@ print-version:
 chart-ent:
 	$(MAKE) -C e chart
 
-# build .pkg
-.PHONY: pkg
-pkg:
-	cp ./build.assets/build-package.sh $(BUILDDIR)/
-	chmod +x $(BUILDDIR)/build-package.sh
-	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -s $(PWD)
-	if [ -f e/Makefile ]; then pushd e; $(MAKE) pkg; popd; fi
-
 RUNTIME_SECTION ?=
 TARBALL_PATH_SECTION ?=
 
@@ -347,6 +339,14 @@ endif
 ifneq ("$(OSS_TARBALL_PATH)", "")
 	TARBALL_PATH_SECTION := -s $(OSS_TARBALL_PATH)
 endif
+
+# build .pkg
+.PHONY: pkg
+pkg:
+	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg $(TARBALL_PATH_SECTION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
 # build .rpm
 .PHONY: rpm
@@ -362,5 +362,5 @@ deb:
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
-	if [ -f e/Makefile ]; then pushd e; $(MAKE) deb; popd; fi
+	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
