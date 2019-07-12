@@ -85,9 +85,11 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     fi
     if [[ "${ARCH}" != "" ]]; then
         echo "arch parameter is ignored when building for OS X"
+        unset ARCH
     fi
     if [[ "${RUNTIME}" != "" ]]; then
         echo "runtime parameter is ignored when building for OS X"
+        unset RUNTIME
     fi
     PLATFORM="darwin"
     ARCH="amd64"
