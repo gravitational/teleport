@@ -140,7 +140,7 @@ fi
 if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
-    PKG_FILENAME="teleport-ent-v${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+    PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
     TAR_PATH="teleport-ent"
     if [[ "${RUNTIME}" == "go1.9.7" ]]; then
         TYPE_DESCRIPTION="[Enterprise edition, built with Go 1.9.7]"
