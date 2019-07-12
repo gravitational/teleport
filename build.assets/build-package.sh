@@ -171,7 +171,6 @@ else
     LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
     LINUX_SYSTEMD_FILE_LIST="${TAR_PATH}/examples/systemd/teleport.service"
     LINUX_CONFIG_FILE_LIST=""
-    #OUTPUT_NAME=${TAR_PATH}
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${ARCH}.rpm"
     elif [[ "${PACKAGE_TYPE}" == "deb" ]]; then
