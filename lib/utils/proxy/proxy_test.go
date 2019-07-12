@@ -26,7 +26,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-func Test(t *testing.T) { check.TestingT(t) }
+func TestProxy(t *testing.T) { check.TestingT(t) }
 
 type ProxySuite struct{}
 
