@@ -17,7 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -27,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -261,6 +261,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 			authServer: s.AuthServer,
 			user:       authContext.User,
 			checker:    authContext.Checker,
+			identity:   authContext.Identity,
 			sessions:   s.SessionService,
 			alog:       s.AuthServer.IAuditLog,
 		}
@@ -686,7 +687,12 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := auth.GenerateUserCerts(context.TODO(), req.Key, req.User, req.TTL, certificateFormat)
+	certs, err := auth.GenerateUserCerts(r.Context(), proto.UserCertsRequest{
+		PublicKey: req.Key,
+		Username:  req.User,
+		Expires:   s.Now().UTC().Add(req.TTL),
+		Format:    certificateFormat,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

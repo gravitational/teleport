@@ -180,6 +180,11 @@ func (k *Key) EqualsTo(other *Key) bool {
 		bytes.Equal(k.TLSCert, other.TLSCert)
 }
 
+// TLSCertificate returns x509 certificate
+func (k *Key) TLSCertificate() (*x509.Certificate, error) {
+	return tlsca.ParseCertificatePEM(k.TLSCert)
+}
+
 // TLSCertValidBefore returns the time of the TLS cert expiration
 func (k *Key) TLSCertValidBefore() (t time.Time, err error) {
 	cert, err := tlsca.ParseCertificatePEM(k.TLSCert)
@@ -220,21 +225,26 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 	return NewAuthMethodForCert(signer), nil
 }
 
-// CheckCert makes sure the SSH certificate is valid.
-func (k *Key) CheckCert() error {
+// SSHCert returns parsed SSH certificate
+func (k *Key) SSHCert() (*ssh.Certificate, error) {
 	key, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		return trace.BadParameter("found key, not certificate")
+		return nil, trace.BadParameter("found key, not certificate")
 	}
-	if len(cert.ValidPrincipals) == 0 {
-		return trace.BadParameter("principals are required")
-	}
+	return cert, nil
+}
 
+// CheckCert makes sure the SSH certificate is valid.
+func (k *Key) CheckCert() error {
+	cert, err := k.SSHCert()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
 	certChecker := utils.CertChecker{}

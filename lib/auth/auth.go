@@ -401,6 +401,9 @@ type certRequest struct {
 	// the cert can be only used against kubernetes endpoint, and not auth endpoint,
 	// no usage means unrestricted (to keep backwards compatibility)
 	usage []string
+	// routeToCluster is an optional cluster name to route the certificate requests to,
+	// this cluster name will be used to route the requests to in case of kubernetes
+	routeToCluster string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -515,10 +518,11 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	identity := tlsca.Identity{
-		Username:   req.user.GetName(),
-		Groups:     req.roles.RoleNames(),
-		Principals: allowedLogins,
-		Usage:      req.usage,
+		Username:       req.user.GetName(),
+		Groups:         req.roles.RoleNames(),
+		Principals:     allowedLogins,
+		Usage:          req.usage,
+		RouteToCluster: req.routeToCluster,
 	}
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,

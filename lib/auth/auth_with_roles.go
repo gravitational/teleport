@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -35,12 +36,15 @@ import (
 	"github.com/tstranex/u2f"
 )
 
+// AuthWithRoles is a wrapper around auth service
+// methods that focuses on authorizing every request
 type AuthWithRoles struct {
 	authServer *AuthServer
 	checker    services.AccessChecker
 	user       services.User
 	sessions   session.Service
 	alog       events.IAuditLog
+	identity   tlsca.Identity
 }
 
 func (a *AuthWithRoles) actionWithContext(ctx *services.Context, namespace string, resource string, action string) error {
@@ -808,14 +812,37 @@ func (a *AuthWithRoles) NewKeepAliver(ctx context.Context) (services.KeepAliver,
 	return nil, trace.NotImplemented("not implemented")
 }
 
-func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, key []byte, username string, ttl time.Duration, compatibility string) (*proto.Certs, error) {
-	// This endpoint is only accessible to tctl.
-	if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
+// GenerateUserCerts generates users certificates
+func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+	switch {
+	case a.hasBuiltinRole(string(teleport.RoleAdmin)):
+	case req.Username == a.user.GetName():
+		// user is requesting TTL for themselves,
+		// limit the TTL to the duration of the session, to prevent
+		// users renewing their certificates forever
+		if a.identity.Expires.IsZero() {
+			log.Warningf("Encountered identity with no expiry: %v and denied request. Must be internal logic error.", a.identity)
+			return nil, trace.AccessDenied("access denied")
+		}
+		req.Expires = a.identity.Expires
+		if req.Expires.Before(a.authServer.GetClock().Now()) {
+			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
+		}
+	default:
+		err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.user.GetName(), req.Username)
+		log.Warning(err)
+		a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+			events.LoginMethod:        events.LoginMethodClientCert,
+			events.AuthAttemptSuccess: false,
+			// log the original internal error in audit log
+			events.AuthAttemptErr: trace.Unwrap(err).Error(),
+		})
+		// this error is vague on purpose, it should not happen unless someone is trying something out of loop
 		return nil, trace.AccessDenied("this request can be only executed by an admin")
 	}
 
 	// Extract the user and role set for whom the certificate will be generated.
-	user, err := a.GetUser(username)
+	user, err := a.GetUser(req.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -829,10 +856,11 @@ func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, key []byte, usern
 	certs, err := a.authServer.generateUserCert(certRequest{
 		user:            user,
 		roles:           checker,
-		ttl:             ttl,
-		compatibility:   compatibility,
-		publicKey:       key,
-		overrideRoleTTL: true,
+		ttl:             req.Expires.Sub(a.authServer.GetClock().Now()),
+		compatibility:   req.Format,
+		publicKey:       req.PublicKey,
+		overrideRoleTTL: a.hasBuiltinRole(string(teleport.RoleAdmin)),
+		routeToCluster:  req.RouteToCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1534,16 +1562,13 @@ func NewAdminAuthServer(authServer *AuthServer, sessions session.Service, alog e
 }
 
 // NewAuthWithRoles creates new auth server with access control
-func NewAuthWithRoles(authServer *AuthServer,
-	checker services.AccessChecker,
-	user services.User,
-	sessions session.Service,
-	alog events.IAuditLog) *AuthWithRoles {
+func NewAuthWithRoles(ctx AuthContext, authServer *AuthServer, sessions session.Service, alog events.IAuditLog) *AuthWithRoles {
 	return &AuthWithRoles{
 		authServer: authServer,
-		checker:    checker,
+		checker:    ctx.Checker,
 		sessions:   sessions,
-		user:       user,
+		user:       ctx.User,
+		identity:   ctx.Identity,
 		alog:       alog,
 	}
 }

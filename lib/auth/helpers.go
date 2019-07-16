@@ -261,11 +261,12 @@ func GenerateCertificate(authServer *AuthServer, identity TestIdentity) ([]byte,
 			return nil, nil, trace.Wrap(err)
 		}
 		certs, err := authServer.generateUserCert(certRequest{
-			publicKey: pub,
-			user:      user,
-			roles:     roles,
-			ttl:       identity.TTL,
-			usage:     identity.AcceptedUsage,
+			publicKey:      pub,
+			user:           user,
+			roles:          roles,
+			ttl:            identity.TTL,
+			usage:          identity.AcceptedUsage,
+			routeToCluster: identity.RouteToCluster,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -467,9 +468,10 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 
 // TestIdentity is test identity spec used to generate identities in tests
 type TestIdentity struct {
-	I             interface{}
-	TTL           time.Duration
-	AcceptedUsage []string
+	I              interface{}
+	TTL            time.Duration
+	AcceptedUsage  []string
+	RouteToCluster string
 }
 
 // TestUser returns TestIdentity for local user
