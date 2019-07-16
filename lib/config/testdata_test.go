@@ -98,10 +98,10 @@ teleport:
   nodename: cat.example.com
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
+  auth_token: %v
   auth_servers:
     - auth0.server.example.org:3024
     - auth1.server.example.org:3024
-  auth_token: xxxyyy
   log:
     output: stderr
     severity: INFO

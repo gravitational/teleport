@@ -164,7 +164,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
 	}
-	cfg.ApplyToken(fc.AuthToken)
+	if _, err := cfg.ApplyToken(fc.AuthToken); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
@@ -909,7 +911,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// apply --token flag:
-	cfg.ApplyToken(clf.AuthToken)
+	if _, err := cfg.ApplyToken(clf.AuthToken); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Apply flags used for the node to validate the Auth Server.
 	if clf.CAPin != "" {

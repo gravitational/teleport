@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -176,13 +177,20 @@ type Config struct {
 // ApplyToken assigns a given token to all internal services but only if token
 // is not an empty string.
 //
-// Returns 'true' if token was modified
-func (cfg *Config) ApplyToken(token string) bool {
+// returns:
+// true, nil if the token has been modified
+// false, nil if the token has not been modified
+// false, err if there was an error
+func (cfg *Config) ApplyToken(token string) (bool, error) {
 	if token != "" {
-		cfg.Token = token
-		return true
+		var err error
+		cfg.Token, err = utils.ReadToken(token)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
 // RoleConfig is a config for particular Teleport role
