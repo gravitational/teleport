@@ -275,7 +275,7 @@ const Invite2faData = ({auth2faType, qr}) => {
 
         <div className="m-t text-muted">
           <small>Click
-            <a a target="_blank" href={U2F_HELP_URL}> here </a>
+            <a a target="_blank" href={U2F_HELP_URL} rel="noreferrer"> here </a>
             to learn more about U2F 2-Step Verification.
           </small>
         </div>
