@@ -42,6 +42,10 @@ func SetIndexHTMLHeaders(h http.Header) {
 	SetSameOriginIFrame(h)
 	SetNoSniff(h)
 
+	// Only send the origin of the document as the referrer in all cases.
+	// The document https://example.com/page.html will send the referrer https://example.com/.
+	h.Set("Referrer-Policy", "origin")
+
 	// X-Frame-Options indicates that the page can only be displayed in iframe on the same origin as the page itself
 	h.Set("X-Frame-Options", "SAMEORIGIN")
 
