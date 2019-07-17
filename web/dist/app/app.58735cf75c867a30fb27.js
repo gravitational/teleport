@@ -3941,7 +3941,7 @@ limitations under the License.
 
 
 
-var SSH_STR_REGEX = /(^\w+@(\w|\.|-)+(:\d+)*$)|(^$)/;
+var SSH_STR_REGEX = /(^\w+@(\S+)$)/;
 var PLACEHOLDER_TEXT = 'login@host';
 var DEFAULT_HISTORY_INDEX = -1;
 
