@@ -367,7 +367,11 @@ teleport:
 }
 
 func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
-	conf, err := ReadConfig(bytes.NewBufferString(SmallConfigString))
+	tokenPath := filepath.Join(s.tempDir, "small-config-token")
+	err := ioutil.WriteFile(tokenPath, []byte("join-token"), 0644)
+	c.Assert(err, check.IsNil)
+
+	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(SmallConfigString, tokenPath)))
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 	c.Assert(conf.Proxy.PublicAddr, check.DeepEquals, utils.Strings{"web3:443"})
@@ -375,6 +379,8 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	c.Assert(err, check.IsNil)
+
+	c.Assert(cfg.Token, check.Equals, "join-token")
 	c.Assert(cfg.Auth.StaticTokens.GetStaticTokens(), check.DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{
 		{
 			Token:   "xxx",

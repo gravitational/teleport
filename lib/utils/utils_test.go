@@ -461,3 +461,22 @@ func (s *UtilsSuite) TestMarshalYAML(c *check.C) {
 		}
 	}
 }
+
+// TestReadToken tests reading token from file and as is
+func (s *UtilsSuite) TestReadToken(c *check.C) {
+	tok, err := ReadToken("token")
+	c.Assert(tok, check.Equals, "token")
+	c.Assert(err, check.IsNil)
+
+	_, err = ReadToken("/tmp/non-existent-token-for-teleport-tests-not-found")
+	fixtures.ExpectNotFound(c, err)
+
+	dir := c.MkDir()
+	tokenPath := filepath.Join(dir, "token")
+	err = ioutil.WriteFile(tokenPath, []byte("shmoken"), 0644)
+	c.Assert(err, check.IsNil)
+
+	tok, err = ReadToken(tokenPath)
+	c.Assert(err, check.IsNil)
+	c.Assert(tok, check.Equals, "shmoken")
+}

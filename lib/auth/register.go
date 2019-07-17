@@ -19,8 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/x509"
-	"io/ioutil"
-	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
@@ -106,7 +104,7 @@ type HostCredentials func(context.Context, string, bool, RegisterUsingTokenReque
 func Register(params RegisterParams) (*Identity, error) {
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
-	token, err := readToken(params.Token)
+	token, err := utils.ReadToken(params.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -349,19 +347,6 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	keys.Key = params.PrivateKey
 
 	return ReadIdentityFromKeyPair(keys)
-}
-
-func readToken(token string) (string, error) {
-	if !strings.HasPrefix(token, "/") {
-		return token, nil
-	}
-	// treat it as a file
-	out, err := ioutil.ReadFile(token)
-	if err != nil {
-		return "", nil
-	}
-	// trim newlines as tokens in files tend to have newlines
-	return strings.TrimSpace(string(out)), nil
 }
 
 // PackedKeys is a collection of private key, SSH host certificate
