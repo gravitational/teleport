@@ -160,8 +160,18 @@ it’s approved successfully.
 #### Step 1: Subscribe to Teleport Community Edition 
 Subscribe to the Teleport Community Edition on the [AWS Marketplace](https://aws.amazon.com/marketplace/pp/B07FYTZB9B). 
 
+1. Select 'Continue to Subscribe'
+2. Review the Terms and Conditions, and click `Contnue to Configuration' 
+3. Configure this software. Keep options as set, you might want to change region 
+to be in the same place as the rest of your infrastrucure. Click Continue to Launch
+4. _Launch this software_ Under Choose Action, select Launch through EC2. 
+
+
 ![AWS Marketplace Subscribe](img/aws/aws-marketplace-subscribe.png)
 ![AWS Launch via EC2](img/aws/launch-through-ec2.png)
+
+5. Launch through EC2. At this point AWS will take you from the marketplace and drop
+you into the EC2 panel. https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LaunchInstanceWizard:ami=ami-04e79542e3e5fbf02;product=92c3dc07-bdfa-4e88-8c8b-e6187dac50af 
 
 
 #### Select Right size image
