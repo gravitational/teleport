@@ -12,7 +12,8 @@ We have split this guide into.
 
 ### Teleport on AWS FAQ
 **Why would you want to use Teleport with AWS?**
-As with all systems, at some point you'll want to log into the system using SSH
+
+At some point you'll want to log into the system using SSH
 to help test, debug and troubleshoot a problem box. For EC2, AWS recommends creating 
 ['Key Pairs'](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html) 
 and has a range of [other tips for securing EC2 instances](https://aws.amazon.com/articles/tips-for-securing-your-ec2-instance/).
@@ -27,8 +28,9 @@ There is a range of limits with this setup.
 
 **Which Services can I use Teleport with?**
 
-You can use Teleport for all the services that you can SSH into. This guide is focused
-on EC2. We have a short blog post on using Teleport with [EKS](https://gravitational.com/blog/teleport-aws-eks/). We plan to expand the guide based on feedback but will plan to add
+You can use Teleport for all the services that you would SSH into. This guide is focused
+on EC2. We have a short blog post on using Teleport with [EKS](https://gravitational.com/blog/teleport-aws-eks/). We plan to expand the guide based on feedback but will plan to add instructions
+for the below. 
 
 - RDS
 - Detailed EKS
@@ -40,7 +42,7 @@ on EC2. We have a short blog post on using Teleport with [EKS](https://gravitati
 
 This guide will cover how to setup, configure and run Teleport on [AWS](https://aws.amazon.com/). 
  
-#### AWS Services required for high availability Teleport 
+#### AWS Services required to run Teleport in HA  
 
 - [EC2 / Autoscale](#ec2-autoscale)
 - [DynamoDB](#dynamodb)
@@ -49,6 +51,7 @@ This guide will cover how to setup, configure and run Teleport on [AWS](https://
 - [NLB](#nlb-network-load-balancer)
 - [IAM](#iam)
 - [ACM](#acm)
+- [SSM](#aws-systems-manager-parameter-store) 
 
 We recommend setting up Teleport in high availability mode (HA). In HA mode DynamoDB 
 stores the state of the system and S3 will store audit logs. 
@@ -109,6 +112,11 @@ ACM-integrated AWS resources.
 - SSH Certs: Created and self signed by the `authentication server` and is used to
   delegate access to Teleport nodes. 
 
+### AWS Systems Manager Parameter Store 
+To add new nodes to a Teleport Cluster, we recommend using a [strong static token](https://gravitational.com/teleport/docs/admin-guide/#example-configuration). SSM can be also used to store the 
+enterprise licence. 
+
+
 ## Setting up a HA Teleport Cluster
 Teleport config based setup offers a wide range of customization for customers. 
 This guide offers a range of setup options for AWS. If you have a very large accounts,
@@ -117,23 +125,23 @@ more than happy to help you architect, setup and deploy Teleport into your envir
 
 We have these options for you. 
 
-- [Using our AWS Marketplace (Manual Setup)](#using-oss-teleport-amis-manual-setup)
+- [Using our AWS Marketplace (Manual Setup)](##single-oss-teleport-amis-manual-gui-setup)
 - Using our AWS Marketplace (Cloudformation Setup)
 - Building your own base image (Manual)
 - Deploying with Cloudformation
-- Deploying with Terraform 
+- Deploying with Terraform HA
+- Deploying with Terraform HA + Monitoring 
 
 Some of these providers will provision 
 
-### Using OSS Teleport AMIs (Manual Setup)
-This guide provides instructions on deploying Teleport using AMIs                          
+### Single OSS Teleport AMIs (Manual / GUI Setup)
+This guide provides instructions on deploying Teleport using AMIs, the below instructions
+are designed for using the AMI and GUI. It doesn't setup Teleport in HA, so we recommend 
+this as a starting point, but then look at the more advanced sections.                          
 
 ### Prerequisites 
 
-- Obtain a SSL/TLS Certificate.
-- Create an ALB and NLB Load Balancers.
-- Create S3 Bucket.
-- Create DynamoDB Instance.
+- Obtain a SSL/TLS Certificate using ACM.
 
 Prerequisites setup.
 
@@ -141,29 +149,13 @@ Prerequisites setup.
 for `teleport.acmeinc.com`, use email or  DNS validation as appropriate and make sure 
 it’s approved successfully.
 
-2.  With ACM you must use an application load balancer (ALB) as this will terminate SSL. 
-    1. Add the ACM certificate that you approved for `teleport.acmeinc.com`
-    - Add a listener on the ALB for HTTPS on `443/tcp`
-    - Target group will point to your instance - point to HTTP on `3080/tcp`
-    - Create a DNS record for `teleport.acmeinc.com`
-    - Point this to the public A record of the ALB as provided by Amazon
-
-3. You also need to set up a network load balancer (NLB) for the auth traffic:
-    1. Set up a listener on `3025/tcp`
-    - Target group will point to your instance - point to `3025/tcp`
-    - Create a DNS record for `teleport-nlb.acmeinc.com`
-    - Point this to the public A record of the NLB as provided by Amazon
-    - Make sure that your DNS record is also reflected in `TELEPORT_PROXY_SERVER_LB` in the user data
-    - Launch the instance (you can also use an already-running instance if you 
-    follow the instructions at the bottom of this section)
-
 #### Step 1: Subscribe to Teleport Community Edition 
 Subscribe to the Teleport Community Edition on the [AWS Marketplace](https://aws.amazon.com/marketplace/pp/B07FYTZB9B). 
 
 1. Select 'Continue to Subscribe'
-2. Review the Terms and Conditions, and click `Contnue to Configuration' 
+2. Review the Terms and Conditions, and click `Continue to Configuration' 
 3. Configure this software. Keep options as set, you might want to change region 
-to be in the same place as the rest of your infrastrucure. Click Continue to Launch
+to be in the same place as the rest of your infrastructure. Click Continue to Launch
 4. _Launch this software_ Under Choose Action, select Launch through EC2. 
 
 
@@ -171,17 +163,19 @@ to be in the same place as the rest of your infrastrucure. Click Continue to Lau
 ![AWS Launch via EC2](img/aws/launch-through-ec2.png)
 
 5. Launch through EC2. At this point AWS will take you from the marketplace and drop
-you into the EC2 panel. https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LaunchInstanceWizard:ami=ami-04e79542e3e5fbf02;product=92c3dc07-bdfa-4e88-8c8b-e6187dac50af 
+you into the EC2 panel. [Link: Shortcut to EC2 Wizard](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LaunchInstanceWizard:ami=ami-04e79542e3e5fbf02;product=92c3dc07-bdfa-4e88-8c8b-e6187dac50af)
 
 
-#### Select Right size image
+#### Step 2: Build instance
+We recommend using an `m4.large`, but a `t2.medium` should be good for POC testing.
+
 ![AWS Instance Size ](img/aws/aws-pick-instance-size.png)
 
 
-4. Make sure to write appropriate values to /etc/teleport.d/conf via user-data 
+4. Make sure to write appropriate values to `/etc/teleport.d/conf` via user-data 
     (using something like this):
 
-```bash 
+```json 
 #!/bin/bash
 cat >/etc/teleport.d/conf <<EOF
 USE_ACM="true"
@@ -192,6 +186,10 @@ TELEPORT_PROXY_SERVER_LB="test-nlb.acmeinc.com:3025"
 EOF
 ```
 
+Screenshot of where to put it in via AWS console. 
+
+![Config Instance Details](img/aws/adding-user-data.png)
+
 !!! note "Note":
     `TELEPORT_DOMAIN_NAME` and `TELEPORT_EXTERNAL_HOSTNAME` are more or less the 
     same thing but we keep them separate just in case you want to use a load balancer 
@@ -200,24 +198,99 @@ EOF
 The CA certificates for the server will be generated to have `TELEPORT_EXTERNAL_HOSTNAME` as a CN,
 assuming it's set when the server starts
 
+#### Step 3: Create the Load Balancers
+2.  When using ACM you must use an [application load balancer](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LoadBalancers:sort=loadBalancerName) (ALB) as this will terminate SSL. 
+    1. Add the ACM certificate that you approved for `teleport.acmeinc.com`
+    - Add a listener on the ALB for HTTPS on `443/tcp`
+    - Target group will point to your instance - point to HTTP on `3080/tcp`
+    - Create a http health check, point to `/webapi/ping`. 
+    - Create a DNS record for `teleport.acmeinc.com`
+    - Point this to the public A record of the ALB as provided by Amazon. 
+
+![Summary for AWS Load Balancer](img/aws/loadbalancer-review.png)
+
+
+3. You also need to set up a network load balancer (NLB) for the auth traffic:
+    1. Set up a listener on `3025/tcp`
+    - Target group will point to your instance - point to `3025/tcp`
+    - Create a DNS record for `teleport-nlb.acmeinc.com`
+    - Point this to the public A record of the NLB as provided by Amazon
+    - Make sure that your DNS record is also reflected in `TELEPORT_PROXY_SERVER_LB` in the user data
+    - Launch the instance (you can also use an already-running instance if you 
+    follow the instructions at the bottom of this section)
+
+#### Step 4: Create Teleport user
+1. We are going to use `tctl` command to create a user for Teleport. The first step
+is to SSH into the newly created OSS Teleport box. 
+
+`ssh -i id_rsa ec2-user@52.87.213.96`
+
+^ Replace with IP given available from the EC2 instance list. 
+
+```xml
+➜  ~ ssh -i id_rsa ec2-user@52.87.213.96
+Warning: Identity file id_rsa not accessible: No such file or directory.
+The authenticity of host '52.87.213.96 (52.87.213.96)' can't be established.
+ECDSA key fingerprint is SHA256:YnTAP29shPpaAbLasfwazkIx7qFsKVWP3Pw40ehiHKg.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '52.87.213.96' (ECDSA) to the list of known hosts.
+Enter passphrase for key '/Users/benarent/.ssh/id_rsa':
+Last login: Tue Jun 18 00:07:25 2019 from 13.88.188.155
+
+       __|  __|_  )
+       _|  (     /   Amazon Linux 2 AMI
+      ___|\___|___|
+
+https://aws.amazon.com/amazon-linux-2/
+No packages needed for security; 7 packages available
+Run "sudo yum update" to apply all updates.
+[ec2-user@ip-172-30-0-111 ~]$
+```
+
+2. Apply Updates `sudo yum update`
+3. Create a new admin user `sudo tctl users add teleport-admin ec2-user`
+```xml
+[ec2-user@ip-172-30-0-111 ~]$ sudo tctl users add teleport-admin ec2_user
+Signup token has been created and is valid for 1 hours. Share this URL with the user:
+https://teleport.acme.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
+
+NOTE: Make sure teleport.acme.com:443 points at a Teleport proxy which users can access.
+```
+![Summary for AWS Load Balancer](img/aws/teleport-admin.png)
+
+Step 5: Finish
+You've now successfully setup a simple Teleport AMI, that uses local storage and
+has itself as a node. Next we'll look at using HA services to create a more scalable 
+Teleport install. 
+
+![Summary for AWS Load Balancer](img/aws/teleport-setup.png)
+
+
 #### Reconfiguring/using a pre-existing instance
 
+To reconfigure any of this, or to do it on a running instance:
 
-- to reconfigure any of this, or to do it on a running instance:
--- make the appropriate changes to /etc/teleport.d/conf
--- rm -f /etc/teleport.yaml
--- systemctl restart teleport-generate-config.service
--- systemctl restart teleport-acm.service
+1. Make the appropriate changes to /etc/teleport.d/conf
 
-- If you have changed the external hostname, you may need to delete /var/lib/teleport and start again?
+* `rm -f /etc/teleport.yaml`
+
+* `systemctl restart teleport-generate-config.service`
+
+* `systemctl restart teleport-acm.service`
+
+
+If you have changed the external hostname, you may need to delete `/var/lib/teleport` and start again.
 
 
 
 ### Building your own base image
+TODO
 
-### Deploying with Cloudformation
+### Deploying with CloudFormation
+TODO
 
 ### Deploying with Terraform
+TODO
 
 ## Adding your AWS fleet to Teleport. 
 Best practices
@@ -225,15 +298,15 @@ Best practices
 - How to build 
 
 ### Installing Teleport to EC2 Nodes
-? Using 
-
+TODO
 
 
 ### Using Teleport with EKS
-??
+TODO
+
 
 ### Using Teleport with Kubernetes running on AWS
-
+TODO
 
 
 # Upgrading
