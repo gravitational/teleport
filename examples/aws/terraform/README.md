@@ -53,7 +53,7 @@ export TF_VAR_s3_bucket_name="teleport.example.com"
 export TF_VAR_email="support@example.com"
 
 # Setup grafana password for "admin" user. Grafana will be served on https://cluster.example.com:8443 after install
-export TF_VAR_grafana_pass="setup some password here"
+export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"
 
 # (optional) Set to true to use ACM (Amazon Certificate Manager) to provision certificates rather than Letsencrypt
 # If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can import it:

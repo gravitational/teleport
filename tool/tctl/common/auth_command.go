@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -333,11 +334,18 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	// sign it and produce a cert:
-	key.Cert, err = clusterApi.GenerateUserCert(key.Pub, a.genUser, a.genTTL, certificateFormat)
+	// Request signed certs from `auth` server.
+	certs, err := clusterApi.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
+		PublicKey: key.Pub,
+		Username:  a.genUser,
+		Expires:   time.Now().UTC().Add(a.genTTL),
+		Format:    certificateFormat,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	key.Cert = certs.SSH
+	key.TLSCert = certs.TLS
 
 	var certAuthorities []services.CertAuthority
 	if a.outputFormat == client.IdentityFormatFile {

@@ -1,5 +1,3 @@
-// +build !windows
-
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -16,29 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth
+package utils
 
 import (
-	"context"
-
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"io/ioutil"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
 
-// NewProcessStorage returns a new instance of the process storage.
-func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
-	if path == "" {
-		return nil, trace.BadParameter("missing parameter path")
+// ReadToken is a utility function to read the token
+// from the disk if it looks like a path,
+// otherwise, treat it as a value
+func ReadToken(token string) (string, error) {
+	if !strings.HasPrefix(token, "/") {
+		return token, nil
 	}
-
-	litebk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:      path,
-		EventsOff: true,
-	})
+	// treat it as a file
+	out, err := ioutil.ReadFile(token)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.ConvertSystemError(err)
 	}
-
-	return &ProcessStorage{Backend: litebk}, nil
+	// trim newlines as tokens in files tend to have newlines
+	return strings.TrimSpace(string(out)), nil
 }

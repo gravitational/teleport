@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 if [ ! -f /var/lib/teleport/primary-trustedcluster-join-token ]; then
-    "Primary trusted cluster join token is not present, exiting with error"
+    echo "Primary trusted cluster join token is not present, exiting with error"
     exit 1
 fi
 # only run when we have a trusted cluster YAML descriptor

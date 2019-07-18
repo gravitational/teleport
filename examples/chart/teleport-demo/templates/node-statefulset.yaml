@@ -33,6 +33,18 @@ spec:
 {{- if .Values.extraArgs }}
 {{ toYaml .Values.extraArgs | indent 8 }}
 {{- end }}
+        livenessProbe:
+          httpGet:
+            port: 54321
+            path: /healthz
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            port: 54321
+            path: /readyz
+          initialDelaySeconds: 5
+          periodSeconds: 5
         env:
         - name: ROLE
           value: node
@@ -136,6 +148,18 @@ spec:
 {{- if $root.Values.extraArgs }}
 {{ toYaml $root.Values.extraArgs | indent 8 }}
 {{- end }}
+        livenessProbe:
+          httpGet:
+            port: 54321
+            path: /healthz
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            port: 54321
+            path: /readyz
+          initialDelaySeconds: 5
+          periodSeconds: 5
         env:
         - name: ROLE
           value: node

@@ -36,8 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/legacy/boltbk"
-	"github.com/gravitational/teleport/lib/backend/legacy/dir"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -166,37 +164,34 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
 	}
-	cfg.ApplyToken(fc.AuthToken)
+	if _, err := cfg.ApplyToken(fc.AuthToken); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
 		cfg.Auth.StorageConfig.Params["path"] = cfg.DataDir
 	}
 
-	// if a backend is specified, override the defaults
+	// If a backend is specified, override the defaults.
 	if fc.Storage.Type != "" {
+		// If the alternative name "dir" is given, update it to "lite".
+		if fc.Storage.Type == lite.AlternativeName {
+			fc.Storage.Type = lite.GetName()
+		}
+
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
 		_, pathSet := cfg.Auth.StorageConfig.Params[defaults.BackendPath]
-		if (cfg.Auth.StorageConfig.Type == dir.GetName() || cfg.Auth.StorageConfig.Type == lite.GetName()) && !pathSet {
+		if cfg.Auth.StorageConfig.Type == lite.GetName() && !pathSet {
 			if cfg.Auth.StorageConfig.Params == nil {
 				cfg.Auth.StorageConfig.Params = make(backend.Params)
 			}
 			cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
 		}
 	} else {
-		// bolt backend is deprecated, but is picked if it was setup before
-		exists, err := boltbk.Exists(cfg.DataDir)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if exists {
-			cfg.Auth.StorageConfig.Type = boltbk.GetName()
-			cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: cfg.DataDir}
-		} else {
-			cfg.Auth.StorageConfig.Type = dir.GetName()
-			cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-		}
+		// Set a reasonable default.
+		cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
 	}
 
 	// apply logger settings
@@ -334,14 +329,6 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
 
-	// DELETE IN: 2.7.0
-	// We have converted this warning to error
-	if fc.Auth.DynamicConfig != nil {
-		warningMessage := "Dynamic configuration is no longer supported. Refer to " +
-			"Teleport documentation for more details: " +
-			"http://gravitational.com/teleport/docs/admin-guide"
-		return trace.BadParameter(warningMessage)
-	}
 	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
 	// same pattern as the rest of the configuration (they are not configuration
 	// singletons). However, we need to keep them around while Telekube uses them.
@@ -367,16 +354,6 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Auth.PublicAddrs = addrs
 	}
-	// DELETE IN: 2.4.0
-	if len(fc.Auth.TrustedClusters) > 0 {
-		warningMessage := "Configuring Trusted Clusters using file configuration has " +
-			"been deprecated, Trusted Clusters must now be configured using resources. " +
-			"Existing Trusted Cluster relationships will be maintained, but you will " +
-			"not be able to add or remove Trusted Clusters using file configuration " +
-			"anymore. Refer to Teleport documentation for more details: " +
-			"http://gravitational.com/teleport/docs/admin-guide"
-		log.Warnf(warningMessage)
-	}
 	// read in cluster name from file configuration and create services.ClusterName
 	cfg.Auth.ClusterName, err = fc.Auth.ClusterName.Parse()
 	if err != nil {
@@ -391,22 +368,11 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
-		authPreference, oidcConnector, err := fc.Auth.Authentication.Parse()
+		authPreference, err := fc.Auth.Authentication.Parse()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Auth.Preference = authPreference
-
-		// DELETE IN: 2.4.0
-		if oidcConnector != nil {
-			warningMessage := "Configuring OIDC connectors using file configuration is " +
-				"no longer supported, OIDC connectors must be configured using resources. " +
-				"Existing OIDC connectors will not be removed but you will not be able to " +
-				"add, remove, or update them using file configuration. Refer to Teleport " +
-				"documentation for more details: " +
-				"http://gravitational.com/teleport/docs/admin-guide"
-			log.Warnf(warningMessage)
-		}
 	}
 
 	var localAuth services.Bool
@@ -945,7 +911,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// apply --token flag:
-	cfg.ApplyToken(clf.AuthToken)
+	if _, err := cfg.ApplyToken(clf.AuthToken); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Apply flags used for the node to validate the Auth Server.
 	if clf.CAPin != "" {

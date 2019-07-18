@@ -119,14 +119,6 @@
   revision = "b965b613227fddccbfffe13eae360ed3fa822f8d"
 
 [[projects]]
-  digest = "1:a12d94258c5298ead75e142e8001224bf029f302fed9e96cd39c0eaf90f3954d"
-  name = "github.com/boltdb/bolt"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
-  version = "v1.3.1"
-
-[[projects]]
   digest = "1:7c96cf7bf7f52af67f7a8222185813b9b665f5172ec2ac5f7d49ed96e5fcf3e5"
   name = "github.com/boombuler/barcode"
   packages = [
@@ -168,7 +160,7 @@
   version = "v3.3.9"
 
 [[projects]]
-  digest = "1:1aa38a8ebe73140ac5458aeed39a99ec8c955d64ced9ae74c0c4f41254d6dbd2"
+  digest = "1:85334d6960cbe5c13022a3798c5b3142fdd845243be6eea42b7c426b6d6b404d"
   name = "github.com/coreos/go-oidc"
   packages = [
     "http",
@@ -178,9 +170,9 @@
     "oidc",
   ]
   pruneopts = "NUT"
-  revision = "e51edf2e47e65e5708600d4da6fca1388ee437b4"
+  revision = "ff27968050e30dbaccd9f1b31f4ea11ab1d89873"
   source = "github.com/gravitational/go-oidc"
-  version = "v0.0.1"
+  version = "v0.0.3"
 
 [[projects]]
   digest = "1:0ef770954bca104ee99b3b6b7f9b240605ac03517d9f98cbc1893daa03f3c038"
@@ -514,11 +506,12 @@
   revision = "0b12d6b5"
 
 [[projects]]
-  digest = "1:f6144d249e2ddd5e33537e64710e5ffabdd4f75ee72b00e91090586af3e09b23"
+  branch = "master"
+  digest = "1:a92a261b44f2cf39cb3185dec2334de8bf2c2b2673077ec44b6f827a6efb282c"
   name = "github.com/jonboulle/clockwork"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "ed104f61ea4877bea08af6f759805674861e968d"
+  revision = "62fb9bc030d14f92c58df3c1601e50a0e445edef"
 
 [[projects]]
   digest = "1:42c47ace7ccb114261ef7e0d418d274921514ab50a3bf6bdb9e51c3dde8ce13d"
@@ -1164,7 +1157,6 @@
     "github.com/aws/aws-sdk-go/service/s3",
     "github.com/aws/aws-sdk-go/service/s3/s3manager",
     "github.com/beevik/etree",
-    "github.com/boltdb/bolt",
     "github.com/codahale/hdrhistogram",
     "github.com/coreos/etcd/clientv3",
     "github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes",
@@ -1185,6 +1177,7 @@
     "github.com/gogo/protobuf/types",
     "github.com/gokyle/hotp",
     "github.com/golang/protobuf/proto",
+    "github.com/golang/protobuf/ptypes/duration",
     "github.com/golang/protobuf/ptypes/empty",
     "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/google/btree",
@@ -1241,6 +1234,8 @@
     "google.golang.org/grpc",
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/credentials",
+    "google.golang.org/grpc/keepalive",
+    "google.golang.org/grpc/peer",
     "google.golang.org/grpc/status",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",

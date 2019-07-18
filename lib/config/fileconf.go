@@ -626,17 +626,12 @@ type AuthenticationConfig struct {
 	ConnectorName string                 `yaml:"connector_name,omitempty"`
 	U2F           *UniversalSecondFactor `yaml:"u2f,omitempty"`
 
-	// TODO: OIDC connection is DEPRECATED!!!! Users are supposed to use resources
-	// for configuring OIDC connectors
-	OIDC *OIDCConnector `yaml:"oidc,omitempty"`
-
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *services.Bool `yaml:"local_auth"`
 }
 
-// Parse returns the Authentication Configuration in two parts: AuthPreference
-// (type, second factor, u2f) and OIDCConnector.
-func (a *AuthenticationConfig) Parse() (services.AuthPreference, services.OIDCConnector, error) {
+// Parse returns a services.AuthPreference (type, second factor, U2F).
+func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
 	var err error
 
 	var u services.U2F
@@ -651,23 +646,15 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, services.OIDCCo
 		U2F:           &u,
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// check to make sure the configuration is valid
 	err = ap.CheckAndSetDefaults()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	var oidcConnector services.OIDCConnector
-	if a.OIDC != nil {
-		oidcConnector, err = a.OIDC.Parse()
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	}
-
-	return ap, oidcConnector, nil
+	return ap, nil
 }
 
 type UniversalSecondFactor struct {

@@ -97,6 +97,11 @@ const (
 	// DefaultThrottleTimeout is a timemout used to throttle failed auth servers
 	DefaultThrottleTimeout = 10 * time.Second
 
+	// WebHeadersTimeout is a timeout that is set for web requests
+	// before browsers raise "Timeout waiting web headers" error in
+	// the browser
+	WebHeadersTimeout = 10 * time.Second
+
 	// DefaultIdleConnectionDuration indicates for how long Teleport will hold
 	// the SSH connection open if there are no reads/writes happening over it.
 	// 15 minutes default is compliant with PCI DSS standards

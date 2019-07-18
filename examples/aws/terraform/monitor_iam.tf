@@ -66,7 +66,8 @@ resource "aws_iam_role_policy" "monitor_ssm" {
             "Action": [
                 "ssm:GetParameters",
                 "ssm:GetParametersByPath",
-                "ssm:GetParameter"
+                "ssm:GetParameter",
+                "ssm:PutParameter"
             ],
             "Resource": "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/teleport/${var.cluster_name}/grafana_pass"
         },

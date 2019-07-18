@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1274,32 +1275,74 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	nopClient, err := s.server.NewClient(TestNop())
 	c.Assert(err, check.IsNil)
 
-	_, err = nopClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	_, err = nopClient.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user1.GetName(),
+		Expires:   time.Now().Add(time.Hour).UTC(),
+		Format:    teleport.CertificateFormatStandard,
+	})
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
 	c.Assert(err, check.ErrorMatches, "this request can be only executed by an admin")
 
-	// Users don't match
-	userClient2, err := s.server.NewClient(TestUser(user2.GetName()))
+	// User can't generate certificates for another user
+	testUser2 := TestUser(user2.GetName())
+	testUser2.TTL = time.Hour
+	userClient2, err := s.server.NewClient(testUser2)
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient2.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	_, err = userClient2.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user1.GetName(),
+		Expires:   time.Now().Add(time.Hour).UTC(),
+		Format:    teleport.CertificateFormatStandard,
+	})
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
 	c.Assert(err, check.ErrorMatches, "this request can be only executed by an admin")
+
+	// User can renew their certificates, however the TTL will be limited
+	// to the TTL of their session for both SSH and x509 certs and
+	// that route to cluster will be encoded in the cert metadata
+	userCerts, err := userClient2.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
+		PublicKey:      pub,
+		Username:       user2.GetName(),
+		Expires:        time.Now().Add(100 * time.Hour).UTC(),
+		Format:         teleport.CertificateFormatStandard,
+		RouteToCluster: "cluster1",
+	})
+	c.Assert(err, check.IsNil)
+
+	parseCert := func(sshCert []byte) (*ssh.Certificate, time.Duration) {
+		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(sshCert)
+		c.Assert(err, check.IsNil)
+		parsedCert, _ := parsedKey.(*ssh.Certificate)
+		validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
+		return parsedCert, validBefore.Sub(time.Now())
+	}
+	_, diff := parseCert(userCerts.SSH)
+	c.Assert(diff < testUser2.TTL, check.Equals, true, check.Commentf("expected %v < %v", diff, testUser2.TTL))
+
+	tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
+	c.Assert(err, check.IsNil)
+	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	c.Assert(err, check.IsNil)
+	c.Assert(identity.Expires.Before(time.Now().Add(testUser2.TTL)), check.Equals, true, check.Commentf("%v vs %v", identity.Expires, time.Now().UTC()))
+	c.Assert(identity.RouteToCluster, check.Equals, "cluster1")
 
 	// Admin should be allowed to generate certs with TTL longer than max.
 	adminClient, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	cert, err := adminClient.GenerateUserCert(pub, user1.GetName(), 40*time.Hour, teleport.CertificateFormatStandard)
+	userCerts, err = adminClient.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user1.GetName(),
+		Expires:   time.Now().Add(40 * time.Hour).UTC(),
+		Format:    teleport.CertificateFormatStandard,
+	})
 	c.Assert(err, check.IsNil)
 
-	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
-	c.Assert(err, check.IsNil)
-	parsedCert, _ := parsedKey.(*ssh.Certificate)
-	validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
-	diff := validBefore.Sub(time.Now())
+	parsedCert, diff := parseCert(userCerts.SSH)
 	c.Assert(diff > defaults.MaxCertDuration, check.Equals, true, check.Commentf("expected %v > %v", diff, defaults.CertDuration))
 
 	// user should have agent forwarding (default setting)
@@ -1313,21 +1356,28 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	err = s.server.Auth().UpsertRole(userRole)
 	c.Assert(err, check.IsNil)
 
-	cert, err = adminClient.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
-	c.Assert(err, check.IsNil)
-	parsedKey, _, _, _, err = ssh.ParseAuthorizedKey(cert)
-	c.Assert(err, check.IsNil)
-	parsedCert, _ = parsedKey.(*ssh.Certificate)
+	userCerts, err = adminClient.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user1.GetName(),
+		Expires:   time.Now().Add(1 * time.Hour).UTC(),
+		Format:    teleport.CertificateFormatStandard,
+	})
+	parsedCert, _ = parseCert(userCerts.SSH)
 
 	// user should get agent forwarding
 	_, exists = parsedCert.Extensions[teleport.CertExtensionPermitAgentForwarding]
 	c.Assert(exists, check.Equals, true)
 
 	// apply HTTP Auth to generate user cert:
-	cert, err = adminClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	userCerts, err = adminClient.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user1.GetName(),
+		Expires:   time.Now().Add(time.Hour).UTC(),
+		Format:    teleport.CertificateFormatStandard,
+	})
 	c.Assert(err, check.IsNil)
 
-	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(userCerts.SSH)
 	c.Assert(err, check.IsNil)
 }
 

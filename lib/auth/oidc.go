@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -36,11 +37,93 @@ import (
 	"github.com/gravitational/trace"
 )
 
+func (s *AuthServer) getOrCreateOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
+	client, err := s.getOIDCClient(conn)
+	if err == nil {
+		return client, nil
+	}
+	if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	return s.createOIDCClient(conn)
+}
+
 func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	config := oidc.ClientConfig{
+	clientPack, ok := s.oidcClients[conn.GetName()]
+	if !ok {
+		return nil, trace.NotFound("connector %v is not found", conn.GetName())
+	}
+
+	config := oidcConfig(conn)
+	if ok && oidcConfigsEqual(clientPack.config, config) {
+		return clientPack.client, nil
+	}
+
+	delete(s.oidcClients, conn.GetName())
+	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
+
+}
+
+func (s *AuthServer) createOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
+	config := oidcConfig(conn)
+	client, err := oidc.NewClient(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaults.WebHeadersTimeout)
+	defer cancel()
+
+	go func() {
+		defer cancel()
+		client.SyncProviderConfig(conn.GetIssuerURL())
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-s.closeCtx.Done():
+		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
+	}
+
+	// Canceled is expected in case if sync provider config finishes faster
+	// than the deadline
+	if ctx.Err() != nil && ctx.Err() != context.Canceled {
+		var err error
+		if ctx.Err() == context.DeadlineExceeded {
+			err = trace.ConnectionProblem(err,
+				"failed to reach out to oidc connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
+				conn.GetName(), conn.GetIssuerURL())
+		} else {
+			err = trace.ConnectionProblem(err,
+				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
+				conn.GetName(), conn.GetIssuerURL())
+		}
+		s.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
+			events.LoginMethod:        events.LoginMethodOIDC,
+			events.AuthAttemptSuccess: false,
+			events.AuthAttemptErr:     trace.Unwrap(ctx.Err()).Error(),
+			events.AuthAttemptMessage: err.Error(),
+		})
+		// return user-friendly error hiding the actual error in the event
+		// logs for security purposes
+		return nil, trace.ConnectionProblem(nil,
+			"failed to login with %v, please contact your system administrator to check audit logs",
+			conn.GetDisplay())
+	}
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
+
+	return client, nil
+}
+
+func oidcConfig(conn services.OIDCConnector) oidc.ClientConfig {
+	return oidc.ClientConfig{
 		RedirectURL: conn.GetRedirectURL(),
 		Credentials: oidc.ClientCredentials{
 			ID:     conn.GetClientID(),
@@ -49,23 +132,6 @@ func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, e
 		// open id notifies provider that we are using OIDC scopes
 		Scope: utils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
-
-	clientPack, ok := s.oidcClients[conn.GetName()]
-	if ok && oidcConfigsEqual(clientPack.config, config) {
-		return clientPack.client, nil
-	}
-	delete(s.oidcClients, conn.GetName())
-
-	client, err := oidc.NewClient(config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	client.SyncProviderConfig(conn.GetIssuerURL())
-
-	s.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
-
-	return client, nil
 }
 
 func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector) error {
@@ -81,7 +147,7 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oidcClient, err := s.getOIDCClient(connector)
+	oidcClient, err := s.getOrCreateOIDCClient(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,7 +242,7 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		return nil, trace.Wrap(err)
 	}
 
-	oidcClient, err := a.getOIDCClient(connector)
+	oidcClient, err := a.getOrCreateOIDCClient(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

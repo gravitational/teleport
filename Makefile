@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.0.0-rc.4
+VERSION=4.1.0-alpha.5
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -24,8 +24,8 @@ GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
 
-OS ?= `go env GOOS`
-ARCH ?= `go env GOARCH`
+OS ?= $(shell go env GOOS)
+ARCH ?= $(shell go env GOARCH)
 FIPS ?=
 RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
@@ -329,3 +329,40 @@ print-version:
 .PHONY: chart-ent
 chart-ent:
 	$(MAKE) -C e chart
+
+RUNTIME_SECTION ?=
+TARBALL_PATH_SECTION ?=
+
+ifneq ("$(RUNTIME)", "")
+	RUNTIME_SECTION := -r $(RUNTIME)
+endif
+ifneq ("$(OSS_TARBALL_PATH)", "")
+	TARBALL_PATH_SECTION := -s $(OSS_TARBALL_PATH)
+endif
+
+# build .pkg
+.PHONY: pkg
+pkg:
+	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	# arch and runtime are currently ignored on OS X
+	# we pass them through for consistency - they will be dropped by the build script
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
+
+# build .rpm
+.PHONY: rpm
+rpm:
+	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e rpm; fi
+
+# build .deb
+.PHONY: deb
+deb:
+	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
+

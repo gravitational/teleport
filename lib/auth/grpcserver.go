@@ -134,6 +134,18 @@ func (g *GRPCServer) UpsertNode(ctx context.Context, server *services.ServerV2) 
 	return keepAlive, nil
 }
 
+func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCertsRequest) (*proto.Certs, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	certs, err := auth.AuthWithRoles.GenerateUserCerts(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return certs, err
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles
@@ -162,6 +174,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			user:       authContext.User,
 			checker:    authContext.Checker,
+			identity:   authContext.Identity,
 			sessions:   g.SessionService,
 			alog:       g.AuthServer.IAuditLog,
 		},

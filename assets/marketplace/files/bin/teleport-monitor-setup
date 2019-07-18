@@ -21,16 +21,24 @@ echo "Grafana is up setting up dashboards and data sources"
 
 GRAFANA_PASS="$(aws ssm get-parameter --with-decryption --name /teleport/${TELEPORT_CLUSTER_NAME}/grafana_pass --region ${EC2_REGION} --query 'Parameter.Value' --output text)"
 
+# if the password hasn't been changed from the default, set it to a random value (for security) and then also write that
+# parameter back to SSM so the user can find out what it is
+if [[ "${GRAFANA_PASS}" == "CHANGE_THIS_VALUE" ]]; then
+    GRAFANA_PASS=$(hexdump -n 16 -e '4/4 "%08X" 1 "\n"' /dev/urandom)
+    aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/grafana_pass --region ${EC2_REGION} --value "${GRAFANA_PASS}" --type SecureString --overwrite
+    echo "Grafana password has been set to ${GRAFANA_PASS} as it wasn't changed from the default CHANGE_THIS_VALUE"
+fi
+
 # Change grafana password
-curl -X PUT -H "Content-Type: application/json" -d "{
+curl -X PUT -u admin:admin -H 'Content-Type: application/json' -d "{
   \"oldPassword\": \"admin\",
   \"newPassword\": \"${GRAFANA_PASS}\",
   \"confirmNew\": \"${GRAFANA_PASS}\"
-}" http://admin:admin@127.0.0.1:3000/api/user/password
+}" http://127.0.0.1:3000/api/user/password
 
 # Set up default input
 curl -s -H "Content-Type: application/json" \
-    -XPOST http://admin:${GRAFANA_PASS}@127.0.0.1:3000/api/datasources \
+    -XPOST -u admin:${GRAFANA_PASS} http://127.0.0.1:3000/api/datasources \
     -d @- <<EOF
 {
     "name": "InfluxDB",
@@ -43,7 +51,15 @@ EOF
 
 # Download and setup teleport dashboard
 aws s3 --region=${EC2_REGION} cp s3://${TELEPORT_S3_BUCKET}/health-dashboard.json /tmp/health-dashboard.json
-curl -X POST -d @/tmp/health-dashboard.json http://admin:${GRAFANA_PASS}@127.0.0.1:3000/api/dashboards/db --header 'Content-Type: application/json'
+curl -X POST -u admin:${GRAFANA_PASS} -H 'Content-Type: application/json' -d @/tmp/health-dashboard.json http://127.0.0.1:3000/api/dashboards/db
+# Star dashboard
+curl -X POST -u admin:${GRAFANA_PASS} -H 'X-Grafana-Org-Id: 1' http://127.0.0.1:3000/api/user/stars/dashboard/1
+# Set home/default dashboard
+curl -X PUT -u admin:${GRAFANA_PASS} -H 'X-Grafana-Org-Id: 1' -H 'Content-Type: application/json' -d "{
+  \"theme\": \"\",
+  \"homeDashboardId\":1,
+  \"timezone\":\"utc\"
+}" http://127.0.0.1:3000/api/org/preferences
 
 # Setup nginx frontend for grafana
 mkdir -p /etc/tls/certs

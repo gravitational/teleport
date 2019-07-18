@@ -56,6 +56,23 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentPAM,
 })
 
+const (
+	// maxMessageSize is the maximum size of a message to accept from PAM. In
+	// theory it should be PAM_MAX_MSG_SIZE which is defined as the "max size (in
+	// chars) of each messages passed to the application through the conversation
+	// function call". [1] Unfortunately this does not appear respected by OpenSSH,
+	// which takes any size message and writes it out. [2]
+	//
+	// However, rather than accepting a message of unknown size from C code,
+	// increase the maximum size to about 1 MB. This will allow Teleport to
+	// print even long MOTD messages while not allowing C code to allocate
+	// unbound memory in Go.
+	//
+	// [1] http://pubs.opengroup.org/onlinepubs/008329799/apdxa.htm
+	// [2] https://github.com/openssh/openssh-portable/blob/V_8_0/auth-pam.c#L615-L654
+	maxMessageSize = 2000 * C.PAM_MAX_MSG_SIZE
+)
+
 // handler is used to register and find instances of *PAM at the package level
 // to enable callbacks from C code.
 type handler interface {
@@ -79,9 +96,9 @@ func writeCallback(index C.int, stream C.int, s *C.char) {
 		return
 	}
 
-	// To prevent poorly written PAM modules from sending more data than they
-	// should, cap strings to the maximum message size that PAM allows.
-	str := C.GoStringN(s, C.int(C.strnlen(s, C.PAM_MAX_MSG_SIZE)))
+	// Convert C string to a Go string with a max size of maxMessageSize
+	// (about 1 MB).
+	str := C.GoStringN(s, C.int(C.strnlen(s, C.size_t(maxMessageSize))))
 
 	// Write to the stream (typically stdout or stderr or equivalent).
 	handle.writeStream(int(stream), str)

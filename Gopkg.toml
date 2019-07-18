@@ -69,10 +69,6 @@ ignored = ["github.com/Sirupsen/logrus"]
   version = "1.12.17"
 
 [[constraint]]
-  name = "github.com/boltdb/bolt"
-  version = ">=1.0.0, <=111.0.0-g04a3e85"
-
-[[constraint]]
   name = "github.com/coreos/etcd"
   version = "3.3.9"
 
@@ -154,7 +150,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/coreos/go-oidc"
-  version = "0.0.1"
+  version = "0.0.3"
   source = "github.com/gravitational/go-oidc"
 
 [[override]]
@@ -193,3 +189,8 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
   version = "=v0.4.9"
+
+[[constraint]]
+  name = "github.com/jonboulle/clockwork"
+  branch = "master"
+

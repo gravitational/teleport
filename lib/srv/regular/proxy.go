@@ -185,6 +185,7 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 				return trace.Errorf("no connected sites")
 			}
 			site = sites[0]
+			t.clusterName = site.GetName()
 			t.log.Debugf("Cluster not specified. connecting to default='%s'", site.GetName())
 		}
 		return t.proxyToHost(ctx, site, clientAddr, ch)
