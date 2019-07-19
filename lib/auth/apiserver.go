@@ -1579,7 +1579,7 @@ func (s *APIServer) getGithubConnectors(auth ClientI, w http.ResponseWriter, r *
 	}
 	items := make([]json.RawMessage, len(connectors))
 	for i, connector := range connectors {
-		cbytes, err := services.GetGithubConnectorMarshaler().Marshal(connector, services.PreserveResourceID())
+		cbytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1865,7 +1865,7 @@ func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *htt
 	}
 	for _, v := range slice.GetChunks() {
 		var f events.EventFields
-		err = utils.FastUnmarshal(v.GetData(), &f)
+		err = utils.FastUnmarshal(v.Data, &f)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
