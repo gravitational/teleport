@@ -71,7 +71,7 @@ type Exec interface {
 	Start(channel ssh.Channel) (*ExecResult, error)
 
 	// Wait will block while the command executes.
-	Wait() (*ExecResult, error)
+	Wait() *ExecResult
 }
 
 // NewExecRequest creates a new local or remote Exec.
@@ -158,33 +158,42 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 	}()
 
 	if err := e.Cmd.Start(); err != nil {
-		e.Ctx.Warningf("%v start failure err: %v", e, err)
-		execResult, err := collectLocalStatus(e.Cmd, trace.ConvertSystemError(err))
+		e.Ctx.Warningf("Local command %v failed to start: %v", e.GetCommand(), err)
 
-		// emit the result of execution to the audit log
-		emitExecAuditEvent(e.Ctx, e.GetCommand(), execResult, err)
+		// Emit the result of execution to the audit log
+		emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
 
-		return execResult, trace.Wrap(err)
+		return &ExecResult{
+			Command: e.GetCommand(),
+			Code:    exitCode(err),
+		}, trace.ConvertSystemError(err)
 	}
-	e.Ctx.Infof("[LOCAL EXEC] Started command: %q", e.Command)
+	e.Ctx.Infof("Started local command execution: %q", e.Command)
 
 	return nil, nil
 }
 
 // Wait will block while the command executes.
-func (e *localExec) Wait() (*ExecResult, error) {
+func (e *localExec) Wait() *ExecResult {
 	if e.Cmd.Process == nil {
 		e.Ctx.Errorf("no process")
 	}
 
-	// wait for the command to complete, then figure out if the command
-	// successfully exited or if it exited in failure
-	execResult, err := collectLocalStatus(e.Cmd, e.Cmd.Wait())
+	// Block until the command is finished executing.
+	err := e.Cmd.Wait()
+	if err != nil {
+		e.Ctx.Debugf("Local command failed: %v.", err)
+	} else {
+		e.Ctx.Debugf("Local command successfully executed.")
+	}
 
-	// emit the result of execution to the audit log
-	emitExecAuditEvent(e.Ctx, e.GetCommand(), execResult, err)
+	// Emit the result of execution to the Audit Log.
+	emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
 
-	return execResult, trace.Wrap(err)
+	return &ExecResult{
+		Command: e.GetCommand(),
+		Code:    exitCode(err),
+	}
 }
 
 func (e *localExec) String() string {
@@ -386,21 +395,6 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	return c, nil
 }
 
-func collectLocalStatus(cmd *exec.Cmd, err error) (*ExecResult, error) {
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			status := exitErr.Sys().(syscall.WaitStatus)
-			return &ExecResult{Code: status.ExitStatus(), Command: cmd.Path}, nil
-		}
-		return nil, err
-	}
-	status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus)
-	if !ok {
-		return nil, fmt.Errorf("unknown exit status: %T(%v)", cmd.ProcessState.Sys(), cmd.ProcessState.Sys())
-	}
-	return &ExecResult{Code: status.ExitStatus(), Command: cmd.Path}, nil
-}
-
 // remoteExec is used to run an "exec" SSH request and return the result.
 type remoteExec struct {
 	command string
@@ -443,44 +437,26 @@ func (r *remoteExec) Start(ch ssh.Channel) (*ExecResult, error) {
 	return nil, nil
 }
 
-// Wait will block while the command executes then return the result as well
-// as emit an event to the Audit Log.
-func (r *remoteExec) Wait() (*ExecResult, error) {
-	// block until the command is finished and then figure out if the command
-	// successfully exited or if it exited in failure
-	execResult, err := r.collectRemoteStatus(r.session.Wait())
-
-	// emit the result of execution to the audit log
-	emitExecAuditEvent(r.ctx, r.command, execResult, err)
-
-	return execResult, trace.Wrap(err)
-}
-
-func (r *remoteExec) collectRemoteStatus(err error) (*ExecResult, error) {
-	if err == nil {
-		return &ExecResult{
-			Code:    teleport.RemoteCommandSuccess,
-			Command: r.GetCommand(),
-		}, nil
+// Wait will block while the command executes.
+func (r *remoteExec) Wait() *ExecResult {
+	// Block until the command is finished executing.
+	err := r.session.Wait()
+	if err != nil {
+		r.ctx.Debugf("Remote command failed: %v.", err)
+	} else {
+		r.ctx.Debugf("Remote command successfully executed.")
 	}
 
-	// if we got an ssh.ExitError, return the status code
-	if exitErr, ok := err.(*ssh.ExitError); ok {
-		return &ExecResult{
-			Code:    exitErr.ExitStatus(),
-			Command: r.GetCommand(),
-		}, err
-	}
+	// Emit the result of execution to the Audit Log.
+	emitExecAuditEvent(r.ctx, r.command, err)
 
-	// if we don't know what type of error occured, return a generic 255 command
-	// failed code
 	return &ExecResult{
-		Code:    teleport.RemoteCommandFailure,
 		Command: r.GetCommand(),
-	}, err
+		Code:    exitCode(err),
+	}
 }
 
-func emitExecAuditEvent(ctx *ServerContext, cmd string, status *ExecResult, execErr error) {
+func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Report the result of this exec event to the audit logger.
 	auditLog := ctx.srv.GetAuditLog()
 	if auditLog == nil {
@@ -497,12 +473,17 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, status *ExecResult, exec
 		events.LocalAddr:      ctx.Conn.LocalAddr().String(),
 		events.RemoteAddr:     ctx.Conn.RemoteAddr().String(),
 		events.EventNamespace: ctx.srv.GetNamespace(),
+		// Due to scp being inherently vulnerable to command injection, always
+		// make sure the full command and exit code is recorded for accountability.
+		// For more details, see the following.
+		//
+		// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=327019
+		// https://bugzilla.mindrot.org/show_bug.cgi?id=1998
+		events.ExecEventCode:    strconv.Itoa(exitCode(execErr)),
+		events.ExecEventCommand: cmd,
 	}
 	if execErr != nil {
 		fields[events.ExecEventError] = execErr.Error()
-		if status != nil {
-			fields[events.ExecEventCode] = strconv.Itoa(status.Code)
-		}
 	}
 
 	// Parse the exec command to find out if it was SCP or not.
@@ -519,7 +500,6 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, status *ExecResult, exec
 		fields[events.SCPAction] = action
 	} else {
 		eventType = events.ExecEvent
-		fields[events.ExecEventCommand] = cmd
 	}
 
 	// Emit the event.
@@ -610,5 +590,30 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 		return parts[len(parts)-1], action, true, nil
 	default:
 		return "", "", false, nil
+	}
+}
+
+// exitCode extracts and returns the exit code from the error.
+func exitCode(err error) int {
+	// If no error occurred, return 0 (success).
+	if err == nil {
+		return teleport.RemoteCommandSuccess
+	}
+
+	switch v := err.(type) {
+	// Local execution.
+	case *exec.ExitError:
+		waitStatus, ok := v.Sys().(syscall.WaitStatus)
+		if !ok {
+			return teleport.RemoteCommandFailure
+		}
+		return waitStatus.ExitStatus()
+	// Remote execution.
+	case *ssh.ExitError:
+		return v.ExitStatus()
+	// An error occurred, but the type is unknown, return a generic 255 code.
+	default:
+		log.Debugf("Unknown error returned when executing command: %T: %v.", err, err)
+		return teleport.RemoteCommandFailure
 	}
 }
