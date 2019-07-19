@@ -43,7 +43,7 @@ var _ = fmt.Printf
 var _ = Suite(&SCPSuite{})
 
 func (s *SCPSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *SCPSuite) TestHTTPSendFile(c *C) {
@@ -290,20 +290,45 @@ func (s *SCPSuite) TestVerifyDir(c *C) {
 }
 
 func (s *SCPSuite) TestSCPParsing(c *C) {
-	user, host, dest := ParseSCPDestination("root@remote.host:/etc/nginx.conf")
-	c.Assert(user, Equals, "root")
-	c.Assert(host, Equals, "remote.host")
-	c.Assert(dest, Equals, "/etc/nginx.conf")
-
-	user, host, dest = ParseSCPDestination("remote.host:/etc/nginx.co:nf")
-	c.Assert(user, Equals, "")
-	c.Assert(host, Equals, "remote.host")
-	c.Assert(dest, Equals, "/etc/nginx.co:nf")
-
-	user, host, dest = ParseSCPDestination("remote.host:")
-	c.Assert(user, Equals, "")
-	c.Assert(host, Equals, "remote.host")
-	c.Assert(dest, Equals, ".")
+	type tc struct {
+		in   string
+		dest Destination
+		err  error
+	}
+	testCases := []tc{
+		{
+			in:   "root@remote.host:/etc/nginx.conf",
+			dest: Destination{Login: "root", Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "/etc/nginx.conf"},
+		},
+		{
+			in:   "remote.host:/etc/nginx.co:nf",
+			dest: Destination{Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "/etc/nginx.co:nf"},
+		},
+		{
+			in:   "[::1]:/etc/nginx.co:nf",
+			dest: Destination{Host: utils.NetAddr{Addr: "[::1]", AddrNetwork: "tcp"}, Path: "/etc/nginx.co:nf"},
+		},
+		{
+			in:   "root@123.123.123.123:/var/www/html/",
+			dest: Destination{Login: "root", Host: utils.NetAddr{Addr: "123.123.123.123", AddrNetwork: "tcp"}, Path: "/var/www/html/"},
+		},
+		{
+			in:   "myusername@myremotehost.com:/home/hope/*",
+			dest: Destination{Login: "myusername", Host: utils.NetAddr{Addr: "myremotehost.com", AddrNetwork: "tcp"}, Path: "/home/hope/*"},
+		},
+	}
+	for i, tc := range testCases {
+		comment := Commentf("Test case %v: %q", i, tc.in)
+		re, err := ParseSCPDestination(tc.in)
+		if tc.err == nil {
+			c.Assert(err, IsNil, comment)
+			c.Assert(re.Login, Equals, tc.dest.Login, comment)
+			c.Assert(re.Host, DeepEquals, tc.dest.Host, comment)
+			c.Assert(re.Path, Equals, tc.dest.Path, comment)
+		} else {
+			c.Assert(err, FitsTypeOf, tc.err)
+		}
+	}
 }
 
 func runSCP(cmd Command, name string, args ...string) error {

@@ -402,17 +402,49 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 	), nil
 }
 
+// NodeAddr is a full node address
+type NodeAddr struct {
+	// Addr is an address to dial
+	Addr string
+	// Namespace is the node namespace
+	Namespace string
+	// Cluster is the name of the target cluster
+	Cluster string
+}
+
+// String returns a user-friendly name
+func (n NodeAddr) String() string {
+	parts := []string{nodeName(n.Addr)}
+	if n.Cluster != "" {
+		parts = append(parts, "on cluster", n.Cluster)
+	}
+	return strings.Join(parts, " ")
+}
+
+// ProxyFormat returns the address in the format
+// used by the proxy subsystem
+func (n *NodeAddr) ProxyFormat() string {
+	parts := []string{n.Addr}
+	if n.Namespace != "" {
+		parts = append(parts, n.Namespace)
+	}
+	if n.Cluster != "" {
+		parts = append(parts, n.Cluster)
+	}
+	return strings.Join(parts, "@")
+}
+
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
-	log.Infof("Client=%v connecting to node=%s", proxy.clientAddr, nodeAddress)
+func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
+	log.Infof("Client=%v connecting to node=%v", proxy.clientAddr, nodeAddress)
 
 	// parse destination first:
 	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
+	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress.Addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -465,13 +497,13 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		}
 	}
 
-	err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
+	err = proxySession.RequestSubsystem("proxy:" + nodeAddress.ProxyFormat())
 	if err != nil {
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
 		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
-			nodeName(strings.Split(nodeAddress, "@")[0]), serverErrorMsg)
+			nodeName(nodeAddress.Addr), serverErrorMsg)
 	}
 	pipeNetConn := utils.NewPipeNetConn(
 		proxyReader,
@@ -485,16 +517,11 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		Auth:            []ssh.AuthMethod{proxy.authMethod},
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
-	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress, sshConfig)
+	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress.ProxyFormat(), sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			proxySession.Close()
-			parts := strings.Split(nodeAddress, "@")
-			hostname := parts[0]
-			if len(hostname) == 0 && len(parts) > 1 {
-				hostname = "cluster " + parts[1]
-			}
-			return nil, trace.Errorf(`access denied to %v connecting to %v`, user, nodeName(hostname))
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
 		}
 		return nil, trace.Wrap(err)
 	}
