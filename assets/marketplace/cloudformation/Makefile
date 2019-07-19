@@ -7,11 +7,11 @@ BUILD_SUBNET_ID ?=
 # Override for AMI name if needed
 BUILD_AMI_NAME ?=
 
-# Default build region
+# Default build region. us-west-2 = US West (Oregon)
 AWS_REGION ?= us-west-2
 
-# Teleport version
-TELEPORT_VERSION ?= 3.1.1
+# Teleport version 
+TELEPORT_VERSION ?= 4.0.0
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
