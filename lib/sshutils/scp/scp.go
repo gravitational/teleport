@@ -196,7 +196,7 @@ type command struct {
 	log *log.Entry
 }
 
-// Execute() implements SSH file copy (SCP). It is called on both tsh (client)
+// Execute implements SSH file copy (SCP). It is called on both tsh (client)
 // and teleport (server) side.
 func (cmd *command) Execute(ch io.ReadWriter) (err error) {
 	if cmd.Flags.Source {
@@ -205,14 +205,7 @@ func (cmd *command) Execute(ch io.ReadWriter) (err error) {
 		err = cmd.serveSink(ch)
 	}
 	if err != nil {
-		if cmd.Config.RunOnServer == false {
-			return trace.Wrap(err)
-		} else {
-			// when 'teleport scp' encounters an error, it SHOULD NOT be logged
-			// to stderr (i.e. we should not return an error here) and instead
-			// it should be sent back to scp client using scp protocol
-			cmd.sendError(ch, err)
-		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
