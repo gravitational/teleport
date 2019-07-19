@@ -41,10 +41,14 @@ type NetAddr struct {
 // Host returns host part of address without port
 func (a *NetAddr) Host() string {
 	host, _, err := net.SplitHostPort(a.Addr)
-	if err != nil {
-		return a.Addr
+	if err == nil {
+		return host
 	}
-	return host
+	// this is done to remove optional square brackets
+	if ip := net.ParseIP(strings.Trim(a.Addr, "[]")); len(ip) != 0 {
+		return ip.String()
+	}
+	return a.Addr
 }
 
 // Port returns defaultPort if no port is set or is invalid,
@@ -196,7 +200,7 @@ func ParseHostPortAddr(hostport string, defaultPort int) (*NetAddr, error) {
 	if defaultPort == -1 && addr.Addr == addr.Host() {
 		return nil, trace.BadParameter("missing port in address %q", hostport)
 	}
-	addr.Addr = fmt.Sprintf("%v:%v", addr.Host(), addr.Port(defaultPort))
+	addr.Addr = net.JoinHostPort(addr.Host(), fmt.Sprintf("%v", addr.Port(defaultPort)))
 	return addr, nil
 }
 

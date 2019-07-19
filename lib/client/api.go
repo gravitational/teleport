@@ -808,7 +808,16 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 		}
 	}
 	if len(nodes) == 0 {
-		retval = append(retval, net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort)))
+		// detect the common error when users use host:port address format
+		_, port, err := net.SplitHostPort(tc.Host)
+		// client has used host:port notation
+		if err == nil {
+			return nil, trace.BadParameter(
+				"please use ssh subcommand with '--port=%v' flag instead of semicolon",
+				port)
+		}
+		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+		retval = append(retval, addr)
 	}
 	return retval, nil
 }
@@ -851,7 +860,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	}
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
-		nodeAddrs[0]+"@"+tc.Namespace+"@"+siteInfo.Name,
+		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
 		tc.Config.HostLogin,
 		false)
 	if err != nil {
@@ -973,11 +982,11 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 		return trace.NotFound(notFoundErrorMessage)
 	}
 	// connect to server:
-	fullNodeAddr := node.GetAddr()
-	if tc.SiteName != "" {
-		fullNodeAddr = fmt.Sprintf("%s@%s@%s", node.GetAddr(), tc.Namespace, tc.SiteName)
-	}
-	nc, err := proxyClient.ConnectToNode(ctx, fullNodeAddr, tc.Config.HostLogin, false)
+	nc, err := proxyClient.ConnectToNode(ctx, NodeAddr{
+		Addr:      node.GetAddr(),
+		Namespace: tc.Namespace,
+		Cluster:   tc.SiteName,
+	}, tc.Config.HostLogin, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1112,7 +1121,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
-		nodeAddrs[0]+"@"+tc.Namespace+"@"+clusterInfo.Name,
+		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: clusterInfo.Name},
 		tc.Config.HostLogin,
 		false)
 	if err != nil {
@@ -1164,7 +1173,9 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return proxyClient.ConnectToNode(ctx, addr+"@"+tc.Namespace+"@"+siteInfo.Name, tc.HostLogin, false)
+		return proxyClient.ConnectToNode(ctx,
+			NodeAddr{Addr: addr, Namespace: tc.Namespace, Cluster: siteInfo.Name},
+			tc.HostLogin, false)
 	}
 
 	var progressWriter io.Writer
@@ -1191,11 +1202,14 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 			directoryMode = true
 		}
 
-		login, host, dest := scp.ParseSCPDestination(last)
-		if login != "" {
-			tc.HostLogin = login
+		dest, err := scp.ParseSCPDestination(last)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		addr := net.JoinHostPort(host, strconv.Itoa(port))
+		if dest.Login != "" {
+			tc.HostLogin = dest.Login
+		}
+		addr := net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
 
 		client, err := connectToNode(addr)
 		if err != nil {
@@ -1207,7 +1221,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 			scpConfig := scp.Config{
 				User:           tc.Username,
 				ProgressWriter: progressWriter,
-				RemoteLocation: dest,
+				RemoteLocation: dest.Path,
 				Flags: scp.Flags{
 					Target:        []string{src},
 					Recursive:     recursive,
@@ -1227,10 +1241,13 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 		}
 		// download:
 	} else {
-		login, host, src := scp.ParseSCPDestination(first)
-		addr := net.JoinHostPort(host, strconv.Itoa(port))
-		if login != "" {
-			tc.HostLogin = login
+		src, err := scp.ParseSCPDestination(first)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		addr := net.JoinHostPort(src.Host.Host(), strconv.Itoa(port))
+		if src.Login != "" {
+			tc.HostLogin = src.Login
 		}
 		client, err := connectToNode(addr)
 		if err != nil {
@@ -1244,7 +1261,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 					Recursive: recursive,
 					Target:    []string{dest},
 				},
-				RemoteLocation: src,
+				RemoteLocation: src.Path,
 				ProgressWriter: progressWriter,
 			}
 
@@ -1302,7 +1319,9 @@ func (tc *TeleportClient) runCommand(
 				resultsC <- err
 			}()
 			var nodeClient *NodeClient
-			nodeClient, err = proxyClient.ConnectToNode(ctx, address+"@"+tc.Namespace+"@"+siteName, tc.Config.HostLogin, false)
+			nodeClient, err = proxyClient.ConnectToNode(ctx,
+				NodeAddr{Addr: address, Namespace: tc.Namespace, Cluster: siteName},
+				tc.Config.HostLogin, false)
 			if err != nil {
 				fmt.Fprintln(tc.Stderr, err)
 				return

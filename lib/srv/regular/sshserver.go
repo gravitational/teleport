@@ -588,7 +588,7 @@ func (s *Server) AdvertiseAddr() string {
 	if aport == "" {
 		aport = port
 	}
-	return fmt.Sprintf("%v:%v", ahost, aport)
+	return net.JoinHostPort(ahost, port)
 }
 
 func (s *Server) getRole() teleport.Role {
