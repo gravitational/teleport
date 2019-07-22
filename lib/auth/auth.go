@@ -407,7 +407,7 @@ type certRequest struct {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, []byte, error) {
+func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
 	user, err := a.Identity.GetUser(username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -417,11 +417,12 @@ func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time
 		return nil, nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:          user,
-		roles:         checker,
-		ttl:           ttl,
-		compatibility: compatibility,
-		publicKey:     key,
+		user:           user,
+		roles:          checker,
+		ttl:            ttl,
+		compatibility:  compatibility,
+		publicKey:      key,
+		routeToCluster: routeToCluster,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -501,6 +502,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		CertificateFormat:     certificateFormat,
 		PermitPortForwarding:  req.roles.CanPortForward(),
 		PermitAgentForwarding: req.roles.CanForwardAgents(),
+		RouteToCluster:        req.routeToCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

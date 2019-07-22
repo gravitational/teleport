@@ -54,7 +54,7 @@ type AuthHandlers struct {
 	AccessPoint auth.AccessPoint
 }
 
-// BuildIdentityContext returns an IdentityContext populated with information
+// CreateIdentityContext returns an IdentityContext populated with information
 // about the logged in user on the connection.
 func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityContext, error) {
 	identity := IdentityContext{
@@ -72,10 +72,10 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
+	identity.RouteToCluster = certificate.Extensions[teleport.CertExtensionTeleportRouteToCluster]
 	if certificate.ValidBefore != 0 {
 		identity.CertValidBefore = time.Unix(int64(certificate.ValidBefore), 0)
 	}
-
 	certAuthority, err := h.authorityForCert(services.UserCA, certificate.SignatureKey)
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)

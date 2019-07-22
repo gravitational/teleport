@@ -136,6 +136,9 @@ type IdentityContext struct {
 	// CertValidBefore is set to the expiry time of a certificate, or
 	// empty, if cert does not expire
 	CertValidBefore time.Time
+
+	// RouteToCluster is derived from the certificate
+	RouteToCluster string
 }
 
 // GetCertificate parses the SSH certificate bytes and returns a *ssh.Certificate.
@@ -520,6 +523,17 @@ func (c *ServerContext) Close() error {
 	}
 
 	return nil
+}
+
+// CancelContext is a context associated with server context,
+// closed whenever this server context is closed
+func (c *ServerContext) CancelContext() context.Context {
+	return c.cancelContext
+}
+
+// Cancel is a function that triggers closure
+func (c *ServerContext) Cancel() context.CancelFunc {
+	return c.cancel
 }
 
 // SendExecResult sends the result of execution of the "exec" command over the

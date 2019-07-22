@@ -1477,13 +1477,32 @@ func tryCreateTrustedCluster(c *check.C, authServer *auth.AuthServer, trustedClu
 	c.Fatalf("Timeout creating trusted cluster")
 }
 
+// trustedClusterTest is a test setup for trusted clusters tests
+type trustedClusterTest struct {
+	// multiplex sets up multiplexing of the reversetunnel SSH
+	// socket and the proxy's web socket
+	multiplex bool
+	// useJumpHost turns on jump host mode for the access
+	// to the proxy instead of the proxy command
+	useJumpHost bool
+}
+
 // TestTrustedClusters tests remote clusters scenarios
 // using trusted clusters feature
 func (s *IntSuite) TestTrustedClusters(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	s.trustedClusters(c, false)
+	s.trustedClusters(c, trustedClusterTest{multiplex: false})
+}
+
+// TestJumpTrustedClusters tests remote clusters scenarios
+// using trusted clusters feature using jumphost connection
+func (s *IntSuite) TestJumpTrustedClusters(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	s.trustedClusters(c, trustedClusterTest{multiplex: false, useJumpHost: true})
 }
 
 // TestMultiplexingTrustedClusters tests remote clusters scenarios
@@ -1492,15 +1511,15 @@ func (s *IntSuite) TestMultiplexingTrustedClusters(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	s.trustedClusters(c, true)
+	s.trustedClusters(c, trustedClusterTest{multiplex: true})
 }
 
-func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
+func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	username := s.me.Username
 
 	clusterMain := "cluster-main"
 	clusterAux := "cluster-aux"
-	main := NewInstance(InstanceConfig{ClusterName: clusterMain, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub, MultiplexProxy: multiplex})
+	main := NewInstance(InstanceConfig{ClusterName: clusterMain, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub, MultiplexProxy: test.multiplex})
 	aux := NewInstance(InstanceConfig{ClusterName: clusterAux, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	// main cluster has a local user and belongs to role "main-devs"
@@ -1580,12 +1599,19 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 
 	// Try and connect to a node in the Aux cluster from the Main cluster using
 	// direct dialing.
-	tc, err := main.NewClient(ClientConfig{
-		Login:   username,
-		Cluster: clusterAux,
-		Host:    Loopback,
-		Port:    sshPort,
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:        main.Process,
+		Username:       username,
+		RouteToCluster: clusterAux,
 	})
+	c.Assert(err, check.IsNil)
+	tc, err := main.NewClientWithCreds(ClientConfig{
+		Login:    username,
+		Cluster:  clusterAux,
+		Host:     Loopback,
+		Port:     sshPort,
+		JumpHost: test.useJumpHost,
+	}, *creds)
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -2714,7 +2740,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// capture credentials before reload started to simulate old client
-	initialCreds, err := GenerateUserCreds(svc, s.me.Username)
+	initialCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: s.me.Username})
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseUpdateClients)
@@ -2775,7 +2801,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new credentials will work from this phase to others
-	newCreds, err := GenerateUserCreds(svc, s.me.Username)
+	newCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: s.me.Username})
 	c.Assert(err, check.IsNil)
 
 	clt, err = t.NewClientWithCreds(cfg, *newCreds)
@@ -2861,7 +2887,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// capture credentials before reload started to simulate old client
-	initialCreds, err := GenerateUserCreds(svc, s.me.Username)
+	initialCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: s.me.Username})
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseInit)
@@ -3030,7 +3056,10 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	waitForTunnelConnections(c, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
 
 	// capture credentials before has reload started to simulate old client
-	initialCreds, err := GenerateUserCreds(svc, s.me.Username)
+	initialCreds, err := GenerateUserCreds(UserCredsRequest{
+		Process:  svc,
+		Username: s.me.Username,
+	})
 	c.Assert(err, check.IsNil)
 
 	// credentials should work
@@ -3115,7 +3144,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new credentials will work from this phase to others
-	newCreds, err := GenerateUserCreds(svc, s.me.Username)
+	newCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: s.me.Username})
 	c.Assert(err, check.IsNil)
 
 	clt, err = main.NewClientWithCreds(cfg, *newCreds)
@@ -3491,7 +3520,7 @@ func (s *IntSuite) TestList(c *check.C) {
 		// Create user, role, and generate credentials.
 		err = SetupUser(t.Process, tt.inLogin, []services.Role{role})
 		c.Assert(err, check.IsNil)
-		initialCreds, err := GenerateUserCreds(t.Process, tt.inLogin)
+		initialCreds, err := GenerateUserCreds(UserCredsRequest{Process: t.Process, Username: tt.inLogin})
 		c.Assert(err, check.IsNil)
 
 		// Create a Teleport client.
