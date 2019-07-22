@@ -438,6 +438,9 @@ func (n *NodeAddr) ProxyFormat() string {
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
 	log.Infof("Client=%v connecting to node=%v", proxy.clientAddr, nodeAddress)
+	if len(proxy.teleportClient.JumpHosts) > 0 {
+		return proxy.PortForwardToNode(ctx, nodeAddress, user, quiet)
+	}
 
 	// parse destination first:
 	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
@@ -521,6 +524,70 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			proxySession.Close()
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	// We pass an empty channel which we close right away to ssh.NewClient
+	// because the client need to handle requests itself.
+	emptyCh := make(chan *ssh.Request)
+	close(emptyCh)
+
+	client := ssh.NewClient(conn, chans, emptyCh)
+
+	nc := &NodeClient{
+		Client:    client,
+		Proxy:     proxy,
+		Namespace: defaults.Namespace,
+		TC:        proxy.teleportClient,
+	}
+
+	// Start a goroutine that will run for the duration of the client to process
+	// global requests from the client. Teleport clients will use this to update
+	// terminal sizes when the remote PTY size has changed.
+	go nc.handleGlobalRequests(ctx, reqs)
+
+	return nc, nil
+}
+
+// PortForwardToNode connects to the ssh server via Proxy
+// It returns connected and authenticated NodeClient
+func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
+	log.Infof("Client=%v jumping to node=%s", proxy.clientAddr, nodeAddress)
+
+	// after auth but before we create the first session, find out if the proxy
+	// is in recording mode or not
+	recordingProxy, err := proxy.isRecordingProxy()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// the client only tries to forward an agent when the proxy is in recording
+	// mode. we always try and forward an agent here because each new session
+	// creates a new context which holds the agent. if ForwardToAgent returns an error
+	// "already have handler for" we ignore it.
+	if recordingProxy {
+		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
+		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	proxyConn, err := proxy.Client.Dial("tcp", nodeAddress.Addr)
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s", nodeAddress, err)
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            user,
+		Auth:            []ssh.AuthMethod{proxy.authMethod},
+		HostKeyCallback: proxy.hostKeyCallback,
+	}
+	conn, chans, reqs, err := newClientConn(ctx, proxyConn, nodeAddress.Addr, sshConfig)
+	if err != nil {
+		if utils.IsHandshakeFailedError(err) {
+			proxyConn.Close()
 			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
 		}
 		return nil, trace.Wrap(err)

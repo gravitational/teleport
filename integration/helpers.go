@@ -405,14 +405,25 @@ func SetupUser(process *service.TeleportProcess, username string, roles []servic
 	return nil
 }
 
+// UserCredsRequest is a request to generate user creds
+type UserCredsRequest struct {
+	// Process is a teleport process
+	Process *service.TeleportProcess
+	// Username is a user to generate certs for
+	Username string
+	// RouteToCluster is an optional cluster to route creds to
+	RouteToCluster string
+}
+
 // GenerateUserCreds generates key to be used by client
-func GenerateUserCreds(process *service.TeleportProcess, username string) (*UserCreds, error) {
+func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	priv, pub, err := testauthority.New().GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	a := process.GetAuthServer()
-	sshCert, x509Cert, err := a.GenerateUserTestCerts(pub, username, time.Hour, teleport.CertificateFormatStandard)
+	a := req.Process.GetAuthServer()
+	sshCert, x509Cert, err := a.GenerateUserTestCerts(
+		pub, req.Username, time.Hour, teleport.CertificateFormatStandard, req.RouteToCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -592,7 +603,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// sign user's keys:
 		ttl := 24 * time.Hour
-		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserTestCerts(user.Key.Pub, teleUser.GetName(), ttl, teleport.CertificateFormatStandard)
+		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserTestCerts(user.Key.Pub, teleUser.GetName(), ttl, teleport.CertificateFormatStandard, "")
 		if err != nil {
 			return err
 		}
@@ -915,6 +926,8 @@ type ClientConfig struct {
 	// ForwardAgent controls if the client requests it's agent be forwarded to
 	// the server.
 	ForwardAgent bool
+	// JumpHost turns on jump host mode
+	JumpHost bool
 }
 
 // NewClientWithCreds creates client with credentials
@@ -966,6 +979,14 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		ForwardAgent:       cfg.ForwardAgent,
 		WebProxyAddr:       webProxyAddr,
 		SSHProxyAddr:       sshProxyAddr,
+	}
+
+	// JumpHost turns on jump host mode
+	if cfg.JumpHost {
+		cconf.JumpHosts = []utils.JumpHost{{
+			Username: cfg.Login,
+			Addr:     *utils.MustParseAddr(sshProxyAddr),
+		}}
 	}
 
 	return client.NewClient(cconf)

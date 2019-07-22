@@ -77,7 +77,7 @@ func StartKeepAliveLoop(p KeepAliveParams) {
 			for _, conn := range p.Conns {
 				ok := sendKeepAliveWithTimeout(conn, defaults.ReadHeadersTimeout, p.CloseContext)
 				if ok {
-					sentCount += 1
+					sentCount++
 				}
 			}
 			if sentCount == len(p.Conns) {
