@@ -1899,6 +1899,10 @@ func (s *APIServer) uploadSessionRecording(auth ClientI, w http.ResponseWriter, 
 		return nil, trace.BadParameter("expected a single file parameter but got %d", len(files))
 	}
 	defer files[0].Close()
+	_, err = session.ParseID(sid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Make a copy of the archive because it needs to be read twice: once to
 	// validate it and then again to upload it.
