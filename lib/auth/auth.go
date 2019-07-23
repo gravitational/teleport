@@ -26,6 +26,7 @@ package auth
 import (
 	"context"
 	"crypto"
+	"crypto/subtle"
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"math/rand"
@@ -1005,7 +1006,7 @@ func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error)
 	// First check if the token is a static token. If it is, return right away.
 	// Static tokens have no expiration.
 	for _, st := range tkns.GetStaticTokens() {
-		if st.GetName() == token {
+		if subtle.ConstantTimeCompare([]byte(st.GetName()), []byte(token)) == 1 {
 			return st.GetRoles(), nil
 		}
 	}
@@ -1148,7 +1149,7 @@ func (s *AuthServer) DeleteToken(token string) (err error) {
 
 	// is this a static token?
 	for _, st := range tkns.GetStaticTokens() {
-		if st.GetName() == token {
+		if subtle.ConstantTimeCompare([]byte(st.GetName()), []byte(token)) == 1 {
 			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
 		}
 	}
