@@ -1103,7 +1103,10 @@ func (a *AuthServer) DeleteRole(name string) error {
 	for _, u := range users {
 		for _, r := range u.GetRoles() {
 			if r == name {
-				return trace.BadParameter("role %v is used by user %v", name, u.GetName())
+				// Mask the actual error here as it could be used to enumerate users
+				// within the system.
+				log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
+				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
 			}
 		}
 	}
@@ -1116,7 +1119,10 @@ func (a *AuthServer) DeleteRole(name string) error {
 	for _, a := range cas {
 		for _, r := range a.GetRoles() {
 			if r == name {
-				return trace.BadParameter("role %v is used by user cert authority %v", name, a.GetClusterName())
+				// Mask the actual error here as it could be used to enumerate users
+				// within the system.
+				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
+				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
 			}
 		}
 	}
