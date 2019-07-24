@@ -300,18 +300,17 @@ In short, to add new nodes / EC2 servers that you can "SSH into" you'll need to
 ## Using Teleport with EKS
 We are working on a step by step guide for working with EKS. This [blog post](https://gravitational.com/blog/teleport-aws-eks/) is a good place to start. 
 
-
-
-### Upgrading
+## Upgrading
 
 To upgrade to a newer version of Teleport:
-- Back up /etc/teleport.yaml and the contents of /var/lib/teleport
+
+- Back up `/etc/teleport.yaml` and the contents of `/var/lib/teleport`
 - Launch a new instance with the correct AMI for a newer version of Teleport
-- Copy /etc/teleport.yaml and /var/lib/teleport to the new instance, overwriting anything that already exists
-- Either restart the instance, or log in via SSH and run "sudo systemctl restart teleport.service"
+- Copy `/etc/teleport.yaml` and `/var/lib/teleport` to the new instance, overwriting anything that already exists
+- Either restart the instance, or log in via SSH and run `sudo systemctl restart teleport.service`
 
 # Running Teleport Enterprise on AWS
-Most of this guide has been designed for OSS Teleport. Most does apply to Teleport Enterprise
+Most of this guide has been designed for OSS Teleport. Most of this guide applies to Teleport Enterprise
 with a few extra notes around adding a license and getting the correct binary. If you would
 like help setting up Teleport Enterprise on AWS. Please mail us at info@gravitational.com 
 
@@ -319,7 +318,7 @@ like help setting up Teleport Enterprise on AWS. Please mail us at info@gravitat
 
 ### Generating labels from AWS tags
 Labels can be a useful addition to the Teleport UI.  Simply add some of all of the 
-below to Teleport Nodes to get helpful labels in Teleport. 
+below to Teleport Nodes `etc/teleport.yaml` to have helpful labels in the Teleport UI. 
 
 ```yaml
     commands:
