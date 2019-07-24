@@ -2,8 +2,8 @@
 
 We've created this guide to give customers a high level overview of how to use Teleport
 on Amazon Web Services (AWS). This guide starts with a high level introduction and 
-with a deeper dive into how to setup Teleport and run Teleport in production. 
-We have split this guide into. 
+with a deeper dive into how to setup and run Teleport in production. 
+We have split this guide into:
 
 - [Teleport on AWS FAQ](#teleport-on-aws-faq)
 - [Setting up Teleport OSS on AWS](#setting-up-teleport-oss-on-aws)
@@ -18,11 +18,11 @@ to help test, debug and troubleshoot a problem box. For EC2, AWS recommends crea
 ['Key Pairs'](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html) 
 and has a range of [other tips for securing EC2 instances](https://aws.amazon.com/articles/tips-for-securing-your-ec2-instance/).
 
-There is a range of limits with this setup. 
+There are a number of limitations
 
-1. As your organization grows keeping track of end users public/private keys becomes
+1. As your organization grows, keeping track of end users public/private keys becomes
    an administrative nightmare. 
-2. Using SSH public/private keys has a range of limits. Read why [SSH Certificates are better](https://gravitational.com/blog/ssh-key-management/). 
+2. Using SSH public/private keys has a number of limitations. Read why [SSH Certificates are better](https://gravitational.com/blog/ssh-key-management/). 
 3. Once a machine has been bootstrapped with SSH Keys, there isn't an easy way to 
   add new keys and delegate access. 
 
@@ -59,13 +59,10 @@ stores the state of the system and S3 will store audit logs.
 ![AWS Intro Image](img/aws/aws-intro.png)
 
 ### EC2 / Autoscale
-To run Teleport in a HA configuration we recommend using m4.large instances and it's best
-practice to separate the proxy and authentication server, creating auto-scale groups 
-for both machines. We've a range of AMIs that have Teleport already built in it. 
-Instructions on using these [AMIs are below](#).
+To run Teleport in a HA configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport OSS and Enterprise editions. Instructions on using these [AMIs are below](#single-oss-teleport-amis-manual-gui-setup).
 
 ### DynamoDB
-DynamoDB is a  key-value and document database that delivers single-digit millisecond 
+DynamoDB is a key-value and document database that delivers single-digit millisecond 
 performance at any scale. For large clusters you can provision usage but for smaller 
 deployments you can leverage DynamoDBs auto-scale. 
 
@@ -80,8 +77,9 @@ types of Teleport data:
 
 ### S3 
 Amazon Simple Storage Service (Amazon S3) is an object storage service that offers
-industry-leading scalability, data availability, security, and performance. In 
-this setup of Teleport S3 will be the store of recorded sessions. 
+industry-leading scalability, data availability, security, and performance. In this 
+Teleport setup, S3 will provide storage for recorded sessions
+
  
 We recommend using Amazon S3 Standard. 
 
@@ -91,7 +89,7 @@ We recommend using Amazon S3 Standard.
 
 ### Route53
 Route53 is a highly available Domain Name System (DNS) provided by AWS. It'll be 
-needed to setup a URL for the proxy, we recommend using a sub-domain. 
+needed to setup a URL for the proxy - we recommend using a subdomain e.g. `teleport.acmeinc.com`
 
 e.g. `teleport.acmeinc.com`
 
