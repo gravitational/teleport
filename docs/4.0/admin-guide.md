@@ -1651,9 +1651,18 @@ can be used like `netcat` is with `ProxyCommand` to connect through a jump host.
 First, you need to export the public keys of cluster members. This has to be done
 on a node which runs Teleport auth server:
 
-```yaml
+```bash
 $ tctl auth export --type=host > cluster_node_keys
 ```
+
+```bash
+$ cat cluster_node_keys
+@cert-authority *.graviton-auth ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDLNduBoHQaqi+kgkq3gLYjc6JIyBBnCFLgm63b5rtmWl/CJD7T9HWHxZphaS1jra6CWdboLeTp6sDUIKZ/Qw1MKFlfoqZZ8k6to43bxx7DvAHs0Te4WpuS/YRmWFhb6mMVOa8Rd4/9jE+c0f9O/t7X4m5iR7Fp7Tt+R/pjJfr03Loi6TYP/61AgXD/BkVDf+IcU4+9nknl+kaVPSGcPS9/Vbni1208Q+VN7B7Umy71gCh02gfv3rBGRgjT/cRAivuVoH/z3n5UwWg+9R3GD/l+XZKgv+pfe3OHoyDFxYKs9JaX0+GWc504y3Grhos12Lb8sNmMngxxxQ/KUDOV9z+R type=host
+```
+
+!!! tip "Note": 
+  When sharing the @cert-authority make sure that the URL for the proxy is correct. 
+  In the above example, `*.graviton-auth` should be changed to teleport.example.com.  
 
 On your client machine, you need to import these keys. It will allow your OpenSSH client
 to verify that host's certificates are signed by the trusted CA key:

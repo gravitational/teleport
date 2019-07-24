@@ -125,14 +125,14 @@ func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 		NotAfter:              notAfter,
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
-		IsCA: true,
+		IsCA:                  true,
 	}
 
 	// collect IP addresses localhost resolves to and add them to the cert. template:
 	template.DNSNames = append(hostNames, "localhost.local")
 	ips, _ := net.LookupIP("localhost")
 	if ips != nil {
-		template.IPAddresses = ips
+		template.IPAddresses = append(ips, net.ParseIP("::1"))
 	}
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {

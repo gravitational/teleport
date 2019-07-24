@@ -213,6 +213,12 @@ func Host(hostname string) (string, error) {
 	if hostname == "" {
 		return "", trace.BadParameter("missing parameter hostname")
 	}
+	// if this is IPv4 or V6, return as is
+	if ip := net.ParseIP(hostname); len(ip) != 0 {
+		return hostname, nil
+	}
+	// has no indication of port, return, note that
+	// it will not break ipv6 as it always has at least one colon
 	if !strings.Contains(hostname, ":") {
 		return hostname, nil
 	}

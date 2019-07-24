@@ -282,7 +282,7 @@ func (t *proxySubsys) proxyToHost(
 
 		ip, port, err := net.SplitHostPort(servers[i].GetAddr())
 		if err != nil {
-			t.log.Error(err)
+			t.log.Errorf("Failed to parse address %q: %v.", servers[i].GetAddr(), err)
 			continue
 		}
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
