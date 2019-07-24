@@ -105,11 +105,10 @@ IAM is the recommend tool for creating service access. This guide will follow th
 best practice of principle of least privilege (PoLP). 
 
 ### ACM 
-With AWS Certificate Manager, you can quickly request SSL/TLS certificates, deploy it on 
-ACM-integrated AWS resources. 
+With AWS Certificate Manager, you can quickly request SSL/TLS certificates.
 
 - TLS Cert: Used to provide SSL for the proxy.
-- SSH Certs: Created and self signed by the `authentication server` and is used to
+- SSH Certs (not in ACM): Created and self signed by the `authentication server` and is used to
   delegate access to Teleport nodes. 
 
 ### AWS Systems Manager Parameter Store 
@@ -125,12 +124,9 @@ more than happy to help you architect, setup and deploy Teleport into your envir
 
 We have these options for you. 
 
-- [Using our AWS Marketplace (Manual Setup)](##single-oss-teleport-amis-manual-gui-setup)
-- Using our AWS Marketplace (Cloudformation Setup)
-- Building your own base image (Manual)
-- Deploying with Cloudformation
-- Deploying with Terraform HA
-- Deploying with Terraform HA + Monitoring 
+- [Using our AWS Marketplace (Manual Setup)](#single-oss-teleport-amis-manual-gui-setup)
+- [Deploying with CloudFormation](#deploying-with-cloudformation)
+- [Deploying with Terraform HA + Monitoring](#deploying-with-terraform)
 
 Some of these providers will provision 
 
@@ -282,34 +278,31 @@ To reconfigure any of this, or to do it on a running instance:
 If you have changed the external hostname, you may need to delete `/var/lib/teleport` and start again.
 
 
+## Deploying with CloudFormation
+We are currently working on an updated CloudFormation guide but you can start with our
+[AWS Marketplace example](https://github.com/gravitational/teleport/tree/master/assets/marketplace/cloudformation#teleport-aws-quickstart-guide-cloudformation). It requires a VPC, but 
+we expect customers to deploy within  an already existing VPC. 
 
-### Building your own base image
-TODO
-
-### Deploying with CloudFormation
-TODO
-
-### Deploying with Terraform
-TODO
-
-## Adding your AWS fleet to Teleport. 
-Best practices
-- Turn off SSH / or setup in Proxy mode.
-- How to build 
-
-### Installing Teleport to EC2 Nodes
-TODO
+## Deploying with Terraform
+To deploy Teleport in AWS please look at our [AWS Guide](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami).
 
 
-### Using Teleport with EKS
-TODO
+### Installing Teleport to EC2 Server
+Customers run many workloads withing EC2 and depending on how you work there are many 
+ways to integrate Teleport onto your servers. We recommend looking at our [Admin manual](https://gravitational.com/teleport/docs/admin-guide/#installing).
+
+In short, to add new nodes / EC2 servers that you can "SSH into" you'll need to 
+1. [Install the Teleport Binary on the Server](https://gravitational.com/teleport/docs/admin-guide/#installing)
+- [Run Teleport, we recommend using SystemD](https://gravitational.com/teleport/docs/admin-guide/#systemd-unit-file)
+- [Set the correct settings in /etc/teleport.yaml](https://gravitational.com/teleport/docs/admin-guide/#configuration-file)
+- [Add EC2 nodes to the Teleport cluster](https://gravitational.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
+
+## Using Teleport with EKS
+We are working on a step by step guide for working with EKS. This [blog post](https://gravitational.com/blog/teleport-aws-eks/) is a good place to start. 
 
 
-### Using Teleport with Kubernetes running on AWS
-TODO
 
-
-# Upgrading
+### Upgrading
 
 To upgrade to a newer version of Teleport:
 - Back up /etc/teleport.yaml and the contents of /var/lib/teleport
@@ -318,31 +311,15 @@ To upgrade to a newer version of Teleport:
 - Either restart the instance, or log in via SSH and run "sudo systemctl restart teleport.service"
 
 # Running Teleport Enterprise on AWS
+Most of this guide has been designed for OSS Teleport. Most does apply to Teleport Enterprise
+with a few extra notes around adding a license and getting the correct binary. If you would
+like help setting up Teleport Enterprise on AWS. Please mail us at info@gravitational.com 
 
 # Teleport AWS Tips & Tricks
 
-## Production Nodes:
-
-
 ### Generating labels from AWS tags
-
-```bash
-#!/bin/bash
-
-LOCAL_IP=`curl --silent --fail --show-error http://169.254.169.254/latest/meta-data/local-ipv4`
-sed -ri "s/.*public_addr.*/    public_addr: ${LOCAL_IP}/" /etc/teleport/teleport.yaml
-
-EXTERNAL_IP=`curl --silent --fail --show-error http://169.254.169.254/latest/meta-data/public-ipv4`
-if [ $? -eq 0 ]
-then
-  sed -ri "s/.*nodename.*/    nodename: ${EXTERNAL_IP}/" /etc/teleport/teleport.yaml
-else
-  sed -ri "s/.*nodename.*/    nodename: private-${LOCAL_IP}/" /etc/teleport/teleport.yaml
-  sed -ri "s/.*\[curl, \"http:\/\/169.254.169.254\/latest\/meta-data\/public-ipv4\"\].*/        command: \[echo, \"n\/a\"\]/" /etc/teleport/teleport.yaml
-fi
-```
-
-and in teleport.yaml I had:
+Labels can be a useful addition to the Teleport UI.  Simply add some of all of the 
+below to Teleport Nodes to get helpful labels in Teleport. 
 
 ```yaml
     commands:
@@ -363,6 +340,4 @@ and in teleport.yaml I had:
         period: 1h0m0s
 ```
 
-
-TODO https://github.com/gravitational/teleport/issues/1175 
- https://github.com/gravitational/teleport/issues/1346 
+Create labels based on [EC2 Tags](https://github.com/gravitational/teleport/issues/1346). 
