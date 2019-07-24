@@ -108,7 +108,7 @@ best practice of principle of least privilege (PoLP).
 With AWS Certificate Manager, you can quickly request SSL/TLS certificates.
 
 - TLS Cert: Used to provide SSL for the proxy.
-- SSH Certs (not in ACM): Created and self signed by the `authentication server` and is used to
+- SSH Certs (not in ACM): Created and self signed by the `authentication server` and are used to
   delegate access to Teleport nodes. 
 
 ### AWS Systems Manager Parameter Store 
@@ -124,7 +124,7 @@ more than happy to help you architect, setup and deploy Teleport into your envir
 
 We have these options for you. 
 
-- [Using our AWS Marketplace (Manual Setup)](#single-oss-teleport-amis-manual-gui-setup)
+- [Using AWS Marketplace (Manual Setup)](#single-oss-teleport-amis-manual-gui-setup)
 - [Deploying with CloudFormation](#deploying-with-cloudformation)
 - [Deploying with Terraform HA + Monitoring](#deploying-with-terraform)
 
@@ -281,14 +281,14 @@ If you have changed the external hostname, you may need to delete `/var/lib/tele
 ## Deploying with CloudFormation
 We are currently working on an updated CloudFormation guide but you can start with our
 [AWS Marketplace example](https://github.com/gravitational/teleport/tree/master/assets/marketplace/cloudformation#teleport-aws-quickstart-guide-cloudformation). It requires a VPC, but 
-we expect customers to deploy within  an already existing VPC. 
+we expect customers to deploy within an already existing VPC. 
 
 ## Deploying with Terraform
 To deploy Teleport in AWS please look at our [AWS Guide](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami).
 
 
 ### Installing Teleport to EC2 Server
-Customers run many workloads withing EC2 and depending on how you work there are many 
+Customers run many workloads within EC2 and depending on how you work there are many 
 ways to integrate Teleport onto your servers. We recommend looking at our [Admin manual](https://gravitational.com/teleport/docs/admin-guide/#installing).
 
 In short, to add new nodes / EC2 servers that you can "SSH into" you'll need to 
@@ -312,12 +312,12 @@ To upgrade to a newer version of Teleport:
 # Running Teleport Enterprise on AWS
 Most of this guide has been designed for OSS Teleport. Most of this guide applies to Teleport Enterprise
 with a few extra notes around adding a license and getting the correct binary. If you would
-like help setting up Teleport Enterprise on AWS. Please mail us at info@gravitational.com 
+like help setting up Teleport Enterprise on AWS, please mail us at info@gravitational.com 
 
 # Teleport AWS Tips & Tricks
 
 ### Generating labels from AWS tags
-Labels can be a useful addition to the Teleport UI.  Simply add some of all of the 
+Labels can be a useful addition to the Teleport UI.  Simply add some or all of the 
 below to Teleport Nodes `etc/teleport.yaml` to have helpful labels in the Teleport UI. 
 
 ```yaml
