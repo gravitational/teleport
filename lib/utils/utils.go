@@ -38,6 +38,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// NopWriteCloser returns a WriteCloser with a no-op Close method wrapping
+// the provided Writer w
+func NopWriteCloser(r io.Writer) io.WriteCloser {
+	return nopWriteCloser{r}
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (nopWriteCloser) Close() error { return nil }
+
 // Tracer helps to trace execution of functions
 type Tracer struct {
 	// Started records starting time of the call

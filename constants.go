@@ -317,6 +317,9 @@ const (
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
+	// SchemeStdout outputs audit log entries to stdout
+	SchemeStdout = "stdout"
+
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
