@@ -1088,7 +1088,7 @@ func (process *TeleportProcess) initAuthService() error {
 		if aport == "" {
 			aport = port
 		}
-		authAddr = fmt.Sprintf("%v:%v", ahost, aport)
+		authAddr = net.JoinHostPort(ahost, aport)
 	} else {
 		// advertise-ip is not set, while the CA is listening on 0.0.0.0? lets try
 		// to guess the 'advertise ip' then:
