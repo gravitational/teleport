@@ -67,7 +67,7 @@ const (
 	HostID   = "00000000-0000-0000-0000-000000000000"
 	Site     = "local-site"
 
-	AllocatePortsNum = 300
+	AllocatePortsNum = 400
 )
 
 type IntSuite struct {
