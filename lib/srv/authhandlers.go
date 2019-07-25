@@ -52,6 +52,10 @@ type AuthHandlers struct {
 
 	// AccessPoint is used to access the Auth Server.
 	AccessPoint auth.AccessPoint
+
+	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// configuration.
+	FIPS bool
 }
 
 // CreateIdentityContext returns an IdentityContext populated with information
@@ -178,6 +182,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
 		},
+		FIPS: h.FIPS,
 	}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
@@ -254,6 +259,7 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 			IsHostAuthority: h.IsHostAuthority,
 			HostKeyFallback: h.hostKeyCallback,
 		},
+		FIPS: h.FIPS,
 	}
 	err := certChecker.CheckHostKey(addr, remote, key)
 	if err != nil {

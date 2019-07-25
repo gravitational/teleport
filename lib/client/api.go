@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -2161,4 +2162,10 @@ func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
 // "StrictHostKeyChecking yes".
 func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey) error {
 	return nil
+}
+
+// isFIPS returns if the binary was build with BoringCrypto, which implies
+// FedRAMP/FIPS 140-2 mode for tsh.
+func isFIPS() bool {
+	return modules.GetModules().IsBoringBinary()
 }

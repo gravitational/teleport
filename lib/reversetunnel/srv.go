@@ -172,12 +172,17 @@ type Config struct {
 
 	// DataDir is a local server data directory
 	DataDir string
+
 	// PollingPeriod specifies polling period for internal sync
 	// goroutines, used to speed up sync-ups in tests.
 	PollingPeriod time.Duration
 
 	// Component is a component used in logs
 	Component string
+
+	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
+	// configuration.
+	FIPS bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -288,6 +293,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.SetCiphers(cfg.Ciphers),
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
+		sshutils.SetFIPS(cfg.FIPS),
 	)
 	if err != nil {
 		return nil, err
@@ -778,7 +784,9 @@ func (s *server) checkHostCert(logger *log.Entry, user string, clusterName strin
 		return trace.NotFound("cluster %v has no matching CA keys", clusterName)
 	}
 
-	checker := utils.CertChecker{}
+	checker := utils.CertChecker{
+		FIPS: s.FIPS,
+	}
 	if err := checker.CheckCert(user, cert); err != nil {
 		return trace.BadParameter(err.Error())
 	}
