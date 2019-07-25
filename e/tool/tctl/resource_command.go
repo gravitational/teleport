@@ -46,6 +46,7 @@ func (cmd *ResourceCommandE) TryRun(selectedCommand string, c auth.ClientI) (mat
 			return true, trace.Wrap(err)
 		}
 		fmt.Printf("role %s has been deleted\n", ref.Name)
+		return true, nil
 	}
 
 	// call the OSS implementation:
