@@ -183,14 +183,19 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 		},
 		{
 			spec:    []string{"8080"},
-			isError: true,
-			output:  DynamicForwardedPorts{},
+			isError: false,
+			output: DynamicForwardedPorts{
+				{
+					SrcIP:   "127.0.0.1",
+					SrcPort: 8080,
+				},
+			},
 		},
 		{
 			spec:    []string{":8080"},
 			isError: false,
 			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
+				{
 					SrcIP:   "127.0.0.1",
 					SrcPort: 8080,
 				},
@@ -200,22 +205,26 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 			spec:    []string{"10.0.0.1:8080"},
 			isError: false,
 			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
+				{
 					SrcIP:   "10.0.0.1",
 					SrcPort: 8080,
 				},
 			},
 		},
 		{
-			spec:    []string{":8080", "10.0.0.1:8080"},
+			spec:    []string{":8080", "10.0.0.1:8080", "[::1]:8080"},
 			isError: false,
 			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
+				{
 					SrcIP:   "127.0.0.1",
 					SrcPort: 8080,
 				},
-				DynamicForwardedPort{
+				{
 					SrcIP:   "10.0.0.1",
+					SrcPort: 8080,
+				},
+				{
+					SrcIP:   "::1",
 					SrcPort: 8080,
 				},
 			},
@@ -223,14 +232,15 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 	}
 
 	for _, tt := range tests {
+		comment := check.Commentf("spec: %v", tt.spec)
 		specs, err := ParseDynamicPortForwardSpec(tt.spec)
 		if tt.isError {
-			c.Assert(err, check.NotNil)
+			c.Assert(err, check.NotNil, comment)
 			continue
 		} else {
-			c.Assert(err, check.IsNil)
+			c.Assert(err, check.IsNil, comment)
 		}
 
-		c.Assert(specs, check.DeepEquals, tt.output)
+		c.Assert(specs, check.DeepEquals, tt.output, comment)
 	}
 }

@@ -2118,7 +2118,12 @@ func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
 	for _, str := range spec {
 		host, port, err := net.SplitHostPort(str)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// if failed to locate host, port, try to parse as an integer port
+			// which is allowed format in SSH
+			if _, e := strconv.Atoi(str); e != nil {
+				return nil, trace.Wrap(err)
+			}
+			port = str
 		}
 
 		// If no host is provided, bind to localhost.
