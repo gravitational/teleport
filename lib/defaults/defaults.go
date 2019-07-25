@@ -265,11 +265,11 @@ var (
 	// session will be considered idle
 	SessionIdlePeriod = SessionRefreshPeriod * 10
 
-	// NewtworkBackoffDuration is a standard backoff on network requests
+	// NetworkBackoffDuration is a standard backoff on network requests
 	// usually is slow, e.g. once in 30 seconds
 	NetworkBackoffDuration = time.Second * 30
 
-	// NewtworkRetryDuration is a standard retry on network requests
+	// NetworkRetryDuration is a standard retry on network requests
 	// to retry quickly, e.g. once in one second
 	NetworkRetryDuration = time.Second
 
@@ -294,9 +294,10 @@ var (
 	HighResReportingPeriod = 10 * time.Second
 
 	// KeepAliveInterval is interval at which Teleport will send keep-alive
-	// messages to the client. The interval of 15 minutes mirrors
-	// ClientAliveInterval of sshd.
-	KeepAliveInterval = 15 * time.Minute
+	// messages to the client. The default interval of 5 minutes (300 seconds) is
+	// set to help keep connections alive when using AWS NLBs (which have a default
+	// timeout of 350 seconds)
+	KeepAliveInterval = 5 * time.Minute
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is
@@ -410,7 +411,7 @@ const (
 )
 
 const (
-	// This is hardcoded in the U2F library
+	// U2FChallengeTimeout is hardcoded in the U2F library
 	U2FChallengeTimeout = 5 * time.Minute
 )
 
@@ -529,14 +530,14 @@ var (
 		"aes128-gcm@openssh.com",
 	}
 
-	// FIPSCiphers is a list of supported FIPS compliant SSH kex algorithms.
+	// FIPSKEXAlgorithms is a list of supported FIPS compliant SSH kex algorithms.
 	FIPSKEXAlgorithms = []string{
 		"ecdh-sha2-nistp256",
 		"ecdh-sha2-nistp384",
 		"echd-sha2-nistp521",
 	}
 
-	// FIPSCiphers is a list of supported FIPS compliant SSH mac algorithms.
+	// FIPSMACAlgorithms is a list of supported FIPS compliant SSH mac algorithms.
 	FIPSMACAlgorithms = []string{
 		"hmac-sha2-256-etm@openssh.com",
 		"hmac-sha2-256",
