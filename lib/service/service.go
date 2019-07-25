@@ -838,6 +838,9 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 				return nil, trace.Wrap(err)
 			}
 			loggers = append(loggers, logger)
+		case teleport.SchemeStdout:
+			logger := events.NewWriterLog(utils.NopWriteCloser(os.Stdout))
+			loggers = append(loggers, logger)
 		default:
 			return nil, trace.BadParameter(
 				"unsupported scheme for audit_events_uri: %q, currently supported schemes are %q and %q",
@@ -853,12 +856,16 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 		return nil, trace.NotFound("no external log is defined")
 	case 1:
 		if !hasNonFileLog {
-			return nil, trace.BadParameter("file:// log can not be used on it's own, can be only used in combination with external session logs, e.g. dynamodb://")
+			return nil, trace.BadParameter(
+				"file:// or stdout:// log can not be used on it's own, " +
+					"can be only used in combination with external session logs, e.g. dynamodb://")
 		}
 		return loggers[0], nil
 	default:
 		if !hasNonFileLog {
-			return nil, trace.BadParameter("file:// log can not be used on it's own, can be only used in combination with external session logs, e.g. dynamodb://")
+			return nil, trace.BadParameter(
+				"file:// or stdout:// log can not be used on it's own, " +
+					"can be only used in combination with external session logs, e.g. dynamodb://")
 		}
 		return events.NewMultiLog(loggers...), nil
 	}

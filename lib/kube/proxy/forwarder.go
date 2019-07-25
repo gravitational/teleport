@@ -1036,7 +1036,7 @@ func getKubeCreds(kubeconfigPath string) (*kubeCreds, error) {
 		if err != nil {
 			return nil, trace.BadParameter(`auth server assumed that it is
 running in a kubernetes cluster, but %v mounted in pods could not be read: %v,
-set kubeconfig_path if auth server is running outside of the cluster`, teleport.KubeCAPath, err)
+set kubeconfig_file if auth server is running outside of the cluster`, teleport.KubeCAPath, err)
 		}
 
 		cfg, err := kubeutils.GetKubeConfig(os.Getenv(teleport.EnvKubeConfig))
