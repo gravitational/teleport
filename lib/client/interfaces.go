@@ -237,7 +237,9 @@ func (k *Key) CheckCert() error {
 
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
-	certChecker := utils.CertChecker{}
+	certChecker := utils.CertChecker{
+		FIPS: isFIPS(),
+	}
 	err = certChecker.CheckCert(cert.ValidPrincipals[0], cert)
 	if err != nil {
 		return trace.Wrap(err)

@@ -1431,6 +1431,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetPAMConfig(cfg.SSH.PAM),
 			regular.SetRotationGetter(process.getRotation),
 			regular.SetUseTunnel(conn.UseTunnel()),
+			regular.SetFIPS(cfg.FIPS),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1975,6 +1976,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				MACAlgorithms: cfg.MACAlgorithms,
 				DataDir:       process.Config.DataDir,
 				PollingPeriod: process.Config.PollingPeriod,
+				FIPS:          cfg.FIPS,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2084,6 +2086,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetMACAlgorithms(cfg.MACAlgorithms),
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetRotationGetter(process.getRotation),
+		regular.SetFIPS(cfg.FIPS),
 	)
 	if err != nil {
 		return trace.Wrap(err)
