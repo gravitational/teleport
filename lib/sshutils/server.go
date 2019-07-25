@@ -76,6 +76,10 @@ type Server struct {
 	// insecureSkipHostValidation does not validate the host signers to make sure
 	// they are a valid certificate. Used in tests.
 	insecureSkipHostValidation bool
+
+	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// configuration.
+	fips bool
 }
 
 const (
@@ -218,6 +222,13 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 		if macAlgorithms != nil {
 			s.cfg.MACs = macAlgorithms
 		}
+		return nil
+	}
+}
+
+func SetFIPS(fips bool) ServerOption {
+	return func(s *Server) error {
+		s.fips = fips
 		return nil
 	}
 }
@@ -493,7 +504,7 @@ func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners [
 			return trace.BadParameter("host signer can not be nil")
 		}
 		if !s.insecureSkipHostValidation {
-			err := validateHostSigner(signer)
+			err := validateHostSigner(s.fips, signer)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -506,7 +517,7 @@ func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners [
 }
 
 // validateHostSigner make sure the signer is a valid certificate.
-func validateHostSigner(signer ssh.Signer) error {
+func validateHostSigner(fips bool, signer ssh.Signer) error {
 	cert, ok := signer.PublicKey().(*ssh.Certificate)
 	if !ok {
 		return trace.BadParameter("only host certificates supported")
@@ -515,7 +526,9 @@ func validateHostSigner(signer ssh.Signer) error {
 		return trace.BadParameter("at least one valid principal is required in host certificate")
 	}
 
-	certChecker := utils.CertChecker{}
+	certChecker := utils.CertChecker{
+		FIPS: fips,
+	}
 	err := certChecker.CheckCert(cert.ValidPrincipals[0], cert)
 	if err != nil {
 		return trace.Wrap(err)

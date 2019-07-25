@@ -32,16 +32,19 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CertChecker is a drop-in replacement for ssh.CertChecker that also checks
-// if the certificate (or key) were generated with a valid algorithm.
+// CertChecker is a drop-in replacement for ssh.CertChecker. In FIPS mode,
+// checks if the certificate (or key) were generated with a supported algorithm.
 type CertChecker struct {
 	ssh.CertChecker
+
+	// FIPS means in addition to checking the validity of the key or
+	// certificate, also check that FIPS 140-2 algorithms were used.
+	FIPS bool
 }
 
 // Authenticate checks the validity of a user certificate.
-// a value for ServerConfig.PublicKeyCallback.
 func (c *CertChecker) Authenticate(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	err := validate(key)
+	err := c.validate(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -56,7 +59,7 @@ func (c *CertChecker) Authenticate(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 
 // CheckCert checks certificate metadata and signature.
 func (c *CertChecker) CheckCert(principal string, cert *ssh.Certificate) error {
-	err := validate(cert)
+	err := c.validate(cert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -66,7 +69,7 @@ func (c *CertChecker) CheckCert(principal string, cert *ssh.Certificate) error {
 
 // CheckHostKey checks the validity of a host certificate.
 func (c *CertChecker) CheckHostKey(addr string, remote net.Addr, key ssh.PublicKey) error {
-	err := validate(key)
+	err := c.validate(key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -74,7 +77,12 @@ func (c *CertChecker) CheckHostKey(addr string, remote net.Addr, key ssh.PublicK
 	return c.CertChecker.CheckHostKey(addr, remote, key)
 }
 
-func validate(key ssh.PublicKey) error {
+func (c *CertChecker) validate(key ssh.PublicKey) error {
+	// When not in FIPS mode, accept all algorithms and key sizes.
+	if !c.FIPS {
+		return nil
+	}
+
 	switch cert := key.(type) {
 	case *ssh.Certificate:
 		err := validateAlgorithm(cert.Key)

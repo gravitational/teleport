@@ -144,6 +144,10 @@ type Server struct {
 	// useTunnel is used to inform other components that this server is
 	// requesting connections to it come over a reverse tunnel.
 	useTunnel bool
+
+	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// configuration.
+	fips bool
 }
 
 // GetClock returns server clock implementation
@@ -408,6 +412,13 @@ func SetUseTunnel(useTunnel bool) ServerOption {
 	}
 }
 
+func SetFIPS(fips bool) ServerOption {
+	return func(s *Server) error {
+		s.fips = fips
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -485,6 +496,7 @@ func New(addr utils.NetAddr,
 		Component:   component,
 		AuditLog:    s.alog,
 		AccessPoint: s.authService,
+		FIPS:        s.fips,
 	}
 
 	// common term handlers
@@ -500,7 +512,9 @@ func New(addr utils.NetAddr,
 		sshutils.SetRequestHandler(s),
 		sshutils.SetCiphers(s.ciphers),
 		sshutils.SetKEXAlgorithms(s.kexAlgorithms),
-		sshutils.SetMACAlgorithms(s.macAlgorithms))
+		sshutils.SetMACAlgorithms(s.macAlgorithms),
+		sshutils.SetFIPS(s.fips),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
