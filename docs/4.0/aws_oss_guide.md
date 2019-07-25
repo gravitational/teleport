@@ -1,8 +1,9 @@
 # Running Teleport on AWS
 
 We've created this guide to give customers a high level overview of how to use Teleport
-on Amazon Web Services (AWS). This guide starts with a high level introduction and 
-with a deeper dive into how to setup and run Teleport in production. 
+on Amazon Web Services (AWS). This guide provides a high level introduction leading to  
+a deep dive into how to setup and run Teleport in production. 
+
 We have split this guide into:
 
 - [Teleport on AWS FAQ](#teleport-on-aws-faq)
@@ -18,10 +19,10 @@ to help test, debug and troubleshoot a problem box. For EC2, AWS recommends crea
 ['Key Pairs'](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html) 
 and has a range of [other tips for securing EC2 instances](https://aws.amazon.com/articles/tips-for-securing-your-ec2-instance/).
 
-There are a number of limitations
+This approach has a number of limitations:
 
-1. As your organization grows, keeping track of end users public/private keys becomes
-   an administrative nightmare. 
+1. As your organization grows, keeping track of end users' public/private keys becomes 
+  an administrative nightmare.
 2. Using SSH public/private keys has a number of limitations. Read why [SSH Certificates are better](https://gravitational.com/blog/ssh-key-management/). 
 3. Once a machine has been bootstrapped with SSH Keys, there isn't an easy way to 
   add new keys and delegate access. 
@@ -64,9 +65,9 @@ To run Teleport in a HA configuration we recommend using m4.large instances. It'
 ### DynamoDB
 DynamoDB is a key-value and document database that delivers single-digit millisecond 
 performance at any scale. For large clusters you can provision usage but for smaller 
-deployments you can leverage DynamoDBs auto-scale. 
+deployments you can leverage DynamoDB's autoscaling. 
 
-Teleport 4.0 leverages [DynamoDB streaming feature](
+Teleport 4.0 leverages [DynamoDB's streaming feature](
 https://github.com/gravitational/teleport/issues/2430). When turning this on, you'll need
 to specify `New Image` from the streaming options. DynamoDB back-end supports two 
 types of Teleport data:
@@ -78,7 +79,7 @@ types of Teleport data:
 ### S3 
 Amazon Simple Storage Service (Amazon S3) is an object storage service that offers
 industry-leading scalability, data availability, security, and performance. In this 
-Teleport setup, S3 will provide storage for recorded sessions
+Teleport setup, S3 will provide storage for recorded sessions.
 
  
 We recommend using Amazon S3 Standard. 
@@ -89,7 +90,7 @@ We recommend using Amazon S3 Standard.
 
 ### Route53
 Route53 is a highly available Domain Name System (DNS) provided by AWS. It'll be 
-needed to setup a URL for the proxy - we recommend using a subdomain e.g. `teleport.acmeinc.com`
+needed to setup a URL for the proxy - we recommend using a subdomain.
 
 e.g. `teleport.acmeinc.com`
 
@@ -99,7 +100,7 @@ using a Network Load Balancer.  Network Load Balancers provides TLS for the Tele
 proxy and provides the TCP connections needed for Teleport proxy SSH connections. 
 
 ### IAM
-IAM is the recommend tool for creating service access. This guide will follow the 
+IAM is the recommended tool for creating service access. This guide will follow the 
 best practice of principle of least privilege (PoLP). 
 
 ### ACM 
@@ -115,8 +116,8 @@ enterprise licence.
 
 
 ## Setting up a HA Teleport Cluster
-Teleport config based setup offers a wide range of customization for customers. 
-This guide offers a range of setup options for AWS. If you have a very large accounts,
+Teleport's config based setup offers a wide range of customization for customers. 
+This guide offers a range of setup options for AWS. If you have a very large account,
 multiple accounts, or over 10k users we would recommend getting in touch. We are
 more than happy to help you architect, setup and deploy Teleport into your environment.
 
@@ -126,7 +127,6 @@ We have these options for you.
 - [Deploying with CloudFormation](#deploying-with-cloudformation)
 - [Deploying with Terraform HA + Monitoring](#deploying-with-terraform)
 
-Some of these providers will provision 
 
 ### Single OSS Teleport AMIs (Manual / GUI Setup)
 This guide provides instructions on deploying Teleport using AMIs, the below instructions
@@ -190,7 +190,7 @@ Screenshot of where to put it in via AWS console.
     on a different hostname. 
 
 The CA certificates for the server will be generated to have `TELEPORT_EXTERNAL_HOSTNAME` as a CN,
-assuming it's set when the server starts
+assuming it's set when the server starts.
 
 #### Step 3: Create the Load Balancers
 2.  When using ACM you must use an [application load balancer](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LoadBalancers:sort=loadBalancerName) (ALB) as this will terminate SSL. 
@@ -282,7 +282,7 @@ We are currently working on an updated CloudFormation guide but you can start wi
 we expect customers to deploy within an already existing VPC. 
 
 ## Deploying with Terraform
-To deploy Teleport in AWS please look at our [AWS Guide](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami).
+To deploy Teleport in AWS using Terraform look at our [AWS Guide](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami).
 
 
 ### Installing Teleport to EC2 Server
@@ -308,7 +308,7 @@ To upgrade to a newer version of Teleport:
 - Either restart the instance, or log in via SSH and run `sudo systemctl restart teleport.service`
 
 # Running Teleport Enterprise on AWS
-Most of this guide has been designed for OSS Teleport. Most of this guide applies to Teleport Enterprise
+Most of this guide has been designed for OSS Teleport. Most of this guide also applies to Teleport Enterprise
 with a few extra notes around adding a license and getting the correct binary. If you would
 like help setting up Teleport Enterprise on AWS, please mail us at info@gravitational.com 
 
@@ -316,7 +316,7 @@ like help setting up Teleport Enterprise on AWS, please mail us at info@gravitat
 
 ### Generating labels from AWS tags
 Labels can be a useful addition to the Teleport UI.  Simply add some or all of the 
-below to Teleport Nodes `etc/teleport.yaml` to have helpful labels in the Teleport UI. 
+below to Teleport Nodes in `etc/teleport.yaml` to have helpful labels in the Teleport UI. 
 
 ```yaml
     commands:
