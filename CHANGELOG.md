@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.3
+
+* Reduced keep-alive interval to improve interoperability with popular load balancers. [#2845](https://github.com/gravitational/teleport/issues/2845)
+* Fixed issue where non-RSA certificates were rejected when not in FIPS mode. [#2805](https://github.com/gravitational/teleport/pull/2879)
+
 ## 4.0.2
 
 This release of Teleport contains multiple bug fixes.
