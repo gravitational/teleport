@@ -104,6 +104,10 @@ type UserCertParams struct {
 	Roles []string
 	// CertificateFormat is the format of the SSH certificate.
 	CertificateFormat string
+	// RouteToCluster specifies the target cluster
+	// if present in the certificate, will be used
+	// to route the requests to
+	RouteToCluster string
 }
 
 // CertRoles defines certificate roles

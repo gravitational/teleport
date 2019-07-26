@@ -44,12 +44,8 @@ import (
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
+	proxySubsysConfig
 	log          *logrus.Entry
-	srv          *Server
-	host         string
-	port         string
-	namespace    string
-	clusterName  string
 	closeC       chan struct{}
 	error        error
 	closeOnce    sync.Once
@@ -109,26 +105,75 @@ func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*pro
 			return nil, trace.BadParameter(paramMessage)
 		}
 	}
-	if clusterName != "" && srv.proxyTun != nil {
-		_, err := srv.proxyTun.GetSite(clusterName)
+
+	return newProxySubsys(proxySubsysConfig{
+		namespace:   namespace,
+		srv:         srv,
+		ctx:         ctx,
+		host:        targetHost,
+		port:        targetPort,
+		clusterName: clusterName,
+	})
+}
+
+// proxySubsysConfig is a proxy subsystem configuration
+type proxySubsysConfig struct {
+	namespace   string
+	host        string
+	port        string
+	clusterName string
+	srv         *Server
+	ctx         *srv.ServerContext
+}
+
+func (p *proxySubsysConfig) String() string {
+	return fmt.Sprintf("host=%v, port=%v, cluster=%v", p.host, p.port, p.clusterName)
+}
+
+// CheckAndSetDefaults checks and sets defaults
+func (p *proxySubsysConfig) CheckAndSetDefaults() error {
+	if p.namespace == "" {
+		p.namespace = defaults.Namespace
+	}
+	if p.srv == nil {
+		return trace.BadParameter("missing parameter server")
+	}
+	if p.ctx == nil {
+		return trace.BadParameter("missing parameter context")
+	}
+	if p.clusterName == "" && p.ctx.Identity.RouteToCluster != "" {
+		log.Debugf("Proxy subsystem: routing user %q to cluster %q based on the route to cluster extension.",
+			p.ctx.Identity.TeleportUser, p.ctx.Identity.RouteToCluster,
+		)
+		p.clusterName = p.ctx.Identity.RouteToCluster
+	}
+	if p.clusterName != "" && p.srv.proxyTun != nil {
+		_, err := p.srv.proxyTun.GetSite(p.clusterName)
 		if err != nil {
-			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q in %q", clusterName, request)
+			return trace.BadParameter("invalid format for proxy request: unknown cluster %q", p.clusterName)
 		}
 	}
 
+	return nil
+}
+
+// newProxySubsys is a helper that creates a proxy subsystem from
+// a port forwarding request, used to implement ProxyJump feature in proxy
+// and reuse the code
+func newProxySubsys(cfg proxySubsysConfig) (*proxySubsys, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("newProxySubsys(%v).", cfg)
 	return &proxySubsys{
+		proxySubsysConfig: cfg,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component:       teleport.ComponentSubsystemProxy,
 			trace.ComponentFields: map[string]string{},
 		}),
-		namespace:    namespace,
-		srv:          srv,
-		host:         targetHost,
-		port:         targetPort,
-		clusterName:  clusterName,
 		closeC:       make(chan struct{}),
-		agent:        ctx.GetAgent(),
-		agentChannel: ctx.GetAgentChannel(),
+		agent:        cfg.ctx.GetAgent(),
+		agentChannel: cfg.ctx.GetAgentChannel(),
 	}, nil
 }
 
@@ -181,8 +226,8 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 		if site == nil {
 			sites := tunnel.GetSites()
 			if len(sites) == 0 {
-				t.log.Errorf("Not connected to any remote clusters")
-				return trace.Errorf("no connected sites")
+				t.log.Error("Not connected to any remote clusters")
+				return trace.NotFound("no connected sites")
 			}
 			site = sites[0]
 			t.clusterName = site.GetName()

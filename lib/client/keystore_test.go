@@ -227,11 +227,11 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	c.Assert(err, check.IsNil)
 
 	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey: CAPriv,
-		PublicUserKey:       pub,
-		Username:            username,
-		AllowedLogins:       allowedLogins,
-		TTL:                 ttl,
+		PrivateCASigningKey:   CAPriv,
+		PublicUserKey:         pub,
+		Username:              username,
+		AllowedLogins:         allowedLogins,
+		TTL:                   ttl,
 		PermitAgentForwarding: false,
 		PermitPortForwarding:  true,
 	})
@@ -244,9 +244,31 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	}
 }
 
-// TestCheckKey make sure Teleport clients don't load invalid user
-// certificates. The main check is the certificate algorithms.
+// TestCheckKey make sure Teleport clients can load non-RSA algorithms in
+// normal operating mode.
 func (s *KeyStoreTestSuite) TestCheckKey(c *check.C) {
+	key := s.makeSignedKey(c, false)
+
+	// Swap out the key with a ECDSA SSH key.
+	ellipticCertificate, _, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
+	c.Assert(err, check.IsNil)
+	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
+
+	err = s.store.AddKey("host.a", "bob", key)
+	c.Assert(err, check.IsNil)
+
+	_, err = s.store.GetKey("host.a", "bob")
+	c.Assert(err, check.IsNil)
+}
+
+// TestCheckKey make sure Teleport clients don't load invalid
+// certificates while in FIPS mode.
+func (s *KeyStoreTestSuite) TestCheckKeyFIPS(c *check.C) {
+	// This test only runs in FIPS mode.
+	if !isFIPS() {
+		return
+	}
+
 	key := s.makeSignedKey(c, false)
 
 	// Swap out the key with a ECDSA SSH key.

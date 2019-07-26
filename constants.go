@@ -361,6 +361,9 @@ const (
 	CertExtensionPermitPortForwarding = "permit-port-forwarding"
 	// CertExtensionTeleportRoles is used to propagate teleport roles
 	CertExtensionTeleportRoles = "teleport-roles"
+	// CertExtensionTeleportRouteToCluster is used to encode
+	// the target cluster to route to in the certificate
+	CertExtensionTeleportRouteToCluster = "teleport-route-to-cluster"
 )
 
 const (

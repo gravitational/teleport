@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -144,6 +145,10 @@ type Config struct {
 	// HostPort is a remote host port to connect to. This is used for **explicit**
 	// port setting via -p flag, otherwise '0' is passed which means "use server default"
 	HostPort int
+
+	// JumpHosts if specified are interpreted in a similar way
+	// as -J flag in ssh - used to dial through
+	JumpHosts []utils.JumpHost
 
 	// WebProxyAddr is the host:port the web proxy can be accessed at.
 	WebProxyAddr string
@@ -707,6 +712,9 @@ type ShellCreatedCallback func(s *ssh.Session, c *ssh.Client, terminal io.ReadWr
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
+	if len(c.JumpHosts) > 1 {
+		return nil, trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
+	}
 	// validate configuration
 	if c.Username == "" {
 		c.Username, err = Username()
@@ -1387,6 +1395,10 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 	if tc.DefaultPrincipal != "" {
 		proxyPrincipal = tc.DefaultPrincipal
 	}
+	if len(tc.JumpHosts) > 1 && tc.JumpHosts[0].Username != "" {
+		log.Debugf("Setting proxy login to jump host's parameter user %q", tc.JumpHosts[0].Username)
+		proxyPrincipal = tc.JumpHosts[0].Username
+	}
 	// see if we already have a signed key in the cache, we'll use that instead
 	if !tc.Config.SkipLocalAuth && tc.LocalAgent() != nil {
 		signers, err := tc.LocalAgent().Signers()
@@ -1448,12 +1460,18 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 
+	sshProxyAddr := tc.Config.SSHProxyAddr
+	if len(tc.JumpHosts) > 0 {
+		log.Debugf("Overriding SSH proxy to JumpHosts's address %q", tc.JumpHosts[0].Addr.String())
+		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
+	}
+
 	// helper to create a ProxyClient struct
 	makeProxyClient := func(sshClient *ssh.Client, m ssh.AuthMethod) *ProxyClient {
 		return &ProxyClient{
 			teleportClient:  tc,
 			Client:          sshClient,
-			proxyAddress:    tc.Config.SSHProxyAddr,
+			proxyAddress:    sshProxyAddr,
 			proxyPrincipal:  proxyPrincipal,
 			hostKeyCallback: sshConfig.HostKeyCallback,
 			authMethod:      m,
@@ -1462,14 +1480,14 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			clientAddr:      tc.ClientAddr,
 		}
 	}
-	successMsg := fmt.Sprintf("Successful auth with proxy %v", tc.Config.SSHProxyAddr)
+	successMsg := fmt.Sprintf("Successful auth with proxy %v", sshProxyAddr)
 	// try to authenticate using every non interactive auth method we have:
 	for i, m := range tc.authMethods() {
-		log.Infof("Connecting proxy=%v login='%v' method=%d", tc.Config.SSHProxyAddr, sshConfig.User, i)
+		log.Infof("Connecting proxy=%v login='%v' method=%d", sshProxyAddr, sshConfig.User, i)
 		var sshClient *ssh.Client
 
 		sshConfig.Auth = []ssh.AuthMethod{m}
-		sshClient, err = ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
+		sshClient, err = ssh.Dial("tcp", sshProxyAddr, sshConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2144,4 +2162,10 @@ func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
 // "StrictHostKeyChecking yes".
 func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey) error {
 	return nil
+}
+
+// isFIPS returns if the binary was build with BoringCrypto, which implies
+// FedRAMP/FIPS 140-2 mode for tsh.
+func isFIPS() bool {
+	return modules.GetModules().IsBoringBinary()
 }

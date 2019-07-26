@@ -95,6 +95,9 @@ type CLIConf struct {
 	DynamicForwardedPorts []string
 	// ForwardAgent agent to target node. Equivalent of -A for OpenSSH.
 	ForwardAgent bool
+	// ProxyJump is an optional -J flag pointing to the list of jumphosts,
+	// it is an equivalent of --proxy flag in tsh interpretation
+	ProxyJump string
 	// --local flag for ssh
 	LocalExec bool
 	// SiteName specifies remote site go login to
@@ -213,6 +216,7 @@ func Run(args []string, underTest bool) {
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
+	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
@@ -841,6 +845,15 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
+
+	// ProxyJump is an alias of Proxy flag
+	if cf.ProxyJump != "" {
+		hosts, err := utils.ParseProxyJump(cf.ProxyJump)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		c.JumpHosts = hosts
+	}
 
 	// Look if a user identity was given via -i flag
 	if cf.IdentityFileIn != "" {
