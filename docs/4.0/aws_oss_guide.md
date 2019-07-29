@@ -140,7 +140,7 @@ this as a starting point, but then look at the more advanced sections.
 Prerequisites setup.
 
 1. Generate and issue a certificate in [ACM](https://console.aws.amazon.com/acm/home?#) 
-for `teleport.acmeinc.com`, use email or  DNS validation as appropriate and make sure 
+for `teleport.acmeinc.com`, use email or DNS validation as appropriate and make sure 
 it’s approved successfully.
 
 #### Step 1: Subscribe to Teleport Community Edition 
@@ -244,7 +244,7 @@ Run "sudo yum update" to apply all updates.
 2. Apply Updates `sudo yum update`
 3. Create a new admin user `sudo tctl users add teleport-admin ec2-user`
 ```xml
-[ec2-user@ip-172-30-0-111 ~]$ sudo tctl users add teleport-admin ec2_user
+[ec2-user@ip-172-30-0-111 ~]$ sudo tctl users add teleport-admin ec2-user
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
 https://teleport.acme.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
 
@@ -302,9 +302,10 @@ We are working on a step by step guide for working with EKS. This [blog post](ht
 
 To upgrade to a newer version of Teleport:
 
-- Back up `/etc/teleport.yaml` and the contents of `/var/lib/teleport`
+- Back up `/etc/teleport.yaml`, `/etc/teleport.d/` and the contents of `/var/lib/teleport`
 - Launch a new instance with the correct AMI for a newer version of Teleport
-- Copy `/etc/teleport.yaml` and `/var/lib/teleport` to the new instance, overwriting anything that already exists
+- Copy `/etc/teleport.yaml`, `/etc/teleport.d/` and `/var/lib/teleport` to the new instance, overwriting anything that already exists
+- Copy  and its contents should also be backed up and copied over to the new instance. 
 - Either restart the instance, or log in via SSH and run `sudo systemctl restart teleport.service`
 
 # Running Teleport Enterprise on AWS
