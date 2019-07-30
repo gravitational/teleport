@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// package multiplexer implements SSH and TLS multiplexing
+// Package multiplexer implements SSH and TLS multiplexing
 // on the same listener
 //
 // mux, _ := multiplexer.New(Config{Listener: listener})
-// mux.SSH() // returns listener getting SSH connections
-// mux.TLS() // returns listener getting TLS connections
+// mux.SSH()  // returns listener getting SSH connections
+// mux.TLS()  // returns listener getting TLS connections
+// mux.HTTP() // returns listener getting HTTP connections
 //
 package multiplexer
 
@@ -91,13 +92,14 @@ func New(cfg Config) (*Mux, error) {
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.Component("mx", cfg.ID),
 		}),
-		Config:      cfg,
-		context:     ctx,
-		cancel:      cancel,
-		sshListener: newListener(ctx, cfg.Listener.Addr()),
-		tlsListener: newListener(ctx, cfg.Listener.Addr()),
-		waitContext: waitContext,
-		waitCancel:  waitCancel,
+		Config:       cfg,
+		context:      ctx,
+		cancel:       cancel,
+		sshListener:  newListener(ctx, cfg.Listener.Addr()),
+		tlsListener:  newListener(ctx, cfg.Listener.Addr()),
+		httpListener: newListener(ctx, cfg.Listener.Addr()),
+		waitContext:  waitContext,
+		waitCancel:   waitCancel,
 	}, nil
 }
 
@@ -109,6 +111,7 @@ type Mux struct {
 	listenerClosed bool
 	sshListener    *Listener
 	tlsListener    *Listener
+	httpListener   *Listener
 	context        context.Context
 	cancel         context.CancelFunc
 	waitContext    context.Context
@@ -123,6 +126,11 @@ func (m *Mux) SSH() net.Listener {
 // TLS returns listener that receives TLS connections
 func (m *Mux) TLS() net.Listener {
 	return m.tlsListener
+}
+
+// HTTP returns listener that receives HTTP connections
+func (m *Mux) HTTP() net.Listener {
+	return m.httpListener
 }
 
 func (m *Mux) isClosed() bool {
@@ -235,6 +243,14 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 			connWrapper.Close()
 			return
 		}
+	case ProtoHTTP:
+		select {
+		case m.httpListener.connC <- connWrapper:
+		case <-m.context.Done():
+			connWrapper.Close()
+			return
+		}
+		return
 	default:
 		// should not get here, handle this just in case
 		connWrapper.Close()
@@ -275,7 +291,7 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 				return nil, trace.Wrap(err)
 			}
 			// repeat the cycle to detect the protocol
-		case ProtoTLS, ProtoSSH:
+		case ProtoTLS, ProtoSSH, ProtoHTTP:
 			return &Conn{
 				protocol:  proto,
 				Conn:      conn,
@@ -297,11 +313,14 @@ const (
 	ProtoSSH
 	// ProtoProxy is a HAProxy proxy line protocol
 	ProtoProxy
+	// ProtoHTTP is HTTP protocol
+	ProtoHTTP
 )
 
 var (
 	proxyPrefix = []byte{'P', 'R', 'O', 'X', 'Y'}
 	sshPrefix   = []byte{'S', 'S', 'H'}
+	httpPrefix  = []byte{'G', 'E', 'T'}
 	tlsPrefix   = []byte{0x16}
 )
 
@@ -314,6 +333,8 @@ func detectProto(in []byte) (int, error) {
 		return ProtoSSH, nil
 	case bytes.HasPrefix(in, tlsPrefix):
 		return ProtoTLS, nil
+	case bytes.HasPrefix(in, httpPrefix):
+		return ProtoHTTP, nil
 	default:
 		return ProtoUnknown, trace.BadParameter("failed to detect protocol by prefix: %v", in)
 	}

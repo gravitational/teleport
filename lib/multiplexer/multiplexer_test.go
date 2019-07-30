@@ -281,6 +281,55 @@ func (s *MuxSuite) TestTimeout(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
+// TestMultiplexerHealthcheck makes sure that the multiplexer replies with a
+// healthcheck response to an HTTP GET request
+func (s *MuxSuite) TestMultiplexerHealthcheck(c *check.C) {
+	ports, err := utils.GetFreeTCPPorts(1)
+	c.Assert(err, check.IsNil)
+
+	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", ports[0]))
+	c.Assert(err, check.IsNil)
+
+	mux, err := New(Config{
+		Listener:            listener,
+		EnableProxyProtocol: true,
+	})
+	c.Assert(err, check.IsNil)
+	go mux.Serve()
+	defer mux.Close()
+
+	conn, err := net.Dial("tcp", listener.Addr().String())
+	c.Assert(err, check.IsNil)
+	defer conn.Close()
+
+	healthcheckTestServer := &httptest.Server{
+		Listener: mux.HTTP(),
+		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, "{\"status\":\"ok\"}")
+		}),
+		},
+	}
+	healthcheckTestServer.Start()
+	defer healthcheckTestServer.Close()
+
+	// make a plain HTTP request
+	client := testHTTPClient(healthcheckTestServer)
+	response, err := client.Get(healthcheckTestServer.URL)
+	c.Assert(err, check.IsNil)
+	bytes, err := ioutil.ReadAll(response.Body)
+	c.Assert(err, check.IsNil)
+	c.Assert(string(bytes), check.Equals, "{\"status\":\"ok\"}")
+
+	// Close mux, new requests should fail
+	mux.Close()
+	mux.Wait()
+
+	// use new client to use new connection pool
+	client = testHTTPClient(healthcheckTestServer)
+	_, err = client.Get(healthcheckTestServer.URL)
+	c.Assert(err, check.NotNil)
+}
+
 // TestUnknownProtocol make sure that multiplexer closes connection
 // with unknown protocol
 func (s *MuxSuite) TestUnknownProtocol(c *check.C) {
@@ -302,8 +351,8 @@ func (s *MuxSuite) TestUnknownProtocol(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 
-	// try plain HTTP
-	_, err = fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+	// try SMTP
+	_, err = fmt.Fprintf(conn, "HELO gravitational.com\r\n")
 	c.Assert(err, check.IsNil)
 
 	// connection should be closed
@@ -444,12 +493,18 @@ func clientConfig(srv *httptest.Server) *tls.Config {
 	}
 }
 
+// testClient is a test HTTP client set up for TLS
 func testClient(srv *httptest.Server) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: clientConfig(srv),
 		},
 	}
+}
+
+// testHTTPClient is a test HTTP test client with no TLS
+func testHTTPClient(srv *httptest.Server) *http.Client {
+	return &http.Client{}
 }
 
 func pass(need string) sshutils.PasswordFunc {

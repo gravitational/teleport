@@ -1812,6 +1812,7 @@ type proxyListeners struct {
 	web           net.Listener
 	reverseTunnel net.Listener
 	kube          net.Listener
+	healthcheck   net.Listener
 }
 
 func (l *proxyListeners) Close() {
@@ -1851,7 +1852,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		return &listeners, nil
 	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr) && !cfg.Proxy.DisableTLS:
 		process.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
-		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel", "web"), cfg.Proxy.WebAddr.Addr)
+		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel", "web", "healthcheck"), cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1860,7 +1861,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          cfg.Proxy.DisableWebService,
 			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
-			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", "healthcheck", process.id),
 		})
 		if err != nil {
 			listener.Close()
@@ -1868,11 +1869,12 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		}
 		listeners.web = listeners.mux.TLS()
 		listeners.reverseTunnel = listeners.mux.SSH()
+		listeners.healthcheck = listeners.mux.HTTP()
 		go listeners.mux.Serve()
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
 		process.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
-		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "web"), cfg.Proxy.WebAddr.Addr)
+		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "web", "healthcheck"), cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1881,7 +1883,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          false,
 			DisableSSH:          true,
-			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
+			ID:                  teleport.Component(teleport.ComponentProxy, "web", "healthcheck", process.id),
 		})
 		if err != nil {
 			listener.Close()
@@ -1894,10 +1896,11 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			listeners.Close()
 			return nil, trace.Wrap(err)
 		}
+		listeners.healthcheck = listeners.mux.HTTP()
 		go listeners.mux.Serve()
 		return &listeners, nil
 	default:
-		process.Debugf("Proxy reverse tunnel are listening on the separate ports.")
+		process.Debugf("Proxy and reverse tunnel are listening on separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel"), cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
@@ -1907,6 +1910,11 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		}
 		if !cfg.Proxy.DisableWebService {
 			listeners.web, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "web"), cfg.Proxy.WebAddr.Addr)
+			if err != nil {
+				listeners.Close()
+				return nil, trace.Wrap(err)
+			}
+			listeners.healthcheck, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "healthcheck"), cfg.Proxy.HealthcheckListenAddr.Addr)
 			if err != nil {
 				listeners.Close()
 				return nil, trace.Wrap(err)
@@ -1985,7 +1993,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.RegisterCriticalFunc("proxy.reveresetunnel.server", func() error {
+		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Reverse tunnel service is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			log.Infof("Starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
@@ -2067,6 +2075,26 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	} else {
 		log.Infof("Web UI is disabled.")
+	}
+
+	// Register healthcheck HTTP server
+	var healthcheckServer *http.Server
+	if !process.Config.Proxy.DisableWebService {
+		healthcheckServer = &http.Server{
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
+			}),
+			ReadHeaderTimeout: defaults.DefaultDialTimeout,
+		}
+		process.RegisterFunc("healthcheck.service", func() error {
+			log.Infof("Starting healthcheck service on %v.", cfg.Proxy.HealthcheckListenAddr.Addr)
+			defer healthcheckServer.Close()
+			err := healthcheckServer.Serve(listeners.healthcheck)
+			if err != nil && err != http.ErrServerClosed {
+				log.Warningf("Health check server exited with error: %v.", err)
+			}
+			return nil
+		})
 	}
 
 	// Register SSH proxy server - SSH jumphost proxy server
@@ -2204,6 +2232,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if webHandler != nil {
 				warnOnErr(webHandler.Close())
 			}
+			if healthcheckServer != nil {
+				warnOnErr(healthcheckServer.Close())
+			}
 			warnOnErr(sshProxy.Close())
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Close())
@@ -2217,6 +2248,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			warnOnErr(sshProxy.Shutdown(ctx))
 			if webServer != nil {
 				warnOnErr(webServer.Shutdown(ctx))
+			}
+			if healthcheckServer != nil {
+				warnOnErr(healthcheckServer.Shutdown(ctx))
 			}
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Shutdown(ctx))
