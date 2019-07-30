@@ -16,8 +16,9 @@ limitations under the License.
 package defaults
 
 import (
-	"github.com/gravitational/teleport/lib/utils"
 	"testing"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMakeAddr(t *testing.T) {
@@ -37,7 +38,7 @@ func TestDefaultAddresses(t *testing.T) {
 		"tcp://0.0.0.0:3023":   ProxyListenAddr(),
 		"tcp://0.0.0.0:3080":   ProxyWebListenAddr(),
 		"tcp://0.0.0.0:3022":   SSHServerListenAddr(),
-		"tcp://0.0.0.0:3024":   ReverseTunnellListenAddr(),
+		"tcp://0.0.0.0:3024":   ReverseTunnelListenAddr(),
 	}
 	for expected, actual := range table {
 		if actual == nil {
