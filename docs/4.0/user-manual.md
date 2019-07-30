@@ -412,22 +412,31 @@ To securely copy files to and from cluster nodes, use the `tsh scp` command. It 
 traditional `scp` as much as possible:
 
 ```bash
-$ tsh scp --help
-
 usage: tsh scp [<flags>] <from, to>...
+
 Secure file copy
 
 Flags:
-      --user       SSH proxy user [alice]
-      --proxy      SSH proxy host or IP address
-      --ttl        Minutes to live for a SSH session
-      --insecure   Do not verify server certificate and host name. Use only in test environments
-  -P, --debug      Verbose logging to stdout
-  -d, --debug      Verbose logging to stdout
-  -r, --recursive  Recursive copy of subdirectories
+  -l, --login               Remote host login
+      --proxy               SSH proxy address
+      --user                SSH proxy user [admin]
+      --ttl                 Minutes to live for a SSH session
+  -i, --identity            Identity file
+      --cert-format         SSH certificate format
+      --insecure            Do not verify server's certificate and host name. Use only in test environments
+      --auth                Specify the type of authentication connector to use.
+      --skip-version-check  Skip version checking between server and client.
+  -d, --debug               Verbose logging to stdout
+  -J, --jumphost            SSH jumphost
+      --cluster             Specify the cluster to connect
+  -r, --recursive           Recursive copy of subdirectories
+  -P, --port                Port to connect to on the remote host
+  -q, --quiet               Quiet mode
 
 Args:
-  <from, to>       Source and the destination
+  <from, to>  Source and destination to copy
+
+Aliases:
 ```
 
 Example:
