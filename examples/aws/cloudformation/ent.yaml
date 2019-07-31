@@ -232,7 +232,8 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Count: 2
-        Timeout: PT10M
+        # TODO(gus): set this back to 10 minutes after debugging
+        Timeout: PT60M
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MaxBatchSize: 2
@@ -405,7 +406,8 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Count: 2
-        Timeout: PT20M
+        # TODO(gus): set this back to 20 minutes after debugging
+        Timeout: PT60M
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MaxBatchSize: 1
@@ -508,6 +510,12 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
+          # Allow auth server to update SSM instance status
+          -
+            Effect: "Allow"
+            Resource: !Join ["", ["arn:aws:ssm:"], !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":instance/*" ]
+            Action:
+            - "ssm:UpdateInstanceInformation"
           # Allow auth server to publish join tokens to SSM parameter store
           -
             Effect: "Allow"
@@ -607,6 +615,12 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
+          # Allow proxy to update SSM instance status
+          -
+            Effect: "Allow"
+            Resource: !Join ["", ["arn:aws:ssm:"], !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":instance/*" ]
+            Action:
+            - "ssm:UpdateInstanceInformation"
           # Allow proxy to read tokens and CA from SSM parameter store
           -
             Effect: "Allow"
@@ -619,7 +633,7 @@ Resources:
           # Allow proxy to read tokens and CA from SSM parameter store
           -
             Effect: "Allow"
-            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/ca"]]
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/ca-pin-hash"]]
             Action:
             - "ssm:GetParameters"
             - "ssm:GetParametersByPath"
@@ -665,11 +679,17 @@ Resources:
   NodePolicies:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: !Join ["-", [!Ref ProxyRole, "ssm"]]
+      PolicyName: !Join ["-", [!Ref NodeRole, "ssm"]]
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          # Allow proxy to read tokens and CA from SSM parameter store
+          # Allow node to update SSM instance status
+          -
+            Effect: "Allow"
+            Resource: !Join ["", ["arn:aws:ssm:"], !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":instance/*" ]
+            Action:
+            - "ssm:UpdateInstanceInformation"
+          # Allow node to read tokens and CA from SSM parameter store
           -
             Effect: "Allow"
             Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/tokens/node"]]
@@ -678,10 +698,10 @@ Resources:
             - "ssm:GetParametersByPath"
             - "ssm:GetParameter"
 
-          # Allow proxy to read tokens and CA from SSM parameter store
+          # Allow node to read tokens and CA from SSM parameter store
           -
             Effect: "Allow"
-            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/ca"]]
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/ca-pin-hash"]]
             Action:
             - "ssm:GetParameters"
             - "ssm:GetParametersByPath"
