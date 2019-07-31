@@ -518,7 +518,7 @@ Resources:
           # Allow auth server to update SSM instance status
           -
             Effect: "Allow"
-            Resource: !Join ["", ["arn:aws:ssm:"], !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":instance/*" ]
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":instance/*" ]]
             Action:
             - "ssm:UpdateInstanceInformation"
           # Allow auth server to publish join tokens to SSM parameter store
@@ -623,7 +623,7 @@ Resources:
           # Allow proxy to update SSM instance status
           -
             Effect: "Allow"
-            Resource: !Join ["", ["arn:aws:ssm:"], !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":instance/*" ]
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":instance/*" ]]
             Action:
             - "ssm:UpdateInstanceInformation"
           # Allow proxy to read tokens and CA from SSM parameter store
@@ -691,7 +691,7 @@ Resources:
           # Allow node to update SSM instance status
           -
             Effect: "Allow"
-            Resource: !Join ["", ["arn:aws:ssm:"], !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":instance/*" ]
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":instance/*" ]]
             Action:
             - "ssm:UpdateInstanceInformation"
           # Allow node to read tokens and CA from SSM parameter store
