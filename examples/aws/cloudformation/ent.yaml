@@ -192,8 +192,8 @@ Resources:
             TELEPORT_S3_BUCKET=${LocalBucketName}
             TELEPORT_ROLE=auth
             TELEPORT_LOCKS_TABLE_NAME=${LocalLocksTableName}
-            TELEPORT_TABLE_NAME=${LocalMainTableName}
-            TELEPORT_EVENTS_TABLE_NAME=${LocalEventsTableName}
+            TELEPORT_DYNAMO_TABLE_NAME=${LocalMainTableName}
+            TELEPORT_DYNAMO_EVENTS_TABLE_NAME=${LocalEventsTableName}
             TELEPORT_DOMAIN_ADMIN_EMAIL=${DomainAdminEmail}
             TELEPORT_SSM_KEY_ARN=${LocalKeyARN}
             EOF
@@ -534,6 +534,13 @@ Resources:
             Action:
             - "dynamodb:*"
 
+          # Allow auth server to use streams on main DynamoDB table
+          -
+            Effect: "Allow"
+            Resource: !Join ["", [!GetAtt MainTable.Arn, "/stream/*"]]
+            Action:
+            - "dynamodb:*"
+
           # Allow auth server to control audit dynamo db table
           # and it's secondary indexes
           -
@@ -794,6 +801,7 @@ Resources:
       TimeToLiveSpecification: {AttributeName: "Expires", Enabled: "true"}
       # Server side encrypt all the data for this table
       SSESpecification: {SSEEnabled: true}
+      StreamViewType: NEW_IMAGE
 
   # LocksTable is a dynamodb table that is 
   # used as a distributed lock between auth servers
