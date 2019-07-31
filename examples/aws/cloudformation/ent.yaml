@@ -801,7 +801,8 @@ Resources:
       TimeToLiveSpecification: {AttributeName: "Expires", Enabled: "true"}
       # Server side encrypt all the data for this table
       SSESpecification: {SSEEnabled: true}
-      StreamViewType: NEW_IMAGE
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
 
   # LocksTable is a dynamodb table that is 
   # used as a distributed lock between auth servers
