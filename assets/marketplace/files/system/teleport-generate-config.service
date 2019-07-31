@@ -1,6 +1,6 @@
 [Unit]
 Description=Teleport Config Generation Service
-After=network.target cloud-final.service
+After=network.target cloud-init.service
 Before=teleport.service teleport-acm.service
 
 [Service]
