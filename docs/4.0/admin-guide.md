@@ -138,6 +138,9 @@ command:
 ```bsh
 $ teleport start --help
 usage: teleport start [<flags>]
+
+Starts the Teleport service.
+
 Flags:
   -d, --debug            Enable verbose logging to stderr
       --insecure-no-tls  Disable TLS for the web socket
@@ -146,11 +149,13 @@ Flags:
       --advertise-ip     IP to advertise to clients if running behind NAT
   -l, --listen-ip        IP address to bind to [0.0.0.0]
       --auth-server      Address of the auth server [127.0.0.1:3025]
-      --token            Invitation token to join a cluster [none]
+      --token            Invitation token to register with an auth server [none]
+      --ca-pin           CA pin to validate the Auth Server
       --nodename         Name of this node, defaults to hostname
   -c, --config           Path to a configuration file [/etc/teleport.yaml]
       --labels           List of labels for this node
-      --permit-user-env  Enables reading of ~/.tsh/environment when creating a session
+      --insecure         Insecure mode disables certificate validation
+      --fips             Start Teleport in FedRAMP/FIPS 140-2 mode.
 ```
 
 ### Configuration Flags

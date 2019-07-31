@@ -16,19 +16,20 @@ the CLI reference.
 ```bash
 Usage: tsh [<flags>] <command> [<args> ...]
 
-TSH: Teleport SSH client
+TSH: Teleport Authentication Gateway Client
 
 Flags:
   -l, --login               Remote host login
       --proxy               SSH proxy address
-      --user                SSH proxy user [ekontsevoy]
+      --user                SSH proxy user [admin]
       --ttl                 Minutes to live for a SSH session
   -i, --identity            Identity file
       --cert-format         SSH certificate format
-      --insecure            Do not verify servers certificate and host name.
+      --insecure            Do not verify server's certificate and host name. Use only in test environments
       --auth                Specify the type of authentication connector to use.
       --skip-version-check  Skip version checking between server and client.
   -d, --debug               Verbose logging to stdout
+  -J, --jumphost            SSH jumphost
 
 Commands:
   help         Show help.
@@ -42,6 +43,8 @@ Commands:
   login        Log in to a cluster and retrieve the session certificate
   logout       Delete a cluster certificate
   status       Display the list of proxy servers and retrieved certificates
+
+Try 'tsh help [command]' to get help for a given command.
 ```
 
 ## Introduction
@@ -252,26 +255,36 @@ command:
 ```bash
 $ tsh ssh --help
 
-Usage: tsh ssh [<flags>] <[user@]host> [<command>...]
-Run shell or execute a command on a remote SSH node.
+usage: tsh ssh [<flags>] <[user@]host> [<command>...]
+
+Run shell or execute a command on a remote SSH node
 
 Flags:
-      --user      SSH proxy user [alice]
-      --proxy     SSH proxy host or IP address, for example --proxy=host:ssh_port,https_port
-      --ttl       Minutes to live for a SSH session 
-      --insecure  Do not verify server certificate and host name. Use only in test environments
-  -d, --debug     Verbose logging to stdout
-  -p, --port      SSH port on a remote host
-  -l, --login     Remote host login
-  -L, --forward   Forward localhost connections to remote server
-      --local     Execute command on localhost after connecting to SSH node
-  -t, --tty       Allocate TTY
-      --cluster   Specify the cluster to connect
-  -o, --option    OpenSSH options in the format used in the configuration file
+  -l, --login               Remote host login
+      --proxy               SSH proxy address
+      --user                SSH proxy user [admin]
+      --ttl                 Minutes to live for a SSH session
+  -i, --identity            Identity file
+      --cert-format         SSH certificate format
+      --insecure            Do not verify server's certificate and host name. Use only in test environments
+      --auth                Specify the type of authentication connector to use.
+      --skip-version-check  Skip version checking between server and client.
+  -d, --debug               Verbose logging to stdout
+  -J, --jumphost            SSH jumphost
+  -p, --port                SSH port on a remote host
+  -A, --forward-agent       Forward agent to target node
+  -L, --forward             Forward localhost connections to remote server
+  -D, --dynamic-forward     Forward localhost connections to remote server using SOCKS5
+      --local               Execute command on localhost after connecting to SSH node
+  -t, --tty                 Allocate TTY
+      --cluster             Specify the cluster to connect
+  -o, --option              OpenSSH options in the format used in the configuration file
 
 Args:
   <[user@]host>  Remote hostname and the login to use
   [<command>]    Command to execute on a remote host
+
+Aliases:
 ```
 
 `tsh` tries to mimic the `ssh` experience as much as possible, so it supports the most popular `ssh`
@@ -343,6 +356,21 @@ This command:
 2. Binds the local port 5000 to port 80 on google.com
 3. Executes `curl` command locally, which results in `curl` hitting google.com:80 via `node`
 
+
+### SSH Jumphost
+While implementing ProxyJump for Teleport, we have extended the feature to `tsh`. 
+
+`$ tsh ssh -J proxy.example.com telenode`
+
+Known limits:
+- Only one jump host is supported (`-J` supports chaining that Teleport does not utilise) 
+and tsh will return with error in case of two jumphosts: `-J` proxy-1.example.com,proxy-2.example.com
+will not work.
+
+- When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh 
+profile and port forwarding is used instead of the existing Teleport proxy subsystem.
+
+
 ### Resolving Node Names
 
 `tsh` supports multiple methods to resolve remote node names. 
@@ -386,22 +414,31 @@ To securely copy files to and from cluster nodes, use the `tsh scp` command. It 
 traditional `scp` as much as possible:
 
 ```bash
-$ tsh scp --help
-
 usage: tsh scp [<flags>] <from, to>...
+
 Secure file copy
 
 Flags:
-      --user       SSH proxy user [alice]
-      --proxy      SSH proxy host or IP address
-      --ttl        Minutes to live for a SSH session
-      --insecure   Do not verify server certificate and host name. Use only in test environments
-  -P, --debug      Verbose logging to stdout
-  -d, --debug      Verbose logging to stdout
-  -r, --recursive  Recursive copy of subdirectories
+  -l, --login               Remote host login
+      --proxy               SSH proxy address
+      --user                SSH proxy user [admin]
+      --ttl                 Minutes to live for a SSH session
+  -i, --identity            Identity file
+      --cert-format         SSH certificate format
+      --insecure            Do not verify server's certificate and host name. Use only in test environments
+      --auth                Specify the type of authentication connector to use.
+      --skip-version-check  Skip version checking between server and client.
+  -d, --debug               Verbose logging to stdout
+  -J, --jumphost            SSH jumphost
+      --cluster             Specify the cluster to connect
+  -r, --recursive           Recursive copy of subdirectories
+  -P, --port                Port to connect to on the remote host
+  -q, --quiet               Quiet mode
 
 Args:
-  <from, to>       Source and the destination
+  <from, to>  Source and destination to copy
+
+Aliases:
 ```
 
 Example:
@@ -533,14 +570,14 @@ update the `/etc/ssh/ssh_config` or `~/.ssh/config`. A few examples are shown be
 # and will request a proxied connection to "db" on port 3022 (default Teleport SSH port)
 Host db
     Port 3022
-    ProxyCommand ssh -p 3023 %r@proxy.example.com -s proxy:%h:%p
-
+    ProxyJump proxy.example.com.com:3023
+    
 # When connecting to a node behind a trusted cluster named "remote-cluster",
 # the name of the trusted cluster must be appended to the proxy subsystem 
 # after '@':
 Host *.trusted-cluster.example.com
    Port 3022
-   ProxyCommand ssh -p 3023 %r@proxy.example.com -s proxy:%h:%p@trusted-cluster
+   ProxyJump proxy.example.com.com:3023@trusted-cluster
 ```
 
 The configuration above is all you need to `ssh root@db` if there's an
@@ -549,6 +586,17 @@ right after `tsh login`. If the SSH agent is running, the cluster certificates w
 be printed to stdout.
 
 If there is no ssh-agent available, the certificate must be passed to the OpenSSH client explicitly.
+
+When proxy is in ["Recording mode"](https://gravitational.com/blog/how-to-record-ssh-sessions/) the following will happen with SSH:
+
+`$ ssh -J user@teleport.proxy:3023 -p 3022 user@target -F ./forward.config`
+    
+Where `forward.config` enables agent forwarding:
+
+```bash
+Host teleport.proxy
+  ForwardAgent yes
+```
 
 ### Passing Teleport SSH Certificate to OpenSSH Client
 
