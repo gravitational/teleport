@@ -11,13 +11,12 @@ In this example Teleport requires a VPC to install into it.
 ```bash
 export STACK=teleport-test-cf-vpc
 export STACK_PARAMS="\
-ParameterKey=DomainName,ParameterValue=teleport.omg.recipes \
-ParameterKey=HostedZoneID,ParameterValue=Z3QN762KL8K71U \
-ParameterKey=DomainAdminEmail,ParameterValue=ben@omg.recipes \
-ParameterKey=KeyName,ParameterValue=benarentworkmbp"
+ParameterKey=DomainName,ParameterValue=DOMAIN-REPLACE \
+ParameterKey=HostedZoneID,ParameterValue=HOSTZONE-REPLACE \
+ParameterKey=DomainAdminEmail,ParameterValue=DOMAINEMAIL-REPLACE \
+ParameterKey=KeyName,ParameterValue=SSHKEYNAME-REPLACE "
 make create-stack-vpc
 ```
-
 
 
 ## Launch Teleport Cluster
@@ -45,20 +44,3 @@ ParameterKey=HostedZoneID,ParameterValue=HOSTZONEID"
 make create-stack 
 ```
 
-```bash
-export STACK=teleport-test-cf-build-servers
-export STACK_PARAMS="\
-ParameterKey=VPC,ParameterValue=vpc-0373338afb2cbf6a5	 \
-ParameterKey=ProxySubnetA,ParameterValue=subnet-0fb8f30a76d570043	 \
-ParameterKey=ProxySubnetB,ParameterValue=subnet-024c6b26c3698e7b3	 \
-ParameterKey=AuthSubnetA,ParameterValue=subnet-0e57e87d80e698bde \
-ParameterKey=AuthSubnetB,ParameterValue=subnet-08506dfdff99b8577 \
-ParameterKey=NodeSubnetA,ParameterValue=subnet-00a0309a4d3affad7 \
-ParameterKey=NodeSubnetB,ParameterValue=subnet-037659f35f0f6f9a1 \
-ParameterKey=KeyName,ParameterValue=benarentpub \
-ParameterKey=HostedZoneID,ParameterValue=Z3QN762KL8K71U \
-ParameterKey=DomainAdminEmail,ParameterValue=ben@omg.recipes \
-ParameterKey=DomainName,ParameterValue=omg.recipes \
-ParameterKey=HostedZoneID,ParameterValue=Z3QN762KL8K71U" 
-make create-stack 
-```
