@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 
@@ -293,6 +294,9 @@ type ProfileStatus struct {
 
 	// Cluster is a selected cluster
 	Cluster string
+
+	// Traits hold claim data used to populate a role at runtime.
+	Traits wrappers.Traits
 }
 
 // IsExpired returns true if profile is not expired yet
@@ -382,11 +386,23 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 	sort.Strings(roles)
 
+	// Extract traits from the certificate. Note if the certificate is in the
+	// old format, this will be empty.
+	var traits wrappers.Traits
+	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
+	if ok {
+		err = traits.Unmarshal([]byte(rawTraits))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
-	for ext := range cert.Extensions {
+	for ext, _ := range cert.Extensions {
 		if ext == teleport.CertExtensionTeleportRoles ||
+			ext == teleport.CertExtensionTeleportTraits ||
 			ext == teleport.CertExtensionTeleportRouteToCluster {
 			continue
 		}
@@ -416,6 +432,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		Extensions: extensions,
 		Roles:      roles,
 		Cluster:    clusterName,
+		Traits:     traits,
 	}, nil
 }
 
