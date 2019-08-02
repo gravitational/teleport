@@ -72,7 +72,8 @@ func (c *CircularBuffer) Reset() {
 	defer c.Unlock()
 	// could close mulitple times
 	c.watchers.walk(func(w *BufferWatcher) {
-		w.Close()
+		c.Debugf("Closing watcher %p via reset.", w)
+		w.closeWatcher()
 	})
 	c.watchers = newWatcherTree()
 	c.start = -1
@@ -169,11 +170,8 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 
 	for _, watcher := range watchersToDelete {
 		c.Warningf("Closing %v, buffer overflow at %v elements.", watcher, len(watcher.eventsC))
-		watcher.Close()
-		found := c.watchers.rm(watcher)
-		if !found {
-			c.Debugf("Could not find watcher %v.", watcher)
-		}
+		watcher.closeWatcher()
+		c.watchers.rm(watcher)
 	}
 }
 
@@ -226,6 +224,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 
 	closeCtx, cancel := context.WithCancel(ctx)
 	w := &BufferWatcher{
+		buffer:   c,
 		Watch:    watch,
 		eventsC:  make(chan Event, watch.QueueSize),
 		ctx:      closeCtx,
@@ -246,6 +245,20 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	return w, nil
 }
 
+func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
+	c.Lock()
+	defer c.Unlock()
+	if watcher == nil {
+		c.Warningf("Internal logic error: %v.", trace.DebugReport(trace.BadParameter("empty watcher")))
+		return
+	}
+	c.Debugf("Removed watcher %p via external close.", watcher)
+	found := c.watchers.rm(watcher)
+	if !found {
+		c.Debugf("Could not find watcher %v.", watcher)
+	}
+}
+
 func max(a, b int) int {
 	if a > b {
 		return b
@@ -256,6 +269,7 @@ func max(a, b int) int {
 // BufferWatcher is a watcher connected to the
 // buffer and receiving fan-out events from the watcher
 type BufferWatcher struct {
+	buffer *CircularBuffer
 	Watch
 	eventsC  chan Event
 	ctx      context.Context
@@ -280,9 +294,35 @@ func (w *BufferWatcher) Done() <-chan struct{} {
 }
 
 // Close closes the watcher, could
-// be called multiple times
+// be called multiple times, removes the watcher
+// from the buffer queue
 func (w *BufferWatcher) Close() error {
+	w.closeAndRemove(removeAsync)
+	return nil
+}
+
+// closeWatcher closes watcher
+func (w *BufferWatcher) closeWatcher() error {
 	w.cancel()
+	return nil
+}
+
+const (
+	removeSync  = true
+	removeAsync = false
+)
+
+// closeAndRemove closes the watcher, could
+// be called multiple times, removes the watcher
+// from the buffer queue syncronously (used in tests)
+// or asyncronously, used in prod, to avoid potential deadlocks
+func (w *BufferWatcher) closeAndRemove(sync bool) error {
+	w.closeWatcher()
+	if sync {
+		w.buffer.removeWatcherWithLock(w)
+	} else {
+		go w.buffer.removeWatcherWithLock(w)
+	}
 	return nil
 }
 
