@@ -2091,8 +2091,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		process.RegisterFunc("healthcheck.service", func() error {
 			log.Infof("Starting healthcheck service on %v.", cfg.Proxy.HealthcheckListenAddr.Addr)
-			//TODO(gus): needed?
-			//defer healthcheckServer.Close()
+			defer healthcheckServer.Close()
 			err := healthcheckServer.Serve(listeners.healthcheck)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Health check server exited with error: %v.", err)
