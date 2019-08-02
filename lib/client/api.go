@@ -83,6 +83,7 @@ type ForwardedPort struct {
 	DestHost string
 }
 
+// ForwardedPorts contains an array of forwarded port structs
 type ForwardedPorts []ForwardedPort
 
 // ToString returns a string representation of a forwarded port spec, compatible
@@ -380,7 +381,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
-	for ext, _ := range cert.Extensions {
+	for ext := range cert.Extensions {
 		if ext == teleport.CertExtensionTeleportRoles {
 			continue
 		}
@@ -794,6 +795,7 @@ func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string
 	return clt, nil
 }
 
+// LocalAgent is a getter function for the client's local agent
 func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 	return tc.localAgent
 }
@@ -1008,11 +1010,11 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 }
 
 // Play replays the recorded session
-func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionId string) (err error) {
+func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string) (err error) {
 	if namespace == "" {
 		return trace.BadParameter(auth.MissingNamespaceError)
 	}
-	sid, err := session.ParseID(sessionId)
+	sid, err := session.ParseID(sessionID)
 	if err != nil {
 		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
 	}
@@ -1746,7 +1748,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		if err != nil {
 			return trace.BadParameter(
 				"failed to parse value received from the server: %q, contact your administrator for help",
-				proxySettings.SSH.ListenAddr)
+				proxySettings.SSH.SSHPublicAddr)
 		}
 		tc.SSHProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
 	}
@@ -1776,7 +1778,7 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor string, p
 	return response, nil
 }
 
-// Adds a new CA as trusted CA for this client, used in tests
+// AddTrustedCA adds a new CA as trusted CA for this client, used in tests
 func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
 	err := tc.LocalAgent().AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
 	if err != nil {
@@ -1795,6 +1797,7 @@ func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
 	return nil
 }
 
+// AddKey adds a key to the client's local agent
 func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error) {
 	return tc.localAgent.AddKey(key)
 }
