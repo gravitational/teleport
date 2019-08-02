@@ -96,7 +96,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
 	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
 	srv.POST("/:version/users/:user/web/password/check", srv.withAuth(srv.checkPassword))
-	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
+	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.extendWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.withAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
@@ -645,24 +645,21 @@ type createWebSessionReq struct {
 	PrevSessionID string `json:"prev_session_id"`
 }
 
-func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) extendWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *createWebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user := p.ByName("user")
-	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(user, req.PrevSessionID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return sess, nil
+	if req.PrevSessionID == "" {
+		return nil, trace.BadParameter("previous session ID missing")
 	}
-	sess, err := auth.CreateWebSession(user)
+
+	sess, err := auth.ExtendWebSession(user, req.PrevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+	return sess, nil
 }
 
 func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
