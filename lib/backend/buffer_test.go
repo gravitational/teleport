@@ -130,6 +130,29 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	}
 }
 
+// TestWatcherClose makes sure that closed watcher
+// will be removed
+func (s *BufferSuite) TestWatcherClose(c *check.C) {
+	ctx := context.TODO()
+	b, err := NewCircularBuffer(ctx, 3)
+	c.Assert(err, check.IsNil)
+	defer b.Close()
+
+	w, err := b.NewWatcher(ctx, Watch{})
+	c.Assert(err, check.IsNil)
+
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, OpInit)
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	c.Assert(b.watchers.Len(), check.Equals, 1)
+	w.(*BufferWatcher).closeAndRemove(removeSync)
+	c.Assert(b.watchers.Len(), check.Equals, 0)
+}
+
 // TestRemoveRedundantPrefixes removes redundant prefixes
 func (s *BufferSuite) TestRemoveRedundantPrefixes(c *check.C) {
 	type tc struct {
