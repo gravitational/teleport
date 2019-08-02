@@ -60,7 +60,7 @@ func (a *AuthWithRoles) action(namespace string, resource string, action string)
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *AuthWithRoles) currentUserAction(username string) error {
-	if username == a.user.GetName() {
+	if a.hasLocalUserRole(a.checker) && username == a.user.GetName() {
 		return nil
 	}
 	return a.checker.CheckAccessToRule(&services.Context{User: a.user},
@@ -109,6 +109,14 @@ func (a *AuthWithRoles) hasRemoteBuiltinRole(name string) bool {
 		return false
 	}
 
+	return true
+}
+
+// hasLocalUserRole checks if the type of the role set is a local user or not.
+func (a *AuthWithRoles) hasLocalUserRole(checker services.AccessChecker) bool {
+	if _, ok := checker.(LocalUserRoleSet); !ok {
+		return false
+	}
 	return true
 }
 
