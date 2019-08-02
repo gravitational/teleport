@@ -281,10 +281,14 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 		Username: username,
 	}
 
+	subject, err := identity.Subject()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	tlsCert, err := s.tlsca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: cryptoPubKey,
-		Subject:   identity.Subject(),
+		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
 	if err != nil {

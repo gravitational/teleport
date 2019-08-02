@@ -158,7 +158,7 @@ func (a *AuthMiddleware) Wrap(h http.Handler) {
 }
 
 // GetUser returns authenticated user based on request metadata set by HTTP server
-func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
+func (a *AuthMiddleware) GetUser(r *http.Request) (IdentityGetter, error) {
 	peers := r.TLS.PeerCertificates
 	if len(peers) > 1 {
 		// when turning intermediaries on, don't forget to verify
@@ -180,6 +180,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 			Role:             teleport.RoleNop,
 			Username:         string(teleport.RoleNop),
 			ClusterName:      localClusterName,
+			Identity:         tlsca.Identity{},
 		}, nil
 	}
 	clientCert := peers[0]
@@ -222,13 +223,16 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 				Role:        *systemRole,
 				Username:    identity.Username,
 				ClusterName: certClusterName,
+				Identity:    *identity,
 			}, nil
 		}
 		return RemoteUser{
-			ClusterName: certClusterName,
-			Username:    identity.Username,
-			Principals:  identity.Principals,
-			RemoteRoles: identity.Groups,
+			ClusterName:      certClusterName,
+			Username:         identity.Username,
+			Principals:       identity.Principals,
+			KubernetesGroups: identity.KubernetesGroups,
+			RemoteRoles:      identity.Groups,
+			Identity:         *identity,
 		}, nil
 	}
 	// code below expects user or service from local cluster, to distinguish between
@@ -243,12 +247,14 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 			Role:             *systemRole,
 			Username:         identity.Username,
 			ClusterName:      localClusterName,
+			Identity:         *identity,
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles
 	// as it will be fetched from the local database
 	return LocalUser{
 		Username: identity.Username,
+		Identity: *identity,
 	}, nil
 }
 

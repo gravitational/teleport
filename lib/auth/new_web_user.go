@@ -365,8 +365,9 @@ func (a *AuthServer) createUserAndSession(stoken *services.SignupToken) (service
 		return nil, trace.Wrap(err)
 	}
 
-	// create and upsert a new web session into the backend
-	sess, err := a.NewWebSession(user.GetName())
+	// It's safe to extract the roles and traits directly from services.User as
+	// this endpoint is only used for local accounts.
+	sess, err := a.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -173,7 +173,13 @@ func (s *AuthServer) AuthenticateWebUser(req AuthenticateUserRequest) (services.
 	if err := s.AuthenticateUser(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := s.NewWebSession(req.Username)
+	user, err := s.GetUser(req.Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// It's safe to extract the roles and traits directly from services.User as
+	// this endpoint is only used for local accounts.
+	sess, err := s.NewWebSession(req.Username, user.GetRoles(), user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,11 +281,14 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 	if err := s.AuthenticateUser(req.AuthenticateUserRequest); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// It's safe to extract the roles and traits directly from services.User as
+	// this endpoint is only used for local accounts.
 	user, err := s.GetUser(req.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, err := services.FetchRoles(user.GetRoles(), s, user.GetTraits())
+	checker, err := services.FetchRoles(user.GetRoles(), s, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -298,10 +307,11 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 
 	certs, err := s.generateUserCert(certRequest{
 		user:          user,
-		roles:         roles,
 		ttl:           req.TTL,
 		publicKey:     req.PublicKey,
 		compatibility: req.CompatibilityMode,
+		checker:       checker,
+		traits:        user.GetTraits(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
