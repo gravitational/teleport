@@ -24,10 +24,14 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
@@ -1369,7 +1373,125 @@ func (s *RoleSuite) TestCheckAndSetDefaults(c *C) {
 			c.Assert(role.CheckAndSetDefaults(), IsNil, comment)
 		}
 	}
+}
 
+// TestExtractFrom makes sure roles and traits are extracted from SSH and TLS
+// certificates not services.User.
+func (s *RoleSuite) TestExtractFrom(c *C) {
+	origRoles := []string{"admin"}
+	origTraits := wrappers.Traits(map[string][]string{
+		"login": []string{"foo"},
+	})
+
+	// Create a SSH certificate.
+	pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fixtures.UserCertificateStandard))
+	c.Assert(err, IsNil)
+	cert, ok := pubkey.(*ssh.Certificate)
+	c.Assert(ok, Equals, true)
+
+	// Create a TLS identity.
+	identity := &tlsca.Identity{
+		Username: "foo",
+		Groups:   origRoles,
+		Traits:   origTraits,
+	}
+
+	// At this point, services.User and the certificate/identity are still in
+	// sync. The roles and traits returned should be the same as the original.
+	roles, traits, err := ExtractFromCertificate(&userGetter{
+		roles:  origRoles,
+		traits: origTraits,
+	}, cert)
+	c.Assert(err, IsNil)
+	c.Assert(roles, DeepEquals, origRoles)
+	c.Assert(traits, DeepEquals, origTraits)
+	roles, traits, err = ExtractFromIdentity(&userGetter{
+		roles:  origRoles,
+		traits: origTraits,
+	}, identity)
+	c.Assert(err, IsNil)
+	c.Assert(roles, DeepEquals, origRoles)
+	c.Assert(traits, DeepEquals, origTraits)
+
+	// The backend now returns new roles and traits, however because the roles
+	// and traits are extracted from the certificate/identity, the original
+	// roles and traits will be returned.
+	roles, traits, err = ExtractFromCertificate(&userGetter{
+		roles: []string{"intern"},
+		traits: wrappers.Traits(map[string][]string{
+			"login": []string{"bar"},
+		}),
+	}, cert)
+	c.Assert(err, IsNil)
+	c.Assert(roles, DeepEquals, origRoles)
+	c.Assert(traits, DeepEquals, origTraits)
+	roles, traits, err = ExtractFromIdentity(&userGetter{
+		roles:  origRoles,
+		traits: origTraits,
+	}, identity)
+	c.Assert(err, IsNil)
+	c.Assert(roles, DeepEquals, origRoles)
+	c.Assert(traits, DeepEquals, origTraits)
+}
+
+// TestExtractFromLegacy verifies that roles and traits are fetched
+// from services.User for SSH certificates is the legacy format and TLS
+// certificates that don't contain traits.
+func (s *RoleSuite) TestExtractFromLegacy(c *C) {
+	origRoles := []string{"admin"}
+	origTraits := wrappers.Traits(map[string][]string{
+		"login": []string{"foo"},
+	})
+
+	// Create a SSH certificate in the legacy format.
+	pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fixtures.UserCertificateLegacy))
+	c.Assert(err, IsNil)
+	cert, ok := pubkey.(*ssh.Certificate)
+	c.Assert(ok, Equals, true)
+
+	// Create a TLS identity with only roles.
+	identity := &tlsca.Identity{
+		Username: "foo",
+		Groups:   origRoles,
+	}
+
+	// At this point, services.User and the certificate/identity are still in
+	// sync. The roles and traits returned should be the same as the original.
+	roles, traits, err := ExtractFromCertificate(&userGetter{
+		roles:  origRoles,
+		traits: origTraits,
+	}, cert)
+	c.Assert(err, IsNil)
+	c.Assert(roles, DeepEquals, origRoles)
+	c.Assert(traits, DeepEquals, origTraits)
+	roles, traits, err = ExtractFromIdentity(&userGetter{
+		roles:  origRoles,
+		traits: origTraits,
+	}, identity)
+	c.Assert(err, IsNil)
+	c.Assert(roles, DeepEquals, origRoles)
+	c.Assert(traits, DeepEquals, origTraits)
+
+	// The backend now returns new roles and traits, because the SSH certificate
+	// is in the old standard format and the TLS identity is missing traits.
+	newRoles := []string{"intern"}
+	newTraits := wrappers.Traits(map[string][]string{
+		"login": []string{"bar"},
+	})
+	roles, traits, err = ExtractFromCertificate(&userGetter{
+		roles:  newRoles,
+		traits: newTraits,
+	}, cert)
+	c.Assert(err, IsNil)
+	c.Assert(roles, DeepEquals, newRoles)
+	c.Assert(traits, DeepEquals, newTraits)
+	roles, traits, err = ExtractFromIdentity(&userGetter{
+		roles:  newRoles,
+		traits: newTraits,
+	}, identity)
+	c.Assert(err, IsNil)
+	c.Assert(roles, DeepEquals, newRoles)
+	c.Assert(traits, DeepEquals, newTraits)
 }
 
 // BenchmarkCheckAccessToServer tests how long it takes to run
@@ -1453,4 +1575,21 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 			}
 		}
 	}
+}
+
+// userGetter is used in tests to return a user with the specified roles and
+// traits.
+type userGetter struct {
+	roles  []string
+	traits map[string][]string
+}
+
+func (f *userGetter) GetUser(name string) (User, error) {
+	user, err := NewUser(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.SetRoles(f.roles)
+	user.SetTraits(f.traits)
+	return user, nil
 }

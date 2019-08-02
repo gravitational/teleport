@@ -346,17 +346,25 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, _ httpr
 		return nil, trace.Wrap(err)
 	}
 
+	// Extract services.RoleSet from certificate.
+	cert, _, err := c.GetCertificates()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles, traits, err := services.ExtractFromCertificate(clt, cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleset, err := services.FetchRoles(roles, clt, traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	user, err := clt.GetUser(c.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	userRoleSet, err := services.FetchRoles(user.GetRoles(), clt, user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	userContext, err := ui.NewUserContext(user, userRoleSet)
+	userContext, err := ui.NewUserContext(user, roleset)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

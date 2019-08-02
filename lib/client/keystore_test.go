@@ -218,10 +218,12 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	identity := tlsca.Identity{
 		Username: username,
 	}
+	subject, err := identity.Subject()
+	c.Assert(err, check.IsNil)
 	tlsCert, err := s.tlsca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: cryptoPubKey,
-		Subject:   identity.Subject(),
+		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
 	c.Assert(err, check.IsNil)
