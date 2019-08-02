@@ -171,7 +171,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 
 	return &AuthContext{
 		User:    user,
-		Checker: checker,
+		Checker: RemoteUserRoleSet{checker},
 	}, nil
 }
 
@@ -464,7 +464,7 @@ func contextForLocalUser(u LocalUser, identity services.UserGetter, access servi
 
 	return &AuthContext{
 		User:    user,
-		Checker: checker,
+		Checker: LocalUserRoleSet{checker},
 	}, nil
 }
 
@@ -522,6 +522,18 @@ type BuiltinRoleSet struct {
 // BuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
 // the role is a remote builtin or not.
 type RemoteBuiltinRoleSet struct {
+	services.RoleSet
+}
+
+// LocalUserRoleSet wraps a services.RoleSet. This type is used to determine
+// if the role is a local user or not.
+type LocalUserRoleSet struct {
+	services.RoleSet
+}
+
+// RemoteUserRoleSet wraps a services.RoleSet. This type is used to determine
+// if the role is a remote user or not.
+type RemoteUserRoleSet struct {
 	services.RoleSet
 }
 

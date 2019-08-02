@@ -699,6 +699,11 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 
 	_, err = client.GetNodes(defaults.Namespace, services.SkipValidation())
 	fixtures.ExpectAccessDenied(c, err)
+
+	// Endpoints that allow current user access should return access denied to
+	// the Nop user.
+	err = client.CheckPassword("foo", nil, "")
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 // TestOwnRole tests that user can read roles assigned to them
