@@ -419,3 +419,6 @@ EOF
     systemctl enable telegraf.service
     systemctl restart telegraf.service
 fi
+
+# make sure config file can be edited by pre-start commands running later
+chown teleport:adm /etc/teleport.yaml
