@@ -95,9 +95,8 @@ Resources:
           ToPort: 3025
           CidrIp: 0.0.0.0/0
 
-
       SecurityGroupEgress:
-        - IpProtocol: -1
+        - IpProtocol: "-1"
           Description: Egress is allowed anywhere
           FromPort: 0
           ToPort: 0
@@ -124,7 +123,7 @@ Resources:
           SourceSecurityGroupId: {Ref: ProxySecurityGroup}
 
       SecurityGroupEgress:
-        - IpProtocol: -1
+        - IpProtocol: "-1"
           Description: Egress is allowed anywhere
           FromPort: 0
           ToPort: 0
@@ -203,14 +202,33 @@ Resources:
             systemctl enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer teleport-get-cert.service teleport-get-cert.timer teleport-renew-cert.service teleport-renew-cert.timer
             systemctl start --no-block teleport-auth teleport-ssm-publish-tokens.timer teleport-get-cert.timer teleport-renew-cert.timer
 
-            # Check the status a couple of times until the teleport service starts or fails
+            # Write out healthcheck script
+            cat >> /usr/bin/teleport-cfn-signal-done <<EOF
+            #!/bin/bash
             for i in {1..10}; do systemctl status teleport-auth && break || sleep 10; done
-
-            # Get the last measure to collect status
             systemctl status teleport-auth
-
-            # Signal the status of the teleport auth service on cfn-signal
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AuthASG --region ${AWS::Region}
+            EOF
+
+            # Make healthcheck script executable
+            chmod +x /usr/bin/teleport-cfn-signal-done
+
+            # Write out healthcheck systemd unit file
+            cat >> /etc/systemd/system/cfn-signal-done.service <<EOF
+            [Unit]
+            Description=CloudFormation status signaller
+            After=network.target
+            
+            [Service]
+            User=root
+            Group=adm
+            Type=oneshot
+            ExecStart=/usr/bin/teleport-cfn-signal-done
+            EOF
+
+            # Make systemd healthcheck unit run
+            systemctl daemon-reload
+            systemctl start --no-block cfn-signal-done.service
           - {
             LocalMainTableName: !Select [1, !Split ["/", !GetAtt MainTable.Arn]],
             LocalLocksTableName: !Select [1, !Split ["/", !GetAtt LocksTable.Arn]],
@@ -232,8 +250,7 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Count: 2
-        # TODO(gus): set this back to 10 minutes after debugging
-        Timeout: PT60M
+        Timeout: PT10M
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MaxBatchSize: 2
@@ -249,8 +266,8 @@ Resources:
         - {Ref: AuthSubnetA}
         - {Ref: AuthSubnetB}
       LaunchConfigurationName: {Ref: AuthLaunchConfig}
-      MinSize: 2
-      MaxSize: 2
+      MinSize: "2"
+      MaxSize: "2"
       TargetGroupARNs:
         - {Ref: AuthTargetGroup}
 
@@ -288,7 +305,7 @@ Resources:
           CidrIp: 0.0.0.0/0
 
       SecurityGroupEgress:
-        - IpProtocol: -1
+        - IpProtocol: "-1"
           Description: Egress is allowed anywhere
           FromPort: 0
           ToPort: 0
@@ -327,7 +344,7 @@ Resources:
           Ref: ProxyWebTargetGroup
       LoadBalancerArn:
         Ref: ProxyLB
-      Port: '443'
+      Port: 443
       Protocol: TCP
 
   ProxyWebTargetGroup:
@@ -376,16 +393,33 @@ Resources:
             systemctl enable teleport-proxy.service teleport-check-cert.service teleport-check-cert.timer
             systemctl start --no-block teleport-proxy.service teleport-check-cert.timer
 
-            # Check the status a couple of times until the teleport service starts or fails
-            # Teleport proxy can take some time to start as it waits for letsencrypt cert
-            # to be provisioned.
+            # Write out healthcheck script
+            cat >> /usr/bin/teleport-cfn-signal-done <<EOF
+            #!/bin/bash
             for i in {1..40}; do systemctl status teleport-proxy && break || sleep 30; done
-
-            # Get the last measure to collect status
             systemctl status teleport-proxy
-
-            # Signal the status of the teleport auth service on cfn-signal
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ProxyASG --region ${AWS::Region}
+            EOF
+
+            # Make healthcheck script executable
+            chmod +x /usr/bin/teleport-cfn-signal-done
+
+            # Write out healthcheck systemd unit file
+            cat >> /etc/systemd/system/cfn-signal-done.service <<EOF
+            [Unit]
+            Description=CloudFormation status signaller
+            After=network.target
+            
+            [Service]
+            User=root
+            Group=adm
+            Type=oneshot
+            ExecStart=/usr/bin/teleport-cfn-signal-done
+            EOF
+
+            # Make systemd healthcheck unit run
+            systemctl daemon-reload
+            systemctl start --no-block cfn-signal-done.service
           - {
             LocalAuthServerLB: !GetAtt AuthLB.DNSName,
             LocalKeyARN: !GetAtt Key.Arn,
@@ -406,8 +440,7 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Count: 2
-        # TODO(gus): set this back to 20 minutes after debugging
-        Timeout: PT60M
+        Timeout: PT20M
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MaxBatchSize: 1
@@ -423,8 +456,8 @@ Resources:
         - {Ref: ProxySubnetA}
         - {Ref: ProxySubnetB}
       LaunchConfigurationName: {Ref: ProxyLaunchConfig}
-      MinSize: 2
-      MaxSize: 2
+      MinSize: "2"
+      MaxSize: "2"
       TargetGroupARNs:
         - {Ref: ProxyWebTargetGroup}
 
@@ -484,8 +517,8 @@ Resources:
         - {Ref: NodeSubnetA}
         - {Ref: NodeSubnetB}
       LaunchConfigurationName: {Ref: NodeLaunchConfig}
-      MinSize: 2
-      MaxSize: 2
+      MinSize: "2"
+      MaxSize: "2"
 
   AuthRole:
     Type: AWS::IAM::Role
@@ -798,7 +831,7 @@ Resources:
       - {AttributeName: "HashKey", AttributeType: "S"}
       - {AttributeName: "FullPath", AttributeType: "S"}
       
-      TimeToLiveSpecification: {AttributeName: "Expires", Enabled: "true"}
+      TimeToLiveSpecification: {AttributeName: "Expires", Enabled: true}
       # Server side encrypt all the data for this table
       SSESpecification: {SSEEnabled: true}
       StreamSpecification:
@@ -817,7 +850,7 @@ Resources:
       AttributeDefinitions:
       - {AttributeName: "Lock", AttributeType: "S"}
 
-      TimeToLiveSpecification: {AttributeName: "Expires", Enabled: "true"}
+      TimeToLiveSpecification: {AttributeName: "Expires", Enabled: true}
 
   # EventsTable is a dynamodb table that is
   # used to store teleport audit log events
@@ -835,7 +868,7 @@ Resources:
       - {AttributeName: "EventNamespace", AttributeType: "S"}
       - {AttributeName: "CreatedAt", AttributeType: "N"}
 
-      TimeToLiveSpecification: {AttributeName: "Expires", Enabled: "true"}
+      TimeToLiveSpecification: {AttributeName: "Expires", Enabled: true}
 
       GlobalSecondaryIndexes:
       - IndexName: "timesearch"
