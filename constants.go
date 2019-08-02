@@ -364,6 +364,8 @@ const (
 	// CertExtensionTeleportRouteToCluster is used to encode
 	// the target cluster to route to in the certificate
 	CertExtensionTeleportRouteToCluster = "teleport-route-to-cluster"
+	// CertExtensionTeleportTraits is used to propagate traits about the user.
+	CertExtensionTeleportTraits = "teleport-traits"
 )
 
 const (
