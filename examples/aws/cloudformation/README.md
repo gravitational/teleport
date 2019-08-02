@@ -6,7 +6,7 @@
 
 
 ## Launch VPC
-In this example Teleport requires a VPC to install into it. 
+In this example Teleport requires a VPC to install into.
 
 ```bash
 export STACK=teleport-test-cf-vpc
@@ -14,7 +14,7 @@ export STACK_PARAMS="\
 ParameterKey=DomainName,ParameterValue=DOMAIN-REPLACE \
 ParameterKey=HostedZoneID,ParameterValue=HOSTZONE-REPLACE \
 ParameterKey=DomainAdminEmail,ParameterValue=DOMAINEMAIL-REPLACE \
-ParameterKey=KeyName,ParameterValue=SSHKEYNAME-REPLACE "
+ParameterKey=KeyName,ParameterValue=SSHKEYNAME-REPLACE"
 make create-stack-vpc
 ```
 
