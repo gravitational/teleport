@@ -332,15 +332,16 @@ func (c *Cache) update() {
 		err := c.fetchAndWatch(retry, time.After(c.ReloadPeriod))
 		if err != nil {
 			c.setCacheState(err)
-			// if cache is experiencing error,
-			// all watchers are out of sync, because
-			// cache has lost its own watcher to the backend
-			// signal closure to reset the watchers
-			c.Backend.CloseWatchers()
 			if !c.isClosed() {
 				c.Warningf("Re-init the cache on error: %v.", trace.Unwrap(err))
 			}
 		}
+		// if cache is reloading,
+		// all watchers will be out of sync, because
+		// cache will reload its own watcher to the backend,
+		// so signal closure to reset the watchers
+		c.Backend.CloseWatchers()
+		// events cache should be closed as well
 		c.Debugf("Reloading %v.", retry)
 		select {
 		case <-retry.After():
