@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package multiplexer implements SSH and TLS multiplexing
+// Package multiplexer implements SSH, TLS and HTTP multiplexing
 // on the same listener
 //
 // mux, _ := multiplexer.New(Config{Listener: listener})
@@ -59,6 +59,8 @@ type Config struct {
 	DisableSSH bool
 	// DisableTLS disables TLS socket
 	DisableTLS bool
+	// DisableHTTP disables HTTP socket
+	DisableHTTP bool
 	// ID is an identifier used for debugging purposes
 	ID string
 }
@@ -103,7 +105,7 @@ func New(cfg Config) (*Mux, error) {
 	}, nil
 }
 
-// Mux supports having both SSH and TLS on the same listener socket
+// Mux supports having SSH, TLS and HTTP on the same listener socket
 type Mux struct {
 	sync.RWMutex
 	*log.Entry
@@ -244,6 +246,11 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 			return
 		}
 	case ProtoHTTP:
+		if m.DisableHTTP {
+			m.Debug("Closing HTTP connection: HTTP listener is disabled.")
+			conn.Close()
+			return
+		}
 		select {
 		case m.httpListener.connC <- connWrapper:
 		case <-m.context.Done():

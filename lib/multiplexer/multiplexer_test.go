@@ -290,7 +290,7 @@ func (s *MuxSuite) TestMultiplexerHealthcheck(c *check.C) {
 	healthcheckTestServer := &httptest.Server{
 		Listener: mux.HTTP(),
 		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "{\"status\":\"ok\"}")
+			fmt.Fprintf(w, "{\"status\": \"ok\"}")
 		}),
 		},
 	}
@@ -303,7 +303,7 @@ func (s *MuxSuite) TestMultiplexerHealthcheck(c *check.C) {
 	c.Assert(err, check.IsNil)
 	bytes, err := ioutil.ReadAll(response.Body)
 	c.Assert(err, check.IsNil)
-	c.Assert(string(bytes), check.Equals, "{\"status\":\"ok\"}")
+	c.Assert(string(bytes), check.Equals, "{\"status\": \"ok\"}")
 
 	// Close mux, new requests should fail
 	mux.Close()

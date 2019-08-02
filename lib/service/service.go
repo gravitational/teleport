@@ -1828,6 +1828,9 @@ func (l *proxyListeners) Close() {
 	if l.kube != nil {
 		l.kube.Close()
 	}
+	if l.healthcheck != nil {
+		l.healthcheck.Close()
+	}
 }
 
 // setupProxyListeners sets up web proxy listeners based on the configuration
@@ -2088,7 +2091,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		process.RegisterFunc("healthcheck.service", func() error {
 			log.Infof("Starting healthcheck service on %v.", cfg.Proxy.HealthcheckListenAddr.Addr)
-			defer healthcheckServer.Close()
+			//TODO(gus): needed?
+			//defer healthcheckServer.Close()
 			err := healthcheckServer.Serve(listeners.healthcheck)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Health check server exited with error: %v.", err)
