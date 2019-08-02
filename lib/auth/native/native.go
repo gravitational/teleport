@@ -268,12 +268,19 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if !c.PermitPortForwarding {
 		delete(cert.Permissions.Extensions, teleport.CertExtensionPermitPortForwarding)
 	}
-	if len(c.Roles) != 0 {
-		// only add roles to the certificate extensions if the standard format was
-		// requested. we allow the option to omit this to support older versions of
-		// OpenSSH due to a bug in <= OpenSSH 7.1
-		// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
-		if c.CertificateFormat == teleport.CertificateFormatStandard {
+	// Add roles, traits, and route to cluster in the certificate extensions if
+	// the standard format was requested. Certificate extensions are not included
+	// legacy SSH certificates due to a bug in OpenSSH <= OpenSSH 7.1:
+	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
+	if c.CertificateFormat == teleport.CertificateFormatStandard {
+		traits, err := c.Traits.Marshal()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(traits) > 0 {
+			cert.Permissions.Extensions[teleport.CertExtensionTeleportTraits] = string(traits)
+		}
+		if len(c.Roles) != 0 {
 			roles, err := services.MarshalCertRoles(c.Roles)
 			if err != nil {
 				return nil, trace.Wrap(err)

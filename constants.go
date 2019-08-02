@@ -358,6 +358,8 @@ const (
 	CertExtensionPermitPortForwarding = "permit-port-forwarding"
 	// CertExtensionTeleportRoles is used to propagate teleport roles
 	CertExtensionTeleportRoles = "teleport-roles"
+	// CertExtensionTeleportTraits is used to propagate traits about the user.
+	CertExtensionTeleportTraits = "teleport-traits"
 )
 
 const (

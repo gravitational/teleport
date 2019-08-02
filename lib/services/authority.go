@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -104,6 +105,8 @@ type UserCertParams struct {
 	Roles []string
 	// CertificateFormat is the format of the SSH certificate.
 	CertificateFormat string
+	// Traits hold claim data used to populate a role at runtime.
+	Traits wrappers.Traits
 }
 
 // CertRoles defines certificate roles
