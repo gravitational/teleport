@@ -17,16 +17,12 @@ limitations under the License.
 package services
 
 import (
-	"testing"
-
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
 )
-
-func TestLicense(t *testing.T) { check.TestingT(t) }
 
 type LicenseSuite struct {
 }

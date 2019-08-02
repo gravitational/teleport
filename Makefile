@@ -280,6 +280,10 @@ buildbox-grpc:
 	  --gofast_out=plugins=grpc:.\
     *.proto
 
+	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
 .PHONY: goinstall
 goinstall:
 	go install $(BUILDFLAGS) \

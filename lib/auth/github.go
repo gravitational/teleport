@@ -208,7 +208,10 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 }
 
 func (s *AuthServer) createWebSession(user services.User, sessionTTL time.Duration) (services.WebSession, error) {
-	session, err := s.NewWebSession(user.GetName())
+	// It's safe to extract the roles and traits directly from services.User
+	// because this occurs during the user creation process and services.User
+	// is not fetched from the backend.
+	session, err := s.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -229,17 +232,21 @@ func (s *AuthServer) createWebSession(user services.User, sessionTTL time.Durati
 }
 
 func (s *AuthServer) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility string) ([]byte, []byte, error) {
-	roles, err := services.FetchRoles(user.GetRoles(), s.Access, user.GetTraits())
+	// It's safe to extract the roles and traits directly from services.User
+	// because this occurs during the user creation process and services.User
+	// is not fetched from the backend.
+	checker, err := services.FetchRoles(user.GetRoles(), s.Access, user.GetTraits())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	certs, err := s.generateUserCert(certRequest{
 		user:          user,
-		roles:         roles,
 		ttl:           sessionTTL,
 		publicKey:     publicKey,
 		compatibility: compatibility,
+		checker:       checker,
+		traits:        user.GetTraits(),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
