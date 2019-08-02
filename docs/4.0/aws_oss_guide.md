@@ -75,6 +75,27 @@ types of Teleport data:
 * Cluster state
 * Audit log events
 
+![AWS DynamoDB Tables](img/aws/dynamodb-tables.png)
+![Setting Streams](img/aws/setting-stream.png) 
+Setting Stream to `NEW IMAGE`
+
+For maintainability and ease of use, we recommend following our [Terraform example](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/dynamo.tf) 
+but below are high level definitions for the tables required to run Teleport. 
+
+Cluster State:
+
+| Table name            | teleport-cluster-name |
+|-----------------------|-----------------------|
+| Primary partition key | HashKey (String)      |
+| Primary sort key      | FullPath (String)     |
+
+Audit Log:
+
+| Table name            | teleport-cluster-name-events   |
+|-----------------------|--------------------------------|
+| Primary partition key | SessionID (String)             |
+| Primary sort key      | EventIndex (Number)            |
+
 
 ### S3 
 Amazon Simple Storage Service (Amazon S3) is an object storage service that offers
