@@ -125,10 +125,14 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		Usage:            []string{teleport.UsageKubeOnly},
 		KubernetesGroups: kubernetesGroups,
 	}
+	subject, err := identity.Subject()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,
 		PublicKey: csr.PublicKey,
-		Subject:   identity.Subject(),
+		Subject:   subject,
 		NotAfter:  s.clock.Now().UTC().Add(ttl),
 	}
 	tlsCert, err := tlsAuthority.GenerateCertificate(certRequest)

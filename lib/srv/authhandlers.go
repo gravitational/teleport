@@ -337,38 +337,39 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 // fetchRoleSet fetches the services.RoleSet assigned to a Teleport user.
 func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAuthority, teleportUser string, clusterName string) (services.RoleSet, error) {
 	// for local users, go and check their individual permissions
-	var roles services.RoleSet
+	var roleset services.RoleSet
 	if clusterName == ca.GetClusterName() {
-		u, err := h.AccessPoint.GetUser(teleportUser)
+		// Extract roles and traits either from the certificate or from
+		// services.User and create a services.RoleSet with all runtime roles.
+		roles, traits, err := services.ExtractFromCertificate(h.AccessPoint, cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Pass along the traits so we get the substituted roles for this user.
-		roles, err = services.FetchRoles(u.GetRoles(), h.AccessPoint, u.GetTraits())
+		roleset, err = services.FetchRoles(roles, h.AccessPoint, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		certRoles, err := extractRolesFromCert(cert)
+		roles, err := extractRolesFromCert(cert)
 		if err != nil {
 			return nil, trace.AccessDenied("failed to parse certificate roles")
 		}
-		roleNames, err := ca.CombinedMapping().Map(certRoles)
+		roleNames, err := ca.CombinedMapping().Map(roles)
 		if err != nil {
 			return nil, trace.AccessDenied("failed to map roles")
 		}
-		// pass the principals on the certificate along as the login traits
+		// Pass the principals on the certificate along as the login traits
 		// to the remote cluster.
 		traits := map[string][]string{
 			teleport.TraitLogins: cert.ValidPrincipals,
 		}
-		roles, err = services.FetchRoles(roleNames, h.AccessPoint, traits)
+		roleset, err = services.FetchRoles(roleNames, h.AccessPoint, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	return roles, nil
+	return roleset, nil
 }
 
 // authorityForCert checks if the certificate was signed by a Teleport
