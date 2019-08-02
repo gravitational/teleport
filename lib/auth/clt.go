@@ -982,18 +982,6 @@ func (c *Client) ExtendWebSession(user string, prevSessionID string) (services.W
 	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
 }
 
-// CreateWebSession creates a new web session for a user
-func (c *Client) CreateWebSession(user string) (services.WebSession, error) {
-	out, err := c.PostJSON(
-		c.Endpoint("users", user, "web", "sessions"),
-		createWebSessionReq{},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
-}
-
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successfull
 func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
@@ -2090,8 +2078,6 @@ type WebService interface {
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(user string, prevSessionID string) (services.WebSession, error)
-	// CreateWebSession creates a new web session for a user
-	CreateWebSession(user string) (services.WebSession, error)
 	// DeleteWebSession deletes a web session for this user by id
 	DeleteWebSession(user string, sid string) error
 }
