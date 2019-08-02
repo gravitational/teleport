@@ -738,13 +738,6 @@ func (a *AuthWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.Si
 	return a.authServer.U2FSignRequest(user, password)
 }
 
-func (a *AuthWithRoles) CreateWebSession(user string) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.CreateWebSession(user, &a.identity)
-}
-
 func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
