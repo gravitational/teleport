@@ -4,9 +4,18 @@
 
 [AWS CLI](https://aws.amazon.com/cli/) is required to build and launch a CloudFormation stack.
 
+We provide these CloudFormation templates as an example of how to setup HA Teleport in
+AWS using our AMIs. The current template will create a Highly available Teleport setup
+using DynamoDB and S3 to store logs. This setup will acquire a Let's Encrypt 509x certificate
+for you. 
 
 ## Launch VPC
 In this example Teleport requires a VPC to install into.
+
+### Using Makefile
+We provide a Makefile that'll run the AWS CloudFormation commands, below we provide
+an example with parameters used to setup a VPC if you don't already one that you 
+want to deploy Teleport into. 
 
 ```bash
 export STACK=teleport-test-cf-vpc
@@ -18,13 +27,16 @@ ParameterKey=KeyName,ParameterValue=SSHKEYNAME-REPLACE"
 make create-stack-vpc
 ```
 
+### Using CloudFormation UI
+Download 'vpc.yaml' and upload it to the CloudFormation UI. 
+
+![Uploading YAML](/img/aws-cf-oss-teleport-img.png)
 
 ## Launch Teleport Cluster
+The example CloudFormation template requires a VPC, you can modify the oss.yaml to
+meet your requirements. 
 
-TODO
-- [ ] Do I still need a root cert if using ACM?
-- [ ] How can the AMI `/usr/bin/teleport-generate-config` set systemd to run in --insecure mode. 
-
+### Using supplied Makefile
 
 ```bash
 export STACK=teleport-test-cf-build-servers
@@ -36,11 +48,15 @@ ParameterKey=AuthSubnetA,ParameterValue=PRIVATE_SUBNET_ID_1 \
 ParameterKey=AuthSubnetB,ParameterValue=PRIVATE_SUBNET_ID_2 \
 ParameterKey=NodeSubnetA,ParameterValue=PRIVATE_SUBNET_ID_3 \
 ParameterKey=NodeSubnetB,ParameterValue=PRIVATE_SUBNET_ID_4  \
-ParameterKey=KeyName,ParameterValue=benarentpub \
+ParameterKey=KeyName,ParameterValue=SSH_PUBKEY \
 ParameterKey=DomainName,ParameterValue=DOMAIN_NAME \
-ParameterKey=DomainNameNlb,ParameterValue=DOMAIN_NLB \
-ParameterKey=LoadBalancerCertificateArn,ParameterValue=arn:aws:acm:us-west-2:115871037100:certificate/006ea504-6606-40a2-b9c3-8805ae2fffb6 \
 ParameterKey=HostedZoneID,ParameterValue=HOSTZONEID" 
 make create-stack 
 ```
+### Using CloudFormation UI
+Once uploaded CloudFormation will ask for a bunch of parameters to configure Teleport.
 
+![Adding Setting](/img/aws-cf-oss-teleport.png)
+
+The setup might take up to 20 minutes as it'll have to request a 509x certificate
+from Let's Encrypt to setup your cluster. 
