@@ -18,6 +18,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -95,7 +97,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
 	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
 	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
-	srv.POST("/:version/users/:user/web/password/check", srv.withAuth(srv.checkPassword))
+	srv.POST("/:version/users/:user/web/password/check", srv.withRate(srv.withAuth(srv.checkPassword)))
 	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.extendWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.withAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
@@ -274,6 +276,33 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 		return handler(auth, w, r, p, version)
 	})
+}
+
+// withRate wrap a rate limiter around the passed in httprouter.Handle and
+// returns a httprouter.Handle. Because the rate limiter wraps a http.Handler,
+// internally withRate converts to the standard handler and back.
+func (s *APIServer) withRate(handle httprouter.Handle) httprouter.Handle {
+	limiter := defaults.CheckPasswordLimiter()
+
+	fromStandard := func(h http.Handler) httprouter.Handle {
+		return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+			ctx := context.WithValue(r.Context(), contextParams, p)
+			r = r.WithContext(ctx)
+			h.ServeHTTP(w, r)
+		}
+	}
+	toStandard := func(handle httprouter.Handle) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p, ok := r.Context().Value(contextParams).(httprouter.Params)
+			if !ok {
+				trace.WriteError(w, trace.BadParameter("parameters missing from request"))
+				return
+			}
+			handle(w, r, p)
+		})
+	}
+	limiter.WrapHandle(toStandard(handle))
+	return fromStandard(limiter)
 }
 
 type upsertServerRawReq struct {
@@ -2512,3 +2541,7 @@ func getServerID(r *http.Request) (string, error) {
 func message(msg string) map[string]interface{} {
 	return map[string]interface{}{"message": msg}
 }
+
+// contextParams is the name of of the key that holds httprouter.Params in
+// a context.
+const contextParams = "params"
