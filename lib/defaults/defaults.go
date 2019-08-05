@@ -554,3 +554,23 @@ var (
 		"hmac-sha2-256",
 	}
 )
+
+// CheckPasswordLimiter creates a rate limit that can be used to slow down
+// requests that come to the check password endpoint.
+func CheckPasswordLimiter() *limiter.Limiter {
+	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{
+		MaxConnections:   LimiterMaxConnections,
+		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
+		Rates: []limiter.Rate{
+			limiter.Rate{
+				Period:  1 * time.Second,
+				Average: 10,
+				Burst:   10,
+			},
+		},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
+	}
+	return limiter
+}
