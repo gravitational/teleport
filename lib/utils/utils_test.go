@@ -36,6 +36,23 @@ type UtilsSuite struct {
 
 var _ = check.Suite(&UtilsSuite{})
 
+// TestCapitalize tests capitalize function
+func (s *UtilsSuite) TestCapitalize(c *check.C) {
+	type testCase struct {
+		in  string
+		out string
+	}
+	cases := []testCase{
+		{in: "hello there", out: "Hello there"},
+		{in: " ", out: " "},
+		{in: "", out: ""},
+	}
+	for i, tc := range cases {
+		comment := check.Commentf("Test case %v", i)
+		c.Assert(Capitalize(tc.in), check.Equals, tc.out, comment)
+	}
+}
+
 // TestLinear tests retry logic
 func (s *UtilsSuite) TestLinear(c *check.C) {
 	r, err := NewLinear(LinearConfig{
