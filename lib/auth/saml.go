@@ -245,8 +245,9 @@ func parseSAMLInResponseTo(response string) (string, error) {
 	el := doc.Root()
 	responseTo := el.SelectAttr("InResponseTo")
 	if responseTo == nil {
-		log.Errorf("Teleport does not support initiating login from an SAML identity provider, login must be initiated from either the Teleport Web UI or CLI.")
-		return "", trace.BadParameter("identity provider initiated flows are not supported")
+		message := "teleport does not support initiating login from a SAML identity provider, login must be initiated from either the Teleport Web UI or CLI"
+		log.Infof(message)
+		return "", trace.NotImplemented(message)
 	}
 	if responseTo.Value == "" {
 		return "", trace.BadParameter("InResponseTo can not be empty")
