@@ -327,9 +327,31 @@ const (
 var (
 	proxyPrefix = []byte{'P', 'R', 'O', 'X', 'Y'}
 	sshPrefix   = []byte{'S', 'S', 'H'}
-	httpPrefix  = []byte{'G', 'E', 'T'}
 	tlsPrefix   = []byte{0x16}
 )
+
+// isHTTP returns true if the first 3 bytes of the prefix indicate
+// the use of an HTTP method.
+func isHTTP(in []byte) bool {
+	methods := [...][]byte{
+		[]byte("GET"),
+		[]byte("POST"),
+		[]byte("PUT"),
+		[]byte("DELETE"),
+		[]byte("HEAD"),
+		[]byte("CONNECT"),
+		[]byte("OPTIONS"),
+		[]byte("TRACE"),
+		[]byte("PATCH"),
+	}
+	for _, verb := range methods {
+		// we only get 3 bytes, so can only compare the first 3 bytes of each verb
+		if bytes.HasPrefix(verb, in[:3]) {
+			return true
+		}
+	}
+	return false
+}
 
 func detectProto(in []byte) (int, error) {
 	switch {
@@ -340,7 +362,7 @@ func detectProto(in []byte) (int, error) {
 		return ProtoSSH, nil
 	case bytes.HasPrefix(in, tlsPrefix):
 		return ProtoTLS, nil
-	case bytes.HasPrefix(in, httpPrefix):
+	case isHTTP(in):
 		return ProtoHTTP, nil
 	default:
 		return ProtoUnknown, trace.BadParameter("failed to detect protocol by prefix: %v", in)
