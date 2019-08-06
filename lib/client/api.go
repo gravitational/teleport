@@ -245,8 +245,12 @@ type Config struct {
 	// with auth server version when connecting.
 	CheckVersions bool
 
-	// BindAddr is an optional host:port to bind to for SSO redirect flows
+	// BindAddr is an optional host:port to bind to for SSO redirect flows.
 	BindAddr string
+
+	// NoRemoteExec will not execute a remote command after connecting to a host,
+	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
+	NoRemoteExec bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -877,10 +881,25 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		tc.ExitStatus = 1
 		return trace.Wrap(err)
 	}
-	// proxy local ports (forward incoming connections to remote host ports)
+
+	// If forwarding ports were specified, start port forwarding.
 	tc.startPortForwarding(ctx, nodeClient)
 
-	// local execution?
+	// If no remote command execution was requested, block on the context which
+	// will unblock upon error or SIGINT.
+	if tc.NoRemoteExec {
+		log.Debugf("Connected to node, no remote command execution was requested, blocking until context closes.")
+		<-ctx.Done()
+
+		// Only return an error if the context was canceled by something other than SIGINT.
+		if ctx.Err() != context.Canceled {
+			return ctx.Err()
+		}
+		return nil
+	}
+
+	// After port forwarding, run a local command that uses the connection, and
+	// then disconnect.
 	if runLocally {
 		if len(tc.Config.LocalForwardPorts) == 0 {
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
