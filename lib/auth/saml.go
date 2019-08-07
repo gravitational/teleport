@@ -279,22 +279,35 @@ type SAMLAuthResponse struct {
 func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
 	re, err := a.validateSAMLResponse(samlResponse)
 	if err != nil {
-		a.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
+		fields := events.EventFields{
 			events.LoginMethod:        events.LoginMethodSAML,
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     err.Error(),
-		})
-	} else {
-		a.EmitAuditEvent(events.UserSSOLogin, events.EventFields{
-			events.EventUser:          re.Username,
-			events.AuthAttemptSuccess: true,
-			events.LoginMethod:        events.LoginMethodSAML,
-		})
+		}
+		if re != nil && re.attributeStatements != nil {
+			fields[events.IdentityAttributes] = re.attributeStatements
+		}
+		a.EmitAuditEvent(events.UserSSOLoginFailure, fields)
+		return nil, trace.Wrap(err)
 	}
-	return re, err
+	fields := events.EventFields{
+		events.EventUser:          re.auth.Username,
+		events.AuthAttemptSuccess: true,
+		events.LoginMethod:        events.LoginMethodSAML,
+	}
+	if re != nil && re.attributeStatements != nil {
+		fields[events.IdentityAttributes] = re.attributeStatements
+	}
+	a.EmitAuditEvent(events.UserSSOLogin, fields)
+	return &re.auth, nil
 }
 
-func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
+type samlAuthResponse struct {
+	auth                SAMLAuthResponse
+	attributeStatements map[string][]string
+}
+
+func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthResponse, error) {
 	requestID, err := parseSAMLInResponseTo(samlResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -328,17 +341,22 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 	}
 
 	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
+	re := &samlAuthResponse{
+		attributeStatements: make(map[string][]string),
+	}
 	for key, val := range assertionInfo.Values {
 		var vals []string
 		for _, vv := range val.Values {
 			vals = append(vals, vv.Value)
 		}
 		log.Debugf("SAML assertion: %q: %q.", key, vals)
+		re.attributeStatements[key] = vals
 	}
+
 	log.Debugf("SAML assertion warnings: %+v.", assertionInfo.WarningInfo)
 
 	if len(connector.GetAttributesToRoles()) == 0 {
-		return nil, trace.BadParameter("no attributes to roles mapping, check connector documentation")
+		return re, trace.BadParameter("no attributes to roles mapping, check connector documentation")
 	}
 	log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
 
@@ -346,15 +364,15 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 	// create the user in the backend.
 	params, err := a.calculateSAMLUser(connector, *assertionInfo, request)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return re, trace.Wrap(err)
 	}
 	user, err := a.createSAMLUser(params)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return re, trace.Wrap(err)
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	response := &SAMLAuthResponse{
+	re.auth = SAMLAuthResponse{
 		Req: *request,
 		Identity: services.ExternalIdentity{
 			ConnectorID: params.connectorName,
@@ -367,10 +385,10 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 	if request.CreateWebSession {
 		session, err := a.createWebSession(user, params.sessionTTL)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return re, trace.Wrap(err)
 		}
 
-		response.Session = session
+		re.auth.Session = session
 	}
 
 	// If a public key was provided, sign it and return a certificate.
@@ -383,8 +401,8 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.Cert = sshCert
-		response.TLSCert = tlsCert
+		re.auth.Cert = sshCert
+		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(services.CertAuthID{
@@ -394,8 +412,8 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.HostSigners = append(response.HostSigners, authority)
+		re.auth.HostSigners = append(re.auth.HostSigners, authority)
 	}
 
-	return response, nil
+	return re, nil
 }
