@@ -282,9 +282,6 @@ type ProxyConfig struct {
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
-	// HealthcheckListenAddr is the address that serves healthcheck responses to load balancers
-	HealthcheckListenAddr utils.NetAddr
-
 	// EnableProxyProtocol enables proxy protocol support
 	EnableProxyProtocol bool
 
@@ -474,7 +471,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
-	cfg.Proxy.HealthcheckListenAddr = *defaults.HealthcheckListenAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 
 	// defaults for the Kubernetes proxy service

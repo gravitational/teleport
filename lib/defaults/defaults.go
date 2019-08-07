@@ -46,9 +46,6 @@ const (
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
 
-	// Default port to listen locally and respond to HTTP GET health check requests on
-	HealthcheckListenPort = 3027
-
 	// KubeProxyListenPort is a default port for kubernetes proxies
 	KubeProxyListenPort = 3026
 
@@ -474,12 +471,6 @@ func SSHServerListenAddr() *utils.NetAddr {
 // blocks inbound connecions to ssh_nodes
 func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
-}
-
-// HealthcheckListenAddr returns the default listening address for the healthcheck service
-// which replies to basic HTTP GET requests from load balancers
-func HealthcheckListenAddr() *utils.NetAddr {
-	return makeAddr("127.0.0.1", HealthcheckListenPort)
 }
 
 func makeAddr(host string, port int16) *utils.NetAddr {
