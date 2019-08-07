@@ -57,10 +57,11 @@ and run it under `$USER`, in this case you will not be able to login as someone 
 If you wish to deploy Teleport inside a Docker container:
 
 ```
-# This command will pull the Teleport container image for version 3.2.6
-# Replace 2.7.3 with the version you need:
-$ docker pull quay.io/gravitational/teleport:3.2.6
+# This command will pull the Teleport container image for version 4.0.4
+# Replace 4.0.4 with the version you need:
+$ docker pull quay.io/gravitational/teleport:4.0.4
 ```
+View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
 
 ## Building Teleport
 
@@ -163,10 +164,6 @@ issues that are submitted to this repo. Ask questions, send pull requests,
 report issues and don't be shy! :)
 
 The latest stable Teleport build can be found in [Releases](https://gravitational.com/teleport/download/)
-
-## Known Issues
-
-* Teleport does not officially support IPv6 yet.
 
 ## Who Built Teleport?
 
