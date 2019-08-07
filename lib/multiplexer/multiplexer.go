@@ -101,7 +101,7 @@ func New(cfg Config) (*Mux, error) {
 	}, nil
 }
 
-// Mux supports having SSH and TLS on the same listener socket
+// Mux supports having both SSH and TLS on the same listener socket
 type Mux struct {
 	sync.RWMutex
 	*log.Entry

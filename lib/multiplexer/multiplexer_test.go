@@ -435,11 +435,6 @@ func testClient(srv *httptest.Server) *http.Client {
 	}
 }
 
-// testHTTPClient is a test HTTP test client with no TLS
-func testHTTPClient(srv *httptest.Server) *http.Client {
-	return &http.Client{}
-}
-
 func pass(need string) sshutils.PasswordFunc {
 	return func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 		if string(password) == need {
