@@ -17,7 +17,7 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 
 !!! tip "Teleport Node Tunneling":
     If you have a large amount of devices on different networks, such as 
-    managed IoT devices or a couples of nodes on a different network you can utilize 
+    managed IoT devices or a couple of nodes on a different network you can utilize 
     the [Teleport Node Tunneling](quickstart/#adding-a-node-located-behind-nat-teleport-node-tunneling).
 
 
