@@ -18,8 +18,8 @@ limitations under the License.
 // on the same listener
 //
 // mux, _ := multiplexer.New(Config{Listener: listener})
-// mux.SSH()  // returns listener getting SSH connections
-// mux.TLS()  // returns listener getting TLS connections
+// mux.SSH() // returns listener getting SSH connections
+// mux.TLS() // returns listener getting TLS connections
 //
 package multiplexer
 
