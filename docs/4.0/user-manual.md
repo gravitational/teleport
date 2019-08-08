@@ -576,7 +576,7 @@ Host db
 # When connecting to a node behind a trusted cluster named "remote-cluster",
 # the name of the trusted cluster must be appended to the proxy subsystem 
 # after '@':
-Host *.trusted-cluster.example.com
+Host *.remote-cluster.example.com
    Port 3022
    ProxyJump proxy.example.com:3023@trusted-cluster
 ```
