@@ -231,9 +231,9 @@ $ tsh ls
 # Output:
 Node Name     Node ID                Address            Labels
 ---------     -------                -------            ------
-turing        11111111-dddd-4132     10.1.0.5:3022     os:linux
-turing        22222222-cccc-8274     10.1.0.6:3022     os:linux
-graviton      33333333-aaaa-1284     10.1.0.7:3022     os:osx
+turing        11111111-dddd-4132     10.1.0.5:3022      os:linux
+turing        22222222-cccc-8274     10.1.0.6:3022      os:linux
+graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
 
 `tsh ls` can apply a filter based on the node labels. 
@@ -244,7 +244,7 @@ $ tsh ls os=osx
 
 Node Name     Node ID                Address            Labels
 ---------     -------                -------            ------
-graviton      33333333-aaaa-1284     10.1.0.7:3022     os:osx
+graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
 
 ## Interactive Shell
@@ -358,6 +358,7 @@ This command:
 
 
 ### SSH Jumphost
+
 While implementing ProxyJump for Teleport, we have extended the feature to `tsh`. 
 
 `$ tsh ssh -J proxy.example.com telenode`
@@ -448,7 +449,7 @@ $ tsh scp example.txt root@node:/path/to/dest
 ```
 
 Again, you may want to create a bash alias like `alias scp="tsh --proxy=work scp"` and use
-the familiar sytanx:
+the familiar syntax:
 
 ```bash
 $ scp -P 61122 -r files root@node:/path/to/dest
@@ -570,14 +571,14 @@ update the `/etc/ssh/ssh_config` or `~/.ssh/config`. A few examples are shown be
 # and will request a proxied connection to "db" on port 3022 (default Teleport SSH port)
 Host db
     Port 3022
-    ProxyJump proxy.example.com.com:3023
+    ProxyJump proxy.example.com:3023
     
 # When connecting to a node behind a trusted cluster named "remote-cluster",
 # the name of the trusted cluster must be appended to the proxy subsystem 
 # after '@':
 Host *.trusted-cluster.example.com
    Port 3022
-   ProxyJump proxy.example.com.com:3023@trusted-cluster
+   ProxyJump proxy.example.com:3023@trusted-cluster
 ```
 
 The configuration above is all you need to `ssh root@db` if there's an
