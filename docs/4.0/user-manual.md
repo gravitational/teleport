@@ -578,7 +578,7 @@ Host db
 # after '@':
 Host *.remote-cluster.example.com
    Port 3022
-   ProxyJump proxy.example.com:3023@trusted-cluster
+   ProxyJump proxy.example.com:3023@remote-cluster
 ```
 
 The configuration above is all you need to `ssh root@db` if there's an
