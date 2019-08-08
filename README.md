@@ -165,10 +165,6 @@ report issues and don't be shy! :)
 
 The latest stable Teleport build can be found in [Releases](https://gravitational.com/teleport/download/)
 
-## Known Issues
-
-* Teleport does not officially support IPv6 yet.
-
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://gravitational.com). We have
