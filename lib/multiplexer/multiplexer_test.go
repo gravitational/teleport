@@ -58,7 +58,7 @@ func (s *MuxSuite) SetUpSuite(c *check.C) {
 // TestMultiplexing tests basic use case of multiplexing TLS
 // and SSH on the same listener socket
 func (s *MuxSuite) TestMultiplexing(c *check.C) {
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", "0"))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	mux, err := New(Config{
@@ -127,7 +127,7 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 
 // TestProxy tests Proxy line support protocol
 func (s *MuxSuite) TestProxy(c *check.C) {
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", "0"))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	mux, err := New(Config{
@@ -179,7 +179,7 @@ func (s *MuxSuite) TestProxy(c *check.C) {
 // TestDisabledProxy makes sure the connection gets dropped
 // when Proxy line support protocol is turned off
 func (s *MuxSuite) TestDisabledProxy(c *check.C) {
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", "0"))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	mux, err := New(Config{
@@ -229,7 +229,7 @@ func (s *MuxSuite) TestDisabledProxy(c *check.C) {
 // TestTimeout tests client timeout - client dials, but writes nothing
 // make sure server hangs up
 func (s *MuxSuite) TestTimeout(c *check.C) {
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", "0"))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	config := Config{
@@ -301,7 +301,7 @@ func (s *MuxSuite) TestUnknownProtocol(c *check.C) {
 
 // TestDisableSSH disables SSH
 func (s *MuxSuite) TestDisableSSH(c *check.C) {
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", "0"))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	mux, err := New(Config{
@@ -350,7 +350,7 @@ func (s *MuxSuite) TestDisableSSH(c *check.C) {
 
 // TestDisableTLS tests scenario with disabled TLS
 func (s *MuxSuite) TestDisableTLS(c *check.C) {
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", "0"))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	mux, err := New(Config{
