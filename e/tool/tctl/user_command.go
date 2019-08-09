@@ -83,7 +83,7 @@ func (cmd *UserCommandE) TryRun(selectedCommand string, c auth.ClientI) (match b
 // List implements `tctl users ls` for the enterprise edition. Unlike the OSS
 // version, this implementation prints user roles (instead of "allowed logins")
 func (cmd *UserCommandE) List(client auth.ClientI) error {
-	users, err := client.GetUsers()
+	users, err := client.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
