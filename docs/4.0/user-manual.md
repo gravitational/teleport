@@ -25,7 +25,7 @@ Flags:
       --ttl                 Minutes to live for a SSH session
   -i, --identity            Identity file
       --cert-format         SSH certificate format
-      --insecure            Do not verify server's certificate and host name. Use only in test environments
+      --insecure            Do not verify server’s certificate and host name. Use only in test environments
       --auth                Specify the type of authentication connector to use.
       --skip-version-check  Skip version checking between server and client.
   -d, --debug               Verbose logging to stdout
@@ -266,7 +266,7 @@ Flags:
       --ttl                 Minutes to live for a SSH session
   -i, --identity            Identity file
       --cert-format         SSH certificate format
-      --insecure            Do not verify server's certificate and host name. Use only in test environments
+      --insecure            Do not verify server’s certificate and host name. Use only in test environments
       --auth                Specify the type of authentication connector to use.
       --skip-version-check  Skip version checking between server and client.
   -d, --debug               Verbose logging to stdout
@@ -426,7 +426,7 @@ Flags:
       --ttl                 Minutes to live for a SSH session
   -i, --identity            Identity file
       --cert-format         SSH certificate format
-      --insecure            Do not verify server's certificate and host name. Use only in test environments
+      --insecure            Do not verify server’s certificate and host name. Use only in test environments
       --auth                Specify the type of authentication connector to use.
       --skip-version-check  Skip version checking between server and client.
   -d, --debug               Verbose logging to stdout
