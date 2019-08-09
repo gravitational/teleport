@@ -298,7 +298,7 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 	if err := s.AuthenticateUser(req.AuthenticateUserRequest); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := s.GetUser(req.Username)
+	user, err := s.GetUser(req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

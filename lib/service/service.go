@@ -951,6 +951,7 @@ func (process *TeleportProcess) initAuthService() error {
 		HostUUID:             cfg.HostUUID,
 		NodeName:             cfg.Hostname,
 		Authorities:          cfg.Auth.Authorities,
+		Resources:            cfg.Auth.Resources,
 		ReverseTunnels:       cfg.ReverseTunnels,
 		Trust:                cfg.Trust,
 		Presence:             cfg.Presence,

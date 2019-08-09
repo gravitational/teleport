@@ -73,10 +73,10 @@ type ReadAccessPoint interface {
 	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(string) (services.User, error)
+	GetUser(name string, withSecrets bool) (services.User, error)
 
 	// GetUsers returns a list of local users registered with this domain
-	GetUsers() ([]services.User, error)
+	GetUsers(withSecrets bool) ([]services.User, error)
 
 	// GetRole returns role by name
 	GetRole(name string) (services.Role, error)

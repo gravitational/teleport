@@ -354,7 +354,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 	// for local users, go and check their individual permissions
 	var roles services.RoleSet
 	if clusterName == ca.GetClusterName() {
-		u, err := h.AccessPoint.GetUser(teleportUser)
+		u, err := h.AccessPoint.GetUser(teleportUser, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

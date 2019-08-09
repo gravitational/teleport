@@ -710,7 +710,7 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// But can not get users or nodes
-	_, err = client.GetUsers()
+	_, err = client.GetUsers(false)
 	fixtures.ExpectAccessDenied(c, err)
 
 	_, err = client.GetNodes(defaults.Namespace, services.SkipValidation())
@@ -810,14 +810,14 @@ func (s *TLSSuite) TestUsersCRUD(c *check.C) {
 	err = clt.UpsertPassword("user1", []byte("some pass"))
 	c.Assert(err, check.IsNil)
 
-	users, err := clt.GetUsers()
+	users, err := clt.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(users), check.Equals, 1)
 	c.Assert(users[0].GetName(), check.Equals, "user1")
 
 	c.Assert(clt.DeleteUser("user1"), check.IsNil)
 
-	users, err = clt.GetUsers()
+	users, err = clt.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(users), check.Equals, 0)
 }
