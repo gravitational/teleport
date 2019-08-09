@@ -71,11 +71,11 @@ Mappings:
     # us-east-1 = US East (N. Virginia)
     # us-east-2 = US East (Ohio)
     # us-west-2 = US West (Oregon)
-    # All AMI from AWS Marketplace aws-marketplace/gravitational-teleport-marketplace-ami-oss-4.0.3-xxx
-    eu-west-1: {HVM64 : ami-0aa5f48ce46b8c331}
-    us-east-1: {HVM64 : ami-0b3b7ec6346626f8a}
-    us-east-2: {HVM64 : ami-0c7afc7722cbd9d54}
-    us-west-2: {HVM64 : ami-09ff072511ce8e696}
+    # All AMIs from AWS - gravitational-teleport-ami-oss-4.0.4
+    eu-west-1: {HVM64 : ami-077328e43d0328963}
+    us-east-1: {HVM64 : ami-02fc44456de16da53}
+    us-east-2: {HVM64 : ami-07da948a7797cc3f5}
+    us-west-2: {HVM64 : ami-0f41512a01edc93b0}
 
 Resources:
 # Auth server setup
