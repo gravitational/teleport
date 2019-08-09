@@ -194,23 +194,36 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	re, err := a.validateOIDCAuthCallback(q)
 	if err != nil {
-		a.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
+		fields := events.EventFields{
 			events.LoginMethod:        events.LoginMethodOIDC,
 			events.AuthAttemptSuccess: false,
 			// log the original internal error in audit log
 			events.AuthAttemptErr: trace.Unwrap(err).Error(),
-		})
-	} else {
-		a.EmitAuditEvent(events.UserSSOLogin, events.EventFields{
-			events.EventUser:          re.Username,
-			events.AuthAttemptSuccess: true,
-			events.LoginMethod:        events.LoginMethodOIDC,
-		})
+		}
+		if re != nil && re.claims != nil {
+			fields[events.IdentityAttributes] = re.claims
+		}
+		a.EmitAuditEvent(events.UserSSOLoginFailure, fields)
+		return nil, trace.Wrap(err)
 	}
-	return re, err
+	fields := events.EventFields{
+		events.EventUser:          re.auth.Username,
+		events.AuthAttemptSuccess: true,
+		events.LoginMethod:        events.LoginMethodOIDC,
+	}
+	if re.claims != nil {
+		fields[events.IdentityAttributes] = re.claims
+	}
+	a.EmitAuditEvent(events.UserSSOLogin, fields)
+	return &re.auth, nil
 }
 
-func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+type oidcAuthResponse struct {
+	auth   OIDCAuthResponse
+	claims jose.Claims
+}
+
+func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
 	if error := q.Get("error"); error != "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
 	}
@@ -259,28 +272,31 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			"unable to construct claims, check audit log for details",
 		)
 	}
+	re := &oidcAuthResponse{
+		claims: claims,
+	}
 
-	log.Debugf("OIDC claims: %v.", claims)
+	log.Debugf("OIDC claims: %v.", re.claims)
 
 	// if we are sending acr values, make sure we also validate them
 	acrValue := connector.GetACR()
 	if acrValue != "" {
 		err := a.validateACRValues(acrValue, connector.GetProvider(), claims)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return re, trace.Wrap(err)
 		}
 		log.Debugf("OIDC ACR values %q successfully validated.", acrValue)
 	}
 
 	ident, err := oidc.IdentityFromClaims(claims)
 	if err != nil {
-		return nil, trace.OAuth2(
+		return re, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
 	log.Debugf("OIDC user %q expires at: %v.", ident.Email, ident.ExpiresAt)
 
 	if len(connector.GetClaimsToRoles()) == 0 {
-		return nil, trace.BadParameter("no claims to roles mapping, check connector documentation")
+		return re, trace.BadParameter("no claims to roles mapping, check connector documentation")
 	}
 	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
 
@@ -288,15 +304,15 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	// create the user in the backend.
 	params, err := a.calculateOIDCUser(connector, claims, ident, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return re, trace.Wrap(err)
 	}
 	user, err := a.createOIDCUser(params)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return re, trace.Wrap(err)
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	response := &OIDCAuthResponse{
+	re.auth = OIDCAuthResponse{
 		Req: *req,
 		Identity: services.ExternalIdentity{
 			ConnectorID: params.connectorName,
@@ -306,7 +322,7 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	}
 
 	if !req.CheckUser {
-		return response, nil
+		return re, nil
 	}
 
 	// If the request is coming from a browser, create a web session.
@@ -315,8 +331,7 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		response.Session = session
+		re.auth.Session = session
 	}
 
 	// If a public key was provided, sign it and return a certificate.
@@ -326,8 +341,8 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			return nil, trace.Wrap(err)
 		}
 
-		response.Cert = sshCert
-		response.TLSCert = tlsCert
+		re.auth.Cert = sshCert
+		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(services.CertAuthID{
@@ -337,10 +352,10 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.HostSigners = append(response.HostSigners, authority)
+		re.auth.HostSigners = append(re.auth.HostSigners, authority)
 	}
 
-	return response, nil
+	return re, nil
 }
 
 // OIDCAuthResponse is returned when auth server validated callback parameters

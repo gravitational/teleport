@@ -84,23 +84,36 @@ type GithubAuthResponse struct {
 func (a *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
 	re, err := a.validateGithubAuthCallback(q)
 	if err != nil {
-		a.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
+		fields := events.EventFields{
 			events.LoginMethod:        events.LoginMethodGithub,
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     err.Error(),
-		})
-	} else {
-		a.EmitAuditEvent(events.UserSSOLogin, events.EventFields{
-			events.EventUser:          re.Username,
-			events.AuthAttemptSuccess: true,
-			events.LoginMethod:        events.LoginMethodGithub,
-		})
+		}
+		if re != nil && re.claims != nil {
+			fields[events.IdentityAttributes] = re.claims
+		}
+		a.EmitAuditEvent(events.UserSSOLoginFailure, fields)
+		return nil, trace.Wrap(err)
 	}
-	return re, err
+	fields := events.EventFields{
+		events.EventUser:          re.auth.Username,
+		events.AuthAttemptSuccess: true,
+		events.LoginMethod:        events.LoginMethodGithub,
+	}
+	if re.claims != nil {
+		fields[events.IdentityAttributes] = re.claims
+	}
+	a.EmitAuditEvent(events.UserSSOLogin, fields)
+	return &re.auth, nil
+}
+
+type githubAuthResponse struct {
+	auth   GithubAuthResponse
+	claims map[string][]string
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
+func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error) {
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 	error := q.Get("error")
 	if error != "" {
@@ -151,19 +164,23 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 		return nil, trace.Wrap(err)
 	}
 
+	re := &githubAuthResponse{
+		claims: claims.OrganizationToTeams,
+	}
+
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
 	params, err := s.calculateGithubUser(connector, claims, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return re, trace.Wrap(err)
 	}
 	user, err := s.createGithubUser(params)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return re, trace.Wrap(err)
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	response := &GithubAuthResponse{
+	re.auth = GithubAuthResponse{
 		Req: *req,
 		Identity: services.ExternalIdentity{
 			ConnectorID: params.connectorName,
@@ -171,7 +188,7 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 		},
 		Username: user.GetName(),
 	}
-	response.Username = user.GetName()
+	re.auth.Username = user.GetName()
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
@@ -180,7 +197,7 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 			return nil, trace.Wrap(err)
 		}
 
-		response.Session = session
+		re.auth.Session = session
 	}
 
 	// If a public key was provided, sign it and return a certificate.
@@ -195,8 +212,8 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 			return nil, trace.Wrap(err)
 		}
 
-		response.Cert = sshCert
-		response.TLSCert = tlsCert
+		re.auth.Cert = sshCert
+		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
 		authority, err := s.GetCertAuthority(services.CertAuthID{
@@ -206,10 +223,10 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.HostSigners = append(response.HostSigners, authority)
+		re.auth.HostSigners = append(re.auth.HostSigners, authority)
 	}
 
-	return response, nil
+	return re, nil
 }
 
 func (s *AuthServer) createWebSession(user services.User, sessionTTL time.Duration) (services.WebSession, error) {
