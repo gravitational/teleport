@@ -93,7 +93,7 @@ Authenticator (or another 2FA client), you will have to install it on your
 smart phone. Then you can scan the bar code on the Teleport login web page,
 pick a password and enter in the two factor token.
 
-The default TTL for a login is 1 hour but this can be configured to be another value.
+The default TTL for a login is 12 hours but this can be configured to be another value.
 
 Having done that, you will be presented with a Web UI where you will see your
 machine and will be able to log in to it using web-based terminal.
