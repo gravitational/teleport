@@ -111,7 +111,7 @@ Refer to [web/README.md](web/README.md) for instructions on how to update the We
 
 ### Updating Documentation
 
-TL;DR version:
+Short version:
 
 ```
 make docs
