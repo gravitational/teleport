@@ -61,10 +61,6 @@ func useProxy(addr string) bool {
 			// no_proxy ".foo.com" matches "bar.foo.com" or "foo.com"
 			return false
 		}
-		if p[0] != '.' && strings.HasSuffix(addr, p) && addr[len(addr)-len(p)-1] == '.' {
-			// no_proxy "foo.com" matches "bar.foo.com"
-			return false
-		}
 	}
 	return true
 }
