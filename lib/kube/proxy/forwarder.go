@@ -283,6 +283,8 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	case auth.RemoteUser:
 		isRemoteUser = true
+	case auth.BuiltinRole:
+		f.Warningf("Denying proxy access to unauthenticated user of type %T - this can sometimes be caused by inadvertently sending Kubernetes traffic to the proxy's web port.", userTypeI)
 	default:
 		f.Warningf("Denying proxy access to unsupported user type: %T.", userTypeI)
 		return nil, trace.AccessDenied(accessDeniedMsg)
