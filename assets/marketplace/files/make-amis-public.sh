@@ -31,7 +31,7 @@ BUILD_TIMESTAMP=$(<"${TIMESTAMP_FILE}")
 
 # Write AMI ID for each region to AMI ID file
 for REGION in ${REGION_LIST}; do
-    aws ec2 describe-images --region ${REGION} --filters Name=tag:BuildTimestamp,Values=${BUILD_TIMESTAMP},Name=tag:BuildType,Values=production > "${BUILD_DIR}/${REGION}.json"
+    aws ec2 describe-images --region ${REGION} --filters "Name=tag:BuildTimestamp,Values=${BUILD_TIMESTAMP}" "Name=tag:BuildType,Values=production" > "${BUILD_DIR}/${REGION}.json"
     AMI_ID=$(jq --raw-output '.Images[0].ImageId' "${BUILD_DIR}/${REGION}.json")
     if [[ "${AMI_ID}" == "" || "${AMI_ID}" == "null" ]]; then
         echo "Error: cannot get AMI ID for ${REGION}"

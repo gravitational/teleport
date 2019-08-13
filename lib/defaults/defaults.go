@@ -466,10 +466,10 @@ func SSHServerListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHServerListenPort)
 }
 
-// ReverseTunnellListenAddr returns the default listening address for the SSH Proxy service used
+// ReverseTunnelListenAddr returns the default listening address for the SSH Proxy service used
 // by the SSH nodes to establish proxy<->ssh_node connection from behind a firewall which
 // blocks inbound connecions to ssh_nodes
-func ReverseTunnellListenAddr() *utils.NetAddr {
+func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
 }
 
