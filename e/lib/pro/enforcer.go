@@ -2,6 +2,7 @@ package pro
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -9,6 +10,9 @@ import (
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/reporting/types"
@@ -27,14 +31,19 @@ type Enforcer struct {
 	backend.Backend
 	// Entry is used for logging
 	*log.Entry
+	// Presence is a service which can be used to retrieve information about
+	// Cluster components
+	services.Presence
 	// ClusterID is the ID of the cluster that this process is running on
 	ClusterID string
-	// HostID is the UUID of this specific host / node
-	HostID string
+	// Anonymizer is used for anonymizing sent data
+	Anonymizer utils.Anonymizer
 }
 
 // EnforcerConfig is enforcer configuration
 type EnforcerConfig struct {
+	// Anonymizer is used for anonymizing sent data
+	Anonymizer utils.Anonymizer
 	// Backend is the configured backend
 	Backend backend.Backend
 	// LicenseKeyPair is the license key pair
@@ -46,17 +55,21 @@ type EnforcerConfig struct {
 	NoStart bool
 	// ClusterID is the ID of the cluster that this process is running on
 	ClusterID string
-	// HostID is the UUID of this specific host / node
-	HostID string
 }
 
 // Check makes sure that enforcer config is valid
 func (c *EnforcerConfig) Check() error {
+	if c.Anonymizer == nil {
+		return trace.BadParameter("enforcer config is missing anonymizer")
+	}
 	if c.Backend == nil {
 		return trace.BadParameter("enforcer config is missing backend")
 	}
 	if c.LicenseKeyPair == nil {
 		return trace.BadParameter("enforcer config is missing license")
+	}
+	if c.ClusterID == "" {
+		return trace.BadParameter("enforcer config is missing cluster ID")
 	}
 	return nil
 }
@@ -85,10 +98,11 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 		return nil, trace.Wrap(err)
 	}
 	enforcer := &Enforcer{
-		ClusterID: config.ClusterID,
-		HostID:    config.HostID,
-		WebClient: client,
-		Backend:   config.Backend,
+		Anonymizer: config.Anonymizer,
+		ClusterID:  config.ClusterID,
+		WebClient:  client,
+		Backend:    config.Backend,
+		Presence:   local.NewPresenceService(config.Backend),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: "enforcer",
 		}),
@@ -145,25 +159,46 @@ func (e *Enforcer) startReportingUsage(ctx context.Context) {
 
 // RecordUsage records additional usage in the datastore
 func (e *Enforcer) RecordUsage(ctx context.Context, newUsage time.Duration) {
-	duration, err := e.GetUsageDuration(ctx)
+	record, err := e.GetUsageRecord(ctx)
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		log.WithError(err).Error("Failed to retrieve existing usage record.")
 		return
 	}
 
-	duration += newUsage
+	backup := make(map[string]time.Duration)
+	for k, v := range record {
+		backup[k] = v
+	}
 
-	err = e.SetUsageDuration(ctx, duration)
+	namespaces, err := e.Presence.GetNamespaces()
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		log.WithError(err).Error("Failed to retrieve namespaces.")
+		return
+	}
+
+	for _, namespace := range namespaces {
+		nodes, err := e.Presence.GetNodes(namespace.GetName())
+		if err != nil {
+			log.WithError(err).Errorf("Failed to get nodes for namespace %q.", namespace)
+			continue
+		}
+
+		for _, node := range nodes {
+			record[node.String()] += newUsage
+		}
+	}
+
+	err = e.SetUsageRecord(ctx, backup, record)
+	if err != nil {
+		log.WithError(err).Debug("Failed to update usage record.")
 	}
 }
 
 // ReportUsage gets the current usage duration from the datastore and sends it
 // to Houston
 func (e *Enforcer) ReportUsage(ctx context.Context) error {
-	// Body is the JSON body of a heartbeat POST request
-	type Body struct {
+	// Record is the JSON record of a heartbeat.
+	type Record struct {
 		// EndTime is the end of a usage period
 		EndTime time.Time `json:"end_time"`
 		// StartTime is the start of a usage period
@@ -174,22 +209,46 @@ func (e *Enforcer) ReportUsage(ctx context.Context) error {
 		HostID string `json:"host_id"`
 	}
 
-	duration, err := e.GetUsageDuration(ctx)
+	record, err := e.GetUsageRecord(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	now := e.Clock().Now().UTC()
+	body := make([]Record, 0, len(record))
 
-	body := Body{
-		EndTime:   now,
-		StartTime: now.Add(-duration),
-		HostID:    e.HostID,
-		ClusterID: e.ClusterID,
+	for hostID, duration := range record {
+		body = append(body, Record{
+			EndTime:   now,
+			StartTime: now.Add(-duration),
+			HostID:    e.Anonymizer.Anonymize([]byte(hostID)),
+			ClusterID: e.Anonymizer.Anonymize([]byte(e.ClusterID)),
+		})
+	}
+
+	// It is important that we attempt to update the usage record before
+	// we post the usage to houston. This is because multiple auth servers
+	// might attempt to report usage at the same time - only
+	// `SetUsageRecord` is concurrency safe. If this call succeeds, we can
+	// go ahead and contact Houston.
+	err = e.SetUsageRecord(ctx, record, make(map[string]time.Duration))
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	out, err := e.WebClient.PostJSON(ctx, e.Endpoint("heartbeat"), body)
 	if err != nil {
+		item, mkErr := makeItemFromUsageRecord(record)
+		if mkErr != nil {
+			return trace.NewAggregate(err, mkErr)
+		}
+
+		// Instead of using `SetUsageRecord`, we write directly to the
+		// datastore to force restore the old value
+		if _, putErr := e.Put(ctx, item); putErr != nil {
+			return trace.NewAggregate(err, putErr)
+		}
+
 		return trace.Wrap(err)
 	}
 
@@ -198,13 +257,7 @@ func (e *Enforcer) ReportUsage(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	err = e.SetLicenseCheckHeartbeat(*heartbeat)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// As we just reported the usage, we can safely reset it to 0
-	return trace.Wrap(e.SetUsageDuration(ctx, 0))
+	return trace.Wrap(e.SetLicenseCheckHeartbeat(*heartbeat))
 }
 
 const (
@@ -213,38 +266,62 @@ const (
 	usagePrefix     = "usage"
 )
 
-// SetUsageDuration sets the unreported usage duration to a new value
-func (e *Enforcer) SetUsageDuration(ctx context.Context, duration time.Duration) error {
-	item := backend.Item{
-		Key:   backend.Key(heartbeatPrefix, usagePrefix),
-		Value: []byte(duration.String()),
-	}
-
-	_, err := e.Put(ctx, item)
+// SetUsageRecord sets the unreported usage record to a new value
+func (e *Enforcer) SetUsageRecord(ctx context.Context, old, new map[string]time.Duration) error {
+	newItem, err := makeItemFromUsageRecord(new)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	oldItem, err := makeItemFromUsageRecord(old)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = e.CompareAndSwap(ctx, oldItem, newItem)
+	if trace.IsCompareFailed(err) {
+		_, getErr := e.Backend.Get(ctx, backend.Key(heartbeatPrefix, usagePrefix))
+		if !trace.IsNotFound(getErr) {
+			return trace.Wrap(err)
+		}
+
+		// This is the case when putting usage data into the backend for
+		// the first time
+		_, err = e.Backend.Put(ctx, newItem)
+	}
+
+	return trace.Wrap(err)
 }
 
-// GetUsageDuration returns the usage duration that wasn't reported yet
-func (e *Enforcer) GetUsageDuration(ctx context.Context) (time.Duration, error) {
+// GetUsageRecord returns the usage duration record for unreported usage
+func (e *Enforcer) GetUsageRecord(ctx context.Context) (map[string]time.Duration, error) {
+	var record map[string]time.Duration
+
 	item, err := e.Backend.Get(ctx, backend.Key(heartbeatPrefix, usagePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			err = nil
+			return make(map[string]time.Duration), nil
 		}
 
-		return 0, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	duration, err := time.ParseDuration(string(item.Value))
+	err = json.Unmarshal(item.Value, &record)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		// This special case happens in case someone ran a previous
+		// version of Teleport Enterprise with usage-based billing
+		// (this was the case for v4.1.0-alpha.1 to v4.1.0-alpha5)
+		// Since those are not production builds, we just reset the
+		// usage.
+		_, parseErr := time.ParseDuration(string(item.Value))
+		if parseErr == nil {
+			return make(map[string]time.Duration), nil
+		}
+
+		return nil, trace.Wrap(err)
 	}
 
-	return duration, nil
+	return record, nil
 }
 
 // SetLicenseCheckHeartbeat saves the license check heartbeat into the database
@@ -325,6 +402,18 @@ func (e *Enforcer) processLicenseCheckResult(ctx context.Context) error {
 func isExpired(heartbeat *types.Heartbeat) bool {
 	return time.Since(heartbeat.GetMetadata().Created) >
 		constants.MaxControlPlaneUnreachableDuration
+}
+
+func makeItemFromUsageRecord(m map[string]time.Duration) (backend.Item, error) {
+	value, err := json.Marshal(m)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	return backend.Item{
+		Key:   backend.Key(heartbeatPrefix, usagePrefix),
+		Value: value,
+	}, nil
 }
 
 // licenseCheckConnectionProblemText is a warning message that gets displayed

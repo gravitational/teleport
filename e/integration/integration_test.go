@@ -10,9 +10,14 @@ import (
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/e/lib/pro"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 )
+
+const ClusterID = "foobar"
 
 var _ = check.Suite(&IntSuite{})
 
@@ -40,13 +45,28 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 // We use a custom init function before a test because we might need to run
 // custom control logic before the initialization of an "enforcer"
 func (s *IntSuite) init(c *check.C) {
+	anonymizer, err := utils.NewHMACAnonymizer(ClusterID)
+	c.Assert(err, check.IsNil)
+
 	backend, err := lite.NewWithConfig(s.ctx, lite.Config{
 		Path:  c.MkDir(),
 	})
 	c.Assert(err, check.IsNil)
+	
+	server := &services.ServerV2{}
+	server.SetNamespace(ClusterID)
+
+	namespace := &services.Namespace{}
+	namespace.SetName(ClusterID)
+
+	presence := local.NewPresenceService(backend)
+	presence.UpsertNamespace(*namespace)	
+	presence.UpsertNode(server)
 
 	s.enforcer, err = pro.NewEnforcer(s.ctx, pro.EnforcerConfig{
+		Anonymizer:     anonymizer,
 		Backend:        backend,
+		ClusterID:      ClusterID,
 		LicenseKeyPair: fixtures.TestLicenseKeyPair(c),
 		Insecure:       true,
 		NoStart:        true,
@@ -60,13 +80,14 @@ func (s *IntSuite) TestReporting(c *check.C) {
 	// Make sure we're using the correct Houston endpoint
 	os.Setenv(constants.APIHostEnvVar, "localhost:10000")
 	s.init(c)
-
 	s.enforcer.RecordUsage(s.ctx, 30*time.Minute)
-	s.enforcer.ReportUsage(s.ctx)
 
-	duration, err := s.enforcer.GetUsageDuration(s.ctx)
+	err := s.enforcer.ReportUsage(s.ctx)
 	c.Assert(err, check.IsNil)
-	c.Assert(duration, check.Equals, 0*time.Second)
+
+	record, err := s.enforcer.GetUsageRecord(s.ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(record), check.Equals, 0)
 }
 
 // TestFailedReporting checks that the usage duration is being retained if
@@ -75,11 +96,12 @@ func (s *IntSuite) TestFailedReporting(c *check.C) {
 	// Set the api host to something where Houston isn't running on
 	os.Setenv(constants.APIHostEnvVar, "test.localhost:5000")
 	s.init(c)
-
 	s.enforcer.RecordUsage(s.ctx, 30*time.Minute)
-	s.enforcer.ReportUsage(s.ctx)
 
-	duration, err := s.enforcer.GetUsageDuration(s.ctx)
+	err := s.enforcer.ReportUsage(s.ctx)
+	c.Assert(err, check.NotNil)
+
+	record, err := s.enforcer.GetUsageRecord(s.ctx)
 	c.Assert(err, check.IsNil)
-	c.Assert(duration, check.Not(check.Equals), 0*time.Second)
+	c.Assert(len(record), check.Not(check.Equals), 0)
 }

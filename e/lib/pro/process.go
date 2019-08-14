@@ -118,11 +118,11 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 	}
 	config.Teleport.GetAuthServer().SetAuditLog(auditLog)
 	enforcer, err := NewEnforcer(ctx, EnforcerConfig{
+		Anonymizer:     anonymizer,
 		Backend:        config.Teleport.GetBackend(),
 		LicenseKeyPair: config.Teleport.LicenseKeyPair,
 		Insecure:       config.Insecure,
-		ClusterID:      anonymizer.Anonymize([]byte(clusterConfig.GetClusterID())),
-		HostID:         anonymizer.Anonymize([]byte(config.Teleport.Config.HostUUID)),
+		ClusterID:      clusterConfig.GetClusterID(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
