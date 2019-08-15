@@ -186,7 +186,7 @@ run-docs:
 .PHONY: test
 test: FLAGS ?=
 test: $(VERSRC)
-	go test -v ./tool/tsh/... \
+	go test ./tool/tsh/... \
 			   ./lib/... \
 			   ./tool/teleport... $(FLAGS) $(ADDFLAGS)
 	go vet ./tool/... ./lib/...
@@ -197,7 +197,7 @@ test: $(VERSRC)
 .PHONY: integration
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG)" -v ./integration/... -check.v
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/...
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
