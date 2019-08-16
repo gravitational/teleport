@@ -38,6 +38,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// NopWriteCloser returns a WriteCloser with a no-op Close method wrapping
+// the provided Writer w
+func NopWriteCloser(r io.Writer) io.WriteCloser {
+	return nopWriteCloser{r}
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (nopWriteCloser) Close() error { return nil }
+
 // Tracer helps to trace execution of functions
 type Tracer struct {
 	// Started records starting time of the call
@@ -213,6 +225,12 @@ func Host(hostname string) (string, error) {
 	if hostname == "" {
 		return "", trace.BadParameter("missing parameter hostname")
 	}
+	// if this is IPv4 or V6, return as is
+	if ip := net.ParseIP(hostname); len(ip) != 0 {
+		return hostname, nil
+	}
+	// has no indication of port, return, note that
+	// it will not break ipv6 as it always has at least one colon
 	if !strings.Contains(hostname, ":") {
 		return hostname, nil
 	}

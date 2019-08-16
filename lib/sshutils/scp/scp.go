@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -642,7 +643,7 @@ func (r *reader) read() error {
 		return trace.Wrap(err)
 	}
 	if n < 1 {
-		return trace.Errorf("unexpected error, read 0 bytes")
+		return trace.BadParameter("unexpected error, read 0 bytes")
 	}
 
 	switch r.b[0] {
@@ -653,29 +654,52 @@ func (r *reader) read() error {
 		if err := r.s.Err(); err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Errorf(r.s.Text())
+		return trace.BadParameter(r.s.Text())
 	}
-	return trace.Errorf("unrecognized command: %#v", r.b)
+	return trace.BadParameter("unrecognized command: %v", r.b)
+}
+
+var reSCP = regexp.MustCompile(
+	// optional username, note that outside group
+	// is a non-capturing as it includes @ sign we don't want
+	`(?:(?P<username>[^@]+)@)?` +
+		// either some stuff in brackets - [ipv6]
+		// or some stuff without brackets and colons
+		`(?P<host>` +
+		// this says: [stuff in brackets that is not brackets] - loose definition of the IP address
+		`(?:\[[^\[\]]+\])` +
+		// or
+		`|` +
+		// some stuff without brackets or colons to make sure the OR condition
+		// is not ambiguous
+		`(?:[^\[\:\]]+)` +
+		`)` +
+		// after colon, there is a path that could consist technically of
+		// any char
+		`:(?P<path>.+)`,
+)
+
+// Destination is scp destination to copy to or from
+type Destination struct {
+	// Login is an optional login username
+	Login string
+	// Host is a host to copy to/from
+	Host utils.NetAddr
+	// Path is a path to copy to/from
+	Path string
 }
 
 // ParseSCPDestination takes a string representing a remote resource for SCP
 // to download/upload, like "user@host:/path/to/resource.txt" and returns
 // 3 components of it
-func ParseSCPDestination(s string) (login, host, dest string) {
-	parts := strings.SplitN(s, "@", 2)
-	if len(parts) > 1 {
-		login = parts[0]
-		host = parts[1]
-	} else {
-		host = parts[0]
+func ParseSCPDestination(s string) (*Destination, error) {
+	out := reSCP.FindStringSubmatch(s)
+	if len(out) == 0 {
+		return nil, trace.BadParameter("failed to parse %q, try form user@host:/path", s)
 	}
-	parts = strings.SplitN(host, ":", 2)
-	if len(parts) > 1 {
-		host = parts[0]
-		dest = parts[1]
+	addr, err := utils.ParseAddr(out[2])
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if len(dest) == 0 {
-		dest = "."
-	}
-	return login, host, dest
+	return &Destination{Login: out[1], Host: *addr, Path: out[3]}, nil
 }

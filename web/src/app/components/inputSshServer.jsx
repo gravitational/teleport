@@ -17,7 +17,7 @@ limitations under the License.
 import React, { PropTypes } from 'react';
 import classnames from 'classnames';
 
-const SSH_STR_REGEX = /(^\w+@(\w|\.|-)+(:\d+)*$)|(^$)/;
+const SSH_STR_REGEX = /(^\w+@(\S+)$)/;
 const PLACEHOLDER_TEXT = 'login@host';
 const DEFAULT_HISTORY_INDEX = -1;
 

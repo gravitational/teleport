@@ -36,6 +36,23 @@ type UtilsSuite struct {
 
 var _ = check.Suite(&UtilsSuite{})
 
+// TestCapitalize tests capitalize function
+func (s *UtilsSuite) TestCapitalize(c *check.C) {
+	type testCase struct {
+		in  string
+		out string
+	}
+	cases := []testCase{
+		{in: "hello there", out: "Hello there"},
+		{in: " ", out: " "},
+		{in: "", out: ""},
+	}
+	for i, tc := range cases {
+		comment := check.Commentf("Test case %v", i)
+		c.Assert(Capitalize(tc.in), check.Equals, tc.out, comment)
+	}
+}
+
 // TestLinear tests retry logic
 func (s *UtilsSuite) TestLinear(c *check.C) {
 	r, err := NewLinear(LinearConfig{
@@ -460,4 +477,23 @@ func (s *UtilsSuite) TestMarshalYAML(c *check.C) {
 			fixtures.DeepCompare(c, out, testCase.val)
 		}
 	}
+}
+
+// TestReadToken tests reading token from file and as is
+func (s *UtilsSuite) TestReadToken(c *check.C) {
+	tok, err := ReadToken("token")
+	c.Assert(tok, check.Equals, "token")
+	c.Assert(err, check.IsNil)
+
+	_, err = ReadToken("/tmp/non-existent-token-for-teleport-tests-not-found")
+	fixtures.ExpectNotFound(c, err)
+
+	dir := c.MkDir()
+	tokenPath := filepath.Join(dir, "token")
+	err = ioutil.WriteFile(tokenPath, []byte("shmoken"), 0644)
+	c.Assert(err, check.IsNil)
+
+	tok, err = ReadToken(tokenPath)
+	c.Assert(err, check.IsNil)
+	c.Assert(tok, check.Equals, "shmoken")
 }

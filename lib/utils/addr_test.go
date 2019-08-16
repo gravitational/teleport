@@ -88,6 +88,13 @@ func (s *AddrTestSuite) TestParseIPV6(c *C) {
 	c.Assert(addr.IsEmpty(), Equals, false)
 	c.Assert(addr.Host(), Equals, "::1")
 	c.Assert(addr.Port(0), Equals, 49870)
+
+	// Just square brackets is also valid
+	addr, err = ParseAddr("[::1]")
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "[::1]")
+	c.Assert(addr.Host(), Equals, "::1")
 }
 
 func (s *AddrTestSuite) TestParseEmptyPort(c *C) {

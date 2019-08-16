@@ -33,11 +33,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
 
@@ -106,6 +108,52 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 		return nil, trace.Wrap(err)
 	}
 	return sites, nil
+}
+
+// GenerateCertsForCluster generates certificates for the user
+// that have a metadata instructing server to route the requests to the cluster
+func (proxy *ProxyClient) GenerateCertsForCluster(ctx context.Context, routeToCluster string) error {
+	localAgent := proxy.teleportClient.LocalAgent()
+	key, err := localAgent.GetKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cert, err := key.SSHCert()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tlsCert, err := key.TLSCertificate()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clt, err := proxy.ConnectToCluster(ctx, clusterName, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req := proto.UserCertsRequest{
+		Username:       cert.KeyId,
+		PublicKey:      key.Pub,
+		Expires:        time.Unix(int64(cert.ValidBefore), 0),
+		RouteToCluster: routeToCluster,
+	}
+	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
+		req.Format = teleport.CertificateFormatOldSSH
+	}
+
+	certs, err := clt.GenerateUserCerts(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	key.Cert = certs.SSH
+	key.TLSCert = certs.TLS
+
+	// save the cert to the local storage (~/.tsh usually):
+	_, err = localAgent.AddKey(key)
+	return trace.Wrap(err)
 }
 
 // FindServersByLabels returns list of the nodes which have labels exactly matching
@@ -354,17 +402,52 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 	), nil
 }
 
+// NodeAddr is a full node address
+type NodeAddr struct {
+	// Addr is an address to dial
+	Addr string
+	// Namespace is the node namespace
+	Namespace string
+	// Cluster is the name of the target cluster
+	Cluster string
+}
+
+// String returns a user-friendly name
+func (n NodeAddr) String() string {
+	parts := []string{nodeName(n.Addr)}
+	if n.Cluster != "" {
+		parts = append(parts, "on cluster", n.Cluster)
+	}
+	return strings.Join(parts, " ")
+}
+
+// ProxyFormat returns the address in the format
+// used by the proxy subsystem
+func (n *NodeAddr) ProxyFormat() string {
+	parts := []string{n.Addr}
+	if n.Namespace != "" {
+		parts = append(parts, n.Namespace)
+	}
+	if n.Cluster != "" {
+		parts = append(parts, n.Cluster)
+	}
+	return strings.Join(parts, "@")
+}
+
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
-	log.Infof("Client=%v connecting to node=%s", proxy.clientAddr, nodeAddress)
+func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
+	log.Infof("Client=%v connecting to node=%v", proxy.clientAddr, nodeAddress)
+	if len(proxy.teleportClient.JumpHosts) > 0 {
+		return proxy.PortForwardToNode(ctx, nodeAddress, user, quiet)
+	}
 
 	// parse destination first:
 	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
+	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress.Addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -417,13 +500,13 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		}
 	}
 
-	err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
+	err = proxySession.RequestSubsystem("proxy:" + nodeAddress.ProxyFormat())
 	if err != nil {
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
 		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
-			nodeName(strings.Split(nodeAddress, "@")[0]), serverErrorMsg)
+			nodeName(nodeAddress.Addr), serverErrorMsg)
 	}
 	pipeNetConn := utils.NewPipeNetConn(
 		proxyReader,
@@ -437,16 +520,75 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		Auth:            []ssh.AuthMethod{proxy.authMethod},
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
-	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress, sshConfig)
+	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress.ProxyFormat(), sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			proxySession.Close()
-			parts := strings.Split(nodeAddress, "@")
-			hostname := parts[0]
-			if len(hostname) == 0 && len(parts) > 1 {
-				hostname = "cluster " + parts[1]
-			}
-			return nil, trace.Errorf(`access denied to %v connecting to %v`, user, nodeName(hostname))
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	// We pass an empty channel which we close right away to ssh.NewClient
+	// because the client need to handle requests itself.
+	emptyCh := make(chan *ssh.Request)
+	close(emptyCh)
+
+	client := ssh.NewClient(conn, chans, emptyCh)
+
+	nc := &NodeClient{
+		Client:    client,
+		Proxy:     proxy,
+		Namespace: defaults.Namespace,
+		TC:        proxy.teleportClient,
+	}
+
+	// Start a goroutine that will run for the duration of the client to process
+	// global requests from the client. Teleport clients will use this to update
+	// terminal sizes when the remote PTY size has changed.
+	go nc.handleGlobalRequests(ctx, reqs)
+
+	return nc, nil
+}
+
+// PortForwardToNode connects to the ssh server via Proxy
+// It returns connected and authenticated NodeClient
+func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
+	log.Infof("Client=%v jumping to node=%s", proxy.clientAddr, nodeAddress)
+
+	// after auth but before we create the first session, find out if the proxy
+	// is in recording mode or not
+	recordingProxy, err := proxy.isRecordingProxy()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// the client only tries to forward an agent when the proxy is in recording
+	// mode. we always try and forward an agent here because each new session
+	// creates a new context which holds the agent. if ForwardToAgent returns an error
+	// "already have handler for" we ignore it.
+	if recordingProxy {
+		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
+		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	proxyConn, err := proxy.Client.Dial("tcp", nodeAddress.Addr)
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s", nodeAddress, err)
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            user,
+		Auth:            []ssh.AuthMethod{proxy.authMethod},
+		HostKeyCallback: proxy.hostKeyCallback,
+	}
+	conn, chans, reqs, err := newClientConn(ctx, proxyConn, nodeAddress.Addr, sshConfig)
+	if err != nil {
+		if utils.IsHandshakeFailedError(err) {
+			proxyConn.Close()
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
 		}
 		return nil, trace.Wrap(err)
 	}

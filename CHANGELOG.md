@@ -1,6 +1,19 @@
 # Changelog
 
+## 4.0.4
+
+This release of Teleport contains a bug fix.
+
+* Fixed a memory leak in the cache module. [#2892](https://github.com/gravitational/teleport/pull/2892)
+
+## 4.0.3
+
+* Reduced keep-alive interval to improve interoperability with popular load balancers. [#2845](https://github.com/gravitational/teleport/issues/2845)
+* Fixed issue where non-RSA certificates were rejected when not in FIPS mode. [#2805](https://github.com/gravitational/teleport/pull/2879)
+
 ## 4.0.2
+
+This release of Teleport contains multiple bug fixes.
 
 * Fixed an issue that caused active sessions not to be shown. [#2801](https://github.com/gravitational/teleport/issues/2801)
 * Fixed further issues with host certificate principal generation. [#2812](https://github.com/gravitational/teleport/pull/2812)

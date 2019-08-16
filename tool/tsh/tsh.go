@@ -95,6 +95,9 @@ type CLIConf struct {
 	DynamicForwardedPorts []string
 	// ForwardAgent agent to target node. Equivalent of -A for OpenSSH.
 	ForwardAgent bool
+	// ProxyJump is an optional -J flag pointing to the list of jumphosts,
+	// it is an equivalent of --proxy flag in tsh interpretation
+	ProxyJump string
 	// --local flag for ssh
 	LocalExec bool
 	// SiteName specifies remote site go login to
@@ -186,7 +189,7 @@ func Run(args []string, underTest bool) {
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	// configure CLI argument parser:
-	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
+	app := utils.InitCLIParser("tsh", "TSH: Teleport Authentication Gateway Client").Interspersed(false)
 	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
 	app.Flag("proxy", "SSH proxy address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
@@ -213,6 +216,7 @@ func Run(args []string, underTest bool) {
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
+	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
@@ -407,6 +411,9 @@ func onLogin(cf *CLIConf) {
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
+			if err := tc.GenerateCertsForCluster(cf.Context, cf.SiteName); err != nil {
+				utils.FatalError(err)
+			}
 			tc.SaveProfile("", "")
 			if err := kubeclient.UpdateKubeconfig(tc); err != nil {
 				utils.FatalError(err)
@@ -838,6 +845,15 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
+
+	// ProxyJump is an alias of Proxy flag
+	if cf.ProxyJump != "" {
+		hosts, err := utils.ParseProxyJump(cf.ProxyJump)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		c.JumpHosts = hosts
+	}
 
 	// Look if a user identity was given via -i flag
 	if cf.IdentityFileIn != "" {

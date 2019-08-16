@@ -269,6 +269,7 @@ func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, key ssh
 			IsHostAuthority: a.checkHostCertificate,
 			HostKeyFallback: a.checkHostKey,
 		},
+		FIPS: isFIPS(),
 	}
 	err := certChecker.CheckHostKey(addr, remote, key)
 	if err != nil {

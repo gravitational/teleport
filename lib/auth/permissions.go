@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate/builder"
@@ -98,6 +99,8 @@ type AuthContext struct {
 	User services.User
 	// Checker is access checker
 	Checker services.AccessChecker
+	// Identity is x509 derived identity
+	Identity tlsca.Identity
 }
 
 // Authorize authorizes user based on identity supplied via context
@@ -106,6 +109,20 @@ func (a *authorizer) Authorize(ctx context.Context) (*AuthContext, error) {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
 	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return nil, trace.AccessDenied("unsupported context type %T", userI)
+	}
+	identity := userWithIdentity.GetIdentity()
+	authContext, err := a.fromUser(userI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authContext.Identity = identity
+	return authContext, nil
+}
+
+func (a *authorizer) fromUser(userI interface{}) (*AuthContext, error) {
 	switch user := userI.(type) {
 	case LocalUser:
 		return a.authorizeLocalUser(user)
@@ -461,10 +478,23 @@ func contextForLocalUser(username string, identity services.UserGetter, access s
 // ContextUser is a user set in the context of the request
 const ContextUser = "teleport-user"
 
-// LocalUsername is a local username
+// LocalUser is a local user
 type LocalUser struct {
 	// Username is local username
 	Username string
+	// Identity is x509-derived identity used to build this user
+	Identity tlsca.Identity
+}
+
+// GetIdentity returns client identity
+func (l LocalUser) GetIdentity() tlsca.Identity {
+	return l.Identity
+}
+
+// IdentityGetter returns client identity
+type IdentityGetter interface {
+	// GetIdentity  returns x509-derived identity of the user
+	GetIdentity() tlsca.Identity
 }
 
 // BuiltinRole is the role of the Teleport service.
@@ -480,6 +510,14 @@ type BuiltinRole struct {
 
 	// ClusterName is the name of the local cluster
 	ClusterName string
+
+	// Identity is source x509 used to build this role
+	Identity tlsca.Identity
+}
+
+// GetIdentity returns client identity
+func (r BuiltinRole) GetIdentity() tlsca.Identity {
+	return r.Identity
 }
 
 // BuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
@@ -488,7 +526,7 @@ type BuiltinRoleSet struct {
 	services.RoleSet
 }
 
-// BuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
+// RemoteBuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
 // the role is a remote builtin or not.
 type RemoteBuiltinRoleSet struct {
 	services.RoleSet
@@ -505,6 +543,14 @@ type RemoteBuiltinRole struct {
 
 	// ClusterName is the name of the remote cluster.
 	ClusterName string
+
+	// Identity is source x509 used to build this role
+	Identity tlsca.Identity
+}
+
+// GetIdentity returns client identity
+func (r RemoteBuiltinRole) GetIdentity() tlsca.Identity {
+	return r.Identity
 }
 
 // RemoteUser defines encoded remote user.
@@ -524,6 +570,14 @@ type RemoteUser struct {
 
 	// KubernetesGroups is a list of Kubernetes groups
 	KubernetesGroups []string `json:"kubernetes_groups"`
+
+	// Identity is source x509 used to build this role
+	Identity tlsca.Identity
+}
+
+// GetIdentity returns client identity
+func (r RemoteUser) GetIdentity() tlsca.Identity {
+	return r.Identity
 }
 
 // GetClusterConfigFunc returns a cached services.ClusterConfig.

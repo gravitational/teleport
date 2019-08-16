@@ -203,7 +203,13 @@ elif [[ "${TELEPORT_ROLE}" == "monitor" ]]; then
 
 else
     echo "No Teleport role provided via TELEPORT_ROLE; using all-in-one config"
-    PUBLIC_IP=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
+    # if the instance doesn't have a public IPv4 address, we get a 404 from the metadata
+    # which will break the generated config, so we use the local IP instead
+    if curl -sS -i http://169.254.169.254/latest/meta-data/public-ipv4 | grep -q 404; then
+      PUBLIC_IP=${LOCAL_IP}
+    else
+      PUBLIC_IP=$(curl -sS http://169.254.169.254/latest/meta-data/public-ipv4)
+    fi
 
     # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
     if [[ "${USE_ACM}" == "true" ]]; then
@@ -419,3 +425,6 @@ EOF
     systemctl enable telegraf.service
     systemctl restart telegraf.service
 fi
+
+# make sure config file can be edited by pre-start commands running later
+chown teleport:adm /etc/teleport.yaml

@@ -178,7 +178,7 @@ func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
 
 // TestHostSigner makes sure Teleport can not be started with a invalid host
 // certificate. The main check is the certificate algorithms.
-func (s *ServerSuite) TestHostSigner(c *check.C) {
+func (s *ServerSuite) TestHostSignerFIPS(c *check.C) {
 	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.HostCert)
 	c.Assert(err, check.IsNil)
 
@@ -186,15 +186,48 @@ func (s *ServerSuite) TestHostSigner(c *check.C) {
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
 
-	_, err = NewServer(
-		"test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		newChanHandler,
-		[]ssh.Signer{ellipticSigner},
-		AuthMethods{Password: pass("abc123")},
-		SetCiphers([]string{"aes128-ctr"}),
-	)
-	c.Assert(err, check.NotNil)
+	var tests = []struct {
+		inSigner ssh.Signer
+		inFIPS   bool
+		outError bool
+	}{
+		// ECDSA when in FIPS mode should fail.
+		{
+			inSigner: ellipticSigner,
+			inFIPS:   true,
+			outError: true,
+		},
+		// RSA when in FIPS mode is okay.
+		{
+			inSigner: s.signer,
+			inFIPS:   true,
+			outError: false,
+		},
+		// ECDSA when in not FIPS mode should succeed.
+		{
+			inSigner: ellipticSigner,
+			inFIPS:   false,
+			outError: false,
+		},
+		// RSA when in not FIPS mode should succeed.
+		{
+			inSigner: s.signer,
+			inFIPS:   false,
+			outError: false,
+		},
+	}
+	for _, tt := range tests {
+		_, err := NewServer(
+			"test",
+			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+			newChanHandler,
+			[]ssh.Signer{tt.inSigner},
+			AuthMethods{Password: pass("abc123")},
+			SetCiphers([]string{"aes128-ctr"}),
+			SetFIPS(tt.inFIPS),
+		)
+		c.Assert(err != nil, check.Equals, tt.outError)
+	}
 }
 
 func wait(c *check.C, srv *Server) {

@@ -168,6 +168,10 @@ type ServerConfig struct {
 
 	// Clock is an optoinal clock to override default real time clock
 	Clock clockwork.Clock
+
+	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// configuration.
+	FIPS bool
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -261,6 +265,7 @@ func New(c ServerConfig) (*Server, error) {
 		Component:   teleport.ComponentForwardingNode,
 		AuditLog:    c.AuthClient,
 		AccessPoint: c.AuthClient,
+		FIPS:        c.FIPS,
 	}
 
 	// Common term handlers.

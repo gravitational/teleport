@@ -401,10 +401,13 @@ type certRequest struct {
 	// the cert can be only used against kubernetes endpoint, and not auth endpoint,
 	// no usage means unrestricted (to keep backwards compatibility)
 	usage []string
+	// routeToCluster is an optional cluster name to route the certificate requests to,
+	// this cluster name will be used to route the requests to in case of kubernetes
+	routeToCluster string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, []byte, error) {
+func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
 	user, err := a.Identity.GetUser(username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -414,11 +417,12 @@ func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time
 		return nil, nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:          user,
-		roles:         checker,
-		ttl:           ttl,
-		compatibility: compatibility,
-		publicKey:     key,
+		user:           user,
+		roles:          checker,
+		ttl:            ttl,
+		compatibility:  compatibility,
+		publicKey:      key,
+		routeToCluster: routeToCluster,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -498,6 +502,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		CertificateFormat:     certificateFormat,
 		PermitPortForwarding:  req.roles.CanPortForward(),
 		PermitAgentForwarding: req.roles.CanForwardAgents(),
+		RouteToCluster:        req.routeToCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -515,10 +520,11 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	identity := tlsca.Identity{
-		Username:   req.user.GetName(),
-		Groups:     req.roles.RoleNames(),
-		Principals: allowedLogins,
-		Usage:      req.usage,
+		Username:       req.user.GetName(),
+		Groups:         req.roles.RoleNames(),
+		Principals:     allowedLogins,
+		Usage:          req.usage,
+		RouteToCluster: req.routeToCluster,
 	}
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,

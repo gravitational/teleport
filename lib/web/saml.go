@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/form"
 	"github.com/gravitational/trace"
@@ -102,6 +103,11 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		log.Warningf("error while processing callback: %v", err)
 
 		message := "Unable to process callback from SAML provider. Ask your system administrator to check audit logs for details."
+		// for not implemented errors it's ok to provide a more specific
+		// message as it could give more guidance on what's not enabled
+		if trace.IsNotImplemented(err) {
+			message = utils.Capitalize(err.Error()) + "."
+		}
 
 		// redirect to an error page
 		pathToError := url.URL{

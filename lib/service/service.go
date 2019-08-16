@@ -838,6 +838,9 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 				return nil, trace.Wrap(err)
 			}
 			loggers = append(loggers, logger)
+		case teleport.SchemeStdout:
+			logger := events.NewWriterLog(utils.NopWriteCloser(os.Stdout))
+			loggers = append(loggers, logger)
 		default:
 			return nil, trace.BadParameter(
 				"unsupported scheme for audit_events_uri: %q, currently supported schemes are %q and %q",
@@ -853,12 +856,16 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 		return nil, trace.NotFound("no external log is defined")
 	case 1:
 		if !hasNonFileLog {
-			return nil, trace.BadParameter("file:// log can not be used on it's own, can be only used in combination with external session logs, e.g. dynamodb://")
+			return nil, trace.BadParameter(
+				"file:// or stdout:// log can not be used on it's own, " +
+					"can be only used in combination with external session logs, e.g. dynamodb://")
 		}
 		return loggers[0], nil
 	default:
 		if !hasNonFileLog {
-			return nil, trace.BadParameter("file:// log can not be used on it's own, can be only used in combination with external session logs, e.g. dynamodb://")
+			return nil, trace.BadParameter(
+				"file:// or stdout:// log can not be used on it's own, " +
+					"can be only used in combination with external session logs, e.g. dynamodb://")
 		}
 		return events.NewMultiLog(loggers...), nil
 	}
@@ -1088,7 +1095,7 @@ func (process *TeleportProcess) initAuthService() error {
 		if aport == "" {
 			aport = port
 		}
-		authAddr = fmt.Sprintf("%v:%v", ahost, aport)
+		authAddr = net.JoinHostPort(ahost, aport)
 	} else {
 		// advertise-ip is not set, while the CA is listening on 0.0.0.0? lets try
 		// to guess the 'advertise ip' then:
@@ -1428,6 +1435,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetPAMConfig(cfg.SSH.PAM),
 			regular.SetRotationGetter(process.getRotation),
 			regular.SetUseTunnel(conn.UseTunnel()),
+			regular.SetFIPS(cfg.FIPS),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1889,7 +1897,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		go listeners.mux.Serve()
 		return &listeners, nil
 	default:
-		process.Debugf("Proxy reverse tunnel are listening on the separate ports.")
+		process.Debugf("Proxy and reverse tunnel are listening on separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel"), cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
@@ -1972,11 +1980,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				MACAlgorithms: cfg.MACAlgorithms,
 				DataDir:       process.Config.DataDir,
 				PollingPeriod: process.Config.PollingPeriod,
+				FIPS:          cfg.FIPS,
 			})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.RegisterCriticalFunc("proxy.reveresetunnel.server", func() error {
+		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Reverse tunnel service is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			log.Infof("Starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
@@ -2081,6 +2090,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetMACAlgorithms(cfg.MACAlgorithms),
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetRotationGetter(process.getRotation),
+		regular.SetFIPS(cfg.FIPS),
 	)
 	if err != nil {
 		return trace.Wrap(err)

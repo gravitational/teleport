@@ -52,9 +52,13 @@ type AuthHandlers struct {
 
 	// AccessPoint is used to access the Auth Server.
 	AccessPoint auth.AccessPoint
+
+	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// configuration.
+	FIPS bool
 }
 
-// BuildIdentityContext returns an IdentityContext populated with information
+// CreateIdentityContext returns an IdentityContext populated with information
 // about the logged in user on the connection.
 func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityContext, error) {
 	identity := IdentityContext{
@@ -72,10 +76,10 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
+	identity.RouteToCluster = certificate.Extensions[teleport.CertExtensionTeleportRouteToCluster]
 	if certificate.ValidBefore != 0 {
 		identity.CertValidBefore = time.Unix(int64(certificate.ValidBefore), 0)
 	}
-
 	certAuthority, err := h.authorityForCert(services.UserCA, certificate.SignatureKey)
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
@@ -178,6 +182,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
 		},
+		FIPS: h.FIPS,
 	}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
@@ -254,6 +259,7 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 			IsHostAuthority: h.IsHostAuthority,
 			HostKeyFallback: h.hostKeyCallback,
 		},
+		FIPS: h.FIPS,
 	}
 	err := certChecker.CheckHostKey(addr, remote, key)
 	if err != nil {

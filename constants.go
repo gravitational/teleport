@@ -317,6 +317,9 @@ const (
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
+	// SchemeStdout outputs audit log entries to stdout
+	SchemeStdout = "stdout"
+
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
@@ -358,6 +361,9 @@ const (
 	CertExtensionPermitPortForwarding = "permit-port-forwarding"
 	// CertExtensionTeleportRoles is used to propagate teleport roles
 	CertExtensionTeleportRoles = "teleport-roles"
+	// CertExtensionTeleportRouteToCluster is used to encode
+	// the target cluster to route to in the certificate
+	CertExtensionTeleportRouteToCluster = "teleport-route-to-cluster"
 )
 
 const (

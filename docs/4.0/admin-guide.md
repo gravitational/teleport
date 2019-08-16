@@ -138,6 +138,9 @@ command:
 ```bsh
 $ teleport start --help
 usage: teleport start [<flags>]
+
+Starts the Teleport service.
+
 Flags:
   -d, --debug            Enable verbose logging to stderr
       --insecure-no-tls  Disable TLS for the web socket
@@ -146,11 +149,13 @@ Flags:
       --advertise-ip     IP to advertise to clients if running behind NAT
   -l, --listen-ip        IP address to bind to [0.0.0.0]
       --auth-server      Address of the auth server [127.0.0.1:3025]
-      --token            Invitation token to join a cluster [none]
+      --token            Invitation token to register with an auth server [none]
+      --ca-pin           CA pin to validate the Auth Server
       --nodename         Name of this node, defaults to hostname
   -c, --config           Path to a configuration file [/etc/teleport.yaml]
       --labels           List of labels for this node
-      --permit-user-env  Enables reading of ~/.tsh/environment when creating a session
+      --insecure         Insecure mode disables certificate validation
+      --fips             Start Teleport in FedRAMP/FIPS 140-2 mode.
 ```
 
 ### Configuration Flags
@@ -251,14 +256,14 @@ teleport:
     # Configuration for the storage back-end used for the cluster state and the
     # audit log. Several back-end types are supported. See "High Availability"
     # section of this Admin Manual below to learn how to configure DynamoDB, 
-    # S3, etcd and other highly available back-ends.
+    # S3, etcd and other highly available back-ends. 
     storage:
         # By default teleport uses the `data_dir` directory on a local filesystem
         type: dir
 
         # Array of locations where the audit log events will be stored. by
         # default they are stored in `/var/lib/teleport/log`
-        audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name']
+        audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name', 'stdout://']
 
         # Use this setting to configure teleport to store the recorded sessions in
         # an AWS S3 bucket. see "Using Amazon S3" chapter for more information.
@@ -1651,9 +1656,18 @@ can be used like `netcat` is with `ProxyCommand` to connect through a jump host.
 First, you need to export the public keys of cluster members. This has to be done
 on a node which runs Teleport auth server:
 
-```yaml
+```bash
 $ tctl auth export --type=host > cluster_node_keys
 ```
+
+```bash
+$ cat cluster_node_keys
+@cert-authority *.graviton-auth ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDLNduBoHQaqi+kgkq3gLYjc6JIyBBnCFLgm63b5rtmWl/CJD7T9HWHxZphaS1jra6CWdboLeTp6sDUIKZ/Qw1MKFlfoqZZ8k6to43bxx7DvAHs0Te4WpuS/YRmWFhb6mMVOa8Rd4/9jE+c0f9O/t7X4m5iR7Fp7Tt+R/pjJfr03Loi6TYP/61AgXD/BkVDf+IcU4+9nknl+kaVPSGcPS9/Vbni1208Q+VN7B7Umy71gCh02gfv3rBGRgjT/cRAivuVoH/z3n5UwWg+9R3GD/l+XZKgv+pfe3OHoyDFxYKs9JaX0+GWc504y3Grhos12Lb8sNmMngxxxQ/KUDOV9z+R type=host
+```
+
+!!! tip "Note": 
+  When sharing the @cert-authority make sure that the URL for the proxy is correct. 
+  In the above example, `*.graviton-auth` should be changed to teleport.example.com.  
 
 On your client machine, you need to import these keys. It will allow your OpenSSH client
 to verify that host's certificates are signed by the trusted CA key:
@@ -2082,9 +2096,9 @@ teleport:
     access_key: BKZA3H2LOKJ1QJ3YF21A
     secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
 
-    # This setting configures Teleport to send the audit events to two places: 
-    # To the DynamoDB table and to keep a copy on a local filesystem.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name']
+    # This setting configures Teleport to send the audit events to three places: 
+    # To keep a copy on a local filesystem, in DynamoDB and to Stdout. 
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: 's3://example.com/teleport.events'
