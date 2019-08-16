@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// package multiplexer implements SSH and TLS multiplexing
+// Package multiplexer implements SSH and TLS multiplexing
 // on the same listener
 //
 // mux, _ := multiplexer.New(Config{Listener: listener})
@@ -235,6 +235,9 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 			connWrapper.Close()
 			return
 		}
+	case ProtoHTTP:
+		m.Debug("Detected an HTTP request. If this is for a health check, use an HTTPS request instead.")
+		conn.Close()
 	default:
 		// should not get here, handle this just in case
 		connWrapper.Close()
@@ -275,7 +278,7 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 				return nil, trace.Wrap(err)
 			}
 			// repeat the cycle to detect the protocol
-		case ProtoTLS, ProtoSSH:
+		case ProtoTLS, ProtoSSH, ProtoHTTP:
 			return &Conn{
 				protocol:  proto,
 				Conn:      conn,
@@ -297,6 +300,8 @@ const (
 	ProtoSSH
 	// ProtoProxy is a HAProxy proxy line protocol
 	ProtoProxy
+	// ProtoHTTP is HTTP protocol
+	ProtoHTTP
 )
 
 var (
@@ -304,6 +309,29 @@ var (
 	sshPrefix   = []byte{'S', 'S', 'H'}
 	tlsPrefix   = []byte{0x16}
 )
+
+// isHTTP returns true if the first 3 bytes of the prefix indicate
+// the use of an HTTP method.
+func isHTTP(in []byte) bool {
+	methods := [...][]byte{
+		[]byte("GET"),
+		[]byte("POST"),
+		[]byte("PUT"),
+		[]byte("DELETE"),
+		[]byte("HEAD"),
+		[]byte("CONNECT"),
+		[]byte("OPTIONS"),
+		[]byte("TRACE"),
+		[]byte("PATCH"),
+	}
+	for _, verb := range methods {
+		// we only get 3 bytes, so can only compare the first 3 bytes of each verb
+		if bytes.HasPrefix(verb, in[:3]) {
+			return true
+		}
+	}
+	return false
+}
 
 func detectProto(in []byte) (int, error) {
 	switch {
@@ -314,6 +342,8 @@ func detectProto(in []byte) (int, error) {
 		return ProtoSSH, nil
 	case bytes.HasPrefix(in, tlsPrefix):
 		return ProtoTLS, nil
+	case isHTTP(in):
+		return ProtoHTTP, nil
 	default:
 		return ProtoUnknown, trace.BadParameter("failed to detect protocol by prefix: %v", in)
 	}

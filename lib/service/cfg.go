@@ -470,7 +470,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
-	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellListenAddr()
+	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 
 	// defaults for the Kubernetes proxy service
