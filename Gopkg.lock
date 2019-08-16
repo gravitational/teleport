@@ -272,7 +272,7 @@
   revision = "811b1089cde9dad18d4d0c2d09fbdbf28dbd27a5"
 
 [[projects]]
-  digest = "1:acba7f3d06725b78c6999c2ba6c40b80539c10346fe37b4681072f1666c87d0c"
+  digest = "1:37234906013da82d4c05666262eda5bdec8f736bafa7d4ec1fb3314e965b476f"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -281,8 +281,8 @@
     "sortkeys",
   ]
   pruneopts = "NUT"
-  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
-  version = "v1.0.0"
+  revision = "ba06b47c162d49f2af050fb4c75bcbc86a159d5c"
+  version = "v1.2.1"
 
 [[projects]]
   branch = "master"
@@ -1084,6 +1084,7 @@
     "github.com/codahale/hdrhistogram",
     "github.com/coreos/etcd/clientv3",
     "github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes",
+    "github.com/coreos/go-oidc/http",
     "github.com/coreos/go-oidc/jose",
     "github.com/coreos/go-oidc/oauth2",
     "github.com/coreos/go-oidc/oidc",
@@ -1091,6 +1092,7 @@
     "github.com/davecgh/go-spew/spew",
     "github.com/docker/docker/pkg/term",
     "github.com/ghodss/yaml",
+    "github.com/gogo/protobuf/proto",
     "github.com/gokyle/hotp",
     "github.com/golang/protobuf/proto",
     "github.com/golang/protobuf/ptypes/empty",
@@ -1165,6 +1167,7 @@
     "k8s.io/client-go/tools/clientcmd/api",
     "k8s.io/client-go/tools/portforward",
     "k8s.io/client-go/tools/remotecommand",
+    "k8s.io/client-go/transport",
     "k8s.io/client-go/transport/spdy",
     "k8s.io/client-go/util/exec",
   ]

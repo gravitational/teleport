@@ -252,7 +252,7 @@ enter:
 	make -C build.assets enter
 
 PROTOC_VER ?= 3.0.0
-GOGO_PROTO_TAG ?= v0.3
+GOGO_PROTO_TAG ?= v1.1.1
 PLATFORM := linux-x86_64
 GRPC_API := lib/events
 BUILDBOX_TAG := teleport-grpc-buildbox:0.0.1
