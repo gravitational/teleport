@@ -57,7 +57,7 @@ The following core concepts are integral to understanding the Teleport architect
 
 Teleport supports two types of user accounts:
 
-* **Local users** are created and stored in Teleport's own identitiy storage. A cluster
+* **Local users** are created and stored in Teleport's own identity storage. A cluster
   administrator has to create account entries for every Teleport user.
   Teleport supports second factor authentication (2FA) and it is enforced by default.
   There are two types of 2FA supported:
@@ -438,7 +438,7 @@ to the final destination server, effectively becoming an authorized "man in the
 middle". This allows the proxy server to forward SSH session data to the auth
 server to be recorded, as shown below:
 
-![recorindg-proxy](img/recording-proxy.svg?style=grv-image-center-lg)
+![recording-proxy](img/recording-proxy.svg?style=grv-image-center-lg)
 
 The recording proxy mode, although _less secure_, was added to allow Teleport
 users to enable session recording for OpenSSH's servers running `sshd`, which is
