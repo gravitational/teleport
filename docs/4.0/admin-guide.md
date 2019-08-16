@@ -2136,7 +2136,7 @@ teleport:
             "Sid": "AllAPIActionsOnTeleportStreams",
             "Effect": "Allow",
             "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:us-west-2:126027368216:table/prod.teleport.auth/stream/*"
+            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth/stream/*"
         }
     ]
 }
