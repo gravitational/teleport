@@ -382,12 +382,24 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
 	for ext := range cert.Extensions {
-		if ext == teleport.CertExtensionTeleportRoles {
+		if ext == teleport.CertExtensionTeleportRoles ||
+			ext == teleport.CertExtensionTeleportRouteToCluster {
 			continue
 		}
 		extensions = append(extensions, ext)
 	}
 	sort.Strings(extensions)
+
+	// Extract cluster name from the profile.
+	clusterName := profile.SiteName
+	// DELETE IN: 4.2.0.
+	//
+	// Older versions of tsh did not always store the cluster name in the
+	// profile. If no cluster name is found, fallback to the name of the profile
+	// for backward compatibility.
+	if clusterName == "" {
+		clusterName = profile.Name()
+	}
 
 	return &ProfileStatus{
 		ProxyURL: url.URL{
@@ -399,7 +411,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		ValidUntil: validUntil,
 		Extensions: extensions,
 		Roles:      roles,
-		Cluster:    profile.Name(),
+		Cluster:    clusterName,
 	}, nil
 }
 
@@ -1612,10 +1624,13 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	key.TLSCert = response.TLSCert
 	key.ProxyHost = webProxyHost
 
+	// Check that a host certificate for at least one cluster was returned and
+	// extract the name of the current cluster from the first host certificate.
 	if len(response.HostSigners) <= 0 {
 		return nil, trace.BadParameter("bad response from the server: expected at least one certificate, got 0")
 	}
 	key.ClusterName = response.HostSigners[0].ClusterName
+	tc.SiteName = response.HostSigners[0].ClusterName
 
 	if activateKey {
 		// save the list of CAs client trusts to ~/.tsh/known_hosts
