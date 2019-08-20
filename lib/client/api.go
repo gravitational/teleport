@@ -245,8 +245,12 @@ type Config struct {
 	// with auth server version when connecting.
 	CheckVersions bool
 
-	// BindAddr is an optional host:port to bind to for SSO redirect flows
+	// BindAddr is an optional host:port to bind to for SSO redirect flows.
 	BindAddr string
+
+	// NoRemoteExec will not execute a remote command after connecting to a host,
+	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
+	NoRemoteExec bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -382,12 +386,24 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
 	for ext := range cert.Extensions {
-		if ext == teleport.CertExtensionTeleportRoles {
+		if ext == teleport.CertExtensionTeleportRoles ||
+			ext == teleport.CertExtensionTeleportRouteToCluster {
 			continue
 		}
 		extensions = append(extensions, ext)
 	}
 	sort.Strings(extensions)
+
+	// Extract cluster name from the profile.
+	clusterName := profile.SiteName
+	// DELETE IN: 4.2.0.
+	//
+	// Older versions of tsh did not always store the cluster name in the
+	// profile. If no cluster name is found, fallback to the name of the profile
+	// for backward compatibility.
+	if clusterName == "" {
+		clusterName = profile.Name()
+	}
 
 	return &ProfileStatus{
 		ProxyURL: url.URL{
@@ -399,7 +415,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		ValidUntil: validUntil,
 		Extensions: extensions,
 		Roles:      roles,
-		Cluster:    profile.Name(),
+		Cluster:    clusterName,
 	}, nil
 }
 
@@ -877,10 +893,25 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		tc.ExitStatus = 1
 		return trace.Wrap(err)
 	}
-	// proxy local ports (forward incoming connections to remote host ports)
+
+	// If forwarding ports were specified, start port forwarding.
 	tc.startPortForwarding(ctx, nodeClient)
 
-	// local execution?
+	// If no remote command execution was requested, block on the context which
+	// will unblock upon error or SIGINT.
+	if tc.NoRemoteExec {
+		log.Debugf("Connected to node, no remote command execution was requested, blocking until context closes.")
+		<-ctx.Done()
+
+		// Only return an error if the context was canceled by something other than SIGINT.
+		if ctx.Err() != context.Canceled {
+			return ctx.Err()
+		}
+		return nil
+	}
+
+	// After port forwarding, run a local command that uses the connection, and
+	// then disconnect.
 	if runLocally {
 		if len(tc.Config.LocalForwardPorts) == 0 {
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
@@ -1612,10 +1643,13 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	key.TLSCert = response.TLSCert
 	key.ProxyHost = webProxyHost
 
+	// Check that a host certificate for at least one cluster was returned and
+	// extract the name of the current cluster from the first host certificate.
 	if len(response.HostSigners) <= 0 {
 		return nil, trace.BadParameter("bad response from the server: expected at least one certificate, got 0")
 	}
 	key.ClusterName = response.HostSigners[0].ClusterName
+	tc.SiteName = response.HostSigners[0].ClusterName
 
 	if activateKey {
 		// save the list of CAs client trusts to ~/.tsh/known_hosts

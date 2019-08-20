@@ -157,6 +157,10 @@ type CLIConf struct {
 
 	// Verbose is used to print extra output.
 	Verbose bool
+
+	// NoRemoteExec will not execute a remote command after connecting to a host,
+	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
+	NoRemoteExec bool
 }
 
 func main() {
@@ -225,6 +229,7 @@ func Run(args []string, underTest bool) {
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
+	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -980,6 +985,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
 	c.BindAddr = cf.BindAddr
+
+	// Don't execute remote command, used when port forwarding.
+	c.NoRemoteExec = cf.NoRemoteExec
+
 	return client.NewClient(c)
 }
 

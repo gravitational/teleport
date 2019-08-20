@@ -134,6 +134,16 @@ func (proxy *ProxyClient) GenerateCertsForCluster(ctx context.Context, routeToCl
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Before requesting a certificate, check if the requested cluster is valid.
+	_, err = clt.GetCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: routeToCluster,
+	}, false)
+	if err != nil {
+		return trace.NotFound("cluster %v not found", routeToCluster)
+	}
+
 	req := proto.UserCertsRequest{
 		Username:       cert.KeyId,
 		PublicKey:      key.Pub,
