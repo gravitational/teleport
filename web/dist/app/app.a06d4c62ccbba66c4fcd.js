@@ -2327,30 +2327,32 @@ limitations under the License.
 
 
 
+var GOOLE_AUTHENTICATOR = 'https://support.google.com/accounts/answer/1066447?hl=en';
+
 var googleAuthLogo_GoogleAuthInfo = function GoogleAuthInfo() {
   return react_default.a.createElement(
-    "div",
-    { className: "grv-google-auth text-left" },
-    react_default.a.createElement("div", { className: "grv-icon-google-auth" }),
+    'div',
+    { className: 'grv-google-auth text-left' },
+    react_default.a.createElement('div', { className: 'grv-icon-google-auth' }),
     react_default.a.createElement(
-      "strong",
+      'strong',
       null,
-      "Google Authenticator"
+      'Google Authenticator'
     ),
     react_default.a.createElement(
-      "div",
+      'div',
       null,
-      "Download",
+      'Download',
       react_default.a.createElement(
-        "a",
-        { href: "https://support.google.com/accounts/answer/1066447?hl=en" },
+        'a',
+        { href: GOOLE_AUTHENTICATOR, rel: 'noreferrer' },
         react_default.a.createElement(
-          "span",
+          'span',
           null,
-          " Google Authenticator "
+          ' Google Authenticator '
         )
       ),
-      "on your phone to access your two factor token"
+      'on your phone to access your two factor token'
     )
   );
 };
@@ -3642,7 +3644,7 @@ var invite_Invite2faData = function Invite2faData(_ref2) {
           'Click',
           react_default.a.createElement(
             'a',
-            { a: true, target: '_blank', href: U2F_HELP_URL },
+            { a: true, target: '_blank', href: U2F_HELP_URL, rel: 'noreferrer' },
             ' here '
           ),
           'to learn more about U2F 2-Step Verification.'
