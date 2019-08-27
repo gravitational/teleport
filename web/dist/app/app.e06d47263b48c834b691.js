@@ -8765,7 +8765,7 @@ webpackJsonp([0],[
 /* 254 */
 /***/ (function(module, exports, __webpack_require__) {
 
-	"use strict";
+	'use strict';
 
 	exports.__esModule = true;
 
@@ -8775,47 +8775,49 @@ webpackJsonp([0],[
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
+	var GOOLE_AUTHENTICATOR = 'https://support.google.com/accounts/answer/1066447?hl=en'; /*
+	                                                                                      Copyright 2015 Gravitational, Inc.
+	                                                                                      
+	                                                                                      Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                      you may not use this file except in compliance with the License.
+	                                                                                      You may obtain a copy of the License at
+	                                                                                      
+	                                                                                          http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                      
+	                                                                                      Unless required by applicable law or agreed to in writing, software
+	                                                                                      distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                      See the License for the specific language governing permissions and
+	                                                                                      limitations under the License.
+	                                                                                      */
+
 	var GoogleAuthInfo = function GoogleAuthInfo() {
 	  return _react2.default.createElement(
-	    "div",
-	    { className: "grv-google-auth text-left" },
-	    _react2.default.createElement("div", { className: "grv-icon-google-auth" }),
+	    'div',
+	    { className: 'grv-google-auth text-left' },
+	    _react2.default.createElement('div', { className: 'grv-icon-google-auth' }),
 	    _react2.default.createElement(
-	      "strong",
+	      'strong',
 	      null,
-	      "Google Authenticator"
+	      'Google Authenticator'
 	    ),
 	    _react2.default.createElement(
-	      "div",
+	      'div',
 	      null,
-	      "Download",
+	      'Download',
 	      _react2.default.createElement(
-	        "a",
-	        { href: "https://support.google.com/accounts/answer/1066447?hl=en" },
+	        'a',
+	        { href: GOOLE_AUTHENTICATOR, rel: 'noreferrer' },
 	        _react2.default.createElement(
-	          "span",
+	          'span',
 	          null,
-	          " Google Authenticator "
+	          ' Google Authenticator '
 	        )
 	      ),
-	      "on your phone to access your two factor token"
+	      'on your phone to access your two factor token'
 	    )
 	  );
-	}; /*
-	   Copyright 2015 Gravitational, Inc.
-	   
-	   Licensed under the Apache License, Version 2.0 (the "License");
-	   you may not use this file except in compliance with the License.
-	   You may obtain a copy of the License at
-	   
-	       http://www.apache.org/licenses/LICENSE-2.0
-	   
-	   Unless required by applicable law or agreed to in writing, software
-	   distributed under the License is distributed on an "AS IS" BASIS,
-	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	   See the License for the specific language governing permissions and
-	   limitations under the License.
-	   */
+	};
 
 	exports.default = GoogleAuthInfo;
 	module.exports = exports['default'];
@@ -10016,7 +10018,7 @@ webpackJsonp([0],[
 	          'Click',
 	          _react2.default.createElement(
 	            'a',
-	            { a: true, target: '_blank', href: U2F_HELP_URL },
+	            { a: true, target: '_blank', href: U2F_HELP_URL, rel: 'noreferrer' },
 	            ' here '
 	          ),
 	          'to learn more about U2F 2-Step Verification.'
