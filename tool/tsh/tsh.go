@@ -184,6 +184,7 @@ const (
 	clusterEnvVar  = "TELEPORT_SITE"
 	clusterHelp    = "Specify the cluster to connect"
 	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
+	authEnvVar     = "TELEPORT_AUTH"
 )
 
 // Run executes TSH client. same as main() but easier to test
@@ -208,7 +209,7 @@ func Run(args []string, underTest bool) {
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
-	app.Flag("auth", "Specify the type of authentication connector to use.").StringVar(&cf.AuthConnector)
+	app.Flag("auth", "Specify the type of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
@@ -377,6 +378,13 @@ func onLogin(cf *CLIConf) {
 		tc  *client.TeleportClient
 		key *client.Key
 	)
+
+	// populate cluster name from environment variables
+	// only if not set by argument (that does not support env variables)
+	clusterName := os.Getenv(clusterEnvVar)
+	if cf.SiteName == "" {
+		cf.SiteName = clusterName
+	}
 
 	if cf.IdentityFileIn != "" {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
