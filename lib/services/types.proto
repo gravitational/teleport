@@ -523,6 +523,9 @@ message UserSpecV2  {
 
 	// CreatedBy holds information about agent or person created this user
 	CreatedBy CreatedBy = 8 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "created_by,omitempty"];
+
+    // LocalAuths hold sensitive data necessary for performing local authentication
+    LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
 }
 
 // ExternalIdentity is OpenID Connect/SAML or Github identity that is linked
@@ -562,6 +565,33 @@ message CreatedBy {
     google.protobuf.Timestamp Time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "time"];
 	// User holds information about user
 	UserRef User = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "user"];
+}
+
+// U2FRegistrationData encodes the universal second factor registration payload.
+message U2FRegistrationData {
+    // Raw is the serialized registration data as received from the token
+    bytes Raw = 1 [(gogoproto.jsontag) = "raw"];
+
+    // KeyHandle uniquely identifies a key on a device
+    bytes KeyHandle = 2 [(gogoproto.jsontag) = "key_handle"];
+
+    // PubKey is an DER encoded ecdsa public key
+    bytes PubKey = 3 [(gogoproto.jsontag) = "pubkey"];
+}
+
+// LocalAuthSecrets holds sensitive data used to authenticate a local user.
+message LocalAuthSecrets {
+    // PasswordHash encodes a combined salt & hash for password verification.
+    bytes PasswordHash = 1 [(gogoproto.jsontag) = "password_hash,omitempty"];
+
+    // TOTPKey is the key used for Time-based One Time Password varification.
+    string TOTPKey = 2 [(gogoproto.jsontag) = "totp_key,omitempty"];
+
+    // U2FRegistration holds Universal Second Factor registration info.
+    U2FRegistrationData U2FRegistration = 3 [(gogoproto.jsontag) = "u2f_registration,omitempty"];
+
+    // U2FCounter holds the highest seen Universal Second Factor registration count.
+    uint32 U2FCounter = 4 [(gogoproto.jsontag) = "u2f_counter,omitempty"];
 }
 
 // ConnectorRef holds information about OIDC connector

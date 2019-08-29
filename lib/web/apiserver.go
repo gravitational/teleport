@@ -358,7 +358,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, _ httpr
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := clt.GetUser(c.GetUser())
+	user, err := clt.GetUser(c.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1025,7 +1025,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	webSession := ctx.GetWebSession()
-	user, err := clt.GetUser(webSession.GetUser())
+	user, err := clt.GetUser(webSession.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

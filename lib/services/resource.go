@@ -310,6 +310,183 @@ func SkipValidation() MarshalOption {
 // marshalerMutex is a mutex for resource marshalers/unmarshalers
 var marshalerMutex sync.RWMutex
 
+// ResourceMarshaler handles marshaling of a specific resource type.
+type ResourceMarshaler func(Resource, ...MarshalOption) ([]byte, error)
+
+// ResourceUnmarshaler handles unmarshaling of a specific resource type.
+type ResourceUnmarshaler func([]byte, ...MarshalOption) (Resource, error)
+
+// resourceMarshalers holds a collection of marshalers organized by kind.
+var resourceMarshalers map[string]ResourceMarshaler = make(map[string]ResourceMarshaler)
+
+// resourceUnmarshalers holds a collection of unmarshalers organized by kind.
+var resourceUnmarshalers map[string]ResourceUnmarshaler = make(map[string]ResourceUnmarshaler)
+
+// GetResourceMarshalerKinds lists all registered resource marshalers by kind.
+func GetResourceMarshalerKinds() []string {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	kinds := make([]string, 0, len(resourceMarshalers))
+	for kind, _ := range resourceMarshalers {
+		kinds = append(kinds, kind)
+	}
+	return kinds
+}
+
+// RegisterResourceMarshaler registers a marshaler for resources of a specific kind.
+func RegisterResourceMarshaler(kind string, marshaler ResourceMarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	resourceMarshalers[kind] = marshaler
+}
+
+// RegisterResourceUnmarshaler registers an unmarshaler for resources of a specific kind.
+func RegisterResourceUnmarshaler(kind string, unmarshaler ResourceUnmarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	resourceUnmarshalers[kind] = unmarshaler
+}
+
+func getResourceMarshaler(kind string) (ResourceMarshaler, bool) {
+	marshalerMutex.RLock()
+	defer marshalerMutex.RUnlock()
+	m, ok := resourceMarshalers[kind]
+	if !ok {
+		return nil, false
+	}
+	return m, true
+}
+
+func getResourceUnmarshaler(kind string) (ResourceUnmarshaler, bool) {
+	marshalerMutex.RLock()
+	defer marshalerMutex.RUnlock()
+	u, ok := resourceUnmarshalers[kind]
+	if !ok {
+		return nil, false
+	}
+	return u, true
+}
+
+func init() {
+	RegisterResourceMarshaler(KindUser, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(User)
+		if !ok {
+			return nil, trace.BadParameter("expected User, got %T", r)
+		}
+		raw, err := GetUserMarshaler().MarshalUser(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindUser, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := GetUserMarshaler().UnmarshalUser(b, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
+
+	RegisterResourceMarshaler(KindCertAuthority, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(CertAuthority)
+		if !ok {
+			return nil, trace.BadParameter("expected CertAuthority, got %T", r)
+		}
+		raw, err := GetCertAuthorityMarshaler().MarshalCertAuthority(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindCertAuthority, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := GetCertAuthorityMarshaler().UnmarshalCertAuthority(b, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
+
+	RegisterResourceMarshaler(KindTrustedCluster, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(TrustedCluster)
+		if !ok {
+			return nil, trace.BadParameter("expected TrustedCluster, got %T", r)
+		}
+		raw, err := GetTrustedClusterMarshaler().Marshal(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindTrustedCluster, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := GetTrustedClusterMarshaler().Unmarshal(b, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
+
+	RegisterResourceMarshaler(KindGithubConnector, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(GithubConnector)
+		if !ok {
+			return nil, trace.BadParameter("expected GithubConnector, got %T", r)
+		}
+		raw, err := GetGithubConnectorMarshaler().Marshal(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindGithubConnector, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := GetGithubConnectorMarshaler().Unmarshal(b) // XXX: Does not support marshal options.
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
+}
+
+// MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError
+// if no marshaler has been registered.
+//
+// NOTE: This function only supports the subset of resources which may be imported/exported
+// by users (e.g. via `tctl get`).
+func MarshalResource(resource Resource, opts ...MarshalOption) ([]byte, error) {
+	marshal, ok := getResourceMarshaler(resource.GetKind())
+	if !ok {
+		return nil, trace.NotImplemented("cannot dynamically marshal resources of kind %q", resource.GetKind())
+	}
+	// Handle the case where `resource` was never fully unmarshaled.
+	if r, ok := resource.(*UnknownResource); ok {
+		u, err := UnmarshalResource(r.GetKind(), r.Raw, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resource = u
+	}
+	m, err := marshal(resource, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return m, nil
+}
+
+// UnmarshalResource attempts to unmarshal a resource dynamically, returning NotImplementedError
+// if not unmarshaler has been registered.
+//
+// NOTE: This function only supports the subset of resources which may be imported/exported
+// by users (e.g. via `tctl get`).
+func UnmarshalResource(kind string, raw []byte, opts ...MarshalOption) (Resource, error) {
+	unmarshal, ok := getResourceUnmarshaler(kind)
+	if !ok {
+		return nil, trace.NotImplemented("cannot dynamically unmarshal resources of kind %q", kind)
+	}
+	u, err := unmarshal(raw, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u, nil
+}
+
 // V2SchemaTemplate is a template JSON Schema for V2 style objects
 const V2SchemaTemplate = `{
   "type": "object",
@@ -612,4 +789,114 @@ func (r *Ref) Set(v string) error {
 
 func (r *Ref) String() string {
 	return fmt.Sprintf("%s/%s", r.Kind, r.Name)
+}
+
+// Refs is a set of resource references
+type Refs []Ref
+
+// ParseRefs parses a comma-separated string of resource references (eg "users/alice,users/bob")
+func ParseRefs(refs string) (Refs, error) {
+	if refs == "all" {
+		return []Ref{Ref{Kind: "all"}}, nil
+	}
+	var escaped bool
+	isBreak := func(r rune) bool {
+		brk := false
+		switch r {
+		case ',':
+			brk = true && !escaped
+			escaped = false
+		case '\\':
+			escaped = true && !escaped
+		default:
+			escaped = false
+		}
+		return brk
+	}
+	var parsed []Ref
+	split := fieldsFunc(strings.TrimSpace(refs), isBreak)
+	for _, s := range split {
+		ref, err := ParseRef(strings.ReplaceAll(s, `\,`, `,`))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		parsed = append(parsed, *ref)
+	}
+	return parsed, nil
+}
+
+// Set sets the value of `r` from a comma-separated string of resource
+// references (in-place equivalent of `ParseRefs`).
+func (r *Refs) Set(v string) error {
+	refs, err := ParseRefs(v)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	*r = refs
+	return nil
+}
+
+// Check if refs is special wildcard case `all`.
+func (r *Refs) IsAll() bool {
+	refs := *r
+	if len(refs) != 1 {
+		return false
+	}
+	return refs[0].Kind == "all"
+}
+
+func (r *Refs) String() string {
+	var builder strings.Builder
+	for i, ref := range *r {
+		if i > 0 {
+			builder.WriteRune(',')
+		}
+		builder.WriteString(ref.String())
+	}
+	return builder.String()
+}
+
+// fieldsFunc is an exact copy of the current implementation of `strings.FieldsFunc`.
+// The docs of `strings.FieldsFunc` indicate that future implementations may not call
+// `f` on every rune, may not preserve ordering, or may panic if `f` does not return the
+// same output for every instance of a given rune.  All of these changes would break
+// our implementation of backslash-escaping, so we're using a local copy.
+func fieldsFunc(s string, f func(rune) bool) []string {
+	// A span is used to record a slice of s of the form s[start:end].
+	// The start index is inclusive and the end index is exclusive.
+	type span struct {
+		start int
+		end   int
+	}
+	spans := make([]span, 0, 32)
+
+	// Find the field start and end indices.
+	wasField := false
+	fromIndex := 0
+	for i, rune := range s {
+		if f(rune) {
+			if wasField {
+				spans = append(spans, span{start: fromIndex, end: i})
+				wasField = false
+			}
+		} else {
+			if !wasField {
+				fromIndex = i
+				wasField = true
+			}
+		}
+	}
+
+	// Last field might end at EOF.
+	if wasField {
+		spans = append(spans, span{fromIndex, len(s)})
+	}
+
+	// Create strings from recorded field indices.
+	a := make([]string, len(spans))
+	for i, span := range spans {
+		a[i] = s[span.start:span.end]
+	}
+
+	return a
 }

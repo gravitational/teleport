@@ -765,23 +765,58 @@ func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
 	return a.authServer.DeleteWebSession(user, sid)
 }
 
-func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
-	if err := a.action(defaults.Namespace, services.KindUser, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetUsers()
-}
-
-func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
-	if err := a.currentUserAction(name); err != nil {
+func (a *AuthWithRoles) GetUsers(withSecrets bool) ([]services.User, error) {
+	if withSecrets {
+		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
+		// migrated to that model.
+		if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
+			err := trace.AccessDenied("user %q requested access to all users with secrets", a.user.GetName())
+			log.Warning(err)
+			a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+				events.LoginMethod:        events.LoginMethodClientCert,
+				events.AuthAttemptSuccess: false,
+				// log the original internal error in audit log
+				events.AuthAttemptErr: trace.Unwrap(err).Error(),
+			})
+			return nil, trace.AccessDenied("this request can be only executed by an admin")
+		}
+	} else {
+		if err := a.action(defaults.Namespace, services.KindUser, services.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetUser(name)
+	return a.authServer.GetUsers(withSecrets)
+}
+
+func (a *AuthWithRoles) GetUser(name string, withSecrets bool) (services.User, error) {
+	if withSecrets {
+		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
+		// migrated to that model.
+		if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
+			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.user.GetName(), name)
+			log.Warning(err)
+			a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+				events.LoginMethod:        events.LoginMethodClientCert,
+				events.AuthAttemptSuccess: false,
+				// log the original internal error in audit log
+				events.AuthAttemptErr: trace.Unwrap(err).Error(),
+			})
+			return nil, trace.AccessDenied("this request can be only executed by an admin")
+		}
+	} else {
+		// if secrets are not being accessed, let users always read
+		// their own info.
+		if err := a.currentUserAction(name); err != nil {
+			// not current user, perform normal permission check.
+			if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+	return a.authServer.Identity.GetUser(name, withSecrets)
 }
 
 func (a *AuthWithRoles) DeleteUser(user string) error {
@@ -842,7 +877,7 @@ func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCer
 	}
 
 	// Extract the user and role set for whom the certificate will be generated.
-	user, err := a.GetUser(req.Username)
+	user, err := a.GetUser(req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

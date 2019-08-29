@@ -219,7 +219,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 // plain text format, signs it using User Certificate Authority signing key and returns the
 // resulting certificate.
 func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
-	user, err := a.AuthServer.GetUser(username)
+	user, err := a.AuthServer.GetUser(username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -245,7 +245,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 func GenerateCertificate(authServer *AuthServer, identity TestIdentity) ([]byte, []byte, error) {
 	switch id := identity.I.(type) {
 	case LocalUser:
-		user, err := authServer.GetUser(id.Username)
+		user, err := authServer.GetUser(id.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

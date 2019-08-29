@@ -461,7 +461,7 @@ func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterCon
 }
 
 func contextForLocalUser(username string, identity services.UserGetter, access services.Access) (*AuthContext, error) {
-	user, err := identity.GetUser(username)
+	user, err := identity.GetUser(username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

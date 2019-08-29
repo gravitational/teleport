@@ -437,7 +437,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 func (s *WebSuite) TestSAMLSuccess(c *C) {
 	input := fixtures.SAMLOktaConnectorV2
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), 32*1024)
+	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
 	var raw services.UnknownResource
 	err := decoder.Decode(&raw)
 	c.Assert(err, IsNil)

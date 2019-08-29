@@ -360,7 +360,7 @@ func (s *AuthServer) createGithubUser(p *createUserParams) (services.User, error
 		return nil, trace.Wrap(err)
 	}
 
-	existingUser, err := s.GetUser(p.username)
+	existingUser, err := s.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

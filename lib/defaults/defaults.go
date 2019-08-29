@@ -420,6 +420,12 @@ const (
 	U2FChallengeTimeout = 5 * time.Minute
 )
 
+const (
+	// LookaheadBufSize is a reasonable buffer size for decoders that need
+	// to buffer for the purposes of lookahead (e.g. `YAMLOrJSONDecoder`).
+	LookaheadBufSize = 32 * 1024
+)
+
 // TLS constants for Web Proxy HTTPS connection
 const (
 	// path to a self-signed TLS PRIVATE key file for HTTPS connection for the web proxy

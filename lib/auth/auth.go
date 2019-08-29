@@ -408,7 +408,7 @@ type certRequest struct {
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
-	user, err := a.Identity.GetUser(username)
+	user, err := a.Identity.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -547,7 +547,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
 func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := s.Identity.GetUser(username)
+	user, err := s.Identity.GetUser(username, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1203,7 +1203,7 @@ func (s *AuthServer) GetTokens(opts ...services.MarshalOption) (tokens []service
 }
 
 func (s *AuthServer) NewWebSession(username string) (services.WebSession, error) {
-	user, err := s.GetUser(username)
+	user, err := s.GetUser(username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1289,7 +1289,7 @@ func (a *AuthServer) NewWatcher(ctx context.Context, watch services.Watch) (serv
 
 func (a *AuthServer) DeleteRole(name string) error {
 	// check if this role is used by CA or Users
-	users, err := a.Identity.GetUsers()
+	users, err := a.Identity.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1387,13 +1387,13 @@ func (a *AuthServer) GetProxies() ([]services.Server, error) {
 }
 
 // GetUser is a part of auth.AccessPoint implementation.
-func (a *AuthServer) GetUser(name string) (user services.User, err error) {
-	return a.GetCache().GetUser(name)
+func (a *AuthServer) GetUser(name string, withSecrets bool) (user services.User, err error) {
+	return a.GetCache().GetUser(name, withSecrets)
 }
 
 // GetUsers is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetUsers() (users []services.User, err error) {
-	return a.GetCache().GetUsers()
+func (a *AuthServer) GetUsers(withSecrets bool) (users []services.User, err error) {
+	return a.GetCache().GetUsers(withSecrets)
 }
 
 // GetTunnelConnections is a part of auth.AccessPoint implementation

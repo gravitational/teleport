@@ -145,7 +145,7 @@ func (u *UserCommand) PrintSignupURL(client auth.ClientI, token string, ttl time
 
 // Update updates existing user
 func (u *UserCommand) Update(client auth.ClientI) error {
-	user, err := client.GetUser(u.login)
+	user, err := client.GetUser(u.login, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -165,7 +165,7 @@ func (u *UserCommand) Update(client auth.ClientI) error {
 
 // List prints all existing user accounts
 func (u *UserCommand) List(client auth.ClientI) error {
-	users, err := client.GetUsers()
+	users, err := client.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

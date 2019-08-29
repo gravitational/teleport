@@ -837,7 +837,7 @@ func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, err := auth.GetUser(p.ByName("user"))
+	user, err := auth.GetUser(p.ByName("user"), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -853,7 +853,7 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 }
 
 func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	users, err := auth.GetUsers()
+	users, err := auth.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
