@@ -1957,7 +1957,7 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Requests should fail.
-	_, err = client.GetDomainName()
+	_, err = client.GetClusterName()
 	c.Assert(err, check.NotNil)
 }
 
