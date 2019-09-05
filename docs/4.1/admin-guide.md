@@ -2171,7 +2171,7 @@ clients, etc), the following rules apply:
 ### Backup Before Upgrading
 
 As an extra precaution you might want to backup your application prior to upgrading. We've 
-more instructions in Backing up and Bootstraping Teleport.
+more instructions in [Backing Up Teleport](#backing-up-teleport).
 
 ### Upgrade Sequence
 
