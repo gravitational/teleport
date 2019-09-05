@@ -1582,7 +1582,7 @@ type userGetter struct {
 	traits map[string][]string
 }
 
-func (f *userGetter) GetUser(name string) (User, error) {
+func (f *userGetter) GetUser(name string, secrets bool) (User, error) {
 	user, err := NewUser(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
