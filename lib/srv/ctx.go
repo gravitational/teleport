@@ -48,6 +48,10 @@ type Server interface {
 	// ID is the unique ID of the server.
 	ID() string
 
+	// HostUUID is the UUID of the underlying host. For the the forwarding
+	// server this is the proxy the forwarding server is running in.
+	HostUUID() string
+
 	// GetNamespace returns the namespace the server was created in.
 	GetNamespace() string
 
