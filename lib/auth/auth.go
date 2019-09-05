@@ -654,7 +654,6 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identit
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
 func (s *AuthServer) CreateWebSession(user string, identity *tlsca.Identity) (services.WebSession, error) {
-	fmt.Printf("--> CreateWebSession: %v.\n", identity.Username)
 	roles, traits, err := services.ExtractFromIdentity(s, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
