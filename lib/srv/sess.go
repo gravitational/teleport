@@ -120,7 +120,7 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 		events.EventLogin:      ctx.Identity.Login,
 		events.EventUser:       ctx.Identity.TeleportUser,
 		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
-		events.SessionServerID: ctx.srv.ID(),
+		events.SessionServerID: ctx.srv.HostUUID(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -194,7 +194,7 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 		events.EventType:       events.SessionLeaveEvent,
 		events.SessionEventID:  party.id.String(),
 		events.EventUser:       party.user,
-		events.SessionServerID: party.serverID,
+		events.SessionServerID: party.ctx.srv.HostUUID(),
 		events.EventNamespace:  s.srv.GetNamespace(),
 	}
 
@@ -257,7 +257,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		// send an event indicating that this session has ended
 		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
 			events.SessionEventID:  string(sess.id),
-			events.SessionServerID: party.ctx.srv.ID(),
+			events.SessionServerID: party.ctx.srv.HostUUID(),
 			events.EventUser:       party.user,
 			events.EventNamespace:  s.srv.GetNamespace(),
 		})
@@ -318,7 +318,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 		events.EventType:       events.ResizeEvent,
 		events.EventNamespace:  s.srv.GetNamespace(),
 		events.SessionEventID:  sid,
-		events.SessionServerID: ctx.srv.ID(),
+		events.SessionServerID: ctx.srv.HostUUID(),
 		events.EventLogin:      ctx.Identity.Login,
 		events.EventUser:       ctx.Identity.TeleportUser,
 		events.TerminalSize:    params.Serialize(),
@@ -616,7 +616,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	eventFields := events.EventFields{
 		events.EventNamespace:  ctx.srv.GetNamespace(),
 		events.SessionEventID:  string(s.id),
-		events.SessionServerID: ctx.srv.ID(),
+		events.SessionServerID: ctx.srv.HostUUID(),
 		events.EventLogin:      ctx.Identity.Login,
 		events.EventUser:       ctx.Identity.TeleportUser,
 		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
