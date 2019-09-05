@@ -177,7 +177,7 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 		dialer = net.Dial
 	}
 	transport := &http.Transport{
-		Dial: dialer,
+		Dial:                  dialer,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 	}
 	params = append(params,

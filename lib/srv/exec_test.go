@@ -318,6 +318,10 @@ func (f *fakeServer) ID() string {
 	return f.id
 }
 
+func (f *fakeServer) HostUUID() string {
+	return f.id
+}
+
 func (f *fakeServer) GetNamespace() string {
 	return ""
 }

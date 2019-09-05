@@ -457,6 +457,12 @@ func (s *Server) ID() string {
 	return s.uuid
 }
 
+// HostUUID is the ID of the server. This value is the same as ID, it is
+// different from the forwarding server.
+func (s *Server) HostUUID() string {
+	return s.uuid
+}
+
 // PermitUserEnvironment returns if ~/.tsh/environment will be read before a
 // session is created by this server.
 func (s *Server) PermitUserEnvironment() bool {
