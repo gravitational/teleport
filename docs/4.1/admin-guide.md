@@ -2168,6 +2168,11 @@ clients, etc), the following rules apply:
 * Teleport clients (`tsh` for users and `tctl` for admins) may not be compatible if older than the auth or the proxy server. They will print an error if there is an incompatibility.
 * While 4.0 is a major release. 3.2 can be upgraded to 4.0 using the same upgrade sequence below. 
 
+### Backup Before Upgrading
+
+As an extra precaution you might want to backup your application prior to upgrading. We've 
+more instructions in Backing up and Bootstraping Teleport.
+
 ### Upgrade Sequence
 
 When upgrading a single Teleport cluster:
@@ -2222,6 +2227,56 @@ The `license_file` path can be either absolute or relative to the configured
 !!! tip "NOTE":
     Only Auth servers require the license. Proxies and Nodes that do not also
     have Auth role enabled do not need the license.
+
+## Backing Up Teleport
+
+With Teleport 4.1 you can now quickly export a collection of resources from 
+Teleport. This feature set works best for local and etcd, it's currently experimental
+for AWS/GCP. 
+
+Using `tctl get all` it'll backup. 
+
+- Users
+- Certificate Authorities
+- Trusted Clusters
+- Connectors:
+    - Github
+    - SAML [Teleport Enterprise]
+    - OIDC [Teleport Enterprise]
+    - Roles [Teleport Enterprise]
+
+When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly. 
+
+**Example of backing up and restoring a cluster.**
+
+```
+# export dynamic configuration state from old cluster
+tctl get all > state.yaml
+
+# prepare a new uninitialized backend (make sure to port
+# any non-default config values from the old config file)
+mkdir fresh && cat > fresh.yaml << EOF
+teleport:
+  data_dir: fresh
+EOF
+
+# bootstrap fresh server (kill the old one first!)
+teleport start --config fresh.yaml --bootstrap state.yaml
+
+# from another terminal, verify state transferred correctly
+tctl --config fresh.yaml get all
+# <your state here!>
+```
+
+The `--bootstrap` flag has no effect, except during backend initialization (performed
+by auth server on first start), so it is safe for use in supervised/HA contexts.
+
+**Limitations**
+
+- All the same limitations around modifying the config file of an existing cluster also apply to a new cluster being bootstrapped from the state of an old cluster. Of particular note:
+    - Changing cluster name will break your CAs (this will be caught and teleport will refuse to start).
+    - Some user authentication mechanisms (e.g. u2f) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).
+- Any node whose invite token is defined statically (in the config file of the auth server) will be able to join automatically, but nodes that were added dynamically will need to be re-invited
 
 ## Troubleshooting
 
