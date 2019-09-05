@@ -1938,9 +1938,9 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 	}
 	err = events.ValidateEvent(req.Fields, serverID)
 	if err != nil {
-		log.Warnf("Rejecting audit event from %v: %v. System may be under attack, a "+
+		log.Warnf("Rejecting audit event %v from %v: %v. System may be under attack, a "+
 			"node is attempting to submit events for an identity other than its own.",
-			serverID, err)
+			req.Type, serverID, err)
 		return nil, trace.AccessDenied("failed to validate event")
 	}
 
@@ -1984,9 +1984,9 @@ func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *htt
 		}
 		err := events.ValidateEvent(f, serverID)
 		if err != nil {
-			log.Warnf("Rejecting audit event from %v: %v. System may be under attack, a "+
+			log.Warnf("Rejecting audit event %v from %v: %v. System may be under attack, a "+
 				"node is attempting to submit events for an identity other than its own.",
-				serverID, err)
+				f.GetType(), serverID, err)
 			return nil, trace.AccessDenied("failed to validate event")
 		}
 	}
