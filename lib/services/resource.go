@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -816,7 +817,7 @@ func ParseRefs(refs string) (Refs, error) {
 	var parsed []Ref
 	split := fieldsFunc(strings.TrimSpace(refs), isBreak)
 	for _, s := range split {
-		ref, err := ParseRef(strings.ReplaceAll(s, `\,`, `,`))
+		ref, err := ParseRef(strings.Replace(s, `\,`, `,`, -1))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -846,7 +847,7 @@ func (r *Refs) IsAll() bool {
 }
 
 func (r *Refs) String() string {
-	var builder strings.Builder
+	var builder bytes.Buffer
 	for i, ref := range *r {
 		if i > 0 {
 			builder.WriteRune(',')
