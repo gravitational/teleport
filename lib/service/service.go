@@ -69,7 +69,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -1613,7 +1613,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 // and prometheus endpoints
 func (process *TeleportProcess) initDiagnosticService() error {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", prometheus.Handler())
+	mux.Handle("/metrics", promhttp.Handler())
 
 	if process.Config.Debug {
 		log.Infof("Adding diagnostic debugging handlers. To connect with profiler, use `go tool pprof %v`.", process.Config.DiagnosticAddr.Addr)
