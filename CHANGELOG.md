@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.11
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue introduced in 3.1.10 that broke session recording when using the recording proxy. [#2957](https://github.com/gravitational/teleport/pull/2957)
+
 ## 3.1.8
 
 This release of Teleport contains a bug fix.
