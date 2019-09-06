@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.6
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue introduced in 4.0.5 that broke session recording when using the recording proxy. [#2957](https://github.com/gravitational/teleport/pull/2957)
+
 ## 4.0.4
 
 This release of Teleport contains a bug fix.
@@ -65,6 +71,12 @@ Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend 
 
 Teleport has always validated host certificates when a client connects to a server, however prior to Teleport 4.0, Teleport did not validate the host the user requests a connection to is in the list of principals on the certificate. To ensure a seamless upgrade, make sure the hosts you connect to have the appropriate address set in `public_addr` in `teleport.yaml` before upgrading.
 
+## 3.2.9
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue introduced in 3.2.8 that broke session recording when using the recording proxy. [#2957](https://github.com/gravitational/teleport/pull/2957)
+
 ## 3.2.4
 
 This release of Teleport contains multiple bug fixes.
@@ -93,6 +105,13 @@ This release of Teleport contains a new feature.
 This version brings support for Amazon's managed Kubernetes offering (EKS).
 
 Starting with this release, Teleport proxy uses [the impersonation API](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation) instead of the [CSR API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/#requesting-a-certificate).
+
+
+## 3.1.11
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue introduced in 3.1.10 that broke session recording when using the recording proxy. [#2957](https://github.com/gravitational/teleport/pull/2957)
 
 ## 3.1.8
 
