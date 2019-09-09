@@ -469,6 +469,10 @@ const (
 	// SessionEvent is sent by servers to clients when an audit event occurs on
 	// the session.
 	SessionEvent = "x-teleport-event"
+
+	// VersionRequest is sent by clients to server requesting the Teleport
+	// version they are running.
+	VersionRequest = "x-teleport-version"
 )
 
 const (
