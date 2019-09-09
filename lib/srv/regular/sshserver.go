@@ -699,6 +699,8 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 		s.handleKeepAlive(r)
 	case teleport.RecordingProxyReqType:
 		s.handleRecordingProxy(r)
+	case teleport.VersionRequest:
+		s.handleVersionRequest(r)
 	default:
 		if r.WantReply {
 			r.Reply(false, nil)
@@ -1154,6 +1156,14 @@ func (s *Server) handleRecordingProxy(req *ssh.Request) {
 	}
 
 	log.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)
+}
+
+// handleVersionRequest replies with the Teleport version of the server.
+func (s *Server) handleVersionRequest(req *ssh.Request) {
+	err := req.Reply(true, []byte(teleport.Version))
+	if err != nil {
+		log.Debugf("Failed to reply to version request: %v.", err)
+	}
 }
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
