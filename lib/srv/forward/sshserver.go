@@ -576,6 +576,16 @@ func (s *Server) rejectChannel(chans <-chan ssh.NewChannel, err error) {
 }
 
 func (s *Server) handleGlobalRequest(req *ssh.Request) {
+	// Version requests are internal Teleport requests, they should not be
+	// forwarded to the remote server.
+	if req.Type == teleport.VersionRequest {
+		err := req.Reply(true, []byte(teleport.Version))
+		if err != nil {
+			s.log.Debugf("Failed to reply to version request: %v.", err)
+		}
+		return
+	}
+
 	ok, payload, err := s.remoteClient.SendRequest(req.Type, req.WantReply, req.Payload)
 	if err != nil {
 		s.log.Warnf("Failed to forward global request %v: %v", req.Type, err)
