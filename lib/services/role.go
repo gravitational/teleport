@@ -1454,7 +1454,7 @@ func extractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
 		return nil, trace.NotFound("no traits found")
 	}
 	var traits wrappers.Traits
-	err := traits.Unmarshal([]byte(rawTraits))
+	err := wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -94,7 +94,7 @@ func (i *Identity) CheckAndSetDefaults() error {
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
-	rawTraits, err := id.Traits.Marshal()
+	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
 	if err != nil {
 		return pkix.Name{}, trace.Wrap(err)
 	}
@@ -121,7 +121,7 @@ func FromSubject(subject pkix.Name) (*Identity, error) {
 		Principals: subject.Locality,
 	}
 	if len(subject.PostalCode) > 0 {
-		err := i.Traits.Unmarshal([]byte(subject.PostalCode[0]))
+		err := wrappers.UnmarshalTraits([]byte(subject.PostalCode[0]), &i.Traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -196,7 +196,7 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		// BasicConstraintsValid is true to not allow any intermediate certs.
 		BasicConstraintsValid: true,
-		IsCA: false,
+		IsCA:                  false,
 	}
 
 	// sort out principals into DNS names and IP addresses
