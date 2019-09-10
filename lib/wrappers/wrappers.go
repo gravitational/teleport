@@ -41,6 +41,22 @@ func (l Traits) protoType() *LabelValues {
 	return v
 }
 
+// MarshalTraits will marshal Traits as JSON. Used to embed traits into
+// certificates.
+func MarshalTraits(traits *Traits) ([]byte, error) {
+	return json.Marshal(traits)
+}
+
+// UnmarshalTraits will unmarshal JSON traits. Used to embed traits into
+// certificates.
+func UnmarshalTraits(data []byte, traits *Traits) error {
+	err := json.Unmarshal(data, traits)
+	if err != nil {
+		return traits.Unmarshal(data)
+	}
+	return nil
+}
+
 // Marshal marshals value into protobuf representation
 func (l Traits) Marshal() ([]byte, error) {
 	return proto.Marshal(l.protoType())
