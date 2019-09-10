@@ -345,7 +345,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	var traits wrappers.Traits
 	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
 	if ok {
-		err = traits.Unmarshal([]byte(rawTraits))
+		err = wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
