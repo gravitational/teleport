@@ -134,6 +134,10 @@ type Server struct {
 	closeCancel  context.CancelFunc
 
 	clock clockwork.Clock
+
+	// hostUUID is the UUID of the underlying proxy that the forwarding server
+	// is running in.
+	hostUUID string
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -172,6 +176,10 @@ type ServerConfig struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+
+	// HostUUID is the UUID of the underlying proxy that the forwarding server
+	// is running in.
+	HostUUID string
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -242,6 +250,7 @@ func New(c ServerConfig) (*Server, error) {
 		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
+		hostUUID:        c.HostUUID,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -288,6 +297,12 @@ func (s *Server) GetDataDir() string {
 // ID returns the ID of the proxy that creates the in-memory forwarding server.
 func (s *Server) ID() string {
 	return s.id
+}
+
+// HostUUID is the UUID of the underlying proxy that the forwarding server
+// is running in.
+func (s *Server) HostUUID() string {
+	return s.hostUUID
 }
 
 // GetNamespace returns the namespace the forwarding server resides in.

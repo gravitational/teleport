@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/coreos/etcd/clientv3"
 	"github.com/gravitational/trace"
+	"go.etcd.io/etcd/clientv3"
 	"gopkg.in/check.v1"
 )
 
@@ -77,10 +77,12 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 	s.suite.B = s.bk
 
 	// Check connectivity and disable the suite
-	_, err = s.bk.GetRange(context.Background(), []byte("/"), backend.RangeEnd([]byte("/")), backend.NoLimit)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = s.bk.GetRange(ctx, []byte("/"), backend.RangeEnd([]byte("/")), backend.NoLimit)
 	err = convertErr(err)
 	if err != nil && !trace.IsNotFound(err) {
-		if strings.Contains(err.Error(), "connection refused") {
+		if strings.Contains(err.Error(), "connection refused") || trace.IsConnectionProblem(err) {
 			fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
 			s.skip = true
 			c.Skip(err.Error())

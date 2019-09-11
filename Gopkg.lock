@@ -145,21 +145,6 @@
   revision = "954f16e8b9ef0e5d5189456aa4c1202758e04f17"
 
 [[projects]]
-  digest = "1:ce6c28dc37849e510492c01f95f9705f583481c6ee45762c91abcade24a2ea99"
-  name = "github.com/coreos/etcd"
-  packages = [
-    "auth/authpb",
-    "clientv3",
-    "etcdserver/api/v3rpc/rpctypes",
-    "etcdserver/etcdserverpb",
-    "mvcc/mvccpb",
-    "pkg/types",
-  ]
-  pruneopts = "NUT"
-  revision = "fca8add78a9d926166eb739b8e4a124434025ba3"
-  version = "v3.3.9"
-
-[[projects]]
   digest = "1:85334d6960cbe5c13022a3798c5b3142fdd845243be6eea42b7c426b6d6b404d"
   name = "github.com/coreos/go-oidc"
   packages = [
@@ -183,9 +168,18 @@
   version = "v0.2.0"
 
 [[projects]]
-  digest = "1:e2c6ad2e212c0c9a8b13e5d1d52a6cd3a42411b636fcea10d286f7b6fc13fea0"
+  digest = "1:bcf36df8d43860bfde913d008301aef27c6e9a303582118a837c4a34c0d18167"
+  name = "github.com/coreos/go-systemd"
+  packages = ["journal"]
+  pruneopts = "NUT"
+  revision = "e64a0ec8b42a61e2a9801dc1d0abe539dea79197"
+  version = "v20"
+
+[[projects]]
+  digest = "1:44b6226cc3cf093bbb9d25fae7da1891b6aba5e09daf12d6f546dcac881245f6"
   name = "github.com/coreos/pkg"
   packages = [
+    "capnslog",
     "health",
     "httputil",
     "timeutil",
@@ -370,6 +364,14 @@
   pruneopts = "NUT"
   revision = "fa6968806ca68b7db113256f300d82b5206a2c3c"
   version = "v0.3.1"
+
+[[projects]]
+  digest = "1:ab3ec1fe3e39bac4b3ab63390767766622be35b7cab03f47f787f9ec60522a53"
+  name = "github.com/google/uuid"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "0cd6bf5da1e1c83f8b45653022c74f71af0538a4"
+  version = "v1.1.1"
 
 [[projects]]
   digest = "1:06a7dadb7b760767341ffb6c8d377238d68a1226f2b21b5d497d2e3f6ecf6b4e"
@@ -714,15 +716,16 @@
   revision = "54653902c20e47f3417541d35435cb6d6162e28a"
 
 [[projects]]
-  digest = "1:00e5485f002096d8284d57ce59acb8e08121a5accdf92777ca7368bf9e5e18e8"
+  digest = "1:097cc61836050f45cbb712ae3bb45d66fba464c16b8fac09907fa3c1f753eff6"
   name = "github.com/prometheus/client_golang"
   packages = [
     "prometheus",
     "prometheus/internal",
+    "prometheus/promhttp",
   ]
   pruneopts = "NUT"
-  revision = "505eaef017263e299324067d40ca2c48f6a2cf50"
-  version = "v0.9.2"
+  revision = "170205fb58decfd011f1550d4cfb737230d7ae4f"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
@@ -733,7 +736,7 @@
   revision = "fd36f4220a901265f90734c3183c5f0c91daa0b8"
 
 [[projects]]
-  digest = "1:4e776079b966091d3e6e12ed2aaf728bea5cd1175ef88bb654e03adbf5d4f5d3"
+  digest = "1:d03ca24670416dc8fccc78b05d6736ec655416ca7db0a028e8fb92cfdfe3b55e"
   name = "github.com/prometheus/common"
   packages = [
     "expfmt",
@@ -741,22 +744,20 @@
     "model",
   ]
   pruneopts = "NUT"
-  revision = "cfeb6f9992ffa54aaa4f2170ade4067ee478b250"
-  version = "v0.2.0"
+  revision = "17f5ca1748182ddf24fc33a5a7caaaf790a52fcc"
+  version = "v0.4.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:0a2e604afa3cbf53a1ddade2f240ee8472eded98856dd8c7cfbfea392ddbbfc7"
+  digest = "1:e18050f44b1e9aeca97f5d71646a1cffc5f5cdae8583506ea58e5f7998da8a91"
   name = "github.com/prometheus/procfs"
   packages = [
     ".",
+    "internal/fs",
     "internal/util",
-    "iostats",
-    "nfs",
-    "xfs",
   ]
   pruneopts = "NUT"
-  revision = "e4d4a2206da023361ed100d85c5f2cf9c8364e9f"
+  revision = "00ec24a6a2d86e7074629c8384715dbb05adccd8"
+  version = "v0.0.4"
 
 [[projects]]
   digest = "1:ebd11dba223a1ad42de8d1dd567c44016257aa642af4552c64d7db98cbb2d989"
@@ -848,6 +849,64 @@
   revision = "3988ac14d6f66842abf574a0615d2935ef5dab9d"
 
 [[projects]]
+  digest = "1:3e41120dcc2ad5e0a56f24e677c4f647bf392a1eadb9533f284af98a041683ac"
+  name = "go.etcd.io/etcd"
+  packages = [
+    "auth/authpb",
+    "clientv3",
+    "clientv3/balancer",
+    "clientv3/balancer/connectivity",
+    "clientv3/balancer/picker",
+    "clientv3/balancer/resolver/endpoint",
+    "clientv3/credentials",
+    "etcdserver/api/v3rpc/rpctypes",
+    "etcdserver/etcdserverpb",
+    "mvcc/mvccpb",
+    "pkg/logutil",
+    "pkg/systemd",
+    "pkg/types",
+    "raft",
+    "raft/confchange",
+    "raft/quorum",
+    "raft/raftpb",
+    "raft/tracker",
+  ]
+  pruneopts = "NUT"
+  revision = "898bd1351fcf6e0ebce8d7c8bbbbf3f3e42aa42c"
+  version = "v3.4.0"
+
+[[projects]]
+  digest = "1:cc9d86ec4e6e3bdf87e3a421273bfeed003cf8e21351c0302fe8b0eb7b10efe6"
+  name = "go.uber.org/atomic"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "df976f2515e274675050de7b3f42545de80594fd"
+  version = "v1.4.0"
+
+[[projects]]
+  digest = "1:58ca93bdf81bac106ded02226b5395a0595d5346cdc4caa8d9c1f3a5f8f9976e"
+  name = "go.uber.org/multierr"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "3c4937480c32f4c13a875a1829af76c98ca3d40a"
+  version = "v1.1.0"
+
+[[projects]]
+  digest = "1:4af5a022f8c5c97734c3c6fad58fdce078e2322ddc98d3102b225a729f03916e"
+  name = "go.uber.org/zap"
+  packages = [
+    ".",
+    "buffer",
+    "internal/bufferpool",
+    "internal/color",
+    "internal/exit",
+    "zapcore",
+  ]
+  pruneopts = "NUT"
+  revision = "27376062155ad36be76b0f12cf1572a221d3a48c"
+  version = "v1.10.0"
+
+[[projects]]
   branch = "master"
   digest = "1:d53159fbd36af90d2d9a48a68342e09e944a6171a6389be69fd4277d02781994"
   name = "golang.org/x/crypto"
@@ -932,25 +991,30 @@
   revision = "ee236bd376b077c7a89f260c026c4735b195e459"
 
 [[projects]]
-  digest = "1:3adb043907fccd1aeeebe8ad20d3769975a97336a712efd4a0bee076d9f7de0c"
+  digest = "1:2b6504cfc5fa4bcd1d7df2719fed5ddc24a9f7b69027f2f97f3e784dfdf8aa03"
   name = "google.golang.org/grpc"
   packages = [
     ".",
     "balancer",
     "balancer/base",
     "balancer/roundrobin",
+    "binarylog/grpc_binarylog_v1",
     "codes",
     "connectivity",
     "credentials",
+    "credentials/internal",
     "encoding",
     "encoding/proto",
     "grpclog",
-    "health/grpc_health_v1",
     "internal",
     "internal/backoff",
+    "internal/balancerload",
+    "internal/binarylog",
     "internal/channelz",
     "internal/envconfig",
     "internal/grpcrand",
+    "internal/grpcsync",
+    "internal/syscall",
     "internal/transport",
     "keepalive",
     "metadata",
@@ -959,13 +1023,22 @@
     "resolver",
     "resolver/dns",
     "resolver/passthrough",
+    "serviceconfig",
     "stats",
     "status",
     "tap",
   ]
   pruneopts = "NUT"
-  revision = "32fb0ac620c32ba40a4626ddf94d90d12cce3455"
-  version = "v1.14.0"
+  revision = "6eaf6f47437a6b4e2153a190160ef39a92c7eceb"
+  version = "v1.23.0"
+
+[[projects]]
+  digest = "1:22b2dee6f30bc8601f087449a2a819df8388e54e9547349c658f14d8f8c590f2"
+  name = "gopkg.in/alecthomas/kingpin.v2"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
+  version = "v2.2.6"
 
 [[projects]]
   digest = "1:67ae56e0579de0f16006ee42cc42daaaacefcfd36324ba00540f62fe42fc64df"
@@ -1158,9 +1231,6 @@
     "github.com/aws/aws-sdk-go/service/s3/s3manager",
     "github.com/beevik/etree",
     "github.com/codahale/hdrhistogram",
-    "github.com/coreos/etcd/clientv3",
-    "github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes",
-    "github.com/coreos/etcd/mvcc/mvccpb",
     "github.com/coreos/go-oidc/http",
     "github.com/coreos/go-oidc/jose",
     "github.com/coreos/go-oidc/oauth2",
@@ -1177,7 +1247,6 @@
     "github.com/gogo/protobuf/types",
     "github.com/gokyle/hotp",
     "github.com/golang/protobuf/proto",
-    "github.com/golang/protobuf/ptypes/duration",
     "github.com/golang/protobuf/ptypes/empty",
     "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/google/btree",
@@ -1211,6 +1280,7 @@
     "github.com/pquerna/otp",
     "github.com/pquerna/otp/totp",
     "github.com/prometheus/client_golang/prometheus",
+    "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/prometheus/client_model/go",
     "github.com/prometheus/common/expfmt",
     "github.com/russellhaering/gosaml2",
@@ -1221,6 +1291,9 @@
     "github.com/tstranex/u2f",
     "github.com/vulcand/predicate",
     "github.com/vulcand/predicate/builder",
+    "go.etcd.io/etcd/clientv3",
+    "go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes",
+    "go.etcd.io/etcd/mvcc/mvccpb",
     "golang.org/x/crypto/bcrypt",
     "golang.org/x/crypto/ssh",
     "golang.org/x/crypto/ssh/agent",
@@ -1237,6 +1310,7 @@
     "google.golang.org/grpc/keepalive",
     "google.golang.org/grpc/peer",
     "google.golang.org/grpc/status",
+    "gopkg.in/alecthomas/kingpin.v2",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",
     "k8s.io/api/certificates/v1beta1",
