@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.2.10
+## 3.2.11
 
 This release of Teleport contains two bug fixes.
 
