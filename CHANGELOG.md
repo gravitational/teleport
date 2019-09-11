@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.0.7
+## 4.0.8
 
 This release of Teleport contains two bug fixes.
 
