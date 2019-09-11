@@ -79,7 +79,8 @@ func newSession(client *NodeClient,
 	env map[string]string,
 	stdin io.Reader,
 	stdout io.Writer,
-	stderr io.Writer) (*NodeSession, error) {
+	stderr io.Writer,
+	legacyID bool) (*NodeSession, error) {
 
 	if stdin == nil {
 		stdin = os.Stdin
@@ -121,7 +122,15 @@ func newSession(client *NodeClient,
 	} else {
 		sid, ok := ns.env[sshutils.SessionEnvVar]
 		if !ok {
-			sid = string(session.NewID())
+			// DELETE IN: 4.1.0.
+			//
+			// Always send UUIDv4 after 4.1.
+			if legacyID {
+				sid = string(session.NewLegacyID())
+			} else {
+				sid = string(session.NewID())
+			}
+
 		}
 		ns.id = session.ID(sid)
 	}

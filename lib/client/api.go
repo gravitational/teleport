@@ -1247,7 +1247,7 @@ func (tc *TeleportClient) runCommand(
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr)
+			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
 			if err != nil {
 				log.Error(err)
 				return
@@ -1281,7 +1281,7 @@ func (tc *TeleportClient) runCommand(
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
-	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr)
+	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1898,6 +1898,49 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 	}
 
 	return pwd, nil
+}
+
+// DELETE IN: 4.1.0
+//
+// useLegacyID returns true if an old style (UUIDv1) session ID should be
+// generated because the client is talking with a older server.
+func (tc *TeleportClient) useLegacyID(nodeClient *NodeClient) bool {
+	_, err := tc.getServerVersion(nodeClient)
+	if trace.IsNotFound(err) {
+		return true
+	}
+	return false
+}
+
+type serverResponse struct {
+	version string
+	err     error
+}
+
+// getServerVersion makes a SSH global request to the server to request the
+// version.
+func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, error) {
+	responseCh := make(chan serverResponse)
+
+	go func() {
+		ok, payload, err := nodeClient.Client.SendRequest(teleport.VersionRequest, true, nil)
+		if err != nil {
+			responseCh <- serverResponse{err: trace.NotFound(err.Error())}
+		} else if !ok {
+			responseCh <- serverResponse{err: trace.NotFound("server does not support version request")}
+		}
+		responseCh <- serverResponse{version: string(payload)}
+	}()
+
+	select {
+	case resp := <-responseCh:
+		if resp.err != nil {
+			return "", trace.Wrap(resp.err)
+		}
+		return resp.version, nil
+	case <-time.After(500 * time.Millisecond):
+		return "", trace.NotFound("timed out waiting for server response")
+	}
 }
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout
