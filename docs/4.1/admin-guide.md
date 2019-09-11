@@ -2228,13 +2228,12 @@ The `license_file` path can be either absolute or relative to the configured
     Only Auth servers require the license. Proxies and Nodes that do not also
     have Auth role enabled do not need the license.
 
-## Backing Up Teleport
-
+## Backing up Dynamic Configuration
 With Teleport 4.1 you can now quickly export a collection of resources from 
 Teleport. This feature set works best for local and etcd, it's currently experimental
 for AWS/GCP. 
 
-Using `tctl get all` it'll backup. 
+Using `tctl get all` it'll backup resources. When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly. 
 
 - Users
 - Certificate Authorities
@@ -2244,8 +2243,6 @@ Using `tctl get all` it'll backup.
     - SAML [Teleport Enterprise]
     - OIDC [Teleport Enterprise]
     - Roles [Teleport Enterprise]
-
-When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly. 
 
 **Example of backing up and restoring a cluster.**
 
