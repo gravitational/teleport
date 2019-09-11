@@ -623,6 +623,27 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identit
 	return sess, nil
 }
 
+// CreateWebSession creates a new web session for user without any
+// checks, is used by admins
+func (s *AuthServer) CreateWebSession(user string, identity *tlsca.Identity) (services.WebSession, error) {
+	roles, traits, err := services.ExtractFromIdentity(s, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, err := s.NewWebSession(user, roles, traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.UpsertWebSession(user, sess); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
 // GenerateTokenRequest is a request to generate auth token
 type GenerateTokenRequest struct {
 	// Token if provided sets the token value, otherwise will be auto generated
