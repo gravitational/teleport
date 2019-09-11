@@ -71,6 +71,13 @@ func NewID() ID {
 	return ID(uuid.New())
 }
 
+// DELETE IN: 4.1.0.
+//
+// NewLegacyID creates a new session ID in the UUIDv1 legacy format.
+func NewLegacyID() ID {
+	return ID(uuid.NewUUID().String())
+}
+
 // Session is an interactive collaboration session that represents one
 // or many SSH session started by teleport user
 type Session struct {
