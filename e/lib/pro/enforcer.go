@@ -280,13 +280,28 @@ func (e *Enforcer) SetUsageRecord(ctx context.Context, old, new map[string]time.
 
 	_, err = e.CompareAndSwap(ctx, oldItem, newItem)
 	if trace.IsCompareFailed(err) {
-		_, getErr := e.Backend.Get(ctx, backend.Key(heartbeatPrefix, usagePrefix))
-		if !trace.IsNotFound(getErr) {
+		legacyItem, getErr := e.Backend.Get(ctx, backend.Key(heartbeatPrefix, usagePrefix))
+		if getErr != nil {
+			if !trace.IsNotFound(getErr) {
+				return trace.NewAggregate(err, getErr)
+			}
+
+			// This is the case when putting usage data into the
+			// backend for the first time
+			_, err = e.Backend.Put(ctx, newItem)
 			return trace.Wrap(err)
 		}
 
-		// This is the case when putting usage data into the backend for
-		// the first time
+		_, parseErr := time.ParseDuration(string(legacyItem.Value))
+		if parseErr != nil {
+			return trace.Wrap(err)
+		}
+
+		// This is the case when someone ran an earlier version
+		// of usage-based billing, which was possible in
+		// Teleport 4.1.0-alpha5 for a couple of weeks.
+		// We simply ignore this case and put the new value
+		// in.
 		_, err = e.Backend.Put(ctx, newItem)
 	}
 
