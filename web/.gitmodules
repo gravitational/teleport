@@ -1,0 +1,3 @@
+[submodule "packages/webapps"]
+	path = packages/webapps
+	url = git@github.com:gravitational/teleport.git

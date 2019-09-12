@@ -1,0 +1,24 @@
+{
+  "title": "Please select performance profile",
+  "description": "",
+  "default": "",
+  "items": [{
+    "name": "basic",
+    "description": "Basic",
+    "profiles": {
+      "basic-node": {
+        "count": 1,
+        "instance_types": []
+      }
+    }
+  }, {
+    "name": "high-perf",
+    "description": "High performance",
+    "profiles": {
+      "high-perf-node": {
+        "count": 2,
+        "instance_types": []
+      }
+    }
+  }]
+}

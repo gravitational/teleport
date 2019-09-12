@@ -1,0 +1,155 @@
+{
+  "package": {
+    "repository": "gravitational.io",
+    "name": "mattermost",
+    "version": "2.2.0"
+  },
+  "envelope": {
+    "locator": {
+      "repository": "gravitational.io",
+      "name": "mattermost",
+      "version": "2.2.0"
+    },
+    "size_bytes": 415625177,
+    "sha512": "753a4fe700bbb321f83d52035a46e843ca990211c93e5e7f01475e95d88cfcc2",
+    "runtime_labels": null,
+    "hidden": false,
+    "encrypted": false,
+    "type": "user",
+    "manifest": "",
+    "created": "2019-05-07T17:59:03.047676047Z",
+    "created_by": ""
+  },
+  "manifest": {
+    "kind": "Bundle",
+    "apiVersion": "bundle.gravitational.io/v2",
+    "metadata": {
+      "name": "mattermost",
+      "resourceVersion": "2.2.0",
+      "namespace": "default",
+      "repository": "gravitational.io",
+      "createdTimestamp": "2019-05-07T17:57:12.982406523Z"
+    },
+    "logo": "data:image/png;base64,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",
+    "endpoints": [{
+      "name": "Mattermost",
+      "description": "Mattermost application",
+      "selector": {
+        "role": "mattermost-worker"
+      },
+      "protocol": "http"
+    }, {
+      "name": "Setup",
+      "serviceName": "bandwagon",
+      "hidden": true
+    }],
+    "dependencies": {
+      "packages": ["gravitational.io/gravity:6.0.0-alpha.1.66", "gravitational.io/web-assets:6.0.0-alpha.1.66", "gravitational.io/teleport:3.2.5", "gravitational.io/planet:6.0.1-11401"],
+      "apps": ["gravitational.io/rbac-app:6.0.0-alpha.1.66", "gravitational.io/dns-app:0.3.0", "gravitational.io/bandwagon:5.3.0", "gravitational.io/logging-app:5.0.2", "gravitational.io/monitoring-app:6.0.0", "gravitational.io/tiller-app:5.5.1", "gravitational.io/site:6.0.0-alpha.1.66"]
+    },
+    "installer": {
+      "eula": {},
+      "setupEndpoints": ["Setup"],
+      "flavors": {
+        "prompt": "How many nodes do you want?",
+        "items": [{
+          "name": "single",
+          "description": "One node",
+          "nodes": [{
+            "profile": "node",
+            "count": 1
+          }]
+        }, {
+          "name": "double",
+          "description": "Two-node cluster",
+          "nodes": [{
+            "profile": "node",
+            "count": 2
+          }]
+        }, {
+          "name": "triple",
+          "description": "Three-node cluster",
+          "nodes": [{
+            "profile": "node",
+            "count": 3
+          }]
+        }]
+      }
+    },
+    "nodeProfiles": [{
+      "name": "node",
+      "description": "Simple Mattermost Server",
+      "requirements": {
+        "cpu": {
+          "min": 1
+        },
+        "ram": {
+          "min": "2.0GB"
+        },
+        "network": {}
+      },
+      "labels": {
+        "gravitational.io/k8s-role": "",
+        "role": "node"
+      },
+      "providers": {
+        "aws": {
+          "instanceTypes": ["m4.xlarge"]
+        }
+      }
+    }],
+    "providers": {
+      "aws": {
+        "network": {
+          "type": "aws-vpc"
+        },
+        "regions": ["us-east-2"],
+        "iamPolicy": {
+          "version": "2012-10-17",
+          "actions": ["ec2:AssociateRouteTable", "ec2:AttachInternetGateway", "ec2:AuthorizeSecurityGroupEgress", "ec2:AuthorizeSecurityGroupIngress", "ec2:CreateInternetGateway", "ec2:CreateRoute", "ec2:CreateRouteTable", "ec2:CreateSecurityGroup", "ec2:CreateSubnet", "ec2:CreateTags", "ec2:CreateVpc", "ec2:DeleteInternetGateway", "ec2:DeleteRoute", "ec2:DeleteRouteTable", "ec2:DeleteSecurityGroup", "ec2:DeleteSubnet", "ec2:DeleteVpc", "ec2:DescribeAvailabilityZones", "ec2:DescribeImages", "ec2:DescribeInstances", "ec2:DescribeInternetGateways", "ec2:DescribeKeyPairs", "ec2:DescribeNetworkAcls", "ec2:DescribeRegions", "ec2:DescribeRouteTables", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeVolumes", "ec2:DescribeVpcAttribute", "ec2:DescribeVpcs", "ec2:DetachInternetGateway", "ec2:DisassociateRouteTable", "ec2:ModifyInstanceAttribute", "ec2:ModifySubnetAttribute", "ec2:ModifyVpcAttribute", "ec2:ReplaceRouteTableAssociation", "ec2:RevokeSecurityGroupEgress", "ec2:RevokeSecurityGroupIngress", "ec2:RunInstances", "ec2:StartInstances", "ec2:StopInstances", "ec2:TerminateInstances", "iam:AddRoleToInstanceProfile", "iam:CreateInstanceProfile", "iam:CreateRole", "iam:DeleteInstanceProfile", "iam:DeleteRole", "iam:DeleteRolePolicy", "iam:GetInstanceProfile", "iam:GetRole", "iam:GetRolePolicy", "iam:ListInstanceProfiles", "iam:ListInstanceProfilesForRole", "iam:ListRoles", "iam:PassRole", "iam:PutRolePolicy", "iam:RemoveRoleFromInstanceProfile"]
+        }
+      },
+      "azure": {},
+      "generic": {
+        "network": {
+          "type": "vxlan"
+        }
+      }
+    },
+    "hooks": {
+      "clusterProvision": {
+        "type": "clusterProvision",
+        "job": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: cluster-provision\n  namespace: kube-system\nspec:\n  activeDeadlineSeconds: 240\n  template:\n    spec:\n      restartPolicy: OnFailure\n      containers:\n      - name: cluster-provision\n        image: quay.io/gravitational/provisioner:ci.82\n        imagePullPolicy: Always\n        args: ['cluster-provision']\n        volumeMounts:\n        - mountPath: /mnt/state\n          name: state-volume\n      volumes:\n      - name: state-volume\n        emptyDir: {}\n"
+      },
+      "clusterDeprovision": {
+        "type": "clusterDeprovision",
+        "job": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: cluster-deprovision\n  namespace: kube-system\nspec:\n  activeDeadlineSeconds: 240\n  template:\n    spec:\n      restartPolicy: OnFailure\n      containers:\n      - name: cluster-deprovision\n        image: quay.io/gravitational/provisioner:ci.82\n        imagePullPolicy: Always\n        args: ['cluster-deprovision']\n        volumeMounts:\n        - mountPath: /mnt/state\n          name: state-volume\n      volumes:\n      - name: state-volume\n        emptyDir: {}\n"
+      },
+      "nodesProvision": {
+        "type": "nodesProvision",
+        "job": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: nodes-provision\n  namespace: kube-system\nspec:\n  activeDeadlineSeconds: 240\n  template:\n    spec:\n      restartPolicy: OnFailure\n      containers:\n      - name: nodes-provision\n        image: quay.io/gravitational/provisioner:ci.82\n        imagePullPolicy: Always\n        args: ['nodes-provision']\n        volumeMounts:\n        - mountPath: /mnt/state\n          name: state-volume\n      volumes:\n      - name: state-volume\n        emptyDir: {}\n"
+      },
+      "nodesDeprovision": {
+        "type": "nodesDeprovision",
+        "job": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: nodes-deprovision\n  namespace: kube-system\nspec:\n  activeDeadlineSeconds: 240\n  template:\n    spec:\n      restartPolicy: OnFailure\n      containers:\n      - name: nodes-deprovision\n        image: quay.io/gravitational/provisioner:ci.82\n        imagePullPolicy: Always\n        args: ['nodes-deprovision']\n        volumeMounts:\n        - mountPath: /mnt/state\n          name: state-volume\n      volumes:\n      - name: state-volume\n        emptyDir: {}\n"
+      },
+      "install": {
+        "type": "install",
+        "job": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  creationTimestamp: null\n  name: install\nspec:\n  template:\n    metadata:\n      creationTimestamp: null\n      name: install\n    spec:\n      containers:\n      - command:\n        - /usr/local/bin/helm\n        - install\n        - /var/lib/gravity/resources/charts/mattermost\n        - --set\n        - registry=leader.telekube.local:5000/\n        image: leader.telekube.local:5000/gravitational/debian-tall:0.0.1\n        name: install\n        resources: {}\n      restartPolicy: OnFailure\nstatus: {}\n"
+      }
+    },
+    "systemOptions": {
+      "runtime": {
+        "repository": "gravitational.io",
+        "name": "kubernetes",
+        "version": "6.0.0-alpha.1.66"
+      },
+      "docker": {
+        "storageDriver": "overlay2"
+      },
+      "dependencies": {
+        "runtimePackage": "gravitational.io/planet:6.0.1-11401"
+      }
+    }
+  }
+}

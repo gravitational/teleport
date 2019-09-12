@@ -1,0 +1,17 @@
+{
+  "name": "namespaces",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "Apache-2.0",
+  "scripts": {
+    "storybook": "start-storybook -p 9002 -c .storybook",
+    "test": "jest",
+    "tdd": "jest . --watch",
+    "build-gravity": "yarn workspace @gravitational/gravity run build",
+    "build-teleport": "yarn workspace @gravitational/teleport run build"
+  },
+  "private": true,
+  "workspaces": [
+    "packages/*/**"
+  ]
+}

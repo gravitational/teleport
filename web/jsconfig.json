@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+      "jsx": "react",
+      "allowSyntheticDefaultImports": true,
+      "baseUrl": ".",
+      "paths": {
+        "shared/*": ["packages/shared/*"],
+        "design/*": ["packages/design/src/*"],
+        "design": ["packages/design/src/"],
+        "teleport/*": ["packages/teleport/src/*"],
+        "gravity/*": ["packages/gravity/src/*"],
+        "e-gravity/*": ["packages/e/gravity/src/*"],
+        "e-teleport/*": ["packages/e/teleport/src/*"],
+        "e-shared/*": ["packages/e/shared/src/*"],
+      }
+    },
+    "exclude": [
+      "node_modules",
+      "dist"
+    ]
+  }

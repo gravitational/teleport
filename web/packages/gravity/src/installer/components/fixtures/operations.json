@@ -1,0 +1,60 @@
+[{
+  "id": "760787a9-b100-4e69-85e4-50818e86ed6f",
+  "account_id": "00000000-0000-0000-0000-000000000001",
+  "site_domain": "aws-test",
+  "type": "operation_install",
+  "created": "2019-05-15T03:03:41.936547631Z",
+  "created_by": "alex_local2",
+  "updated": "2019-05-15T03:03:41.936555302Z",
+  "state": "install_initiated",
+  "provisioner": "aws_terraform",
+  "servers": null,
+  "install_expand": {
+    "profiles": {
+      "node": {
+        "description": "Simple Mattermost Server",
+        "labels": {
+          "gravitational.io/k8s-role": "",
+          "role": "node"
+        },
+        "service_role": "",
+        "request": {
+          "instance_type": "",
+          "count": 0
+        }
+      }
+    },
+    "servers": null,
+    "agents": {
+      "node": {
+        "instructions": "\ncurl -s --tlsv1.2 -0  \"https://v6.gravitational.io:32009/t/ee9bcd7b8b817d83a6d778fd5749152a7bdc0ffa2029116745623fb561678a02/node\" | sudo bash\n",
+        "agent_url": "agent://v6.gravitational.io:32009/node?access_token=ee9bcd7b8b817d83a6d778fd5749152a7bdc0ffa2029116745623fb561678a02\u0026provisioner=aws_terraform",
+        "token": "ee9bcd7b8b817d83a6d778fd5749152a7bdc0ffa2029116745623fb561678a02"
+      }
+    },
+    "subnets": {
+      "overlay": "10.0.0.0/16",
+      "service": "10.2.0.0/16"
+    },
+    "vars": {
+      "system": {
+        "cluster_name": "aws-test",
+        "ops_url": "https://v6.gravitational.io:32009/t",
+        "devmode": false,
+        "token": "ee9bcd7b8b817d83a6d778fd5749152a7bdc0ffa2029116745623fb561678a02",
+        "teleport_proxy_address": "",
+        "docker": {}
+      },
+      "onprem": {
+        "pod_cidr": "",
+        "service_cidr": "",
+        "vxlan_port": 0
+      }
+    },
+    "package": {
+      "repository": "gravitational.io",
+      "name": "mattermost",
+      "version": "2.2.0"
+    }
+  }
+}]

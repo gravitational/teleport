@@ -1,0 +1,42 @@
+{
+  "name": "@gravitational/gravity",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "gravity-build --progress --dev; gravity-start",
+    "build": "rm -rf ./dist; mkdir ./dist; gravity-build --progress --bail",
+    "test": "jest",
+    "tdd": "jest . --watch"
+  },
+  "author": "",
+  "license": "Apache-2.0",
+  "repository": {
+    "type" : "git",
+    "url" : "https://github.com/gravitational/webapps/webapps.git",
+    "directory": "packages/gravity"
+  },
+  "dependencies": {
+    "chart.js": "^2.8.0",
+    "create-react-class": "^15.6.3",
+    "es6-shim": "^0.35.1",
+    "ip-subnet-calculator": "^1.1.8",
+    "jquery": "3.4.1",
+    "nuclear-js": "1.4.0",
+    "u2f-api-polyfill": "^0.4.3",
+    "xterm": "https://github.com/gravitational/xterm.js#v2.4.0",
+    "cross-env": "5.0.5",
+    "@gravitational/shared": "1.0.0",
+    "@gravitational/design": "1.0.0"
+  },
+  "devDependencies": {
+    "@gravitational/build": "^1.0.0",
+    "webpack-cli": "3.3.2"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "shared/(.*)$": "<rootDir>/src/shared/$1",
+      "^app/(.*)$": "<rootDir>/src/$1"
+    }
+  }
+}
