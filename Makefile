@@ -197,7 +197,36 @@ test: $(VERSRC)
 .PHONY: integration
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/...
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestAuditOn"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestInteroperability"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestInteractive"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestShutdown"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestDisconnectScenarios"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestEnvironmentVariables"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestInvalidLogins"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestTwoClustersTunnel"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestTwoClustersProxy"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestHA"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestMapRoles"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestTrustedClusters"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestJumpTrustedClusters"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestMultiplexingTrustedClusters"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestTrustedTunnelNode"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestDiscoveryRecovers"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestDiscovery"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestDiscoveryNode"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestExternalClient"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestControlMaster"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestProxyHostKeyCheck"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestAuditOff"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestPAM"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestRotateSuccess"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestRotateRollback"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestRotateTrustedClusters"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestWindowChange"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestList"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestMultipleSignup"
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/... -check.f="TestDataTransfer"
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
