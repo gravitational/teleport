@@ -1,0 +1,21 @@
+{
+  "name": "@gravitational/teleport.e",
+  "version": "1.0.0",
+  "description": "Enterprise version of Gravitational Teleport Web UI",
+  "main": "index.js",
+  "scripts": {
+    "start": "gravity-build --progress --dev; gravity-start",
+    "build": "rm -rf ./dist; mkdir ./dist; gravity-build --progress --bail",
+    "test": "npx jest",
+    "tdd": "npx jest . --watch"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@gravitational/teleport": "^1.0.0",
+    "cross-env": "5.0.5"
+  },
+  "devDependencies": {
+    "@gravitational/build": "^1.0.0"
+  }
+}

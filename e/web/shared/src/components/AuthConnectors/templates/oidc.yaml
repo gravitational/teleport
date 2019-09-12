@@ -1,0 +1,12 @@
+kind: oidc
+version: v2
+metadata:
+  name: new_oidc_connector
+spec:
+  redirect_url: "https://<cluster-url>/portalapi/v1/oidc/callback"
+  client_id: <client id>
+  client_secret: <client secret>
+  issuer_url: https://<issuer-url>
+  scope: [<scope value>]
+  claims_to_roles:
+    - {claim: "hd", value: "example.com", roles: ["@teleadmin"]}

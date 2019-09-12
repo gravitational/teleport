@@ -1,0 +1,21 @@
+kind: github
+version: v3
+metadata:
+  name: new_github_connector
+spec:
+  # Github OAuth app client ID
+  client_id: <client-id>
+  # Github OAuth app client secret
+  client_secret: <client-secret>
+  # Github will make a callback to this URL after successful authentication
+  # cluster-url is the address the cluster UI is reachable at
+  redirect_url: "https://<cluster-url>/portalapi/v1/github/callback"
+  # connector display name that will be appended to the title of "Login with"
+  # button on the cluster login screen so it will say "Login with Github"
+  display: Github
+  # mapping of Github team memberships to Gravity cluster roles
+  teams_to_logins:
+    - organization: example
+      team: admins
+      logins:
+        - "@teleadmin"
