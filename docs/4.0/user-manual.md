@@ -357,20 +357,6 @@ This command:
 3. Executes `curl` command locally, which results in `curl` hitting google.com:80 via `node`
 
 
-### SSH Jumphost
-
-While implementing ProxyJump for Teleport, we have extended the feature to `tsh`. 
-
-`$ tsh ssh -J proxy.example.com telenode`
-
-Known limits:
-- Only one jump host is supported (`-J` supports chaining that Teleport does not utilise) 
-and tsh will return with error in case of two jumphosts: `-J` proxy-1.example.com,proxy-2.example.com
-will not work.
-
-- When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh 
-profile and port forwarding is used instead of the existing Teleport proxy subsystem.
-
 
 ### Resolving Node Names
 
@@ -571,14 +557,14 @@ update the `/etc/ssh/ssh_config` or `~/.ssh/config`. A few examples are shown be
 # and will request a proxied connection to "db" on port 3022 (default Teleport SSH port)
 Host db
     Port 3022
-    ProxyJump proxy.example.com:3023
-    
+    ProxyCommand ssh -p 3023 %r@proxy.example.com -s proxy:%h:%p
+
 # When connecting to a node behind a trusted cluster named "remote-cluster",
 # the name of the trusted cluster must be appended to the proxy subsystem 
 # after '@':
-Host *.remote-cluster.example.com
+Host *.trusted-cluster.example.com
    Port 3022
-   ProxyJump proxy.example.com:3023@remote-cluster
+   ProxyCommand ssh -p 3023 %r@proxy.example.com -s proxy:%h:%p@trusted-cluster
 ```
 
 The configuration above is all you need to `ssh root@db` if there's an
@@ -587,17 +573,6 @@ right after `tsh login`. If the SSH agent is running, the cluster certificates w
 be printed to stdout.
 
 If there is no ssh-agent available, the certificate must be passed to the OpenSSH client explicitly.
-
-When proxy is in ["Recording mode"](https://gravitational.com/blog/how-to-record-ssh-sessions/) the following will happen with SSH:
-
-`$ ssh -J user@teleport.proxy:3023 -p 3022 user@target -F ./forward.config`
-    
-Where `forward.config` enables agent forwarding:
-
-```bash
-Host teleport.proxy
-  ForwardAgent yes
-```
 
 ### Passing Teleport SSH Certificate to OpenSSH Client
 
