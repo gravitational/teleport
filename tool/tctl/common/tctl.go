@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tsh/common"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -35,9 +36,16 @@ import (
 
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
 type GlobalCLIFlags struct {
-	Debug        bool
-	ConfigFile   string
+	// Debug enables verbose logging mode to the console
+	Debug bool
+	// ConfigFile is the path to the Teleport configuration file
+	ConfigFile string
+	// ConfigString is the base64-encoded string with Teleport configuration
 	ConfigString string
+	// AuthServerAddr lists addresses of auth servers to connect to
+	AuthServerAddr []string
+	// IdentityFilePath is the path to the identity file
+	IdentityFilePath string
 }
 
 // CLICommand interface must be implemented by every CLI command
@@ -85,6 +93,13 @@ func Run(commands []CLICommand) {
 		ExistingFileVar(&ccf.ConfigFile)
 	app.Flag("config-string",
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
+	app.Flag("auth-server",
+		fmt.Sprintf("Address of the auth server [%v]. Can be supplied multiple times", defaults.AuthConnectAddr().Addr)).
+		Default(defaults.AuthConnectAddr().Addr).
+		StringsVar(&ccf.AuthServerAddr)
+	app.Flag("identity", "Path to the identity file exported with 'tctl auth sign'").
+		Short('i').
+		StringVar(&ccf.IdentityFilePath)
 
 	// "version" command is always available:
 	ver := app.Command("version", "Print cluster version")
@@ -133,19 +148,19 @@ func connectToAuthService(cfg *service.Config) (client auth.ClientI, err error) 
 			*defaults.AuthConnectAddr(),
 		}
 	}
-	// read the host SSH keys and use them to open an SSH connection to the auth service
-	i, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
-	if err != nil {
-		// the "admin" identity is not present? this means the tctl is running NOT on the auth server.
-		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied("tctl must be used on the auth server")
-		}
-		return nil, trace.Wrap(err)
-	}
-	tlsConfig, err := i.TLSConfig(cfg.CipherSuites)
+
+	identity, err := getIdentity(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	tlsConfig, err := identity.TLSConfig(cfg.CipherSuites)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	logrus.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
+
 	client, err = auth.NewTLSClient(auth.ClientConfig{Addrs: cfg.AuthServers, TLS: tlsConfig})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -160,6 +175,26 @@ func connectToAuthService(cfg *service.Config) (client auth.ClientI, err error) 
 		os.Exit(1)
 	}
 	return client, nil
+}
+
+// getIdentity returns auth.Identity to use when connecting to auth server
+func getIdentity(cfg *service.Config) (*auth.Identity, error) {
+	// If identity was provided in the configuration, use it
+	if len(cfg.Identities) != 0 {
+		return cfg.Identities[0], nil
+	}
+	// Otherwise, assume we're running on the auth node and read the host-local
+	// identity from Teleport data directory
+	identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
+	if err != nil {
+		// The "admin" identity is not present? This means the tctl is running
+		// NOT on the auth server
+		if trace.IsNotFound(err) {
+			return nil, trace.AccessDenied("tctl must be used on the auth server")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return identity, nil
 }
 
 // applyConfig takes configuration values from the config file and applies
@@ -187,11 +222,30 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) error {
 		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 		logrus.Debugf("DEBUG logging enabled")
 	}
-
-	// read a host UUID for this node
-	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
-	if err != nil {
-		utils.FatalError(err)
+	// --auth-server flag(-s)
+	if len(ccf.AuthServerAddr) != 0 {
+		cfg.AuthServers, err = utils.ParseAddrs(ccf.AuthServerAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// --identity flag
+	if ccf.IdentityFilePath != "" {
+		key, _, err := common.LoadIdentity(ccf.IdentityFilePath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		identity, err := auth.ReadTLSIdentityFromKeyPair(key.Priv, key.TLSCert, key.TLSCAs())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Identities = append(cfg.Identities, identity)
+	} else {
+		// read a host UUID for this node
+		cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
+		if err != nil {
+			utils.FatalError(err)
+		}
 	}
 	return nil
 }
