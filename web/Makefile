@@ -11,6 +11,14 @@ gravity:
 teleport:
 	$(MAKE) docker-build PACKAGE_PATH=packages/teleport NPM_CMD=build-teleport
 
+.PHONY:teleport-e
+teleport-e:
+	$(MAKE) docker-build PACKAGE_PATH=packages/e/teleport NPM_CMD=build-teleport-e
+
+.PHONY:gravity-e
+gravity-e:
+	$(MAKE) docker-build PACKAGE_PATH=packages/e/gravity NPM_CMD=build-gravity-e
+
 .PHONY:docker-enter
 docker-enter:
 	docker run -ti --rm=true -t $(IMAGE_NAME) /bin/bash
@@ -35,15 +43,6 @@ clean:
 install:
 	bash -c "./scripts/install.sh"
 
-# Use git submodule status to figure out if submodule is not initialized
-# (- at the beginning) or somehow modified/outdated (+ at the beginning).
-# or the folder has been deleted ([null])
-# .PHONY: ensure-submodules
-# ensure-submodules:
-# 	@if git submodule status | egrep -q '(^[-]|^[+])|[null]' ; then \
-# 		git submodule update --init; \
-# 	fi
-
 .PHONY: init
 init:
 	git config core.hooksPath $(HOME_DIR)/scripts/githooks/oss
@@ -51,7 +50,3 @@ init:
 .PHONY: init-enterprise
 init-enterprise:
 	git config core.hooksPath $(HOME_DIR)/scripts/githooks/enterpise
-
-
-#ensure-submodules
-#$(shell test -d $(FMC_DRV) || git submodule update --init)

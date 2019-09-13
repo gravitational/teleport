@@ -8,7 +8,9 @@
     "test": "jest",
     "tdd": "jest . --watch",
     "build-gravity": "yarn workspace @gravitational/gravity run build",
-    "build-teleport": "yarn workspace @gravitational/teleport run build"
+    "build-teleport": "yarn workspace @gravitational/teleport run build",
+    "build-gravity-e": "yarn workspace @gravitational/gravity.e run build",
+    "build-teleport-e": "yarn workspace @gravitational/teleport.e run build"
   },
   "private": true,
   "workspaces": [
