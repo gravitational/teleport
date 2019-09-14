@@ -11,10 +11,15 @@
         "gravity/*": ["packages/gravity/src/*"],
         "e-gravity/*": ["packages/e/gravity/src/*"],
         "e-teleport/*": ["packages/e/teleport/src/*"],
-        "e-shared/*": ["packages/e/shared/src/*"],
+        "e-shared/*": ["packages/e/shared/src/*"]
       }
     },
+    "include": [
+      "packages"
+    ],
     "exclude": [
+      "**/node_modules/*",
+      "**/dist/*",
       "node_modules",
       "dist"
     ]
