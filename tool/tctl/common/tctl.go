@@ -190,7 +190,8 @@ func getIdentity(cfg *service.Config) (*auth.Identity, error) {
 		// The "admin" identity is not present? This means the tctl is running
 		// NOT on the auth server
 		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied("tctl must be used on the auth server")
+			return nil, trace.AccessDenied("tctl must be either used on the auth " +
+				"server or provided with the identity file via --identity flag")
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -241,10 +242,11 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) error {
 		}
 		cfg.Identities = append(cfg.Identities, identity)
 	} else {
-		// read a host UUID for this node
+		// read the host UUID only in case the identity was not provided,
+		// because it will be used for reading local auth server identity
 		cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 		if err != nil {
-			utils.FatalError(err)
+			return trace.Wrap(err)
 		}
 	}
 	return nil
