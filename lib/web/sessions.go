@@ -57,7 +57,6 @@ type SessionContext struct {
 	remoteClt map[string]auth.ClientI
 	parent    *sessionCache
 	closers   []io.Closer
-	tc        *client.TeleportClient
 }
 
 func (c *SessionContext) AddClosers(closers ...io.Closer) {
