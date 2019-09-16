@@ -155,10 +155,14 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		// otherwise proxies can generate certs for any user.
 		Usage: []string{teleport.UsageKubeOnly},
 	}
+	subject, err := identity.Subject()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,
 		PublicKey: csr.PublicKey,
-		Subject:   identity.Subject(),
+		Subject:   subject,
 		NotAfter:  s.clock.Now().UTC().Add(ttl),
 	}
 	tlsCert, err := tlsAuthority.GenerateCertificate(certRequest)

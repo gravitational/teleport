@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
@@ -245,6 +246,9 @@ type ProfileStatus struct {
 
 	// Cluster is a selected cluster
 	Cluster string
+
+	// Traits hold claim data used to populate a role at runtime.
+	Traits wrappers.Traits
 }
 
 // IsExpired returns true if profile is not expired yet
@@ -297,11 +301,23 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 	sort.Strings(roles)
 
+	// Extract traits from the certificate. Note if the certificate is in the
+	// old format, this will be empty.
+	var traits wrappers.Traits
+	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
+	if ok {
+		err = wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
 	for ext, _ := range cert.Extensions {
-		if ext == teleport.CertExtensionTeleportRoles {
+		if ext == teleport.CertExtensionTeleportRoles ||
+			ext == teleport.CertExtensionTeleportTraits {
 			continue
 		}
 		extensions = append(extensions, ext)
@@ -318,7 +334,8 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		ValidUntil: validUntil,
 		Extensions: extensions,
 		Roles:      roles,
-		Cluster:    profile.SiteName,
+		Cluster:    profile.Name(),
+		Traits:     traits,
 	}, nil
 }
 
@@ -1230,7 +1247,7 @@ func (tc *TeleportClient) runCommand(
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr)
+			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
 			if err != nil {
 				log.Error(err)
 				return
@@ -1264,7 +1281,7 @@ func (tc *TeleportClient) runCommand(
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
-	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr)
+	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1881,6 +1898,49 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 	}
 
 	return pwd, nil
+}
+
+// DELETE IN: 4.1.0
+//
+// useLegacyID returns true if an old style (UUIDv1) session ID should be
+// generated because the client is talking with a older server.
+func (tc *TeleportClient) useLegacyID(nodeClient *NodeClient) bool {
+	_, err := tc.getServerVersion(nodeClient)
+	if trace.IsNotFound(err) {
+		return true
+	}
+	return false
+}
+
+type serverResponse struct {
+	version string
+	err     error
+}
+
+// getServerVersion makes a SSH global request to the server to request the
+// version.
+func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, error) {
+	responseCh := make(chan serverResponse)
+
+	go func() {
+		ok, payload, err := nodeClient.Client.SendRequest(teleport.VersionRequest, true, nil)
+		if err != nil {
+			responseCh <- serverResponse{err: trace.NotFound(err.Error())}
+		} else if !ok {
+			responseCh <- serverResponse{err: trace.NotFound("server does not support version request")}
+		}
+		responseCh <- serverResponse{version: string(payload)}
+	}()
+
+	select {
+	case resp := <-responseCh:
+		if resp.err != nil {
+			return "", trace.Wrap(resp.err)
+		}
+		return resp.version, nil
+	case <-time.After(500 * time.Millisecond):
+		return "", trace.NotFound("timed out waiting for server response")
+	}
 }
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout

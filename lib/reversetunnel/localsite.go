@@ -192,6 +192,7 @@ func (s *localSite) dialWithAgent(from net.Addr, to net.Addr, userAgent agent.Ag
 		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
 		MACAlgorithms:   s.srv.Config.MACAlgorithms,
 		DataDir:         s.srv.Config.DataDir,
+		HostUUID:        s.srv.ID,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

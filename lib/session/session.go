@@ -34,65 +34,44 @@ import (
 	"github.com/pborman/uuid"
 )
 
-// ID is a uinique session id that is based on time UUID v1
+// ID is a unique session ID.
 type ID string
 
-// IsZero returns true if this ID is empty
+// IsZero returns true if this ID is empty.
 func (s *ID) IsZero() bool {
 	return len(*s) == 0
 }
 
-// UUID returns byte representation of this ID
-func (s *ID) UUID() uuid.UUID {
-	return uuid.Parse(string(*s))
-}
-
-// String returns string representation of this id
+// String returns string representation of this ID.
 func (s *ID) String() string {
 	return string(*s)
 }
 
-// Set makes ID cli compatible, lets to set value from string
-func (s *ID) Set(v string) error {
-	id, err := ParseID(v)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	*s = *id
-	return nil
-}
-
-// Time returns time portion of this ID
-func (s *ID) Time() time.Time {
-	tm, ok := s.UUID().Time()
-	if !ok {
-		return time.Time{}
-	}
-	sec, nsec := tm.UnixTime()
-	return time.Unix(sec, nsec).UTC()
-}
-
-// Check checks if it's a valid UUID
+// Check will check that the underlying UUID is valid.
 func (s *ID) Check() error {
 	_, err := ParseID(string(*s))
 	return trace.Wrap(err)
 }
 
-// ParseID parses ID and checks if it's correct
+// ParseID parses ID and checks if it's correct.
 func ParseID(id string) (*ID, error) {
 	val := uuid.Parse(id)
 	if val == nil {
-		return nil, trace.BadParameter("'%v' is not a valid Time UUID v1", id)
-	}
-	if ver, ok := val.Version(); !ok || ver != 1 {
-		return nil, trace.BadParameter("'%v' is not a be a valid Time UUID v1", id)
+		return nil, trace.BadParameter("%v not a valid UUID", id)
 	}
 	uid := ID(id)
 	return &uid, nil
 }
 
-// NewID returns new session ID
+// NewID returns new session ID. The session ID is based on UUIDv4.
 func NewID() ID {
+	return ID(uuid.New())
+}
+
+// DELETE IN: 4.1.0.
+//
+// NewLegacyID creates a new session ID in the UUIDv1 legacy format.
+func NewLegacyID() ID {
 	return ID(uuid.NewUUID().String())
 }
 

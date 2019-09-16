@@ -110,7 +110,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 
 	uploadDir := c.MkDir()
 	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
-	sessionID := "100"
+	sessionID := string(session.NewID())
 	forwarder, err := NewForwarder(ForwarderConfig{
 		Namespace:      defaults.Namespace,
 		SessionID:      session.ID(sessionID),
@@ -231,7 +231,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	username := "alice"
-	sessionID := "200"
+	sessionID := string(session.NewID())
 
 	uploadDir := c.MkDir()
 	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
@@ -376,7 +376,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 	uploadDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
 
-	sessionID := session.ID("100")
+	sessionID := session.NewID()
 	forwarder, err := NewForwarder(ForwarderConfig{
 		Namespace:      defaults.Namespace,
 		SessionID:      sessionID,

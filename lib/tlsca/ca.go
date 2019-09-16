@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -74,6 +75,10 @@ type Identity struct {
 	Usage []string
 	// Principals is a list of Unix logins allowed.
 	Principals []string
+	// KubernetesGroups is a list of Kubernetes groups allowed
+	KubernetesGroups []string
+	// Traits hold claim data used to populate a role at runtime.
+	Traits wrappers.Traits
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -88,14 +93,23 @@ func (i *Identity) CheckAndSetDefaults() error {
 }
 
 // Subject converts identity to X.509 subject name
-func (id *Identity) Subject() pkix.Name {
+func (id *Identity) Subject() (pkix.Name, error) {
+	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
+	if err != nil {
+		return pkix.Name{}, trace.Wrap(err)
+	}
+
 	subject := pkix.Name{
 		CommonName: id.Username,
 	}
 	subject.Organization = append([]string{}, id.Groups...)
 	subject.OrganizationalUnit = append([]string{}, id.Usage...)
 	subject.Locality = append([]string{}, id.Principals...)
-	return subject
+
+	subject.Province = append([]string{}, id.KubernetesGroups...)
+	subject.PostalCode = []string{string(rawTraits)}
+
+	return subject, nil
 }
 
 // FromSubject returns identity from subject name
@@ -106,6 +120,13 @@ func FromSubject(subject pkix.Name) (*Identity, error) {
 		Usage:      subject.OrganizationalUnit,
 		Principals: subject.Locality,
 	}
+	if len(subject.PostalCode) > 0 {
+		err := wrappers.UnmarshalTraits([]byte(subject.PostalCode[0]), &i.Traits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if err := i.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,7 +196,7 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		// BasicConstraintsValid is true to not allow any intermediate certs.
 		BasicConstraintsValid: true,
-		IsCA: false,
+		IsCA:                  false,
 	}
 
 	// sort out principals into DNS names and IP addresses

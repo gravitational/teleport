@@ -129,6 +129,10 @@ type Server struct {
 	closeCancel  context.CancelFunc
 
 	clock clockwork.Clock
+
+	// hostUUID is the UUID of the underlying proxy that the forwarding server
+	// is running in.
+	hostUUID string
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -157,6 +161,10 @@ type ServerConfig struct {
 
 	// Clock is an optoinal clock to override default real time clock
 	Clock clockwork.Clock
+
+	// HostUUID is the UUID of the underlying proxy that the forwarding server
+	// is running in.
+	HostUUID string
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -225,6 +233,7 @@ func New(c ServerConfig) (*Server, error) {
 		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
+		hostUUID:        c.HostUUID,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -270,6 +279,12 @@ func (s *Server) GetDataDir() string {
 // ID returns the ID of the proxy that creates the in-memory forwarding server.
 func (s *Server) ID() string {
 	return s.id
+}
+
+// HostUUID is the UUID of the underlying proxy that the forwarding server
+// is running in.
+func (s *Server) HostUUID() string {
+	return s.hostUUID
 }
 
 // GetNamespace returns the namespace the forwarding server resides in.
@@ -551,6 +566,16 @@ func (s *Server) rejectChannel(chans <-chan ssh.NewChannel, err error) {
 }
 
 func (s *Server) handleGlobalRequest(req *ssh.Request) {
+	// Version requests are internal Teleport requests, they should not be
+	// forwarded to the remote server.
+	if req.Type == teleport.VersionRequest {
+		err := req.Reply(true, []byte(teleport.Version))
+		if err != nil {
+			s.log.Debugf("Failed to reply to version request: %v.", err)
+		}
+		return
+	}
+
 	ok, payload, err := s.remoteClient.SendRequest(req.Type, req.WantReply, req.Payload)
 	if err != nil {
 		s.log.Warnf("Failed to forward global request %v: %v", req.Type, err)

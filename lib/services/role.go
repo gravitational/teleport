@@ -23,11 +23,15 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
@@ -1343,8 +1347,62 @@ type RoleGetter interface {
 	GetRole(name string) (Role, error)
 }
 
+// ExtractFromCertificate will extract roles and traits from a *ssh.Certificate
+// or from the backend if they do not exist in the certificate.
+func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string, wrappers.Traits, error) {
+	// For legacy certificates, fetch roles and traits from the services.User
+	// object in the backend.
+	if isFormatOld(cert) {
+		u, err := access.GetUser(cert.KeyId)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		log.Warnf("User %v using old style SSH certificate, fetching roles and traits "+
+			"from backend. If the identity provider allows username changes, this can "+
+			"potentially allow an attacker to change the role of the existing user. "+
+			"It's recommended to upgrade to standard SSH certificates.", cert.KeyId)
+		return u.GetRoles(), u.GetTraits(), nil
+	}
+
+	// Standard certificates have the roles and traits embedded in them.
+	roles, err := extractRolesFromCert(cert)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	traits, err := extractTraitsFromCert(cert)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return roles, traits, nil
+}
+
+// ExtractFromIdentity will extract roles and traits from the *x509.Certificate
+// which Teleport passes along as a *tlsca.Identity. If roles and traits do not
+// exist in the certificates, they are extracted from the backend.
+func ExtractFromIdentity(access UserGetter, identity *tlsca.Identity) ([]string, wrappers.Traits, error) {
+	// For legacy certificates, fetch roles and traits from the services.User
+	// object in the backend.
+	if missingIdentity(identity) {
+		u, err := access.GetUser(identity.Username)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		log.Warnf("Failed to find roles or traits in x509 identity for %v. Fetching	"+
+			"from backend. If the identity provider allows username changes, this can "+
+			"potentially allow an attacker to change the role of the existing user.",
+			identity.Username)
+		return u.GetRoles(), u.GetTraits(), nil
+	}
+
+	return identity.Groups, identity.Traits, nil
+}
+
 // FetchRoles fetches roles by their names, applies the traits to role
-// variables, and returns the RoleSet.
+// variables, and returns the RoleSet. Adds runtime roles like the default
+// implicit role to RoleSet.
 func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
 	var roles []Role
 
@@ -1357,6 +1415,50 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 	}
 
 	return NewRoleSet(roles...), nil
+}
+
+// isFormatOld returns true if roles and traits were not found in the
+// *ssh.Certificate.
+func isFormatOld(cert *ssh.Certificate) bool {
+	_, hasRoles := cert.Extensions[teleport.CertExtensionTeleportRoles]
+	_, hasTraits := cert.Extensions[teleport.CertExtensionTeleportTraits]
+
+	if hasRoles && hasTraits {
+		return false
+	}
+	return true
+}
+
+// missingIdentity returns true if the identity is missing or the identity
+// has no roles or traits.
+func missingIdentity(identity *tlsca.Identity) bool {
+	if len(identity.Groups) == 0 || len(identity.Traits) == 0 {
+		return true
+	}
+	return false
+}
+
+// extractRolesFromCert extracts roles from certificate metadata extensions.
+func extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
+	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
+	if !ok {
+		return nil, trace.NotFound("no roles found")
+	}
+	return UnmarshalCertRoles(data)
+}
+
+// extractTraitsFromCert extracts traits from the certificate extensions.
+func extractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
+	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
+	if !ok {
+		return nil, trace.NotFound("no traits found")
+	}
+	var traits wrappers.Traits
+	err := wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return traits, nil
 }
 
 // NewRoleSet returns new RoleSet based on the roles
@@ -1421,10 +1523,14 @@ func MatchLabels(selector Labels, target map[string]string) (bool, string) {
 	return true, "matched"
 }
 
-// RoleNames returns a slice with role names
+// RoleNames returns a slice with role names. Removes runtime roles like
+// the default implicit role.
 func (set RoleSet) RoleNames() []string {
-	out := make([]string, len(set))
+	out := make([]string, len(set)-1)
 	for i, r := range set {
+		if r.GetName() == teleport.DefaultImplicitRole {
+			continue
+		}
 		out[i] = r.GetName()
 	}
 	return out
