@@ -1439,7 +1439,9 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.Session.ID = session.NewID()
+
+	// DELETE IN 4.2: change from session.NewLegacyID() to session.NewID().
+	req.Session.ID = session.NewLegacyID()
 	req.Session.Created = time.Now().UTC()
 	req.Session.LastActive = time.Now().UTC()
 	req.Session.Namespace = namespace
