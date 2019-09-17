@@ -1,10 +1,14 @@
 # Changelog
 
+## 3.2.12
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue where Web UI could not connect to older nodes within a cluster. [#2993](https://github.com/gravitational/teleport/pull/2993)
+
 ## 3.2.11
 
 This release of Teleport contains two bug fixes.
-
-### Description
 
 * Fixed issue where new versions of tsh could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
 * Fixed trait encoding to be more robust. [#2970](https://github.com/gravitational/teleport/pull/2970)
@@ -43,6 +47,25 @@ This release of Teleport contains a new feature.
 This version brings support for Amazon's managed Kubernetes offering (EKS).
 
 Starting with this release, Teleport proxy uses [the impersonation API](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation) instead of the [CSR API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/#requesting-a-certificate).
+
+## 3.1.14
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue where Web UI could not connect to older nodes within a cluster. [#2993](https://github.com/gravitational/teleport/pull/2993)
+
+## 3.1.13
+
+This release of Teleport contains two bug fixes.
+
+* Fixed issue where new versions of tsh could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
+* Fixed trait encoding to be more robust. [#2970](https://github.com/gravitational/teleport/pull/2970)
+
+## 3.1.11
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue introduced in 3.1.10 that broke session recording when using the recording proxy. [#2957](https://github.com/gravitational/teleport/pull/2957)
 
 ## 3.1.8
 
