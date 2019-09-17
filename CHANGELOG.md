@@ -1,10 +1,14 @@
 # Changelog
 
+## 3.1.14
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue where Web UI could not connect to older nodes within a cluster. [#2993](https://github.com/gravitational/teleport/pull/2993)
+
 ## 3.1.13
 
 This release of Teleport contains two bug fixes.
-
-### Description
 
 * Fixed issue where new versions of tsh could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
 * Fixed trait encoding to be more robust. [#2970](https://github.com/gravitational/teleport/pull/2970)
