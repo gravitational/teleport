@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 
@@ -273,7 +274,7 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	// legacy SSH certificates due to a bug in OpenSSH <= OpenSSH 7.1:
 	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
 	if c.CertificateFormat == teleport.CertificateFormatStandard {
-		traits, err := c.Traits.Marshal()
+		traits, err := wrappers.MarshalTraits(&c.Traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
