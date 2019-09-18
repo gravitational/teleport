@@ -333,7 +333,7 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 	}
 
 	// sign it and produce a cert:
-	key.Cert, err = clusterApi.GenerateUserCert(key.Pub, a.genUser, a.genTTL, certificateFormat)
+	key.Cert, key.TLSCert, err = clusterApi.GenerateUserCerts(key.Pub, a.genUser, a.genTTL, certificateFormat)
 	if err != nil {
 		return trace.Wrap(err)
 	}

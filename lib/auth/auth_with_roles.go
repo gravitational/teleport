@@ -656,9 +656,17 @@ func (a *AuthWithRoles) GenerateHostCert(
 }
 
 func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
+	ssh, _, err := a.GenerateUserCerts(key, username, ttl, compatibility)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ssh, nil
+}
+
+func (a *AuthWithRoles) GenerateUserCerts(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, []byte, error) {
 	// This endpoint is only accessible to tctl.
 	if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
-		return nil, trace.AccessDenied("this request can be only executed by an admin")
+		return nil, nil, trace.AccessDenied("this request can be only executed by an admin")
 	}
 
 	// Extract the user and role set for whom the certificate will be generated.
@@ -666,11 +674,11 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 	// This should be safe since this is typically done against a local user.
 	user, err := a.GetUser(username)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	checker, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// Generate certificate, note that the roles TTL will be ignored because
@@ -685,10 +693,10 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 		traits:          user.GetTraits(),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return certs.ssh, nil
+	return certs.ssh, certs.tls, nil
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1, ttl time.Duration) (token string, e error) {

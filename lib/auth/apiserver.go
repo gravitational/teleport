@@ -82,6 +82,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
 	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert))
+	srv.POST("/:version/ca/user/certs/all", srv.withAuth(srv.generateUserCerts))
 
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
@@ -621,6 +622,32 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 	return string(cert), nil
+}
+
+type generateUserCertsResponse struct {
+	// SSH is the generated SSH certificate.
+	SSH []byte `json:"ssh,omitempty"`
+	// TLS is the generated TLS certificate.
+	TLS []byte `json:"tls,omitempty"`
+}
+
+func (s *APIServer) generateUserCerts(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+	var req *generateUserCertReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ssh, tls, err := auth.GenerateUserCerts(req.Key, req.User, req.TTL, certificateFormat)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &generateUserCertsResponse{
+		SSH: ssh,
+		TLS: tls,
+	}, nil
 }
 
 type signInReq struct {
