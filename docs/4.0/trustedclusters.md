@@ -144,6 +144,7 @@ Consider the following:
 * Every user in Teleport Enterprise is assigned a role.
 * When creating a _trusted cluster_ resource, the administrator of "east" must
   define how roles from "main" map to roles on "east".
+* To update role map for an existing _trusted cluster_ delete and re-create the _trusted cluster_ with the updated role map
 
 ### Example
 
