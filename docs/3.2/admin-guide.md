@@ -370,8 +370,8 @@ auth_service:
 
     # Determines the interval at which Teleport will send keep-alive messages. The 
     # default value mirrors sshd at 15 minutes.  keep_alive_count_max is the number 
-    # of messed keep-alive messages before the server tears down the connection to the 
-    # client. The default value mirrors sshd at 3
+    # of missed keep-alive messages before the server tears down the connection to the 
+    # client.
     keep_alive_interval: 15
     keep_alive_count_max: 3
 
