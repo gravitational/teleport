@@ -219,6 +219,21 @@ role name and use reference it to name the local role:
 **NOTE:** The regexp matching is activated only when the expression starts
 with `^` and ends with `$`
 
+## Updating Trusted Cluster Role Map
+
+In order to update the role map for a trusted cluster first we will need to remove the cluster by executing:
+
+```bsh
+$ tctl rm main-cluster.yaml
+```
+
+Then following updating the role map, we can re-create the cluster by executing:
+
+```bsh
+$ tctl create main-user-updated-role.yaml
+```
+
+
 ## Using Trusted Clusters
 
 Now an admin from the main cluster can now see and access the "east" cluster:
