@@ -9,16 +9,18 @@ const cfg = {
   },
 
   api: {
-    resourcePath: '/v1/enterprise/resources/:kind?',
-    removeResourcePath: '/v1/enterprise/resources/:kind/:id',
+    resourcePath: '/v1/enterprise/sites/:clusterId/resources/:kind?',
+    removeResourcePath: '/v1/enterprise/sites/:clusterId/resources/:kind/:id',
   },
 
   getResourcesUrl(kind) {
-    return generatePath(cfg.api.resourcePath, { kind });
+    const clusterId = teleCfg.clusterName;
+    return generatePath(cfg.api.resourcePath, { clusterId, kind });
   },
 
   getRemoveResourceUrl(kind, id) {
-    return generatePath(cfg.api.removeResourcePath, { kind, id });
+    const clusterId = teleCfg.clusterName;
+    return generatePath(cfg.api.removeResourcePath, { clusterId, kind, id });
   },
 
   getAuthConnectorsRoute() {
