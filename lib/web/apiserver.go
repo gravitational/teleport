@@ -358,17 +358,25 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, _ httpr
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := clt.GetUser(c.GetUser())
+	// Extract services.RoleSet from certificate.
+	cert, _, err := c.GetCertificates()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles, traits, err := services.ExtractFromCertificate(clt, cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleset, err := services.FetchRoles(roles, clt, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	userRoleSet, err := services.FetchRoles(user.GetRoles(), clt, user.GetTraits())
+	user, err := clt.GetUser(c.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	userContext, err := ui.NewUserContext(user, userRoleSet)
+	userContext, err := ui.NewUserContext(user, roleset)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1025,7 +1033,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	webSession := ctx.GetWebSession()
-	user, err := clt.GetUser(webSession.GetUser())
+	user, err := clt.GetUser(webSession.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1494,7 +1502,9 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.Session.ID = session.NewID()
+
+	// DELETE IN 4.2: change from session.NewLegacyID() to session.NewID().
+	req.Session.ID = session.NewLegacyID()
 	req.Session.Created = time.Now().UTC()
 	req.Session.LastActive = time.Now().UTC()
 	req.Session.Namespace = namespace

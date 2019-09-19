@@ -102,6 +102,20 @@ message UserCertsRequest {
     string RouteToCluster = 5 [(gogoproto.jsontag) = "route_to_cluster,omitempty"];
 }
 
+// GetUserRequest specifies paramters for the GetUser method.
+message GetUserRequest {
+    // Name is the name of the desired user.
+    string Name = 1 [(gogoproto.jsontag) = "name"];
+    // WithSecrets specifies whether to load associated secrets.
+    bool WithSecrets = 2 [(gogoproto.jsontag) = "with_secrets,omitempty"];
+}
+
+// GetUsersRequest specifies parameters for the GetUsers method.
+message GetUsersRequest {
+    // WithSecrets specifies whether to load associated secrets.
+    bool WithSecrets = 1 [(gogoproto.jsontag) = "with_secrets"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -112,4 +126,8 @@ service AuthService {
     rpc UpsertNode(services.ServerV2) returns (services.KeepAlive);
     // GenerateUserCerts generates a set of user certificates for use by `tctl auth sign`.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
+    // GetUser gets a user resource by name.
+    rpc GetUser(GetUserRequest) returns (services.UserV2);
+    // GetUsers gets all current user resources.
+    rpc GetUsers(GetUsersRequest) returns (stream services.UserV2);
 }

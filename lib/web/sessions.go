@@ -57,7 +57,6 @@ type SessionContext struct {
 	remoteClt map[string]auth.ClientI
 	parent    *sessionCache
 	closers   []io.Closer
-	tc        *client.TeleportClient
 }
 
 func (c *SessionContext) AddClosers(closers ...io.Closer) {
@@ -278,6 +277,25 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 	return keyring, cert, nil
+}
+
+// GetCertificates returns the *ssh.Certificate and *x509.Certificate
+// associated with this session.
+func (c *SessionContext) GetCertificates() (*ssh.Certificate, *x509.Certificate, error) {
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(c.sess.GetPub())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshcert, ok := pub.(*ssh.Certificate)
+	if !ok {
+		return nil, nil, trace.BadParameter("not certificate")
+	}
+	tlscert, err := utils.ParseCertificatePEM(c.sess.GetTLSCert())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return sshcert, tlscert, nil
 }
 
 // Close cleans up connections associated with requests

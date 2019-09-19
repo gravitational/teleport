@@ -3,6 +3,7 @@ package services;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
+import "github.com/gravitational/teleport/lib/wrappers/wrappers.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -345,16 +346,11 @@ message AuditConfig {
     string AuditSessionsURI = 3 [(gogoproto.jsontag) = "audit_sessions_uri,omitempty"];
     // AuditEventsURI is a parameter with all supported outputs
     // for audit events
-    StringValues AuditEventsURI = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "audit_events_uri,omitempty", (gogoproto.customtype) = "Strings"];
+    wrappers.StringValues AuditEventsURI = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "audit_events_uri,omitempty", (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Strings"];
 	// AuditTableName is a DB table name used for audits
 	// Deprecated in favor of AuditEventsURI
 	// DELETE IN (3.1.0)
 	string AuditTableName = 5 [(gogoproto.jsontag) = "audit_table_name,omitempty"];
-}
-
-// StringValues is a list of strings
-message StringValues {
-    repeated string Values = 1;
 }
 
 // Namespace represents namespace resource specification
@@ -440,7 +436,7 @@ message RoleConditions {
     repeated string Namespaces = 2 [(gogoproto.jsontag) = "-"];
 
 	// NodeLabels is a map of node labels (used to dynamically grant access to nodes).
-	LabelValues NodeLabels = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "node_labels,omitempty", (gogoproto.customtype) = "Labels"];
+	wrappers.LabelValues NodeLabels = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "node_labels,omitempty", (gogoproto.customtype) = "Labels"];
 
 	// Rules is a list of rules and their access levels. Rules are a high level
 	// construct used for access control.
@@ -448,13 +444,6 @@ message RoleConditions {
 
 	// KubeGroups is a list of kubernetes groups
 	repeated string KubeGroups = 5 [(gogoproto.jsontag) = "kubernetes_groups,omitempty"];
-}
-
-// LabelValues is a list of key value pairs, where key is a string
-// and value is a list of string values
-message LabelValues {
-    // Values contains label values
-    map<string, StringValues> Values = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "labels"];
 }
 
 // Rule represents allow or deny rule that is executed to check
@@ -513,7 +502,7 @@ message UserSpecV2  {
 	// Traits are key/value pairs received from an identity provider (through
 	// OIDC claims or SAML assertions) or from a system administrator for local
 	// accounts. Traits are used to populate role variables.
-	LabelValues Traits = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "traits,omitempty", (gogoproto.customtype) = "Traits"];
+	wrappers.LabelValues Traits = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "traits,omitempty", (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"];
 
 	// Status is a login status of the user
 	LoginStatus Status = 6 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "status,omitempty"];
@@ -523,6 +512,9 @@ message UserSpecV2  {
 
 	// CreatedBy holds information about agent or person created this user
 	CreatedBy CreatedBy = 8 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "created_by,omitempty"];
+
+    // LocalAuths hold sensitive data necessary for performing local authentication
+    LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
 }
 
 // ExternalIdentity is OpenID Connect/SAML or Github identity that is linked
@@ -562,6 +554,33 @@ message CreatedBy {
     google.protobuf.Timestamp Time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "time"];
 	// User holds information about user
 	UserRef User = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "user"];
+}
+
+// U2FRegistrationData encodes the universal second factor registration payload.
+message U2FRegistrationData {
+    // Raw is the serialized registration data as received from the token
+    bytes Raw = 1 [(gogoproto.jsontag) = "raw"];
+
+    // KeyHandle uniquely identifies a key on a device
+    bytes KeyHandle = 2 [(gogoproto.jsontag) = "key_handle"];
+
+    // PubKey is an DER encoded ecdsa public key
+    bytes PubKey = 3 [(gogoproto.jsontag) = "pubkey"];
+}
+
+// LocalAuthSecrets holds sensitive data used to authenticate a local user.
+message LocalAuthSecrets {
+    // PasswordHash encodes a combined salt & hash for password verification.
+    bytes PasswordHash = 1 [(gogoproto.jsontag) = "password_hash,omitempty"];
+
+    // TOTPKey is the key used for Time-based One Time Password varification.
+    string TOTPKey = 2 [(gogoproto.jsontag) = "totp_key,omitempty"];
+
+    // U2FRegistration holds Universal Second Factor registration info.
+    U2FRegistrationData U2FRegistration = 3 [(gogoproto.jsontag) = "u2f_registration,omitempty"];
+
+    // U2FCounter holds the highest seen Universal Second Factor registration count.
+    uint32 U2FCounter = 4 [(gogoproto.jsontag) = "u2f_counter,omitempty"];
 }
 
 // ConnectorRef holds information about OIDC connector

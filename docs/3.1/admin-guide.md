@@ -1522,7 +1522,7 @@ providers such as Github. First, the Teleport auth service must be configured
 to use Github for authentication:
 
 ```yaml
-# snippet from /etc/teleport.yaaml
+# snippet from /etc/teleport.yaml
 auth_service:
   authentication:
       type: github

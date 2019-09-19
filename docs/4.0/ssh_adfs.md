@@ -149,7 +149,7 @@ The `acs` field should match the value you set in ADFS earlier and you can
 obtain the `entity_descriptor_url` from ADFS under _"ADFS -> Service -> Endpoints -> Metadata"_.
 
 The `attributes_to_roles` is used to map attributes to the Teleport roles you
-just creataed. In our situation, we are mapping the _"Group"_ attribute whose full
+just created. In our situation, we are mapping the _"Group"_ attribute whose full
 name is `http://schemas.xmlsoap.org/claims/Group` with a value of _"teleadmins"_
 to the _"admin"_ role. Groups with the value _"teleusers"_ is being mapped to the
 _"users"_ role.
@@ -200,6 +200,6 @@ diagnosed using Teleport's `stderr` log, which is usually available via:
 $ sudo journalctl -fu teleport
 ```
 
-If you wish to increase the verbocity of Teleport's syslog, you can pass
+If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
 

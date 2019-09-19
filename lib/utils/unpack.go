@@ -19,6 +19,8 @@ package utils
 import (
 	"archive/tar"
 	"io"
+	"strings"
+
 	"os"
 	"path/filepath"
 
@@ -28,8 +30,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Extract extracts the contents of the specified tarball under dir.
-// The resulting files and directories are created using the current user context.
+// Extract extracts the contents of the specified tarball under dir. The
+// resulting files and directories are created using the current user context.
+// Extract will only unarchive files into dir, and will fail if the tarball
+// tries to write files outside of dir.
 func Extract(r io.Reader, dir string) error {
 	tarball := tar.NewReader(r)
 
@@ -38,6 +42,11 @@ func Extract(r io.Reader, dir string) error {
 		if err == io.EOF {
 			break
 		} else if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = sanitizeTarPath(header, dir)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -67,18 +76,43 @@ func extractFile(tarball *tar.Reader, header *tar.Header, dir string) error {
 	return nil
 }
 
+// sanitizeTarPath checks that the tar header paths resolve to a subdirectory
+// path, and don't contain file paths or links that could escape the tar file
+// like ../../etc/password.
+func sanitizeTarPath(header *tar.Header, dir string) error {
+	// Sanitize all tar paths resolve to within the destination directory.
+	destPath := filepath.Join(dir, header.Name)
+	if !strings.HasPrefix(destPath, filepath.Clean(dir)+string(os.PathSeparator)) {
+		return trace.BadParameter("%s: illegal file path", header.Name)
+	}
+
+	// Ensure link destinations resolve to within the destination directory.
+	if header.Linkname != "" {
+		if filepath.IsAbs(header.Linkname) {
+			if !strings.HasPrefix(filepath.Clean(header.Linkname), filepath.Clean(dir)+string(os.PathSeparator)) {
+				return trace.BadParameter("%s: illegal link path", header.Linkname)
+			}
+		} else {
+			// Relative paths are relative to filename after extraction to directory.
+			linkPath := filepath.Join(dir, filepath.Dir(header.Name), header.Linkname)
+			if !strings.HasPrefix(linkPath, filepath.Clean(dir)+string(os.PathSeparator)) {
+				return trace.BadParameter("%s: illegal link path", header.Linkname)
+			}
+		}
+	}
+
+	return nil
+}
+
 func writeFile(path string, r io.Reader, mode os.FileMode) error {
 	err := withDir(path, func() error {
-		out, err := os.Create(path)
+		// Create file only if it does not exist to prevent overwriting existing
+		// files (like session recordings).
+		out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
 		defer out.Close()
-
-		err = out.Chmod(mode)
-		if err != nil {
-			return trace.ConvertSystemError(err)
-		}
 
 		_, err = io.Copy(out, r)
 		return trace.Wrap(err)

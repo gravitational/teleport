@@ -17,16 +17,21 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -92,7 +97,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
 	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
 	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
-	srv.POST("/:version/users/:user/web/password/check", srv.withAuth(srv.checkPassword))
+	srv.POST("/:version/users/:user/web/password/check", srv.withRate(srv.withAuth(srv.checkPassword)))
 	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.withAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
@@ -271,6 +276,33 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 		return handler(auth, w, r, p, version)
 	})
+}
+
+// withRate wrap a rate limiter around the passed in httprouter.Handle and
+// returns a httprouter.Handle. Because the rate limiter wraps a http.Handler,
+// internally withRate converts to the standard handler and back.
+func (s *APIServer) withRate(handle httprouter.Handle) httprouter.Handle {
+	limiter := defaults.CheckPasswordLimiter()
+
+	fromStandard := func(h http.Handler) httprouter.Handle {
+		return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+			ctx := context.WithValue(r.Context(), contextParams, p)
+			r = r.WithContext(ctx)
+			h.ServeHTTP(w, r)
+		}
+	}
+	toStandard := func(handle httprouter.Handle) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p, ok := r.Context().Value(contextParams).(httprouter.Params)
+			if !ok {
+				trace.WriteError(w, trace.BadParameter("parameters missing from request"))
+				return
+			}
+			handle(w, r, p)
+		})
+	}
+	limiter.WrapHandle(toStandard(handle))
+	return fromStandard(limiter)
 }
 
 type upsertServerRawReq struct {
@@ -837,7 +869,7 @@ func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, err := auth.GetUser(p.ByName("user"))
+	user, err := auth.GetUser(p.ByName("user"), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -853,7 +885,7 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 }
 
 func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	users, err := auth.GetUsers()
+	users, err := auth.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1663,11 +1695,11 @@ func (s *APIServer) getGithubConnectors(auth ClientI, w http.ResponseWriter, r *
 	}
 	items := make([]json.RawMessage, len(connectors))
 	for i, connector := range connectors {
-		bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector, services.PreserveResourceID())
+		cbytes, err := services.GetGithubConnectorMarshaler().Marshal(connector, services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		items[i] = bytes
+		items[i] = cbytes
 	}
 	return items, nil
 }
@@ -1900,6 +1932,23 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Validate serverID field in event matches server ID from x509 identity. This
+	// check makes sure nodes can only submit events for themselves.
+	serverID, err := getServerID(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = events.ValidateEvent(req.Fields, serverID)
+	if err != nil {
+		log.Warnf("Rejecting audit event %v from %v: %v. System may be under attack, a "+
+			"node is attempting to submit events for an identity other than its own.",
+			req.Type, serverID, err)
+		return nil, trace.AccessDenied("failed to validate event")
+	}
+
+	// DELETE IN: 4.1.0.
+	//
 	// For backwards compatibility, check if the full event struct has
 	// been sent in the request or just the event type.
 	if req.Event.Name != "" {
@@ -1923,6 +1972,28 @@ func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *htt
 	if err := slice.Unmarshal(data); err != nil {
 		return nil, trace.BadParameter("failed to unmarshal %v", err)
 	}
+
+	// Validate serverID field in event matches server ID from x509 identity. This
+	// check makes sure nodes can only submit events for themselves.
+	serverID, err := getServerID(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, v := range slice.GetChunks() {
+		var f events.EventFields
+		err = utils.FastUnmarshal(v.GetData(), &f)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err := events.ValidateEvent(f, serverID)
+		if err != nil {
+			log.Warnf("Rejecting audit event %v from %v: %v. System may be under attack, a "+
+				"node is attempting to submit events for an identity other than its own.",
+				f.GetType(), serverID, err)
+			return nil, trace.AccessDenied("failed to validate event")
+		}
+	}
+
 	if err := auth.PostSessionSlice(slice); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1952,10 +2023,35 @@ func (s *APIServer) uploadSessionRecording(auth ClientI, w http.ResponseWriter, 
 		return nil, trace.BadParameter("expected a single file parameter but got %d", len(files))
 	}
 	defer files[0].Close()
+	_, err = session.ParseID(sid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Make a copy of the archive because it needs to be read twice: once to
+	// validate it and then again to upload it.
+	var buf bytes.Buffer
+	recording := io.TeeReader(files[0], &buf)
+
+	// Validate namespace and serverID fields in the archive match namespace and
+	// serverID of the authenticated client. This check makes sure nodes can
+	// only submit recordings for themselves.
+	serverID, err := getServerID(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = events.ValidateArchive(recording, serverID)
+	if err != nil {
+		log.Warnf("Rejecting session recording from %v: %v. System may be under attack, a "+
+			"node is attempting to submit events for an identity other than its own.",
+			serverID, err)
+		return nil, trace.BadParameter("failed to validate archive")
+	}
+
 	if err = auth.UploadSessionRecording(events.SessionRecording{
 		SessionID: session.ID(sid),
 		Namespace: namespace,
-		Recording: files[0],
+		Recording: &buf,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2430,6 +2526,25 @@ func (s *APIServer) processKubeCSR(auth ClientI, w http.ResponseWriter, r *http.
 	return re, nil
 }
 
+// getServerID returns the ID of the connected client.
+func getServerID(r *http.Request) (string, error) {
+	role, ok := r.Context().Value(ContextUser).(BuiltinRole)
+	if !ok {
+		return "", trace.BadParameter("invalid role %T", r.Context().Value(ContextUser))
+	}
+
+	parts := strings.Split(role.Username, ".")
+	if len(parts) == 0 {
+		return "", trace.BadParameter("invalid username: %v", role.Username)
+	}
+
+	return parts[0], nil
+}
+
 func message(msg string) map[string]interface{} {
 	return map[string]interface{}{"message": msg}
 }
+
+// contextParams is the name of of the key that holds httprouter.Params in
+// a context.
+const contextParams = "params"

@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.1.0-alpha.5
+VERSION=4.1.0-beta.3
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -291,6 +291,10 @@ buildbox-grpc:
     *.proto
 
 	cd lib/auth/proto && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
+	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
     *.proto
 

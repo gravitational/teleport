@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel/seek"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -59,6 +60,8 @@ const (
 
 // AgentConfig holds configuration for agent
 type AgentConfig struct {
+	// numeric id of agent
+	ID uint64
 	// Addr is target address to dial
 	Addr utils.NetAddr
 	// ClusterName is the name of the cluster the tunnel is connected to. When the
@@ -95,6 +98,8 @@ type AgentConfig struct {
 	ReverseTunnelServer Server
 	// LocalClusterName is the name of the cluster this agent is running in.
 	LocalClusterName string
+	// SeekGroup manages gossip and exclusive claims for agents.
+	SeekGroup *seek.GroupHandle
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -171,6 +176,7 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 		trace.Component: teleport.ComponentReverseTunnelAgent,
 		trace.ComponentFields: log.Fields{
 			"target": cfg.Addr.String(),
+			"id":     cfg.ID,
 		},
 	})
 	a.hostKeyCallback = a.checkHostSignature
@@ -179,9 +185,9 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 
 func (a *Agent) String() string {
 	if len(a.DiscoverProxies) == 0 {
-		return fmt.Sprintf("agent(%v) -> %v:%v", a.getState(), a.ClusterName, a.Addr.String())
+		return fmt.Sprintf("agent(id=%d,state=%v) -> %v:%v", a.ID, a.getState(), a.ClusterName, a.Addr.String())
 	}
-	return fmt.Sprintf("agent(%v) -> %v:%v, discover %v", a.getState(), a.ClusterName, a.Addr.String(), Proxies(a.DiscoverProxies))
+	return fmt.Sprintf("agent(id=%d,state=%v) -> %v:%v, discover %v", a.ID, a.getState(), a.ClusterName, a.Addr.String(), Proxies(a.DiscoverProxies))
 }
 
 func (a *Agent) getLastStateChange() time.Time {
@@ -407,6 +413,7 @@ func (a *Agent) run() {
 		a.Warningf("Failed to create remote tunnel: %v, conn: %v.", err, conn)
 		return
 	}
+	defer conn.Close()
 
 	// Successfully connected to remote cluster.
 	a.Infof("Connected to %s", conn.RemoteAddr())
@@ -415,8 +422,6 @@ func (a *Agent) run() {
 		// connected to a proxy we already have a connection to), try again.
 		if !a.connectedToRightProxy() {
 			a.Debugf("Missed, connected to %v instead of %v.", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
-
-			conn.Close()
 			return
 		}
 		a.Debugf("Agent discovered proxy: %v.", a.getPrincipalsList())
@@ -426,25 +431,38 @@ func (a *Agent) run() {
 		a.setState(agentStateConnected)
 	}
 
-	// Notify waiters that the agent has connected.
-	if a.EventsC != nil {
-		select {
-		case a.EventsC <- ConnectedEvent:
-		case <-a.ctx.Done():
-			a.Debug("Context is closing.")
+	// wrap up remaining business logic in closure for easy
+	// conditional execution.
+	doWork := func() {
+		// Notify waiters that the agent has connected.
+		if a.EventsC != nil {
+			select {
+			case a.EventsC <- ConnectedEvent:
+			case <-a.ctx.Done():
+				a.Debug("Context is closing.")
+				return
+			default:
+			}
+		}
+
+		// A connection has been established start - processing requests. Note that
+		// this function blocks while the connection is up. It will unblock when
+		// the connection is closed either due to intermittent connectivity issues
+		// or permanent loss of a proxy.
+		err = a.processRequests(conn)
+		if err != nil {
+			a.Warnf("Unable to continue processesing requests: %v.", err)
 			return
-		default:
 		}
 	}
-
-	// A connection has been established start processing requests. Note that
-	// this function blocks while the connection is up. It will unblock when
-	// the connection is closed either due to intermittent connectivity issues
-	// or permanent loss of a proxy.
-	err = a.processRequests(conn)
-	if err != nil {
-		a.Warnf("Unable to continue processesing requests: %v.", err)
-		return
+	// if a SeekGroup was provided, then the agent shouldn't continue unless
+	// no other agents hold a claim.
+	if a.SeekGroup != nil {
+		if !a.SeekGroup.WithProxy(doWork, a.getPrincipalsList()...) {
+			a.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
+		}
+	} else {
+		doWork()
 	}
 }
 
@@ -455,8 +473,6 @@ const ConnectedEvent = "connected"
 // to the given SSH connection and processes inbound requests from the
 // remote proxy
 func (a *Agent) processRequests(conn *ssh.Client) error {
-	defer conn.Close()
-
 	clusterConfig, err := a.AccessPoint.GetClusterConfig()
 	if err != nil {
 		return trace.Wrap(err)
@@ -563,12 +579,29 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				return
 			}
 			r.ClusterAddr = a.Addr
-			select {
-			case a.DiscoveryC <- r:
-			case <-a.ctx.Done():
-				a.Infof("Closed, returning.")
-				return
-			default:
+			if a.DiscoveryC != nil {
+				select {
+				case a.DiscoveryC <- r:
+				case <-a.ctx.Done():
+					a.Infof("Closed, returning.")
+					return
+				default:
+				}
+			}
+			if a.SeekGroup != nil {
+				// Broadcast proxies to the seek group.
+			Gossip:
+				for i, p := range r.Proxies {
+					select {
+					case a.SeekGroup.Gossip() <- p.GetName():
+					case <-a.ctx.Done():
+						a.Infof("Closed, returning.")
+						return
+					default:
+						a.Warnf("Backlog in gossip channel, skipping %d proxies.", len(r.Proxies)-i)
+						break Gossip
+					}
+				}
 			}
 		}
 	}

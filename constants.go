@@ -364,6 +364,8 @@ const (
 	// CertExtensionTeleportRouteToCluster is used to encode
 	// the target cluster to route to in the certificate
 	CertExtensionTeleportRouteToCluster = "teleport-route-to-cluster"
+	// CertExtensionTeleportTraits is used to propagate traits about the user.
+	CertExtensionTeleportTraits = "teleport-traits"
 )
 
 const (
@@ -473,6 +475,10 @@ const (
 	// SessionEvent is sent by servers to clients when an audit event occurs on
 	// the session.
 	SessionEvent = "x-teleport-event"
+
+	// VersionRequest is sent by clients to server requesting the Teleport
+	// version they are running.
+	VersionRequest = "x-teleport-version"
 )
 
 const (

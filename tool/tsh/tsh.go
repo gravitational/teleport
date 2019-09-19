@@ -157,6 +157,13 @@ type CLIConf struct {
 
 	// Verbose is used to print extra output.
 	Verbose bool
+
+	// NoRemoteExec will not execute a remote command after connecting to a host,
+	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
+	NoRemoteExec bool
+
+	// Debug sends debug logs to stdout.
+	Debug bool
 }
 
 func main() {
@@ -180,6 +187,7 @@ const (
 	clusterEnvVar  = "TELEPORT_SITE"
 	clusterHelp    = "Specify the cluster to connect"
 	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
+	authEnvVar     = "TELEPORT_AUTH"
 )
 
 // Run executes TSH client. same as main() but easier to test
@@ -204,12 +212,12 @@ func Run(args []string, underTest bool) {
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
-	app.Flag("auth", "Specify the type of authentication connector to use.").StringVar(&cf.AuthConnector)
+	app.Flag("auth", "Specify the type of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
-	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
+	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
 	// ssh
@@ -225,6 +233,7 @@ func Run(args []string, underTest bool) {
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
+	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -299,8 +308,8 @@ func Run(args []string, underTest bool) {
 		utils.FatalError(err)
 	}
 
-	// apply -d flag:
-	if *debugMode {
+	// While in debug mode, send logs to stdout.
+	if cf.Debug {
 		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 	}
 
@@ -373,6 +382,13 @@ func onLogin(cf *CLIConf) {
 		key *client.Key
 	)
 
+	// populate cluster name from environment variables
+	// only if not set by argument (that does not support env variables)
+	clusterName := os.Getenv(clusterEnvVar)
+	if cf.SiteName == "" {
+		cf.SiteName = clusterName
+	}
+
 	if cf.IdentityFileIn != "" {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
 	}
@@ -401,11 +417,11 @@ func onLogin(cf *CLIConf) {
 		switch {
 		// in case if nothing is specified, print current status
 		case cf.Proxy == "" && cf.SiteName == "":
-			printProfiles(profile, profiles)
+			printProfiles(cf.Debug, profile, profiles)
 			return
 		// in case if parameters match, print current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster:
-			printProfiles(profile, profiles)
+			printProfiles(cf.Debug, profile, profiles)
 			return
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
@@ -980,6 +996,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
 	c.BindAddr = cf.BindAddr
+
+	// Don't execute remote command, used when port forwarding.
+	c.NoRemoteExec = cf.NoRemoteExec
+
 	return client.NewClient(c)
 }
 
@@ -1233,7 +1253,8 @@ func onShow(cf *CLIConf) {
 }
 
 // printStatus prints the status of the profile.
-func printStatus(p *client.ProfileStatus, isActive bool) {
+func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
+	var count int
 	var prefix string
 	if isActive {
 		prefix = "> "
@@ -1252,9 +1273,21 @@ func printStatus(p *client.ProfileStatus, isActive bool) {
 		fmt.Printf("  Cluster:      %v\n", p.Cluster)
 	}
 	fmt.Printf("  Roles:        %v*\n", strings.Join(p.Roles, ", "))
+	if debug {
+		for k, v := range p.Traits {
+			if count == 0 {
+				fmt.Printf("  Traits:       %v: %v\n", k, v)
+			} else {
+				fmt.Printf("                %v: %v\n", k, v)
+			}
+			count = count + 1
+		}
+	}
 	fmt.Printf("  Logins:       %v\n", strings.Join(p.Logins, ", "))
 	fmt.Printf("  Valid until:  %v [%v]\n", p.ValidUntil, humanDuration)
-	fmt.Printf("  Extensions:   %v\n\n", strings.Join(p.Extensions, ", "))
+	fmt.Printf("  Extensions:   %v\n", strings.Join(p.Extensions, ", "))
+
+	fmt.Printf("\n")
 }
 
 // onStatus command shows which proxy the user is logged into and metadata
@@ -1270,18 +1303,18 @@ func onStatus(cf *CLIConf) {
 		}
 		utils.FatalError(err)
 	}
-	printProfiles(profile, profiles)
+	printProfiles(cf.Debug, profile, profiles)
 }
 
-func printProfiles(profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
+func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
 	// Print the active profile.
 	if profile != nil {
-		printStatus(profile, true)
+		printStatus(debug, profile, true)
 	}
 
 	// Print all other profiles.
 	for _, p := range profiles {
-		printStatus(p, false)
+		printStatus(debug, p, false)
 	}
 
 	// If we are printing profile, add a note that even though roles are listed

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -68,6 +69,10 @@ type InitConfig struct {
 
 	// Authorities is a list of pre-configured authorities to supply on first start
 	Authorities []services.CertAuthority
+
+	// Resources is a list of previously backed-up resources used to
+	// bootstrap backend on first start.
+	Resources []services.Resource
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
 	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
@@ -152,6 +157,26 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	asrv, err := NewAuthServer(&cfg, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// if resources are supplied, use them to bootstrap backend state
+	// on initial startup.
+	if len(cfg.Resources) > 0 {
+		firstStart, err := isFirstStart(asrv, cfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if firstStart {
+			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.Resources))
+			if err := checkResourceConsistency(domainName, cfg.Resources...); err != nil {
+				return nil, trace.Wrap(err, "refusing to bootstrap backend")
+			}
+			if err := local.CreateResources(context.TODO(), cfg.Backend, cfg.Resources...); err != nil {
+				return nil, trace.Wrap(err, "backend bootstrap failed")
+			}
+		} else {
+			log.Warnf("Ignoring %v bootstrap resources (previously initialized)", len(cfg.Resources))
+		}
 	}
 
 	// Set the ciphersuites that this auth server supports.
@@ -443,6 +468,41 @@ func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+// checkResourceConsistency checks far basic conflicting state issues.
+func checkResourceConsistency(clusterName string, resources ...services.Resource) error {
+	for _, rsc := range resources {
+		switch r := rsc.(type) {
+		case services.CertAuthority:
+			// check that signing CAs have expected cluster name and that
+			// all CAs for this cluster do having signing keys.
+			seemsLocal := r.GetClusterName() == clusterName
+			var hasKeys bool
+			_, err := r.FirstSigningKey()
+			switch {
+			case err == nil:
+				hasKeys = true
+			case trace.IsNotFound(err):
+				hasKeys = false
+			default:
+				return trace.Wrap(err)
+			}
+			if seemsLocal && !hasKeys {
+				return trace.BadParameter("ca for local cluster %q missing signing keys", clusterName)
+			}
+			if !seemsLocal && hasKeys {
+				return trace.BadParameter("unexpected cluster name %q for signing ca (expected %q)", r.GetClusterName(), clusterName)
+			}
+		case services.TrustedCluster:
+			if r.GetName() == clusterName {
+				return trace.BadParameter("trusted cluster has same name as local cluster (%q)", clusterName)
+			}
+		default:
+			// No validation checks for this resource type
+		}
+	}
+	return nil
 }
 
 // GenerateIdentity generates identity for the auth server

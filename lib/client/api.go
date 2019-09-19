@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 
@@ -245,8 +246,12 @@ type Config struct {
 	// with auth server version when connecting.
 	CheckVersions bool
 
-	// BindAddr is an optional host:port to bind to for SSO redirect flows
+	// BindAddr is an optional host:port to bind to for SSO redirect flows.
 	BindAddr string
+
+	// NoRemoteExec will not execute a remote command after connecting to a host,
+	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
+	NoRemoteExec bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -289,6 +294,9 @@ type ProfileStatus struct {
 
 	// Cluster is a selected cluster
 	Cluster string
+
+	// Traits hold claim data used to populate a role at runtime.
+	Traits wrappers.Traits
 }
 
 // IsExpired returns true if profile is not expired yet
@@ -378,16 +386,40 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 	sort.Strings(roles)
 
+	// Extract traits from the certificate. Note if the certificate is in the
+	// old format, this will be empty.
+	var traits wrappers.Traits
+	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
+	if ok {
+		err = wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
-	for ext := range cert.Extensions {
-		if ext == teleport.CertExtensionTeleportRoles {
+	for ext, _ := range cert.Extensions {
+		if ext == teleport.CertExtensionTeleportRoles ||
+			ext == teleport.CertExtensionTeleportTraits ||
+			ext == teleport.CertExtensionTeleportRouteToCluster {
 			continue
 		}
 		extensions = append(extensions, ext)
 	}
 	sort.Strings(extensions)
+
+	// Extract cluster name from the profile.
+	clusterName := profile.SiteName
+	// DELETE IN: 4.2.0.
+	//
+	// Older versions of tsh did not always store the cluster name in the
+	// profile. If no cluster name is found, fallback to the name of the profile
+	// for backward compatibility.
+	if clusterName == "" {
+		clusterName = profile.Name()
+	}
 
 	return &ProfileStatus{
 		ProxyURL: url.URL{
@@ -399,7 +431,8 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		ValidUntil: validUntil,
 		Extensions: extensions,
 		Roles:      roles,
-		Cluster:    profile.Name(),
+		Cluster:    clusterName,
+		Traits:     traits,
 	}, nil
 }
 
@@ -877,10 +910,25 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		tc.ExitStatus = 1
 		return trace.Wrap(err)
 	}
-	// proxy local ports (forward incoming connections to remote host ports)
+
+	// If forwarding ports were specified, start port forwarding.
 	tc.startPortForwarding(ctx, nodeClient)
 
-	// local execution?
+	// If no remote command execution was requested, block on the context which
+	// will unblock upon error or SIGINT.
+	if tc.NoRemoteExec {
+		log.Debugf("Connected to node, no remote command execution was requested, blocking until context closes.")
+		<-ctx.Done()
+
+		// Only return an error if the context was canceled by something other than SIGINT.
+		if ctx.Err() != context.Canceled {
+			return ctx.Err()
+		}
+		return nil
+	}
+
+	// After port forwarding, run a local command that uses the connection, and
+	// then disconnect.
 	if runLocally {
 		if len(tc.Config.LocalForwardPorts) == 0 {
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
@@ -1342,7 +1390,7 @@ func (tc *TeleportClient) runCommand(
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr)
+			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
 			if err != nil {
 				log.Error(err)
 				return
@@ -1376,7 +1424,7 @@ func (tc *TeleportClient) runCommand(
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
-	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr)
+	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1612,10 +1660,13 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	key.TLSCert = response.TLSCert
 	key.ProxyHost = webProxyHost
 
+	// Check that a host certificate for at least one cluster was returned and
+	// extract the name of the current cluster from the first host certificate.
 	if len(response.HostSigners) <= 0 {
 		return nil, trace.BadParameter("bad response from the server: expected at least one certificate, got 0")
 	}
 	key.ClusterName = response.HostSigners[0].ClusterName
+	tc.SiteName = response.HostSigners[0].ClusterName
 
 	if activateKey {
 		// save the list of CAs client trusts to ~/.tsh/known_hosts
@@ -1979,6 +2030,49 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 	}
 
 	return pwd, nil
+}
+
+// DELETE IN: 4.1.0
+//
+// useLegacyID returns true if an old style (UUIDv1) session ID should be
+// generated because the client is talking with a older server.
+func (tc *TeleportClient) useLegacyID(nodeClient *NodeClient) bool {
+	_, err := tc.getServerVersion(nodeClient)
+	if trace.IsNotFound(err) {
+		return true
+	}
+	return false
+}
+
+type serverResponse struct {
+	version string
+	err     error
+}
+
+// getServerVersion makes a SSH global request to the server to request the
+// version.
+func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, error) {
+	responseCh := make(chan serverResponse)
+
+	go func() {
+		ok, payload, err := nodeClient.Client.SendRequest(teleport.VersionRequest, true, nil)
+		if err != nil {
+			responseCh <- serverResponse{err: trace.NotFound(err.Error())}
+		} else if !ok {
+			responseCh <- serverResponse{err: trace.NotFound("server does not support version request")}
+		}
+		responseCh <- serverResponse{version: string(payload)}
+	}()
+
+	select {
+	case resp := <-responseCh:
+		if resp.err != nil {
+			return "", trace.Wrap(resp.err)
+		}
+		return resp.version, nil
+	case <-time.After(500 * time.Millisecond):
+		return "", trace.NotFound("timed out waiting for server response")
+	}
 }
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout

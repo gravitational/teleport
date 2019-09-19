@@ -40,6 +40,10 @@ type User interface {
 	GetSAMLIdentities() []ExternalIdentity
 	// GetGithubIdentities returns a list of connected Github identities
 	GetGithubIdentities() []ExternalIdentity
+	// Get local authentication secrets (may be nil).
+	GetLocalAuth() *LocalAuthSecrets
+	// Set local authentication secrets (use nil to delete).
+	SetLocalAuth(auth *LocalAuthSecrets)
 	// GetRoles returns a list of roles assigned to user
 	GetRoles() []string
 	// String returns user
@@ -298,7 +302,8 @@ const UserSpecV2SchemaTemplate = `{
       "items": %v
     },
     "status": %v,
-    "created_by": %v%v
+    "created_by": %v,
+	"local_auth": %v%v
   }
 }`
 
@@ -344,6 +349,9 @@ func (u *UserV2) Equals(other User) bool {
 			return false
 		}
 	}
+	if !u.Spec.LocalAuth.Equals(other.GetLocalAuth()) {
+		return false
+	}
 	return true
 }
 
@@ -379,6 +387,16 @@ func (u *UserV2) GetSAMLIdentities() []ExternalIdentity {
 // GetGithubIdentities returns a list of connected Github identities
 func (u *UserV2) GetGithubIdentities() []ExternalIdentity {
 	return u.Spec.GithubIdentities
+}
+
+// Get local authentication secrets (may be nil).
+func (u *UserV2) GetLocalAuth() *LocalAuthSecrets {
+	return u.Spec.LocalAuth
+}
+
+// Set local authentication secrets (use nil to delete).
+func (u *UserV2) SetLocalAuth(auth *LocalAuthSecrets) {
+	u.Spec.LocalAuth = auth
 }
 
 // GetRoles returns a list of roles assigned to user
@@ -419,6 +437,11 @@ func (u *UserV2) Check() error {
 	}
 	for _, id := range u.Spec.OIDCIdentities {
 		if err := id.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if localAuth := u.GetLocalAuth(); localAuth != nil {
+		if err := localAuth.Check(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -536,9 +559,9 @@ type UserMarshaler interface {
 func GetUserSchema(extensionSchema string) string {
 	var userSchema string
 	if extensionSchema == "" {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, ``)
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, LocalAuthSecretsSchema, ``)
 	} else {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, LocalAuthSecretsSchema, ", "+extensionSchema)
 	}
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema, DefaultDefinitions)
 }

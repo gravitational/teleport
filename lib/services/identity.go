@@ -36,7 +36,7 @@ import (
 // UserGetter is responsible for getting users
 type UserGetter interface {
 	// GetUser returns a user by name
-	GetUser(user string) (User, error)
+	GetUser(user string, withSecrets bool) (User, error)
 }
 
 // UserService is reponsible for basic user management
@@ -47,7 +47,7 @@ type UsersService interface {
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(user string) error
 	// GetUsers returns a list of users registered with the local auth server
-	GetUsers() ([]User, error)
+	GetUsers(withSecrets bool) ([]User, error)
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
 }

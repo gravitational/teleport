@@ -50,7 +50,7 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestSrv(t *testing.T) { TestingT(t) }
+func TestRegular(t *testing.T) { TestingT(t) }
 
 type SrvSuite struct {
 	srv         *Server
