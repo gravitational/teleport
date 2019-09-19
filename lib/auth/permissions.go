@@ -57,15 +57,6 @@ func (r *contextAuthorizer) Authorize(ctx context.Context) (*AuthContext, error)
 	return &r.authContext, nil
 }
 
-// NewUserAuthorizer authorizes everyone as predefined local user
-func NewUserAuthorizer(username string, identity services.UserGetter, access services.Access) (Authorizer, error) {
-	authContext, err := contextForLocalUser(username, identity, access)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &contextAuthorizer{authContext: *authContext}, nil
-}
-
 // NewAuthorizer returns new authorizer using backends
 func NewAuthorizer(access services.Access, identity services.UserGetter, trust services.Trust) (Authorizer, error) {
 	if access == nil {
@@ -139,7 +130,7 @@ func (a *authorizer) fromUser(userI interface{}) (*AuthContext, error) {
 
 // authorizeLocalUser returns authz context based on the username
 func (a *authorizer) authorizeLocalUser(u LocalUser) (*AuthContext, error) {
-	return contextForLocalUser(u.Username, a.identity, a.access)
+	return contextForLocalUser(u, a.identity, a.access)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
@@ -182,7 +173,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 
 	return &AuthContext{
 		User:    user,
-		Checker: checker,
+		Checker: RemoteUserRoleSet{checker},
 	}, nil
 }
 
@@ -460,18 +451,23 @@ func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterCon
 	}, nil
 }
 
-func contextForLocalUser(username string, identity services.UserGetter, access services.Access) (*AuthContext, error) {
-	user, err := identity.GetUser(username)
+func contextForLocalUser(u LocalUser, identity services.UserGetter, access services.Access) (*AuthContext, error) {
+	user, err := identity.GetUser(u.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), access, user.GetTraits())
+	roles, traits, err := services.ExtractFromIdentity(identity, &u.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	checker, err := services.FetchRoles(roles, access, traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &AuthContext{
 		User:    user,
-		Checker: checker,
+		Checker: LocalUserRoleSet{checker},
 	}, nil
 }
 
@@ -529,6 +525,18 @@ type BuiltinRoleSet struct {
 // RemoteBuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
 // the role is a remote builtin or not.
 type RemoteBuiltinRoleSet struct {
+	services.RoleSet
+}
+
+// LocalUserRoleSet wraps a services.RoleSet. This type is used to determine
+// if the role is a local user or not.
+type LocalUserRoleSet struct {
+	services.RoleSet
+}
+
+// RemoteUserRoleSet wraps a services.RoleSet. This type is used to determine
+// if the role is a remote user or not.
+type RemoteUserRoleSet struct {
 	services.RoleSet
 }
 

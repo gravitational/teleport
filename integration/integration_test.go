@@ -448,17 +448,14 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		c.Assert(start.GetString(events.SessionEventID) != "", check.Equals, true)
 		c.Assert(start.GetString(events.TerminalSize) != "", check.Equals, true)
 
-		// if session are being recorded at nodes, then the event server_id field
-		// should contain the ID of the node. if sessions are being recorded at the
-		// proxy, then server_id is random so we can't check it, but it should not
-		// the server_id of any of the nodes we know about.
-		switch tt.inRecordLocation {
-		case services.RecordAtNode:
-			c.Assert(start.GetString(events.SessionServerID), check.Equals, nodeProcess.Config.HostUUID)
-		case services.RecordAtProxy:
-			c.Assert(start.GetString(events.SessionServerID), check.Not(check.Equals), nodeProcess.Config.HostUUID)
-			c.Assert(start.GetString(events.SessionServerID), check.Not(check.Equals), t.Process.Config.HostUUID)
+		// If session are being recorded at nodes, the SessionServerID should contain
+		// the ID of the node. If sessions are being recorded at the proxy, then
+		// SessionServerID should be that of the proxy.
+		expectedServerID := nodeProcess.Config.HostUUID
+		if tt.inRecordLocation == services.RecordAtProxy {
+			expectedServerID = t.Process.Config.HostUUID
 		}
+		c.Assert(start.GetString(events.SessionServerID), check.Equals, expectedServerID)
 
 		// make sure data is recorded properly
 		out := &bytes.Buffer{}
@@ -1834,6 +1831,141 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	// Stop clusters and remaining nodes.
 	c.Assert(main.Stop(true), check.IsNil)
 	c.Assert(aux.Stop(true), check.IsNil)
+}
+
+// TestDiscoveryRecovers ensures that discovery protocol recovers from a bad discovery
+// state (all known proxies are offline).
+func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	username := s.me.Username
+
+	// create load balancer for main cluster proxies
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(s.getPorts(1)[0])))
+	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	c.Assert(err, check.IsNil)
+	c.Assert(lb.Listen(), check.IsNil)
+	go lb.Serve()
+	defer lb.Close()
+
+	remote := NewInstance(InstanceConfig{ClusterName: "cluster-remote", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	main := NewInstance(InstanceConfig{ClusterName: "cluster-main", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+
+	remote.AddUser(username, []string{username})
+	main.AddUser(username, []string{username})
+
+	c.Assert(main.Create(remote.Secrets.AsSlice(), false, nil), check.IsNil)
+	mainSecrets := main.Secrets
+	// switch listen address of the main cluster to load balancer
+	mainProxyAddr := *utils.MustParseAddr(mainSecrets.ListenAddr)
+	lb.AddBackend(mainProxyAddr)
+	mainSecrets.ListenAddr = frontend.String()
+	c.Assert(remote.Create(mainSecrets.AsSlice(), true, nil), check.IsNil)
+
+	c.Assert(main.Start(), check.IsNil)
+	c.Assert(remote.Start(), check.IsNil)
+
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime := time.Now().Add(time.Second * 10)
+	for len(main.Tunnel.GetSites()) < 2 && len(remote.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two clusters do not see each other: tunnels are not working")
+		}
+	}
+
+	// Helper function for adding a new proxy to "main".
+	addNewMainProxy := func(name string) (reversetunnel.Server, ProxyConfig) {
+		c.Logf("adding main proxy %q...", name)
+		nodePorts := s.getPorts(3)
+		proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+		newConfig := ProxyConfig{
+			Name:              name,
+			SSHPort:           proxySSHPort,
+			WebPort:           proxyWebPort,
+			ReverseTunnelPort: proxyReverseTunnelPort,
+		}
+		newProxy, err := main.StartProxy(newConfig)
+		c.Assert(err, check.IsNil)
+
+		// add proxy as a backend to the load balancer
+		lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
+		return newProxy, newConfig
+	}
+
+	killMainProxy := func(name string) {
+		c.Logf("killing main proxy %q...", name)
+		for _, p := range main.Nodes {
+			if !p.Config.Proxy.Enabled {
+				continue
+			}
+			if p.Config.Hostname == name {
+				lb.RemoveBackend(*utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr))
+				c.Assert(p.Close(), check.IsNil)
+				c.Assert(p.Wait(), check.IsNil)
+				return
+			}
+		}
+		c.Errorf("cannot close proxy %q (not found)", name)
+	}
+
+	// Helper function for testing that a proxy in main has been discovered by
+	// (and is able to use reverse tunnel into) remote.  If conf is nil, main's
+	// first/default proxy will be called.
+	testProxyConn := func(conf *ProxyConfig, shouldFail bool) {
+		clientConf := ClientConfig{
+			Login:   username,
+			Cluster: "cluster-remote",
+			Host:    Loopback,
+			Port:    remote.GetPortSSHInt(),
+			Proxy:   conf,
+		}
+		output, err := runCommand(main, []string{"echo", "hello world"}, clientConf, 10)
+		cmt := check.Commentf("testProxyConn(conf=%+v,shouldFail=%v)", conf, shouldFail)
+		if shouldFail {
+			c.Assert(err, check.NotNil, cmt)
+		} else {
+			c.Assert(err, check.IsNil, cmt)
+			c.Assert(output, check.Equals, "hello world\n")
+		}
+	}
+
+	// ensure that initial proxy's tunnel has been established
+	waitForActiveTunnelConnections(c, main.Tunnel, "cluster-remote", 1)
+	// execute the connection via initial proxy; should not fail
+	testProxyConn(nil, false)
+
+	// helper funcion for making numbered proxy names
+	pname := func(n int) string {
+		return fmt.Sprintf("cluster-main-proxy-%d", n)
+	}
+
+	// create first numbered proxy
+	_, c0 := addNewMainProxy(pname(0))
+	// check that we now have two tunnel connections
+	waitForProxyCount(remote, "cluster-main", 2)
+	// check that first numbered proxy is OK.
+	testProxyConn(&c0, false)
+	// remove the initial proxy.
+	lb.RemoveBackend(mainProxyAddr)
+	waitForProxyCount(remote, "cluster-main", 1)
+
+	// force bad state by iteratively removing previous proxy before
+	// adding next proxy; this ensures that discovery protocol's list of
+	// known proxies is all invalid.
+	for i := 0; i < 6; i++ {
+		prev, next := pname(i), pname(i+1)
+		killMainProxy(prev)
+		waitForProxyCount(remote, "cluster-main", 0)
+		_, cn := addNewMainProxy(next)
+		waitForProxyCount(remote, "cluster-main", 1)
+		testProxyConn(&cn, false)
+	}
+
+	// Stop both clusters and remaining nodes.
+	c.Assert(remote.Stop(true), check.IsNil)
+	c.Assert(main.Stop(true), check.IsNil)
 }
 
 // TestDiscovery tests case for multiple proxies and a reverse tunnel

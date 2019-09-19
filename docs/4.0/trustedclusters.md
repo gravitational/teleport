@@ -131,7 +131,7 @@ more complicated.
 
 !!! warning "Version Warning":
     The RBAC section is applicable only to Teleport Enterprise. The open source
-    version does not suppport SSH roles.
+    version does not support SSH roles.
 
 When a _trusting_ cluster "east" from the diagram above establishes trust with
 the _trusted_ cluster "main", it needs a way to configure which users from
@@ -318,7 +318,7 @@ following checks:
 There are three common types of problems Teleport administrators can run into when configuring
 trust between two clusters:
 
-* **HTTPS configuration**: when the main cluster uses a self-sgined or invalid HTTPS certificate.
+* **HTTPS configuration**: when the main cluster uses a self-signed or invalid HTTPS certificate.
 
 * **Connectivity problems**: when a trusting cluster "east" does not show up in
   `tsh clusters` output on "main".

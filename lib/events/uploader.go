@@ -294,9 +294,13 @@ func (u *Uploader) Scan() error {
 			u.Debugf("Uploader, skipping unknown file: %v", fi.Name())
 			continue
 		}
-		sessionID := session.ID(parts[0])
+		sessionID, err := session.ParseID(parts[0])
+		if err != nil {
+			u.Debugf("Skipping file with invalid name: %v.", parts[0])
+			continue
+		}
 		lockFilePath := filepath.Join(u.scanDir, fi.Name())
-		if err := u.uploadFile(lockFilePath, sessionID); err != nil {
+		if err := u.uploadFile(lockFilePath, *sessionID); err != nil {
 			if trace.IsCompareFailed(err) {
 				u.Debugf("Uploader detected locked file %v, another process is uploading it.", lockFilePath)
 				continue

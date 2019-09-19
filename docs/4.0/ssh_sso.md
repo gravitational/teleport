@@ -122,7 +122,7 @@ spec:
 ## Multiple SSO Providers
 
 Teleport can also support multiple connectors, i.e. a Teleport administrator
-can define and create multiple connector resoruces using `tctl create` as shown above. 
+can define and create multiple connector resources using `tctl create` as shown above. 
 
 To see all configured connectors, execute this on the auth server:
 

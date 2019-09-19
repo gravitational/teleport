@@ -93,12 +93,12 @@ func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Within that 1 minute period the user should still exist.
-	_, err = s.a.GetUser("foo")
+	_, err = s.a.GetUser("foo", false)
 	c.Assert(err, check.IsNil)
 
 	// Advance time 2 minutes, the user should be gone.
 	s.c.Advance(2 * time.Minute)
-	_, err = s.a.GetUser("foo")
+	_, err = s.a.GetUser("foo", false)
 	c.Assert(err, check.NotNil)
 }
 

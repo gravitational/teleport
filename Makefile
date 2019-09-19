@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.1.0-alpha.5
+VERSION=4.1.0-beta.3
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -186,7 +186,7 @@ run-docs:
 .PHONY: test
 test: FLAGS ?=
 test: $(VERSRC)
-	go test -v ./tool/tsh/... \
+	go test ./tool/tsh/... \
 			   ./lib/... \
 			   ./tool/teleport... $(FLAGS) $(ADDFLAGS)
 	go vet ./tool/... ./lib/...
@@ -197,7 +197,7 @@ test: $(VERSRC)
 .PHONY: integration
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG)" -v ./integration/... -check.v
+	go test -tags "$(PAM_TAG) $(FIPS_TAG)" ./integration/...
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
@@ -291,6 +291,10 @@ buildbox-grpc:
     *.proto
 
 	cd lib/auth/proto && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
+	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
     *.proto
 

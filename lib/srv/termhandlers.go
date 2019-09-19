@@ -88,10 +88,7 @@ func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerC
 	// in case if result is nil and no error, this means that program is
 	// running in the background
 	go func() {
-		result, err = execRequest.Wait()
-		if err != nil {
-			ctx.Errorf("Exec request (%v) wait failed: %v", execRequest, err)
-		}
+		result = execRequest.Wait()
 		if result != nil {
 			ctx.SendExecResult(*result)
 		}

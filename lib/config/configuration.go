@@ -22,6 +22,7 @@ package config
 
 import (
 	"bufio"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -67,6 +69,9 @@ type CommandLineFlags struct {
 	AdvertiseIP string
 	// --config flag
 	ConfigFile string
+	// Bootstrap flag contains a YAML file that defines a set of resources to bootstrap
+	// a cluster.
+	BootstrapFile string
 	// ConfigString is a base64 encoded configuration string
 	// set by --config-string or TELEPORT_CONFIG environment variable
 	ConfigString string
@@ -116,6 +121,33 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	}
 	log.Debug("reading config file: ", configFilePath)
 	return ReadFromFile(configFilePath)
+}
+
+// ReadResources loads a set of resources from a file.
+func ReadResources(filePath string) ([]services.Resource, error) {
+	reader, err := utils.OpenFile(filePath)
+	defer reader.Close()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
+	var resources []services.Resource
+	for {
+		var raw services.UnknownResource
+		err := decoder.Decode(&raw)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, trace.Wrap(err)
+		}
+		rsc, err := services.UnmarshalResource(raw.Kind, raw.Raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, rsc)
+	}
+	return resources, nil
 }
 
 // ApplyFileConfig applies configuration from a YAML file to Teleport
@@ -798,6 +830,17 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if clf.BootstrapFile != "" {
+		resources, err := ReadResources(clf.BootstrapFile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(resources) < 1 {
+			return trace.BadParameter("no resources found: %q", clf.BootstrapFile)
+		}
+		cfg.Auth.Resources = resources
 	}
 
 	// Apply command line --debug flag to override logger severity.

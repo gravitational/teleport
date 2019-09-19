@@ -359,6 +359,10 @@ type AuthConfig struct {
 	// that will be added by this auth server on the first start
 	Authorities []services.CertAuthority
 
+	// Resources is a set of previously backed up resources
+	// used to bootstrap backend state on the first start.
+	Resources []services.Resource
+
 	// Roles is a set of roles to pre-provision for this cluster
 	Roles []services.Role
 
@@ -470,7 +474,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
-	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellListenAddr()
+	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 
 	// defaults for the Kubernetes proxy service

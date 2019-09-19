@@ -420,6 +420,12 @@ const (
 	U2FChallengeTimeout = 5 * time.Minute
 )
 
+const (
+	// LookaheadBufSize is a reasonable buffer size for decoders that need
+	// to buffer for the purposes of lookahead (e.g. `YAMLOrJSONDecoder`).
+	LookaheadBufSize = 32 * 1024
+)
+
 // TLS constants for Web Proxy HTTPS connection
 const (
 	// path to a self-signed TLS PRIVATE key file for HTTPS connection for the web proxy
@@ -466,10 +472,10 @@ func SSHServerListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHServerListenPort)
 }
 
-// ReverseTunnellListenAddr returns the default listening address for the SSH Proxy service used
+// ReverseTunnelListenAddr returns the default listening address for the SSH Proxy service used
 // by the SSH nodes to establish proxy<->ssh_node connection from behind a firewall which
 // blocks inbound connecions to ssh_nodes
-func ReverseTunnellListenAddr() *utils.NetAddr {
+func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
 }
 
@@ -548,3 +554,23 @@ var (
 		"hmac-sha2-256",
 	}
 )
+
+// CheckPasswordLimiter creates a rate limit that can be used to slow down
+// requests that come to the check password endpoint.
+func CheckPasswordLimiter() *limiter.Limiter {
+	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{
+		MaxConnections:   LimiterMaxConnections,
+		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
+		Rates: []limiter.Rate{
+			limiter.Rate{
+				Period:  1 * time.Second,
+				Average: 10,
+				Burst:   10,
+			},
+		},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
+	}
+	return limiter
+}

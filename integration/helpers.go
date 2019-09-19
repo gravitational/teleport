@@ -197,10 +197,12 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		Groups:   []string{string(teleport.RoleAdmin)},
 	}
 	clock := clockwork.NewRealClock()
+	subject, err := identity.Subject()
+	fatalIf(err)
 	tlsCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: cryptoPubKey,
-		Subject:   identity.Subject(),
+		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(time.Hour * 24),
 	})
 	fatalIf(err)

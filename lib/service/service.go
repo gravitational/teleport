@@ -69,7 +69,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -951,6 +951,7 @@ func (process *TeleportProcess) initAuthService() error {
 		HostUUID:             cfg.HostUUID,
 		NodeName:             cfg.Hostname,
 		Authorities:          cfg.Auth.Authorities,
+		Resources:            cfg.Auth.Resources,
 		ReverseTunnels:       cfg.ReverseTunnels,
 		Trust:                cfg.Trust,
 		Presence:             cfg.Presence,
@@ -1612,7 +1613,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 // and prometheus endpoints
 func (process *TeleportProcess) initDiagnosticService() error {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", prometheus.Handler())
+	mux.Handle("/metrics", promhttp.Handler())
 
 	if process.Config.Debug {
 		log.Infof("Adding diagnostic debugging handlers. To connect with profiler, use `go tool pprof %v`.", process.Config.DiagnosticAddr.Addr)
@@ -1897,7 +1898,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		go listeners.mux.Serve()
 		return &listeners, nil
 	default:
-		process.Debugf("Proxy reverse tunnel are listening on the separate ports.")
+		process.Debugf("Proxy and reverse tunnel are listening on separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel"), cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
@@ -1985,7 +1986,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.RegisterCriticalFunc("proxy.reveresetunnel.server", func() error {
+		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Reverse tunnel service is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			log.Infof("Starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {

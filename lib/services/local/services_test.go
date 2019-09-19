@@ -32,7 +32,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-func TestServices(t *testing.T) { check.TestingT(t) }
+func TestLocal(t *testing.T) { check.TestingT(t) }
 
 type ServicesSuite struct {
 	bk    backend.Backend

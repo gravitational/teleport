@@ -39,7 +39,7 @@ _"auth.example.com"_  | 10.1.1.10      | This server will be used to run all thr
 _"node.example.com"_  | 10.1.1.11      | This server will only run the SSH service. The vast majority of servers in production will be nodes.
 
 This Quick Start Guide assumes that the both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/)
-Linux distribution such as Debian, Ubuntu or a RHEL deriviative.
+Linux distribution such as Debian, Ubuntu or a RHEL derivative.
 
 ## Installing
 
@@ -206,7 +206,7 @@ role only allows SSH logins as `root@host`.
     clusters.
 
 You probably want to replace "root" with something else. Let's assume there will
-be a local UNIX account called "admin" on all hosts. In this case you cand
+be a local UNIX account called "admin" on all hosts. In this case you can
 dump the role definition YAML into _admin-role.yaml_ file and update "allow/logins"
 to look like this:
 
@@ -236,7 +236,7 @@ which is available for both Android and iPhone.
 
 ## Assigning Roles
 
-To update user's roles, dump the user resoure into a file:
+To update user's roles, dump the user resource into a file:
 
 ```bsh
 $ sudo tctl get users/joe > joe.yaml
