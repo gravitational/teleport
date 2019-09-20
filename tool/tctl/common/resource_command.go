@@ -228,6 +228,9 @@ func (rc *ResourceCommand) Create(client auth.ClientI) error {
 		// only return in case of error, to create multiple resources
 		// in case if yaml spec is a list
 		if err := creator(client, raw); err != nil {
+			if trace.IsAlreadyExists(err) {
+				return trace.Wrap(err, "use -f or --force flag to overwrite")
+			}
 			return trace.Wrap(err)
 		}
 	}
