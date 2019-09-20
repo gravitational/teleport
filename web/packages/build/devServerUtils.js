@@ -1,3 +1,19 @@
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 //
 // taken and modified from https://github.com/mo22/express-modify-response
 //
@@ -8,8 +24,7 @@ module.exports = function expressModifyResponse(checkCallback, modifyCallback) {
     var checked = false;
     var buffers = [];
     var addBuffer = (chunk, encoding) => {
-      if (chunk === undefined) 
-        return;
+      if (chunk === undefined) return;
       if (typeof chunk === 'string') {
         chunk = new Buffer(chunk, encoding);
       }
@@ -18,15 +33,16 @@ module.exports = function expressModifyResponse(checkCallback, modifyCallback) {
 
     var _writeHead = res.writeHead;
 
-    res.writeHead = function () {
+    res.writeHead = function() {
       // writeHead supports (statusCode, headers) as well as (statusCode,
       // statusMessage, headers)
-      var headers = (arguments.length > 2)
-        ? arguments[2]
-        : arguments[1];
+      var headers = arguments.length > 2 ? arguments[2] : arguments[1];
       var contentType = this.getHeader('content-type');
 
-      if ((typeof contentType != 'undefined') && (contentType.indexOf('text/html') == 0)) {
+      if (
+        typeof contentType != 'undefined' &&
+        contentType.indexOf('text/html') == 0
+      ) {
         res.isHtml = true;
 
         // Strip off the content length since it will change.
@@ -72,9 +88,8 @@ module.exports = function expressModifyResponse(checkCallback, modifyCallback) {
       }
       var buffer = Buffer.concat(buffers);
 
-      Promise
-        .resolve(modifyCallback(req, res, buffer))
-        .then((result) => {
+      Promise.resolve(modifyCallback(req, res, buffer))
+        .then(result => {
           if (typeof result === 'string') {
             result = new Buffer(result, 'utf-8');
           }
@@ -87,12 +102,12 @@ module.exports = function expressModifyResponse(checkCallback, modifyCallback) {
           res.write(result);
           res.end();
         })
-        .catch((e) => {
+        .catch(e => {
           // handle?
           next(e);
         });
     };
 
     next();
-  }
-}
+  };
+};

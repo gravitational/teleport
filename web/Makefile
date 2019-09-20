@@ -43,10 +43,6 @@ clean:
 install:
 	bash -c "./scripts/install.sh"
 
-.PHONY: init
-init:
-	git config core.hooksPath $(HOME_DIR)/scripts/githooks/oss
-
-.PHONY: init-enterprise
-init-enterprise:
+.PHONY: init-submodules
+init-submodules:
 	git config core.hooksPath $(HOME_DIR)/scripts/githooks/enterpise
