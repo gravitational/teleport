@@ -167,7 +167,7 @@ new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022
 With the current setup you've only been able to add nodes that have direct access to the
 auth server and within the internal IP range of the cluster. We recommend
 setting up a [Trusted Cluster](/trustedclusters) if you have workloads split
- across different networks / clouds.
+across different networks / clouds.
 
 Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
 useful for IoT applications or for managing a couple of servers in a different network.  
