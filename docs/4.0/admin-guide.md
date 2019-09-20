@@ -377,6 +377,13 @@ auth_service:
     # certificates expire in the middle of an active SSH session. (default is 'no')
     disconnect_expired_cert: no
 
+    # Determines the interval at which Teleport will send keep-alive messages. The 
+    # default value mirrors sshd at 15 minutes.  keep_alive_count_max is the number 
+    # of missed keep-alive messages before the server tears down the connection to the 
+    # client. 
+    keep_alive_interval: 15
+    keep_alive_count_max: 3
+
     # License file to start auth server with. Note that this setting is ignored
     # in open-source Teleport and is required only for Teleport Pro, Business
     # and Enterprise subscription plans.
