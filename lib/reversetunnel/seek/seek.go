@@ -25,8 +25,20 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
+
+var connectedGauge = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "reversetunnel_connected_proxies",
+		Help: "Number of known proxies being sought.",
+	},
+)
+
+func init() {
+	prometheus.MustRegister(connectedGauge)
+}
 
 // Key uniquely identifies a seek group
 type Key struct {
@@ -206,6 +218,8 @@ func (s *GroupHandle) WithProxy(do func(), principals ...string) (did bool) {
 		return false
 	}
 	defer s.inner.ReleaseProxy(principals...)
+	connectedGauge.Inc()
+	defer connectedGauge.Dec()
 	do()
 	return true
 }
