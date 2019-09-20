@@ -21,7 +21,7 @@ import { Offline, NotFound, AccessDenied, Failed, LoginFailed } from './CardErro
 
 const message = 'some error message';
 
-storiesOf('Desigin/CardError', module)
+storiesOf('Design/CardError', module)
   .addDecorator(withInfo)
   .add('NotFound', () => (
     <NotFound message={message} />

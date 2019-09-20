@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react'
 import Dialog, { DialogHeader, DialogContent, DialogFooter, DialogTitle } from './index';
 import { ButtonPrimary, Input, LabelInput } from './..';
 
-storiesOf('Desigin/Dialog', module)
+storiesOf('Design/Dialog', module)
   .add('Simple Dialog', () => (
     <Dialog open={true}>
       <DialogHeader>

@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react';
 import typography from './typography';
 import { Text, Box } from './../';
 
-storiesOf('Desigin/Theme', module).add('Typography', () => {
+storiesOf('Design/Theme', module).add('Typography', () => {
   return (
     <div>
       <Specs />

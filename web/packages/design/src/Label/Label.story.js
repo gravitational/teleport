@@ -20,7 +20,7 @@ import { withInfo } from '@storybook/addon-info'
 import Label from './Label';
 import Flex from './../Flex';
 
-storiesOf('Desigin/Label', module)
+storiesOf('Design/Label', module)
   .addDecorator(withInfo)
   .add('kinds', () => (
     <Flex height="100px" bg="primary.main" justifyContent="center" alignItems="center">

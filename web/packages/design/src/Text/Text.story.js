@@ -19,7 +19,7 @@ import React from 'react'
 import { storiesOf } from '@storybook/react'
 import Text from '../Text'
 
-storiesOf('Desigin/Text', module)
+storiesOf('Design/Text', module)
   .add('fontSize', () => (
     <div>
       <Text as="h1" typography="h1">h1</Text>

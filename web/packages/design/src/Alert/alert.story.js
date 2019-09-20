@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react';
 import { withInfo } from '@storybook/addon-info';
 import Alert from './index';
 
-storiesOf('Desigin/Alert', module)
+storiesOf('Design/Alert', module)
   .addDecorator(withInfo)
   .add('Alert Component', () => {
     return (

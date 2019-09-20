@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react'
 import { withInfo } from '@storybook/addon-info'
 import Box from './Box';
 
-storiesOf('Desigin/Box', module)
+storiesOf('Design/Box', module)
   .addDecorator(withInfo)
   .add('Layout component', () => (
     <Box color="white" bg="blue">

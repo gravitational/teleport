@@ -19,6 +19,6 @@ import { storiesOf } from '@storybook/react'
 import { withInfo } from '@storybook/addon-info'
 import Indicator from '../Indicator'
 
-storiesOf('Desigin/Indicator', module)
+storiesOf('Design/Indicator', module)
   .addDecorator(withInfo)
   .add('Loading Indicator', () => <Indicator />)

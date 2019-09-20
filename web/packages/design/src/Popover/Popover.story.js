@@ -21,7 +21,7 @@ import { storiesOf } from '@storybook/react'
 import Popover from './../Popover';
 import { ButtonPrimary, Box, Flex, Text } from '../';
 
-storiesOf('Desigin/Popover', module)
+storiesOf('Design/Popover', module)
   .add('Simple Popover', () => (
     <Box m={11} textAlign="center">
       <SimplePopover />

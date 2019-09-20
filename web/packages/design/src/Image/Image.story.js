@@ -19,4 +19,4 @@ import { storiesOf } from '@storybook/react';
 import Image from '../Image';
 import teleportSvg from './../assets/images/gravity-medallion.svg';
 
-storiesOf('Desigin/Image', module).add('Component', () => <Image src={teleportSvg} />);
+storiesOf('Design/Image', module).add('Component', () => <Image src={teleportSvg} />);

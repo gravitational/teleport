@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react'
 import DialogConfirmation, { DialogHeader, DialogContent, DialogFooter, DialogTitle } from './index';
 import { ButtonPrimary } from './../Button';
 
-storiesOf('Desigin/DialogConfirmation', module)
+storiesOf('Design/DialogConfirmation', module)
   .add('Simple DialogConfirmation', () => (
     <DialogConfirmation open={true} >
     <DialogHeader>

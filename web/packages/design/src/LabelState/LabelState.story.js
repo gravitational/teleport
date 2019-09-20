@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react'
 import LabelState from './LabelState';
 import Flex from './../Flex';
 
-storiesOf('Desigin/LabelState', module)
+storiesOf('Design/LabelState', module)
   .add('LabelState', () => (
     <Flex height="100px" bg="primary.main" justifyContent="center" alignItems="center">
       <LabelState mr="4" kind="success">Primary</LabelState>

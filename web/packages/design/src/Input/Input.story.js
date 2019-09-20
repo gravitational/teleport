@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react';
 import { withInfo } from '@storybook/addon-info';
 import Input from '../Input';
 
-storiesOf('Desigin/Input', module)
+storiesOf('Design/Input', module)
   .addDecorator(withInfo)
   .add('empty', () => {
     return <Input placeholder="Enter Some Text" />;

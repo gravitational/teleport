@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react'
 import { withInfo } from '@storybook/addon-info'
 import SideNav, { SideNavItem } from '../SideNav'
 
-storiesOf('Desigin/SideNav', module)
+storiesOf('Design/SideNav', module)
   .addDecorator(withInfo)
   .add('SideNav component', () => {
     return (

@@ -28,7 +28,7 @@ import {
   EmptyIndicator
 } from './../DataTable';
 
-storiesOf('Desigin/DataTable', module)
+storiesOf('Design/DataTable', module)
   .add('DataTable', () => (
     <TableSample TableComponent={Table} data={data}/>
   ))
@@ -39,7 +39,7 @@ storiesOf('Desigin/DataTable', module)
     <TableSample TableComponent={Table} data={data} filter="no_results"/>
   ))
 
-storiesOf('Desigin/DataTable/Paged', module)
+storiesOf('Design/DataTable/Paged', module)
   .add('Page size 3', () => (
     <TableSample TableComponent={TablePaged} tableProps={ { pageSize: 3 }} data={data}/>
   ))

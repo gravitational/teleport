@@ -22,7 +22,7 @@ import { storiesOf } from '@storybook/react';
 import { Flex, Box } from '../';
 import { getContrastText } from './theme';
 
-storiesOf('Desigin/Theme', module).add('Palette', () => {
+storiesOf('Design/Theme', module).add('Palette', () => {
   return <Color />;
 });
 

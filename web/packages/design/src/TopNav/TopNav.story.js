@@ -22,7 +22,7 @@ import TopNavItem from './TopNavItem';
 import TopNavUserMenu from './TopNavUserMenu';
 import MenuItem from './../Menu/MenuItem';
 
-storiesOf('Desigin/TopNav', module)
+storiesOf('Design/TopNav', module)
   .addDecorator(withInfo)
   .add('TopNav component', () => {
     return (

@@ -20,7 +20,7 @@ import { withInfo } from '@storybook/addon-info'
 import Flex from './Flex';
 import Box from './../Box';
 
-storiesOf('Desigin/Flex', module)
+storiesOf('Design/Flex', module)
   .addDecorator(withInfo)
   .add('Basic', () => (
     <Flex align='center'>

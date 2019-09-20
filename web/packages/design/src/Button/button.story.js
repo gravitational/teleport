@@ -24,7 +24,7 @@ import ButtonLink from './../ButtonLink';
 import { AddUsers, Trash, Ellipsis } from './../Icon';
 import styled from 'styled-components';
 
-storiesOf('Desigin/Button', module)
+storiesOf('Design/Button', module)
   .addDecorator(withInfo)
   .add('kinds', () => (
     <StyledBox>

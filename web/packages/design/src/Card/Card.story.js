@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react'
 import { withInfo } from '@storybook/addon-info'
 import Card from './Card'
 
-storiesOf('Desigin/Card', module)
+storiesOf('Design/Card', module)
   .addDecorator(withInfo)
   .add('Card', () => (
     <Card width="500px" height="200px" m="0 auto">

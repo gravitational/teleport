@@ -24,7 +24,7 @@ import Box from '../Box';
 import Flex from '../Flex';
 import  * as Icons from '../Icon';
 
-storiesOf('Desigin/Menu', module)
+storiesOf('Design/Menu', module)
   .add('Menu', () => (
     <Flex justifyContent="space-between">
       <SimpleMenu text="Menu to right">

@@ -19,7 +19,7 @@ import { storiesOf } from '@storybook/react';
 import styled from 'styled-components'
 import * as Icon from '../Icon';
 
-storiesOf('Desigin/Icon', module)
+storiesOf('Design/Icon', module)
   .add('Icon components', () => (
     <Container>
       <IconBox IconCmpt={Icon.AddUsers} text="AddUsers"/>
