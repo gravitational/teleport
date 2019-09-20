@@ -20,9 +20,9 @@ import { merge } from 'lodash';
 const cfg = {
   baseUrl: window.location.origin,
 
-  dateTimeFormat: 'MM/DD/YYYY HH:mm:ss',
+  dateTimeFormat: 'YYYY-MM-DD HH:mm:ss',
 
-  dateFormat: 'DD/MM/YYYY',
+  dateFormat: 'YYYY-MM-DD',
 
   auth: {},
 

@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import { at } from 'lodash';
-import moment from 'moment';
 import cfg from 'teleport/config';
+import { displayDateTime } from 'teleport/lib/dateUtils';
 
 export default function makeCluster(json) {
   const [clusterId, connected, status] = at(json, [
@@ -24,7 +24,7 @@ export default function makeCluster(json) {
     'status',
   ]);
 
-  const connectedText = moment(connected).format(cfg.dateTimeFormat);
+  const connectedText = displayDateTime(connected);
 
   return {
     clusterId,
