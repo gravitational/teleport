@@ -14,10 +14,65 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// This handler reads bearer and CSTF tokens from original index.html
+// and inserts these values into the local build version.
+// This allows authentication against targeted server.
+module.exports = function modifyIndexHtmlMiddleware(compiler) {
+  return modifyResponse(
+    (req, res) => {
+      // return true if you want to modify the response later
+      const contentType = res.getHeader('Content-Type');
+      if (contentType && contentType.startsWith('text/html')) {
+        return true;
+      }
+
+      return false;
+    },
+    (req, res, body) => {
+      // clear SCP headers because Gravitational SCP headers
+      // prevents inline JS execution required by hot-reloads to work
+      res.set({
+        'content-security-policy': '',
+      });
+
+      // body is a Buffer with the current response;
+      const str = body.toString();
+
+      // do not modify Bandwagon index.html
+      if (req.path.endsWith('/complete/')) {
+        return body;
+      }
+
+      let htmlToSend = compiler.readLocalIndexHtml();
+
+      // insert bearer and csrf tokens
+      htmlToSend = replaceToken(
+        new RegExp(/<meta name="grv_csrf_token" .*\>/),
+        str,
+        htmlToSend
+      );
+      htmlToSend = replaceToken(
+        new RegExp(/<meta name="grv_bearer_token" .*\>/),
+        str,
+        htmlToSend
+      );
+      return htmlToSend;
+    }
+  );
+};
+
+function replaceToken(regex, takeFrom, insertTo) {
+  var value = takeFrom.match(regex);
+  if (value) {
+    return insertTo.replace(regex, value[0]);
+  }
+  return insertTo;
+}
+
 //
 // taken and modified from https://github.com/mo22/express-modify-response
 //
-module.exports = function expressModifyResponse(checkCallback, modifyCallback) {
+function modifyResponse(checkCallback, modifyCallback) {
   return function expressModifyResponse(req, res, next) {
     var _end = res.end;
     var _write = res.write;
@@ -110,4 +165,4 @@ module.exports = function expressModifyResponse(checkCallback, modifyCallback) {
 
     next();
   };
-};
+}

@@ -7,7 +7,7 @@ const spawn = require('cross-spawn');
 const path = require('path');
 const args = process.argv.slice(2);
 
-const devServerPath = path.join(__dirname, '../devServer.js');
+const devServerPath = path.join(__dirname, '../devserver');
 const nodeArgs = [devServerPath].concat(args);
 
 const result = spawn.sync('node', nodeArgs, { stdio: 'inherit' });
