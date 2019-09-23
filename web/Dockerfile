@@ -1,13 +1,12 @@
 FROM node:12-slim
 RUN apt-get update && apt-get install git -y
 
-# copy only package.json files first
 RUN mkdir -p web-apps
 COPY yarn.lock web-apps/
 COPY package.json web-apps/
-# copy the build folder so yarn can install build/bin files in other packages
+# copy the build package as it has required .bin files
 COPY packages/build/ web-apps/packages/build/
-# copy just the package.json files to yarn install results
+# copy only package.json files to install and cache npm packages
 COPY packages/design/package.json web-apps/packages/design/
 COPY packages/gravity/package.json web-apps/packages/gravity/
 COPY packages/shared/package.json web-apps/packages/shared/
