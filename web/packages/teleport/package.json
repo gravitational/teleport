@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "gravity-build --progress --dev; gravity-start",
+    "start": "gravity-start",
     "build": "rm -rf ./dist; mkdir ./dist; gravity-build --progress --bail",
     "test": "npx jest",
     "tdd": "jest . --watch"

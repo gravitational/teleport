@@ -19,14 +19,14 @@ const WebpackDevServer = require('webpack-dev-server');
 const proxy = require('http-proxy').createProxyServer();
 const modifyIndexHtmlMiddleware = require('./modifyResponse');
 const initCompiler = require('./initCompiler');
-const webpackConfig = require('./../webpack/webpack.dev.config');
 
 // parse target URL
 const argv = require('optimist')
-  .usage('Usage: $0 -target [url]')
-  .demand(['target']).argv;
+  .usage('Usage: $0 -target [url] -config [config]')
+  .demand(['target', 'config']).argv;
 
 const urlObj = uri.parse(argv.target);
+const webpackConfig = require(argv.config);
 
 if (!urlObj.host) {
   console.error('invalid URL: ' + argv.target);
@@ -49,7 +49,11 @@ for (var prop in webpackConfig.entry) {
 // init webpack compiler
 const compiler = initCompiler({ webpackConfig });
 compiler.callWhenReady(function() {
-  console.log(`Dev Server is up and running: https://localhost:${PORT}/web/`);
+  console.log(
+    '\x1b[32m',
+    `Dev Server is up and running: https://localhost:${PORT}/web/`,
+    '\x1b[0m'
+  );
 });
 
 function getTargetOptions() {

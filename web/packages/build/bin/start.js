@@ -5,8 +5,16 @@ process.on('unhandledRejection', err => {
 
 const spawn = require('cross-spawn');
 const path = require('path');
-const args = process.argv.slice(2);
 
+if (!process.argv.some(arg => arg.startsWith('--config'))) {
+  const defaultWebpackConfig = path.join(
+    __dirname,
+    '../webpack/webpack.dev.config.js'
+  );
+  process.argv.push(`--config=${defaultWebpackConfig}`);
+}
+
+const args = process.argv.slice(2);
 const devServerPath = path.join(__dirname, '../devserver');
 const nodeArgs = [devServerPath].concat(args);
 
