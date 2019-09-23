@@ -5,14 +5,10 @@ Gravitational packages. It was created specifically for Gravitational use.
 
 ## Content
 
-`devServer.js` starts a custom webpack development server and proxies
-network requests to a given target.
-
-> Gravitational API paths are hardcoded inside this file
-
-`devServerUtils.js` adds custom logic to the proxy handlers. It inserts
-bearer and CSRF tokens taken from the original index.html file into your
-local version, so you can successfully authenticate against a targeted server.
+`devserver` is Gravitational local development server based on the `webpack-dev-server` package.
+It works as a proxy to Gravitational clusters where it redirects API requests to the given target
+while serving your web assets locally. This proxy knows how to handle CSRF and bearer tokens
+embedded in index.html file.
 
 `.eslintrc.js` a set of eslint rules used to validate JS code.
 
@@ -32,14 +28,8 @@ Add `@gravitational/build` to your package.json file.
   },
 ```
 
-Create `./src` directory and `boot.js` file. This file is the entry point of your
-application and is used by default in webpack config.
-
-```
-    entry: {
-      app: ['./src/boot.js'],
-    },
-```
+Create `./src` directory and place `boot.js` file in it which is the default
+webpack entry point for Gravitational web applications.
 
 Then you can run
 
