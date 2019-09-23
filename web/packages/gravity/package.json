@@ -30,8 +30,7 @@
     "@gravitational/design": "1.0.0"
   },
   "devDependencies": {
-    "@gravitational/build": "^1.0.0",
-    "webpack-cli": "3.3.2"
+    "@gravitational/build": "^1.0.0"
   },
   "jest": {
     "moduleNameMapper": {
