@@ -150,7 +150,6 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 
 // DefaultNewHandler returns a new handler with default GCS client settings derived from the config
 func DefaultNewHandler(cfg Config) (*Handler, error) {
-
 	var args []option.ClientOption
 	if len(cfg.Endpoint) != 0 {
 		args = append(args, option.WithoutAuthentication(), option.WithEndpoint(cfg.Endpoint), option.WithGRPCDialOption(grpc.WithInsecure()))
@@ -158,15 +157,14 @@ func DefaultNewHandler(cfg Config) (*Handler, error) {
 		args = append(args, option.WithCredentialsFile(cfg.CredentialsPath))
 	}
 
-	ctx, cancelFuc := context.WithCancel(context.Background())
-
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	client, err := storage.NewClient(ctx, args...)
-
 	if err != nil {
-		return nil, trace.BadParameter("error creating GCS gcsClient; error %v", convertGCSError(err))
+		cancelFunc()
+		return nil, trace.Wrap(convertGCSError(err), "error creating GCS gcsClient")
 	}
 
-	return NewHandler(ctx, cancelFuc, cfg, client)
+	return NewHandler(ctx, cancelFunc, cfg, client)
 }
 
 // NewHandler returns a new handler with specific context, cancelFunc, and client

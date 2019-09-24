@@ -196,10 +196,12 @@ func New(ctx context.Context, params backend.Params) (*FirestoreBackend, error) 
 	closeCtx, cancel := context.WithCancel(ctx)
 	firestoreAdminClient, firestoreClient, err := CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 	buf, err := backend.NewCircularBuffer(ctx, cfg.BufferSize)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 	watchStarted, signalWatchStart := context.WithCancel(ctx)

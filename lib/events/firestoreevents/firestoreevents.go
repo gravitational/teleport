@@ -278,6 +278,7 @@ func New(cfg EventsConfig) (*Log, error) {
 	closeCtx, cancel := context.WithCancel(context.Background())
 	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 	b := &Log{
