@@ -24,8 +24,21 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
+
+var connectedGauge = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "reversetunnel_connected_proxies",
+		Help: "Number of known proxies being sought.",
+	},
+)
+
+func init() {
+	prometheus.MustRegister(connectedGauge)
+}
 
 // Key uniquely identifies a seek group
 type Key struct {
@@ -205,6 +218,8 @@ func (s *GroupHandle) WithProxy(do func(), principals ...string) (did bool) {
 		return false
 	}
 	defer s.inner.ReleaseProxy(principals...)
+	connectedGauge.Inc()
+	defer connectedGauge.Dec()
 	do()
 	return true
 }
@@ -235,11 +250,13 @@ type proxyGroup struct {
 
 // run is the "main loop" for the seek process.
 func (p *proxyGroup) run(ctx context.Context) {
+	const logInterval int = 8
 	ticker := time.NewTicker(p.conf.TickRate)
 	defer ticker.Stop()
 	// supply initial status & seek notification.
 	p.notifyStatus(p.Tick())
 	p.notifyShouldSeek()
+	var ticks int
 	for {
 		select {
 		case <-ticker.C:
@@ -247,6 +264,10 @@ func (p *proxyGroup) run(ctx context.Context) {
 			p.notifyStatus(stat)
 			if stat.ShouldSeek() {
 				p.notifyShouldSeek()
+			}
+			ticks++
+			if ticks%logInterval == 0 {
+				log.Debugf("SeekStates(states=%+v,id=%s)", p.GetStates(), p.id)
 			}
 		case proxy := <-p.proxyC:
 			proxies := []string{proxy}
@@ -368,12 +389,28 @@ func (p *proxyGroup) releaseProxy(t time.Time, principals ...string) (ok bool) {
 }
 
 func (p *proxyGroup) resolveName(principals []string) string {
+	const uuidSize int = 36
 	for _, name := range principals {
+		if len(name) >= uuidSize {
+			if uuid.Parse(name[:uuidSize]) != nil {
+				return name[:uuidSize]
+			}
+		}
 		if _, ok := p.states[name]; ok {
 			return name
 		}
 	}
 	return principals[0]
+}
+
+func (p *proxyGroup) GetStates() map[string]seekState {
+	p.Lock()
+	defer p.Unlock()
+	collector := make(map[string]seekState, len(p.states))
+	for proxy, s := range p.states {
+		collector[proxy] = s.state
+	}
+	return collector
 }
 
 // tick ticks all proxy seek states, returning a summary
