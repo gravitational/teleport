@@ -39,7 +39,9 @@ $ yarn gravity-build
 
 ## Custom webpack config
 
-If you want to use your own `webpack.config.js` file and override the defaults:
+If you want to use your own `webpack.config.js` file and override the defaults.
+
+For example, if this is your webpack config:
 
 ```
 const defaultCfg = require('@gravitational/build/webpack/webpack.prod.config');
@@ -51,7 +53,7 @@ defaultCfg.entry = {
 module.exports = defaultCfg;
 ```
 
-Then run:
+Then you can use `--config` parameter.
 
 ```
 $ yarn gravity-build --config webpack.config.js

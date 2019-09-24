@@ -18,8 +18,8 @@ const path = require('path');
 const webpack = require('webpack');
 
 module.exports = function initCompiler({ webpackConfig }) {
-  // An array of callbacks. It is used to queue HTTP requests while
-  // webpack is building the source code for the first time.
+  // These callbacks are used to notify a subscriber when the very
+  // first webpack compilation happents
   let pendingCallbacks = [];
 
   const webpackCompiler = webpack(webpackConfig);
