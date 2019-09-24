@@ -38,10 +38,20 @@ verify the integrity of our binary.
 
 ![Teleport Checksum](img/teleport-sha.png)
 
+**Checking Checksum on Mac OS**
 ```bash
 $ shasum -a 256 teleport-v4.0.8-darwin-amd64-bin.tar.gz
 0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
 ```
+
+**Checking Checksum on Linux**
+```bash
+$ sha256sum teleport-v4.0.8-darwin-amd64-bin.tar.gz
+0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+```
+
+**Checking Checksum on Automated Systems**
+
 If you download Teleport via an automated system, you can programmatically obtain the checksum 
 by adding `.sha256` to the binary. 
 
