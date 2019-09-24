@@ -168,6 +168,9 @@ const (
 	// ComponentKeyGen is the public/private keypair generator.
 	ComponentKeyGen = "keygen"
 
+	// ComponentFirestore represents firestore clients
+	ComponentFirestore = "firestore"
+
 	// ComponentSession is an active session.
 	ComponentSession = "session"
 
@@ -310,6 +313,10 @@ const (
 	// SchemeS3 is S3 file scheme, means upload or download to S3 like object
 	// storage
 	SchemeS3 = "s3"
+
+	// SchemeGCS is GCS file scheme, means upload or download to GCS like object
+	// storage
+	SchemeGCS = "gs"
 
 	// Region is AWS region parameter
 	Region = "region"
