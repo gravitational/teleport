@@ -19,7 +19,7 @@ $ sudo make install
 Gravitational Teleport is written in Go language. It requires Golang v1.8.3 or
 newer.
 
-```yaml
+```bash
 # get the source & build:
 $ mkdir -p $GOPATH/src/github.com/gravitational
 $ cd $GOPATH/src/github.com/gravitational
@@ -30,6 +30,36 @@ $ make full
 # create the default data directory before starting:
 $ sudo mkdir -p /var/lib/teleport
 ```
+
+### Teleport Checksum
+
+Gravitational Teleport provides a checksum from the Downloads page.  This can be used to 
+verify the integrity of our binary. 
+
+![Teleport Checksum](img/teleport-sha.png)
+
+**Checking Checksum on Mac OS**
+```bash
+$ shasum -a 256 teleport-v4.0.8-darwin-amd64-bin.tar.gz
+0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+```
+
+**Checking Checksum on Linux**
+```bash
+$ sha256sum teleport-v4.0.8-darwin-amd64-bin.tar.gz
+0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+```
+
+**Checking Checksum on Automated Systems**
+
+If you download Teleport via an automated system, you can programmatically obtain the checksum 
+by adding `.sha256` to the binary. 
+
+```bash
+$ curl https://get.gravitational.com/teleport-v4.0.8-darwin-amd64-bin.tar.gz.sha256
+0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+```
+
 
 ## Definitions
 
