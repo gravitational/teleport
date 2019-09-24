@@ -334,6 +334,9 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 
 	// sign it and produce a cert:
 	key.Cert, key.TLSCert, err = clusterApi.GenerateUserCerts(key.Pub, a.genUser, a.genTTL, certificateFormat)
+	if trace.IsNotFound(err) {
+		return trace.BadParameter("server does not support exporting TLS identity, upgrade Teleport server components and try again")
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
