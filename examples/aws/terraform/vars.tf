@@ -74,6 +74,7 @@ variable "kms_alias_name" {
 // path to teleport enterprise/pro license file
 variable license_path {
   type = "string"
+  default = ""
 }
 
 // AMI name to use

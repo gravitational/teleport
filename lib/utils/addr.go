@@ -137,6 +137,18 @@ func (a *NetAddr) Set(s string) error {
 	return nil
 }
 
+// ParseAddrs parses the provided slice of strings as a slice of NetAddr's.
+func ParseAddrs(addrs []string) (result []NetAddr, err error) {
+	for _, addr := range addrs {
+		parsed, err := ParseAddr(addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result = append(result, *parsed)
+	}
+	return result, nil
+}
+
 // ParseAddr takes strings like "tcp://host:port/path" and returns
 // *NetAddr or an error
 func ParseAddr(a string) (*NetAddr, error) {

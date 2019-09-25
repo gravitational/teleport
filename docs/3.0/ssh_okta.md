@@ -47,6 +47,22 @@ We are going to create two groups: "okta-dev" and "okta-admin":
 We are going to map the Okta groups we've created above to the SAML Attribute
 statements (special signed metadata exposed via a SAML XML response).
 
+GENERAL
+
+- Single sign on URL `https://teleport-proxy.example.com:3080/v1/webapi/saml/acs`
+
+- Audience URI (SP Entity ID)`https://teleport-proxy.example.com:3080/v1/webapi/saml/acs`
+
+- Name ID format `EmailAddress`
+
+- Application username `Okta username`
+
+GROUP ATTRIBUTE STATEMENTS
+
+- Name: `groups` | Name format: `Unspecified`
+
+-  Filter: `Matches regex` |  `.*`
+
 ![Configure APP](img/okta-saml-3.png)
 
 !!! tip "Important":

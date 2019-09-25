@@ -40,7 +40,8 @@ func newSession(client *NodeClient,
 	env map[string]string,
 	stdin io.Reader,
 	stdout io.Writer,
-	stderr io.Writer) (*NodeSession, error) {
+	stderr io.Writer,
+	legacyID bool) (*NodeSession, error) {
 
 	return nil, trace.BadParameter("sessions not supported on Windows")
 }
