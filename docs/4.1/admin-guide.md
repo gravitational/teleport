@@ -1904,6 +1904,7 @@ determined by the `<cluster>` argument to `tsh login`.
 * Users always authenticate against "main" but use their certificates to
   access SSH nodes and Kubernetes API in all three clusters.
 * The DNS name of the main proxy server is "main.example.com"
+* The certificates issued contain the name of the Kubernetes cluster being used.
 
 In this scenario, users usually login using this command:
 
