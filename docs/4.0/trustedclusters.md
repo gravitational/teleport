@@ -209,8 +209,8 @@ spec:
     - remote: "admin"
       local: [local-admin]
   token: "join-token"
-  tunnel_addr: main.example.com:3024
-  web_proxy_addr: main.example.com:3080
+  tunnel_addr: <main-proxy-address>:3024
+  web_proxy_addr: <main-proxy-address>:3080
 ```
 
 What if we wanted to let _any_ user from "main" to be allowed to connect to
@@ -268,7 +268,7 @@ Now an admin from the main cluster can now see and access the "east" cluster:
 
 ```bsh
 # login into the main cluster:
-$ tsh --proxy=proxy.main login admin
+$ tsh --proxy=main.example.com login admin
 ```
 
 ```bsh
