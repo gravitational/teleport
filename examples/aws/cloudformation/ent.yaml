@@ -601,6 +601,7 @@ Resources:
             Resource: !GetAtt Bucket.Arn
             Action:
             - "s3:ListBucket"
+            - "s3:ListBucketVersions"
 
           -
             Effect: "Allow"
@@ -608,6 +609,7 @@ Resources:
             Action:
             - "s3:GetObject"
             - "s3:PutObject"
+            - "s3:GetObjectVersion"
 
           # Allow to list hosted zone changes
           -
@@ -685,12 +687,14 @@ Resources:
             Resource: !GetAtt Bucket.Arn
             Action:
             - "s3:ListBucket"
+            - "s3:ListBucketVersions"
 
           -
             Effect: "Allow"
             Resource: !Join ["/", [!GetAtt Bucket.Arn, "*"]]
             Action:
             - "s3:GetObject"
+            - "s3:GetObjectVersion"
 
       Roles:
       - {Ref: ProxyRole}
