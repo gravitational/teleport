@@ -129,14 +129,18 @@ resource "aws_iam_role_policy" "auth_s3" {
    "Statement": [
      {
        "Effect": "Allow",
-       "Action": ["s3:ListBucket"],
+       "Action": [
+         "s3:ListBucket",
+         "s3:ListBucketVersions"
+        ],
        "Resource": ["arn:aws:s3:::${aws_s3_bucket.certs.bucket}"]
      },
      {
        "Effect": "Allow",
        "Action": [
          "s3:PutObject",
-         "s3:GetObject"
+         "s3:GetObject",
+         "s3:GetObjectVersion"
        ],
        "Resource": ["arn:aws:s3:::${aws_s3_bucket.certs.bucket}/*"]
      }
