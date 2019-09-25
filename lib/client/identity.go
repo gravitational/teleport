@@ -74,7 +74,7 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 	switch format {
 	// dump user identity into a single file:
 	case IdentityFormatFile:
-		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, fileMode)
+		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileMode)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -85,13 +85,18 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 		if _, err = output.Write(key.Priv); err != nil {
 			return trace.Wrap(err)
 		}
-		// append cert:
+		// append ssh cert:
 		if _, err = output.Write(key.Cert); err != nil {
+			return trace.Wrap(err)
+		}
+		// append tls cert:
+		if _, err = output.Write(key.TLSCert); err != nil {
 			return trace.Wrap(err)
 		}
 		// append trusted host certificate authorities
 		for _, ca := range certAuthorities {
 			for _, publicKey := range ca.GetCheckingKeys() {
+				// append ssh ca certificates
 				data, err := sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), publicKey, nil)
 				if err != nil {
 					return trace.Wrap(err)
@@ -101,6 +106,12 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 				}
 				if _, err = output.Write([]byte("\n")); err != nil {
 					return trace.Wrap(err)
+				}
+				// append tls ca certificates
+				for _, keyPair := range ca.GetTLSKeyPairs() {
+					if _, err = output.Write(keyPair.Cert); err != nil {
+						return trace.Wrap(err)
+					}
 				}
 			}
 		}

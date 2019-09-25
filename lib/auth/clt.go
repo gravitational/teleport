@@ -207,7 +207,7 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 		dialer = net.Dial
 	}
 	transport := &http.Transport{
-		Dial: dialer,
+		Dial:                  dialer,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 	}
 	params = append(params,
@@ -1212,6 +1212,26 @@ func (c *Client) GenerateUserCert(key []byte, user string, ttl time.Duration, co
 		return nil, trace.Wrap(err)
 	}
 	return []byte(cert), nil
+}
+
+// GenerateUserCerts is like GenerateUserCert above but returns x509 certificate
+// in addition to the ssh one as well.
+func (c *Client) GenerateUserCerts(key []byte, user string, ttl time.Duration, compatibility string) (ssh []byte, tls []byte, err error) {
+	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs", "all"),
+		generateUserCertReq{
+			Key:           key,
+			User:          user,
+			TTL:           ttl,
+			Compatibility: compatibility,
+		})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	var certs generateUserCertsResponse
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return certs.SSH, certs.TLS, nil
 }
 
 // GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
@@ -2246,6 +2266,10 @@ type IdentityService interface {
 	// plain text format, signs it using User Certificate Authority signing key and returns the
 	// resulting certificate.
 	GenerateUserCert(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, error)
+
+	// GenerateUserCerts is like GenerateUserCert above but returns x509 certificate
+	// in addition to the ssh one as well.
+	GenerateUserCerts(key []byte, user string, ttl time.Duration, compatibility string) (ssh []byte, tls []byte, err error)
 
 	// GetSignupTokenData returns token data for a valid token
 	GetSignupTokenData(token string) (user string, otpQRCode []byte, e error)

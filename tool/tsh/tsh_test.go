@@ -132,6 +132,20 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 	// host auth callback must succeed
 	err = hostAuthCallback(hosts[0], a, cert)
 	c.Assert(err, check.IsNil)
+
+	// load an identity which include TLS certificates
+	k, _, err = loadIdentity("../../fixtures/certs/identities/tls.pem")
+	c.Assert(err, check.IsNil)
+	c.Assert(k, check.NotNil)
+	c.Assert(k.TLSCert, check.NotNil)
+	// generate a TLS client config
+	conf, err := k.ClientTLSConfig()
+	c.Assert(err, check.IsNil)
+	c.Assert(conf, check.NotNil)
+	// ensure that at least root CA was successfully loaded
+	if len(conf.RootCAs.Subjects()) < 1 {
+		c.Errorf("Failed to load TLS CAs from identity file")
+	}
 }
 
 func (s *MainTestSuite) TestOptions(c *check.C) {
