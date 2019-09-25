@@ -260,7 +260,8 @@ teleport:
     storage:
         # By default teleport uses the `data_dir` directory on a local filesystem
         type: dir
-
+        path: /var/lib/teleport
+        
         # Array of locations where the audit log events will be stored. by
         # default they are stored in `/var/lib/teleport/log`
         audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name', 'stdout://']
