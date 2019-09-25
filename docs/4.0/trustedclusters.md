@@ -144,6 +144,7 @@ Consider the following:
 * Every user in Teleport Enterprise is assigned a role.
 * When creating a _trusted cluster_ resource, the administrator of "east" must
   define how roles from "main" map to roles on "east".
+* To update role map for an existing _trusted cluster_ delete and re-create the _trusted cluster_ with the updated role map
 
 ### Example
 
@@ -161,17 +162,17 @@ First, we need to create a special role for main users on "east":
 ```yaml
 # save this into main-user-role.yaml on the east cluster and execute:
 # tctl create main-user-role.yaml
-- kind: role
-  version: v3
-  metadata:
-    name: local-admin
-  spec:
-    allow:
-      node_labels:
-        '*': '*'
-    deny:
-      node_labels:
-        "environment": "production"
+kind: role
+version: v3
+metadata:
+  name: local-admin
+spec:
+  allow:
+    node_labels:
+      '*': '*'
+  deny:
+    node_labels:
+      "environment": "production"
 ```
 
 Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is
@@ -217,6 +218,21 @@ role name and use reference it to name the local role:
 
 **NOTE:** The regexp matching is activated only when the expression starts
 with `^` and ends with `$`
+
+## Updating Trusted Cluster Role Map
+
+In order to update the role map for a trusted cluster first we will need to remove the cluster by executing:
+
+```bsh
+$ tctl rm main-cluster.yaml
+```
+
+Then following updating the role map, we can re-create the cluster by executing:
+
+```bsh
+$ tctl create main-user-updated-role.yaml
+```
+
 
 ## Using Trusted Clusters
 
