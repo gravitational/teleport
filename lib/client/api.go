@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/client/configurator"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -163,6 +164,9 @@ type Config struct {
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 
+	// Debug allows to enable client debug logging.
+	Debug bool
+
 	// SkipLocalAuth tells the client to use AuthMethods parameter for authentication and NOT
 	// use its own SSH agent or ask user for passwords. This is used by external programs linking
 	// against Teleport client and obtaining credentials from elsewhere.
@@ -244,6 +248,19 @@ type Config struct {
 
 	// BindAddr is an optional host:port to bind to for SSO redirect flows
 	BindAddr string
+
+	// ServerFeatures lists additional features supported by the server.
+	//
+	// This field is populated based on the settings received from the server
+	// as a part of the ping response.
+	ServerFeatures []string
+
+	// Docker is responsible for configuring access to Docker registy that
+	// may be optionally provided by the server.
+	Docker configurator.Configurator
+	// Helm is responsible for configuring access to Helm repository that
+	// may be optionally provided by the server.
+	Helm configurator.Configurator
 }
 
 // CachePolicy defines cache policy for local clients
@@ -768,6 +785,20 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 		if tc.HostKeyCallback == nil {
 			tc.HostKeyCallback = tc.localAgent.CheckHostSignature
+		}
+	}
+
+	if tc.Docker == nil {
+		tc.Docker, err = configurator.NewDocker(tc.Debug)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if tc.Helm == nil {
+		tc.Helm, err = configurator.NewHelm()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -1657,6 +1688,67 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	return key, nil
 }
 
+// ConfigureFeatures configures additional features provided by the server.
+func (tc *TeleportClient) ConfigureFeatures() error {
+	if len(tc.ServerFeatures) == 0 {
+		return nil // Nothing to do.
+	}
+	log.Infof("Server supports additional features: %v.", tc.ServerFeatures)
+	profile, err := CurrentProfile(tc.KeysDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	config := configurator.Config{
+		ProxyAddress:    profile.WebProxyAddr,
+		ProfileDir:      FullProfilePath(tc.KeysDir),
+		CertificatePath: profile.TLSCertificatePath(tc.KeysDir),
+		KeyPath:         profile.KeyPath(tc.KeysDir),
+	}
+	if utils.SliceContainsStr(tc.ServerFeatures, FeatureDocker) {
+		if err := tc.configureDocker(config); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if utils.SliceContainsStr(tc.ServerFeatures, FeatureHelm) {
+		if err := tc.configureHelm(config); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (tc *TeleportClient) configureDocker(config configurator.Config) error {
+	configured, err := tc.Docker.IsConfigured(config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if configured {
+		log.Debug("Docker registry is already configured.")
+		return nil
+	}
+	err = tc.Docker.Configure(config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (tc *TeleportClient) configureHelm(config configurator.Config) error {
+	configured, err := tc.Helm.IsConfigured(config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if configured {
+		log.Debug("Helm repository is already configured.")
+		return nil
+	}
+	err = tc.Helm.Configure(config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetTrustedCA returns a list of host certificate authorities
 // trusted by the cluster client is authenticated with.
 func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]services.CertAuthority, error) {
@@ -1739,6 +1831,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		// after login.
 		tc.localAgent.UpdateProxyHost(addr.Host())
 	}
+
 	// Read in settings for the SSH endpoint of the proxy.
 	//
 	// If listen_addr is set, take host from ProxyWebHost and port from what
@@ -1754,6 +1847,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		webProxyHost, _ := tc.WebProxyHostPort()
 		tc.SSHProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
 	}
+
 	// If ssh_public_addr is set, override settings from listen_addr.
 	if proxySettings.SSH.SSHPublicAddr != "" {
 		addr, err := utils.ParseAddr(proxySettings.SSH.SSHPublicAddr)
@@ -1763,6 +1857,13 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 				proxySettings.SSH.ListenAddr)
 		}
 		tc.SSHProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
+	}
+
+	// If the server indicated that it provides additional services such as
+	// Docker registry or Helm chart repository, set appropriate settings
+	// so they can be configured upon login.
+	if len(proxySettings.Features) != 0 {
+		tc.ServerFeatures = proxySettings.Features
 	}
 
 	return nil

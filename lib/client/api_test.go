@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,10 @@ limitations under the License.
 package client
 
 import (
+	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/client/configurator"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
@@ -85,6 +87,50 @@ func (s *APITestSuite) TestNew(c *check.C) {
 
 	la := tc.LocalAgent()
 	c.Assert(la, check.NotNil)
+}
+
+func (s *APITestSuite) TestConfigureFeatures(c *check.C) {
+	tmpDir := c.MkDir()
+	docker := &testConfigurator{}
+	helm := &testConfigurator{}
+	config := &Config{
+		KeysDir: tmpDir,
+		Docker:  docker,
+		Helm:    helm,
+	}
+	err := config.ParseProxyHost("proxy")
+	c.Assert(err, check.IsNil)
+
+	profile := ClientProfile{
+		WebProxyAddr: "example.com:3080",
+		Username:     "alice@example.com",
+	}
+	err = profile.SaveTo("", filepath.Join(tmpDir, profile.Name()), ProfileMakeCurrent)
+	c.Assert(err, check.IsNil)
+
+	tc, err := NewClient(config)
+	c.Assert(err, check.IsNil)
+	c.Assert(tc, check.NotNil)
+
+	// Server does not provide Docker/Helm so nothing should be configured.
+	err = tc.ConfigureFeatures()
+	c.Assert(err, check.IsNil)
+	c.Assert(docker.configured, check.Equals, 0)
+	c.Assert(helm.configured, check.Equals, 0)
+
+	// Docker/Helm registries should be configured.
+	tc.ServerFeatures = []string{FeatureDocker, FeatureHelm}
+	err = tc.ConfigureFeatures()
+	c.Assert(err, check.IsNil)
+	c.Assert(docker.configured, check.Equals, 1)
+	c.Assert(helm.configured, check.Equals, 1)
+
+	// Docker/Helm registries are already configured.
+	tc.ServerFeatures = []string{FeatureDocker, FeatureHelm}
+	err = tc.ConfigureFeatures()
+	c.Assert(err, check.IsNil)
+	c.Assert(docker.configured, check.Equals, 1)
+	c.Assert(helm.configured, check.Equals, 1)
 }
 
 func (s *APITestSuite) TestParseLabels(c *check.C) {
@@ -223,4 +269,17 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 
 		c.Assert(specs, check.DeepEquals, tt.output)
 	}
+}
+
+type testConfigurator struct {
+	configured int
+}
+
+func (c *testConfigurator) Configure(_ configurator.Config) error {
+	c.configured += 1
+	return nil
+}
+
+func (c *testConfigurator) IsConfigured(_ configurator.Config) (bool, error) {
+	return c.configured != 0, nil
 }

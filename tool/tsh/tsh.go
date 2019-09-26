@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/configurator"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeclient "github.com/gravitational/teleport/lib/kube/client"
 	"github.com/gravitational/teleport/lib/session"
@@ -154,6 +155,9 @@ type CLIConf struct {
 
 	// Debug sends debug logs to stdout.
 	Debug bool
+
+	// ProfileDir specifies the client profile directory.
+	ProfileDir string
 }
 
 func main() {
@@ -277,6 +281,12 @@ func Run(args []string, underTest bool) {
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
 
+	// The configure-docker command sets up the local Docker daemon to use the
+	// key and certificate obtained as a result of tsh login for a registry
+	// access by symlinking them to /etc/docker/certs.d/<proxy> directory.
+	configureDocker := app.Command("configure-docker", "Configure Docker to use user certificates for registry access").Hidden()
+	configureDocker.Flag("profile-dir", "Client profile directory, defaults to ~/.tsh.").StringVar(&cf.ProfileDir)
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == teleport.WindowsOS {
@@ -345,6 +355,8 @@ func Run(args []string, underTest bool) {
 		onShow(&cf)
 	case status.FullCommand():
 		onStatus(&cf)
+	case configureDocker.FullCommand():
+		onConfigureDocker(&cf)
 	}
 }
 
@@ -457,6 +469,13 @@ func onLogin(cf *CLIConf) {
 
 	// Regular login without -i flag.
 	tc.SaveProfile(key.ProxyHost, "")
+
+	// If the server indicated that it supports additional features (such as
+	// Docker registry), configure them after the login has succeeded and
+	// profile has been setup.
+	if err := tc.ConfigureFeatures(); err != nil {
+		log.WithError(err).Warn("Failed to configure additional server features.")
+	}
 
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
@@ -878,6 +897,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
+	if cf.Debug {
+		c.Debug = cf.Debug
+	}
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
 	if cf.Proxy != "" && c.WebProxyAddr == "" {
@@ -1280,4 +1302,40 @@ func host(in string) string {
 		return in
 	}
 	return out
+}
+
+// onConfigureDocker command configures local Docker with client key/certificate
+// from the current client profile.
+//
+// This command must be executed as a root in order to be able to symlink
+// certificates to /etc/docker/certs.d.
+func onConfigureDocker(cf *CLIConf) {
+	err := tryConfigureDocker(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+}
+
+func tryConfigureDocker(cf *CLIConf) error {
+	if os.Geteuid() != 0 {
+		return trace.BadParameter("this command must be executed by root")
+	}
+	docker, err := configurator.NewDocker(cf.Debug)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	profile, err := client.CurrentProfile(cf.ProfileDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = docker.Configure(configurator.Config{
+		ProxyAddress:    profile.WebProxyAddr,
+		ProfileDir:      client.FullProfilePath(cf.ProfileDir),
+		CertificatePath: profile.TLSCertificatePath(cf.ProfileDir),
+		KeyPath:         profile.KeyPath(cf.ProfileDir),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
