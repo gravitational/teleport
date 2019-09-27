@@ -117,7 +117,7 @@ spec:
 
 This role declares:
 
-* Devs are only allowed to login to nodes labelled with `access: relaxed` label. 
+* Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 * Developers can log in as `ubuntu` user
 * Notice `{{external."http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"}}` login. It configures Teleport to look at
   _"http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"_ ADFS claim and use that field as an allowed login for each user.
