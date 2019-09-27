@@ -111,6 +111,8 @@ spec:
   allow:
     # only allow login as either ubuntu or the username claim
     logins: [ "{{external.username}}", ubuntu ]
+    node_labels:
+      "access": "relaxed"
 ```
 
 This role declares:
@@ -132,7 +134,7 @@ metadata:
 spec:
   # display allows to set the caption of the "login" button
   # in the Web interface
-  display: "Login with MS Active Directory"
+  display: "MS Active Directory"
   provider: "adfs"
   acs: "https://localhost:3080/v1/webapi/saml/acs"
   entity_descriptor_url: "https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml"
