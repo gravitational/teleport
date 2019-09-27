@@ -121,6 +121,7 @@ This role declares:
 * Developers can log in as `ubuntu` user
 * Notice `{{external."http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"}}` login. It configures Teleport to look at
   _"http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"_ ADFS claim and use that field as an allowed login for each user.
+  Also note the double quotes (`"`) around the claim name - these are important.
 * Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
