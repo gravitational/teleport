@@ -135,6 +135,8 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 		ctx: ctx,
 	}
 
+	ctx.Debugf("--> Attempting to open PTY.")
+
 	// Open PTY and corresponding TTY.
 	t.pty, t.tty, err = pty.Open()
 	if err != nil {
@@ -142,12 +144,17 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 		return nil, err
 	}
 
+	ctx.Debugf("--> Opened PTY.")
+	ctx.Debugf("--> Attempting to set owner.")
+
 	// Set the TTY owner. Failure is not fatal, for example Teleport is running
 	// on a read-only filesystem, but logging is useful for diagnostic purposes.
 	err = t.setOwner()
 	if err != nil {
 		log.Debugf("Unable to set TTY owner: %v.\n", err)
 	}
+
+	ctx.Debugf("--> Set owner.")
 
 	return t, nil
 }
@@ -162,11 +169,14 @@ func (t *terminal) AddParty(delta int) {
 func (t *terminal) Run() error {
 	defer t.closeTTY()
 
+	log.Debugf("--> Prep interactive command.")
 	cmd, err := prepareInteractiveCommand(t.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	t.cmd = cmd
+
+	log.Debugf("--> Interactive command prepared.")
 
 	cmd.Stdout = t.tty
 	cmd.Stdin = t.tty
@@ -174,10 +184,14 @@ func (t *terminal) Run() error {
 	cmd.SysProcAttr.Setctty = true
 	cmd.SysProcAttr.Setsid = true
 
+	log.Debugf("--> Attempting to start command: %#v.", cmd)
+
 	err = cmd.Start()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	log.Debugf("--> Started command.")
 
 	return nil
 }
@@ -321,6 +335,8 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 	var gid int
 	var mode os.FileMode
 
+	log.Debugf("--> Attempting to lookup user.")
+
 	// Lookup the Unix login for the UID and fallback GID.
 	u, err := lookupUser(login)
 	if err != nil {
@@ -330,6 +346,8 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 	if err != nil {
 		return 0, 0, 0, trace.Wrap(err)
 	}
+
+	log.Debugf("--> Attempting to lookup group.")
 
 	// If the tty group exists, use that as the gid of the TTY and set mode to
 	// be u+rw. Otherwise use the group of the user with mode u+rw g+w.
@@ -348,20 +366,26 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 		mode = 0600
 	}
 
+	log.Debugf("--> Got uid: %v, gid: %v, mode: %v.", uid, gid, mode)
+
 	return uid, gid, mode, nil
 }
 
 // setOwner changes the owner and mode of the TTY.
 func (t *terminal) setOwner() error {
+	log.Debugf("--> Attempting to get owner.")
 	uid, gid, mode, err := getOwner(t.ctx.Identity.Login, user.Lookup, user.LookupGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("--> Changing owner of TTY.")
+
 	err = os.Chown(t.tty.Name(), uid, gid)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	log.Debugf("--> Changing mode of TTY.")
 	err = os.Chmod(t.tty.Name(), mode)
 	if err != nil {
 		return trace.Wrap(err)

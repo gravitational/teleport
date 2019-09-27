@@ -201,7 +201,9 @@ func prepareInteractiveCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	// determine shell for the given OS user:
 	if ctx.ExecRequest.GetCommand() == "" {
 		runShell = true
+		log.Debugf("--> Attempting to discover login shell for %v.", ctx.Identity.Login)
 		cmdName, err := shell.GetLoginShell(ctx.Identity.Login)
+		log.Debugf("--> Found login shell: %v.", cmdName)
 		ctx.ExecRequest.SetCommand(cmdName)
 		if err != nil {
 			log.Error(err)
@@ -212,10 +214,12 @@ func prepareInteractiveCommand(ctx *ServerContext) (*exec.Cmd, error) {
 			ctx.ExecRequest.SetCommand("/bin/sh")
 		}
 	}
+	log.Debugf("--> Calling prepare command.")
 	c, err := prepareCommand(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log.Debugf("--> Command prepared.")
 	// this configures shell to run in 'login' mode. from openssh source:
 	// "If we have no command, execute the shell.  In this case, the shell
 	// name to be passed in argv[0] is preceded by '-' to indicate that
@@ -266,10 +270,13 @@ func (e *localExec) transformSecureCopy() error {
 func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	osUserName := ctx.Identity.Login
 	// configure UID & GID of the requested OS user:
+
+	log.Debugf("--> Attempting to lookup user: %v.", osUserName)
 	osUser, err := user.Lookup(osUserName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log.Debugf("--> Found user %v.", osUser)
 	uid, err := strconv.Atoi(osUser.Uid)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -280,6 +287,7 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	}
 
 	// get user's shell:
+	log.Debugf("--> Attempting to get login shell: %v.", ctx.Identity.Login)
 	shell, err := shell.GetLoginShell(ctx.Identity.Login)
 	if err != nil {
 		log.Warn(err)
@@ -287,6 +295,7 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	if ctx.IsTestStub {
 		shell = "/bin/sh"
 	}
+	log.Debugf("--> Got login shell: %v.", shell)
 
 	// by default, execute command using user's shell like openssh does:
 	// https://github.com/openssh/openssh-portable/blob/master/session.c
@@ -311,6 +320,7 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	c.Dir = osUser.HomeDir
 
 	// Lookup all groups the user is a member of.
+	log.Debugf("--> Looking up group ids.")
 	userGroups, err := osUser.GroupIds()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -327,6 +337,8 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	if len(groups) == 0 {
 		groups = append(groups, uint32(gid))
 	}
+	log.Debugf("--> Found groups.")
+	log.Debugf("--> Setting process credentials.")
 
 	// Only set process credentials if the UID/GID of the requesting user are
 	// different than the process (Teleport).

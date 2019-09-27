@@ -545,6 +545,8 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// create a new "party" (connected client)
 	p := newParty(s, ch, ctx)
 
+	ctx.Debugf("--> Created party: %#v.", p)
+
 	// get the audit log from the server and create a session recorder. this will
 	// be a discard audit log if the proxy is in recording mode and a teleport
 	// node so we don't create double recordings.
@@ -565,6 +567,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 	s.writer.addWriter("session-recorder", s.recorder, true)
+	ctx.Debugf("--> Created recorder: %#v.\n", s.recorder)
 
 	// If this code is running on a Teleport node and PAM is enabled, then open a
 	// PAM context.
@@ -590,27 +593,38 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 
+	ctx.Debugf("--> Done with PAM block.")
+	ctx.Debugf("--> Attempting to allocate terminal.")
+
 	// allocate a terminal or take the one previously allocated via a
 	// seaprate "allocate TTY" SSH request
 	if ctx.GetTerm() != nil {
+		ctx.Debugf("--> Attempting to get previously allocated terminal.")
 		s.term = ctx.GetTerm()
+		ctx.Debugf("--> Got previously allocated terminal.")
 		ctx.SetTerm(nil)
 	} else {
+		ctx.Debugf("--> Attempting to create new terminal.")
 		if s.term, err = NewTerminal(ctx); err != nil {
 			ctx.Infof("Unable to allocate new terminal: %v", err)
 			return trace.Wrap(err)
 		}
+		ctx.Debugf("--> Got new terminal: %#v.", s.term)
 	}
 
+	ctx.Debugf("--> Attempting to run terminal.")
 	if err := s.term.Run(); err != nil {
 		ctx.Errorf("Unable to run shell command (%v): %v", ctx.ExecRequest.GetCommand(), err)
 		return trace.ConvertSystemError(err)
 	}
+	ctx.Debugf("--> Running terminal.")
 	if err := s.addParty(p); err != nil {
 		return trace.Wrap(err)
 	}
 
 	params := s.term.GetTerminalParams()
+
+	ctx.Debugf("--> Session created.")
 
 	// Emit "new session created" event.
 	eventFields := events.EventFields{
@@ -640,6 +654,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// connection to members of the "party" (other people in the session).
 	s.term.AddParty(1)
 	go func() {
+		s.log.Debugf("--> Starting copy routine 1.")
 		defer s.term.AddParty(-1)
 
 		_, err := io.Copy(s.writer, s.term.PTY())
@@ -657,6 +672,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// once it is received wait for the io.Copy above to finish, then broadcast
 	// the "exit-status" to the client.
 	go func() {
+		s.log.Debugf("--> Waiting for command to exit.")
 		result, err := s.term.Wait()
 
 		// wait for copying from the pty to be complete or a timeout before
