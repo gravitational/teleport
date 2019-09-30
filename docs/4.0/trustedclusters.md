@@ -70,7 +70,7 @@ $ tsh clusters
 Leaf clusters also have their own restrictions on user access, i.e.
 _permissions mapping_ takes place.
 
-**Once Connected has been established, it's easy to switch from the "main" root cluster**
+**Once connection has been established it's easy to switch from the "main" root cluster**
 ![Teleport Cluster Switcher](img/trusted-clusters/Teleport-Cluster-switcher.png)
 
 ## Join Tokens
@@ -209,8 +209,8 @@ spec:
     - remote: "admin"
       local: [local-admin]
   token: "join-token"
-  tunnel_addr: <main-proxy-address>:3024
-  web_proxy_addr: <main-proxy-address>:3080
+  tunnel_addr: main.example.com:3024
+  web_proxy_addr: main.example.com:3080
 ```
 
 What if we wanted to let _any_ user from "main" to be allowed to connect to
@@ -238,13 +238,13 @@ with `^` and ends with `$`
 
 
 ### Trusted Cluster UI
-For customers using Teleport Pro, they can easily configure _leaf_ nodes using the 
+For customers using Teleport Enterprise, they can easily configure _leaf_ nodes using the 
 Teleport Proxy UI. 
 
 **Creating Trust from the Leaf node to the root node.**
 ![Tunnels](img/trusted-clusters/setting-up-trust.png)
 
-**The root Cluster showing the Cluster switching UI.** 
+**The root cluster showing the cluster switching UI.** 
 ![Teleport Cluster Switcher](img/trusted-clusters/Teleport-Cluster-switcher.png)
 
 ## Updating Trusted Cluster Role Map
