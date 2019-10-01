@@ -856,7 +856,7 @@ user "john" to have access to them. We already have our primary Teleport cluster
 users set up. Say this primary cluster is called `main`, and the behind-the-firewall cluster
 is called `east` as shown on this diagram:
 
-![Tunels](img/tunnel.svg)
+![Tunnels](img/tunnel.svg)
 
 This setup works as follows:
 
