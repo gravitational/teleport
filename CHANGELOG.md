@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.10
+
+This release of Teleport contains a bug fix.
+
+* Fixed a goroutine leak that occured whenever a leaf cluster disconnected from the root cluster. [#3037](https://github.com/gravitational/teleport/pull/3037)
+
 ## 4.0.9
 
 This release of Teleport contains a bug fix.
