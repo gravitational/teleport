@@ -1,5 +1,34 @@
 # Changelog
 
+## 4.1.0
+
+This is a major Teleport release with a focus on stability and bug fixes.
+
+### Improvements
+
+* Support for IPv6. [#2124](https://github.com/gravitational/teleport/issues/2124)
+* Kubernetes support does not require SNI. [#2766](https://github.com/gravitational/teleport/issues/2766)
+* Support use of a path for `auth_token` in `teleport.yaml`. [#2515](https://github.com/gravitational/teleport/issues/2515)
+* Implement ProxyJump compatibility. [#2543](https://github.com/gravitational/teleport/issues/2543)
+* Audit logs should show roles. [#2823](https://github.com/gravitational/teleport/issues/2823)
+* Allow tsh to go background and without executing remote command. [#2297](https://github.com/gravitational/teleport/issues/2297)
+* Provide a high level tool to backup and restore the cluster state. [#2480](https://github.com/gravitational/teleport/issues/2480)
+* Investigate nodes using stale list when connecting to proxies (discovery protocol). [#2832](https://github.com/gravitational/teleport/issues/2832)
+
+### Fixes
+
+* Proxy can hang due to invalid OIDC connector. [#2690](https://github.com/gravitational/teleport/issues/2690)
+* Proper `-D` flag parsing. [#2663](https://github.com/gravitational/teleport/issues/2663)
+* tsh status does not show correct cluster name. [#2671](https://github.com/gravitational/teleport/issues/2671)
+* Teleport truncates MOTD with PAM. [#2477](https://github.com/gravitational/teleport/issues/2477)
+* Miscellaneous fixes around error handling and reporting.
+
+## 4.0.10
+
+This release of Teleport contains a bug fix.
+
+* Fixed a goroutine leak that occured whenever a leaf cluster disconnected from the root cluster. [#3037](https://github.com/gravitational/teleport/pull/3037)
+
 ## 4.0.9
 
 This release of Teleport contains a bug fix.
