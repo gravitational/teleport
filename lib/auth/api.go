@@ -18,6 +18,9 @@ package auth
 
 import (
 	"context"
+	"io"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -42,6 +45,8 @@ type Announcer interface {
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
 type ReadAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
 	// GetReverseTunnels returns  a list of reverse tunnels
 	GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error)
 
@@ -152,6 +157,13 @@ func NewWrapper(writer AccessPoint, cache ReadAccessPoint) AccessPoint {
 type Wrapper struct {
 	ReadAccessPoint
 	Write AccessPoint
+}
+
+// Close closes all associated resources
+func (w *Wrapper) Close() error {
+	err := w.Write.Close()
+	err2 := w.ReadAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
 }
 
 // UpsertNode is part of auth.AccessPoint implementation
