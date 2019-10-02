@@ -150,7 +150,9 @@
   },
   {
     "type": "shell",
-    "command": "touch /tmp/teleport-fips",
+    "inline": [
+      "touch /tmp/teleport-fips"
+    ],
     "only": ["teleport-aws-linux-fips"]
   },
   {

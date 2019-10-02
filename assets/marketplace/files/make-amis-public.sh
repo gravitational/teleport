@@ -18,7 +18,7 @@ BUILD_DIR=$(readlink -f "${SCRIPT_DIR}/build")
 
 AMI_TAG="production"
 OUTFILE="amis.txt"
-# Conditionally set tag for FIPS
+# Conditionally set variables for FIPS
 if [[ "${RUN_MODE}" == "ent-fips" ]];
     AMI_TAG="production-fips"
     OUTFILE="amis-fips.txt"
