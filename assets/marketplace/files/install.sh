@@ -32,8 +32,9 @@ rm -f /tmp/influxdb.rpm
 # Install certbot to rotate certificates
 # Certbot is a tool to request letsencrypt certificates,
 # remove it if you don't need letsencrypt.
+sudo yum -y install python3
 curl ${CURL_OPTS} -O https://bootstrap.pypa.io/get-pip.py
-python2.7 get-pip.py
+python3 get-pip.py
 pip install -I awscli requests[security]==2.18.4
 pip install certbot==0.21.0 certbot-dns-route53==0.21.0
 
@@ -55,6 +56,14 @@ if [[ "${TELEPORT_TYPE}" == "oss" ]]; then
     tar -xzf teleport.tar.gz
     cp teleport/tctl teleport/tsh teleport/teleport /usr/bin
     rm -rf /tmp/teleport.tar.gz /tmp/teleport
+elif [[ "${TELEPORT_TYPE}" == "ent-fips" ]]; then
+    echo "Installing Enterprise Teleport version ${TELEPORT_VERSION} with FIPS support"
+    curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-fips-bin.tar.gz
+    tar -xzf teleport.tar.gz
+    cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
+    rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
+    # add --fips to 'teleport start' commands in FIPS mode
+    sed -i -E "s_ExecStart=/usr/bin/teleport start(.*)_ExecStart=/usr/bin/teleport start --fips\1_g" /etc/systemd/system/teleport*.service
 else
     echo "Installing Enterprise Teleport version ${TELEPORT_VERSION}"
     curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
