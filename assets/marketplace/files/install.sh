@@ -32,11 +32,11 @@ rm -f /tmp/influxdb.rpm
 # Install certbot to rotate certificates
 # Certbot is a tool to request letsencrypt certificates,
 # remove it if you don't need letsencrypt.
-sudo yum -y install python3
-curl ${CURL_OPTS} -O https://bootstrap.pypa.io/get-pip.py
-python3 get-pip.py
-pip install -I awscli requests[security]==2.18.4
-pip install certbot==0.21.0 certbot-dns-route53==0.21.0
+sudo yum -y install python3 python3-pip
+#curl ${CURL_OPTS} -O https://bootstrap.pypa.io/get-pip.py
+#python3 get-pip.py
+pip3 install -I awscli requests[security]==2.18.4
+pip3 install certbot==0.21.0 certbot-dns-route53==0.21.0
 
 # Create teleport user. It is helpful to share the same UID
 # to have the same permissions on shared NFS volumes across auth servers and for consistency.
