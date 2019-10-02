@@ -13,7 +13,7 @@ RUN apt-get update; apt-get install -y htop vim screen; \
 # allows ansible and ssh testing
 RUN apt-get install -y ansible ssh inetutils-syslogd
 
-RUN mkdir /var/run/sshd
+RUN mkdir /run/sshd
 
 VOLUME ["/teleport", "/var/lib/teleport"]
 COPY .bashrc /root/.bashrc
