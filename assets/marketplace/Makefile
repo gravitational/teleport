@@ -93,21 +93,9 @@ ent-jenkins-build:
 	@echo "Marketplace AMI name: $(MARKETPLACE_AMI_NAME)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_type=production -var build_timestamp=$(BUILD_TIMESTAMP) -except teleport-aws-linux-fips single-ami.json
+	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_type=production -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
-
-# Build FIPS 'production' AMI
-.PHONY: ent-jenkins-build-fips
-ent-jenkins-build-fips: TELEPORT_TYPE=ent-fips
-ent-jenkins-build-fips: check-vars
-ent-jenkins-build-fips:
-	@echo "Building FIPS image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via Jenkins"
-	@echo "FIPS AMI name: $(FIPS_AMI_NAME)"
-	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
-	mkdir -p files/build
-	packer build -force -var fips_ami_name=$(FIPS_AMI_NAME) -var build_type=production -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux-fips single-ami.json
-	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_fips_build_timestamp.txt
-
+	
 
 .PHONY: change-amis-to-public-ent
 change-amis-to-public-ent:

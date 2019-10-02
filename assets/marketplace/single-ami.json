@@ -150,6 +150,14 @@
   },
   {
     "type": "shell",
+    "command": "touch /tmp/teleport-fips",
+    "environment_vars": [
+      "TELEPORT_TYPE={{user `teleport_type`}}"
+    ],
+    "only": ["teleport-aws-linux-fips"]
+  },
+  {
+    "type": "shell",
     "script": "files/install.sh",
     "execute_command": "chmod +x {{ .Path }}; echo 'root' | {{.Vars}} sudo -S -E bash -eux '{{.Path}}'",
     "environment_vars": [
