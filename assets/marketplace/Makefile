@@ -95,7 +95,6 @@ ent-jenkins-build:
 	mkdir -p files/build
 	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_type=production -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
-	
 
 .PHONY: change-amis-to-public-ent
 change-amis-to-public-ent:

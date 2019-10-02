@@ -151,9 +151,6 @@
   {
     "type": "shell",
     "command": "touch /tmp/teleport-fips",
-    "environment_vars": [
-      "TELEPORT_TYPE={{user `teleport_type`}}"
-    ],
     "only": ["teleport-aws-linux-fips"]
   },
   {
