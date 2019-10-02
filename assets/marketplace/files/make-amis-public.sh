@@ -29,6 +29,14 @@ if [ ! -f "${TIMESTAMP_FILE}" ]; then
 fi
 BUILD_TIMESTAMP=$(<"${TIMESTAMP_FILE}")
 
+# Read FIPS build timestamp from file
+FIPS_TIMESTAMP_FILE="${BUILD_DIR}/${RUN_MODE}_fips_build_timestamp.txt"
+if [ ! -f "${FIPS_TIMESTAMP_FILE}" ]; then
+    echo 'Cannot find "${TIMESTAMP_FILE}"'
+    exit 1
+fi
+FIPS_BUILD_TIMESTAMP=$(<"${FIPS_TIMESTAMP_FILE}")
+
 # Write AMI ID for each region to AMI ID file
 for REGION in ${REGION_LIST}; do
     aws ec2 describe-images --region ${REGION} --filters "Name=tag:BuildTimestamp,Values=${BUILD_TIMESTAMP}" "Name=tag:BuildType,Values=production" > "${BUILD_DIR}/${REGION}.json"
@@ -52,3 +60,30 @@ for REGION in ${REGION_LIST}; do
         echo "AMI ID ${AMI_ID} for ${REGION} set to public"
     fi
 done
+
+# Process FIPS AMIs when running in 'ent' mode
+if [[ "${RUN_MODE}" == "ent" ]]; then
+    # Write FIPS AMI ID for each region to FIPS AMI ID file
+    for REGION in ${REGION_LIST}; do
+        aws ec2 describe-images --region ${REGION} --filters "Name=tag:BuildTimestamp,Values=${BUILD_TIMESTAMP}" "Name=tag:BuildType,Values=production-fips" > "${BUILD_DIR}/fips-${REGION}.json"
+        AMI_ID=$(jq --raw-output '.Images[0].ImageId' "${BUILD_DIR}/fips-${REGION}.json")
+        if [[ "${AMI_ID}" == "" || "${AMI_ID}" == "null" ]]; then
+            echo "Error: cannot get AMI ID for ${REGION}"
+            exit 2
+        fi
+        rm -f "${BUILD_DIR}/fips-${REGION}.json"
+        echo "${REGION}=${AMI_ID}" >> "${BUILD_DIR}/amis-fips.txt"
+    done
+
+    # Make each FIPS AMI public (set launchPermission to 'all')
+    for REGION in ${REGION_LIST}; do
+        AMI_ID=$(grep ${REGION} "${BUILD_DIR}/amis-fips.txt" | awk -F= '{print $2}')
+        if [[ "${AMI_ID}" == "" || "${AMI_ID}" == "null" ]]; then
+            echo "Error: cannot get FIPS AMI ID for ${REGION}"
+            exit 3
+        else
+            aws ec2 modify-image-attribute --region ${REGION} --image-id ${AMI_ID} --launch-permission "Add=[{Group=all}]"
+            echo "FIPS AMI ID ${AMI_ID} for ${REGION} set to public"
+        fi
+    done
+fi

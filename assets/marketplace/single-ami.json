@@ -81,7 +81,7 @@
     "tags": {
       "Name": "{{user `fips_ami_name`}}",
       "BuildTimestamp": "{{user `build_timestamp`}}",
-      "BuildType": "fips"
+      "BuildType": "production-fips"
     },
     "run_tags": {
       "Name": "{{user `fips_ami_name`}}"
