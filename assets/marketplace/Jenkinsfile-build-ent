@@ -17,18 +17,20 @@ pipeline {
                 }
             }
         }
-        parallel {
-            stage('Run Packer to build specified version') {
-                steps {
-                    dir('assets/marketplace') {
-                        sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${params.version} MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${params.version} TELEPORT_VERSION=${params.version} make ent-jenkins-build"
+        stage('Build AMIs') {
+            parallel {
+                stage('Run Packer to build specified version') {
+                    steps {
+                        dir('assets/marketplace') {
+                            sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${params.version} MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${params.version} TELEPORT_VERSION=${params.version} make ent-jenkins-build"
+                        }
                     }
                 }
-            }
-            stage('Run Packer to build specified FIPS version') {
-                steps {
-                    dir('assets/marketplace') {
-                        sh "FIPS_AMI_NAME=gravitational-teleport-ami-ent-fips-${params.version} TELEPORT_VERSION=${params.version} make ent-jenkins-build-fips"
+                stage('Run Packer to build specified FIPS version') {
+                    steps {
+                        dir('assets/marketplace') {
+                            sh "FIPS_AMI_NAME=gravitational-teleport-ami-ent-fips-${params.version} TELEPORT_VERSION=${params.version} make ent-jenkins-build-fips"
+                        }
                     }
                 }
             }
