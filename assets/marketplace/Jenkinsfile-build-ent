@@ -20,7 +20,7 @@ pipeline {
         stage('Run Packer to build specified version') {
             steps {
                 dir('assets/marketplace') {
-                    sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${params.version} FIPS_AMI_NAME=gravitational-teleport-ami-ent-fips-${params.version} MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${params.version} TELEPORT_VERSION=${params.version} make ent-jenkins-build"
+                    sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${params.version} FIPS_AMI_NAME=gravitational-teleport-ami-ent-${params.version}-fips MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${params.version} TELEPORT_VERSION=${params.version} make ent-jenkins-build"
                 }
             }
         }
@@ -28,6 +28,7 @@ pipeline {
             steps {
                 dir('assets/marketplace') {
                     sh 'make change-amis-to-public-ent'
+                    sh 'make change-amis-to-public-ent-fips'
                 }
             }
         }

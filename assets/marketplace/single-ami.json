@@ -42,7 +42,7 @@
     "tags": {
       "Name": "{{user `ami_name`}}",
       "BuildTimestamp": "{{user `build_timestamp`}}",
-      "BuildType": "{{user `build_type`}}"
+      "BuildType": "production"
     },
     "run_tags": {
       "Name": "{{user `ami_name`}}"
