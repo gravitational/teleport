@@ -87,6 +87,16 @@ const (
 	// connection attempts
 	DefaultDialTimeout = 30 * time.Second
 
+	// SemaphoreTimeout is a timeout for acquiring semaphore
+	SemaphoreTimeout = DefaultDialTimeout / 2
+
+	// SemaphoreRetryPeriod is a period to retry semaphore
+	SemaphoreRetryPeriod = 500 * time.Millisecond
+
+	// SemaphoreRetries is a default amount of semaphore retries
+	// on contention errors
+	SemaphoreRetries = 3
+
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
 
