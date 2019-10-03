@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -657,6 +657,207 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 	return trace.Wrap(err)
 }
 
+// TryAcquireSemaphore tries to acquire semaphore resources using optimistic concurrency
+// (hoping that compare and swap will succeed).
+//
+// In case of unsuccessfull concurrent operation returns CompareFailed or AlreadyExists,
+// what indicates to the client that it can retry the operation with the existing values.
+//
+// In case if the operation returns trace.LimitExceeded, it means that semaphore resources
+// acquired by other clients and it's up to client whether to keep trying or reject
+// the connection.
+//
+// In all other cases the error indicates the networking, backend or parameter validation problem
+//
+func (s *PresenceService) TryAcquireSemaphore(ctx context.Context, sem services.Semaphore, l services.SemaphoreLease) (*services.SemaphoreLease, error) {
+	if err := sem.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	l.SemaphoreName = sem.GetName()
+	l.SemaphoreSubKind = sem.GetSubKind()
+	if err := l.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sem.RemoveExpiredLeases(s.Clock().Now().UTC())
+
+	if l.Resources > sem.GetMaxResources()-sem.AcquiredResources() {
+		return nil, trace.LimitExceeded(
+			"lease %v can't acquire %v resources, semaphore %v has %v available",
+			l.ID, l.Resources, sem.GetName(), sem.GetMaxResources()-sem.AcquiredResources(),
+		)
+	}
+
+	if !l.Expires.IsZero() && l.Expires.Before(s.Clock().Now()) {
+		return nil, trace.BadParameter("the lease %v has expired at %v", l.ID, l.Expires)
+	}
+
+	key := backend.Key(semaphoresPrefix, sem.GetSubKind(), sem.GetName())
+	item, err := s.Get(ctx, key)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Semaphore does not exist, create a new semaphore from the specs with
+		// acquired lease
+		sem.SetLeases([]services.SemaphoreLease{l})
+		value, err := services.GetSemaphoreMarshaler().Marshal(sem)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		item := backend.Item{
+			Key:     key,
+			Value:   value,
+			Expires: sem.Expiry(),
+		}
+		_, err = s.Create(ctx, item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &l, nil
+	}
+
+	existing, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	existing.RemoveExpiredLeases(s.Clock().Now().UTC())
+
+	if l.Resources > existing.GetMaxResources()-existing.AcquiredResources() {
+		return nil, trace.LimitExceeded(
+			"lease %v can't acquire %v resources, semaphore %v has %v available",
+			l.ID, l.Resources, sem.GetName(), existing.GetMaxResources()-existing.AcquiredResources(),
+		)
+	}
+
+	for _, lease := range existing.GetLeases() {
+		if lease.ID == l.ID {
+			return nil, trace.BadParameter(
+				"semaphore %v already has lease %v, use KeepAliveSemaphoreLease to renew the lease",
+				sem, l.ID,
+			)
+		}
+	}
+
+	if sem.Expiry().After(existing.Expiry()) {
+		existing.SetExpiry(sem.Expiry())
+	}
+	if l.Expires.After(existing.Expiry()) {
+		existing.SetExpiry(l.Expires)
+	}
+	existing.AddLease(l)
+
+	newValue, err := services.GetSemaphoreMarshaler().Marshal(existing)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newItem := backend.Item{
+		Key:     key,
+		Value:   newValue,
+		Expires: existing.Expiry(),
+	}
+
+	_, err = s.CompareAndSwap(ctx, *item, newItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return nil, trace.CompareFailed("semaphore %v hase been concurrently updated, try again", existing.GetName())
+		}
+		return nil, trace.Wrap(err)
+	}
+	return &l, nil
+}
+
+// KeepAliveSemaphoreLease updates semaphore lease, if the lease expiry is updated,
+// semaphore is renewed
+func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, l services.SemaphoreLease) error {
+	if err := l.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if l.Expires.Before(s.Clock().Now()) {
+		return trace.BadParameter("the lease %v has expired at %v", l.ID, l.Expires)
+	}
+
+	key := backend.Key(semaphoresPrefix, l.SemaphoreSubKind, l.SemaphoreName)
+	item, err := s.Get(ctx, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sem, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sem.RemoveExpiredLeases(s.Clock().Now().UTC())
+	leases := sem.GetLeases()
+	leaseIndex := -1
+	for i := range leases {
+		if leases[i].ID == l.ID {
+			leaseIndex = i
+			break
+		}
+	}
+	if leaseIndex == -1 {
+		return trace.NotFound("the lease %v was not found in semaphore %v", l.ID, l.SemaphoreName)
+	}
+	leases[leaseIndex] = l
+	sem.SetLeases(leases)
+
+	if l.Expires.After(sem.Expiry()) {
+		sem.SetExpiry(l.Expires)
+	}
+
+	newValue, err := services.GetSemaphoreMarshaler().Marshal(sem)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newItem := backend.Item{
+		Key:   key,
+		Value: newValue,
+	}
+
+	_, err = s.CompareAndSwap(ctx, *item, newItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("semaphore %v hase been concurrently updated, try again", sem.GetName())
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetAllSemaphores returns a list of all semaphores in the system
+func (s *PresenceService) GetAllSemaphores(ctx context.Context, opts ...services.MarshalOption) ([]services.Semaphore, error) {
+	startKey := backend.Key(semaphoresPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sems := make([]services.Semaphore, len(result.Items))
+	for i, item := range result.Items {
+		conn, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value,
+			services.AddOptions(opts,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sems[i] = conn
+	}
+
+	return sems, nil
+}
+
+// DeleteAllSemaphores deletes all semaphores in the system
+func (s *PresenceService) DeleteAllSemaphores(ctx context.Context) error {
+	return s.DeleteRange(ctx, backend.Key(semaphoresPrefix), backend.RangeEnd(backend.Key(semaphoresPrefix)))
+}
+
 const (
 	localClusterPrefix      = "localCluster"
 	reverseTunnelsPrefix    = "reverseTunnels"
@@ -667,4 +868,5 @@ const (
 	namespacesPrefix        = "namespaces"
 	authServersPrefix       = "authservers"
 	proxiesPrefix           = "proxies"
+	semaphoresPrefix        = "semaphores"
 )

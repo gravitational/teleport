@@ -60,6 +60,8 @@ type Retry interface {
 	// that fires after Duration delay,
 	// could fire right away if Duration is 0
 	After() <-chan time.Time
+	// MaxPeriod returns maximum period between retries
+	MaxPeriod() time.Duration
 	// Clone creates a copy of this retry in a
 	// reset state.
 	Clone() Retry
@@ -123,6 +125,11 @@ type Linear struct {
 	lastIncr   time.Time
 	attempt    int64
 	closedChan chan time.Time
+}
+
+// MaxPeriod returns maximum period between retries
+func (r *Linear) MaxPeriod() time.Duration {
+	return r.Max
 }
 
 // Reset resetes retry period to initial state

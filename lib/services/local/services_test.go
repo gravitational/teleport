@@ -164,3 +164,19 @@ func (s *ServicesSuite) TestEventsClusterConfig(c *check.C) {
 func (s *ServicesSuite) TestProxyWatcher(c *check.C) {
 	s.suite.ProxyWatcher(c)
 }
+
+func (s *ServicesSuite) TestSemaphore(c *check.C) {
+	s.suite.Semaphore(c)
+}
+
+func (s *ServicesSuite) TestSemaphoreExpiry(c *check.C) {
+	s.suite.SemaphoreExpiry(c)
+}
+
+func (s *ServicesSuite) TestSemaphoreLock(c *check.C) {
+	s.suite.SemaphoreLock(c)
+}
+
+func (s *ServicesSuite) TestSemaphoreConcurrency(c *check.C) {
+	s.suite.SemaphoreConcurrency(c)
+}
