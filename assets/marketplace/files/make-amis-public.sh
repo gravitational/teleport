@@ -18,19 +18,21 @@ BUILD_DIR=$(readlink -f "${SCRIPT_DIR}/build")
 
 AMI_TAG="production"
 OUTFILE="amis.txt"
+BUILD_TIMESTAMP_FILENAME="${RUN_MODE}_build_timestamp.txt"
 # Conditionally set variables for FIPS
 if [[ "${RUN_MODE}" == "ent-fips" ]]; then
     AMI_TAG="production-fips"
     OUTFILE="amis-fips.txt"
+    BUILD_TIMESTAMP_FILENAME="ent_build_timestamp.txt"
 fi
 
 # Remove existing AMI ID file if present
-if [ -f "${BUILD_DIR}/amis.txt" ]; then
-    rm -f "${BUILD_DIR}/amis.txt"
+if [ -f "${BUILD_DIR}/${OUTFILE}.txt" ]; then
+    rm -f "${BUILD_DIR}/${OUTFILE}.txt"
 fi
 
 # Read build timestamp from file
-TIMESTAMP_FILE="${BUILD_DIR}/${RUN_MODE}_build_timestamp.txt"
+TIMESTAMP_FILE="${BUILD_DIR}/${BUILD_TIMESTAMP_FILENAME}"
 if [ ! -f "${TIMESTAMP_FILE}" ]; then
     echo 'Cannot find "${TIMESTAMP_FILE}"'
     exit 1
