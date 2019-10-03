@@ -1011,6 +1011,264 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...SuiteOption) {
 	fixtures.DeepCompare(c, clusterName, gotName)
 }
 
+// Semaphore tests semaphore basic operations
+func (s *ServicesTestSuite) Semaphore(c *check.C) {
+	// non-expiring semaphores are not allowed
+	_, err := services.NewSemaphore("alice", services.KindUser, time.Time{}, services.SemaphoreSpecV3{
+		MaxResources: 2,
+	})
+	fixtures.ExpectBadParameter(c, err)
+
+	expires := s.Clock.Now().Add(time.Hour).UTC()
+	sem, err := services.NewSemaphore("alice", services.KindUser, expires, services.SemaphoreSpecV3{
+		MaxResources: 2,
+	})
+	c.Assert(err, check.IsNil)
+
+	lease := services.SemaphoreLease{
+		ID:        "1",
+		Resources: 1,
+		Expires:   s.Clock.Now().Add(time.Hour).UTC(),
+	}
+	out, err := s.PresenceS.TryAcquireSemaphore(context.TODO(), sem, lease)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.NotNil)
+
+	sems, err := s.PresenceS.GetAllSemaphores(context.TODO())
+	c.Assert(err, check.IsNil)
+	c.Assert(sems, check.HasLen, 1)
+
+	// lease tries to acquire too many resources
+	newLease := services.SemaphoreLease{
+		ID:        "2",
+		Resources: 2,
+		Expires:   s.Clock.Now().Add(time.Hour).UTC(),
+	}
+	out, err = s.PresenceS.TryAcquireSemaphore(context.TODO(), sem, newLease)
+	fixtures.ExpectLimitExceeded(c, err)
+	c.Assert(out, check.IsNil)
+
+	// lease acquires enough resources
+	newLease = services.SemaphoreLease{
+		SemaphoreName:    sem.GetName(),
+		SemaphoreSubKind: sem.GetSubKind(),
+		ID:               "2",
+		Resources:        1,
+		Expires:          s.Clock.Now().Add(time.Hour).UTC(),
+	}
+	out, err = s.PresenceS.TryAcquireSemaphore(context.TODO(), sem, newLease)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.NotNil)
+
+	// Renew the lease
+	newLease.Expires = s.Clock.Now().Add(time.Hour).UTC()
+	err = s.PresenceS.KeepAliveSemaphoreLease(context.TODO(), newLease)
+	c.Assert(err, check.IsNil)
+
+	// Can't renew nonexistent lease
+	badLease := newLease
+	badLease.ID = "not here"
+	err = s.PresenceS.KeepAliveSemaphoreLease(context.TODO(), badLease)
+	fixtures.ExpectNotFound(c, err)
+
+	// Can't renew expired lease
+	expiredLease := newLease
+	expiredLease.Expires = time.Now().Add(-1 * time.Hour)
+	err = s.PresenceS.KeepAliveSemaphoreLease(context.TODO(), expiredLease)
+	fixtures.ExpectBadParameter(c, err)
+
+	err = s.PresenceS.DeleteAllSemaphores(context.TODO())
+	c.Assert(err, check.IsNil)
+
+	sems, err = s.PresenceS.GetAllSemaphores(context.TODO())
+	c.Assert(err, check.IsNil)
+	c.Assert(sems, check.HasLen, 0)
+}
+
+// SemaphoreExpiry tests semaphore and lease expiry
+func (s *ServicesTestSuite) SemaphoreExpiry(c *check.C) {
+	expires := s.Clock.Now().Add(1 * time.Second).UTC()
+	sem, err := services.NewSemaphore("alice", services.KindUser, expires, services.SemaphoreSpecV3{
+		MaxResources: 2,
+	})
+	c.Assert(err, check.IsNil)
+
+	// lease acquires all the resources
+	lease := services.SemaphoreLease{
+		ID:        "1",
+		Resources: 2,
+		Expires:   expires,
+	}
+	out, err := s.PresenceS.TryAcquireSemaphore(context.TODO(), sem, lease)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.NotNil)
+
+	// lease renews the lease
+	out.Expires = expires.Add(3 * time.Second)
+	err = s.PresenceS.KeepAliveSemaphoreLease(context.TODO(), *out)
+	c.Assert(err, check.IsNil)
+
+	// If previous keep alive haven't reneweed the lease, semaphore would have expired
+	s.Clock.Advance(2 * time.Second)
+
+	sems, err := s.PresenceS.GetAllSemaphores(context.TODO())
+	c.Assert(err, check.IsNil)
+	c.Assert(sems, check.HasLen, 1)
+
+	// lease 2 can't acquire resources
+	lease2 := services.SemaphoreLease{
+		ID:        "2",
+		Resources: 2,
+		Expires:   s.Clock.Now().Add(3 * time.Second),
+	}
+	_, err = s.PresenceS.TryAcquireSemaphore(context.TODO(), sem, lease2)
+	fixtures.ExpectLimitExceeded(c, err)
+
+	// wait until lease expries semaphore should be reacquired
+	lease2.Expires = s.Clock.Now().Add(10 * time.Second)
+	s.Clock.Advance(5 * time.Second)
+	_, err = s.PresenceS.TryAcquireSemaphore(context.TODO(), sem, lease2)
+	c.Assert(err, check.IsNil)
+
+	// wait until semaphore expires
+	sems, err = s.PresenceS.GetAllSemaphores(context.TODO())
+	c.Assert(err, check.IsNil)
+	c.Assert(sems, check.HasLen, 1)
+
+	s.Clock.Advance(11 * time.Second)
+
+	sems, err = s.PresenceS.GetAllSemaphores(context.TODO())
+	c.Assert(err, check.IsNil)
+	c.Assert(sems, check.HasLen, 0)
+}
+
+// SemaphoreLock tests semaphore lock high level methods
+func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
+	expires := s.Clock.Now().Add(1 * time.Second).UTC()
+	sem, err := services.NewSemaphore("alice", services.KindUser, expires, services.SemaphoreSpecV3{
+		MaxResources: 2,
+	})
+	c.Assert(err, check.IsNil)
+
+	ctx := context.TODO()
+	lock, err := services.AcquireSemaphore(ctx, services.SemaphoreLockConfig{
+		Clock:     s.Clock,
+		Service:   s.PresenceS,
+		Semaphore: sem,
+		Lease: services.SemaphoreLease{
+			ID:        "lease-1",
+			Resources: 1,
+		},
+	})
+	defer lock.Close()
+	c.Assert(err, check.IsNil)
+	c.Assert(lock, check.NotNil)
+
+	// lease attempts to acquire too many resources
+	_, err = services.AcquireSemaphore(ctx, services.SemaphoreLockConfig{
+		Clock:     s.Clock,
+		Service:   s.PresenceS,
+		Semaphore: sem,
+		Lease: services.SemaphoreLease{
+			ID:        "lease-greedy",
+			Resources: 2,
+		},
+	})
+	fixtures.ExpectLimitExceeded(c, err)
+
+	// acquire one resource left
+	lock2, err := services.AcquireSemaphore(ctx, services.SemaphoreLockConfig{
+		Clock:     s.Clock,
+		Service:   s.PresenceS,
+		Semaphore: sem,
+		Lease: services.SemaphoreLease{
+			ID:        "lease-2",
+			Resources: 1,
+		},
+	})
+	defer lock2.Close()
+	c.Assert(err, check.IsNil)
+	c.Assert(lock2, check.NotNil)
+
+	// Advance the clock and run keep-alive cycle loop on the first lock
+	s.Clock.Advance(2 * lock.TTL / 3)
+	err = lock.KeepAliveCycle()
+	c.Assert(err, check.IsNil)
+
+	// Advance the clock past initial TTL boundary, the lock 2 should expire
+	// and attempt to renew the lease on it should fail
+	s.Clock.Advance(lock.TTL/3 + time.Second)
+
+	err = lock2.KeepAliveCycle()
+	fixtures.ExpectNotFound(c, err)
+
+	// this one should succeed
+	err = lock.KeepAliveCycle()
+	c.Assert(err, check.IsNil)
+
+	// After TTL passed, the lease is not found and semaphore has expired
+	s.Clock.Advance(lock.TTL * 2)
+	err = lock.KeepAliveCycle()
+	fixtures.ExpectNotFound(c, err)
+}
+
+// SemaphoreConcurrency tests concurrent lock functionality
+func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
+	const maxResources = 2
+	expires := s.Clock.Now().Add(1 * time.Second).UTC()
+	sem, err := services.NewSemaphore("bob", services.KindUser, expires, services.SemaphoreSpecV3{
+		MaxResources: maxResources,
+	})
+	c.Assert(err, check.IsNil)
+
+	// out of 20 locks, 2 should succeed, others should time out
+	ctx, cancel := context.WithTimeout(context.TODO(), 2*time.Second)
+	defer cancel()
+	locksC := make(chan *services.SemaphoreLock, 2)
+	for i := 0; i < 20; i++ {
+		go func(threadID int) {
+			lock, err := services.AcquireSemaphore(ctx, services.SemaphoreLockConfig{
+				Service:   s.PresenceS,
+				Semaphore: sem,
+				Lease: services.SemaphoreLease{
+					ID:        fmt.Sprintf("lease-%v", threadID),
+					Resources: 1,
+				},
+			})
+			if err != nil {
+				return
+			}
+			select {
+			case locksC <- lock:
+			case <-ctx.Done():
+				lock.Close()
+				return
+			}
+		}(i)
+	}
+
+	locks := []*services.SemaphoreLock{}
+	defer func() {
+		for _, l := range locks {
+			l.Close()
+		}
+	}()
+	for i := 0; i < maxResources; i++ {
+		select {
+		case lock := <-locksC:
+			locks = append(locks, lock)
+		case <-ctx.Done():
+			c.Fatalf("Timeout waiting for acquire lock to complete")
+		}
+	}
+	// make sure no additional locks are acquired
+	select {
+	case lock := <-locksC:
+		c.Fatalf("Unexpected lock acquisition: %+v", lock)
+	case <-ctx.Done():
+	}
+}
+
 // Events tests various events variations
 func (s *ServicesTestSuite) Events(c *check.C) {
 	ctx := context.Background()

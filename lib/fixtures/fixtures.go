@@ -39,6 +39,11 @@ func ExpectConnectionProblem(c *check.C, err error) {
 	c.Assert(trace.IsConnectionProblem(err), check.Equals, true, check.Commentf("expected ConnectionProblem, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
 }
 
+// ExpectLimitExceeded expects limit exceeded error
+func ExpectLimitExceeded(c *check.C, err error) {
+	c.Assert(trace.IsLimitExceeded(err), check.Equals, true, check.Commentf("expected LimitExceeded, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
+}
+
 // DeepCompare uses gocheck DeepEquals but provides nice diff if things are not equal
 func DeepCompare(c *check.C, a, b interface{}) {
 	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}
