@@ -26,7 +26,7 @@ resource "aws_dynamodb_table" "teleport" {
   }
 
   stream_enabled = "true"
-  stream_view_type = "NEW_AND_OLD_IMAGES"
+  stream_view_type = "NEW_IMAGE"
 
   ttl {
      attribute_name = "Expires"
