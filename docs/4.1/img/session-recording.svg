@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="514px" height="357px" viewBox="0 0 514 357" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 47.1 (45422) - http://www.bohemiancoding.com/sketch -->
+    <title>traditional diagram</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <rect id="path-1" x="18" y="17" width="120" height="120" rx="24"></rect>
+        <filter x="-23.3%" y="-16.7%" width="146.7%" height="146.7%" filterUnits="objectBoundingBox" id="filter-2">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-3" x="198" y="17" width="120" height="120" rx="24"></rect>
+        <filter x="-23.3%" y="-16.7%" width="146.7%" height="146.7%" filterUnits="objectBoundingBox" id="filter-4">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-5" x="378" y="17" width="120" height="120" rx="24"></rect>
+        <filter x="-23.3%" y="-16.7%" width="146.7%" height="146.7%" filterUnits="objectBoundingBox" id="filter-6">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-7" x="378" y="197" width="120" height="120" rx="24"></rect>
+        <filter x="-23.3%" y="-16.7%" width="146.7%" height="146.7%" filterUnits="objectBoundingBox" id="filter-8">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+    </defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="traditional-diagram">
+            <g id="Rectangle">
+                <use fill="black" fill-opacity="1" filter="url(#filter-2)" xlink:href="#path-1"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-1"></use>
+            </g>
+            <g id="Rectangle-Copy-2">
+                <use fill="black" fill-opacity="1" filter="url(#filter-4)" xlink:href="#path-3"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-3"></use>
+            </g>
+            <path d="M99.5,67 L244,67" id="Line" stroke="#B8E986" stroke-width="3" stroke-linecap="square"></path>
+            <g id="Rectangle-Copy-3">
+                <use fill="black" fill-opacity="1" filter="url(#filter-6)" xlink:href="#path-5"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-5"></use>
+            </g>
+            <g id="Rectangle-Copy-4">
+                <use fill="black" fill-opacity="1" filter="url(#filter-8)" xlink:href="#path-7"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-7"></use>
+            </g>
+            <rect id="Rectangle-2" fill="#7ED321" x="58" y="57" width="40" height="40" rx="3"></rect>
+            <text id="E" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="20" font-weight="400" fill="#FFFFFF">
+                <tspan x="71" y="85">E</tspan>
+            </text>
+            <text id="Proxy" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="236.8" y="13">Proxy</tspan>
+            </text>
+            <text id="Node" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="418.144" y="13">Node</tspan>
+            </text>
+            <text id="Auth" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="420.816" y="337">Auth</tspan>
+            </text>
+            <text id="Audit" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="14" font-weight="400" fill="#787878">
+                <tspan x="421.018" y="292">Audit</tspan>
+            </text>
+            <text id="Client" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="56.664" y="13">Client</tspan>
+            </text>
+            <text id="SSH" font-family="HelveticaNeue, Helvetica Neue" font-size="12" font-weight="normal" fill="#787878">
+                <tspan x="155.892" y="60">SSH</tspan>
+            </text>
+            <text id="SSH-Copy" font-family="HelveticaNeue, Helvetica Neue" font-size="12" font-weight="normal" fill="#787878">
+                <tspan x="335.892" y="80">SSH</tspan>
+            </text>
+            <text id="HTTPS" font-family="HelveticaNeue, Helvetica Neue" font-size="12" font-weight="normal" fill="#787878">
+                <tspan x="444" y="171">HTTPS</tspan>
+            </text>
+            <path d="M269,87 L418,87" id="Line-Copy" stroke="#B8E986" stroke-width="3" stroke-linecap="square"></path>
+            <path d="M248.5,67.5 L268.5,87.5" id="Line-2" stroke="#B8E986" stroke-width="3" stroke-linecap="square"></path>
+            <circle id="Oval" fill="#7ED321" cx="248" cy="67" r="5"></circle>
+            <circle id="Oval-Copy" fill="#7ED321" cx="268" cy="87" r="5"></circle>
+            <rect id="Rectangle-2-Copy" fill="#F5A623" x="418" y="57" width="40" height="40" rx="3"></rect>
+            <text id="D" font-family="HelveticaNeue, Helvetica Neue" font-size="20" font-weight="normal" fill="#FFFFFF">
+                <tspan x="431" y="85">D</tspan>
+            </text>
+            <path d="M438,96 L438,233" id="Line-3" stroke="#F5A623" stroke-width="2" fill="#F5A623" stroke-linecap="square"></path>
+            <path id="Line-3-decoration-1" d="M438,233 L441,222.2 L435,222.2 L438,233 Z" stroke="#F5A623" stroke-width="2" fill="#F5A623" stroke-linecap="square"></path>
+            <rect id="Rectangle-16-Copy-3" x="0" y="237" width="280" height="120"></rect>
+            <rect id="Rectangle-4" fill="#B8E986" x="19" y="310" width="14" height="3"></rect>
+            <rect id="Rectangle-4-Copy" fill="#F5A623" x="19" y="330" width="14" height="3"></rect>
+            <text id="SSH-connection" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal" fill="#787878">
+                <tspan x="40" y="317">SSH connection</tspan>
+            </text>
+            <text id="HTTPS-connection" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal" fill="#787878">
+                <tspan x="40" y="337">HTTPS connection</tspan>
+            </text>
+            <text id="Encrypted" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal" line-spacing="21" fill="#787878">
+                <tspan x="39" y="274">Encrypted</tspan>
+            </text>
+            <g id="Group-2" transform="translate(418.000000, 237.000000)">
+                <path d="M0,36 C0,38.209139 8.954305,40 20,40 C31.045695,40 40,38.209139 40,36 L40,4 L0,4 L0,36 Z" id="Combined-Shape" fill="#F5A623"></path>
+                <ellipse id="Oval-2" fill="#FFCB76" cx="20" cy="4" rx="20" ry="4"></ellipse>
+            </g>
+            <path d="M75.7714138,112.8 L94.2731195,112.8 L98,116.583984 L98,117.6 L93.6918145,121.727734 L91.4393065,119.493164 L89.1533744,121.727734 L86.7562243,119.493164 L84.6833461,121.727734 L82.2818958,119.493164 L79.3796709,122.4 L75.6539854,122.4 C73.9898379,125.156631 70.9639991,127 67.5072883,127 C62.256558,127 58,122.746705 58,117.5 C58,112.253295 62.256558,108 67.5072883,108 C71.0469426,108 74.1347993,109.932893 75.7714138,112.8 Z M63.3040661,120 C64.6858372,120 65.8059841,118.880712 65.8059841,117.5 C65.8059841,116.119288 64.6858372,115 63.3040661,115 C61.922295,115 60.8021481,116.119288 60.8021481,117.5 C60.8021481,118.880712 61.922295,120 63.3040661,120 Z" id="Combined-Shape" fill="#919191" opacity="0.870074728"></path>
+            <text id="Decrypted" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal" fill="#787878">
+                <tspan x="39" y="297">Decrypted</tspan>
+            </text>
+            <rect id="Rectangle-2-Copy-2" fill="#7ED321" x="18" y="265" width="15" height="14" rx="2"></rect>
+            <text id="E-Copy" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="10" font-weight="400" fill="#FFFFFF">
+                <tspan x="22" y="276">E</tspan>
+            </text>
+            <rect id="Rectangle-2-Copy-3" fill="#F5A623" x="18" y="285" width="15" height="14" rx="2"></rect>
+            <text id="D" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="10" font-weight="400" fill="#FFFFFF">
+                <tspan x="22" y="296">D</tspan>
+            </text>
+        </g>
+    </g>
+</svg>
