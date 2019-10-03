@@ -652,3 +652,49 @@ message TunnelConnectionSpecV2 {
 	// Type is the type of reverse tunnel, either proxy or node.
 	string Type = 4 [(gogoproto.jsontag) = "type", (gogoproto.casttype) = "TunnelType"];
 }
+
+// SemaphoreLeaseOwner holds semaphore lease owner information
+message SemaphoreLeaseOwner {
+    // ServerName is a name of the server
+    string ServerName = 1 [(gogoproto.jsontag) = "server_name"];
+}
+
+// SemaphoreLease represents lease acquired for semaphore
+message SemaphoreLease {
+    // ID is an auto generated ID of the lease
+	string ID = 1 [(gogoproto.jsontag) = "id"];
+    // SemaphoreName is a name of the semaphore
+    string SemaphoreName = 2 [(gogoproto.jsontag) = "semaphore_name"];
+    // SemaphoreSubKind is a subkind of the semaphore
+    string SemaphoreSubKind = 3 [(gogoproto.jsontag) = "semaphore_subkind"];
+    // Resources is amount of resources acquired by this lease
+    int64 Resources = 4 [(gogoproto.jsontag) = "resources"];
+    // Expires is set to update expiry time
+    google.protobuf.Timestamp Expires = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "expires"];
+    SemaphoreLeaseOwner Owner = 6 [(gogoproto.jsontag) = "owner"];
+}
+
+// SemaphoreV3 implements Semaphore interface
+message SemaphoreV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    // SubKind is an optional resource sub kind, used in some resources
+	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+	// Version is version
+    string Version = 3 [(gogoproto.jsontag) = "version"];
+	// Metadata is User metadata
+    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    // Spec is a lease V3 spec
+    SemaphoreSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+}
+
+// SemaphoreSpecV3 contains the data about lease
+message SemaphoreSpecV3 {
+    // MaxResources is a maximum number of allowed leases for this semaphore
+    int64 MaxResources = 1  [(gogoproto.jsontag) = "max_resources"];
+    // Leases is a list of leases acquired
+	repeated SemaphoreLease Leases = 2 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "leases"];
+}

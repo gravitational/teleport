@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,6 +37,8 @@ type Retry interface {
 	// that fires after Duration delay,
 	// could fire right away if Duration is 0
 	After() <-chan time.Time
+	// MaxPeriod returns maximum period between retries
+	MaxPeriod() time.Duration
 }
 
 // LinearConfig sets up retry configuration
@@ -49,6 +52,11 @@ type LinearConfig struct {
 	// Max is a maximum value of the progression,
 	// can't be 0
 	Max time.Duration
+	// JitterMin if non-0, the value from it will be added
+	// to randomize retry attempts
+	JitterMin time.Duration
+	// JitterMax is the max value of the jitter
+	JitterMax time.Duration
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -58,6 +66,9 @@ func (c *LinearConfig) CheckAndSetDefaults() error {
 	}
 	if c.Max == 0 {
 		return trace.BadParameter("missing parameter Max")
+	}
+	if c.JitterMax != 0 && c.JitterMax < c.JitterMin {
+		return trace.BadParameter("JitterMin(%v) can't be > JitterMax(%v)", c.JitterMin, c.JitterMax)
 	}
 	return nil
 }
@@ -84,6 +95,11 @@ type Linear struct {
 	closedChan chan time.Time
 }
 
+// MaxPeriod returns maximum period between retries
+func (r *Linear) MaxPeriod() time.Duration {
+	return r.Max
+}
+
 // Reset resetes retry period to initial state
 func (r *Linear) Reset() {
 	r.attempt = 0
@@ -97,6 +113,9 @@ func (r *Linear) Inc() {
 // Duration returns retry duration based on state
 func (r *Linear) Duration() time.Duration {
 	a := r.First + time.Duration(r.attempt)*r.Step
+	if r.JitterMax > 0 {
+		a += time.Duration(rand.Int63n(int64(r.JitterMax)-int64(r.JitterMin))) + r.JitterMin
+	}
 	if a < 0 {
 		return 0
 	}

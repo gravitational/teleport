@@ -33,6 +33,9 @@ type ProxyGetter interface {
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
+	// Semaphores is responsible for semaphore handling
+	Semaphores
+
 	// UpsertLocalClusterName upserts local domain
 	UpsertLocalClusterName(name string) error
 
