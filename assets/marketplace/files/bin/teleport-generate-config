@@ -9,12 +9,12 @@ if [ -f /etc/teleport.yaml ]; then
     cp /etc/teleport.yaml /etc/teleport.yaml.old
 fi
 
-# Setup teleport config file
+# Setup Teleport config file
 LOCAL_IP=$(curl -sS http://169.254.169.254/latest/meta-data/local-ipv4)
 LOCAL_HOSTNAME=$(curl -sS http://169.254.169.254/latest/meta-data/local-hostname)
 LOCAL_HOSTNAME=${LOCAL_HOSTNAME//./-}
 
-# Source variables set up by cloudformation template
+# Source variables from user-data
 source /etc/teleport.d/conf
 
 # Set host UUID so auth server picks it up, as each auth server's
@@ -31,6 +31,18 @@ chmod 664 /etc/teleport.yaml
 if [[ "${USE_ACM}" != "true" ]]; then
     rm -f /etc/teleport.d/role.all-acm
     echo "use-letsencrypt" > /etc/teleport.d/use-letsencrypt
+fi
+
+# Determine whether this is a FIPS AMI or not
+# We do this by looking at the ExecStart command for teleport.service to see whether it contains 'fips' or not (which is set during packer build)
+# We use this to modify the auth service's configuration depending on whether FIPS is in use or not
+# With FIPS: auth_service.authentication.local_auth must be 'false' or Teleport will not start
+# Without FIPS: auth.service.authentication.second_factor should be set to 'otp'
+FIPS_AMI=false
+AUTHENTICATION_STANZA="second_factor: otp"
+if grep "ExecStart" /etc/systemd/system/teleport.service | grep -q "fips"; then
+  FIPS_AMI=true
+  AUTHENTICATION_STANZA="local_auth: false"
 fi
 
 if [[ "${TELEPORT_ROLE}" == "auth" ]]; then
@@ -63,7 +75,7 @@ auth_service:
   enabled: yes
   listen_addr: 0.0.0.0:3025
   authentication:
-    second_factor: otp
+    ${AUTHENTICATION_STANZA}
   cluster_name: ${TELEPORT_CLUSTER_NAME}
 EOF
 
@@ -239,9 +251,8 @@ teleport:
 auth_service:
   enabled: yes
   listen_addr: 0.0.0.0:3025
-
   authentication:
-    second_factor: otp
+    ${AUTHENTICATION_STANZA}
 
 ssh_service:
   enabled: yes
