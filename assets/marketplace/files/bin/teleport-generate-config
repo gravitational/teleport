@@ -426,5 +426,7 @@ EOF
     systemctl restart telegraf.service
 fi
 
-# make sure config file can be edited by pre-start commands running later
-chown teleport:adm /etc/teleport.yaml
+# make sure config file can be edited by pre-start commands running later (assuming it exists)
+if [ -f /etc/teleport.yaml ]; then
+  chown teleport:adm /etc/teleport.yaml
+fi
