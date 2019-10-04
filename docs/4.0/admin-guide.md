@@ -106,9 +106,9 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
-ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/var/run/teleport.pid
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/teleport.pid
+PIDFile=/run/teleport.pid
 
 [Install]
 WantedBy=multi-user.target
@@ -1389,7 +1389,7 @@ world usage examples of this capability include:
 
 Let's take a look at how a connection is established between the "main" cluster and the "east" cluster:
 
-![Tunnels](img/tunnel.svg)
+![Tunnels](/img/trusted-clusters/TrustedClusters-Simple.svg)
 
 This setup works as follows:
 
@@ -1436,7 +1436,7 @@ The cluster invite token: generated-token-to-add-new-clusters
 
 **Using a Cluster Join Token**
 
-Now, the administrator of "east" must create the following resource file:
+Now, the administrator of "east (leaf)" must create the following resource file:
 
 ```yaml
 # cluster.yaml
@@ -1445,7 +1445,7 @@ version: v2
 metadata:
   # the trusted cluster name MUST match the 'cluster_name' setting of the
   # cluster
-  name: main
+  name: east
 spec:
   # this field allows to create tunnels that are disabled, but can be enabled later.
   enabled: true
@@ -1483,7 +1483,7 @@ list of available clusters.
 
 ### Using Trusted Clusters
 
-As mentioned above, accessibility is only granted in one direction. So, only users from the "main" (trusted cluster) can now access nodes in the "east" (trusting cluster). Users in the "east" cluster will not be able to access the "main" cluster.
+As mentioned above, accessibility is only granted in one direction. So, only users from the "main" (root cluster) can now access nodes in the "east" (leaf cluster). Users in the "east" cluster will not be able to access the "main" cluster.
 
 ```bsh
 # login into the main cluster:
