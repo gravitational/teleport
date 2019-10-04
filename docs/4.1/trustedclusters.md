@@ -1,6 +1,6 @@
 # Trusted Clusters
 
-If you haven't already looked at the introduction to [Trusted Clusters](./admin-guide.md#trusted-clusters)
+If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.md#trusted-clusters)
 in the Admin Guide we recommend you review that for an overview before continuing with this guide.
 
 The Trusted Clusters chapter in the Admin Guide
@@ -16,8 +16,8 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 * Establish permissions mapping between clusters using Teleport roles.
 
 !!! tip "Teleport Node Tunneling":
-    If you have a large amount of devices on different networks, such as 
-    managed IoT devices or a couple of nodes on a different network you can utilize 
+    If you have a large amount of devices on different networks, such as
+    managed IoT devices or a couple of nodes on a different network you can utilize
     the [Teleport Node Tunneling](quickstart/#adding-a-node-located-behind-nat-teleport-node-tunneling).
 
 
@@ -176,7 +176,11 @@ spec:
 ```
 
 Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is
+<<<<<<< HEAD
 done by creating a trusted cluster [resource](./admin-guide/#resources) on "east"
+=======
+done by creating a trusted cluster [resource](admin-guide/#resources) on "east"
+>>>>>>> e1c96191... wip: first draft quickstart & structure reorg
 which looks like this:
 
 ```yaml

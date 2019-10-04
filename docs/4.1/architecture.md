@@ -192,6 +192,27 @@ Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` i
 The combination of DynamoDB + S3 is especially popular among AWS users because it allows them to
 run Teleport clusters completely devoid of local state.
 
+## Teleport Services
+
+There are three types of services (roles) in a Teleport cluster.
+
+| Service (Node Role)  | Description
+|----------------|------------------------------------------------------------------------
+| node   | This role provides the SSH access to a node. Typically every machine in a cluster runs this role. It is stateless and lightweight.
+| proxy  | The proxy accepts inbound connections from the clients and routes them to the appropriate nodes. The proxy also serves the Web UI.
+| auth   | This service provides authentication and authorization service to proxies and nodes. It is the certificate authority (CA) of a cluster and the storage for audit logs. It is the only stateful component of a Teleport cluster.
+
+Although `teleport` daemon is a single binary, it can provide any combination of these services
+via `--roles` command line flag or via the configuration file.
+
+In addition to `teleport` daemon, there are three client tools:
+
+| Tool           | Description
+|----------------|------------------------------------------------------------------------
+| tctl    | Cluster administration tool used to invite nodes to a cluster and manage user accounts. `tctl` must be used on the same machine where `auth` is running.
+| tsh     | Teleport client tool, similar in principle to OpenSSH's `ssh`. It is used to log into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc. `tsh` can work in conjunction with `ssh` by acting as an SSH agent.
+| Web browser | You can use your web browser to log into any Teleport node. Just open `https://<proxy-host>:3080` (`proxy-host` is one of the machines that has proxy service enabled).
+
 Let's explore each of the Teleport services in detail.
 
 ### The Auth Service

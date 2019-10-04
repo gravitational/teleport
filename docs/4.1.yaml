@@ -20,7 +20,7 @@ markdown_extensions:
       marker: '[TOC]'
 extra_css: []
 extra_javascript: []
-extra:    
+extra:
     version: 4.1
 pages:
     - Documentation:
