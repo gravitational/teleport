@@ -979,7 +979,8 @@ Resource Kind      | Description
 -------------------|--------------
 user               | A user record in the internal Teleport user DB.
 node               | A registered SSH node. The same record is displayed via `tctl nodes ls`
-trusted_cluster    | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.
+trusted_cluster    | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.![Tunnels](img/tunnel.svg)
+
 role               | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.
 github             | A Github auth connector. See [here](#github-auth-connector) for details on configuring it.
 
@@ -997,7 +998,7 @@ user "john" to have access to them. We already have our primary Teleport cluster
 users set up. Say this primary cluster is called `main`, and the behind-the-firewall cluster
 is called `east` as shown on this diagram:
 
-![Tunels](img/tunnel.svg)
+![Tunnels](img/tunnel.svg)
 
 This setup works as follows:
 
