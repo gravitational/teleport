@@ -78,14 +78,8 @@ $ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha2
 
 **Checking the Checksum**
 
-For Linux or Mac OS
 ```bash
 $ shasum -a 256 teleport-$version-$os-$arch-bin.tar.gz 
-```
-
-For Windows
-```
-certUtil -hashfile teleport-$version-windows-amd64-bin.zip SHA256
 ```
 
 ## Mac
@@ -96,12 +90,9 @@ TODO
 
 **Checking the Checksum**
 
-For Linux or Mac OS
 ```bash
 $ shasum -a 256 teleport-$version-$os-$arch-bin.tar.gz 
 ```
-
-
 
 ## Windows
 
@@ -111,7 +102,6 @@ TODO
 
 **Checking the Checksum**
 
-For Windows
 ```
 certUtil -hashfile teleport-$version-windows-amd64-bin.zip SHA256
 ```

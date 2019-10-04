@@ -7,10 +7,10 @@ This tutorial will guide you through the steps needed to install and run Telepor
 [TOC]
 
 ### Prerequisites
-- In this tutorial you will start a web UI which must be accessible via a web browser. If you run this tutorial on a remote machine without a GUI, first make sure that this machine's IP can be reached over the your network and that it accept incoming traffic on port `3080`.
+- In this tutorial you will start a web UI which must be accessible via a web browser. If you run this tutorial on a remote machine without a GUI, first make sure that this machine's IP can be reached over the your network and that it accepts incoming traffic on port `3080`.
 - We recommend that you read [Teleport Basics](./concept-basics) before working through this tutorial. If you'd like to dive right in though this is the best place to start!
 
-This guide is only meant to demonstrate how to run teleport in a sandbox or demo environment and showcase a few basic tasks you can do with Teleport. **You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide]("")**
+This guide is only meant to demonstrate how to run teleport in a sandbox or demo environment and showcase a few basic tasks you can do with Teleport. **You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](./production-guide)**
 
 
 
@@ -19,7 +19,7 @@ This guide is only meant to demonstrate how to run teleport in a sandbox or demo
 This guide installs teleport v4.1.0 on the CLI. Previous versions are documented in [Release History](https://gravitational.com/teleport/releases/)
 
 You can download pre-built binaries from our [Downloads](https://gravitational.com/teleport/download/) page.
-or you can [build it from source](https://gravitational.com/teleport/docs/admin-guide/#installing-from-source).
+or you can [build it from source](./installation/#installing-from-source).
 
 You can also download `.deb`, `.rpm`, and `.pkg` files from [Downloads](https://gravitational.com/teleport/download/)
 

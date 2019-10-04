@@ -1,6 +1,6 @@
 # Production Guide
 
-TODO Build off Quickstart, but include many more details. 
+TODO Build off Quickstart, but include many more details and multi-node set up. 
 
 Include security considerations.
 
