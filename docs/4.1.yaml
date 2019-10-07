@@ -6,7 +6,7 @@ site_author: Gravitational Inc
 copyright: Gravitational Inc, 2016-19
 
 # output directory:
-site_dir: ../build/docs/4.0
+site_dir: ../build/docs/4.1
 docs_dir: "4.1"
 
 theme: readthedocs
@@ -24,32 +24,34 @@ extra:
     version: 4.1
 pages:
     - Guides:
-        - Quickstart : quickstart-revised.md
-        - Installation : installation.md
-        - Production: production-guide.md
-        - Architecture: architecture.md
-        - User Manual: user-manual.md
-        - Admin Manual: admin-guide.md
-        - FAQ: faq.md
-    - Documentation:
-        - CLI Docs : cli-docs.md
-        - YAML Configuration : configuration.md
-    - Concepts:
-        - Basics: concept-basics.md
-        - Cluster: concept-cluster.md
-        - Users: concept-user.md
-        - Nodes: concept-nodes.md
-    - Teleport Enterprise:
-        - Introduction: enterprise.md
-        - Quick Start Guide: quickstart-enterprise.md
-        - RBAC: ssh_rbac.md
-        - Single sign-on (SSO): ssh_sso.md
-    - Guides:
-        - AWS: aws_oss_guide.md
+        - Quickstart: guides/quickstart.md
+        - Install Teleport: guides/installation.md
+        - Share Sessions: guides/session-sharing.md
+        - Replay Sessions: guides/audit-replay.md
+        - Manage User Permissions: guides/user-permissions.md
+        - Label Nodes: guides/node-labels.md
+        - Teleport with OpenSSH: guides/openssh.md
+        - Trusted Clusters: trustedclusters.md
+        - Production: guides/production.md
+        - AWS: aws_oss.md
+    - Integrations
         - Okta: ssh_okta.md
         - Active Directory (ADFS): ssh_adfs.md
         - OneLogin: ssh_one_login.md
         - G Suite: ssh_gsuite.md
         - OIDC: oidc.md
-        - Trusted Clusters: trustedclusters.md
         - Kubernetes Guide: kubernetes_ssh.md
+    - FAQ: faq.md
+    - Architecture: architecture.md
+    - CLI Docs : cli-docs.md
+    - YAML Configuration : configuration.md
+    - Concepts:
+        - Teleport Basic Concepts: concepts/basics.md
+        - Cluster: concepts/cluster.md
+        - Users: concepts/user.md
+        - Nodes: concepts/nodes.md
+    - Enterprise Guides:
+        - Introduction: enterprise.md
+        - Quick Start Guide: quickstart-enterprise.md
+        - RBAC: ssh_rbac.md
+        - Single sign-on (SSO): ssh_sso.md

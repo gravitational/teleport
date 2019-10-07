@@ -1,6 +1,6 @@
 # Trusted Clusters
 
-If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.md#trusted-clusters)
+If you haven't already looked at the introduction to [Trusted Clusters](./admin-guide.md#trusted-clusters)
 in the Admin Guide we recommend you review that for an overview before continuing with this guide.
 
 The Trusted Clusters chapter in the Admin Guide
@@ -176,7 +176,7 @@ spec:
 ```
 
 Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is
-done by creating a trusted cluster [resource](admin-guide/#resources) on "east"
+done by creating a trusted cluster [resource](./admin-guide/#resources) on "east"
 which looks like this:
 
 ```yaml
