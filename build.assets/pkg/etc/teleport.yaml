@@ -267,7 +267,7 @@ proxy_service:
         # enabled: yes
 
         # Kubernetes proxy listen address.
-        listen_addr: 0.0.0.0:3026
+        # listen_addr: 0.0.0.0:3026
 
         # The DNS name of the Kubernetes proxy server that is accessible by cluster clients.
         # If running multiple proxies behind  a load balancer, this name must point to the 
