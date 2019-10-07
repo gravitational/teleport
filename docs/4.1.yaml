@@ -36,8 +36,22 @@ pages:
         - RBAC: ssh_rbac.md
         - Single sign-on (SSO): ssh_sso.md
     - Guides:
+<<<<<<< HEAD
         - AWS: aws_oss_guide.md
         - Installation: installation.md
+=======
+        - Quickstart: guides/quickstart.md
+        - Install Teleport: guides/installation.md
+        - Share Sessions: guides/session-sharing.md
+        - Replay Sessions: guides/audit-replay.md
+        - Manage User Permissions: guides/user-permissions.md
+        - Label Nodes: guides/node-labels.md
+        - Teleport with OpenSSH: guides/openssh.md
+        - Trusted Clusters: trustedclusters.md
+        - Production: guides/production.md
+        - AWS: aws_oss.md
+    - Integrations:
+>>>>>>> 37ccdefb... add files & update Integrations header
         - Okta: ssh_okta.md
         - Active Directory (ADFS): ssh_adfs.md
         - OneLogin: ssh_one_login.md
