@@ -34,7 +34,7 @@ pages:
         - Trusted Clusters: trustedclusters.md
         - Production: guides/production.md
         - AWS: aws_oss.md
-    - Integrations
+    - Integrations:
         - Okta: ssh_okta.md
         - Active Directory (ADFS): ssh_adfs.md
         - OneLogin: ssh_one_login.md
