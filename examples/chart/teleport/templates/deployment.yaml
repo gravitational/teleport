@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ template "teleport.fullname" . }}
@@ -11,6 +11,9 @@ spec:
   replicas: 1
   strategy:
     type: {{ .Values.strategy }}
+  selector:
+    matchLabels:
+      app: {{ template "teleport.name" . }}
   template:
     metadata:
       labels:
