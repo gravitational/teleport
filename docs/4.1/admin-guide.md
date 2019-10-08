@@ -2344,12 +2344,8 @@ clients, etc), the following rules apply:
 
   [ `tctl` ](../cli-docs/#tctl) for admins) may not be compatible
 
-  if older than the auth or the proxy server. They will print an error if there
-  is an incompatibility.
-
-* While 4.0 is a major release.3.2 can be upgraded to 4.0 using the same
-
-  upgrade sequence below.
+As an extra precaution you might want to backup your application prior to upgrading. We've
+more instructions in [Backing up Dynamic Configuration](#backing-up-dynamic-configuration).
 
 ### Upgrade Sequence
 
