@@ -24,8 +24,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -69,7 +71,8 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Print the sample config file into stdout.")
 	ver := app.Command("version", "Print the version.")
-	scpc := app.Command("scp", "server-side implementation of scp").Hidden()
+	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
+	bpfmode := app.Command("bpf", "Run bpf debugging tools.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -167,6 +170,8 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		err = onStatus()
 	case dump.FullCommand():
 		onConfigDump()
+	case bpfmode.FullCommand():
+		err = onBPF()
 	case ver.FullCommand():
 		utils.PrintVersion()
 	}
@@ -256,6 +261,23 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	}
 
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
+}
+
+func onBPF() error {
+	// TODO(russjones): Create a context that captures Ctrl-C and passes it along here.
+	b := bpf.New(context.Background())
+	err := b.Start()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	time.Sleep(20 * time.Second)
+
+	//err := b.Wait()
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	return nil
 }
 
 type StdReadWriter struct {
