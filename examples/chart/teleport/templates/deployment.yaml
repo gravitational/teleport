@@ -38,7 +38,17 @@ spec:
 {{- if not .Values.proxy.tls.enabled }}
         - --insecure-no-tls
 {{- end }}
+        - --nodename=$(MY_NODE_NAME)
+        - --advertise-ip=$(MY_POD_IP)
         env:
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
 {{- range $key, $value := .Values.extraVars }}
         - name: {{ $key }}
           value: {{ $value }}
