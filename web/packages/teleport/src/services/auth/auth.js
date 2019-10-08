@@ -22,7 +22,7 @@ import makeUserToken from './makeUserToken';
 
 const auth = {
   fetchToken(tokenId) {
-    const path = cfg.api.getInviteUrl(tokenId);
+    const path = cfg.getInviteUrl(tokenId);
     return api.get(path).then(json => {
       return makeUserToken(json);
     });

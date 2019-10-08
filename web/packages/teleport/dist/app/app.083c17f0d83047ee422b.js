@@ -6224,8 +6224,8 @@ limitations under the License.
 
 var cfg = {
   baseUrl: window.location.origin,
-  dateTimeFormat: 'MM/DD/YYYY HH:mm:ss',
-  dateFormat: 'DD/MM/YYYY',
+  dateTimeFormat: 'YYYY-MM-DD HH:mm:ss',
+  dateFormat: 'YYYY-MM-DD',
   auth: {},
   canJoinSessions: true,
   clusterName: 'localhost',
@@ -6258,7 +6258,7 @@ var cfg = {
     sessionPath: '/v1/webapi/sessions',
     userContextPath: '/v1/webapi/sites/:clusterId/context',
     userStatusPath: '/v1/webapi/user/status',
-    invitePath: '/v1/webapi/users/invites/:inviteToken',
+    invitePath: '/v1/webapi/users/invites/:token',
     userTokenInviteDonePath: '/v1/webapi/users',
     changeUserPasswordPath: '/v1/webapi/users/password',
     u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',
@@ -6337,6 +6337,11 @@ var cfg = {
       serverId: serverId,
       login: login,
       sid: sid
+    });
+  },
+  getInviteUrl: function getInviteUrl(token) {
+    return Object(generatePath["a" /* default */])(cfg.api.invitePath, {
+      token: token
     });
   },
   getClusterRoute: function getClusterRoute(clusterId) {
@@ -7254,7 +7259,7 @@ limitations under the License.
 
 var auth = {
   fetchToken: function fetchToken(tokenId) {
-    var path = config.api.getInviteUrl(tokenId);
+    var path = config.getInviteUrl(tokenId);
     return services_api.get(path).then(function (json) {
       return makeUserToken(json);
     });
@@ -15936,6 +15941,42 @@ function (_Store) {
 var moment = __webpack_require__("wgY5");
 var moment_default = /*#__PURE__*/__webpack_require__.n(moment);
 
+// CONCATENATED MODULE: ./src/lib/dateUtils.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*eslint no-console: "off"*/
+
+
+function displayDate(date) {
+  try {
+    return moment_default()(date).format(config.dateFormat);
+  } catch (err) {
+    console.error(err);
+    return 'undefined';
+  }
+}
+function displayDateTime(date) {
+  try {
+    return moment_default()(date).format(config.dateTimeFormat);
+  } catch (err) {
+    console.error(err);
+    return 'undefined';
+  }
+}
 // CONCATENATED MODULE: ./src/services/clusters/makeCluster.js
 function makeCluster_slicedToArray(arr, i) { return makeCluster_arrayWithHoles(arr) || makeCluster_iterableToArrayLimit(arr, i) || makeCluster_nonIterableRest(); }
 
@@ -15970,7 +16011,7 @@ function makeCluster(json) {
       connected = _at2[1],
       status = _at2[2];
 
-  var connectedText = moment_default()(connected).format(config.dateTimeFormat);
+  var connectedText = displayDateTime(connected);
   return {
     clusterId: clusterId,
     connected: new Date(connected),
@@ -20628,42 +20669,6 @@ limitations under the License.
 
 /* harmony default export */ var src_DialogConfirmation = (DialogConfirmation_DialogConfirmation);
 
-// CONCATENATED MODULE: ./src/lib/dateUtils.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/*eslint no-console: "off"*/
-
-
-function displayDate(date) {
-  try {
-    return moment_default()(date).format(config.dateFormat);
-  } catch (err) {
-    console.error(err);
-    return 'undefined';
-  }
-}
-function displayDateTime(date) {
-  try {
-    return moment_default()(date).format(config.dateTimeFormat);
-  } catch (err) {
-    console.error(err);
-    return 'undefined';
-  }
-}
 // EXTERNAL MODULE: /web-apps/node_modules/react-day-picker/DayPicker.js
 var DayPicker = __webpack_require__("nFOY");
 var DayPicker_default = /*#__PURE__*/__webpack_require__.n(DayPicker);

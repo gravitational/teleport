@@ -62,7 +62,7 @@ const cfg = {
     sessionPath: '/v1/webapi/sessions',
     userContextPath: '/v1/webapi/sites/:clusterId/context',
     userStatusPath: '/v1/webapi/user/status',
-    invitePath: '/v1/webapi/users/invites/:inviteToken',
+    invitePath: '/v1/webapi/users/invites/:token',
     userTokenInviteDonePath: '/v1/webapi/users',
     changeUserPasswordPath: '/v1/webapi/users/password',
     u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',
@@ -135,6 +135,10 @@ const cfg = {
       login,
       sid,
     });
+  },
+
+  getInviteUrl(token) {
+    return generatePath(cfg.api.invitePath, { token });
   },
 
   getClusterRoute(clusterId) {
