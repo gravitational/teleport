@@ -2209,7 +2209,7 @@ clients, etc), the following rules apply:
 ### Backup Before Upgrading
 
 As an extra precaution you might want to backup your application prior to upgrading. We've 
-more instructions in [Backing Up Teleport](#backing-up-teleport).
+more instructions in [Backing up Dynamic Configuration](#backing-up-dynamic-configuration).
 
 ### Upgrade Sequence
 
