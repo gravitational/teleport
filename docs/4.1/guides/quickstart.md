@@ -2,7 +2,7 @@
 
 Welcome to the Teleport Quickstart!
 
-This tutorial will guide you through the steps needed to install and run Teleport on a single node which could be your local machine but we recommend a VM.
+This will guide you through the steps needed to install and run Teleport on a single node which could be your local machine but we recommend a VM.
 
 [TOC]
 
@@ -18,7 +18,7 @@ This guide is only meant to demonstrate how to run teleport in a sandbox or demo
 
 This guide installs teleport v4.1.0 on the CLI. Previous versions are documented in [Release History](https://gravitational.com/teleport/releases/). You can download pre-built binaries from our [Downloads](https://gravitational.com/teleport/download/) page or you can [build it from source](./installation/#installing-from-source).
 
-You can also download `.deb`, `.rpm`, and `.pkg` files from [Downloads](https://gravitational.com/teleport/download/)
+You can also download `.deb`, `.rpm`, and `.pkg` files from [Downloads](https://gravitational.com/teleport/download/). For detailed installation instructions for all supported binaries see the [Installation Guide](./installation)
 
 ```bash
 $ export version=v4.1.0
@@ -29,7 +29,7 @@ $ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha2
 [Checksum output]
 $ curl -O https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz
 $ shasum -a 256 teleport-$version-$os-$arch-bin.tar.gz 
-# ensure the checksum matches the shaa256 checksum on the download page!
+# Verify that the checksums match
 $ tar -xzf teleport-$version-$os-$arch-bin.tar.gz
 $ cd teleport
 $ ./install
