@@ -40,6 +40,10 @@ ignored = ["github.com/Sirupsen/logrus", "github.com/gravitational/license/gener
   version = ">=1.0.0, <=19.0.0-g5d150e7"
 
 [[constraint]]
+  name = "github.com/johannesboyne/gofakes3"
+  branch = "master"
+
+[[constraint]]
   name = "github.com/armon/go-radix"
   branch = "master"
 
