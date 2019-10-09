@@ -2,10 +2,10 @@
 
 This doc will introduce the basic concepts of teleport so you can get started managing access!
 
-First, get to know the components of Teleport. Teleport uses three different services which work together to make Teleport go: **Nodes**, **Auth**, and **Proxy**. It will be important to understand what each of these services do, however, 
+First, get to know the components of Teleport. Teleport uses three different services which work together to make Teleport go: **Nodes**, **Auth**, and **Proxy**. It will be important to understand what each of these services do. 
 
-- **Teleport Nodes** are servers which can be accessed remotely via Teleport Auth. The Teleport Node service runs on a machine and is similar to the `sshd` daemon you may be familiar with. In some setups it might make sense to replace `sshd` entirely. Users can log in to a Node with the regular ol' `ssh` or `tsh ssh` or via a web browser through the Teleport Proxy UI. 
-- **Teleport Auth** stores user accounts and does authentication and authorization for every Node and every user in a cluster. The Auth service maintains a database of users & credentials in local storage or using a configured storage destination.
+- **Teleport Nodes** are stateless servers which can be accessed remotely via Teleport Auth. The Teleport Node service runs on a machine and is similar to the `sshd` daemon you may be familiar with. In some setups it might make sense to replace `sshd` entirely. Users can log in to a Node with the regular ol' `ssh` or `tsh ssh` or via a web browser through the Teleport Proxy UI. 
+- **Teleport Auth** stores user account data and does authentication and authorization for every Node and every user in a cluster. The Auth Service also acts as the certificate authority (CA) of the cluster. The Auth service maintains state using a database of users, credentials, certificates, and audit logs. The default storage location is `/var/lib/teleport` or an [admin-configured storage destination](../guides/production#storage).
 - **Teleport Proxy** receives all user requests and forwards data to the other two Teleport services: Node and Auth. The Teleport Proxy forwards user credentials to the Auth Service and creates connections to a requested Node after successful authentication. The Proxy also serves a Web UI which can be used to view Nodes and Users,and interact with recorded and active sessions.
 
 ## **Teleport Overview**
