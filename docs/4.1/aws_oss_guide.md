@@ -124,6 +124,35 @@ proxy and provides the TCP connections needed for Teleport proxy SSH connections
 IAM is the recommended tool for creating service access. This guide will follow the 
 best practice of principle of least privilege (PoLP). 
 
+In order to grant an IAM user in your AWS account access to one of your buckets, `example.s3.bucket` you will need to grant the following permissions: `s3:ListBucket`, `s3:ListBucketVersions`, `s3:PutObject`, `s3:GetObject`, `s3:GetObjectVersion`
+
+An example policy is shown below:
+
+```
+{
+   "Version": "2012-10-17",
+   "Statement": [
+     {
+       "Effect": "Allow",
+       "Action": [
+         "s3:ListBucket",
+         "s3:ListBucketVersions"
+        ],
+       "Resource": ["arn:aws:s3:::example.s3.bucket"]
+     },
+     {
+       "Effect": "Allow",
+       "Action": [
+         "s3:PutObject",
+         "s3:GetObject",
+         "s3:GetObjectVersion"
+       ],
+       "Resource": ["arn:aws:s3:::example.s3.bucket/*"]
+     }
+   ]
+ }
+```
+
 ### ACM 
 With AWS Certificate Manager, you can quickly request SSL/TLS certificates.
 
