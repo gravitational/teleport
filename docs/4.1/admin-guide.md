@@ -2081,10 +2081,10 @@ teleport:
   storage:
       # The region setting sets the default AWS region for all AWS services 
       # Teleport may consume (DynamoDB, S3)
-      region:  ${EC2_REGION}
+      region:  us-east-1 
 
       # Path to S3 bucket to store the recorded sessions in.
-      audit_sessions_uri:  s3://${TELEPORT_S3_BUCKET}/records
+      audit_sessions_uri:  s3://Example_TELEPORT_S3_BUCKET/records
 ```
 
 The AWS authentication settings above can be omitted if the machine itself is
@@ -2125,7 +2125,6 @@ teleport:
     # Name of the DynamoDB table. If it does not exist, Teleport will create it.
     # table_name is 
     table_name: Example_TELEPORT_DYNAMO_TABLE_NAME
-    audit_table_name: Example_TELEPORT_DYNAMO_EVENTS_TABLE_NAME
 
     # This setting configures Teleport to send the audit events to three places: 
     # To keep a copy on a local filesystem, in DynamoDB and to Stdout. 
@@ -2135,7 +2134,7 @@ teleport:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
 ```
 
-* Replace `us-east-1`,`Example_TELEPORT_DYNAMO_TABLE_NAME`,`Example_TELEPORT_DYNAMO_EVENTS_TABLE_NAME` 
+* Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
   with your own settings.  Teleport will create the table automatically.
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
