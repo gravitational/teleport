@@ -2081,16 +2081,10 @@ teleport:
   storage:
       # The region setting sets the default AWS region for all AWS services 
       # Teleport may consume (DynamoDB, S3)
-      region: us-west-1
+      region:  ${EC2_REGION}
 
-      # Path to S3 bucket to store the recorded sessions in. The optional 'region'
-      # parameter allows to override the region setting above, keeping S3 recordings
-      # in a different region:
-      audit_sessions_uri: s3://example.com/path/to/bucket?region=us-east-1
-
-      # Authentication settings are optional (see below)
-      access_key: BKZA3H2LOKJ1QJ3YF21A
-      secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
+      # Path to S3 bucket to store the recorded sessions in.
+      audit_sessions_uri:  s3://${TELEPORT_S3_BUCKET}/records
 ```
 
 The AWS authentication settings above can be omitted if the machine itself is
@@ -2125,25 +2119,24 @@ To configure Teleport to use DynamoDB:
 teleport:
   storage:
     type: dynamodb
-    region: eu-west-1
+    # We recommend setting region as an enviroment variable ${EC2_REGION}
+    region: ${EC2_REGION}
 
     # Name of the DynamoDB table. If it does not exist, Teleport will create it.
-    table_name: teleport_table
-
-    # Authentication settings are optional (see below)
-    access_key: BKZA3H2LOKJ1QJ3YF21A
-    secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
+    # table_name is 
+    table_name: ${TELEPORT_DYNAMO_TABLE_NAME}
+    audit_table_name: ${TELEPORT_DYNAMO_EVENTS_TABLE_NAME}
 
     # This setting configures Teleport to send the audit events to three places: 
     # To keep a copy on a local filesystem, in DynamoDB and to Stdout. 
     audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
-    audit_sessions_uri: 's3://example.com/teleport.events'
+    audit_sessions_uri: s3://${TELEPORT_S3_BUCKET}/records
 ```
 
-* Replace `region` and `table_name` with your own settings. Teleport will
-  create the table automatically.
+* Replace `${EC2_REGION}` and `${TELEPORT_DYNAMO_TABLE_NAME}` with your own settings. 
+  Teleport will create the table automatically.
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 * Audit log settings above are optional. If specified, Teleport will store the
