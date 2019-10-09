@@ -321,6 +321,15 @@ const (
 	// Region is AWS region parameter
 	Region = "region"
 
+	//Endpoint is an optional Host for non-AWS S3
+	Endpoint = "endpoint"
+
+	//InsecureNoTls is an optional switch to use http
+	InsecureNoTls = "insecurenotls"
+
+	//DisableServersideEncryption is an optional switch to opt out of SSE in case the provider does not support it
+	DisableServersideEncryption = "disablesse"
+
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 

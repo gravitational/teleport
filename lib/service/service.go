@@ -776,15 +776,9 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 		}
 		return handler, nil
 	case teleport.SchemeS3:
-		region := auditConfig.Region
-		if uriRegion := uri.Query().Get(teleport.Region); uriRegion != "" {
-			region = uriRegion
-		}
-		handler, err := s3sessions.NewHandler(s3sessions.Config{
-			Bucket: uri.Host,
-			Region: region,
-			Path:   uri.Path,
-		})
+		config := s3sessions.Config{}
+		config.SetFromURL(uri, auditConfig.Region)
+		handler, err := s3sessions.NewHandler(config)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

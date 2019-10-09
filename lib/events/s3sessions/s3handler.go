@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,8 +47,44 @@ type Config struct {
 	Region string
 	// Path is an optional bucket path
 	Path string
+	// Host is an optional third party S3 compatible endpoint
+	Endpoint string
+	// InsecureNoTls is an optional switch to opt out of https connections
+	InsecureNoTls bool
+	//DisableServersideEncryption is an optional switch to opt out of SSE in case the provider does not support it
+	DisableServersideEncryption bool
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
+}
+
+// SetFromURL sets values on the Config from the supplied URI
+func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
+	region := inRegion
+	if uriRegion := in.Query().Get(teleport.Region); uriRegion != "" {
+		region = uriRegion
+	}
+	if endpoint := in.Query().Get(teleport.Endpoint); endpoint != "" {
+		s.Endpoint = endpoint
+	}
+	if insecureNoTlsStr := in.Query().Get(teleport.InsecureNoTls); insecureNoTlsStr != "" {
+		insecureNoTls, err := strconv.ParseBool(insecureNoTlsStr)
+		if err != nil {
+			return trace.BadParameter("%v is not a boolean", err)
+		}
+		s.InsecureNoTls = insecureNoTls
+	}
+	if disableServersideEncryptionStr := in.Query().Get(teleport.DisableServersideEncryption); disableServersideEncryptionStr != "" {
+		disableServersideEncryption, err := strconv.ParseBool(disableServersideEncryptionStr)
+		if err != nil {
+			return trace.BadParameter("%v is not a boolean", err)
+		}
+		s.DisableServersideEncryption = disableServersideEncryption
+	}
+	s.Region = region
+	s.Bucket = in.Host
+	s.Path = in.Path
+
+	return nil
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -63,10 +101,17 @@ func (s *Config) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// override the default environment (region + credentials) with the values
+		// override the default environment (region + Host + credentials) with the values
 		// from the YAML file:
 		if s.Region != "" {
 			sess.Config.Region = aws.String(s.Region)
+		}
+		if s.Endpoint != "" {
+			sess.Config.Endpoint = aws.String(s.Endpoint)
+			sess.Config.S3ForcePathStyle = aws.Bool(true)
+		}
+		if s.InsecureNoTls {
+			sess.Config.DisableSSL = aws.Bool(s.InsecureNoTls)
 		}
 		s.Session = sess
 	}
@@ -271,19 +316,21 @@ func (h *Handler) ensureBucket() error {
 	}
 
 	// Turn on server-side encryption for the bucket.
-	_, err = h.client.PutBucketEncryption(&s3.PutBucketEncryptionInput{
-		Bucket: aws.String(h.Bucket),
-		ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
-			Rules: []*s3.ServerSideEncryptionRule{&s3.ServerSideEncryptionRule{
-				ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
-					SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms),
-				},
-			}},
-		},
-	})
-	err = ConvertS3Error(err, "failed to set versioning state for bucket %q", h.Bucket)
-	if err != nil {
-		return trace.Wrap(err)
+	if !h.DisableServersideEncryption {
+		_, err = h.client.PutBucketEncryption(&s3.PutBucketEncryptionInput{
+			Bucket: aws.String(h.Bucket),
+			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
+				Rules: []*s3.ServerSideEncryptionRule{&s3.ServerSideEncryptionRule{
+					ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+						SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms),
+					},
+				}},
+			},
+		})
+		err = ConvertS3Error(err, "failed to set versioning state for bucket %q", h.Bucket)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }

@@ -17,10 +17,9 @@ limitations under the License.
 package utils
 
 import (
-	"net/url"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+	"net/url"
 )
 
 // ParseSessionsURI parses uri per convention of session upload URIs

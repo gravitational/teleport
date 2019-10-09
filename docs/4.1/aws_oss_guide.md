@@ -73,7 +73,8 @@ to specify `New Image` from the streaming options. DynamoDB back-end supports tw
 types of Teleport data:
 
 * Cluster state
-* Audit log events
+
+See [DynamoDB Admin Guide for more information](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
 
 ![AWS DynamoDB Tables](img/aws/dynamodb-tables.png)
 ![Setting Streams](img/aws/setting-stream.png) 
@@ -89,12 +90,6 @@ Cluster State:
 | Primary partition key | HashKey (String)      |
 | Primary sort key      | FullPath (String)     |
 
-Audit Log:
-
-| Table name            | teleport-cluster-name-events   |
-|-----------------------|--------------------------------|
-| Primary partition key | SessionID (String)             |
-| Primary sort key      | EventIndex (Number)            |
 
 
 ### S3 
@@ -123,6 +118,67 @@ proxy and provides the TCP connections needed for Teleport proxy SSH connections
 ### IAM
 IAM is the recommended tool for creating service access. This guide will follow the 
 best practice of principle of least privilege (PoLP). 
+
+#### IAM for Amazon S3
+
+In order to grant an IAM user in your AWS account access to one of your buckets, `example.s3.bucket` you will need to grant the following permissions: `s3:ListBucket`, `s3:ListBucketVersions`, `s3:PutObject`, `s3:GetObject`, `s3:GetObjectVersion`
+
+An example policy is shown below:
+
+```
+{
+   "Version": "2012-10-17",
+   "Statement": [
+     {
+       "Effect": "Allow",
+       "Action": [
+         "s3:ListBucket",
+         "s3:ListBucketVersions"
+        ],
+       "Resource": ["arn:aws:s3:::example.s3.bucket"]
+     },
+     {
+       "Effect": "Allow",
+       "Action": [
+         "s3:PutObject",
+         "s3:GetObject",
+         "s3:GetObjectVersion"
+       ],
+       "Resource": ["arn:aws:s3:::example.s3.bucket/*"]
+     }
+   ]
+ }
+```
+!!! note "Note":
+    `example.s3.bucket` will need to be replaced with your bucket name. 
+
+#### IAM for DynamoDB
+
+In order to grant an IAM user access to DynamoDB make sure that the IAM role assigned to Teleport is configured with proper permissions. 
+
+An example policy is shown below:
+
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllAPIActionsOnTeleportAuth",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
+        },
+        {
+            "Sid": "AllAPIActionsOnTeleportStreams",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth/stream/*"
+        }
+    ]
+}
+```
+!!! note "Note":
+    `eu-west-1:123456789012:table/prod.teleport.auth` will need to be replaced with your DynamoDB instance.
 
 ### ACM 
 With AWS Certificate Manager, you can quickly request SSL/TLS certificates.
