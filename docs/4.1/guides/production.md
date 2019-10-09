@@ -47,4 +47,8 @@ $ adduser <username>
 $ su <username>
 ```
 
-Security considerations on installing tctl under root or not-->
+Security considerations on installing tctl under root or not
+
+!!! danger "WARNING":
+    Teleport stores data in `/var/lib/teleport`. Make sure that regular/non-admin users do not
+    have access to this folder on the Auth server.-->

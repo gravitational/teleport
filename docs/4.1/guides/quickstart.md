@@ -12,8 +12,6 @@ This tutorial will guide you through the steps needed to install and run Telepor
 
 This guide is only meant to demonstrate how to run teleport in a sandbox or demo environment and showcase a few basic tasks you can do with Teleport. **You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](./production)**
 
-
-
 ## Step 1: Install Teleport
 
 This guide installs teleport v4.1.0 on the CLI. Previous versions are documented in [Release History](https://gravitational.com/teleport/releases/). You can download pre-built binaries from our [Downloads](https://gravitational.com/teleport/download/) page or you can [build it from source](./installation/#installing-from-source).
@@ -49,11 +47,17 @@ $ mkdir -p /var/lib/teleport
 
 Now we are ready to start Teleport. 
 
-_**Tip**: Avoid suspending your current shell session by running the process in the background like so: `teleport start > teleport.log 2>&1 &`. Access the process logs with `less teleport.log`._
+!!! tip "Background Process"
+    Avoid suspending your current shell session by running the process in the background like so: `teleport start > teleport.log 2>&1 &`. Access the process logs with `less teleport.log`._
+
+!!! tip "Debugging/Verbose Output"
+    If you encounter errors with any `teleport, tsh` or `tctl` command you can enable verbose logging with the `-d,--debug` flag.
 
 ```bash
 $ teleport start # if you are not `root` you may need `sudo`
 ```
+
+
 
 By default Teleport services bind to 0.0.0.0. If you ran teleport without any configuration or flags you should see this output in your console or logfile
 ```

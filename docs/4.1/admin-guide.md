@@ -1,10 +1,3 @@
-# Teleport Admin Manual
-
-This manual covers the installation and configuration of Teleport and the ongoing
-management of a Teleport cluster. It assumes that the reader has good understanding
-of Linux administration.
-
-
 ## Definitions
 
 Before diving into configuring and running Teleport, it helps to take a look at the [Teleport Architecture](/architecture)
@@ -14,18 +7,6 @@ and review the key concepts this document will be referring to:
 |----------|------------
 |Cluster Name | Every Teleport cluster must have a name. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created.
 |Trusted Cluster | Teleport Auth Service can allow 3rd party users or nodes to connect if their public keys are signed by a trusted CA. A "trusted cluster" is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file.
-
-## Teleport Daemon
-
-The Teleport daemon is called `teleport` and it supports the following commands:
-
-|Command     | Description
-|------------|-------------------------------------------------------
-|start       | Starts the Teleport daemon.
-|configure   | Dumps a sample configuration file in YAML format into standard output.
-|version     | Shows the Teleport version.
-|status      | Shows the status of a Teleport connection. This command is only available from inside of an active SSH session.
-|help        | Shows help.
 
 When experimenting, you can quickly start `teleport` with verbose logging by typing
 `teleport start -d`.

@@ -23,6 +23,9 @@ extra_javascript: []
 extra:    
     version: 4.1
 pages:
+    - Documentation:
+        - CLI Docs: cli-docs.md
+        - YAML Configuration: configuration.md
     - Guides:
         - Quickstart: guides/quickstart.md
         - Install Teleport: guides/installation.md
@@ -43,8 +46,6 @@ pages:
         - Kubernetes Guide: kubernetes_ssh.md
     - FAQ: faq.md
     - Architecture: architecture.md
-    - CLI Docs : cli-docs.md
-    - YAML Configuration : configuration.md
     - Concepts:
         - Teleport Basic Concepts: concepts/basics.md
         - Cluster: concepts/cluster.md
