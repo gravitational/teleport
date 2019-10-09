@@ -25,7 +25,7 @@ extra:
 pages:
     - Guides:
         - Quickstart: guides/quickstart.md
-        - Install Teleport: guides/installation.md
+        - Installation: guides/installation.md
         - Share Sessions: guides/session-sharing.md
         - Replay Sessions: guides/audit-replay.md
         - Manage User Permissions: guides/user-permissions.md
