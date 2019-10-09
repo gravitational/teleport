@@ -75,7 +75,7 @@ $ which teleport
 * **Option 2:** Install on the command line with `installer`
 ```bash
 $ curl -O https://get.gravitational.com/teleport-4.1.0.pkg
-$ sudo installer -pkg teleport-4.1.0.pkg -target / # Installs on Macintosh HD 
+$ sudo installer -pkg teleport-4.1.0.pkg -target / # Installs on Macintosh HD
 Password:
 installer: Package name is teleport-4.1.0
 installer: Upgrading at base path /
