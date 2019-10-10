@@ -1,43 +1,64 @@
 ## Overview
 
-TODO: This doc is in-progress not at reviewable stage
-TODO: Create Diagrams
+TODO: Need some new custom diagrams for this page.
 
 [TOC]
 
-## Nodes
+## The Node Service
 
-Teleport Nodes are servers which can be accessed remotely via Teleport Auth. A regular node becomes a Teleport Node when you start the `teleport` daemon with `--roles=node`. The `node` service provides SSH access to every node either with [OpenSSH](../guides/openssh) or with the [`tsh` client](../cli-docs).
+A node becomes a Teleport Node when the node joins a cluster with an "join" token. Read about how Auth issues certificates to a Node in the [Auth Guide](./auth/#issuing-node-certificates).
 
-In some setups it might make sense to replace `sshd` entirely. <!--TODO: Expand upon this use case-->
+A Teleport Node runs the `teleport` daemon with the `node` role. This process handles incoming connection requests, authentication, and remote command execution on the node, similar to the function of OpenSSH's `sshd`.
 
-Teleport Nodes are always members of a cluster, even if that cluster is only one node. Teleport can be run as a single binary <!--TODO: Expand this use case -->. Teleport does not allow SSH sessions into nodes that are not cluster members.
+All cluster Nodes keep the Auth Server updated with their status with  periodic ping messages. They report their IP addresses and values of their assigned labels. Nodes can access the list of all Nodes in their cluster via the [Auth Server API](./auth/#auth-api).
 
-Each node is completely stateless and holds no secrets such as keys, passwords, etc.
-The persistent state of a Teleport cluster is kept by the [auth server](./auth/#auth-state).
+!!! tip "Tip"
+    In lightweight environments, such as IoT deployments, it is possible to entirely replace `sshd` with the `node` service <!--other examples?-->.
 
-## Cluster
+The `node` service provides SSH access to every node with all of the following clients:
 
-Unlike the traditional SSH service, Teleport operates on a Cluster of nodes. A Teleport cluster is a set of machines whose public keys are signed by the same certificate authority (CA), with the auth server acting as the CA of a cluster.
+* [OpenSSH: `ssh`](../guides/openssh)
+* [Teleport CLI client: `tsh ssh`](../cli-docs/#tsh-ssh)
+* A web browser & [Teleport Proxy UI](./proxy/#web-to-ssh-proxy)
 
-A cluster is a set of nodes (servers). There are several implication of this:
+Each client is authenticated via the [Auth Service](./auth/#authentication-in-teleport) before being granted access to a Node.
 
-* User identities and user permissions are defined and enforced on a cluster level.
-* A node must become a Cluster Member before any user can connect to it via SSH.
-* SSH access to any cluster node is _always_ performed through a cluster proxy.
+## Node Identity on a Cluster
+
+Node Identity is defined on the Cluster level by the certificate they possess.
+
+This certificate contains information about the node including:
+
+* The **host ID**, a generated UUID unique to a node
+* A **nodename**, which defaults to `hostname` of the node, but can be [configured](../configuration)
+* The **cluster_name**, which defaults to the `hostname` of the auth server, but can be [configured](../configuration)
+* The node **role** (i.e. `node,proxy`) encoded as a certificate extension
+* The cert **TTL** (time-to-live)
+
+A Teleport Cluster is a set of one or more machines whose public keys are signed by the same certificate authority (CA) operating in the Auth Server. A certificate is issued to a node when it joins the cluster for the first time. Learn more about this process in the [Auth Guide](./auth/#authentication-in-teleport).
+
+!!! warning "Single-Node Clusters are Clusters"
+    Once a Node gets a signed certificate from the Node CA, the Node is considered a member of the cluster, even if that cluster has only one node.
+
+## Connecting to Nodes
+
+When a client requests access to a Node, authentication is always performed through a cluster proxy. When the proxy server receives a connection request from a client it validates the client's credentials with the Auth Service. Once the client is authenticated the proxy attempts to connect the client to the requested Node.
+
+There is a detailed walkthrough of the steps needed to initiate a connection to a node in the [Architecture Guide](./architecture).
+
+<!--Network connection diagram-->
+
+[Session state](./auth/#auth-state) is stored on the Auth Server rather than on the Node. Each node is completely stateless and holds no secrets such as keys, or passwords.
 
 ## Cluster State
 
-The auth server stores its own keys in a cluster state
-  storage. All of cluster dynamic configuration is stored there as well, including:
-    * Node membership information and online/offline status for each node.
-    * List of active sessions.
-    * List of locally stored users.
-    * [RBAC](ssh_rbac) configuration (roles and permissions).
-    * Other dynamic configuration.
+Cluster state is stored in a central storage location configured by the Auth Server; Nodes are completely stateless. Read about what is stored and where it can be stored in the [Auth Guide](./auth/#auth-guide)
 
-<!--| Cluster Name     | Every Teleport cluster must have a name. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created.
-| Trusted Cluster | Teleport Auth Service can allow 3rd party users or nodes to connect if their public keys are signed by a trusted CA. A "trusted cluster" is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file.-->
+## Trusted Clusters
+
+Teleport Auth Service can allow 3rd party users or nodes to connect to cluster nodes if their public keys are signed by a trusted CA. A "trusted cluster" is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file.
+
+<!--Link to more docs on this-->
 
 ## More Concepts
 
