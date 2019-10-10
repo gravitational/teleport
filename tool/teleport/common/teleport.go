@@ -17,20 +17,23 @@ limitations under the License.
 package common
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
+	//"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/bpf"
+	//"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -73,6 +76,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	ver := app.Command("version", "Print the version.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	bpfmode := app.Command("bpf", "Run bpf debugging tools.").Hidden()
+	exec := app.Command("exec", "Used internally by Teleport to re-exec itself.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -172,6 +176,8 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		onConfigDump()
 	case bpfmode.FullCommand():
 		err = onBPF()
+	case exec.FullCommand():
+		err = onExec()
 	case ver.FullCommand():
 		utils.PrintVersion()
 	}
@@ -264,19 +270,46 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 }
 
 func onBPF() error {
-	// TODO(russjones): Create a context that captures Ctrl-C and passes it along here.
-	b := bpf.New(context.Background())
-	err := b.Start()
+	//// TODO(russjones): Create a context that captures Ctrl-C and passes it along here.
+	//b := bpf.New(context.Background())
+	//err := b.Start()
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+
+	//time.Sleep(20 * time.Second)
+
+	////err := b.Wait()
+	////if err != nil {
+	////	return trace.Wrap(err)
+	////}
+	return nil
+}
+
+func onExec() error {
+	pty := os.NewFile(uintptr(3), "/proc/self/fd/3")
+	tty := os.NewFile(uintptr(4), "/proc/self/fd/4")
+	cmd := os.NewFile(uintptr(5), "/proc/self/fd/5")
+
+	var b bytes.Buffer
+	_, err := b.ReadFrom(cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	time.Sleep(20 * time.Second)
+	var cmdmsg srv.ExecCommand
+	err = json.Unmarshal(b.Bytes(), &cmdmsg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	//err := b.Wait()
-	//if err != nil {
-	//	return trace.Wrap(err)
-	//}
+	fmt.Printf("--> Calling RunCommand: %v.\n", cmdmsg)
+
+	err = srv.RunCommand(&cmdmsg, pty, tty)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 

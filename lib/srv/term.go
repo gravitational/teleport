@@ -17,6 +17,9 @@ limitations under the License.
 package srv
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -34,6 +37,7 @@ import (
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
+	"github.com/kardianos/osext"
 	"github.com/kr/pty"
 	log "github.com/sirupsen/logrus"
 )
@@ -162,19 +166,65 @@ func (t *terminal) AddParty(delta int) {
 func (t *terminal) Run() error {
 	defer t.closeTTY()
 
-	cmd, err := prepareInteractiveCommand(t.ctx)
+	//t.cmd = cmd
+
+	//cmd.Stdout = t.tty
+	//cmd.Stdin = t.tty
+	//cmd.Stderr = t.tty
+	//cmd.SysProcAttr.Setctty = true
+	//cmd.SysProcAttr.Setsid = true
+
+	//err = cmd.Start()
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+
+	// Create and marshal command to execute.
+	cmdmsg, err := prepareCommand(t.ctx, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.cmd = cmd
+	cmdbytes, err := json.Marshal(cmdmsg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	cmd.Stdout = t.tty
-	cmd.Stdin = t.tty
-	cmd.Stderr = t.tty
-	cmd.SysProcAttr.Setctty = true
-	cmd.SysProcAttr.Setsid = true
+	// Create pipe and write bytes to pipe. The child process will read the
+	// command to execute from this pipe.
+	cmdReader, cmdWriter, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = io.Copy(cmdWriter, bytes.NewReader(cmdbytes))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = cmdWriter.Close()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	err = cmd.Start()
+	fmt.Printf("--> Requesting re-exec with: %v.\n", cmdmsg)
+
+	// Re-execute Teleport and pass along the allocated PTY as well as the
+	// command reader from where Teleport will know how to re-spawn itself.
+	teleportPath, err := osext.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	t.cmd = &exec.Cmd{
+		Path: teleportPath,
+		Args: []string{teleportPath, "exec"},
+		Dir:  cmdmsg.Dir,
+		ExtraFiles: []*os.File{
+			t.pty,
+			t.tty,
+			cmdReader,
+		},
+	}
+
+	// Start the process.
+	err = t.cmd.Start()
 	if err != nil {
 		return trace.Wrap(err)
 	}
