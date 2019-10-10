@@ -8,7 +8,7 @@ Look at `build.sh` script to see how it works.
 ## To Publish New Version
 
 * Update [build.sh](build.sh).
-* Update theme/base.html to add a new version to the Javascript arrray of versions
+* Update theme/scripts.html to add a new version to the docVersions array of versions
 * Create a new YAML file, like `5.5.1.yaml` if you are releasing version 5.5.1
 
 ## Deploying
