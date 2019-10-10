@@ -26,6 +26,7 @@ pages:
     - Documentation:
         - CLI Docs: cli-docs.md
         - YAML Configuration: configuration.md
+        - FAQ: faq.md
     - Guides:
         - Quickstart: guides/quickstart.md
         - Install Teleport: guides/installation.md
@@ -37,6 +38,13 @@ pages:
         - Trusted Clusters: trustedclusters.md
         - Production: guides/production.md
         - AWS: aws_oss.md
+    - Concepts:
+        - Teleport Basic Concepts: concepts/basics.md
+        - Teleport Users: concepts/users.md
+        - Teleport Nodes: concepts/nodes.md
+        - Teleport Auth: concepts/auth.md
+        - Teleport Proxy: concepts/proxy.md
+        - Architecture: concepts/architecture.md
     - Integrations:
         - Okta: ssh_okta.md
         - Active Directory (ADFS): ssh_adfs.md
@@ -44,13 +52,6 @@ pages:
         - G Suite: ssh_gsuite.md
         - OIDC: oidc.md
         - Kubernetes Guide: kubernetes_ssh.md
-    - FAQ: faq.md
-    - Architecture: architecture.md
-    - Concepts:
-        - Teleport Basic Concepts: concepts/basics.md
-        - Cluster: concepts/cluster.md
-        - Users: concepts/user.md
-        - Nodes: concepts/nodes.md
     - Enterprise Guides:
         - Introduction: enterprise.md
         - Quick Start Guide: quickstart-enterprise.md
