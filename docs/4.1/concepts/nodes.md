@@ -19,7 +19,7 @@ The persistent state of a Teleport cluster is kept by the [auth server](./auth/#
 ## Cluster
 
 Unlike the traditional SSH service, Teleport operates on a Cluster of nodes. A Teleport cluster is a set of machines whose public keys are signed by the same certificate authority (CA), with the auth server acting as the CA of a cluster.
-   
+
 A cluster is a set of nodes (servers). There are several implication of this:
 
 * User identities and user permissions are defined and enforced on a cluster level.

@@ -6,7 +6,7 @@ This is a conceptual doc about the Teleport Authentication Service and Certifica
 
 ## Authentication vs. Authorization
 
-Teleport Auth handles both authentication and authorization. These topics are related but different and they are often discussed jointly as "Auth". 
+Teleport Auth handles both authentication and authorization. These topics are related but different and they are often discussed jointly as "Auth".
 
 **Authentication** is proving an identity. "I say I am Bob, and I really am Bob. See look I have Bob's purple hat.". The job of an Authentication system is to define the criterion by which users must prove their identity. Is having a purple hat enough to show that a person is Bob? Maybe, maybe not. To identify users and nodes to Teleport Auth we require them to present a cryptographically-signed certificate issued by the Teleport Auth Certificate Authority.
 
@@ -34,7 +34,7 @@ There are two CAs operating inside the Auth Server because cluster nodes and use
 
 ### Issuing Node Certificates
 
-Node Certificates identify a node within a cluster and establish the permissions of the node to access to other Teleport services. The presence of a signed certificate on a node makes it a cluster member. 
+Node Certificates identify a node within a cluster and establish the permissions of the node to access to other Teleport services. The presence of a signed certificate on a node makes it a cluster member.
 
 <!--TODO Diagram of cluster join in the vein of others system graphics-->
 
@@ -46,7 +46,7 @@ The token can be [static (configured via config)](../configuration) or a dynamic
     reduced (not increased) via [`tctl nodes add --ttl`](../cli-doocs/#tctl-nodes) flag.
 
 2) When a new node joins the cluster, the auth server generates a new public/private keypair for
-the node and signs its certificate <!--where is it stored?-->. This node certificate contains the node's role(s) (`proxy`, `auth` or `node`) as a certificate extension (opaque signed string). 
+the node and signs its certificate <!--where is it stored?-->. This node certificate contains the node's role(s) (`proxy`, `auth` or `node`) as a certificate extension (opaque signed string).
 
 ### Using Node Certificates
 
@@ -84,7 +84,7 @@ triggered by [`tctl auth rotate`](../cli-docs/#tctl-auth). When this command is 
 4. After the grace period is over, the certificates issued by the old CA are no
   longer accepted.
 
-This process is repeated twice, one for the node CA and once for the user CA. 
+This process is repeated twice, one for the node CA and once for the user CA.
 
 Take a look at the [Certificate Guide](../guides/certificate-rotation) to learn how to do certificate rotation in practice.
 
