@@ -22,7 +22,7 @@ There are two types of 2FA supported:
 * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor).
 
 ### External users
-
+ 
 External users are users stored elsewhere within an organization. Examples include
 Github, Active Directory (AD) or any identity store with an OpenID/OAuth2 or SAML endpoint.
 

@@ -45,8 +45,7 @@ The token can be [static (configured via config)](../configuration) or a dynamic
     When using dynamic tokens, their default time to live (TTL) is 15 minutes, but it can be
     reduced (not increased) via [`tctl nodes add --ttl`](../cli-doocs/#tctl-nodes) flag.
 
-2) When a new node joins the cluster, the auth server generates a new public/private keypair for
-the node and signs its certificate <!--where is it stored?-->. This node certificate contains the node's role(s) (`proxy`, `auth` or `node`) as a certificate extension (opaque signed string).
+2) When a new node joins the cluster, the auth server generates a new public/private keypair for the node and signs its certificate <!--where is it stored?-->. This node certificate contains the node's role(s) (`proxy`, `auth` or `node`) as a certificate extension (opaque signed string).
 
 ### Using Node Certificates
 
@@ -88,13 +87,9 @@ This process is repeated twice, one for the node CA and once for the user CA.
 
 Take a look at the [Certificate Guide](../guides/certificate-rotation) to learn how to do certificate rotation in practice.
 
-## Auth Server API
+## Auth API
 
-<!--TODO-->
-
-All nodes of the cluster send periodic ping messages to the auth server, reporting their
-IP addresses and values of their assigned labels. The list of connected cluster nodes is accessible
-to all members of the cluster via the API <!--TODO: Document this-->.
+ <!--TODO-->.
 
 Clients can also connect to the auth API through the Teleport proxy to use a limited subset of the API to discover the member nodes of the cluster.
 
@@ -102,7 +97,7 @@ Clients can also connect to the auth API through the Teleport proxy to use a lim
 
 <!--When the Auth Service starts for the first time, it generates a public/private keypair and stores it in the configurable key storage.-->
 
-The Auth service maintains state using a database of users, credentials, certificates, and audit logs. The default storage location is `/var/lib/teleport` or an [admin-configured storage destination](../guides/production#storage).
+The Auth service maintains state using a database of users, credentials, certificates, and audit logs. The default storage location is `/var/lib/teleport` or an [admin-configured storage destination](../configuration#storage).
 
 There are three types of data stored by the auth server:
 

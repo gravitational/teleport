@@ -18,7 +18,7 @@ Teleport was designed in accordance with the following principles:
 
 ## Architecture Walkthrough
 
-Here is a detailed diagram of a Teleport Cluster.
+Here is a detailed diagram of a Teleport Cluster. 
 
 The numbers correspond to the steps needed to connect a client to a node. These steps are explained in detail below the diagram.
 
@@ -47,7 +47,7 @@ If there was no key previously offered (first time login) or if the certificate 
 Teleport uses [Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=en), [Authy](https://www.authy.com/), or another [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_algorithm) generator. The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
 
 !!! warning "Warning":
-	Do not use a self-signed SSL/HTTPS certificates when creating production!
+	Do not use a self-signed SSL/HTTPS certificates when creating production! 
 
 If the credentials are correct, the auth server generates and signs a new certificate and returns
 it to a client via the proxy. The client stores this key and will use it for subsequent
@@ -63,8 +63,7 @@ At this step, the proxy tries to locate the requested node in a cluster. There a
 2. Asks the Auth Server if there is a Node registered with this `nodename`.
 3. Asks the Auth Server to find a node (or nodes) with a label that matches the requested name.
 
-If the node is located, the proxy establishes the connection between the client and the
-requested node. The destination node then begins recording the session, sending the session history to the auth server to be stored.
+If the node is located, the proxy establishes the connection between the client and the requested node. The destination node then begins recording the session, sending the session history to the auth server to be stored.
 
 !!! note "Note":
     Teleport may also be configured to have the session recording occur on the proxy, see [Session Recording](../guides/session-recording) for more information.
@@ -83,7 +82,7 @@ When the node receives a connection request, it checks with the Auth Server to v
 
 The node requests the Auth Server to provide a list of [OS users (user mappings)](../concepts/users) for the connecting client, to make sure the client is authorized to use the requested OS login.
 
-Finally the client is authorized to create an SSH connection to a node.
+Finally the client is authorized to create an SSH connection to a node. 
 
 <!--TODO: Expand if needed-->
 
