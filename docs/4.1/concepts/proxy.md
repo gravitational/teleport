@@ -1,68 +1,72 @@
+## Overview
+
+<!--TODO: Diagrams-->
+
+[TOC]
+
 ## The Proxy Service
 
-TODO: This doc is in-progress not at reviewable stage
-<!--TODO: Diagram-->
+The proxy is a stateless service which performs three main functions in a Teleport cluster:
 
-The proxy is a stateless service which performs two functions in a Teleport cluster:
+1. It serves as an authentication gateway. It asks for credentials from connecting clients and forwards them to the Auth server via [Auth API](./auth/#auth-api).
 
-1. It serves a Web UI which is used by cluster users to sign up and configure their accounts,
-   explore nodes in a cluster, log into remote nodes, join existing SSH sessions or replay
-   recorded sessions.
+2. It looks up the IP address for a requested Node and then proxies a connection from client to Node.
 
-2. It serves as an authentication gateway, asking for user credentials and forwarding them
-   to the auth server via Auth API. When a user executes [`tsh --proxy=p ssh saturn`](../cli-docs/#tsh-ssh) command, trying to log into the Node "saturn", the [`tsh`](../cli-docs/#tsh) tool will establish HTTPS connection to the proxy "p" and authenticate before it will be given access to "saturn".
+3. It serves a Web UI which is used by cluster users to sign up and configure their accounts, explore nodes in a cluster, log into remote nodes, join existing SSH sessions or replay recorded sessions.
 
-All user interactions with the Teleport cluster are done though a proxy service. It is
-recommended to have several of them running in [production](../guides/production).
-
-When you launch the Teleport Proxy for the first time, it will generate a self-signed HTTPS
-certificate to make it easier to explore Teleport.
-
-<!--TODO: Link to other parts of the docs-->
-
-!!! warning "Use HTTPS in Production":
-	It is absolutely crucial to properly configure TLS for HTTPS when you use Teleport Proxy in production.
+## Connecting to a Node
 
 ### Web to SSH Proxy
 
-In this mode, Teleport Proxy implements WSS - secure web sockets - to SSH proxy:
+In this mode, Teleport Proxy implements WSS - secure web sockets - to proxy a client SSH connection:
 
 ![Teleport Proxy Web](../img/proxy-web.svg)
 
-1. User logs in to Proxy Server using username, password and 2nd factor token.
+1. User logs in to Web UI using username, password and 2nd factor token.
 2. Proxy passes credentials to the Auth Server's API
-3. If Auth Server accepts credentials, it generates a new web session and generates a special
-   ssh keypair associated with this web session. Auth server starts serving [OpenSSH ssh-agent protocol](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.agent)
-   to the proxy.
-4. From the SSH node's perspective, it's a regular SSH client connection that is authenticated using an OpenSSH certificate, so no special logic is needed.
+3. If Auth Server accepts credentials, it generates a new web session and generates a special ssh keypair associated with this web session. Auth server starts serving [OpenSSH ssh-agent protocol](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.agent) to the proxy.
+4. The User obtains an SSH session in the Web UI and can interact with the node on a web-based terminal. From the Node's perspective, it's a regular SSH client connection that is authenticated using an OpenSSH certificate, so no special logic is needed.
 
-!!! note "NOTE":
+!!! note "SSL Encryption":
     When using the web UI, the Teleport Proxy terminates SSL traffic and re-encodes data for the SSH client connection.
 
-#### CLI to SSH Proxy
+### CLI to SSH Proxy
 
 <!--TODO: Diagram-->
 
-**Getting signed short-lived certificates**
+**Getting Client Certificates**
 
-Teleport Proxy implements a special method to let clients get short lived certificates signed by auth's host certificate authority:
+Teleport Proxy implements a special method to let clients get short-lived authentication certificates signed by the [Auth Service User Certificate Authority (CA)](./auth/#authentication-in-teleport).:
 
 ![Teleport Proxy SSH](../img/proxy-ssh-1.svg)
 
-1. [`tsh` client/agent](../cli-docs/#tsh) generates OpenSSH keypair and forward generated public key and username, password and second factor token that are entered by user to the proxy.
-2. Proxy forwards request to the auth server.
-3. If auth server accepts credentials, it generates a new certificate signed by its user CA and sends it back to the proxy.
-4. Proxy returns the user certificate to the client and client stores it in `~/.tsh/keys`
+1. A [`tsh` client](../cli-docs/#tsh) generates an OpenSSH keypair. It forwards the generated public key, username, password and second factor token to the proxy.
+2. The Proxy Server forwards request to the Auth Server.
+3. If Auth Server accepts credentials, it generates a new certificate signed by its user CA and sends it back to the Proxy Server. The certificate has a TTL which defaults to 24 hours, but can be configured in [`tctl`](./cli-docs/#tctl).
+4. The Proxy Server returns the user certificate to the client and client stores it in `~/.tsh/keys`.
 
-**Connecting to the nodes**
+**Using Client Certificates**
 
-Once the client has obtained a short lived certificate, it can use it to authenticate with any node in the cluster. Users can use the certificate using standard OpenSSH client (and get it using ssh-agent socket served by `tsh agent`) or using `tsh` directly:
+Once the client has obtained a certificate, it can use it to authenticate with any Node in the cluster. Users can use the certificate using a standard OpenSSH client `ssh` or using `tsh`:
 
 ![Teleport Proxy Web](../img/proxy-ssh-2.svg)
 
-1. SSH client connects to proxy and executes `proxy` subsystem of the proxy's SSH server, providing target node's host and port location.
-2. Proxy dials to the target TCP address and starts forwarding the traffic to the client.
-3. SSH client uses established SSH tunnel to open a new SSH connection and authenticate with the target node using its client certificate.
+1. A client connects to the Proxy Server and provides target node's host and port location. There are three lookup mechanisms a proxy uses to find the node's IP address:
+
+    * Use DNS to resolve the name requested by the client.
+    * Asks the Auth Server if there is a Node registered with this `nodename`.
+    * Asks the Auth Server to find a node (or nodes) with a label that matches the requested name.
+
+2. If the node is located, the Proxy establishes an SSH connection to the requested node and starts forwarding traffic from Node to client.
+3. The client uses the established SSH tunnel from Proxy to Node to open a new SSH connection. The client authenticates with the target Node using its client certificate.
 
 !!! tip "NOTE":
-    Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`s
+    Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`
+
+## More Concepts
+
+* [Basics](./basics)
+* [Users](./users)
+* [Auth](./auth)
+* [Nodes](./nodes)
+* [Architecture](./architecture)
