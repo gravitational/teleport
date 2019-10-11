@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 )
 
@@ -44,12 +46,18 @@ func (c *dockerConfigurator) Configure(config Config) error {
 		return c.runAsRoot(config)
 	}
 	// Ensure /etc/docker/certs.d/<proxy> directory exists.
-	certsDir := filepath.Join(DockerCerts, config.ProxyAddress)
+	certsDir, err := utils.SafeFilepathJoin(DockerCerts, config.ProxyAddress)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := os.MkdirAll(certsDir, 0755); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	// Symlink user's key/certificate to /etc/docker/certs.d/<proxy>.
-	symlinks := c.getSymlinks(config)
+	symlinks, err := c.getSymlinks(config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := ensureSymlinks(symlinks); err != nil {
 		return trace.Wrap(err)
 	}
@@ -59,18 +67,24 @@ func (c *dockerConfigurator) Configure(config Config) error {
 // IsConfigured returns true if the local Docker is already configured with
 // the specified client key/certificate.
 func (c *dockerConfigurator) IsConfigured(config Config) (bool, error) {
-	symlinks := c.getSymlinks(config)
+	symlinks, err := c.getSymlinks(config)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	return verifySymlinks(symlinks)
 }
 
 // getSymlinks returns a map of symlinks that need to be configured in order
 // to let local Docker access registry provided by the proxy.
-func (c *dockerConfigurator) getSymlinks(config Config) map[string]string {
-	certsDir := filepath.Join(DockerCerts, config.ProxyAddress)
+func (c *dockerConfigurator) getSymlinks(config Config) (map[string]string, error) {
+	certsDir, err := utils.SafeFilepathJoin(DockerCerts, config.ProxyAddress)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return map[string]string{
 		config.CertificatePath: filepath.Join(certsDir, DockerClientCertificate),
 		config.KeyPath:         filepath.Join(certsDir, DockerClientKey),
-	}
+	}, nil
 }
 
 // runAsRoot executes "tsh configure-docker" subcommand as a root.

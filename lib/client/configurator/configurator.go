@@ -14,6 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package configurator provides the teleport client with the means for
+// configuring access to additional services that may be supported by a
+// teleport cluster.
+//
+// For instance, in certain cases the cluster's proxy server may implement
+// Docker registry or Helm chart repository support, in which case docker
+// and helm clients will be configured with proper access credentials upon
+// successful tsh login.
 package configurator
 
 import (
