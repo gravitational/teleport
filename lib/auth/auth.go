@@ -29,7 +29,6 @@ import (
 	"crypto/subtle"
 	"crypto/x509"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"math/rand"
 	"net/url"
 	"sync"
@@ -53,6 +52,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/tstranex/u2f"
+	"golang.org/x/crypto/ssh"
 )
 
 // AuthServerOption allows setting options as functional arguments to AuthServer
@@ -645,6 +645,27 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identit
 		return nil, trace.Wrap(err)
 	}
 	sess, err = services.GetWebSessionMarshaler().ExtendWebSession(sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
+// CreateWebSession creates a new web session for user without any
+// checks, is used by admins
+func (s *AuthServer) CreateWebSession(user string) (services.WebSession, error) {
+	u, err := s.GetUser(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, err := s.NewWebSession(user, u.GetRoles(), u.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.UpsertWebSession(user, sess); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
