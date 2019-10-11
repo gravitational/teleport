@@ -28,7 +28,6 @@ import (
 	"crypto"
 	"crypto/subtle"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"math/rand"
 	"net/url"
 	"strings"
@@ -55,6 +54,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/tstranex/u2f"
+	"golang.org/x/crypto/ssh"
 )
 
 // AuthServerOption allows setting options as functional arguments to AuthServer
@@ -735,13 +735,12 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identit
 
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
-func (s *AuthServer) CreateWebSession(user string, identity *tlsca.Identity) (services.WebSession, error) {
-	fmt.Printf("--> CreateWebSession: %v.\n", identity.Username)
-	roles, traits, err := services.ExtractFromIdentity(s, identity)
+func (s *AuthServer) CreateWebSession(user string) (services.WebSession, error) {
+	u, err := s.GetUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := s.NewWebSession(user, roles, traits)
+	sess, err := s.NewWebSession(user, u.GetRoles(), u.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
