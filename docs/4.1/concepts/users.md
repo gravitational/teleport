@@ -1,6 +1,6 @@
 ## Overview
 
-TODO: This doc is in-progress not at reviewable stage
+TODO: This doc is incomplete
 
 [TOC]
 
@@ -39,6 +39,8 @@ There are two types of 2FA supported:
 
 ### External users
 
+TODO: Advanced topic
+
 External users are users stored elsewhere within an organization. Examples include Github, Active Directory (AD) or any identity store with an OpenID/OAuth2 or SAML endpoint.
 
 !!! tip "Version Warning":
@@ -48,15 +50,15 @@ External users are users stored elsewhere within an organization. Examples inclu
 
 It is possible to have multiple identity sources configured for a Teleport cluster. In this case, an identity source (called a "connector") will have to be passed to `tsh --auth=connector_name login`.
 
-TODO:
+TODO: Advanced Configuration
 
 The local users connector can be specified via `tsh --auth=local login`.
 
 ## User Roles
 
 Unlike traditional SSH, each Teleport user account is assigned a `role`.
-Having roles allows Teleport to implement role-based access control (RBAC), i.e. assign
-   users to groups (roles) and restrict each role to a subset of actions on a subset of
-   nodes in a cluster.
+Having roles allows Teleport to implement role-based access control (RBAC), i.e. assign users to groups (roles) and restrict each role to a subset of actions on a subset of nodes in a cluster.
+
+TODO: Advanced Topic
 
 
