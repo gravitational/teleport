@@ -6,9 +6,9 @@ TODO: Need some new custom diagrams for this page.
 
 ## The Node Service
 
-A node becomes a Teleport Node when the node joins a cluster with an "join" token. Read about how Auth issues certificates to a Node in the [Auth Guide](./auth/#issuing-node-certificates).
+A regularnode becomes a Teleport Node when the node joins a cluster with an "join" token. Read about how nodes are issued certificates in the [Auth Guide](./auth/#issuing-node-certificates).
 
-A Teleport Node runs the `teleport` daemon with the `node` role. This process handles incoming connection requests, authentication, and remote command execution on the node, similar to the function of OpenSSH's `sshd`.
+A Teleport Node runs the [`teleport`](../cli-docs/#teleport) daemon with the `node` role. This process handles incoming connection requests, authentication, and remote command execution on the node, similar to the function of OpenSSH's `sshd`.
 
 All cluster Nodes keep the Auth Server updated with their status with  periodic ping messages. They report their IP addresses and values of their assigned labels. Nodes can access the list of all Nodes in their cluster via the [Auth Server API](./auth/#auth-api).
 
@@ -19,13 +19,13 @@ The `node` service provides SSH access to every node with all of the following c
 
 * [OpenSSH: `ssh`](../guides/openssh)
 * [Teleport CLI client: `tsh ssh`](../cli-docs/#tsh-ssh)
-* A web browser & [Teleport Proxy UI](./proxy/#web-to-ssh-proxy)
+* [Teleport Proxy UI](./proxy/#web-to-ssh-proxy) accessed via a web browser.
 
 Each client is authenticated via the [Auth Service](./auth/#authentication-in-teleport) before being granted access to a Node.
 
 ## Node Identity on a Cluster
 
-Node Identity is defined on the Cluster level by the certificate they possess.
+Node Identity is defined on the Cluster level by the certificate a node possesses.
 
 This certificate contains information about the node including:
 
@@ -48,11 +48,21 @@ There is a detailed walkthrough of the steps needed to initiate a connection to 
 
 <!--Network connection diagram-->
 
-[Session state](./auth/#auth-state) is stored on the Auth Server rather than on the Node. Each node is completely stateless and holds no secrets such as keys, or passwords.
+[Session state](./auth/#auth-state) is stored on the Auth Server rather than on the Node. Each node is completely stateless and holds no secrets such as keys or passwords.
 
 ## Cluster State
 
-Cluster state is stored in a central storage location configured by the Auth Server; Nodes are completely stateless. Read about what is stored and where it can be stored in the [Auth Guide](./auth/#auth-guide)
+Cluster state is stored in a central storage location configured by the Auth Server. This means that the Node Service is completely stateless.
+
+The cluster state information stored includes:
+
+* Node membership information and online/offline status for each node.
+* List of active sessions.
+* List of locally stored users
+* RBAC configuration (roles and permissions).
+* Dynamic configuration.
+
+Read more about what is stored in the [Auth Guide](./auth/#auth-state)
 
 ## Trusted Clusters
 
@@ -63,7 +73,7 @@ Teleport Auth Service can allow 3rd party users or nodes to connect to cluster n
 ## More Concepts
 
 * [Basics](./basics)
-* [Users](./users)
-* [Auth](./auth)
-* [Proxy](./proxy)
+* [Teleport Users](./users)
+* [Teleport Auth](./auth)
+* [Teleport Proxy](./proxy)
 * [Architecture](./architecture)
