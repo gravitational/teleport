@@ -1,6 +1,6 @@
 # Installation
 
-This page will show you how to install Teleport. Teleport is available for **Linux, Mac**, and **Windows** operating systems. Our examples install teleport v4.1.0 but you can install any version listed in our [Release History](https://gravitational.com/teleport/releases/).
+This page will show you how to install Teleport. Teleport has been designed to run on **Linux** and **Mac** operating systems. The Teleport client `tsh` and Web UI are available for **Linux, Mac** and **Windows** operating systems. Our examples install teleport v4.1.0 but you can install any version listed in our [Release History](https://gravitational.com/teleport/releases/).
 
 [TOC]
 
