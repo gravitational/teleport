@@ -49,13 +49,13 @@ type openEvent struct {
 }
 
 type open struct {
-	closeContext context.Context
+	service *bpf.Service
 
 	perfMap *bcc.PerfMap
 	module  *bcc.Module
 }
 
-func newOpen(closeContext context.Context) *open {
+func newOpen(service *bpf.Service) *open {
 	return &open{
 		closeContext: closeContext,
 	}

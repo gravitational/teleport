@@ -150,6 +150,21 @@ var (
 		Name: AuthAttemptEvent,
 		Code: AuthAttemptFailureCode,
 	}
+	// SessionExec ...
+	SessionExec = Event{
+		Name: SessionExecEvent,
+		Code: SessionExecCode,
+	}
+	// SessionOpen ...
+	SessionOpen = Event{
+		Name: SessionOpenEvent,
+		Code: SessionOpenCode,
+	}
+	// SessionConnect ...
+	SessionConnect = Event{
+		Name: SessionConnectEvent,
+		Code: SessionConnectCode,
+	}
 )
 
 var (
@@ -203,4 +218,10 @@ var (
 	ClientDisconnectCode = "T3006I"
 	// AuthAttemptFailureCode is the auth attempt failure event code.
 	AuthAttemptFailureCode = "T3007W"
+	// SessionExecCode is a session exec code.
+	SessionExecCode = "T4000I"
+	// SessionOpenCode is a session open code.
+	SessionOpenCode = "T4001I"
+	// SessionConnectCode is a session connect code.
+	SessionConnectCode = "T4002I"
 )

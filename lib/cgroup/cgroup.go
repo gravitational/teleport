@@ -55,11 +55,18 @@ func (s *Service) Close() error {
 }
 
 func (s *Service) Create(sessionID string) error {
-	err := os.Mkdir("/cgroup2/teleport-session-"+sessionID, 0555)
+	path := "/cgroup2/teleport-session-" + sessionID
+
+	err := os.Mkdir(path, 0555)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+// TODO(russjones): Implement.
+func (s *Service) Remove(sessionID string) error {
 	return nil
 }
 

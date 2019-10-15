@@ -184,6 +184,38 @@ const (
 	// to indicate one of the last session events, used to report
 	// data transfer
 	SessionDataIndex = math.MaxInt32 - 1
+
+	// SessionExecEvent is emitted when an executable is run within a session.
+	SessionExecEvent = "session.exec"
+
+	// SessionOpenEvent is emitted when a file is opened within an session.
+	SessionOpenEvent = "session.open"
+
+	// SessionConnectEvent is emitted when a TCP connection is initated with a
+	// session.
+	SessionConnectEvent = "session.connect"
+
+	// PID is the ID of the process.
+	PID = "pid"
+
+	// PPID is the PID of the parent process.
+	PPID = "ppid"
+
+	// CgroupID is the internal cgroupv2 ID of the event.
+	CgroupID = "cgroup_id"
+
+	// Program is name of the executable.
+	Program = "program"
+
+	// Path is the full path to the executable.
+	Path = "path"
+
+	// Argv is the list of arguments to the program. Note, the first element does
+	// not contain the name of the process.
+	Argv = "argv"
+
+	// ReturnCode is the return code of execve.
+	ReturnCode = "return_code"
 )
 
 const (

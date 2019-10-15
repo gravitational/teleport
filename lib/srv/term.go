@@ -71,6 +71,9 @@ type Terminal interface {
 	// TTY returns the TTY backing the terminal.
 	TTY() *os.File
 
+	// PID returns the PID of the Teleport process that was re-execed.
+	PID() int
+
 	// Close will free resources associated with the terminal.
 	Close() error
 
@@ -123,6 +126,8 @@ type terminal struct {
 
 	pty *os.File
 	tty *os.File
+
+	pid int
 
 	termType string
 	params   rsession.TerminalParams
@@ -229,6 +234,9 @@ func (t *terminal) Run() error {
 		return trace.Wrap(err)
 	}
 
+	// Save off the PID of the Teleport process under which the shell is executing.
+	t.pid = t.cmd.Process.Pid
+
 	return nil
 }
 
@@ -275,6 +283,11 @@ func (t *terminal) PTY() io.ReadWriter {
 // TTY returns the TTY backing the terminal.
 func (t *terminal) TTY() *os.File {
 	return t.tty
+}
+
+// PID returns the PID of the Teleport process that was re-execed.
+func (t *terminal) PID() int {
+	return t.pid
 }
 
 // Close will free resources associated with the terminal.
@@ -557,6 +570,12 @@ func (t *remoteTerminal) PTY() io.ReadWriter {
 
 func (t *remoteTerminal) TTY() *os.File {
 	return nil
+}
+
+// PID returns the PID of the Teleport process that was re-execed. Always
+// returns 0 for remote terminals.
+func (t *remoteTerminal) PID() int {
+	return 0
 }
 
 func (t *remoteTerminal) Close() error {

@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/gravitational/teleport/lib/bpf"
+
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
@@ -36,12 +38,50 @@ const (
 	eventRet = 1
 )
 
-type execveEvent struct {
-	PID        uint64
-	PPID       uint64
-	Command    [16]byte
-	Type       int32
-	Argv       [128]byte
+// rawExecEvent is sent by the eBPF program that Teleport pulls off the perf
+// buffer.
+type rawExecEvent struct {
+	// PID is the ID of the process.
+	PID uint64
+
+	// PPID is the PID of the parent process.
+	PPID uint64
+
+	// Command is the executable.
+	Command [16]byte
+
+	// Type is the type of event.
+	Type int32
+
+	// Argv is the list of arguments to the program.
+	Argv [128]byte
+
+	// ReturnCode is the return code of execve.
+	ReturnCode int32
+
+	// CgroupID is the internal cgroupv2 ID of the event.
+	CgroupID uint32
+}
+
+// execEvent is the parsed execve event.
+type execEvent struct {
+	// PID is the ID of the process.
+	PID uint64
+
+	// PPID is the PID of the parent process.
+	PPID uint64
+
+	// Program is name of the executable.
+	Program string
+
+	// Path is the full path to the executable.
+	Path string
+
+	// Argv is the list of arguments to the program. Note, the first element does
+	// not contain the name of the process.
+	Argv []string
+
+	// ReturnCode is the return code of execve.
 	ReturnCode int32
 
 	// CgroupID is the internal cgroupv2 ID of the event.
@@ -51,6 +91,8 @@ type execveEvent struct {
 type exec struct {
 	closeContext context.Context
 
+	events chan *execEvent
+
 	perfMap *bcc.PerfMap
 	module  *bcc.Module
 }
@@ -58,6 +100,7 @@ type exec struct {
 func newExec(closeContext context.Context) *exec {
 	return &exec{
 		closeContext: closeContext,
+		events:       make(chan *execEvent, 1024),
 	}
 }
 
@@ -109,7 +152,7 @@ func (e *exec) start(eventCh <-chan []byte) {
 	for {
 		select {
 		case eventBytes := <-eventCh:
-			var event execveEvent
+			var event rawExecEvent
 
 			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
 			if err != nil {
@@ -135,10 +178,24 @@ func (e *exec) start(eventCh <-chan []byte) {
 				}
 
 				// Convert C string that holds the command name into a Go string.
-				command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
+				path := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
 
-				fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Command=%v, Args=%v, ReturnCode=%v.\n",
-					event.CgroupID, event.PID, event.PPID, command, argv, event.ReturnCode)
+				select {
+				case e.events <- &execEvent{
+					PID:        event.PPID,
+					PPID:       event.PID,
+					CgroupID:   event.CgroupID,
+					Program:    filepath.Base(path),
+					Path:       path,
+					Argv:       argv,
+					ReturnCode: event.ReturnCode,
+				}:
+				case <-time.After(100 * time.Millisecond):
+					log.Debugf("Dropping event, timeout, buffer probably full.")
+				}
+
+				//fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Command=%v, Args=%v, ReturnCode=%v.\n",
+				//	event.CgroupID, event.PID, event.PPID, command, argv, event.ReturnCode)
 			}
 		}
 	}
@@ -148,6 +205,10 @@ func (e *exec) start(eventCh <-chan []byte) {
 func (e *exec) Close() {
 	e.perfMap.Stop()
 	e.module.Close()
+}
+
+func (e *exec) events() <-chan *execEvent {
+	return e.events
 }
 
 const execveSource string = `

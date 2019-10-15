@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
@@ -495,13 +496,20 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 	return sess, nil
 }
 
-// isLingering returns true if every party has left this session. Occurs
-// under a lock.
-func (s *session) isLingering() bool {
-	s.Lock()
-	defer s.Unlock()
+// ID returns a string representation of the session ID.
+func (s *session) ID() string {
+	return s.id.String()
+}
 
-	return len(s.parties) == 0
+// PID returns the PID of the Teleport process under which the shell is running.
+func (s *session) PID() int {
+	return s.term.PID()
+}
+
+// Recorder returns a events.SessionRecorder which can be used to emit events
+// to a session as well as the audit log.
+func (s *session) Recorder() events.SessionRecorder {
+	return s.recorder
 }
 
 // Close ends the active session forcing all clients to disconnect and freeing all resources
@@ -533,9 +541,13 @@ func (s *session) Close() error {
 	return nil
 }
 
-func isDiscardAuditLog(alog events.IAuditLog) bool {
-	_, ok := alog.(*events.DiscardAuditLog)
-	return ok
+// isLingering returns true if every party has left this session. Occurs
+// under a lock.
+func (s *session) isLingering() bool {
+	s.Lock()
+	defer s.Unlock()
+
+	return len(s.parties) == 0
 }
 
 // start starts a new interactive process (or a shell) in the current session
@@ -545,7 +557,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// create a new "party" (connected client)
 	p := newParty(s, ch, ctx)
 
-	// get the audit log from the server and create a session recorder. this will
+	// Get the audit log from the server and create a session recorder. this will
 	// be a discard audit log if the proxy is in recording mode and a teleport
 	// node so we don't create double recordings.
 	auditLog := s.registry.srv.GetAuditLog()
@@ -587,6 +599,15 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 				return trace.Wrap(err)
 			}
 			ctx.Debugf("Opening PAM context for session %v.", s.id)
+		}
+	}
+
+	// TODO(russjones): Check if enhanced auditing is enabled.
+	if ctx.srv.Component() == teleport.ComponentNode {
+		err := bpf.OpenSession(s.id)
+		if err != nil {
+			ctx.Errorf("Failed to open enhanced auditing session: %v: %v.", s.id, err)
+			return trace.Wrap(err)
 		}
 	}
 
@@ -684,6 +705,15 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 				}
 				ctx.Debugf("Closing PAM context for session: %v.", s.id)
 			}
+		}
+
+		// TODO(russjones): Check if enhanced auditing is enabled.
+		if ctx.srv.Component() == teleport.ComponentNode {
+			err := bpf.CloseSession(s.id)
+			if err != nil {
+				ctx.Errorf("Failed to close enhanced auditing session: %v: %v.", s.id, err)
+			}
+
 		}
 
 		if result != nil {
@@ -1026,4 +1056,9 @@ func (p *party) Close() (err error) {
 		close(p.termSizeC)
 	})
 	return err
+}
+
+func isDiscardAuditLog(alog events.IAuditLog) bool {
+	_, ok := alog.(*events.DiscardAuditLog)
+	return ok
 }

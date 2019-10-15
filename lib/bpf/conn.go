@@ -54,14 +54,13 @@ type conn6Event struct {
 }
 
 type conn struct {
-	closeContext context.Context
+	service *bpf.Service
 
-	module *bcc.Module
-
+	module   *bcc.Module
 	perfMaps []*bcc.PerfMap
 }
 
-func newConn(closeContext context.Context) *conn {
+func newConn(service *bpf.Service) *conn {
 	return &conn{
 		closeContext: closeContext,
 	}
