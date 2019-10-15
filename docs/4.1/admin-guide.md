@@ -1913,6 +1913,8 @@ When adding new local users you have to specify which Kubernetes groups they bel
 ```bsh
 $ tctl users add joe --k8s-groups="system:masters"
 ```
+!!! tip "NOTE":
+    In order to execute the above command, a Teleport role in RBAC needs to be created as `k8s-group`.
 
 If using Teleport Community SSO with Github, Kubernetes groups can be assigned to Github teams with a
 Teleport connector. See example above in [Github OAuth 2.0 Example](#github-oauth-20) for more
