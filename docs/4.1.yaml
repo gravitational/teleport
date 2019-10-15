@@ -20,25 +20,16 @@ markdown_extensions:
       marker: '[TOC]'
 extra_css: []
 extra_javascript: []
-extra:    
+extra:
     version: 4.1
 pages:
-    - Guides:
-        - Quickstart : quickstart-revised.md
-        - Installation : installation.md
-        - Production: production-guide.md
+    - Documentation:
+        - Introduction: intro.md
+        - Quick Start Guide: quickstart.md
         - Architecture: architecture.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
         - FAQ: faq.md
-    - Documentation:
-        - CLI Docs : cli-docs.md
-        - YAML Configuration : configuration.md
-    - Concepts:
-        - Basics: concept-basics.md
-        - Cluster: concept-cluster.md
-        - Users: concept-user.md
-        - Nodes: concept-nodes.md
     - Teleport Enterprise:
         - Introduction: enterprise.md
         - Quick Start Guide: quickstart-enterprise.md
