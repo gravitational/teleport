@@ -43,18 +43,5 @@ pages:
         - OneLogin: ssh_one_login.md
         - G Suite: ssh_gsuite.md
         - OIDC: oidc.md
+        - Trusted Clusters: trustedclusters.md
         - Kubernetes Guide: kubernetes_ssh.md
-    - FAQ: faq.md
-    - Architecture: architecture.md
-    - CLI Docs : cli-docs.md
-    - YAML Configuration : configuration.md
-    - Concepts:
-        - Teleport Basic Concepts: concepts/basics.md
-        - Cluster: concepts/cluster.md
-        - Users: concepts/user.md
-        - Nodes: concepts/nodes.md
-    - Enterprise Guides:
-        - Introduction: enterprise.md
-        - Quick Start Guide: quickstart-enterprise.md
-        - RBAC: ssh_rbac.md
-        - Single sign-on (SSO): ssh_sso.md
