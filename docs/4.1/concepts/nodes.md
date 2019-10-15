@@ -17,7 +17,7 @@ All cluster Nodes keep the Auth Server updated with their status with  periodic 
 
 The `node` service provides SSH access to every node with all of the following clients:
 
-* [OpenSSH: `ssh`](../guides/openssh)
+* [OpenSSH: `ssh`](../admin-guide/#using-teleport-with-openssh)
 * [Teleport CLI client: `tsh ssh`](../cli-docs/#tsh-ssh)
 * [Teleport Proxy UI](./proxy/#web-to-ssh-proxy) accessed via a web browser.
 
@@ -30,8 +30,8 @@ Node Identity is defined on the Cluster level by the certificate a node possesse
 This certificate contains information about the node including:
 
 * The **host ID**, a generated UUID unique to a node
-* A **nodename**, which defaults to `hostname` of the node, but can be [configured](../configuration)
-* The **cluster_name**, which defaults to the `hostname` of the auth server, but can be [configured](../configuration)
+* A **nodename**, which defaults to `hostname` of the node, but can be configured.
+* The **cluster_name**, which defaults to the `hostname` of the auth server, but can be configured
 * The node **role** (i.e. `node,proxy`) encoded as a certificate extension
 * The cert **TTL** (time-to-live)
 
@@ -44,7 +44,7 @@ A Teleport Cluster is a set of one or more machines whose public keys are signed
 
 When a client requests access to a Node, authentication is always performed through a cluster proxy. When the proxy server receives a connection request from a client it validates the client's credentials with the Auth Service. Once the client is authenticated the proxy attempts to connect the client to the requested Node.
 
-There is a detailed walkthrough of the steps needed to initiate a connection to a node in the [Architecture Guide](./architecture).
+There is a detailed walk-through of the steps needed to initiate a connection to a node in the [Architecture Guide](./architecture).
 
 <!--Network connection diagram-->
 

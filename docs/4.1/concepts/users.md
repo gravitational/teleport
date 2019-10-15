@@ -48,17 +48,17 @@ External users are users stored elsewhere within an organization. Examples inclu
 
 #### Multiple Identity Sources
 
-It is possible to have multiple identity sources configured for a Teleport cluster. In this case, an identity source (called a "connector") will have to be passed to `tsh --auth=connector_name login`.
+It is possible to have multiple identity sources configured for a Teleport cluster. In this case, an identity source (called a "connector") will have to be passed to [`tsh --auth=connector_name login`](../cli-docs/#tsh-login).
 
-TODO: Advanced Configuration
+<!--TODO: Advanced Configuration-->
 
-The local users connector can be specified via `tsh --auth=local login`.
+The local users connector can be specified via [`tsh --auth=local login`](../cli-docs/#tsh-login).
 
 ## User Roles
 
 Unlike traditional SSH, each Teleport user account is assigned a `role`.
 Having roles allows Teleport to implement role-based access control (RBAC), i.e. assign users to groups (roles) and restrict each role to a subset of actions on a subset of nodes in a cluster.
 
-TODO: Advanced Topic
+<!--TODO: Advanced Topic-->
 
 

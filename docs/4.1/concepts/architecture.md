@@ -1,6 +1,6 @@
 ## Architecture Introduction
 
-This is a conceptual guide for those looking for a deeper understanding of Teleport. If you are looking for hands-on instructions on how to set up Teleport for your team, check out the [Production Guide](../guides/production)
+This is a conceptual guide for those looking for a deeper understanding of Teleport. If you are looking for hands-on instructions on how to set up Teleport for your team, check out the [Admin Guide](../admin-guide)
 
 [TOC]
 
@@ -10,7 +10,7 @@ Teleport was designed in accordance with the following principles:
 
 * **Off the Shelf Security**: Teleport does not re-implement any security primitives and uses well-established, popular implementations of the encryption and network protocols.
 
-* **Open Standards**: There is no security through obscurity. Teleport is fully compatible with existing and open standards and other software, including [OpenSSH](../guides/openssh).
+* **Open Standards**: There is no security through obscurity. Teleport is fully compatible with existing and open standards and other software, including [OpenSSH](../admin-guide/#using-teleport-with-openssh).
 
 * **Cluster-Oriented Design**: Teleport is built for managing clusters, not individual servers. In practice this means that hosts and [Users](./users) have cluster memberships. Identity management and authorization happen on a cluster level.
 
@@ -18,7 +18,7 @@ Teleport was designed in accordance with the following principles:
 
 ## Architecture Walkthrough
 
-Here is a detailed diagram of a Teleport Cluster. 
+Here is a detailed diagram of a Teleport Cluster.
 
 The numbers correspond to the steps needed to connect a client to a node. These steps are explained in detail below the diagram.
 
@@ -47,11 +47,9 @@ If there was no key previously offered (first time login) or if the certificate 
 Teleport uses [Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=en), [Authy](https://www.authy.com/), or another [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_algorithm) generator. The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
 
 !!! warning "Warning":
-	Do not use a self-signed SSL/HTTPS certificates when creating production! 
+	Do not use a self-signed SSL/HTTPS certificates when creating production!
 
-If the credentials are correct, the auth server generates and signs a new certificate and returns
-it to a client via the proxy. The client stores this key and will use it for subsequent
-logins. The key will automatically expire after 12 hours by default. This TTL can be [configured](../configuration#certificates) to another value by the cluster administrator.
+If the credentials are correct, the auth server generates and signs a new certificate and returns it to a client via the proxy. The client stores this key and will use it for subsequent logins. The key will automatically expire after 12 hours by default. This TTL can be [configured](../cli-docs/#tctl-users-add) to another value by the cluster administrator.
 
 ### 3: Authenticate Client Certificate
 
@@ -66,7 +64,7 @@ At this step, the proxy tries to locate the requested node in a cluster. There a
 If the node is located, the proxy establishes the connection between the client and the requested node. The destination node then begins recording the session, sending the session history to the auth server to be stored.
 
 !!! note "Note":
-    Teleport may also be configured to have the session recording occur on the proxy, see [Session Recording](../guides/session-recording) for more information.
+    Teleport may also be configured to have the session recording occur on the proxy, see [Audit Log](../architecture/#audit-log) for more information.
 
 ### 4: Authenticate Node Certificate
 
@@ -80,9 +78,9 @@ When the node receives a connection request, it checks with the Auth Server to v
 
 <!--TODO Diagram-->
 
-The node requests the Auth Server to provide a list of [OS users (user mappings)](../concepts/users) for the connecting client, to make sure the client is authorized to use the requested OS login.
+The node requests the Auth Server to provide a list of [OS users (user mappings)](./users) for the connecting client, to make sure the client is authorized to use the requested OS login.
 
-Finally the client is authorized to create an SSH connection to a node. 
+Finally the client is authorized to create an SSH connection to a node.
 
 <!--TODO: Expand if needed-->
 
@@ -91,5 +89,5 @@ Finally the client is authorized to create an SSH connection to a node.
 * [Basics](./basics)
 * [Users](./users)
 * [Nodes](./nodes)
-* [Authentication](./authentication)
+* [Authentication](./auth)
 * [Proxy](./proxy)
