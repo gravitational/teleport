@@ -71,11 +71,10 @@
             <g id="Group-6-Copy">
                 <g id="Group-5">
                     <rect id="Rectangle-16" stroke="#D1EAFF" stroke-width="3" fill="#EEF4F9" x="1.5" y="1.5" width="108.92381" height="41.5804196"></rect>
-                    <text id="joe-wants-to-access" font-family="LucidaGrande-Bold, Lucida Grande" font-size="13" font-weight="bold" fill="#4A4A4A">
-                        <tspan x="18.4394269" y="18.7509579">joe</tspan>
-                        <tspan x="38.6884503" y="18.7509579" font-family="LucidaGrande, Lucida Grande" font-weight="normal"> wants to </tspan>
-                        <tspan x="7.27707335" y="34.7509579" font-family="LucidaGrande, Lucida Grande" font-weight="normal">access </tspan>
-                        <tspan x="52.3835187" y="34.7509579">grav-00</tspan>
+                    <text id="joe-wants-to-access" font-family="LucidaGrande, Lucida Grande" font-size="13" font-weight="normal" fill="#4A4A4A">
+                        <tspan x="18.97263" y="18.7509579">joe wants to </tspan>
+                        <tspan x="7.27707335" y="34.7509579">access </tspan>
+                        <tspan x="52.3835187" y="34.7509579" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">grav-00</tspan>
                     </text>
                 </g>
             </g>
@@ -108,12 +107,11 @@
         <g id="Group-6" transform="translate(603.000000, 247.000000)">
             <g id="Group-5">
                 <rect id="Rectangle-16" stroke="#D1EAFF" stroke-width="3" fill="#EEF4F9" x="1.5" y="1.5" width="111" height="58"></rect>
-                <text id="joe-can-access-grav-" font-family="LucidaGrande-Bold, Lucida Grande" font-size="13" font-weight="bold" fill="#4A4A4A">
-                    <tspan x="13.0533082" y="19.3899532">joe</tspan>
-                    <tspan x="33.3023316" y="19.3899532" font-family="LucidaGrande, Lucida Grande" font-weight="normal"> can access </tspan>
-                    <tspan x="22.0479371" y="35.3899532">grav-00 </tspan>
-                    <tspan x="81.6270386" y="35.3899532" font-family="LucidaGrande, Lucida Grande" font-weight="normal">as </tspan>
-                    <tspan x="14.9734742" y="51.3899532" font-family="LucidaGrande, Lucida Grande" font-weight="normal">“root” or “joe”</tspan>
+                <text id="joe-can-access-grav-" font-family="LucidaGrande, Lucida Grande" font-size="13" font-weight="normal" fill="#4A4A4A">
+                    <tspan x="13.5865113" y="19.3899532">joe can access </tspan>
+                    <tspan x="22.0479371" y="35.3899532" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">grav-00 </tspan>
+                    <tspan x="81.6270386" y="35.3899532">as </tspan>
+                    <tspan x="14.9734742" y="51.3899532">“root” or “joe”</tspan>
                 </text>
             </g>
         </g>
@@ -127,13 +125,15 @@
         </text>
         <polygon id="Triangle-2-Copy-8" stroke="#D1EAFF" fill="#D1EAFF" transform="translate(221.500000, 161.500000) scale(1, -1) rotate(-360.000000) translate(-221.500000, -161.500000) " points="221.5 168 215 155 228 155"></polygon>
         <g id="Group-5-Copy" transform="translate(174.000000, 169.000000)" fill="#EEF4F9" stroke="#D1EAFF" stroke-width="3">
-            <rect id="Rectangle-16" x="1.5" y="1.5" width="143" height="58"></rect>
+            <rect id="Rectangle-16" x="1.5" y="1.5" width="143" height="73"></rect>
         </g>
         <text id="Client-uses-existing" font-family="LucidaGrande, Lucida Grande" font-size="13" font-weight="normal" fill="#4A4A4A">
             <tspan x="185.065918" y="187">Client uses existing </tspan>
             <tspan x="204.651611" y="203">SSH tunnel to </tspan>
             <tspan x="184.043945" y="219">connect to </tspan>
             <tspan x="254.661621" y="219" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">grav-00</tspan>
+            <tspan x="309.956055" y="219"> </tspan>
+            <tspan x="205.841797" y="235">via the proxy</tspan>
         </text>
         <text id="grav-00-10.X.X.1-arc" font-family="LucidaGrande-Bold, Lucida Grande" font-size="11" font-weight="bold" fill="#4A4A4A">
             <tspan x="726.389648" y="94">grav-00 10.X.X.1 arch=debian</tspan>
@@ -146,13 +146,13 @@
             </text>
         </g>
         <path id="Line-10" d="M704.922296,150.232295 L699.730319,158.851655 L697.588,155.473 L599.946,217.371 L602.088379,220.749671 L592.077704,221.767705 L597.269681,213.148345 L599.411,216.526 L697.053,154.628 L694.911621,151.250329 L704.922296,150.232295 Z" fill="#979797" fill-rule="nonzero"></path>
-        <g id="Group-2" transform="translate(280.000000, 240.000000)">
+        <g id="Group-2" transform="translate(366.000000, 240.000000)">
             <g id="Group">
-                <rect id="Rectangle" stroke="#979797" x="0.5" y="0.5" width="213" height="49"></rect>
-                <text id="Teleport-User-|-logi" font-family="LucidaGrande, Lucida Grande" font-size="11" font-weight="normal" fill="#4A4A4A">
-                    <tspan x="7" y="17">Teleport User           | login </tspan>
-                    <tspan x="7" y="30" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">joe				  root, joe</tspan>
-                    <tspan x="7" y="43" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">tara				  tara</tspan>
+                <rect id="Rectangle" stroke="#979797" x="0.5" y="0.5" width="127" height="49"></rect>
+                <text id="Teleport-User-:-logi" font-family="LucidaGrande, Lucida Grande" font-size="11" font-weight="normal" fill="#4A4A4A">
+                    <tspan x="9" y="17">Teleport User : login </tspan>
+                    <tspan x="9" y="30" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">joe : root, joe</tspan>
+                    <tspan x="9" y="43" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">tara :tara</tspan>
                 </text>
             </g>
         </g>
