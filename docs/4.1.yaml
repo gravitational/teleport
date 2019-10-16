@@ -38,7 +38,7 @@ pages:
         - OIDC: oidc.md
         - Trusted Clusters: trustedclusters.md
         - Kubernetes Guide: kubernetes_ssh.md
-    - Concepts:
+    - Architecture:
         - Architecture Overview: concepts/architecture.md
         - Teleport Users: concepts/users.md
         - Teleport Nodes: concepts/nodes.md
