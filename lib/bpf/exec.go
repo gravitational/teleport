@@ -22,20 +22,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"fmt"
 	"unsafe"
-
-	"github.com/gravitational/teleport/lib/bpf"
 
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
-	"github.com/sirupsen/logrus"
-)
-
-const (
-	eventArg = 0
-	eventRet = 1
 )
 
 // rawExecEvent is sent by the eBPF program that Teleport pulls off the perf
@@ -48,19 +39,19 @@ type rawExecEvent struct {
 	PPID uint64
 
 	// Command is the executable.
-	Command [16]byte
+	Command [commMax]byte
 
 	// Type is the type of event.
 	Type int32
 
 	// Argv is the list of arguments to the program.
-	Argv [128]byte
+	Argv [argvMax]byte
 
 	// ReturnCode is the return code of execve.
 	ReturnCode int32
 
 	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint32
+	CgroupID uint64
 }
 
 // execEvent is the parsed execve event.
@@ -85,67 +76,58 @@ type execEvent struct {
 	ReturnCode int32
 
 	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint32
+	CgroupID uint64
 }
 
 type exec struct {
+	debug        bool
 	closeContext context.Context
 
 	events chan *execEvent
 
-	perfMap *bcc.PerfMap
-	module  *bcc.Module
+	perfMaps []*bcc.PerfMap
+	module   *bcc.Module
 }
 
-func newExec(closeContext context.Context) *exec {
-	return &exec{
+func newExec(closeContext context.Context, debug bool) (*exec, error) {
+	e := &exec{
+		debug:        debug,
 		closeContext: closeContext,
 		events:       make(chan *execEvent, 1024),
 	}
+
+	err := e.start()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return e, nil
 }
 
-func (e *exec) Start() error {
+func (e *exec) start() error {
 	e.module = bcc.NewModule(execveSource, []string{})
 
-	fnName := bcc.GetSyscallFnName("execve")
-
-	kprobe, err := e.module.LoadKprobe("syscall__execve")
+	// Hook execve syscall.
+	err := attachProbe(e.module, bcc.GetSyscallFnName("execve"), "syscall__execve")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = attachRetProbe(e.module, bcc.GetSyscallFnName("execve"), "do_ret_sys_execve")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// passing -1 for maxActive signifies to use the default
-	// according to the kernel kprobes documentation
-	if err := e.module.AttachKprobe(fnName, kprobe, -1); err != nil {
-		return trace.Wrap(err)
-	}
-
-	kretprobe, err := e.module.LoadKprobe("do_ret_sys_execve")
+	// Open perf buffer and start processing execve events.
+	eventCh, err := openPerfBuffer(e.module, e.perfMaps, "execve_events")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// passing -1 for maxActive signifies to use the default
-	// according to the kernel kretprobes documentation
-	if err := e.module.AttachKretprobe(fnName, kretprobe, -1); err != nil {
-		return trace.Wrap(err)
-	}
-
-	eventCh := make(chan []byte, 1024)
-	table := bcc.NewTable(e.module.TableId("events"), e.module)
-
-	perfMap, err := bcc.InitPerfMap(table, eventCh)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	perfMap.Start()
-
-	go e.start(eventCh)
+	go e.handleEvents(eventCh)
 
 	return nil
 }
 
-func (e *exec) start(eventCh <-chan []byte) {
+func (e *exec) handleEvents(eventCh <-chan []byte) {
 	// TODO(russjones): Replace with ttlmap.
 	args := make(map[uint64][]string)
 
@@ -156,7 +138,7 @@ func (e *exec) start(eventCh <-chan []byte) {
 
 			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
 			if err != nil {
-				logrus.Debugf("Failed to read binary data: %v.", err)
+				log.Debugf("Failed to read binary data: %v.", err)
 				continue
 			}
 
@@ -173,41 +155,48 @@ func (e *exec) start(eventCh <-chan []byte) {
 				// The args should have come in a previous event, find them by PID.
 				argv, ok := args[event.PID]
 				if !ok {
-					logrus.Debugf("Got event with missing args: skipping.")
+					log.Debugf("Got event with missing args: skipping.")
 					continue
 				}
 
 				// Convert C string that holds the command name into a Go string.
-				path := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
+				command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
 
 				select {
 				case e.events <- &execEvent{
 					PID:        event.PPID,
 					PPID:       event.PID,
 					CgroupID:   event.CgroupID,
-					Program:    filepath.Base(path),
-					Path:       path,
-					Argv:       argv,
+					Program:    command,
+					Path:       argv[0],
+					Argv:       argv[1:],
 					ReturnCode: event.ReturnCode,
 				}:
-				case <-time.After(100 * time.Millisecond):
-					log.Debugf("Dropping event, timeout, buffer probably full.")
+				default:
+					log.Warnf("Dropping exec event %v/%v %v, events buffer full.", event.CgroupID, event.PID, argv)
 				}
 
-				//fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Command=%v, Args=%v, ReturnCode=%v.\n",
-				//	event.CgroupID, event.PID, event.PPID, command, argv, event.ReturnCode)
+				// TODO(russjones): This appears to log twice for some reason.
+				if e.debug {
+					log.Debugf("Event=exec CgroupID=%v PID=%v PPID=%v Program=%v Path=%v Args=%v ReturnCode=%v.",
+						event.CgroupID, event.PID, event.PPID, command, argv[0], argv[1:], event.ReturnCode)
+				}
 			}
+		case <-e.closeContext.Done():
+			return
 		}
 	}
 }
 
 // TODO(russjones): Make sure this program is actually unloaded upon exit.
-func (e *exec) Close() {
-	e.perfMap.Stop()
+func (e *exec) close() {
+	for _, perfMap := range e.perfMaps {
+		perfMap.Stop()
+	}
 	e.module.Close()
 }
 
-func (e *exec) events() <-chan *execEvent {
+func (e *exec) eventsCh() <-chan *execEvent {
 	return e.events
 }
 
@@ -232,15 +221,15 @@ struct data_t {
     enum event_type type;
     char argv[ARGSIZE];
     int retval;
-    u32 cgroup;
+    u64 cgroup;
 };
 
-BPF_PERF_OUTPUT(events);
+BPF_PERF_OUTPUT(execve_events);
 
 static int __submit_arg(struct pt_regs *ctx, void *ptr, struct data_t *data)
 {
     bpf_probe_read(data->argv, sizeof(data->argv), ptr);
-    events.perf_submit(ctx, data, sizeof(struct data_t));
+    execve_events.perf_submit(ctx, data, sizeof(struct data_t));
     return 1;
 }
 
@@ -309,8 +298,13 @@ int do_ret_sys_execve(struct pt_regs *ctx)
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
     data.type = EVENT_RET;
     data.retval = PT_REGS_RC(ctx);
-    events.perf_submit(ctx, &data, sizeof(data));
+    execve_events.perf_submit(ctx, &data, sizeof(data));
 
     return 0;
 }
 `
+
+const (
+	eventArg = 0
+	eventRet = 1
+)

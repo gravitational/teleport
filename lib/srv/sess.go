@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
@@ -79,18 +80,34 @@ type SessionRegistry struct {
 
 	// srv refers to the upon which this session registry is created.
 	srv Server
+
+	bpfreg *bpf.Service
 }
 
 func NewSessionRegistry(srv Server) (*SessionRegistry, error) {
 	if srv.GetSessionServer() == nil {
 		return nil, trace.BadParameter("session server is required")
 	}
+
+	// TODO(russjones): Move these both out to lib/service.
+	cgroupreg, err := cgroup.New()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bpfreg, err := bpf.New(&bpf.Config{
+		Cgroup: cgroupreg,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &SessionRegistry{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, srv.Component()),
 		}),
 		srv:      srv,
 		sessions: make(map[rsession.ID]*session),
+		bpfreg:   bpfreg,
 	}, nil
 }
 
@@ -602,15 +619,6 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 
-	// TODO(russjones): Check if enhanced auditing is enabled.
-	if ctx.srv.Component() == teleport.ComponentNode {
-		err := bpf.OpenSession(s.id)
-		if err != nil {
-			ctx.Errorf("Failed to open enhanced auditing session: %v: %v.", s.id, err)
-			return trace.Wrap(err)
-		}
-	}
-
 	// allocate a terminal or take the one previously allocated via a
 	// seaprate "allocate TTY" SSH request
 	if ctx.GetTerm() != nil {
@@ -629,6 +637,26 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	}
 	if err := s.addParty(p); err != nil {
 		return trace.Wrap(err)
+	}
+
+	bbpf := s.registry.bpfreg
+	sessionContext := &bpf.SessionContext{
+		PID:       s.term.PID(),
+		Recorder:  s.recorder,
+		Namespace: ctx.srv.GetNamespace(),
+		SessionID: s.id.String(),
+		ServerID:  ctx.srv.HostUUID(),
+		Login:     ctx.Identity.Login,
+		User:      ctx.Identity.TeleportUser,
+	}
+
+	// TODO(russjones): Check if enhanced auditing is enabled.
+	if ctx.srv.Component() == teleport.ComponentNode {
+		err := bbpf.OpenSession(sessionContext)
+		if err != nil {
+			ctx.Errorf("Failed to open enhanced auditing session: %v: %v.", s.id, err)
+			return trace.Wrap(err)
+		}
 	}
 
 	params := s.term.GetTerminalParams()
@@ -709,7 +737,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 
 		// TODO(russjones): Check if enhanced auditing is enabled.
 		if ctx.srv.Component() == teleport.ComponentNode {
-			err := bpf.CloseSession(s.id)
+			err := bbpf.CloseSession(sessionContext)
 			if err != nil {
 				ctx.Errorf("Failed to close enhanced auditing session: %v: %v.", s.id, err)
 			}

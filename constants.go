@@ -206,6 +206,9 @@ const (
 	// used to broadcast events to subscribers.
 	ComponentBuffer = "buffer"
 
+	// ComponentBPF is the eBPF packagae.
+	ComponentBPF = "bpf"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

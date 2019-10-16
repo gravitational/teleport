@@ -328,10 +328,6 @@ func (c *ServerContext) ID() int {
 	return c.id
 }
 
-func (c *ServerContext) Session() Session {
-	return c.session
-}
-
 // SessionID returns the ID of the session in the context.
 func (c *ServerContext) SessionID() rsession.ID {
 	return c.session.id

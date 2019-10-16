@@ -22,92 +22,113 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"fmt"
 	"unsafe"
 
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
-	"github.com/sirupsen/logrus"
 )
 
-const (
-	// commMax is the maximum length of a command from linux/sched.h.
-	commMax = 16
+// rawOpenEvent is sent by the eBPF program that Teleport pulls off the perf
+// buffer.
+type rawOpenEvent struct {
+	// PID is the ID of the process.
+	PID uint64
 
-	// pathMax is the maximum length of a path from linux/limits.h.
-	pathMax = 255
-)
-
-type openEvent struct {
-	PID        uint64
+	// ReturnCode is the return code of open.
 	ReturnCode int32
-	CgroupID   uint32
-	Command    [commMax]byte
-	Path       [pathMax]byte
-	Flags      int32
+
+	// CgroupID is the internal cgroupv2 ID of the event.
+	CgroupID uint64
+
+	// Command is name of the executable opening the file.
+	Command [commMax]byte
+
+	// Path is the full path to the file being opened.
+	Path [pathMax]byte
+
+	// Flags are the flags passed to open.
+	Flags int32
+}
+
+// openEvent is a parsed open event.
+type openEvent struct {
+	// PID is the ID of the process.
+	PID uint64
+
+	// ReturnCode is the return code of open.
+	ReturnCode int32
+
+	// Program is name of the executable opening the file.
+	Program string
+
+	// Path is the full path to the file being opened.
+	Path string
+
+	// Flags are the flags passed to open.
+	Flags int32
+
+	// CgroupID is the internal cgroupv2 ID of the event.
+	CgroupID uint64
 }
 
 type open struct {
-	service *bpf.Service
+	debug        bool
+	closeContext context.Context
 
-	perfMap *bcc.PerfMap
-	module  *bcc.Module
+	events chan *openEvent
+
+	perfMaps []*bcc.PerfMap
+	module   *bcc.Module
 }
 
-func newOpen(service *bpf.Service) *open {
-	return &open{
+func newOpen(closeContext context.Context, debug bool) (*open, error) {
+	e := &open{
+		debug:        debug,
 		closeContext: closeContext,
+		events:       make(chan *openEvent, 1024),
 	}
+
+	err := e.start()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return e, nil
 }
 
-func (e *open) Start() error {
+func (e *open) start() error {
 	e.module = bcc.NewModule(openSource, []string{})
 
-	// Enter open syscall.
-	kprobe, err := e.module.LoadKprobe("trace_entry")
+	// Hook open syscall.
+	err := attachProbe(e.module, "do_sys_open", "trace_entry")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = e.module.AttachKprobe("do_sys_open", kprobe, -1)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Return from open syscall.
-	kretprobe, err := e.module.LoadKprobe("trace_return")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = e.module.AttachKretprobe("do_sys_open", kretprobe, -1)
+	err = attachRetProbe(e.module, "do_sys_open", "trace_return")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	eventCh := make(chan []byte, 1024)
-	table := bcc.NewTable(e.module.TableId("events"), e.module)
-
-	perfMap, err := bcc.InitPerfMap(table, eventCh)
+	// Open perf buffer and start processing open events.
+	eventCh, err := openPerfBuffer(e.module, e.perfMaps, "open_events")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	perfMap.Start()
-
-	go e.start(eventCh)
+	go e.handleEvents(eventCh)
 
 	return nil
 }
 
-func (e *open) start(eventCh <-chan []byte) {
+func (e *open) handleEvents(eventCh <-chan []byte) {
 	for {
 		select {
 		case eventBytes := <-eventCh:
-			var event openEvent
+			var event rawOpenEvent
 
 			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
 			if err != nil {
-				logrus.Debugf("Failed to read binary data: %v.", err)
-				fmt.Printf("Failed to read binary data: %v.\n", err)
+				log.Debugf("Failed to read binary data: %v.", err)
 				continue
 			}
 
@@ -117,16 +138,37 @@ func (e *open) start(eventCh <-chan []byte) {
 			// Convert C string that holds the path into a Go string.
 			path := C.GoString((*C.char)(unsafe.Pointer(&event.Path)))
 
-			fmt.Printf("--> Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.\n",
-				event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
+			select {
+			case e.events <- &openEvent{
+				PID:        event.PID,
+				ReturnCode: event.ReturnCode,
+				Program:    command,
+				Path:       path,
+				Flags:      event.Flags,
+				CgroupID:   event.CgroupID,
+			}:
+			default:
+				log.Warnf("Dropping open event %v/%v %v %v, events buffer full.", event.CgroupID, event.PID, path, event.Flags)
+			}
+
+			if e.debug {
+				log.Debugf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.",
+					event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
+			}
 		}
 	}
 }
 
 // TODO(russjones): Make sure this program is actually unloaded upon exit.
-func (e *open) Close() {
-	e.perfMap.Stop()
+func (e *open) close() {
+	for _, perfMap := range e.perfMaps {
+		perfMap.Stop()
+	}
 	e.module.Close()
+}
+
+func (e *open) eventsCh() <-chan *openEvent {
+	return e.events
 }
 
 const openSource string = `
@@ -153,7 +195,7 @@ struct data_t {
 };
 
 BPF_HASH(infotmp, u64, struct val_t);
-BPF_PERF_OUTPUT(events);
+BPF_PERF_OUTPUT(open_events);
 
 int trace_entry(struct pt_regs *ctx, int dfd, const char __user *filename, int flags)
 {
@@ -188,7 +230,7 @@ int trace_return(struct pt_regs *ctx)
     data.ret = PT_REGS_RC(ctx);
     data.cgroup = bpf_get_current_cgroup_id();
 
-    events.perf_submit(ctx, &data, sizeof(data));
+    open_events.perf_submit(ctx, &data, sizeof(data));
     infotmp.delete(&id);
 
     return 0;

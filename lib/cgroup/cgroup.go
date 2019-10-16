@@ -23,6 +23,7 @@ import "C"
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -34,6 +35,8 @@ import (
 
 	"github.com/gravitational/trace"
 )
+
+var _ = fmt.Printf
 
 type Service struct {
 }
@@ -73,7 +76,7 @@ func (s *Service) Remove(sessionID string) error {
 // TODO(russjones): Check if multiple processes write to the same cgroup file
 // atomically.
 // Place will place a process in the cgroup for that session.
-func (s *Service) Place(pid int, sessionID string) error {
+func (s *Service) Place(sessionID string, pid int) error {
 	f, err := os.OpenFile("/cgroup2/teleport-session-"+sessionID+"/cgroup.procs", os.O_APPEND|os.O_WRONLY, 0755)
 	if err != nil {
 		return trace.Wrap(err)
@@ -126,7 +129,6 @@ func mount() error {
 	// TODO(russjones): Replace with:
 	// return unix.Mount("", "/cgroup2", "cgroup2", 0, "ro")
 	return exec.Command("/usr/bin/mount", "-t", "cgroup2", "none", "/cgroup2").Run()
-
 }
 
 // unmount will unmount the cgroupv2 filesystem.
@@ -134,8 +136,10 @@ func unmount() error {
 	return unix.Unmount("/cgroup2", 0)
 }
 
-// ID returns the cgroup ID for the given cgroup at the given path.
-func ID(path string) (uint64, error) {
+// ID returns the cgroup ID for the given session.
+func ID(sessionID string) (uint64, error) {
+	path := "/cgroup2/teleport-session-" + sessionID
+
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
 

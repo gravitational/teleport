@@ -20,7 +20,6 @@ import "C"
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -29,13 +28,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
-	"github.com/sirupsen/logrus"
 )
 
 // separate data structs for ipv4 and ipv6
 type conn4Event struct {
 	PID      uint32
-	CgroupID uint32
+	CgroupID uint64
 	SrcAddr  uint32
 	DstAddr  uint32
 	Version  uint64
@@ -45,7 +43,7 @@ type conn4Event struct {
 
 type conn6Event struct {
 	PID      uint32
-	CgroupID uint32
+	CgroupID uint64
 	SrcAddr  [4]uint32
 	DstAddr  [4]uint32
 	Version  uint64
@@ -54,50 +52,46 @@ type conn6Event struct {
 }
 
 type conn struct {
-	service *bpf.Service
-
 	module   *bcc.Module
 	perfMaps []*bcc.PerfMap
 }
 
-func newConn(service *bpf.Service) *conn {
-	return &conn{
-		closeContext: closeContext,
-	}
+func newConn() *conn {
+	return &conn{}
 }
 
 func (e *conn) Start() error {
 	e.module = bcc.NewModule(connSource, []string{})
 
 	// Hook IPv4 connection attempts.
-	err := e.attachProbe("tcp_v4_connect", "trace_connect_entry")
+	err := attachProbe(e.module, "tcp_v4_connect", "trace_connect_entry")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = e.attachRetProbe("tcp_v4_connect", "trace_connect_v4_return")
+	err = attachRetProbe(e.module, "tcp_v4_connect", "trace_connect_v4_return")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Hook IPv6 connection attempts.
-	err = e.attachProbe("tcp_v6_connect", "trace_connect_entry")
+	err = attachProbe(e.module, "tcp_v6_connect", "trace_connect_entry")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = e.attachRetProbe("tcp_v6_connect", "trace_connect_v6_return")
+	err = attachRetProbe(e.module, "tcp_v6_connect", "trace_connect_v6_return")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Open perf buffer and start processing IPv4 events.
-	v4EventCh, err := e.openPerfBuffer("ipv4_events")
+	v4EventCh, err := openPerfBuffer(e.module, e.perfMaps, "ipv4_events")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	go e.handle4Events(v4EventCh)
 
 	// Open perf buffer and start processing IPv6 events.
-	v6EventCh, err := e.openPerfBuffer("ipv6_events")
+	v6EventCh, err := openPerfBuffer(e.module, e.perfMaps, "ipv6_events")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -114,7 +108,7 @@ func (e *conn) handle4Events(eventCh <-chan []byte) {
 
 			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
 			if err != nil {
-				logrus.Debugf("Failed to read binary data: %v.", err)
+				log.Debugf("Failed to read binary data: %v.", err)
 				fmt.Printf("Failed to read binary data: %v.\n", err)
 				continue
 			}
@@ -146,7 +140,7 @@ func (e *conn) handle6Events(eventCh <-chan []byte) {
 
 			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
 			if err != nil {
-				logrus.Debugf("Failed to read binary data: %v.", err)
+				log.Debugf("Failed to read binary data: %v.", err)
 				fmt.Printf("Failed to read binary data: %v.\n", err)
 				continue
 			}
@@ -184,51 +178,6 @@ func (e *conn) Close() {
 	e.module.Close()
 }
 
-func (e *conn) attachProbe(eventName string, functionName string) error {
-	kprobe, err := e.module.LoadKprobe(functionName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = e.module.AttachKprobe(eventName, kprobe, -1)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (e *conn) attachRetProbe(eventName string, functionName string) error {
-	kretprobe, err := e.module.LoadKprobe(functionName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = e.module.AttachKretprobe(eventName, kretprobe, -1)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (e *conn) openPerfBuffer(name string) (<-chan []byte, error) {
-	var err error
-
-	eventCh := make(chan []byte, 1024)
-	table := bcc.NewTable(e.module.TableId(name), e.module)
-
-	perfMap, err := bcc.InitPerfMap(table, eventCh)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	perfMap.Start()
-
-	e.perfMaps = append(e.perfMaps, perfMap)
-
-	return eventCh, nil
-}
-
 const connSource string = `
 #include <uapi/linux/ptrace.h>
 #include <net/sock.h>
@@ -239,7 +188,7 @@ BPF_HASH(currsock, u32, struct sock *);
 // separate data structs for ipv4 and ipv6
 struct ipv4_data_t {
     u32 pid;
-    u32 cgroup;
+    u64 cgroup;
     u32 saddr;
     u32 daddr;
     u64 ip;
@@ -250,7 +199,7 @@ BPF_PERF_OUTPUT(ipv4_events);
 
 struct ipv6_data_t {
     u32 pid;
-    u32 cgroup;
+    u64 cgroup;
     u32 saddr[4];
     u32 daddr[4];
     u64 ip;

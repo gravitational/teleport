@@ -20,11 +20,19 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
 
 	"github.com/gravitational/trace"
+
+	"github.com/iovisor/gobpf/bcc"
+	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentBPF,
+})
 
 // SessionContext ...
 // TODO(russjones): This data has to be copied over to break circular
@@ -36,7 +44,7 @@ type SessionContext struct {
 	Login     string
 	User      string
 	PID       int
-	Recorder  events.ForwardRecorder
+	Recorder  events.SessionRecorder
 }
 
 type Config struct {
@@ -63,55 +71,69 @@ type Service struct {
 
 	// watch is a map of cgroup IDs that the BPF service is watching and
 	// emitting events for.
-	watch   map[string]srv.Context
+	watch   map[uint64]*SessionContext
 	watchMu sync.Mutex
 
+	closeContext context.Context
+	closeFunc    context.CancelFunc
+
 	exec *exec
-	//open *open
+	open *open
 	//conn *conn
 }
 
 func New(config *Config) (*Service, error) {
 	err := config.CheckAndSetDefaults()
-	return &Service{
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	closeContext, closeFunc := context.WithCancel(context.Background())
+
+	s := &Service{
 		Config: config,
 
-		exec: newExec(closeContext),
-		//open: newOpen(closeContext),
-		//conn: newConn(closeContext),
-	}
-}
+		watch: make(map[uint64]*SessionContext),
 
-func (s *Service) Start() error {
-	err := s.exec.Start(watch)
+		closeContext: closeContext,
+		closeFunc:    closeFunc,
+	}
+
+	// TODO(russjones): Pass in a debug flag.
+	s.exec, err = newExec(closeContext, true)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	//err = s.open.Start(watch)
+	s.open, err = newOpen(closeContext, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	//s.conn, err = newConn(closeContext, true)
 	//if err != nil {
-	//	return trace.Wrap(err)
+	//	return nil, trace.Wrap(err)
 	//}
 
-	//err = s.conn.Start(watch)
-	//if err != nil {
-	//	return trace.Wrap(err)
-	//}
+	// Start processing events from exec, open, and conn in a loop.
+	go s.loop()
 
-	return nil
+	return s, nil
 }
 
 // TODO(russjones): Make sure this program is actually unloaded upon exit.
-func (s *Service) Close() {
-	s.exec.Close()
-	//s.open.Close()
-	//s.conn.Close()
+func (s *Service) Close() error {
+	s.exec.close()
+	s.open.close()
+	///s.conn.close()
+
+	s.closeFunc()
+
+	return nil
 }
 
 func (s *Service) loop() {
 	for {
 		select {
-		case event := <-s.exec.Events():
+		case event := <-s.exec.eventsCh():
 			ctx, ok := s.watch[event.CgroupID]
 			if !ok {
 				continue
@@ -120,11 +142,11 @@ func (s *Service) loop() {
 			// Emit "session.exec" event.
 			eventFields := events.EventFields{
 				// Common fields.
-				events.EventNamespace:  ctx.Server().GetNamespace(),
-				events.SessionEventID:  ctx.Session().ID(),
-				events.SessionServerID: ctx.Server().HostUUID(),
-				events.EventLogin:      ctx.Identity.Login,
-				events.EventUser:       ctx.Identity.TeleportUser,
+				events.EventNamespace:  ctx.Namespace,
+				events.SessionEventID:  ctx.SessionID,
+				events.SessionServerID: ctx.ServerID,
+				events.EventLogin:      ctx.Login,
+				events.EventUser:       ctx.User,
 				// Exec fields.
 				events.PID:        event.PPID,
 				events.PPID:       event.PID,
@@ -134,26 +156,29 @@ func (s *Service) loop() {
 				events.Argv:       event.Argv,
 				events.ReturnCode: event.ReturnCode,
 			}
-			session.Recorder().GetAuditLog().EmitAuditEvent(events.SessionExec, eventFields)
+			ctx.Recorder.GetAuditLog().EmitAuditEvent(events.SessionExec, eventFields)
 		case <-s.closeContext.Done():
 			return
 		}
 	}
 }
 
-func (s *Service) OpenSession(ctx *ServerContext) error {
-	sess := ctx.Sesssion()
+func (s *Service) OpenSession(ctx *SessionContext) error {
+	err := s.Cgroup.Create(ctx.SessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	err := s.Cgroup.Create(sess.ID())
+	cgroupID, err := cgroup.ID(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Start watching for any events that come from this cgroup.
-	s.addWatch(cgroup.ID(sess.ID()), ctx)
+	s.addWatch(cgroupID, ctx)
 
 	// Place requested PID into cgroup.
-	err := s.Cgroup.Place(sess.ID(), sess.PID())
+	err = s.Cgroup.Place(ctx.SessionID, ctx.PID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -161,19 +186,22 @@ func (s *Service) OpenSession(ctx *ServerContext) error {
 	return nil
 }
 
-func (s *Service) CloseSession(ctx *ServerContext) error {
-	sess := ctx.Sesssion()
+func (s *Service) CloseSession(ctx *SessionContext) error {
+	cgroupID, err := cgroup.ID(ctx.SessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Stop watching for events from this PID.
-	s.removeWatch(cgroup.ID(sess.ID()))
+	s.removeWatch(cgroupID)
 
 	// Move any existing PIDs into root cgroup.
-	err := s.Cgroup.Unplace(sess.PID())
+	err = s.Cgroup.Unplace(ctx.PID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err := s.Cgroup.Remove(sess.ID())
+	err = s.Cgroup.Remove(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -181,21 +209,77 @@ func (s *Service) CloseSession(ctx *ServerContext) error {
 	return nil
 }
 
-func (s *Service) addWatch(cgroupID uint64, recorder events.SessionRecorder) {
+func (s *Service) addWatch(cgroupID uint64, ctx *SessionContext) {
 	s.watchMu.Lock()
 	defer s.watchMu.Unlock()
 
-	s.watch[strconv.FormatUint(cgroupID, 10)] = recorder
+	s.watch[cgroupID] = ctx
 }
 
 func (s *Service) removeWatch(cgroupID uint64) {
 	s.watchMu.Lock()
 	defer s.watchMu.Unlock()
 
-	delete(s.watchMu, strconv.FormatUint(cgroupID, 10))
+	delete(s.watch, cgroupID)
 }
 
 // TODO(russjones): Implement.
 func isHostCompatible() error {
 	return nil
 }
+
+func attachProbe(module *bcc.Module, eventName string, functionName string) error {
+	kprobe, err := module.LoadKprobe(functionName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = module.AttachKprobe(eventName, kprobe, -1)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func attachRetProbe(module *bcc.Module, eventName string, functionName string) error {
+	kretprobe, err := module.LoadKprobe(functionName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = module.AttachKretprobe(eventName, kretprobe, -1)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func openPerfBuffer(module *bcc.Module, perfMaps []*bcc.PerfMap, name string) (<-chan []byte, error) {
+	var err error
+
+	eventCh := make(chan []byte, 1024)
+	table := bcc.NewTable(module.TableId(name), module)
+
+	perfMap, err := bcc.InitPerfMap(table, eventCh)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	perfMap.Start()
+
+	perfMaps = append(perfMaps, perfMap)
+
+	return eventCh, nil
+}
+
+const (
+	// commMax is the maximum length of a command from linux/sched.h.
+	commMax = 16
+
+	// pathMax is the maximum length of a path from linux/limits.h.
+	pathMax = 255
+
+	// argvMax is the maximum length of the args vector.
+	argvMax = 128
+)
