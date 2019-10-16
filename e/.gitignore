@@ -1,4 +1,5 @@
 build
+build-fips
 
 # usually release tarballs get in the way
 *.gz

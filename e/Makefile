@@ -4,7 +4,7 @@ BUILDDIR ?= build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
 CGOFLAG ?= CGO_ENABLED=1
 RELEASE := teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
-BINARIES ?= $(BUILDDIR)/tctl $(BUILDDIR)/teleport
+BINARIES ?= $(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh
 HOUSTON_DIR := "vendor/github.com/gravitational/houston/"
 
 OS ?= $(shell go env GOOS)
@@ -40,11 +40,9 @@ $(BUILDDIR)/tctl:
 $(BUILDDIR)/teleport:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
-# The tsh target does not actually build an Enterprise version of tsh, it just
-# copies it over from OSS.
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	cp ../build/tsh $(BUILDDIR)/
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
 
 # make clean: cleans the build
 .PHONY: clean
@@ -74,7 +72,6 @@ release-unix: clean full
 	echo $(GITTAG) > $(BUILDDIR)/VERSION
 	cp -rf $(BUILDDIR) teleport-ent
 	cp -rf ../examples teleport-ent/
-	cp ../build/tsh teleport-ent/
 	tar -czf $(RELEASE).tar.gz teleport-ent
 	rm -rf teleport-ent
 	@echo "---> Created $(RELEASE).tar.gz."
@@ -158,9 +155,20 @@ image:
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t quay.io/gravitational/teleport-ent:$(VERSION)
 
+.PHONY: image-fips
+image-fips:
+	export BUILDDIR=build-fips
+	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
+	cp ../build.assets/charts/Dockerfile-fips $(BUILDDIR)/Dockerfile
+	cd $(BUILDDIR) && docker build --no-cache . -t quay.io/gravitational/teleport-ent:$(VERSION)-fips
+
 .PHONY: publish
 publish:
 	docker push quay.io/gravitational/teleport-ent:$(VERSION)
+
+.PHONY: publish-fips
+publish-fips:
+	docker push quay.io/gravitational/teleport-ent:$(VERSION)-fips
 
 # Build chart
 .PHONY: chart
