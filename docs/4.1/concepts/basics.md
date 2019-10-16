@@ -1,6 +1,7 @@
 ## Overview
 
-This doc introduces the basic concepts of Teleport so you can get started managing access!
+This doc introduces the basic concepts of Teleport so you can get started
+managing access!
 
 [TOC]
 
@@ -21,10 +22,15 @@ Here are definitions of the key concepts you will use in teleport.
 
 ## Architecture Overview
 
-The numbers correspond to the steps needed to connect a client to a node. These steps are explained below the diagram. Read the [Architecture Walkthrough](./architecture/#architecture-walkthrough) for a detailed view into these connections steps.
+The numbers correspond to the steps needed to connect a client to a node. These
+steps are explained below the diagram. Read the [Architecture
+Walkthrough](./architecture/#architecture-walkthrough) for a detailed view into
+these connections steps.
 
 !!! warning "Caution"
-    The teleport daemon calls services "roles" in the CLI client. The `--roles` flag has no relationship to concept of User Roles or permissions.
+    The teleport daemon calls services "roles" in the CLI
+    client. The `--roles` flag has no relationship to concept of User Roles or
+    permissions.
 
 ![Teleport Overview](../img/overview.svg)
 
@@ -34,26 +40,47 @@ The numbers correspond to the steps needed to connect a client to a node. These 
 4. Authorize Client Access to Node
 
 !!! tip "Tip"
-    In the diagram above we show each Teleport service separately for clarity, but Teleport services do not have to run on separate nodes. Teleport can be run as a binary on a single-node cluster with no external storage backend. We demonstrate this minimal setup in the [Quickstart Guide](../guides/quickstart).
+    In the diagram above we show each Teleport service separately for
+    clarity, but Teleport services do not have to run on separate nodes.
+    Teleport can be run as a binary on a single-node cluster with no external
+    storage backend. We demonstrate this minimal setup in the [Quickstart
+    Guide](../guides/quickstart).
 
 ## Teleport Services
 
-Teleport uses three services which work together: [Nodes](./nodes), [Auth](./auth), and [Proxy](./proxy).
+Teleport uses three services which work together: [Nodes](./nodes),
+[Auth](./auth), and [Proxy](./proxy).
 
-* [**Teleport Nodes**](./nodes) are servers which can be accessed remotely with SSH. The Teleport Node service runs on a machine and is similar to the `sshd` daemon you may be familiar with. Users can log in to a Teleport Node with all of the following clients:
-    * [OpenSSH: `ssh`](../admin-guide/#using-teleport-with-openssh)
-    * [Teleport CLI client: `tsh ssh`](../cli-docs/#tsh-ssh)
-    * [Teleport Proxy UI](./proxy/#web-to-ssh-proxy) accessed via a web browser.
-* [**Teleport Auth**](./auth) authenticates Users and Nodes, authorizes User access to Nodes, and acts as a CA by signing certificates issued to Users and Nodes.
-* [**Teleport Proxy**](./proxy) forwards User credentials to the [Auth Service](../auth), creates connections to a requested Node after successful authentication, and serves a [Web UI](./proxy/#web-to-ssh-proxy).
+* [**Teleport Nodes**](./nodes) are servers which can be accessed remotely with
+
+  SSH. The Teleport Node service runs on a machine and is similar to the `sshd`
+  daemon you may be familiar with. Users can log in to a Teleport Node with all
+  of the following clients:
+
+    - [OpenSSH: `ssh` ](../admin-guide/#using-teleport-with-openssh)
+    - [Teleport CLI client: `tsh ssh` ](../cli-docs/#tsh-ssh)
+    - [Teleport Proxy UI](./proxy/#web-to-ssh-proxy) accessed via a web browser.
+* [**Teleport Auth**](./auth) authenticates Users and Nodes, authorizes User
+
+  access to Nodes, and acts as a CA by signing certificates issued to Users and
+  Nodes.
+
+* [**Teleport Proxy**](./proxy) forwards User credentials to the [Auth
+
+  Service](../auth), creates connections to a requested Node after successful
+  authentication, and serves a [Web UI](./proxy/#web-to-ssh-proxy).
 
 ## Next Steps
 
-* If you haven't already, read the [Quickstart Guide](../quickstart) to run a minimal set of Teleport yourself.
+* If you haven't already, read the [Quickstart Guide](../quickstart) to run a
+
+  minimal set of Teleport yourself.
+
 * Set up Teleport for your team with the [Admin Guide](../admin-guide)
 * Read more about Teleport
-    * [Teleport Nodes](./nodes)
-    * [Teleport Users](./users)
-    * [Teleport Auth](./auth)
-    * [Teleport Proxy](./proxy)
-    * [Architecture & Design](./architecture)
+    - [Teleport Nodes](./nodes)
+    - [Teleport Users](./users)
+    - [Teleport Auth](./auth)
+    - [Teleport Proxy](./proxy)
+    - [Architecture & Design](./architecture)
+
