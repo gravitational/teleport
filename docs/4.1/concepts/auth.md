@@ -80,7 +80,7 @@ By default, all user certificates have an expiration date, also known as time to
 Teleport supports certificate rotation, i.e. the process of invalidating all previously-issued certificates for nodes _and_ users regardless of their TTL. Certificate rotation is triggered by [`tctl auth rotate`](../cli-docs/#tctl-auth). When this command is invoked by a Teleport administrator on one of cluster's Auth Servers, the following happens:
 
 1. A new certificate authority (CA) key is generated.
-2. The old CA will be considered valid _alongside_ the new CA for some period of time. This period of time is called a _grace period_ TODO: Link to config/defaults.
+2. The old CA will be considered valid _alongside_ the new CA for some period of time. This period of time is called a _grace period_ <!--TODO: Link to config/defaults.-->
 3. During the grace period, all previously issued certificates will be considered valid, assuming their TTL isn't expired.
 4. After the grace period is over, the certificates issued by the old CA are no longer accepted.
 

@@ -42,8 +42,6 @@ client SSH connection:
 
 ### CLI to SSH Proxy
 
-<!--TODO: Diagram-->
-
 **Getting Client Certificates**
 
 Teleport Proxy implements a special method to let clients get short-lived

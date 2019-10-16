@@ -1,6 +1,6 @@
 ## Teleport Users
 
-TODO: This doc is incomplete, pending addition of Enterprise topics
+<!--TODO: This doc is incomplete, pending addition of Enterprise topics-->
 
 [TOC]
 
@@ -46,7 +46,23 @@ A cluster administrator must create account entries for every Teleport user with
 list of one or more machine-level OS usernames.it can authenticate as during a
 login. This list is called "user mappings".
 
-<!--TODO: Graphic relating Teleport User to Local User -->
+![User Mappings](../img/user_mappings.svg)
+
+The diagram shows the following mappings. A couple of noteworthy things
+about Teleport Auth:
+
+* Teleport User `sandra` does **not** have access to `grav-02`
+through Teleport because `sandra` is not an OS username.
+* Teleport User `joe` has access to all nodes because the OS user `root`
+is present on all nodes.
+
+| Teleport User | logins | has access to nodes
+| -------- | --- | ---- |
+joe | root, joe | grav-00, grav-01, grav-02
+tara | tara | grav-01, grav-02
+teleport | teleport  | grav-00, grav-02
+sandra | ops | grav-00, grav-02
+
 Teleport supports second factor authentication (2FA) and it is enforced by
 default. There are two types of 2FA supported:
 
@@ -60,13 +76,14 @@ default. There are two types of 2FA supported:
 
 ### External users
 
-TODO: Advanced topic
+<!--TODO: Production topic-->
 
 External users are users stored elsewhere within an organization. Examples
 include Github, Active Directory (AD) or any identity store with an
 OpenID/OAuth2 or SAML endpoint.
 
-!!! tip "Version Warning": External user storage is only supported in Teleport
+!!! tip "Version Warning":
+    External user storage is only supported in Teleport
     Enterprise. Please take a look at the [Teleport
     Enterprise](../enterprise.md) chapter for more information.
 
@@ -76,7 +93,7 @@ It is possible to have multiple identity sources configured for a Teleport
 cluster. In this case, an identity source (called a "connector") will have to be
 passed to [ `tsh --auth=connector_name login` ](../cli-docs/#tsh-login).
 
-<!--TODO: Advanced Configuration-->
+<!--TODO: Production Configuration-->
 
 The local users connector can be specified via [`tsh --auth=local
 login`](../cli-docs/#tsh-login).
@@ -88,7 +105,7 @@ roles allows Teleport to implement role-based access control (RBAC), i.e.assign
 users to groups (roles) and restrict each role to a subset of actions on a
 subset of nodes in a cluster.
 
-<!--TODO: Advanced Topic-->
+<!--TODO: Enterprise Topic-->
 
 ## More Concepts
 
