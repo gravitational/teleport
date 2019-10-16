@@ -64,6 +64,22 @@ The cluster state information stored includes:
 
 Read more about what is stored in the [Auth Guide](./auth/#auth-state)
 
+## Session Recording
+
+By default, nodes submit SSH session traffic to the Auth server
+for storage. These recorded sessions can be replayed later via `tsh play`
+command or in a web browser.
+
+Some Teleport users mistakenly believe that audit and session recording happen
+by default on the Teleport proxy server. This is not the case because a proxy
+cannot see the encrypted traffic, it is encrypted end-to-end, i.e. from an SSH
+client to an SSH server/node, see the diagram below:
+
+![session-recording-diagram](img/session-recording.svg?style=grv-image-center-lg)
+
+However, starting from Teleport 2.4, it is possible to configure the
+Teleport proxy to enable "recording proxy mode".
+
 ## Trusted Clusters
 
 Teleport Auth Service can allow 3rd party users or nodes to connect to cluster nodes if their public keys are signed by a trusted CA. A "trusted cluster" is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file.
@@ -72,8 +88,8 @@ Teleport Auth Service can allow 3rd party users or nodes to connect to cluster n
 
 ## More Concepts
 
-* [Basics](./basics)
+* [Architecture](./architecture)
 * [Teleport Users](./users)
 * [Teleport Auth](./auth)
 * [Teleport Proxy](./proxy)
-* [Architecture](./architecture)
+

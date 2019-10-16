@@ -159,13 +159,13 @@
             </text>
         </g>
         <path id="Line-10" d="M467.871197,75.1650177 L464.204499,84.5354675 L461.524,81.565 L344.463786,187.206179 L343.793821,186.463786 L460.854,80.823 L458.174818,77.8539294 L467.871197,75.1650177 Z" fill="#979797" fill-rule="nonzero"></path>
-        <g id="Group-2" transform="translate(32.000000, 205.000000)">
+        <g id="Group-2" transform="translate(130.000000, 205.000000)">
             <g id="Group">
-                <rect id="Rectangle" stroke="#979797" x="0.5" y="0.5" width="213" height="49"></rect>
-                <text id="Teleport-User-|-logi" font-family="LucidaGrande, Lucida Grande" font-size="11" font-weight="normal" fill="#4A4A4A">
-                    <tspan x="7" y="17">Teleport User           | login </tspan>
-                    <tspan x="7" y="30" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">joe				  root, joe</tspan>
-                    <tspan x="7" y="43" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">tara				  tara</tspan>
+                <rect id="Rectangle" stroke="#979797" x="0.5" y="0.5" width="115" height="49"></rect>
+                <text id="Teleport-User:-login" font-family="LucidaGrande, Lucida Grande" font-size="11" font-weight="normal" fill="#4A4A4A">
+                    <tspan x="5" y="17">Teleport User: login </tspan>
+                    <tspan x="5" y="30" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">joe : root, joe</tspan>
+                    <tspan x="5" y="43" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">tara : tara</tspan>
                 </text>
             </g>
         </g>

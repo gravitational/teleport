@@ -65,8 +65,8 @@ Once the client has obtained a certificate, it can use it to authenticate with a
 
 ## More Concepts
 
-* [Basics](./basics)
-* [Users](./users)
-* [Auth](./auth)
-* [Nodes](./nodes)
-* [Architecture](./architecture)
+* [Architecture Overview](./architecture)
+* [Teleport Users](./users)
+* [Teleport Auth](./auth)
+* [Teleport Nodes](./nodes)
+

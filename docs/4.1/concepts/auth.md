@@ -113,7 +113,6 @@ There are three types of data stored by the auth server:
 ## More Concepts
 
 * [Architecture Overview](./architecture)
-* [Basics](./basics)
 * [Teleport Users](./users)
 * [Teleport Nodes](./nodes)
 * [Teleport Proxy](./proxy)

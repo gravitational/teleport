@@ -26,7 +26,6 @@ pages:
     - Documentation:
         - Introduction: intro.md
         - Quick Start Guide: quickstart.md
-        - Architecture: architecture.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
         - FAQ: faq.md
@@ -41,7 +40,6 @@ pages:
         - Kubernetes Guide: kubernetes_ssh.md
     - Concepts:
         - Architecture Overview: concepts/architecture.md
-        - Teleport Basic Concepts: concepts/basics.md
         - Teleport Users: concepts/users.md
         - Teleport Nodes: concepts/nodes.md
         - Teleport Auth: concepts/auth.md
