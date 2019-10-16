@@ -39,11 +39,11 @@ pages:
         - Trusted Clusters: trustedclusters.md
         - Kubernetes Guide: kubernetes_ssh.md
     - Architecture:
-        - Architecture Overview: concepts/architecture.md
-        - Teleport Users: concepts/users.md
-        - Teleport Nodes: concepts/nodes.md
-        - Teleport Auth: concepts/auth.md
-        - Teleport Proxy: concepts/proxy.md
+        - Architecture Overview: architecture/overview.md
+        - Teleport Users: architecture/users.md
+        - Teleport Nodes: architecture/nodes.md
+        - Teleport Auth: architecture/auth.md
+        - Teleport Proxy: architecture/proxy.md
     - Enterprise Guides:
         - Introduction: enterprise.md
         - Quick Start Guide: quickstart-enterprise.md
