@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.1.1
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue with multi-cluster EKS when the Teleport proxy runs outside EKS. [#3070](https://github.com/gravitational/teleport/pull/3070)
+
 ## 4.1.0
 
 This is a major Teleport release with a focus on stability and bug fixes.
