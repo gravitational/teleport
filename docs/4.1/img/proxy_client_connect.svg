@@ -96,7 +96,7 @@
                 </text>
             </g>
         </g>
-        <g id="circleNumber" transform="translate(202.000000, 116.000000)">
+        <g id="circleNumber" transform="translate(202.000000, 140.000000)">
             <g id="1-copy-2" transform="translate(5.000000, 5.000000)">
                 <circle id="Oval-4" fill="#F26738" cx="13.5" cy="13.5" r="13.5"></circle>
                 <text id="2" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#FFFFFF">
@@ -123,17 +123,17 @@
             <tspan x="361.154541" y="199">Proxy opens SSH tunnel to </tspan>
             <tspan x="531.551025" y="199" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">grav-00</tspan>
         </text>
-        <polygon id="Triangle-2-Copy-8" stroke="#D1EAFF" fill="#D1EAFF" transform="translate(221.500000, 161.500000) scale(1, -1) rotate(-360.000000) translate(-221.500000, -161.500000) " points="221.5 168 215 155 228 155"></polygon>
-        <g id="Group-5-Copy" transform="translate(174.000000, 169.000000)" fill="#EEF4F9" stroke="#D1EAFF" stroke-width="3">
+        <polygon id="Triangle-2-Copy-8" stroke="#D1EAFF" fill="#D1EAFF" transform="translate(222.500000, 183.500000) scale(1, -1) rotate(-360.000000) translate(-222.500000, -183.500000) " points="222.5 190 216 177 229 177"></polygon>
+        <g id="Group-5-Copy" transform="translate(175.000000, 191.000000)" fill="#EEF4F9" stroke="#D1EAFF" stroke-width="3">
             <rect id="Rectangle-16" x="1.5" y="1.5" width="143" height="73"></rect>
         </g>
         <text id="Client-uses-existing" font-family="LucidaGrande, Lucida Grande" font-size="13" font-weight="normal" fill="#4A4A4A">
-            <tspan x="185.065918" y="187">Client uses existing </tspan>
-            <tspan x="204.651611" y="203">SSH tunnel to </tspan>
-            <tspan x="184.043945" y="219">connect to </tspan>
-            <tspan x="254.661621" y="219" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">grav-00</tspan>
-            <tspan x="309.956055" y="219"> </tspan>
-            <tspan x="205.841797" y="235">via the proxy</tspan>
+            <tspan x="186.065918" y="209">Client uses existing </tspan>
+            <tspan x="205.651611" y="225">SSH tunnel to </tspan>
+            <tspan x="185.043945" y="241">connect to </tspan>
+            <tspan x="255.661621" y="241" font-family="LucidaGrande-Bold, Lucida Grande" font-weight="bold">grav-00</tspan>
+            <tspan x="310.956055" y="241"> </tspan>
+            <tspan x="206.841797" y="257">via the proxy</tspan>
         </text>
         <text id="grav-00-10.X.X.1-arc" font-family="LucidaGrande-Bold, Lucida Grande" font-size="11" font-weight="bold" fill="#4A4A4A">
             <tspan x="726.389648" y="94">grav-00 10.X.X.1 arch=debian</tspan>
@@ -206,14 +206,14 @@
             </g>
         </g>
         <path id="Line" d="M705,92 L714,96.5 L705,101 L705,97 L530,97 L530,96 L705,96 L705,92 Z" fill="#979797" fill-rule="nonzero"></path>
-        <path id="Line-8" d="M271.538439,107.42813 L280.499982,112.004237 L271.462171,116.427807 L271.496,112.427 L161.495781,111.495745 L161.504255,110.495781 L271.504,111.427 L271.538439,107.42813 Z" fill="#979797" fill-rule="nonzero"></path>
-        <g id="Group-3" transform="translate(175.000000, 64.000000)">
+        <g id="Group-3" transform="translate(175.000000, 79.000000)">
             <path d="M1,1 L1,38 L89,38 L89,1 L1,1 Z" id="Rectangle-Copy-5" stroke="#979797" stroke-width="2" fill="#FFFFFF"></path>
             <text id="joe:password-2FA:-26" font-family="LucidaGrande, Lucida Grande" font-size="11" font-weight="normal" fill="#4A4A4A">
                 <tspan x="10.418457" y="16">joe:password</tspan>
                 <tspan x="11.8632812" y="29">2FA: 265176</tspan>
             </text>
         </g>
-        <line x1="717" y1="129" x2="530.5" y2="128.5" id="Line-2" stroke="#979797" stroke-width="6" stroke-linecap="square"></line>
+        <line x1="717" y1="129" x2="531" y2="129" id="Line-2" stroke="#979797" stroke-width="6" stroke-linecap="square"></line>
+        <line x1="165" y1="129" x2="276" y2="129" id="Line-8" stroke="#979797" stroke-width="6" stroke-linecap="square"></line>
     </g>
 </svg>
