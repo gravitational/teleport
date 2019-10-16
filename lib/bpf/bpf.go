@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/cgroup"
+	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
 
 	"github.com/gravitational/trace"
@@ -47,28 +47,7 @@ type SessionContext struct {
 	Recorder  events.SessionRecorder
 }
 
-type Config struct {
-	Cgroup *cgroup.Service
-}
-
-func (c *Config) CheckAndSetDefaults() error {
-	if c.Cgroup == nil {
-		return trace.BadParameter("cgroup service required")
-	}
-
-	// Check if the host is running kernel 4.18 or above and has bcc-tools
-	// installed.
-	err := isHostCompatible()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 type Service struct {
-	*Config
-
 	// watch is a map of cgroup IDs that the BPF service is watching and
 	// emitting events for.
 	watch   map[uint64]*SessionContext
@@ -77,13 +56,23 @@ type Service struct {
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 
+	cgroup *controlgroup.Service
+
 	exec *exec
 	open *open
 	//conn *conn
 }
 
-func New(config *Config) (*Service, error) {
-	err := config.CheckAndSetDefaults()
+func New() (*Service, error) {
+	// Check if the host is running kernel 4.18 or above and has bcc-tools
+	// installed.
+	err := isHostCompatible()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create a cgroup controller to add/remote cgroups.
+	cgroup, err := controlgroup.New()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,12 +80,12 @@ func New(config *Config) (*Service, error) {
 	closeContext, closeFunc := context.WithCancel(context.Background())
 
 	s := &Service{
-		Config: config,
-
 		watch: make(map[uint64]*SessionContext),
 
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
+
+		cgroup: cgroup,
 	}
 
 	// TODO(russjones): Pass in a debug flag.
@@ -157,6 +146,8 @@ func (s *Service) loop() {
 				events.ReturnCode: event.ReturnCode,
 			}
 			ctx.Recorder.GetAuditLog().EmitAuditEvent(events.SessionExec, eventFields)
+		case <-s.open.eventsCh():
+			continue
 		case <-s.closeContext.Done():
 			return
 		}
@@ -164,12 +155,12 @@ func (s *Service) loop() {
 }
 
 func (s *Service) OpenSession(ctx *SessionContext) error {
-	err := s.Cgroup.Create(ctx.SessionID)
+	err := s.cgroup.Create(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cgroupID, err := cgroup.ID(ctx.SessionID)
+	cgroupID, err := controlgroup.ID(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,7 +169,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 	s.addWatch(cgroupID, ctx)
 
 	// Place requested PID into cgroup.
-	err = s.Cgroup.Place(ctx.SessionID, ctx.PID)
+	err = s.cgroup.Place(ctx.SessionID, ctx.PID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -187,7 +178,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 }
 
 func (s *Service) CloseSession(ctx *SessionContext) error {
-	cgroupID, err := cgroup.ID(ctx.SessionID)
+	cgroupID, err := controlgroup.ID(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -196,12 +187,12 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	s.removeWatch(cgroupID)
 
 	// Move any existing PIDs into root cgroup.
-	err = s.Cgroup.Unplace(ctx.PID)
+	err = s.cgroup.Unplace(ctx.PID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = s.Cgroup.Remove(ctx.SessionID)
+	err = s.cgroup.Remove(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}

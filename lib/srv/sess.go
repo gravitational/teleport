@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
@@ -80,25 +79,11 @@ type SessionRegistry struct {
 
 	// srv refers to the upon which this session registry is created.
 	srv Server
-
-	bpfreg *bpf.Service
 }
 
 func NewSessionRegistry(srv Server) (*SessionRegistry, error) {
 	if srv.GetSessionServer() == nil {
 		return nil, trace.BadParameter("session server is required")
-	}
-
-	// TODO(russjones): Move these both out to lib/service.
-	cgroupreg, err := cgroup.New()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	bpfreg, err := bpf.New(&bpf.Config{
-		Cgroup: cgroupreg,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	return &SessionRegistry{
@@ -107,7 +92,6 @@ func NewSessionRegistry(srv Server) (*SessionRegistry, error) {
 		}),
 		srv:      srv,
 		sessions: make(map[rsession.ID]*session),
-		bpfreg:   bpfreg,
 	}, nil
 }
 
@@ -639,7 +623,6 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 
-	bbpf := s.registry.bpfreg
 	sessionContext := &bpf.SessionContext{
 		PID:       s.term.PID(),
 		Recorder:  s.recorder,
@@ -651,8 +634,13 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	}
 
 	// TODO(russjones): Check if enhanced auditing is enabled.
-	if ctx.srv.Component() == teleport.ComponentNode {
-		err := bbpf.OpenSession(sessionContext)
+	hasEnhancedAuditing := true
+	if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
+		bpfRecorder, err := ctx.srv.GetBPF()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = bpfRecorder.OpenSession(sessionContext)
 		if err != nil {
 			ctx.Errorf("Failed to open enhanced auditing session: %v: %v.", s.id, err)
 			return trace.Wrap(err)
@@ -736,8 +724,13 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		}
 
 		// TODO(russjones): Check if enhanced auditing is enabled.
-		if ctx.srv.Component() == teleport.ComponentNode {
-			err := bbpf.CloseSession(sessionContext)
+		if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
+			bpfRecorder, err := ctx.srv.GetBPF()
+			if err != nil {
+				ctx.Warnf("Attempting to close session, but BPF recorder not found.")
+				return
+			}
+			err = bpfRecorder.CloseSession(sessionContext)
 			if err != nil {
 				ctx.Errorf("Failed to close enhanced auditing session: %v: %v.", s.id, err)
 			}

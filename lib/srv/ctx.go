@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
@@ -115,6 +116,9 @@ type Server interface {
 	// UseTunnel used to determine if this node has connected to this cluster
 	// using reverse tunnel.
 	UseTunnel() bool
+
+	// GetBPF returns the BPF service used for enhanced auditing.
+	GetBPF() (*bpf.Service, error)
 }
 
 // IdentityContext holds all identity information associated with the user

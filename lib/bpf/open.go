@@ -151,10 +151,10 @@ func (e *open) handleEvents(eventCh <-chan []byte) {
 				log.Warnf("Dropping open event %v/%v %v %v, events buffer full.", event.CgroupID, event.PID, path, event.Flags)
 			}
 
-			if e.debug {
-				log.Debugf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.",
-					event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
-			}
+			//if e.debug {
+			//	log.Debugf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.",
+			//		event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
+			//}
 		}
 	}
 }
