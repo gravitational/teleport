@@ -1,4 +1,4 @@
-## Overview
+# Teleport Auth
 
 This is doc is about the Teleport Authentication Service and Certificate Management. It explains how Users and Nodes are identified and granted access to Nodes and Services.
 
@@ -173,6 +173,35 @@ audit.
 
 See the [admin guide](../admin-guide#recorded-sessions) to learn how to turn on the
 recording proxy mode.
+
+### Storage Back-Ends
+
+Different types of cluster data can be configured with different storage
+back-ends as shown in the table below:
+
+Data Type        | Supported Back-ends       | Notes
+-----------------|---------------------------|---------
+Cluster state    | `dir`, `etcd`, `dynamodb` | Multi-server (HA) configuration is only supported using `etcd` and `dynamodb` back-ends.
+Audit Log Events | `dir`, `dynamodb`         | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions.
+Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` is used for the audit log.
+
+!!! tip "Note":
+    The reason Teleport designers split the audit log events and the recorded
+    sessions into different back-ends is because of the nature of the data. A
+    recorded session is a compressed binary stream (blob) while the event is a
+    well-defined JSON structure. `dir` works well enough for both in small
+    deployments, but large clusters require specialized data stores: S3 is
+    perfect for uploading session blobs, while DynamoDB or `etcd` are better
+    suited to store the cluster state.
+
+The combination of DynamoDB + S3 is especially popular among AWS users because
+it allows them to run Teleport clusters completely devoid of local state.
+
+!!! tip "NOTE":
+    For high availability in production, a Teleport cluster can be
+    serviced by multiple auth servers running in sync. Check [HA
+    configuration](admin-guide.md#high-availability) in the Admin Guide.
+
 
 ## More Concepts
 
