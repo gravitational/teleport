@@ -17,12 +17,12 @@ of nodes. Another user "juliet" could be given permission to OS users "root" and
 to "nginx". Teleport does not have knowledge of the OS Users so it expects both
 "root" and "nginx" to exist on the node.
 
-For enterprise edition users, these can be stored in an external Identity
-Sources such as OKTA, Active Directory, Onelogin, G Suite, or OIDC. Read the
+For enterprise edition users, these can be stored in an external identity
+sources such as OKTA, Active Directory, OneLogin, G Suite, or OIDC. Read the
 [Enterprise Guide](../enterprise) to learn more.
 
-Teleport supports two types of user accounts: **Local Users** and **External
-Users**.
+Teleport supports two types of user accounts: **Local Users** and
+**External Users**.
 
 ### Local users
 
@@ -49,7 +49,7 @@ login. This list is called "user mappings".
 ![User Mappings](../img/user_mappings.svg)
 
 The diagram shows the following mappings. A couple of noteworthy things
-about Teleport Auth:
+from this example:
 
 * Teleport User `sandra` does **not** have access to `grav-02`
 through Teleport because `sandra` is not an OS username.
@@ -63,8 +63,15 @@ tara | tara | grav-01, grav-02
 teleport | teleport  | grav-00, grav-02
 sandra | ops | grav-00, grav-02
 
-Teleport supports second factor authentication (2FA) and it is enforced by
-default. There are two types of 2FA supported:
+Teleport supports second factor authentication (2FA) when using a local auth
+connector and it is enforced by default.
+
+!!! info "2FA Support"
+    2FA is not supported with SSO providers such as Github or OKTA. To learn
+    more about SSO configuration check out the [SSO section of the Enterprise
+    Guide](../enterprise/#sso)
+
+ There are two types of 2FA supported:
 
 * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
 
@@ -79,7 +86,7 @@ default. There are two types of 2FA supported:
 <!--TODO: Production topic-->
 
 External users are users stored elsewhere within an organization. Examples
-include Github, Active Directory (AD) or any identity store with an
+include Github, Active Directory (AD), OIDC, or any identity store with an
 OpenID/OAuth2 or SAML endpoint.
 
 !!! tip "Version Warning":
@@ -101,7 +108,7 @@ login`](../cli-docs/#tsh-login).
 ## User Roles
 
 Unlike traditional SSH, each Teleport user account is assigned a `role` . Having
-roles allows Teleport to implement role-based access control (RBAC), i.e.assign
+roles allows Teleport to implement role-based access control (RBAC), i.e. assign
 users to groups (roles) and restrict each role to a subset of actions on a
 subset of nodes in a cluster.
 
