@@ -9,7 +9,7 @@ spec:
   capacity:
     storage: {{ .Values.persistence.storageSize }}
   accessModes:
-    - ReadWriteOnce
+    - {{ .Values.persistence.accessMode | quote }}
   claimRef:
     namespace: {{ .Release.Namespace }}
     name: {{ template "teleport.fullname" . }}-storage
