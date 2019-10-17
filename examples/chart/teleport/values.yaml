@@ -16,6 +16,7 @@ annotations: {}
 ## To enable AWS API access from teleport, use kube2iam or kiam, annotate the namespace, and then set something like:
 # iam.amazonaws.com/role: teleport-dynamodb-and-s3-access
 
+replicaCount: 1
 strategy: RollingUpdate
 
 ## Affinity for pod assignment
