@@ -2088,7 +2088,6 @@ teleport:
 
       # Teleport assumes credentials. Using provider chains, assuming IAM role or 
       # standard .aws/credentials in the home folder. 
-      access_key: 
 ```
 
 The AWS authentication settings above can be omitted if the machine itself is
