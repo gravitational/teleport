@@ -216,6 +216,21 @@ const (
 
 	// ReturnCode is the return code of execve.
 	ReturnCode = "return_code"
+
+	// Flags are the flags passed to open.
+	Flags = "flags"
+
+	// SrcAddr is the source IP address of the connection.
+	SrcAddr = "src_addr"
+
+	// DstAddr is the destination IP address of the connection.
+	DstAddr = "dst_addr"
+
+	// DstPort is the destination port of the connection.
+	DstPort = "dst_port"
+
+	// TCPVersion is the version of TCP (4 or 6).
+	TCPVersion = "version"
 )
 
 const (

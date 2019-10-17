@@ -32,14 +32,14 @@ import (
 // rawOpenEvent is sent by the eBPF program that Teleport pulls off the perf
 // buffer.
 type rawOpenEvent struct {
+	// CgroupID is the internal cgroupv2 ID of the event.
+	CgroupID uint64
+
 	// PID is the ID of the process.
 	PID uint64
 
 	// ReturnCode is the return code of open.
 	ReturnCode int32
-
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint64
 
 	// Command is name of the executable opening the file.
 	Command [commMax]byte
@@ -73,7 +73,6 @@ type openEvent struct {
 }
 
 type open struct {
-	debug        bool
 	closeContext context.Context
 
 	events chan *openEvent
@@ -82,11 +81,10 @@ type open struct {
 	module   *bcc.Module
 }
 
-func newOpen(closeContext context.Context, debug bool) (*open, error) {
+func newOpen(closeContext context.Context) (*open, error) {
 	e := &open{
-		debug:        debug,
 		closeContext: closeContext,
-		events:       make(chan *openEvent, 1024),
+		events:       make(chan *openEvent, bufferSize),
 	}
 
 	err := e.start()
@@ -147,14 +145,15 @@ func (e *open) handleEvents(eventCh <-chan []byte) {
 				Flags:      event.Flags,
 				CgroupID:   event.CgroupID,
 			}:
+			case <-e.closeContext.Done():
+				return
 			default:
 				log.Warnf("Dropping open event %v/%v %v %v, events buffer full.", event.CgroupID, event.PID, path, event.Flags)
 			}
 
-			//if e.debug {
-			//	log.Debugf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.",
-			//		event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
-			//}
+			//// Remove, only for debugging.
+			//fmt.Printf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.\n",
+			//	event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
 		}
 	}
 }
@@ -186,9 +185,9 @@ struct val_t {
 };
 
 struct data_t {
+    u64 cgroup;
     u64 pid;
     int ret;
-    u32 cgroup;
     char comm[TASK_COMM_LEN];
     char fname[NAME_MAX];
     int flags;

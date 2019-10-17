@@ -60,7 +60,7 @@ type Service struct {
 
 	exec *exec
 	open *open
-	//conn *conn
+	conn *conn
 }
 
 func New() (*Service, error) {
@@ -89,18 +89,18 @@ func New() (*Service, error) {
 	}
 
 	// TODO(russjones): Pass in a debug flag.
-	s.exec, err = newExec(closeContext, true)
+	s.exec, err = newExec(closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.open, err = newOpen(closeContext, true)
+	s.open, err = newOpen(closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	//s.conn, err = newConn(closeContext, true)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
+	s.conn, err = newConn(closeContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Start processing events from exec, open, and conn in a loop.
 	go s.loop()
@@ -112,7 +112,7 @@ func New() (*Service, error) {
 func (s *Service) Close() error {
 	s.exec.close()
 	s.open.close()
-	///s.conn.close()
+	s.conn.close()
 
 	s.closeFunc()
 
@@ -146,8 +146,51 @@ func (s *Service) loop() {
 				events.ReturnCode: event.ReturnCode,
 			}
 			ctx.Recorder.GetAuditLog().EmitAuditEvent(events.SessionExec, eventFields)
-		case <-s.open.eventsCh():
-			continue
+		case event := <-s.open.eventsCh():
+			ctx, ok := s.watch[event.CgroupID]
+			if !ok {
+				continue
+			}
+
+			eventFields := events.EventFields{
+				// Common fields.
+				events.EventNamespace:  ctx.Namespace,
+				events.SessionEventID:  ctx.SessionID,
+				events.SessionServerID: ctx.ServerID,
+				events.EventLogin:      ctx.Login,
+				events.EventUser:       ctx.User,
+				// Open fields.
+				events.PID:        event.PID,
+				events.CgroupID:   event.CgroupID,
+				events.Program:    event.Program,
+				events.Path:       event.Path,
+				events.Flags:      event.Flags,
+				events.ReturnCode: event.ReturnCode,
+			}
+			ctx.Recorder.GetAuditLog().EmitAuditEvent(events.SessionOpen, eventFields)
+		case event := <-s.conn.eventsCh():
+			ctx, ok := s.watch[event.CgroupID]
+			if !ok {
+				continue
+			}
+
+			eventFields := events.EventFields{
+				// Common fields.
+				events.EventNamespace:  ctx.Namespace,
+				events.SessionEventID:  ctx.SessionID,
+				events.SessionServerID: ctx.ServerID,
+				events.EventLogin:      ctx.Login,
+				events.EventUser:       ctx.User,
+				// Connect fields.
+				events.PID:        event.PID,
+				events.CgroupID:   event.CgroupID,
+				events.Program:    event.Program,
+				events.SrcAddr:    event.SrcAddr,
+				events.DstAddr:    event.DstAddr,
+				events.DstPort:    event.DstPort,
+				events.TCPVersion: event.Version,
+			}
+			ctx.Recorder.GetAuditLog().EmitAuditEvent(events.SessionConnect, eventFields)
 		case <-s.closeContext.Done():
 			return
 		}
@@ -273,4 +316,8 @@ const (
 
 	// argvMax is the maximum length of the args vector.
 	argvMax = 128
+
+	// bufferSize is the size of the exec, open, and conn buffers. This number is
+	// arbitrary if it needs to be bigger, feel free to bump it.
+	bufferSize = 1000000
 )

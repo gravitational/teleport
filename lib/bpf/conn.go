@@ -20,8 +20,8 @@ import "C"
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
-	"fmt"
 	"net"
 	"unsafe"
 
@@ -30,37 +30,104 @@ import (
 	"github.com/iovisor/gobpf/bcc"
 )
 
-// separate data structs for ipv4 and ipv6
-type conn4Event struct {
-	PID      uint32
+// rawConn4Event is sent by the eBPF program that Teleport pulls off the perf
+// buffer.
+type rawConn4Event struct {
+	// CgroupID is the internal cgroupv2 ID of the event.
 	CgroupID uint64
-	SrcAddr  uint32
-	DstAddr  uint32
-	Version  uint64
-	DstPort  uint16
-	Command  [commMax]byte
+
+	// Version is the version of TCP (4 or 6).
+	Version uint64
+
+	// PID is the process ID.
+	PID uint32
+
+	// SrcAddr is the source IP address.
+	SrcAddr uint32
+
+	// DstAddr is the destination IP address.
+	DstAddr uint32
+
+	// DstPort is the port the connection is being made to.
+	DstPort uint16
+
+	// Command is name of the executable making the connection.
+	Command [commMax]byte
 }
 
-type conn6Event struct {
-	PID      uint32
+// rawConn6Event is sent by the eBPF program that Teleport pulls off the perf
+// buffer.
+type rawConn6Event struct {
+	// CgroupID is the internal cgroupv2 ID of the event.
 	CgroupID uint64
-	SrcAddr  [4]uint32
-	DstAddr  [4]uint32
-	Version  uint64
-	DstPort  uint16
-	Command  [commMax]byte
+
+	// Version is the version of TCP (4 or 6).
+	Version uint64
+
+	// PID is the process ID.
+	PID uint32
+
+	// SrcAddr is the source IP address.
+	SrcAddr [4]uint32
+
+	// DstAddr is the destination IP address.
+	DstAddr [4]uint32
+
+	// DstPort is the port the connection is being made to.
+	DstPort uint16
+
+	// Command is name of the executable making the connection.
+	Command [commMax]byte
+}
+
+// conn6Event is a parsed connection event.
+type connEvent struct {
+	// PID is the process ID.
+	PID uint32
+
+	// CgroupID is the internal cgroupv2 ID of the event.
+	CgroupID uint64
+
+	// SrcAddr is the source IP address.
+	SrcAddr net.IP
+
+	// DstAddr is the destination IP address.
+	DstAddr net.IP
+
+	// Version is the version of TCP (4 or 6).
+	Version uint64
+
+	// DstPort is the port the connection is being made to.
+	DstPort uint16
+
+	// Program is name of the executable making the connection.
+	Program string
 }
 
 type conn struct {
+	closeContext context.Context
+
+	events chan *connEvent
+
 	module   *bcc.Module
 	perfMaps []*bcc.PerfMap
 }
 
-func newConn() *conn {
-	return &conn{}
+func newConn(closeContext context.Context) (*conn, error) {
+	e := &conn{
+		closeContext: closeContext,
+		events:       make(chan *connEvent, bufferSize),
+	}
+
+	err := e.start()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return e, nil
 }
 
-func (e *conn) Start() error {
+func (e *conn) start() error {
 	e.module = bcc.NewModule(connSource, []string{})
 
 	// Hook IPv4 connection attempts.
@@ -104,12 +171,11 @@ func (e *conn) handle4Events(eventCh <-chan []byte) {
 	for {
 		select {
 		case eventBytes := <-eventCh:
-			var event conn4Event
+			var event rawConn4Event
 
 			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
 			if err != nil {
 				log.Debugf("Failed to read binary data: %v.", err)
-				fmt.Printf("Failed to read binary data: %v.\n", err)
 				continue
 			}
 
@@ -126,8 +192,25 @@ func (e *conn) handle4Events(eventCh <-chan []byte) {
 			// Convert C string that holds the command name into a Go string.
 			command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
 
-			fmt.Printf("--> Event=conn4 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
-				event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
+			select {
+			case e.events <- &connEvent{
+				PID:      event.PID,
+				CgroupID: event.CgroupID,
+				SrcAddr:  srcAddr,
+				DstAddr:  dstAddr,
+				Version:  4,
+				DstPort:  event.DstPort,
+				Program:  command,
+			}:
+			case <-e.closeContext.Done():
+				return
+			default:
+				log.Warnf("Dropping connect (IPv4) event %v/%v %v %v, buffer full.", event.CgroupID, event.PID, srcAddr, dstAddr)
+			}
+
+			//// Remove, only for debugging.
+			//fmt.Printf("--> Event=conn4 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
+			//	event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
 		}
 	}
 }
@@ -136,12 +219,11 @@ func (e *conn) handle6Events(eventCh <-chan []byte) {
 	for {
 		select {
 		case eventBytes := <-eventCh:
-			var event conn6Event
+			var event rawConn6Event
 
 			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
 			if err != nil {
 				log.Debugf("Failed to read binary data: %v.", err)
-				fmt.Printf("Failed to read binary data: %v.\n", err)
 				continue
 			}
 
@@ -164,18 +246,39 @@ func (e *conn) handle6Events(eventCh <-chan []byte) {
 			// Convert C string that holds the command name into a Go string.
 			command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
 
-			fmt.Printf("--> Event=conn6 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
-				event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
+			select {
+			case e.events <- &connEvent{
+				PID:      event.PID,
+				CgroupID: event.CgroupID,
+				SrcAddr:  srcAddr,
+				DstAddr:  dstAddr,
+				Version:  6,
+				DstPort:  event.DstPort,
+				Program:  command,
+			}:
+			case <-e.closeContext.Done():
+				return
+			default:
+				log.Warnf("Dropping connect (IPv6) event %v/%v %v %v, buffer full.", event.CgroupID, event.PID, srcAddr, dstAddr)
+			}
+
+			//// Remove, only for debugging.
+			//fmt.Printf("--> Event=conn6 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
+			//	event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
 		}
 	}
 }
 
 // TODO(russjones): Make sure this program is actually unloaded upon exit.
-func (e *conn) Close() {
+func (e *conn) close() {
 	for _, perfMap := range e.perfMaps {
 		perfMap.Stop()
 	}
 	e.module.Close()
+}
+
+func (e *conn) eventsCh() <-chan *connEvent {
+	return e.events
 }
 
 const connSource string = `
@@ -187,22 +290,22 @@ BPF_HASH(currsock, u32, struct sock *);
 
 // separate data structs for ipv4 and ipv6
 struct ipv4_data_t {
-    u32 pid;
     u64 cgroup;
+    u64 ip;
+    u32 pid;
     u32 saddr;
     u32 daddr;
-    u64 ip;
     u16 dport;
     char task[TASK_COMM_LEN];
 };
 BPF_PERF_OUTPUT(ipv4_events);
 
 struct ipv6_data_t {
-    u32 pid;
     u64 cgroup;
+    u64 ip;
+    u32 pid;
     u32 saddr[4];
     u32 daddr[4];
-    u64 ip;
     u16 dport;
     char task[TASK_COMM_LEN];
 };

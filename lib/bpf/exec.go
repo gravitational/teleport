@@ -80,7 +80,6 @@ type execEvent struct {
 }
 
 type exec struct {
-	debug        bool
 	closeContext context.Context
 
 	events chan *execEvent
@@ -89,11 +88,10 @@ type exec struct {
 	module   *bcc.Module
 }
 
-func newExec(closeContext context.Context, debug bool) (*exec, error) {
+func newExec(closeContext context.Context) (*exec, error) {
 	e := &exec{
-		debug:        debug,
 		closeContext: closeContext,
-		events:       make(chan *execEvent, 1024),
+		events:       make(chan *execEvent, bufferSize),
 	}
 
 	err := e.start()
@@ -159,6 +157,7 @@ func (e *exec) handleEvents(eventCh <-chan []byte) {
 					continue
 				}
 
+				// TODO(russjones): Who free's this C string?
 				// Convert C string that holds the command name into a Go string.
 				command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
 
@@ -172,15 +171,15 @@ func (e *exec) handleEvents(eventCh <-chan []byte) {
 					Argv:       argv[1:],
 					ReturnCode: event.ReturnCode,
 				}:
+				case <-e.closeContext.Done():
+					return
 				default:
 					log.Warnf("Dropping exec event %v/%v %v, events buffer full.", event.CgroupID, event.PID, argv)
 				}
 
-				// TODO(russjones): This appears to log twice for some reason.
-				if e.debug {
-					log.Debugf("Event=exec CgroupID=%v PID=%v PPID=%v Program=%v Path=%v Args=%v ReturnCode=%v.",
-						event.CgroupID, event.PID, event.PPID, command, argv[0], argv[1:], event.ReturnCode)
-				}
+				//// Remove, only for debugging.
+				//fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Program=%v Path=%v Args=%v ReturnCode=%v.\n",
+				//	event.CgroupID, event.PID, event.PPID, command, argv[0], argv[1:], event.ReturnCode)
 			}
 		case <-e.closeContext.Done():
 			return
