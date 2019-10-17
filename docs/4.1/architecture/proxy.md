@@ -25,7 +25,8 @@ client SSH connection:
 
 ![Teleport Proxy Web](../img/proxy-web.svg)
 
-1. User logs in to Web UI using username, password and 2nd factor token.
+1. User logs in to Web UI using username and password, and 2nd factor token if
+   configured (2FA Tokens are not used with SSO providers).
 2. Proxy passes credentials to the Auth Server's API
 3. If Auth Server accepts credentials, it generates a new web session and
    generates a special ssh keypair associated with this web session. Auth server
@@ -59,7 +60,8 @@ Authority (CA)](./auth/#authentication-in-teleport).:
    which defaults to 24 hours, but can be configured in
    [`tctl`](./cli-docs/#tctl).
 4. The Proxy Server returns the user certificate to the client and client stores
-   it in `~/.tsh/keys`.
+   it in `~/.tsh/keys`. The certificate is also added to the local SSH agent if
+   one is running.
 
 **Using Client Certificates**
 
@@ -84,9 +86,9 @@ client `ssh` or using `tsh`:
    SSH connection. The client authenticates with the target Node using its
    client certificate.
 
-!!! tip "NOTE": Teleport's proxy command makes it compatible with [SSH jump
-    hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using
-    OpenSSH's `ProxyCommand`
+!!! tip "NOTE": Teleport's proxy command makes it compatible with
+    [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented
+    using OpenSSH's `ProxyCommand`. also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1.
 
 ## More Concepts
 
