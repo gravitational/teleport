@@ -2,6 +2,7 @@
 # This Makefile is used for producing official Teleport releases
 #
 BBOX=teleport-buildbox:latest
+BBOXFIPS=teleport-buildbox-fips:latest
 
 DOCSBOX=teleport-docsbox:latest
 DOCSHOST=teleport-docs
@@ -52,6 +53,17 @@ bbox:
 		--build-arg GID=$$(id -g) \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--tag $(BBOX) .
+
+#
+# Builds a Docker buildbox for FIPS
+#
+.PHONY:bbox-fips
+bbox-fips:
+	docker build \
+		--build-arg UID=$$(id -u) \
+		--build-arg GID=$$(id -g) \
+		--build-arg RUNTIME=$(RUNTIME) \
+		--tag $(BBOXFIPS) -f Dockerfile-fips .
 
 #
 # Builds a Docker container for building mkdocs documentation
@@ -140,6 +152,16 @@ enter: bbox
 release: bbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
+
+#
+# Create a Teleport FIPS package using the build container.
+# This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
+#
+.PHONY:release-fips
+release-fips: bbox-fips
+	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXFIPS) \
+		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)-fips
 
 #
 # Create a Windows Teleport package using the build container.
