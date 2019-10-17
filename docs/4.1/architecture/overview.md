@@ -11,23 +11,19 @@ check out the [Admin Guide](../admin-guide)
 Teleport was designed in accordance with the following principles:
 
 * **Off the Shelf Security**: Teleport does not re-implement any security
-
   primitives and uses well-established, popular implementations of the
   encryption and network protocols.
 
 * **Open Standards**: There is no security through obscurity. Teleport is fully
-
   compatible with existing and open standards and other software, including
   [OpenSSH](../admin-guide/#using-teleport-with-openssh).
 
 * **Cluster-Oriented Design**: Teleport is built for managing clusters, not
-
   individual servers. In practice this means that hosts and [Users](./users)
   have cluster memberships. Identity management and authorization happen on a
   cluster level.
 
 * **Built for Teams**: Teleport was created under the assumption of multiple
-
   teams operating on several disconnected clusters. Example use cases might be
   production-vs-staging environment, or a cluster-per-customer or
   cluster-per-application basis.
@@ -139,8 +135,8 @@ If there was no key previously offered (first time login) or if the certificate
 has expired, the proxy denies the connection and asks the client to login
 interactively using a password and a 2nd factor if enabled.
 
-Teleport uses [Google
-Authenticator](https://support.google.com/accounts/answer/1066447?hl=en),
+Teleport supports
+[Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=en),
 [Authy](https://www.authy.com/), or another
 [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_algorithm)
 generator. The password + 2nd factor are submitted to a proxy via HTTPS,
@@ -148,8 +144,7 @@ therefore it is critical for a secure configuration of Teleport to install a
 proper HTTPS certificate on a proxy.
 
 !!! warning "Warning":
-    Do not use a self-signed SSL/HTTPS certificates when
-    creating production!
+    Do not use self-signed SSL/HTTPS certificates in production!
 
 If the credentials are correct, the auth server generates and signs a new
 certificate and returns it to a client via the proxy. The client stores this key
@@ -203,7 +198,8 @@ Finally the client is authorized to create an SSH connection to a node.
 
 ## Teleport CLI Tools
 
-Teleport offers two command line tools. `tsh` is a client tool used by the end users, while `tctl` is used for cluster administration.
+Teleport offers two command line tools. `tsh` is a client tool used by the end
+users, while `tctl` is used for cluster administration.
 
 ### TSH
 
@@ -239,7 +235,7 @@ You can learn more about `tctl` in the [Admin Manual](admin-guide.md).
 ## Next Steps
 
 * If you haven't already, read the [Quickstart Guide](../quickstart) to run a
-  minimal set of Teleport yourself.
+minimal setup of Teleport yourself.
 * Set up Teleport for your team with the [Admin Guide](../admin-guide)
 
 Read the rest of the Architecture Guides:
