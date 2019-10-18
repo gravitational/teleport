@@ -2258,10 +2258,6 @@ teleport:
     # Name of the DynamoDB table. If it does not exist, Teleport will create it.
     table_name: Example_TELEPORT_DYNAMO_TABLE_NAME
 
-    # Authentication settings are optional (see below)
-    access_key: BKZA3H2LOKJ1QJ3YF21A
-    secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
-
     # This setting configures Teleport to send the audit events to three places:
     # To keep a copy on a local filesystem, in DynamoDB and to Stdout.
     audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name', 'stdout://']
@@ -2270,8 +2266,8 @@ teleport:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
 ```
 
-* Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME` with your own settings. Teleport will create the table automatically.
-
+* Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
+  with your own settings.  Teleport will create the table automatically.
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 
