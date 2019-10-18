@@ -73,7 +73,8 @@ to specify `New Image` from the streaming options. DynamoDB back-end supports tw
 types of Teleport data:
 
 * Cluster state
-* Audit log events
+
+See [DynamoDB Admin Guide for more information](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
 
 ![AWS DynamoDB Tables](img/aws/dynamodb-tables.png)
 ![Setting Streams](img/aws/setting-stream.png) 
@@ -89,12 +90,6 @@ Cluster State:
 | Primary partition key | HashKey (String)      |
 | Primary sort key      | FullPath (String)     |
 
-Audit Log:
-
-| Table name            | teleport-cluster-name-events   |
-|-----------------------|--------------------------------|
-| Primary partition key | SessionID (String)             |
-| Primary sort key      | EventIndex (Number)            |
 
 
 ### S3 
