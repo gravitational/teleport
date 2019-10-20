@@ -25,6 +25,7 @@ extra:
 pages:
     - Documentation:
         - Introduction: intro.md
+        - CLI Docs: cli-docs.md
         - Quick Start Guide: guides/quickstart.md
         - Architecture: architecture.md
         - User Manual: user-manual.md
