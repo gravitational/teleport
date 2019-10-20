@@ -169,6 +169,9 @@ func (s *remoteSite) Close() error {
 		s.connections[i].Close()
 	}
 	s.connections = []*remoteConn{}
+	if s.remoteAccessPoint != nil {
+		return s.remoteAccessPoint.Close()
+	}
 	return nil
 }
 

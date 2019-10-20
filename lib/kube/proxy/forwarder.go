@@ -381,6 +381,7 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		isRemoteCluster = targetCluster.GetName() != f.ClusterName
 	} else {
 		// DELETE IN(4.3.0)
 		// This logic is deprecated and after the second upgrade, will not be used

@@ -32,10 +32,11 @@ rm -f /tmp/influxdb.rpm
 # Install certbot to rotate certificates
 # Certbot is a tool to request letsencrypt certificates,
 # remove it if you don't need letsencrypt.
-curl ${CURL_OPTS} -O https://bootstrap.pypa.io/get-pip.py
-python2.7 get-pip.py
-pip install -I awscli requests[security]==2.18.4
-pip install certbot==0.21.0 certbot-dns-route53==0.21.0
+sudo yum -y install python3 python3-pip
+#curl ${CURL_OPTS} -O https://bootstrap.pypa.io/get-pip.py
+#python3 get-pip.py
+pip3 install -I awscli requests[security]==2.18.4
+pip3 install certbot==0.21.0 certbot-dns-route53==0.21.0
 
 # Create teleport user. It is helpful to share the same UID
 # to have the same permissions on shared NFS volumes across auth servers and for consistency.
@@ -44,23 +45,34 @@ useradd -r teleport -u ${TELEPORT_UID} -d /var/lib/teleport
 usermod -a -G adm teleport
 
 # Setup teleport run dir for pid files
-mkdir -p /var/run/teleport/ /var/lib/teleport /etc/teleport.d
-chown -R teleport:adm /var/run/teleport /var/lib/teleport /etc/teleport.d/
+mkdir -p /run/teleport/ /var/lib/teleport /etc/teleport.d
+chown -R teleport:adm /run/teleport /var/lib/teleport /etc/teleport.d/
 
 # Download and install teleport binaries
 pushd /tmp
-if [[ "${TELEPORT_TYPE}" == "oss" ]]; then
-    echo "Installing OSS Teleport version ${TELEPORT_VERSION}"
-    curl ${CURL_OPTS} -o teleport.tar.gz https://s3.amazonaws.com/clientbuilds.gravitational.io/teleport/${TELEPORT_VERSION}/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
-    tar -xzf teleport.tar.gz
-    cp teleport/tctl teleport/tsh teleport/teleport /usr/bin
-    rm -rf /tmp/teleport.tar.gz /tmp/teleport
-else
-    echo "Installing Enterprise Teleport version ${TELEPORT_VERSION}"
-    curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
-    tar -xzf teleport.tar.gz
-    cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
-    rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
+# Install the FIPS version of Teleport if /tmp/teleport-fips is present
+if [ -f /tmp/teleport-fips ]; then
+        echo "Installing Enterprise Teleport version ${TELEPORT_VERSION} with FIPS support"
+        curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-fips-bin.tar.gz
+        tar -xzf teleport.tar.gz
+        cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
+        rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
+        # add --fips to 'teleport start' commands in FIPS mode
+        sed -i -E "s_ExecStart=/usr/bin/teleport start(.*)_ExecStart=/usr/bin/teleport start --fips\1_g" /etc/systemd/system/teleport*.service
+else 
+    if [[ "${TELEPORT_TYPE}" == "oss" ]]; then
+        echo "Installing OSS Teleport version ${TELEPORT_VERSION}"
+        curl ${CURL_OPTS} -o teleport.tar.gz https://s3.amazonaws.com/clientbuilds.gravitational.io/teleport/${TELEPORT_VERSION}/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
+        tar -xzf teleport.tar.gz
+        cp teleport/tctl teleport/tsh teleport/teleport /usr/bin
+        rm -rf /tmp/teleport.tar.gz /tmp/teleport
+    else
+        echo "Installing Enterprise Teleport version ${TELEPORT_VERSION}"
+        curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
+        tar -xzf teleport.tar.gz
+        cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
+        rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
+    fi
 fi
 popd
 
