@@ -177,7 +177,7 @@ total 8.0K
 
 ### SSH Certificates for Automation
 
-<!--TODO: This seems more like an admin task-->
+<!--This seems more like an admin task-->
 
 Regular users of Teleport must request an auto-expiring SSH certificate, usually
 every day. This doesn't work for non-interactive scripts, like cron jobs or
@@ -491,23 +491,33 @@ below:
 # and will request a proxied connection to "db" on port 3022 (default Teleport SSH port)
 Host db
     Port 3022
-    ProxyCommand ssh -p 3023 %r@proxy.example.com -s proxy:%h:%p
+    ProxyJump proxy.example.com:3023
 
 # When connecting to a node behind a trusted cluster named "remote-cluster",
 # the name of the trusted cluster must be appended to the proxy subsystem
 # after '@':
-Host *.trusted-cluster.example.com
+Host *.remote-cluster.example.com
    Port 3022
-   ProxyCommand ssh -p 3023 %r@proxy.example.com -s proxy:%h:%p@trusted-cluster
+   ProxyJump proxy.example.com:3023@remote-cluster
 ```
 
-The configuration above is all you need to `ssh root@db` if there's an SSH agent
-running on a client computer. You can verify it by executing `ssh-add -L` right
-after `tsh login`. If the SSH agent is running, the cluster certificates will be
-printed to stdout.
+The configuration above is all you need to `ssh root@db` if there's an
+SSH agent running on a client computer. You can verify it by executing `ssh-add -L`
+right after `tsh login`. If the SSH agent is running, the cluster certificates will
+be printed to stdout.
 
-If there is no ssh-agent available, the certificate must be passed to the
-OpenSSH client explicitly.
+If there is no ssh-agent available, the certificate must be passed to the OpenSSH client explicitly.
+
+When proxy is in ["Recording mode"](https://gravitational.com/blog/how-to-record-ssh-sessions/) the following will happen with SSH:
+
+`$ ssh -J user@teleport.proxy:3023 -p 3022 user@target -F ./forward.config`
+
+Where `forward.config` enables agent forwarding:
+
+```bash
+Host teleport.proxy
+  ForwardAgent yes
+```
 
 ### Passing Teleport SSH Certificate to OpenSSH Client
 
@@ -522,8 +532,7 @@ He executes [`tsh login`](./cli-docs/#tsh-login) command:
 $ tsh --proxy=lab.example.com login --user=joe
 ```
 
-His identity is now stored in `~/.tsh/keys/lab.example.com`, so his
-`~/.ssh/config` needs to look like this:
+His identity is now stored in `~/.tsh/keys/lab.example.com`, so his `~/.ssh/config` needs to look like this:
 
 ```bash
 # ~/.ssh/config file:
