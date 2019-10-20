@@ -37,6 +37,7 @@ pages:
         - Single sign-on (SSO): ssh_sso.md
     - Guides:
         - AWS: aws_oss_guide.md
+        - Installation: installation.md
         - Okta: ssh_okta.md
         - Active Directory (ADFS): ssh_adfs.md
         - OneLogin: ssh_one_login.md
