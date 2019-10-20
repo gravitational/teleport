@@ -15,7 +15,7 @@ ExecStartPre=/usr/bin/teleport-ssm-get-token
 ExecStartPre=/bin/aws s3 sync s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport
 ExecStart=/usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/teleport/teleport.pid
+PIDFile=/run/teleport/teleport.pid
 LimitNOFILE=65536
 
 [Install]
