@@ -25,12 +25,13 @@ extra:
 pages:
     - Documentation:
         - Introduction: intro.md
-        - Quick Start Guide: quickstart.md
+        - Quick Start Guide: guides/quickstart.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
         - FAQ: faq.md
     - Guides:
         - AWS: aws_oss_guide.md
+        - Installation: installation.md
         - Okta: ssh_okta.md
         - Active Directory (ADFS): ssh_adfs.md
         - OneLogin: ssh_one_login.md

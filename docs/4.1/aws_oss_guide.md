@@ -39,7 +39,7 @@ for the below.
 - Fargate
 - AWS ECS
 
-## Teleport Introduction
+## Teleports Introduction
 
 This guide will cover how to setup, configure and run Teleport on [AWS](https://aws.amazon.com/).
 
