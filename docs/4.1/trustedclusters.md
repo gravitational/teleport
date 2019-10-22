@@ -1,7 +1,7 @@
 # Trusted Clusters
 
-The design of trusted clusters allows Teleport users to connect to compute infrastructure 
-located behind firewalls without any open TCP ports. The real world usage examples of this 
+The design of trusted clusters allows Teleport users to connect to compute infrastructure
+located behind firewalls without any open TCP ports. The real world usage examples of this
 capability include:
 
  - Managed service providers (MSP) remotely managing infrastructure of their clients.
@@ -28,8 +28,8 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 * Establish permissions mapping between clusters using Teleport roles.
 
 !!! tip "Teleport Node Tunneling":
-    If you have a large amount of devices on different networks, such as 
-    managed IoT devices or a couple of nodes on a different network you can utilize 
+    If you have a large amount of devices on different networks, such as
+    managed IoT devices or a couple of nodes on a different network you can utilize
     the [Teleport Node Tunneling](quickstart/#adding-a-node-located-behind-nat-teleport-node-tunneling).
 
 
@@ -47,7 +47,7 @@ cluster. This is not always convenient.
 
 The concept of _leaf clusters_ allows Teleport administrators to connect
 multiple clusters together and establish trust between them. Trusted clusters
-allow users of one cluster, the root cluster to seamlessly SSH into the nodes of 
+allow users of one cluster, the root cluster to seamlessly SSH into the nodes of
 another cluster without having to "hop" between proxy servers. Moreover, users don't
 even need to have a direct connection to other clusters' proxy servers. The user
 experience looks like this:
@@ -88,8 +88,6 @@ shared secret needs to exist in order for "main" to accept the connection from
 This shared secret is called a "join token". There are two ways to create join
 tokens: to statically define them in a configuration file, or to create them on
 the fly using `tctl` tool.
-
-
 
 !!! tip "Important":
     It is important to realize that join tokens are only used to establish the
@@ -238,13 +236,13 @@ with `^` and ends with `$`
 
 
 ### Trusted Cluster UI
-For customers using Teleport Enterprise, they can easily configure _leaf_ nodes using the 
-Teleport Proxy UI. 
+For customers using Teleport Enterprise, they can easily configure _leaf_ nodes using the
+Teleport Proxy UI.
 
 **Creating Trust from the Leaf node to the root node.**
 ![Tunnels](img/trusted-clusters/setting-up-trust.png)
 
-**The root cluster showing the cluster switching UI.** 
+**The root cluster showing the cluster switching UI.**
 ![Teleport Cluster Switcher](img/trusted-clusters/Teleport-Cluster-switcher.png)
 
 ## Updating Trusted Cluster Role Map
