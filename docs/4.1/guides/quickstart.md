@@ -10,20 +10,19 @@ VM.
 
 ### Prerequisites
 
-* In this tutorial you will start a web UI which must be accessible via a web
-
+* In this tutorial you will start a web UI which must be accessible via a web 
   browser. If you run this tutorial on a remote machine without a GUI, first
   make sure that this machine's IP can be reached over the your network and that
   it accepts incoming traffic on port `3080` .
 
 * We recommend that you read the [Architecture Guide](../architecture) before
-
   working through this tutorial. If you'd like to dive right in though this is
   the best place to start!
 
 This guide is only meant to demonstrate how to run teleport in a sandbox or demo
-environment and showcase a few basic tasks you can do with Teleport.**You
-should not follow this guide if you want to set up Teleport in production.
+environment and showcase a few basic tasks you can do with Teleport.
+
+**You should not follow this guide if you want to set up Teleport in production.
 Instead follow the [Admin Guide](../admin-guide))**
 
 ## Step 1: Install Teleport
