@@ -254,6 +254,11 @@ type ServerContext struct {
 
 	// cancel is called whenever server context is closed
 	cancel context.CancelFunc
+
+	// termAllocated is used to track if a terminal has been allocated. This has
+	// to be tracked because the terminal is set to nil after it's "taken" in the
+	// session.
+	termAllocated bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and

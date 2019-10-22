@@ -93,16 +93,16 @@ func (s *Service) Place(sessionID string, pid int) error {
 
 // Unplace will remove a process from all Teleport related cgroups.
 func (s *Service) Unplace(pid int) error {
-	f, err := os.OpenFile("/cgroup2/cgroup.procs", os.O_APPEND|os.O_WRONLY, 0755)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer f.Close()
+	//f, err := os.OpenFile("/cgroup2/cgroup.procs", os.O_APPEND|os.O_WRONLY, 0755)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//defer f.Close()
 
-	_, err = f.WriteString(strconv.Itoa(pid))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	//_, err = f.WriteString(strconv.Itoa(pid))
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
 
 	return nil
 }

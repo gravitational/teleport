@@ -185,7 +185,7 @@ func (t *terminal) Run() error {
 	//}
 
 	// Create and marshal command to execute.
-	cmdmsg, err := prepareCommand(t.ctx, true)
+	cmdmsg, err := prepareCommand(t.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -209,7 +209,7 @@ func (t *terminal) Run() error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("--> Requesting re-exec with: %v.\n", cmdmsg)
+	fmt.Printf("--> Requesting re-exec (shell) with: %#v.\n", cmdmsg)
 
 	// Re-execute Teleport and pass along the allocated PTY as well as the
 	// command reader from where Teleport will know how to re-spawn itself.
@@ -222,9 +222,9 @@ func (t *terminal) Run() error {
 		Args: []string{teleportPath, "exec"},
 		Dir:  cmdmsg.Dir,
 		ExtraFiles: []*os.File{
+			cmdReader,
 			t.pty,
 			t.tty,
-			cmdReader,
 		},
 	}
 

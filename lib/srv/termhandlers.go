@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"fmt"
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 
@@ -37,6 +38,8 @@ type TermHandlers struct {
 // without a TTY. Result of execution is propagated back on the ExecResult
 // channel of the context.
 func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+	fmt.Printf("--> termhandlers: HandleExec: %v.\n", ctx.GetTerm())
+
 	execRequest, err := parseExecRequest(req, ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -119,6 +122,8 @@ func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerC
 // "exec" or "shell" requests. The "pty-req" includes the size of the TTY as
 // well as the terminal type requested.
 func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+	fmt.Printf("--> termhandlers: HandlePTYReq: %v.\n", ctx.GetTerm())
+
 	// parse and extract the requested window size of the pty
 	ptyRequest, err := parsePTYReq(req)
 	if err != nil {
@@ -145,6 +150,8 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 			return trace.Wrap(err)
 		}
 		ctx.SetTerm(term)
+		ctx.termAllocated = true
+		fmt.Printf("--> termhandlers.go: terminal has been allocated.\n")
 	}
 	term.SetWinSize(*params)
 	term.SetTermType(ptyRequest.Env)

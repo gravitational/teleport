@@ -246,6 +246,7 @@ func (sl *DiskSessionLogger) openEventsFile(eventIndex int64) error {
 	}
 
 	// open new events file for writing
+	//fmt.Printf("--> os.OpenFile!.\n")
 	file, err := os.OpenFile(eventsFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		return trace.Wrap(err)
@@ -321,10 +322,12 @@ func EventFromChunk(sessionID string, chunk *SessionChunk) (EventFields, error) 
 }
 
 func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (written int, err error) {
+	//fmt.Printf("--> sessionlog.go: writeChunk.\n")
 
 	// this section enforces the following invariant:
 	// a single events file only contains successive events
 	if sl.lastEventIndex == -1 || chunk.EventIndex-1 != sl.lastEventIndex {
+		//fmt.Printf("--> sessionlog.go: opening events file.\n.\n")
 		if err := sl.openEventsFile(chunk.EventIndex); err != nil {
 			return -1, trace.Wrap(err)
 		}

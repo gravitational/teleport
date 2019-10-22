@@ -625,7 +625,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 
 	sessionContext := &bpf.SessionContext{
 		PID:       s.term.PID(),
-		Recorder:  s.recorder,
+		AuditLog:  s.recorder.GetAuditLog(),
 		Namespace: ctx.srv.GetNamespace(),
 		SessionID: s.id.String(),
 		ServerID:  ctx.srv.HostUUID(),
@@ -636,11 +636,11 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// TODO(russjones): Check if enhanced auditing is enabled.
 	hasEnhancedAuditing := true
 	if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
-		bpfRecorder, err := ctx.srv.GetBPF()
+		ebpf, err := ctx.srv.GetBPF()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		err = bpfRecorder.OpenSession(sessionContext)
+		err = ebpf.OpenSession(sessionContext)
 		if err != nil {
 			ctx.Errorf("Failed to open enhanced auditing session: %v: %v.", s.id, err)
 			return trace.Wrap(err)
@@ -725,16 +725,15 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 
 		// TODO(russjones): Check if enhanced auditing is enabled.
 		if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
-			bpfRecorder, err := ctx.srv.GetBPF()
+			ebpf, err := ctx.srv.GetBPF()
 			if err != nil {
 				ctx.Warnf("Attempting to close session, but BPF recorder not found.")
 				return
 			}
-			err = bpfRecorder.CloseSession(sessionContext)
+			err = ebpf.CloseSession(sessionContext)
 			if err != nil {
 				ctx.Errorf("Failed to close enhanced auditing session: %v: %v.", s.id, err)
 			}
-
 		}
 
 		if result != nil {

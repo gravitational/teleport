@@ -18,6 +18,7 @@ package events
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -28,6 +29,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
+
+var _ = fmt.Printf
 
 // SessionRecorder implements io.Writer to be plugged into the multi-writer
 // associated with every session. It forwards session stream to the audit log
@@ -140,6 +143,7 @@ func NewForwardRecorder(cfg ForwardRecorderConfig) (*ForwardRecorder, error) {
 
 // GetAuditLog returns audit log associated with this recorder
 func (r *ForwardRecorder) GetAuditLog() IAuditLog {
+	//fmt.Printf("--> recorder.go: ForwardRecorder: GetAuditLog: %T.\n", r.AuditLog)
 	return r.AuditLog
 }
 

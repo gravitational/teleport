@@ -161,9 +161,9 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	}
 	tlsCopy := t.TLS.Clone()
 	tlsCopy.ClientCAs = pool
-	for _, cert := range tlsCopy.Certificates {
-		t.Debugf("Server certificate %v.", TLSCertInfo(&cert))
-	}
+	//for _, cert := range tlsCopy.Certificates {
+	//	t.Debugf("Server certificate %v.", TLSCertInfo(&cert))
+	//}
 	return tlsCopy, nil
 }
 
@@ -354,7 +354,7 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			log.Debugf("ClientCertPool -> %v", CertInfo(cert))
+			//log.Debugf("ClientCertPool -> %v", CertInfo(cert))
 			pool.AddCert(cert)
 		}
 	}

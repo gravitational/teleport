@@ -91,6 +91,9 @@ const (
 	// HTTPMaxIdleConnsPerHost is the max idle connections per-host.
 	HTTPMaxIdleConnsPerHost = 1000
 
+	// HTTPMaxConnsPerHost is the maximum number of connections per-host.
+	HTTPMaxConnsPerHost = 250
+
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
 

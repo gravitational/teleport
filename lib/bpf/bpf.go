@@ -18,6 +18,7 @@ package bpf
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/gravitational/teleport"
@@ -34,6 +35,8 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentBPF,
 })
 
+var _ = fmt.Printf
+
 // SessionContext ...
 // TODO(russjones): This data has to be copied over to break circular
 // imports with lib/srv.
@@ -44,7 +47,8 @@ type SessionContext struct {
 	Login     string
 	User      string
 	PID       int
-	Recorder  events.SessionRecorder
+	AuditLog  events.IAuditLog
+	//Recorder  events.SessionRecorder
 }
 
 type Service struct {
@@ -145,7 +149,7 @@ func (s *Service) loop() {
 				events.Argv:       event.Argv,
 				events.ReturnCode: event.ReturnCode,
 			}
-			ctx.Recorder.GetAuditLog().EmitAuditEvent(events.SessionExec, eventFields)
+			go ctx.AuditLog.EmitAuditEvent(events.SessionExec, eventFields)
 		case event := <-s.open.eventsCh():
 			ctx, ok := s.watch[event.CgroupID]
 			if !ok {
@@ -167,7 +171,7 @@ func (s *Service) loop() {
 				events.Flags:      event.Flags,
 				events.ReturnCode: event.ReturnCode,
 			}
-			ctx.Recorder.GetAuditLog().EmitAuditEvent(events.SessionOpen, eventFields)
+			go ctx.AuditLog.EmitAuditEvent(events.SessionOpen, eventFields)
 		case event := <-s.conn.eventsCh():
 			ctx, ok := s.watch[event.CgroupID]
 			if !ok {
@@ -190,7 +194,7 @@ func (s *Service) loop() {
 				events.DstPort:    event.DstPort,
 				events.TCPVersion: event.Version,
 			}
-			ctx.Recorder.GetAuditLog().EmitAuditEvent(events.SessionConnect, eventFields)
+			go ctx.AuditLog.EmitAuditEvent(events.SessionConnect, eventFields)
 		case <-s.closeContext.Done():
 			return
 		}
@@ -293,7 +297,7 @@ func attachRetProbe(module *bcc.Module, eventName string, functionName string) e
 func openPerfBuffer(module *bcc.Module, perfMaps []*bcc.PerfMap, name string) (<-chan []byte, error) {
 	var err error
 
-	eventCh := make(chan []byte, 1024)
+	eventCh := make(chan []byte, 1024000)
 	table := bcc.NewTable(module.TableId(name), module)
 
 	perfMap, err := bcc.InitPerfMap(table, eventCh)

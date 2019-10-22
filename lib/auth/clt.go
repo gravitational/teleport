@@ -241,6 +241,12 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		MaxIdleConns:        defaults.HTTPMaxIdleConns,
 		MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
 
+		// TODO(russjones): Only set this if the host allows a small number of
+		// connections per process.
+		// Limit the total number of connections to a host. Some hosts allow a low
+		// number of connections per process. This keeps those machines happy.
+		MaxConnsPerHost: defaults.HTTPMaxConnsPerHost,
+
 		// IdleConnTimeout defines the maximum amount of time before idle connections
 		// are closed. Leaving this unset will lead to connections open forever and
 		// will cause memory leaks in a long running process.

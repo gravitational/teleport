@@ -122,38 +122,40 @@ func (e *open) handleEvents(eventCh <-chan []byte) {
 	for {
 		select {
 		case eventBytes := <-eventCh:
-			var event rawOpenEvent
+			go func() {
+				var event rawOpenEvent
 
-			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
-			if err != nil {
-				log.Debugf("Failed to read binary data: %v.", err)
-				continue
-			}
+				err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
+				if err != nil {
+					log.Debugf("Failed to read binary data: %v.", err)
+					return
+				}
 
-			// Convert C string that holds the command name into a Go string.
-			command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
+				// Convert C string that holds the command name into a Go string.
+				command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
 
-			// Convert C string that holds the path into a Go string.
-			path := C.GoString((*C.char)(unsafe.Pointer(&event.Path)))
+				// Convert C string that holds the path into a Go string.
+				path := C.GoString((*C.char)(unsafe.Pointer(&event.Path)))
 
-			select {
-			case e.events <- &openEvent{
-				PID:        event.PID,
-				ReturnCode: event.ReturnCode,
-				Program:    command,
-				Path:       path,
-				Flags:      event.Flags,
-				CgroupID:   event.CgroupID,
-			}:
-			case <-e.closeContext.Done():
-				return
-			default:
-				log.Warnf("Dropping open event %v/%v %v %v, events buffer full.", event.CgroupID, event.PID, path, event.Flags)
-			}
+				select {
+				case e.events <- &openEvent{
+					PID:        event.PID,
+					ReturnCode: event.ReturnCode,
+					Program:    command,
+					Path:       path,
+					Flags:      event.Flags,
+					CgroupID:   event.CgroupID,
+				}:
+				case <-e.closeContext.Done():
+					return
+				default:
+					log.Warnf("Dropping open event %v/%v %v %v, events buffer full.", event.CgroupID, event.PID, path, event.Flags)
+				}
 
-			//// Remove, only for debugging.
-			//fmt.Printf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.\n",
-			//	event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
+				//// Remove, only for debugging.
+				//fmt.Printf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.\n",
+				//	event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
+			}()
 		}
 	}
 }
