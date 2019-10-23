@@ -637,10 +637,11 @@ Then invoke `tsh ssh` as usual to authenticate:
 tsh --proxy <proxy-addr> ssh <hostname>
 ```
 
-!!! tip "Version Warning": External user identities are only supported in
-    [Teleport Enterprise](/enterprise/). Please reach out to
+!!! tip "Version Warning": 
+  
+    External user identities are only supported in [Teleport Enterprise](/enterprise/). 
 
-`sales@gravitational.com` for more information.
+    Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
 
 ## Adding and Deleting Users
 
@@ -929,19 +930,14 @@ In addition to specifying a custom nodename, Teleport also allows for the
 application of arbitrary key:value pairs to each node, called labels. There are
 two kinds of labels:
 
-1. `static labels` do not change over time, while
-
-   [ `teleport` ](../cli-docs/#teleport) process is running.
-
-   Examples of static labels are physical location of nodes, name of the
-   environment (staging vs production), etc.
+1. `static labels` do not change over time, while [ `teleport` ](../cli-docs/#teleport) 
+    process is running.  Examples of static labels are physical location of nodes, 
+    name of the environment (staging vs production), etc.
 
 2. `dynamic labels` also known as "label commands" allow to generate labels at
-
-   runtime. Teleport will execute an external command on a node at a
-   configurable frequency and the output of a command becomes the label value.
-   Examples include reporting load averages, presence of a process, time after
-   last reboot, etc.
+   runtime. Teleport will execute an external command on a node at a configurable
+   frequency and the output of a command becomes the label value. Examples include
+    reporting load averages, presence of a process, time after last reboot, etc.
 
 There are two ways to configure node labels.
 
@@ -1006,12 +1002,10 @@ command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+'"]
 Teleport logs every SSH event into its audit log. There are two components of
 the audit log:
 
-1. **SSH Events:** Teleport logs events like successful user logins along with
-
+1. **SSH Events:** Teleport logs events like successful user logins along with 
    the metadata like remote IP address, time and the session ID.
 
 2. **Recorded Sessions:** Every SSH shell session is recorded and can be
-
    replayed later. The recording is done by the nodes themselves, by default,
    but can be configured to be done by the proxy.
 
@@ -1100,12 +1094,10 @@ The recorded sessions are stored as raw bytes in the `sessions` directory under
 `log` . Each session consists of two files, both are named after the session ID:
 
 1. `.bytes` file represents the raw session bytes and is somewhat
-
     human-readable, although you are better off using [`tsh
     play`](../cli-docs/#tsh-play) or the Web UI to replay it.
 
 2. `.log` file contains the copies of the event log entries that are related to
-
    this session.
 
 ``` yaml
@@ -1254,13 +1246,10 @@ MaxStartups 50:30:100. This allows 50 concurrent connections and a max of 100.
 A Teleport administrator has two tools to configure a Teleport cluster:
 
 * The [configuration file](#configuration) is used for static configuration like
-
   the cluster name.
 
 * The [ `tctl` ](../cli-docs/#tctl) admin tool is used for manipulating dynamic
-
   records like Teleport
-
   users.
 
 [ `tctl` ](../cli-docs/#tctl) has convenient subcommands for dynamic
@@ -1417,15 +1406,12 @@ infrastructure located behind firewalls without any open TCP ports. The real
 world usage examples of this capability include:
 
 * Managed service providers (MSP) remotely managing infrastructure of their
-
   clients.
 
 * Device manufacturers remotely maintaining computing appliances deployed on
-
   premises.
 
 * Large cloud software vendors manage multiple data centers using a common
-
   proxy.
 
 Let's take a look at how a connection is established between the "main" cluster
@@ -1436,16 +1422,13 @@ and the "east" cluster:
 This setup works as follows:
 
 1. The "east" creates an outbound reverse SSH tunnel to "main" and keeps the
-
    tunnel open.
 
 2. **Accessibility only works in one direction.** The "east" cluster allows
-
    users from "main" to access its nodes but users in the "east" cluster can not
    access the "main" cluster.
 
 3. When a user tries to connect to a node inside "east" using main's proxy, the
-
    reverse tunnel from step 1 is used to establish this connection shown as the
    green line above.
 
@@ -1462,7 +1445,6 @@ Connecting two clusters together is similar to [adding
 nodes](#adding-nodes-to-the-cluster):
 
 1. Generate an invitation token on "main" cluster, or use a pre-defined static
-
    token.
 
 2. On the "east" side, create a trusted cluster [resource](#resources).
@@ -1595,7 +1577,6 @@ While accessibility is only granted in one direction, trust is granted in both
 directions. If you remote "east" from "main", the following will happen:
 
 * Two clusters will be disconnected, because "main" will drop the inbound SSH
-
   tunnel connection from "east" and will not allow a new one.
 
 * "main" will stop trusting certificates issued by "east".
@@ -1617,7 +1598,6 @@ Take a look at [Trusted Clusters Guide](trustedclusters) to learn more about
 advanced topics:
 
 * Using dynamic cluster join tokens instead of pre-defined static tokens for
-
   enhanced security.
 
 * Defining role-mapping between clusters (Teleport Enterprise only).
@@ -1761,7 +1741,6 @@ Teleport is a standards-compliant SSH proxy and it can work in environments with
 existing SSH implementations, such as OpenSSH. This section will cover:
 
 * Configuring OpenSSH client `ssh` to login into nodes inside a Teleport
-
   cluster.
 
 * Configuring OpenSSH server `sshd` to join a Teleport cluster.
@@ -1870,12 +1849,10 @@ To allow access per-user, append the contents of `teleport-user-ca.pub` to
 To allow access for all users:
 
   + Edit `teleport-user-ca.pub` and remove `cert-authority` from the start of
-
     line.
 
   + Copy `teleport-user-ca.pub` to `/etc/ssh/teleport-user-ca.pub`
   + Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
-
     this file: `TrustedUserCAKeys /etc/ssh/teleport-user-ca.pub`
 
 ## Certificate Rotation
@@ -2089,12 +2066,10 @@ cluster that there is more than one auth server available. There are two ways to
 do this:
 
   + Use a load balancer to create a single the auth API access point (AP) and
-
     specify this AP in `auth_servers` section of Teleport configuration for all
     nodes in a cluster. This load balancer should do TCP level forwarding.
 
   + If a load balancer is not an option, you must specify each instance of an
-
     auth server in `auth_servers` section of Teleport configuration.
 
 **IMPORTANT:** with multiple instances of the auth servers running, special
@@ -2144,16 +2119,13 @@ To configure Teleport for using etcd as a storage back-end:
 
 * Make sure you are using **etcd version 3.3** or newer.
 * Install etcd and configure peer and client TLS authentication using the [etcd
-
   security guide](https://coreos.com/etcd/docs/latest/security.html).
 
 * Configure all Teleport Auth servers to use etcd in the "storage" section of
-
   the config file as shown below.
 
 * Deploy several auth servers connected to etcd back-end.
 * Deploy several proxy nodes that have `auth_servers` pointed to list of auth
-
   servers to connect to.
 
 ``` yaml
@@ -2234,18 +2206,15 @@ DynamoDB cannot store the recorded sessions. You are advised to use AWS S3 for
 that as shown above. To configure Teleport to use DynamoDB:
 
 * Make sure you have AWS access key and a secret key which give you access to
-
   DynamoDB account. If you're using (as recommended) an IAM role for this, the
   policy with necessary permissions is listed below.
 
 * Configure all Teleport Auth servers to use DynamoDB back-end in the "storage"
-
   section of `teleport.yaml` as shown below.
 
 * Deploy several auth servers connected to DynamoDB storage back-end.
 * Deploy several proxy nodes.
 * Make sure that all Teleport nodes have `auth_servers` configuration setting
-
   populated with the auth servers.
 
 ``` yaml
@@ -2278,7 +2247,6 @@ teleport:
 `/var/lib/teleport/log` on an auth server.
 
 * If DynamoDB is used for the audit log, the logged events will be stored with a
-
   TTL of 1 year. Currently this TTL is not configurable.
 
 !!! warning "Access to DynamoDB":
@@ -2328,17 +2296,13 @@ When running multiple binaries of Teleport within a cluster (nodes, proxies,
 clients, etc), the following rules apply:
 
 * Patch versions are always compatible, for example any 4.0.1 component will
-
   work with any 4.0.3 component.
 
 * Other versions are always compatible with their **previous** release. This
-
   means you must not attempt to upgrade from 3.3 straight to 3.5. You must
   upgrade to 3.4 first.
 
-* Teleport clients ( [ `tsh` ](../cli-docs/#tsh) for users and
-
-  [ `tctl` ](../cli-docs/#tctl) for admins) may not be compatible
+* Teleport clients ( [ `tsh` ](../cli-docs/#tsh) for users and  [ `tctl` ](../cli-docs/#tctl) for admins) may   not be compatible
 
 As an extra precaution you might want to backup your application prior to upgrading. We've
 more instructions in [Backing up Dynamic Configuration](#backing-up-dynamic-configuration).
@@ -2348,12 +2312,10 @@ more instructions in [Backing up Dynamic Configuration](#backing-up-dynamic-conf
 When upgrading a single Teleport cluster:
 
 1. **Upgrade the auth server first**. The auth server keeps the cluster state
-
     and if there are data format changes introduced in the new version this will
     perform necessary migrations.
 
 2. Then, upgrade the proxy servers. The proxy servers are stateless and can be
-
    upgraded in any sequence or at the same time.
 
 3. Finally, upgrade the SSH nodes in any sequence or at the same time.
@@ -2435,28 +2397,23 @@ $ teleport start --diag-addr=127.0.0.1:3000
 Now you can see the monitoring information by visiting several endpoints:
 
 * `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
-
    tracking. It is compatible with [Prometheus](https://prometheus.io/)
    collectors.
 
 * `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
-
-`503` otherwise.
+  `503` otherwise.
 
 * `http://127.0.0.1:3000/readyz` is similar to `/healthz` , but it returns "OK"
-
   _only after_ the node successfully joined the cluster, i.e.it draws the
   difference between "healthy" and "ready".
 
 * `http://127.0.0.1:3000/debug/pprof/` is Golang's standard profiler. It's only
-
   available when `-d` flag is given in addition to `--diag-addr`
 
 ## Getting Help
 
-Please open an [issue on
-Github](https://github.com/gravitational/teleport/issues). Alternatively, you
-can reach through the contact form on our [website](https://gravitational.com/).
+Please open an [issue on Github](https://github.com/gravitational/teleport/issues). Alternatively,
+you can reach through the contact form on our [website](https://gravitational.com/).
 
 For commercial support, custom features or to try our commercial edition,
 [Teleport Enterprise](/enterprise/), please reach out to us:

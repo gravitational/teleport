@@ -61,7 +61,7 @@ passed as `login@host`, using syntax compatible with traditional `ssh`.
 # as root:
 $ tsh ssh --proxy=work.example.com --user=joe root@node
 ```
-[CLI Docs](./cli-docs/#tsh-ssh)
+[CLI Docs - tsh ssh](./cli-docs/#tsh-ssh)
 
 ## Logging In
 
@@ -80,7 +80,7 @@ $ tsh login --proxy=work.example.com:5000
 # Using custom SSH proxy port:
 $ tsh login --proxy=work.example.com:,23
 ```
-[CLI Docs](./cli-docs/#tsh-login)
+[CLI Docs - tsh login](./cli-docs/#tsh-login)
 
 Port               | Description
 -------------------|-------------------------------------
@@ -116,7 +116,7 @@ $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 # Login using Github as an SSO provider, assuming the Github connector is called "github"
 $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 ```
-[CLI Docs](./cli-docs/#tsh-login)
+[CLI Docs - tsh login](./cli-docs/#tsh-login)
 
 ### Inspecting SSH Certificate
 
@@ -133,7 +133,7 @@ $ tsh status
   Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
   Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
-[CLI Docs](./cli-docs/#tsh-status)
+[CLI Docs - tsh status](./cli-docs/#tsh-status)
 
 ### SSH Agent Support
 
@@ -194,7 +194,7 @@ jenkins user and storing it in jenkins.pem file, which can be later used with
 # to be executed on a Teleport auth server
 $ tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
 ```
-[CLI Docs](./cli-docs/#tctl-auth-sign)
+[CLI Docs - tctl auth sign](./cli-docs/#tctl-auth-sign)
 
 Now `jenkins.pem` can be copied to the jenkins server and passed to `-i`
 (identity file) flag of `tsh`. Essentially `tctl auth sign` is an admin's
@@ -218,7 +218,7 @@ turing        11111111-dddd-4132     10.1.0.5:3022      os:linux
 turing        22222222-cccc-8274     10.1.0.6:3022      os:linux
 graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
-[CLI Docs](./cli-docs/#tsh-ls)
+[CLI Docs - tsh ls](./cli-docs/#tsh-ls)
 
 `tsh ls` can apply a filter based on the node labels.
 
@@ -230,7 +230,7 @@ Node Name     Node ID                Address            Labels
 ---------     -------                -------            ------
 graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
-[CLI Docs](./cli-docs/#tsh-ls)
+[CLI Docs -tsh ls](./cli-docs/#tsh-ls)
 
 ## Interactive Shell
 
@@ -433,7 +433,7 @@ Cluster Name     Status
 staging          online
 production       offline
 ```
-[CLI Docs](./cli-docs/#tsh-clusters)
+[CLI Docs - tsh clusters](./cli-docs/#tsh-clusters)
 
 Now you can use `--cluster` flag with any `tsh` command. For example, to list
 SSH nodes that are members of the "production" cluster, simply do:
