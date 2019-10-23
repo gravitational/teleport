@@ -25,7 +25,7 @@ extra:
 pages:
     - Documentation:
         - Introduction: intro.md
-        - Quick Start Guide: quickstart_guide.md
+        - Quick Start Guide: quickstart.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
         - FAQ: faq.md
