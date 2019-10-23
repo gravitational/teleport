@@ -16,25 +16,22 @@ markdown_extensions:
   - admonition
   - def_list
   - footnotes
+  - toc:
+      marker: '[TOC]'
 extra_css: []
 extra_javascript: []
-extra:    
+extra:
     version: 4.1
 pages:
     - Documentation:
         - Introduction: intro.md
-        - Quick Start Guide: quickstart.md
-        - Architecture: architecture.md
+        - Quick Start Guide: guides/quickstart.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
         - FAQ: faq.md
-    - Teleport Enterprise:
-        - Introduction: enterprise.md
-        - Quick Start Guide: quickstart-enterprise.md
-        - RBAC: ssh_rbac.md
-        - Single sign-on (SSO): ssh_sso.md
     - Guides:
         - AWS: aws_oss_guide.md
+        - Installation: installation.md
         - Okta: ssh_okta.md
         - Active Directory (ADFS): ssh_adfs.md
         - OneLogin: ssh_one_login.md
@@ -42,3 +39,14 @@ pages:
         - OIDC: oidc.md
         - Trusted Clusters: trustedclusters.md
         - Kubernetes Guide: kubernetes_ssh.md
+    - Architecture:
+        - Architecture Overview: architecture/overview.md
+        - Teleport Users: architecture/users.md
+        - Teleport Nodes: architecture/nodes.md
+        - Teleport Auth: architecture/auth.md
+        - Teleport Proxy: architecture/proxy.md
+    - Enterprise Guides:
+        - Introduction: enterprise.md
+        - Quick Start Guide: quickstart-enterprise.md
+        - RBAC: ssh_rbac.md
+        - Single sign-on (SSO): ssh_sso.md

@@ -525,8 +525,18 @@ const WindowsOpenSSHNamedPipe = `\\.\pipe\openssh-ssh-agent`
 var (
 	// FIPSCipherSuites is a list of supported FIPS compliant TLS cipher suites.
 	FIPSCipherSuites = []uint16{
-		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		//
+		// These two ciper suites:
+		//
+		// tls.TLS_RSA_WITH_AES_128_GCM_SHA256
+		// tls.TLS_RSA_WITH_AES_256_GCM_SHA384
+		//
+		// although supported by FIPS, are blacklisted in http2 spec:
+		//
+		// https://tools.ietf.org/html/rfc7540#appendix-A
+		//
+		// therefore we do not include them in this list.
+		//
 		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
