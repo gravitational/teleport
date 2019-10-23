@@ -92,7 +92,7 @@ client `ssh` or using `tsh`:
 
 ## More Concepts
 
-* [Architecture Overview](./architecture)
-* [Teleport Users](./users)
-* [Teleport Auth](./auth)
-* [Teleport Nodes](./nodes)
+* [Architecture Overview](./teleport_architecture_overview)
+* [Teleport Users](./teleport_users)
+* [Teleport Auth](./teleport_auth)
+* [Teleport Proxy](./teleport_proxy)
