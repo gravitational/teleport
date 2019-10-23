@@ -308,6 +308,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 					if err == nil {
 						session.Session = base64.StdEncoding.EncodeToString(out)
 					}
+				} else {
+					log.WithError(err).Debugf("Could not authenticate.")
 				}
 			}
 			httplib.SetIndexHTMLHeaders(w.Header())
