@@ -204,3 +204,8 @@ ignored = ["github.com/Sirupsen/logrus", "github.com/gravitational/license/gener
 [[constraint]]
   name = "cloud.google.com/go"
   version = "=v0.41.0"
+
+[[override]]
+  name = "github.com/iovisor/gobpf"
+  source = "github.com/gravitational/gobpf"
+  revision = "e2b48b86df690d4fe8ae8e647c406197a6252ee4"
