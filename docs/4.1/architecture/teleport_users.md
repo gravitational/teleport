@@ -92,7 +92,7 @@ OpenID/OAuth2 or SAML endpoint.
 !!! tip "Version Warning":
     External user storage is only supported in Teleport
     Enterprise. Please take a look at the [Teleport
-    Enterprise](../enterprise.md) chapter for more information.
+    Enterprise](../enterprise/) chapter for more information.
 
 #### Multiple Identity Sources
 

@@ -66,7 +66,7 @@ $ curl https://get.gravitational.com/teleport-v4.0.8-darwin-amd64-bin.tar.gz.sha
 ## Definitions
 
 Before diving into configuring and running Teleport, it helps to take a look at
-the [Teleport Architecture](/architecture) and review the key concepts this
+the [Teleport Architecture](/architecture/overview/) and review the key concepts this
 document will be referring to:
 
 |Concept   | Description
@@ -1016,7 +1016,7 @@ the audit log:
    but can be configured to be done by the proxy.
 
 Refer to the ["Audit Log" chapter in the Teleport
-Architecture](architecture#audit-log) to learn more about how the audit Log and
+Architecture](architecture_auth/#audit-log) to learn more about how the audit Log and
 session recording are designed.
 
 ### SSH Events
@@ -1880,7 +1880,7 @@ To allow access for all users:
 
 ## Certificate Rotation
 
-Take a look at the [Certificates chapter](architecture.md#certificates) in the
+Take a look at the [Certificates chapter](architecture_auth/#authentication-in-teleport) in the
 architecture document to learn how the certificate rotation works. This section
 will show you how to implement certificate rotation in practice.
 
@@ -1962,7 +1962,7 @@ Kubernetes cluster:
 ![teleport-kubernetes-integration](img/teleport-kube.png)
 
 For more detailed information, please take a look at [Kubernetes Integration
-with SSH](architecture.md#kubernetes-integration) section in the Architecture
+with SSH](admin-guide/#kubernetes-integration) section in the Architecture
 chapter.
 
 In the scenario illustrated above a user would execute the following commands:
