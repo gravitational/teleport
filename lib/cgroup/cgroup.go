@@ -22,35 +22,55 @@ package cgroup
 import "C"
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/trace"
+
+	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentBPF,
+})
 
 var _ = fmt.Printf
 
 type Service struct {
 }
 
-// TODO(russjones): Add support to cleanup unused cgroups.
 func New() (*Service, error) {
+	var err error
+
+	s := &Service{}
+
 	if !isMounted() {
-		err := mount()
+		err = mount()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	return &Service{}, nil
+	// Teleport has restarted, all sessions have been killed, remove all cgroups.
+	err = s.removeAll()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s, nil
 }
 
 func (s *Service) Close() error {
@@ -58,7 +78,7 @@ func (s *Service) Close() error {
 }
 
 func (s *Service) Create(sessionID string) error {
-	path := "/cgroup2/teleport-session-" + sessionID
+	path := "/cgroup2/teleport/" + sessionID
 
 	err := os.Mkdir(path, 0555)
 	if err != nil {
@@ -68,8 +88,24 @@ func (s *Service) Create(sessionID string) error {
 	return nil
 }
 
-// TODO(russjones): Implement.
 func (s *Service) Remove(sessionID string) error {
+	pids, err := readPids("/cgroup2/teleport/" + sessionID + "/cgroup.procs")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = writePids("/cgroup2/cgroup.procs", pids)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = exec.Command("/bin/rmdir", "/cgroup2/teleport/"+sessionID).Run()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Debugf("Removed cgroup for session: %v.", sessionID)
+
 	return nil
 }
 
@@ -77,7 +113,7 @@ func (s *Service) Remove(sessionID string) error {
 // atomically.
 // Place will place a process in the cgroup for that session.
 func (s *Service) Place(sessionID string, pid int) error {
-	f, err := os.OpenFile("/cgroup2/teleport-session-"+sessionID+"/cgroup.procs", os.O_APPEND|os.O_WRONLY, 0755)
+	f, err := os.OpenFile("/cgroup2/teleport/"+sessionID+"/cgroup.procs", os.O_APPEND|os.O_WRONLY, 0755)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -91,18 +127,70 @@ func (s *Service) Place(sessionID string, pid int) error {
 	return nil
 }
 
-// Unplace will remove a process from all Teleport related cgroups.
-func (s *Service) Unplace(pid int) error {
-	//f, err := os.OpenFile("/cgroup2/cgroup.procs", os.O_APPEND|os.O_WRONLY, 0755)
-	//if err != nil {
-	//	return trace.Wrap(err)
-	//}
-	//defer f.Close()
+func readPids(path string) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer f.Close()
 
-	//_, err = f.WriteString(strconv.Itoa(pid))
-	//if err != nil {
-	//	return trace.Wrap(err)
-	//}
+	var pids []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		pids = append(pids, scanner.Text())
+	}
+	if scanner.Err() != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pids, nil
+}
+
+func writePids(path string, pids []string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY, 0555)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer f.Close()
+
+	for _, pid := range pids {
+		_, err := f.WriteString(pid + "\n")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// TODO(russjones): Does this make sense in the situation where you restart?
+// What if it's a graceful restart?
+func (s *Service) removeAll() error {
+	var sessions []string
+
+	err := filepath.Walk("/cgroup2", func(path string, info os.FileInfo, err error) error {
+		if !cgroupPattern.MatchString(path) {
+			return nil
+		}
+
+		parts := strings.Split(path, "/")
+		if len(parts) != 5 {
+			return trace.BadParameter("invalid cgroup: %v", path)
+		}
+		sessions = append(sessions, parts[3])
+
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, sessionID := range sessions {
+		err := s.Remove(sessionID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	return nil
 }
@@ -128,7 +216,17 @@ func mount() error {
 
 	// TODO(russjones): Replace with:
 	// return unix.Mount("", "/cgroup2", "cgroup2", 0, "ro")
-	return exec.Command("/usr/bin/mount", "-t", "cgroup2", "none", "/cgroup2").Run()
+	err := exec.Command("/usr/bin/mount", "-t", "cgroup2", "none", "/cgroup2").Run()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = os.Mkdir("/cgroup2/teleport", 0555)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // unmount will unmount the cgroupv2 filesystem.
@@ -138,7 +236,7 @@ func unmount() error {
 
 // ID returns the cgroup ID for the given session.
 func ID(sessionID string) (uint64, error) {
-	path := "/cgroup2/teleport-session-" + sessionID
+	path := "/cgroup2/teleport/" + sessionID
 
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
@@ -150,3 +248,5 @@ func ID(sessionID string) (uint64, error) {
 
 	return uint64(cgid), nil
 }
+
+var cgroupPattern = regexp.MustCompile(`^/cgroup2/teleport/[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}/cgroup.procs`)

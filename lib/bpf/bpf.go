@@ -233,12 +233,8 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	// Stop watching for events from this PID.
 	s.removeWatch(cgroupID)
 
-	// Move any existing PIDs into root cgroup.
-	err = s.cgroup.Unplace(ctx.PID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	// Move all PIDs to the root cgroup and remove the cgroup created for this
+	// session.
 	err = s.cgroup.Remove(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
