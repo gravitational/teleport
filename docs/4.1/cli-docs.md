@@ -20,7 +20,7 @@ the following services.
 |------|---------|----------------|----------------------------|
 | `-d, --debug` | none | none | enable verbose logging to stderr
 | `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally.
-| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](architecture.md) document.
+| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](architecture_overview) document.
 | `--pid-file` | none | **string** filepath | create a PID file at the path
 | `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT
 | `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP
@@ -36,9 +36,9 @@ the following services.
 | `--diag-addr` | none | none | Enable diagnostic endpoints
 | `--permit-user-env` | none | none | flag reads in environment variables from `~/.tsh/environment` when creating a session.
 
-!!! warning "Token Generation" We recommend to use tools like `pwgen` to
-
-    generate sufficiently random tokens of 32+ byte length.
+!!! warning "Token Generation"
+    
+    We recommend the use of tools like `pwgen` to generate sufficiently random tokens of 32+ byte length.
 
 ## teleport status
 
@@ -106,11 +106,9 @@ Run shell or execute a command on a remote SSH node
 
 `<[user@]host> [<command>...]`
 
-* `user` The login identity to use on the remote host. If `[user]` is not
-
-   specified the user defaults to `$USER` or can be set with `--user` . If the
-   flag `--user` and positional argument `[user]` are specified the arg `[user]`
-   takes precedence.
+* `user` The login identity to use on the remote host. If `[user]` is not specified 
+   the user defaults to `$USER` or can be set with `--user` . If the flag `--user` 
+   and positional argument `[user]` are specified the arg `[user]` takes precedence.
 
 * `host` A `nodename` of a cluster node or a
 * `command` The command to execute on a remote host.
@@ -128,12 +126,12 @@ Run shell or execute a command on a remote SSH node
 | `--cluster` | none |  | Specify the cluster to connect
 | `-o, --option` | `local` |  |  OpenSSH options in the format used in the configuration file
 
-### [Global Flags](./#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
 --identity, --cert-format, --insecure, --auth, --skip-version, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](./#tsh-global-flags)
+Section](#tsh-global-flags)
 
 ### Examples
 
@@ -155,9 +153,8 @@ Joins an active session
 
 `<session-id>`
 
-* `session-id` The UUID of the an active Teleport Session obtained by `teleport
-
-   status` within the session.
+* `session-id` The UUID of the an active Teleport Session obtained by `teleport status` within 
+    the session.
 
 ### Flags
 
@@ -188,9 +185,8 @@ Plays back a prior session
 
 `<session-id>`
 
-* `session-id` The UUID of the a past Teleport Session obtained by `teleport
-
-   status` within the session or from the Web UI.
+* `session-id` The UUID of the a past Teleport Session obtained by `teleport status` within
+     the session or from the Web UI.
 
 ### Flags
 
@@ -332,9 +328,7 @@ interval via `--ttl` flag (capped by the server-side configuration).
 
 ### Arguments
 
-* `<cluster>` - the name of the cluster, can be `nodename` of the auth server or
-
-  a hostname <!--TODO: Confirm this-->
+* `<cluster>` - the name of the cluster,  see [Trusted Cluster](./trustedclusters.md/#introduction ) for more information. 
 
 ### Flags
 
@@ -442,7 +436,6 @@ Generates a user invitation token.
 
 * `<account>` - The Teleport user account name.
 * `<local-logins>` - A comma-separated list of local UNIX users this account can
-
   log in as. If unspecified the account will be mapped to an OS user of the same
   name. See examples below.
 
@@ -664,7 +657,6 @@ error: --user or --host must be specified
 $ tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
 ```
 
-```
 
 ## tctl auth rotate
 

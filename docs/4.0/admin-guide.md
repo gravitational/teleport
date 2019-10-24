@@ -325,8 +325,6 @@ teleport:
     # List of the supported ciphersuites. If this section is not specified,
     # only the default ciphersuites are enabled.
     ciphersuites:
-       - tls-rsa-with-aes-128-gcm-sha256
-       - tls-rsa-with-aes-256-gcm-sha384
        - tls-ecdhe-rsa-with-aes-128-gcm-sha256
        - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
        - tls-ecdhe-rsa-with-aes-256-gcm-sha384
