@@ -355,7 +355,6 @@ Resources:
       Subnets:
         - Ref: ProxySubnetA
         - Ref: ProxySubnetB
-      
 
   # Create A DNS entry pointing to load balancer
   ProxyDNS:
