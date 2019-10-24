@@ -77,8 +77,8 @@ $ tsh login --proxy=work.example.com
 # Using custom HTTPS port:
 $ tsh login --proxy=work.example.com:5000
 
-# Using custom SSH proxy port:
-$ tsh login --proxy=work.example.com:,23
+# Using custom SSH proxy port, which is set on the Auth Server:
+$ tsh login --proxy=work.example.com:2002
 ```
 [CLI Docs - tsh login](./cli-docs/#tsh-login)
 

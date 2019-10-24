@@ -38,7 +38,7 @@ the following services.
 
 !!! warning "Token Generation"
     
-    We recommend to use tools like `pwgen` to generate sufficiently random tokens of 32+ byte length.
+    We recommend the use of tools like `pwgen` to generate sufficiently random tokens of 32+ byte length.
 
 ## teleport status
 
@@ -328,8 +328,7 @@ interval via `--ttl` flag (capped by the server-side configuration).
 
 ### Arguments
 
-* `<cluster>` - the name of the cluster, can be `nodename` of the auth server or
-  a hostname. <!--TODO: Confirm this-->
+* `<cluster>` - the name of the cluster,  see [Trusted Cluster](./trustedclusters.md/#introduction ) for more information. 
 
 ### Flags
 

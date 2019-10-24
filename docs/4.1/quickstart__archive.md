@@ -63,9 +63,9 @@ Congratulations - you are now running Teleport!
 If you wish to deploy Teleport inside a Docker container:
 
 ```
-# This command will pull the Teleport container image for version 4.0.0-rc.2
-# Replace 2.7.3 with the version you want to run:
-$ docker pull quay.io/gravitational/teleport:4.0.0-rc.2
+# This command will pull the Teleport container image for version 4.1.0
+# Replace 4.1.0 with the version you want to run:
+$ docker pull quay.io/gravitational/teleport:4.1.0
 ```
 
 ## Creating Users
@@ -111,7 +111,7 @@ in Teleport must to go through a proxy, sometimes called a "bastion".
 !!! warning "Warning":
     For the purposes of this quickstart we are using the `--insecure` flag which allows
     us to skip configuring the HTTP/TLS certificate for Teleport proxy. Your browser will
-    throw a warning **Your connection is not private**. Click Advanced, and **Proceed to 0.0.0.0 (unsafe)**
+    throw a warning **Your connection is not private**. Click Advanced, and **Proceed to localhosot (unsafe)**
     to preview the Teleport UI.
 
     Never use `--insecure` in production unless you terminate SSL at a load balancer. This will
@@ -193,7 +193,7 @@ Notice the "Labels" column in the output above. It is currently not populated. T
 you apply static or dynamic labels to your nodes. As the cluster grows and nodes assume different
 roles, labels will help to find the right node quickly.
 
-Let's see labels in action. Stop Teleport `ctrl-c` on the node we just added and restart it with the following command:
+Let's see labels in action. Stop Teleport on the node we just added (by pressing ctrl+c) and restart it.
 
 ```bash
 $ sudo teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --labels "location=virginia,arch=[1h:/bin/uname -m]"
@@ -271,7 +271,7 @@ We hope this quickstart guide has helped you to quickly set up and play with Tel
 
 - Install HTTPS certificates for every Teleport proxy. If setting up in a HA config
   on AWS, GCP or another cloud you'll likely terminate TLS at a Load Balancer. In
-  this case you'll need to start teleport with `--insecure`
+  this case you'll need to start teleport with `--insecure-no-tls`
 - Run Teleport `auth` on isolated servers. The auth service can run in a
   highly available (HA) configuration.
 - Use a configuration file instead of command line flags because it gives you

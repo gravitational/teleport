@@ -148,7 +148,7 @@ Teleport enforces two-factor authentication by default <!-- Link to
 Configuration -->. If you do not already have [Google
 Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator),
 [Authy](https://www.authy.com/) or another 2FA client installed, you will need
-to install it on your smart phone. Then you can scan the bar code on the
+to install it on your smart phone. Then you can scan the QR code on the
 Teleport login web page, pick a password and enter the two-factor token.
 
 After completing registration you will be logged in automatically
@@ -163,10 +163,10 @@ accessible IP.
 
 !!! warning "Warning":
     For the purposes of this quickstart we are using the
-    `--insecure` flag which allows us to skip configuring the HTTP/TLS
+    `--insecure-no-tls` flag which allows us to skip configuring the HTTP/TLS
     certificate for Teleport proxy.
 
-    **Caution**: the `--insecure` flag does **not** skip TLS validation for the Auth Server. The self-signed Auth Server certificate expects to be accessed via one of a set of hostnames (ex. `grav-00` ). If you attempt to access via `localhost` you will probably get this error: `principal "localhost" not in the set of valid principals for given certificate` .
+    **Caution**: the `--insecure-no-tls` flag does **not** skip TLS validation for the Auth Server. The self-signed Auth Server certificate expects to be accessed via one of a set of hostnames (ex. `grav-00` ). If you attempt to access via `localhost` you will probably get this error: `principal "localhost" not in the set of valid principals for given certificate` .
 
     To resolve this error find your hostname with the `hostname` command and use that instead of `localhost` .
 
