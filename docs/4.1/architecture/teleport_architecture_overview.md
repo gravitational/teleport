@@ -19,7 +19,7 @@ Teleport was designed in accordance with the following principles:
   [OpenSSH](../admin-guide/#using-teleport-with-openssh).
 
 * **Cluster-Oriented Design**: Teleport is built for managing clusters, not
-  individual servers. In practice this means that hosts and [Users](./users)
+  individual servers. In practice this means that hosts and [Users](./user-manual)
   have cluster memberships. Identity management and authorization happen on a
   cluster level.
 
@@ -170,7 +170,7 @@ sending the session history to the auth server to be stored.
 
 !!! note "Note":
     Teleport may also be configured to have the session recording
-    occur on the proxy, see [Audit Log](../architecture/#audit-log) for more
+    occur on the proxy, see [Audit Log](admin-guide/#audit-log) for more
     information.
 
 ### 4: Authenticate Node Certificate
@@ -189,7 +189,7 @@ API which provides access to information about nodes and users in the cluster.
 ![User Granted Node Access](../img/user_node_access.svg)
 
 The node requests the Auth Server to provide a list of [OS users (user
-mappings)](./users) for the connecting client, to make sure the client is
+mappings)](admin-guide/#adding-and-deleting-users) for the connecting client, to make sure the client is
 authorized to use the requested OS login.
 
 Finally the client is authorized to create an SSH connection to a node.
@@ -218,7 +218,7 @@ When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for
 12 hours by default, unless you specify another interval via `--ttl` flag
 (capped by the server-side configuration).
 
-You can learn more about `tsh` in the [User Manual](user-manual.md).
+You can learn more about `tsh` in the [User Manual](../user-manual/).
 
 ### TCTL
 
@@ -229,7 +229,7 @@ nodes and users in the cluster.
 `tctl` is also a tool which can be used to modify the dynamic configuration of
 the cluster, like creating new user roles or connecting trusted clusters.
 
-You can learn more about `tctl` in the [Admin Manual](admin-guide.md).
+You can learn more about `tctl` in the [Admin Manual](../admin_guide).
 
 
 ## Next Steps
@@ -240,7 +240,7 @@ minimal setup of Teleport yourself.
 
 Read the rest of the Architecture Guides:
 
-* [Teleport Users](./users)
-* [Teleport Nodes](./nodes)
-* [Teleport Auth](./auth)
-* [Teleport Proxy](./proxy)
+* [Teleport Users](./teleport_users)
+* [Teleport Nodes](./teleport_nodes)
+* [Teleport Auth](./teleport_auth)
+* [Teleport Proxy](./teleport_proxy)

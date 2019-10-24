@@ -1,6 +1,6 @@
-# Teleport Auth
+# Teleport Authentication Service
 
-This is doc about the Teleport Authentication Service and Certificate
+This document outlines the Teleport Authentication Service and Certificate
 Management. It explains how Users and Nodes are identified and granted access to
 Nodes and Services.
 
@@ -207,7 +207,7 @@ events and submit them to the auth server. The events recorded include:
 Only an SSH server can report what's happening to the Teleport auth server.
 The audit log is a JSON file which is by default stored on the auth server's
 filesystem under `/var/lib/teleport/log`. The format of the file is documented
-in the [Admin Manual](admin-guide/#audit-log).
+in the [Admin Manual](../admin-guide/#audit-log).
 
 Teleport users are encouraged to export the events into external, long term
 storage.
@@ -279,12 +279,12 @@ it allows them to run Teleport clusters completely devoid of local state.
 !!! tip "NOTE":
     For high availability in production, a Teleport cluster can be
     serviced by multiple auth servers running in sync. Check [HA
-    configuration](admin-guide.md#high-availability) in the Admin Guide.
+    configuration](../admin-guide.md#high-availability) in the Admin Guide.
 
 
 ## More Concepts
 
-* [Architecture Overview](./architecture)
-* [Teleport Users](./users)
-* [Teleport Nodes](./nodes)
-* [Teleport Proxy](./proxy)
+* [Architecture Overview](./teleport_architecture_overview)
+* [Teleport Users](./teleport_users)
+* [Teleport Nodes](./teleport_nodes)
+* [Teleport Proxy](./teleport_proxy)
