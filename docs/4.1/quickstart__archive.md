@@ -276,4 +276,4 @@ We hope this quickstart guide has helped you to quickly set up and play with Tel
   highly available (HA) configuration.
 - Use a configuration file instead of command line flags because it gives you
   more flexibility.
-- Review the [Architecture Overview](architecture.md), [Admin Manual](admin-guide.md) and [User Manual](user-manual.md) for a better understanding of Teleport.
+- Review the [Architecture Overview](architecture/teleport_architecture_overview.md), [Admin Manual](admin-guide.md) and [User Manual](user-manual.md) for a better understanding of Teleport.
