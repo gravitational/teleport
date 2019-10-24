@@ -124,6 +124,16 @@ interactive sessions the 12 combinations are below.
 - [ ] Connect to a Teleport node in a remote cluster using Teleport.
 - [ ] Connect to a Teleport node in a remote cluster using the Web UI.
 
+### Teleport with EKS/GKE
+
+* [ ] Deploy Teleport on a single EKS cluster
+* [ ] Deploy Teleport on two EKS clusters and connect them via trusted cluster feature
+* [ ] Deploy Teleport Proxy outside of GKE cluster fronting connections to it (this feature is not yet supported for EKS)
+
+### Teleport with FIPS mode
+
+* [ ] Perform trusted clusters, Web and SSH sanity check with all teleport components deployed in FIPS mode.
+
 ### Migrations
 
 * [ ] Migrate trusted clusters from 2.4.0 to 2.5.0
@@ -257,3 +267,33 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
     - [ ] Verify that a user is redirected to the login page.
     - [ ] Verify that after successful login, a user is redirected to the Node List.
+    
+    
+## Performance/Soak Test
+
+Using `tsh bench` tool, perform the soak tests and benchmark tests on the following configurations:
+
+* Cluster with 10K nodes in normal (non-IOT) node mode with ETCD
+* Cluster with 10K nodes in normal (non-IOT) mode with DynamoDB
+
+* Cluster with 1K IOT nodes with ETCD
+* Cluster with 1K IOT nodes with DynamoDB
+
+* Cluster with 500 trusted clusters with ETCD
+* Cluster with 500 trusted clusters with DynamoDB
+
+**Soak Tests**
+
+Run 4hour soak test with a mix of interactive/non-interactive sessions:
+
+```
+tsh bench --duration=4h --threads=10 user@teleport-monster-6757d7b487-x226b ls
+tsh bench -i --duration=4h --threads=10 user@teleport-monster-6757d7b487-x226b ps uax
+```
+
+Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
+
+**Breaking load tests**
+
+Load system with tsh bench to the capacity and publish maximum numbers of concurrent sessions with interactive 
+and non interactive tsh bench loads.
