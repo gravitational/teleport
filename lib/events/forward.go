@@ -131,7 +131,6 @@ func (l *Forwarder) EmitAuditEvent(event Event, fields EventFields) error {
 			Time:      time.Now().UTC().UnixNano(),
 		},
 	}
-	//fmt.Printf("--> forward.go: l.PostSessionSlice.\n")
 	return l.PostSessionSlice(SessionSlice{
 		Namespace: l.Namespace,
 		SessionID: string(l.SessionID),
@@ -152,7 +151,6 @@ func (l *Forwarder) PostSessionSlice(slice SessionSlice) error {
 	}
 
 	// log all events and session recording locally
-	//fmt.Printf("--> forward.go: l.sessionLogger.PostSessionSlice: %T.\n", l.sessionLogger)
 	err = l.sessionLogger.PostSessionSlice(slice)
 	if err != nil {
 		return trace.Wrap(err)
@@ -166,7 +164,6 @@ func (l *Forwarder) PostSessionSlice(slice SessionSlice) error {
 	}
 	slice.Chunks = chunksWithoutPrintEvents
 	slice.Version = V3
-	//fmt.Printf("--> forward.go: l.ForwardTo.PostSessionSlice: %T.\n", l.ForwardTo)
 	err = l.ForwardTo.PostSessionSlice(slice)
 	return err
 }

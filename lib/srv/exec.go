@@ -183,8 +183,6 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Printf("--> Requesting re-exec with: %#v.\n", cmdmsg)
-
 	// Re-execute Teleport and pass along the allocated PTY as well as the
 	// command reader from where Teleport will know how to re-spawn itself.
 	teleportPath, err := osext.Executable()
@@ -400,29 +398,10 @@ func RunCommand() error {
 	//	return trace.Wrap(err)
 	//}
 
-	// Echo randomID to pipe here.
-
-	//cmd := exec.Cmd{
-	//	Path:   c.Path,
-	//	Args:   c.Args,
-	//	Dir:    c.Dir,
-	//	Stdout: tty,
-	//	Stdin:  tty,
-	//	Stderr: tty,
-	//	Env:    c.Env,
-	//	SysProcAttr: &syscall.SysProcAttr{
-	//		Setctty: true,
-	//		Setsid:  true,
-	//		Ctty:    int(tty.Fd()),
-	//	},
-	//}
-
 	err = cmd.Start()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	//io.Copy(tty, bytes.NewReader([]byte("--> Command started.\n")))
 
 	err = cmd.Wait()
 	if err != nil {
@@ -431,42 +410,6 @@ func RunCommand() error {
 
 	return nil
 }
-
-//// prepareInteractiveCommand configures exec.Cmd object for launching an
-//// interactive command (or a shell).
-//func prepareInteractiveCommand(ctx *ServerContext) (*exec.Cmd, error) {
-//	var (
-//		err      error
-//		runShell bool
-//	)
-//	// determine shell for the given OS user:
-//	if ctx.ExecRequest.GetCommand() == "" {
-//		runShell = true
-//		cmdName, err := shell.GetLoginShell(ctx.Identity.Login)
-//		ctx.ExecRequest.SetCommand(cmdName)
-//		if err != nil {
-//			log.Error(err)
-//			return nil, trace.Wrap(err)
-//		}
-//		// in test mode short-circuit to /bin/sh
-//		if ctx.IsTestStub {
-//			ctx.ExecRequest.SetCommand("/bin/sh")
-//		}
-//	}
-//	c, err := prepareCommand(ctx)
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//	// this configures shell to run in 'login' mode. from openssh source:
-//	// "If we have no command, execute the shell.  In this case, the shell
-//	// name to be passed in argv[0] is preceded by '-' to indicate that
-//	// this is a login shell."
-//	// https://github.com/openssh/openssh-portable/blob/master/session.c
-//	if runShell {
-//		c.Args = []string{"-" + filepath.Base(ctx.ExecRequest.GetCommand())}
-//	}
-//	return c, nil
-//}
 
 func (e *localExec) transformSecureCopy() error {
 	// split up command by space to grab the first word. if we don't have anything

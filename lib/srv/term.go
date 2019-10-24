@@ -209,8 +209,6 @@ func (t *terminal) Run() error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("--> Requesting re-exec (shell) with: %#v.\n", cmdmsg)
-
 	// Re-execute Teleport and pass along the allocated PTY as well as the
 	// command reader from where Teleport will know how to re-spawn itself.
 	teleportPath, err := osext.Executable()
