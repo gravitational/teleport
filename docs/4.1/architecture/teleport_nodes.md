@@ -117,8 +117,7 @@ file.
 
 ## More Concepts
 
-* [Architecture](./architecture)
-* [Teleport Users](./users)
-* [Teleport Auth](./auth)
-* [Teleport Proxy](./proxy)
-
+* [Architecture Overview](./teleport_architecture_overview)
+* [Teleport Users](./teleport_users)
+* [Teleport Auth](./teleport_auth)
+* [Teleport Proxy](./teleport_proxy)

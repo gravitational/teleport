@@ -64,7 +64,7 @@ free to create an issue or pull request if you have comments.
 
 - [Quickstart Guide](quickstart/) - A quick tutorial to show off the basic
   capabilities of Teleport. A good place to start if you want to jump right in.
-- [Teleport Architecture](architecture/) - This section covers the underlying
+- [Teleport Architecture](architecture/teleport_architecture_overview) - This section covers the underlying
   design principles of Teleport and a detailed description of Teleport
   architecture. A good place to learn about Teleport's design and how it works.
 - [User Manual](user-manual/) - This manual expands on the Quickstart and

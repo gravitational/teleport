@@ -25,7 +25,7 @@ extra:
 pages:
     - Documentation:
         - Introduction: intro.md
-        - Quick Start Guide: guides/quickstart.md
+        - Quick Start Guide: quickstart.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
         - FAQ: faq.md
@@ -40,13 +40,15 @@ pages:
         - Trusted Clusters: trustedclusters.md
         - Kubernetes Guide: kubernetes_ssh.md
     - Architecture:
-        - Architecture Overview: architecture/overview.md
-        - Teleport Users: architecture/users.md
-        - Teleport Nodes: architecture/nodes.md
-        - Teleport Auth: architecture/auth.md
-        - Teleport Proxy: architecture/proxy.md
+        - Architecture Overview: architecture/teleport_architecture_overview.md
+        - Teleport Users: architecture/teleport_users.md
+        - Teleport Nodes: architecture/teleport_nodes.md
+        - Teleport Auth: architecture/teleport_auth.md
+        - Teleport Proxy: architecture/teleport_proxy.md
     - Enterprise Guides:
         - Introduction: enterprise.md
         - Quick Start Guide: quickstart-enterprise.md
         - RBAC: ssh_rbac.md
         - Single sign-on (SSO): ssh_sso.md
+    - CLI Reference:
+        - CLI Reference: cli-docs.md
