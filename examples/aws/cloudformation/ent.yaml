@@ -67,10 +67,15 @@ Mappings:
     t2.micro: {Arch: HVM64}
 
   AWSRegionArch2AMI:
-    eu-west-1: {HVM64 : ami-63ddee1a}
-    us-east-1: {HVM64 : ami-3adb4b45}
-    us-east-2: {HVM64 : ami-0c80bd69}
-    us-west-2: {HVM64 : ami-0d0b7675}
+    # eu-west-1 = EU (Ireland)
+    # us-east-1 = US East (N. Virginia)
+    # us-east-2 = US East (Ohio)
+    # us-west-2 = US West (Oregon)
+    # All AMIs from AWS - gravitational-teleport-ami-ent-4.0.4
+    eu-west-1: {HVM64 : ami-075c9f83d9d48f5ca}
+    us-east-1: {HVM64 : ami-0e53cd757bc98e23b}
+    us-east-2: {HVM64 : ami-0f7b4cc718ce99dce}
+    us-west-2: {HVM64 : ami-0792ee534d2e47623}
 
 Resources:
 # Auth server setup
