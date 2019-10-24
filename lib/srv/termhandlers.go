@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"fmt"
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 
