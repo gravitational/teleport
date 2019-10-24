@@ -46,7 +46,10 @@ func (s *SOCKSSuite) SetUpTest(c *check.C)     {}
 func (s *SOCKSSuite) TearDownTest(c *check.C)  {}
 
 func (s *SOCKSSuite) TestHandshake(c *check.C) {
-	remoteAddr := "example.com:443"
+	remoteAddrs := []string{
+		"example.com:443",
+		"9.8.7.6:443",
+	}
 
 	// Create and start a debug SOCKS5 server that calls socks.Handshake().
 	socksServer, err := newDebugServer()
@@ -57,20 +60,22 @@ func (s *SOCKSSuite) TestHandshake(c *check.C) {
 	proxy, err := proxy.SOCKS5("tcp", socksServer.Addr().String(), nil, nil)
 	c.Assert(err, check.IsNil)
 
-	// Connect to the SOCKS5 server, this is where the handshake function is called.
-	conn, err := proxy.Dial("tcp", remoteAddr)
-	c.Assert(err, check.IsNil)
+	for _, remoteAddr := range remoteAddrs {
+		// Connect to the SOCKS5 server, this is where the handshake function is called.
+		conn, err := proxy.Dial("tcp", remoteAddr)
+		c.Assert(err, check.IsNil)
 
-	// Read in what was written on the connection. With the debug server it's
-	// always the address requested.
-	buf := make([]byte, len(remoteAddr))
-	_, err = io.ReadFull(conn, buf)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(buf), check.Equals, remoteAddr)
+		// Read in what was written on the connection. With the debug server it's
+		// always the address requested.
+		buf := make([]byte, len(remoteAddr))
+		_, err = io.ReadFull(conn, buf)
+		c.Assert(err, check.IsNil)
+		c.Assert(string(buf), check.Equals, remoteAddr)
 
-	// Close and cleanup.
-	err = conn.Close()
-	c.Assert(err, check.IsNil)
+		// Close and cleanup.
+		err = conn.Close()
+		c.Assert(err, check.IsNil)
+	}
 }
 
 // debugServer is a debug SOCKS5 server that performs a SOCKS5 handshake
