@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1440px" height="488px" viewBox="0 0 1440 488" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 54.1 (76490) - https://sketchapp.com -->
+    <title>footer bg</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <linearGradient x1="11.5179896%" y1="70.5541774%" x2="99.1913947%" y2="40.3019497%" id="linearGradient-1">
+            <stop stop-color="#0C143D" offset="0%"></stop>
+            <stop stop-color="#651FFF" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Website" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Homepage" transform="translate(0.000000, -4163.000000)" fill="url(#linearGradient-1)">
+            <g id="Footer" transform="translate(0.000000, 4160.000000)">
+                <g id="footer-bg">
+                    <path d="M1685,3 L0,3 L0,1068.14358 C221.521918,1133.28547 502.355252,1133.28547 842.5,1068.14358 C1182.64475,1003.00169 1463.47808,1003.00169 1685,1068.14358 L1685,3 Z" transform="translate(842.500000, 560.000000) scale(1, -1) translate(-842.500000, -560.000000) "></path>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

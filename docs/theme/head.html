@@ -4,17 +4,16 @@
 {% if config.site_description %}<meta name="description" content="{{ config.site_description }}">{% endif %}
 {% if config.site_author %}<meta name="author" content="{{ config.site_author }}">{% endif %}
 
+<link rel="stylesheet" href="{{ base_url }}/src/docs.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"  />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway:400,500,600,700,800,900" />
-<link rel="stylesheet" href="{{ base_url }}/src/docs.css">
-
 {%- for path in extra_css %}
 <link href="{{ path }}" rel="stylesheet">
 {%- endfor %}
 
 <link rel="shortcut icon" href="https://gravitational.com/favicon.ico" type="image/x-icon" />
 
-{%- block extrahead %}{% endblock %}
+{%- block extrahead %} {% endblock %}
 
 {% block htmltitle %}
 <title>{% if page.title %}{{ page.title }} - {% endif %}{{ config.site_name }}</title>
