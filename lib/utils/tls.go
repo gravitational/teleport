@@ -200,8 +200,13 @@ const (
 
 // DefaultCipherSuites returns the default list of cipher suites that
 // Teleport supports. By default Teleport only support modern ciphers
-// (Chacha20 and AES GCM). Key exchanges which support perfect forward
-// secrecy (ECDHE) have priority over those that do not (RSA).
+// (Chacha20 and AES GCM) and key exchanges which support perfect forward
+// secrecy (ECDHE).
+//
+// Note that TLS_RSA_WITH_AES_128_GCM_SHA{256,384} have been dropped due to
+// being banned by HTTP2 which breaks GRPC clients. For more information see:
+// https://tools.ietf.org/html/rfc7540#appendix-A. These two can still be
+// manually added if needed.
 func DefaultCipherSuites() []uint16 {
 	return []uint16{
 		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
@@ -212,8 +217,5 @@ func DefaultCipherSuites() []uint16 {
 
 		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-
-		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
 	}
 }
