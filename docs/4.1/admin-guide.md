@@ -255,7 +255,6 @@ teleport:
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
     ciphers:
-
       - aes128-ctr
       - aes192-ctr
       - aes256-ctr
@@ -265,7 +264,6 @@ teleport:
     # Key exchange algorithms that the server supports. This section only needs
     # to be set if you want to override the defaults.
     kex_algos:
-
       - curve25519-sha256@libssh.org
       - ecdh-sha2-nistp256
       - ecdh-sha2-nistp384
@@ -274,15 +272,12 @@ teleport:
     # Message authentication code (MAC) algorithms that the server supports.
     # This section only needs to be set if you want to override the defaults.
     mac_algos:
-
       - hmac-sha2-256-etm@openssh.com
       - hmac-sha2-256
 
     # List of the supported ciphersuites. If this section is not specified,
     # only the default ciphersuites are enabled.
     ciphersuites:
-       - tls-rsa-with-aes-128-gcm-sha256
-       - tls-rsa-with-aes-256-gcm-sha384
        - tls-ecdhe-rsa-with-aes-128-gcm-sha256
        - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
        - tls-ecdhe-rsa-with-aes-256-gcm-sha384
