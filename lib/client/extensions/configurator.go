@@ -14,22 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package configurator provides the teleport client with the means for
-// configuring access to additional services that may be supported by a
-// teleport cluster.
+// Package extensions provides the Teleport client with additional functionality
+// such as the means for configuring access to extra services that may be supported
+// by a teleport cluster.
 //
 // For instance, in certain cases the cluster's proxy server may implement
-// Docker registry or Helm chart repository support, in which case docker
-// and helm clients will be configured with proper access credentials upon
+// Docker registry or Helm chart repository support, in which case Docker
+// and Helm clients will be configured with proper access credentials upon
 // successful tsh login.
-package configurator
+package extensions
 
 import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
-var log = logrus.WithField(trace.Component, "configurator")
+var log = logrus.WithField(trace.Component, "clt/ext")
 
 // Configurator defines an interface for configuring additional services
 // provided by a Teleport server such as a Docker registry or Helm chart
@@ -37,28 +37,28 @@ var log = logrus.WithField(trace.Component, "configurator")
 type Configurator interface {
 	// Configure performs necessary service configuration.
 	Configure(Config) error
-	// IsConfigured returns true if the service is already configured.
-	IsConfigured(Config) (bool, error)
+	// Deconfigure removes configuration for the service.
+	Deconfigure(Config) error
 }
 
 // Config represents a service configuration parameters.
 type Config struct {
 	// ProxyAddress is the address of web proxy that provides the service.
 	ProxyAddress string
-	// ProfileDir is the full path to the client profile directory.
-	ProfileDir string
 	// CertificatePath is the full path to the client certificate file.
 	CertificatePath string
 	// KeyPath is the full path to the client private key file.
 	KeyPath string
+	// ProfileDir is the path to the tsh profile directory.
+	ProfileDir string
 }
 
-// NewDocker returns a new instance of Docker configurator.
-func NewDocker(debug bool) (*dockerConfigurator, error) {
-	return &dockerConfigurator{debug: debug}, nil
+// NewDockerConfigurator returns a new instance of a Docker configurator.
+func NewDockerConfigurator() *dockerConfigurator {
+	return &dockerConfigurator{}
 }
 
-// NewHelm returns a new instance of Helm configurator.
-func NewHelm() (*helmConfigurator, error) {
-	return &helmConfigurator{}, nil
+// NewHelmConfigurator returns a new instance of a Helm configurator.
+func NewHelmConfigurator() *helmConfigurator {
+	return &helmConfigurator{}
 }

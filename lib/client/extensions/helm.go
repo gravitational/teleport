@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package configurator
+package extensions
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ type helmConfigurator struct{}
 // Configure configures Helm chart repository specified in the config.
 func (c *helmConfigurator) Configure(config Config) error {
 	if !hasHelm() {
-		log.Debug("Will not configure Helm repository: helm not available.")
+		log.Debug("Can not configure Helm repository: helm not available.")
 		return nil
 	}
 	if err := c.addRepository(config); err != nil {
@@ -40,12 +40,16 @@ func (c *helmConfigurator) Configure(config Config) error {
 	return nil
 }
 
-// IsConfigured checks if Helm charts repository is already configured.
-//
-// Currently it always returns false to force-refresh repository cache on
-// each login.
-func (c *helmConfigurator) IsConfigured(config Config) (bool, error) {
-	return false, nil
+// Deconfigure removes Helm chart repository specified in the config.
+func (c *helmConfigurator) Deconfigure(config Config) error {
+	if !hasHelm() {
+		log.Debug("Can not deconfigure Helm repository: helm not available.")
+		return nil
+	}
+	if err := c.removeRepository(config); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // addRepository adds Helm chart repository specified by the config to
@@ -69,6 +73,19 @@ func (c *helmConfigurator) addRepository(config Config) error {
 // updateRepository updates Helm chart repository cache.
 func (c *helmConfigurator) updateRepository() error {
 	err := runCommand("helm", "repo", "update")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// removeRepository removes the specified Helm chart repository.
+func (c *helmConfigurator) removeRepository(config Config) error {
+	chartRepository, _, err := net.SplitHostPort(config.ProxyAddress)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = runCommand("helm", "repo", "remove", chartRepository)
 	if err != nil {
 		return trace.Wrap(err)
 	}

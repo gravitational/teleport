@@ -65,31 +65,6 @@ func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	c.Assert(out, check.Equals, strings.TrimSpace(id))
 }
 
-func (s *UtilsSuite) TestSafeFilepathJoin(c *check.C) {
-	testCases := []struct {
-		base string
-		rest []string
-		path string
-		err  bool
-	}{
-		{
-			base: "/home/test",
-			rest: []string{"sub", "dir"},
-			path: "/home/test/sub/dir",
-		},
-		{
-			base: "/home/test",
-			rest: []string{"..", "../etc"},
-			err:  true,
-		},
-	}
-	for _, tc := range testCases {
-		path, err := SafeFilepathJoin(tc.base, tc.rest...)
-		c.Assert(path, check.Equals, tc.path)
-		c.Assert(err != nil, check.Equals, tc.err)
-	}
-}
-
 func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {
 	creds, err := GenerateSelfSignedCert([]string{"example.com"})
 	c.Assert(err, check.IsNil)

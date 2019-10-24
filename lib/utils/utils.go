@@ -217,16 +217,6 @@ func ReadPath(path string) ([]byte, error) {
 	return bytes, nil
 }
 
-// SafeFilepathJoin joins the provided paths and makes sure the resulting
-// path is still rooted at base path.
-func SafeFilepathJoin(base string, rest ...string) (string, error) {
-	path := filepath.Join(append([]string{base}, rest...)...)
-	if !strings.HasPrefix(path, base) {
-		return "", trace.BadParameter("cannot join %v and %v", base, rest)
-	}
-	return path, nil
-}
-
 type multiCloser struct {
 	closers []io.Closer
 }

@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dir"
-	"github.com/gravitational/teleport/lib/client/configurator"
+	"github.com/gravitational/teleport/lib/client/extensions"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -255,12 +255,9 @@ type Config struct {
 	// as a part of the ping response.
 	ServerFeatures []string
 
-	// Docker is responsible for configuring access to Docker registy that
-	// may be optionally provided by the server.
-	Docker configurator.Configurator
-	// Helm is responsible for configuring access to Helm repository that
-	// may be optionally provided by the server.
-	Helm configurator.Configurator
+	// Configurators configure additional services that may be optionally
+	// supported by a server such as Docker registry or Helm repository.
+	Configurators map[string]extensions.Configurator
 }
 
 // CachePolicy defines cache policy for local clients
@@ -788,17 +785,10 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 	}
 
-	if tc.Docker == nil {
-		tc.Docker, err = configurator.NewDocker(tc.Debug)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	if tc.Helm == nil {
-		tc.Helm, err = configurator.NewHelm()
-		if err != nil {
-			return nil, trace.Wrap(err)
+	if len(tc.Configurators) == 0 {
+		tc.Configurators = map[string]extensions.Configurator{
+			FeatureDocker: extensions.NewDockerConfigurator(),
+			FeatureHelm:   extensions.NewHelmConfigurator(),
 		}
 	}
 
@@ -1698,53 +1688,21 @@ func (tc *TeleportClient) ConfigureFeatures() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config := configurator.Config{
+	config := extensions.Config{
 		ProxyAddress:    profile.WebProxyAddr,
-		ProfileDir:      FullProfilePath(tc.KeysDir),
 		CertificatePath: profile.TLSCertificatePath(tc.KeysDir),
 		KeyPath:         profile.KeyPath(tc.KeysDir),
+		ProfileDir:      FullProfilePath(tc.KeysDir),
 	}
-	if utils.SliceContainsStr(tc.ServerFeatures, FeatureDocker) {
-		if err := tc.configureDocker(config); err != nil {
-			return trace.Wrap(err)
+	for _, feature := range tc.ServerFeatures {
+		configurator, ok := tc.Configurators[feature]
+		if !ok {
+			log.Debugf("No configurator for %q.", feature)
+		} else {
+			if err := configurator.Configure(config); err != nil {
+				return trace.Wrap(err)
+			}
 		}
-	}
-	if utils.SliceContainsStr(tc.ServerFeatures, FeatureHelm) {
-		if err := tc.configureHelm(config); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func (tc *TeleportClient) configureDocker(config configurator.Config) error {
-	configured, err := tc.Docker.IsConfigured(config)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if configured {
-		log.Debug("Docker registry is already configured.")
-		return nil
-	}
-	err = tc.Docker.Configure(config)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (tc *TeleportClient) configureHelm(config configurator.Config) error {
-	configured, err := tc.Helm.IsConfigured(config)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if configured {
-		log.Debug("Helm repository is already configured.")
-		return nil
-	}
-	err = tc.Helm.Configure(config)
-	if err != nil {
-		return trace.Wrap(err)
 	}
 	return nil
 }

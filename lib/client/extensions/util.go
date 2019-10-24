@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package configurator
+package extensions
 
 import (
 	"os"
@@ -79,21 +79,12 @@ func verifySymlink(source, destination string) (bool, error) {
 	return true, nil
 }
 
-// runCommandSudo executes the specified command as sudo.
-func runCommandSudo(cmd string, args ...string) error {
-	return runCommand("sudo", append([]string{cmd}, args...)...)
-}
-
 // runCommand executes the specified command.
 func runCommand(cmd string, args ...string) error {
 	command := exec.Command(cmd, args...)
 	log.Debugf("Executing %v.", command.Args)
-	// Configure standard streams in case the command needs to prompt the user.
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	if err := command.Run(); err != nil {
-		return trace.Wrap(err)
+	if out, err := command.CombinedOutput(); err != nil {
+		return trace.Wrap(err, "failed to execute %v: %v", command.Args, string(out))
 	}
 	return nil
 }

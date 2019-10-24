@@ -16,19 +16,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package configurator
+package extensions
 
-type dockerConfigurator struct {
-	debug bool
-}
+type dockerConfigurator struct{}
 
 // Configure is no-op for Docker configurator on non-Linux systems.
 func (c *dockerConfigurator) Configure(config Config) error {
-	log.Debug("Will not configure Docker registry: platform unsupported.")
+	log.Debug("Can not configure Docker registry: platform unsupported.")
 	return nil
 }
 
-// IsConfigured is no-op for Docker configurator on non-Linux systems.
-func (c *dockerConfigurator) IsConfigured(config Config) (bool, error) {
-	return false, nil
+// Deconfigure is no-op for Docker configurator on non-Linux systems.
+func (c *dockerConfigurator) Deconfigure(config Config) error {
+	log.Debug("Can not deconfigure Docker registry: platform unsupported.")
+	return nil
 }

@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/client/configurator"
+	"github.com/gravitational/teleport/lib/client/extensions"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
@@ -95,8 +95,10 @@ func (s *APITestSuite) TestConfigureFeatures(c *check.C) {
 	helm := &testConfigurator{}
 	config := &Config{
 		KeysDir: tmpDir,
-		Docker:  docker,
-		Helm:    helm,
+		Configurators: map[string]extensions.Configurator{
+			FeatureDocker: docker,
+			FeatureHelm:   helm,
+		},
 	}
 	err := config.ParseProxyHost("proxy")
 	c.Assert(err, check.IsNil)
@@ -115,22 +117,15 @@ func (s *APITestSuite) TestConfigureFeatures(c *check.C) {
 	// Server does not provide Docker/Helm so nothing should be configured.
 	err = tc.ConfigureFeatures()
 	c.Assert(err, check.IsNil)
-	c.Assert(docker.configured, check.Equals, 0)
-	c.Assert(helm.configured, check.Equals, 0)
+	c.Assert(docker.configured, check.Equals, false)
+	c.Assert(helm.configured, check.Equals, false)
 
 	// Docker/Helm registries should be configured.
 	tc.ServerFeatures = []string{FeatureDocker, FeatureHelm}
 	err = tc.ConfigureFeatures()
 	c.Assert(err, check.IsNil)
-	c.Assert(docker.configured, check.Equals, 1)
-	c.Assert(helm.configured, check.Equals, 1)
-
-	// Docker/Helm registries are already configured.
-	tc.ServerFeatures = []string{FeatureDocker, FeatureHelm}
-	err = tc.ConfigureFeatures()
-	c.Assert(err, check.IsNil)
-	c.Assert(docker.configured, check.Equals, 1)
-	c.Assert(helm.configured, check.Equals, 1)
+	c.Assert(docker.configured, check.Equals, true)
+	c.Assert(helm.configured, check.Equals, true)
 }
 
 func (s *APITestSuite) TestParseLabels(c *check.C) {
@@ -272,14 +267,15 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 }
 
 type testConfigurator struct {
-	configured int
+	configured bool
 }
 
-func (c *testConfigurator) Configure(_ configurator.Config) error {
-	c.configured += 1
+func (c *testConfigurator) Configure(_ extensions.Config) error {
+	c.configured = true
 	return nil
 }
 
-func (c *testConfigurator) IsConfigured(_ configurator.Config) (bool, error) {
-	return c.configured != 0, nil
+func (c *testConfigurator) Deconfigure(_ extensions.Config) error {
+	c.configured = false
+	return nil
 }

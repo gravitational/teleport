@@ -181,3 +181,11 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
   version = "=v0.4.9"
+
+[[constraint]]
+  name = "github.com/fatih/color"
+  version = "=v1.7.0"
+
+[[constraint]]
+  name = "github.com/cyphar/filepath-securejoin"
+  version = "=v0.2.2"
