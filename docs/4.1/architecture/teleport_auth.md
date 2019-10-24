@@ -1,6 +1,6 @@
 # Teleport Authentication Service
 
-This is outlines the Teleport Authentication Service and Certificate
+This document outlines the Teleport Authentication Service and Certificate
 Management. It explains how Users and Nodes are identified and granted access to
 Nodes and Services.
 

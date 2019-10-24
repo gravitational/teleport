@@ -1093,12 +1093,11 @@ or in a local filesystem (including NFS).
 The recorded sessions are stored as raw bytes in the `sessions` directory under
 `log` . Each session consists of two files, both are named after the session ID:
 
-1. `.bytes` file represents the raw session bytes and is somewhat
+1. `.bytes` file or `.chunks.gz` compressed format represents the raw session bytes and is somewhat
     human-readable, although you are better off using [`tsh
     play`](../cli-docs/#tsh-play) or the Web UI to replay it.
 
-2. `.log` file contains the copies of the event log entries that are related to
-   this session.
+2. `.log` file or `.events.gz` compressed file contains the copies of the event log entries that are            related to this session.
 
 ``` yaml
 $ ls /var/lib/teleport/log/sessions/default
@@ -1574,7 +1573,7 @@ $ tctl rm tc/east
 ```
 
 While accessibility is only granted in one direction, trust is granted in both
-directions. If you remote "east" from "main", the following will happen:
+directions. If you remove "east" from "main", the following will happen:
 
 * Two clusters will be disconnected, because "main" will drop the inbound SSH
   tunnel connection from "east" and will not allow a new one.
@@ -2065,7 +2064,7 @@ highly available secrets back-end first. Also, you must tell each node in a
 cluster that there is more than one auth server available. There are two ways to
 do this:
 
-  + Use a load balancer to create a single the auth API access point (AP) and
+  + Use a load balancer to to create a single auth API access point (AP) and
     specify this AP in `auth_servers` section of Teleport configuration for all
     nodes in a cluster. This load balancer should do TCP level forwarding.
 
@@ -2302,10 +2301,11 @@ clients, etc), the following rules apply:
   means you must not attempt to upgrade from 3.3 straight to 3.5. You must
   upgrade to 3.4 first.
 
-* Teleport clients ( [ `tsh` ](../cli-docs/#tsh) for users and  [ `tctl` ](../cli-docs/#tctl) for admins) may   not be compatible
+* Teleport clients [`tsh`](../cli-docs/#tsh) for users and [`tctl`](../cli-docs/#tctl) for admins 
+  may not be compatible
 
-As an extra precaution you might want to backup your application prior to upgrading. We've
-more instructions in [Backing up Dynamic Configuration](#backing-up-dynamic-configuration).
+As an extra precaution you might want to backup your application prior to upgrading.We provide
+more instructionsin [Backing up Dynamic Configuration](#backing-up-dynamic-configuration).
 
 ### Upgrade Sequence
 
@@ -2412,8 +2412,10 @@ Now you can see the monitoring information by visiting several endpoints:
 
 ## Getting Help
 
-Please open an [issue on Github](https://github.com/gravitational/teleport/issues). Alternatively,
-you can reach through the contact form on our [website](https://gravitational.com/).
+If you need help please ask on our [forum](https://community.gravitational.com). If you're
+a paying customer, please open a tick via our control panel. 
+
+If you find a bug, please open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
 For commercial support, custom features or to try our commercial edition,
 [Teleport Enterprise](/enterprise/), please reach out to us:
