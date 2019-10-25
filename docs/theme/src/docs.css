@@ -749,7 +749,7 @@ ul, dl {
   .text-article ol, .text-article ul, .text-article dl {
     color: #607D8B;
     font-size: 18px;
-    line-height: 32px;
+    line-height: 24px;
     margin: 24px 0 24px 32px; }
     @media screen and (max-width: 900px), screen and (max-device-width: 900px), screen and (max-width: 900px) {
       .text-article ol, .text-article ul, .text-article dl {
