@@ -25,6 +25,8 @@ limitations under the License.
 package extensions
 
 import (
+	"fmt"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -39,6 +41,8 @@ type Configurator interface {
 	Configure(Config) error
 	// Deconfigure removes configuration for the service.
 	Deconfigure(Config) error
+	// Stringer returns human-friendly description of the configurator.
+	fmt.Stringer
 }
 
 // Config represents a service configuration parameters.

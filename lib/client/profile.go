@@ -23,6 +23,7 @@ import (
 	"os/user"
 	"path/filepath"
 
+	"github.com/gravitational/teleport/lib/client/extensions"
 	"github.com/gravitational/trace"
 
 	"gopkg.in/yaml.v2"
@@ -106,6 +107,16 @@ func (c *ClientProfile) TLSCertificatePath(profileDir string) string {
 // KeyPath returns full path to the profile's private key.
 func (c *ClientProfile) KeyPath(profileDir string) string {
 	return filepath.Join(FullProfilePath(profileDir), sessionKeyDir, c.Name(), c.Username)
+}
+
+// ToConfig makes config suitable for use with configurators.
+func (c *ClientProfile) ToConfig(profileDir string) extensions.Config {
+	return extensions.Config{
+		ProxyAddress:    c.WebProxyAddr,
+		CertificatePath: c.TLSCertificatePath(profileDir),
+		KeyPath:         c.KeyPath(profileDir),
+		ProfileDir:      FullProfilePath(profileDir),
+	}
 }
 
 // FullProfilePath returns the full path to the user profile directory.

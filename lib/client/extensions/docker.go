@@ -31,3 +31,8 @@ func (c *dockerConfigurator) Deconfigure(config Config) error {
 	log.Debug("Can not deconfigure Docker registry: platform unsupported.")
 	return nil
 }
+
+// String is no-op for Docker configurator on non-Linux systems.
+func (c *dockerConfigurator) String() string {
+	return ""
+}

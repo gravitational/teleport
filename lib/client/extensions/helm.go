@@ -31,6 +31,7 @@ func (c *helmConfigurator) Configure(config Config) error {
 		log.Debug("Can not configure Helm repository: helm not available.")
 		return nil
 	}
+	log.Debugf("Configuring Helm repository for %v.", config.ProxyAddress)
 	if err := c.addRepository(config); err != nil {
 		return trace.Wrap(err)
 	}
@@ -50,6 +51,11 @@ func (c *helmConfigurator) Deconfigure(config Config) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// String returns human-friendly description of the configurator.
+func (c *helmConfigurator) String() string {
+	return "Helm repository"
 }
 
 // addRepository adds Helm chart repository specified by the config to

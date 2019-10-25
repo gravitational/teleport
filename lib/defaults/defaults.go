@@ -338,9 +338,15 @@ var (
 	// ConfigFilePath is default path to teleport config file
 	ConfigFilePath = "/etc/teleport.yaml"
 
+	// TshConfig is the default tsh configuration file name.
+	TshConfig = "tsh.yaml"
+
 	// DataDir is where all mutable data is stored (user keys, recorded sessions,
 	// registered SSH servers, etc):
 	DataDir = "/var/lib/teleport"
+
+	// EtcDir represents /etc directory.
+	EtcDir = "/etc"
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
 	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService}

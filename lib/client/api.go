@@ -785,13 +785,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 	}
 
-	if len(tc.Configurators) == 0 {
-		tc.Configurators = map[string]extensions.Configurator{
-			FeatureDocker: extensions.NewDockerConfigurator(),
-			FeatureHelm:   extensions.NewHelmConfigurator(),
-		}
-	}
-
 	return tc, nil
 }
 
@@ -1688,12 +1681,7 @@ func (tc *TeleportClient) ConfigureFeatures() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config := extensions.Config{
-		ProxyAddress:    profile.WebProxyAddr,
-		CertificatePath: profile.TLSCertificatePath(tc.KeysDir),
-		KeyPath:         profile.KeyPath(tc.KeysDir),
-		ProfileDir:      FullProfilePath(tc.KeysDir),
-	}
+	config := profile.ToConfig(tc.KeysDir)
 	for _, feature := range tc.ServerFeatures {
 		configurator, ok := tc.Configurators[feature]
 		if !ok {

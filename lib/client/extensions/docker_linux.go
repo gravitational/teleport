@@ -42,6 +42,7 @@ func (c *dockerConfigurator) Configure(config Config) error {
 		log.Debug("Docker registry is already configured.")
 		return nil
 	}
+	log.Debugf("Configuring Docker registry for %v.", config.ProxyAddress)
 	err = c.tryConfigure(config)
 	if err == nil {
 		return nil
@@ -73,6 +74,11 @@ func (c *dockerConfigurator) Deconfigure(config Config) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// String returns human-friendly description of the configurator.
+func (c *dockerConfigurator) String() string {
+	return "Docker registry"
 }
 
 func (c *dockerConfigurator) tryConfigure(config Config) error {
@@ -139,7 +145,8 @@ const (
 	dockerClientCertificate = "client.cert"
 	// errorMessage is a message that gets shown to a user if tsh wasn't
 	// unable to configure Docker certificates due to permissions issue.
-	errorMessage = `The server %v provides Docker registry support but tsh was unable to configure your local Docker client due to insufficient permissions.
+	errorMessage = `
+The server %v provides Docker registry support but tsh was unable to configure your local Docker client due to insufficient permissions.
 
 To configure your local Docker client tsh needs to symlink obtained certificates to /etc/docker/certs.d.
 See https://docs.docker.com/engine/security/certificates/ for details.
@@ -147,5 +154,6 @@ See https://docs.docker.com/engine/security/certificates/ for details.
 If you'd like to configure your local Docker client, please run the following command as a user that has permissions for /etc/docker/certs.d directory (for example, root):
 
   tsh gravity docker configure --profile-dir=%v
+
 `
 )

@@ -279,3 +279,7 @@ func (c *testConfigurator) Deconfigure(_ extensions.Config) error {
 	c.configured = false
 	return nil
 }
+
+func (c *testConfigurator) String() string {
+	return ""
+}
