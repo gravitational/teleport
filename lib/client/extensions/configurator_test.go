@@ -36,6 +36,7 @@ func (s *ConfiguratorSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 }
 
+// TestSymlinks verifies symlinks creation and verification methods.
 func (s *ConfiguratorSuite) TestSymlinks(c *check.C) {
 	// Create two temporary directories and two files in the first directory.
 	tmpDir1 := c.MkDir()

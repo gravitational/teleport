@@ -941,9 +941,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
-	if cf.Debug {
-		c.Debug = cf.Debug
-	}
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
 	if cf.Proxy != "" && c.WebProxyAddr == "" {

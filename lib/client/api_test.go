@@ -89,6 +89,8 @@ func (s *APITestSuite) TestNew(c *check.C) {
 	c.Assert(la, check.NotNil)
 }
 
+// TestConfigureFeatures verifies that Teleport client invokes appropriate
+// configurators if server supports additional features.
 func (s *APITestSuite) TestConfigureFeatures(c *check.C) {
 	tmpDir := c.MkDir()
 	docker := &testConfigurator{}
@@ -266,20 +268,24 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 	}
 }
 
+// testConfigurator is used in tests to test additional features configuration.
 type testConfigurator struct {
 	configured bool
 }
 
+// Configure marks the feature as configured.
 func (c *testConfigurator) Configure(_ extensions.Config) error {
 	c.configured = true
 	return nil
 }
 
+// Deconfigure marks the feature as not configured.
 func (c *testConfigurator) Deconfigure(_ extensions.Config) error {
 	c.configured = false
 	return nil
 }
 
+// String returns test configurator name.
 func (c *testConfigurator) String() string {
-	return ""
+	return "test"
 }

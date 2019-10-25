@@ -164,9 +164,6 @@ type Config struct {
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 
-	// Debug allows to enable client debug logging.
-	Debug bool
-
 	// SkipLocalAuth tells the client to use AuthMethods parameter for authentication and NOT
 	// use its own SSH agent or ask user for passwords. This is used by external programs linking
 	// against Teleport client and obtaining credentials from elsewhere.
@@ -1777,7 +1774,6 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		// after login.
 		tc.localAgent.UpdateProxyHost(addr.Host())
 	}
-
 	// Read in settings for the SSH endpoint of the proxy.
 	//
 	// If listen_addr is set, take host from ProxyWebHost and port from what
@@ -1793,7 +1789,6 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		webProxyHost, _ := tc.WebProxyHostPort()
 		tc.SSHProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
 	}
-
 	// If ssh_public_addr is set, override settings from listen_addr.
 	if proxySettings.SSH.SSHPublicAddr != "" {
 		addr, err := utils.ParseAddr(proxySettings.SSH.SSHPublicAddr)

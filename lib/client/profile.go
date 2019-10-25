@@ -24,8 +24,8 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport/lib/client/extensions"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v2"
 )
 

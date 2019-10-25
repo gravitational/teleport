@@ -50,6 +50,8 @@ func (c *dockerConfigurator) Configure(config Config) error {
 	if !trace.IsAccessDenied(err) {
 		return trace.Wrap(err)
 	}
+	// Output a message for the user informing them that tsh doesn't have
+	// enough permissions to configure Docker and the way to do it.
 	color.Yellow(errorMessage, config.ProxyAddress, config.ProfileDir)
 	return nil
 }
@@ -81,6 +83,7 @@ func (c *dockerConfigurator) String() string {
 	return "Docker registry"
 }
 
+// tryConfigure attempts to symlink user certificates to /etc/docker/certs.d.
 func (c *dockerConfigurator) tryConfigure(config Config) error {
 	// Ensure /etc/docker/certs.d/<proxy> directory exists.
 	certsDir, err := securejoin.SecureJoin(dockerCerts, config.ProxyAddress)
@@ -101,6 +104,7 @@ func (c *dockerConfigurator) tryConfigure(config Config) error {
 	return nil
 }
 
+// tryDeconfigure attempts to remove user certificates symlinked to /etc/docker/certs.d.
 func (c *dockerConfigurator) tryDeconfigure(config Config) error {
 	certsDir, err := securejoin.SecureJoin(dockerCerts, config.ProxyAddress)
 	if err != nil {

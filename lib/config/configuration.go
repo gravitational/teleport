@@ -96,8 +96,12 @@ type CommandLineFlags struct {
 	InsecureMode bool
 }
 
-// ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
-// and overrides values in 'cfg' structure
+// ReadConfigFile reads the specified configuration file and returns FileConfig.
+//
+// If the config file is not specified explicitly, falls back to reading it
+// from one of the specified default locations, in the order they were provided.
+//
+// If those don't exist as well, returns an empty config.
 func ReadConfigFile(cliConfigPath string, defaultConfigPaths ...string) (*FileConfig, error) {
 	// If config was passed explicitly, the file must exist.
 	configFilePath := cliConfigPath
@@ -321,7 +325,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
-// ApplyToClientConfig applies the provided file config to the client configuration.
+// ApplyToClientConfig applies the provided file config to the specified
+// Teleport client configuration.
 func ApplyToClientConfig(fc FileConfig, cfg *client.Config) error {
 	if cfg.Configurators == nil {
 		cfg.Configurators = map[string]extensions.Configurator{}
