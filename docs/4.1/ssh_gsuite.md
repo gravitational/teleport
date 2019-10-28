@@ -53,6 +53,7 @@ spec:
   scope: ['openid', 'email']
   claims_to_roles:
     - {claim: "email", value: "ben@example.com", roles: ["admin"]}
+    - {claim: "email", value: "gus@example.com", roles: ["admin"]}
     - {claim: "email", value: "*@example.com", roles: ["dev"]}
 ```
 
