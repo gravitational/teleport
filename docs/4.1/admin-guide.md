@@ -1288,9 +1288,7 @@ version: v2
 metadata:
   name: joe
 spec:
-  roles:
-
-  + admin
+  roles: admin
 
   status:
     # users can be temporarily locked in a Teleport system, but this
