@@ -33,10 +33,6 @@ like:
 
 ![Copy Client Secret](img/gsuite/gsuite-5-copy-client-id.png)
 
-6. To allow for fine grained role based access control (RBAC) you'll first need to
-open an admin API so Teleport can assign groups to roles. Allow Admin SDK via [google.com/apis/api/admin.googleapis.com/overview](https://console.developers.google.com/apis/api/admin.googleapis.com/overview)
-![Turn on Admin SDK](img/gsuite/gsuite-4-admin-sdk.png)
-
 
 
 ## Create a OIDC Connector
@@ -54,14 +50,12 @@ spec:
   client_id: exampleclientid11234.apps.googleusercontent.com
   client_secret: examplesecret
   issuer_url: https://accounts.google.com
-  scope: ['https://www.googleapis.com/auth/admin.directory.group.readonly', 'openid', 'email']
+  scope: ['openid', 'email']
   claims_to_roles:
-    - {claim: "groups", value: "admin@example.com", roles: ["admin"]}
+    - {claim: "email", value: "ben@example.com", roles: ["admin"]}
+    - {claim: "email", value: "gus@example.com", roles: ["admin"]}
+    - {claim: "email", value: "*@example.com", roles: ["dev"]}
 ```
-
-!!! important
-    The groups will be fetched only if admins include special auth scope https://www.googleapis.com/auth/admin.directory.group.readonly in the scopes of the connector as shown in the example above.
-
 
 Create the connector using `tctl` tool:
 
@@ -72,6 +66,7 @@ $ tctl create gsuite-connector.yaml
 ## Create Teleport Roles
 
 We are going to create 2 roles:
+
 -  Privileged role admin who is able to login as root and is capable of administrating
 the cluster
 - Non-privileged dev
