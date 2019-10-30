@@ -782,6 +782,13 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 	}
 
+	if len(tc.Configurators) == 0 {
+		tc.Configurators = map[string]extensions.Configurator{
+			FeatureDocker: extensions.NewDockerConfigurator(),
+			FeatureHelm:   extensions.NewHelmConfigurator(),
+		}
+	}
+
 	return tc, nil
 }
 

@@ -166,7 +166,7 @@ func connectToAuthService(cfg *service.Config) (client auth.ClientI, err error) 
 // them to 'service.Config' object
 func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) error {
 	// load /etc/teleport.yaml and apply it's values:
-	fileConf, err := config.ReadConfigFile(ccf.ConfigFile, defaults.ConfigFilePath)
+	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
 	if err != nil {
 		return trace.Wrap(err)
 	}

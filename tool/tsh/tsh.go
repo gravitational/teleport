@@ -29,7 +29,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -43,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/extensions"
-	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeclient "github.com/gravitational/teleport/lib/kube/client"
 	"github.com/gravitational/teleport/lib/session"
@@ -158,9 +156,6 @@ type CLIConf struct {
 	// Debug sends debug logs to stdout.
 	Debug bool
 
-	// ConfigPath is the path to optional configuration file.
-	ConfigPath string
-
 	// ProfileDir specifies the client profile directory.
 	ProfileDir string
 }
@@ -214,7 +209,6 @@ func Run(args []string, underTest bool) {
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
-	app.Flag("config", "Path to tsh configuration file").StringVar(&cf.ConfigPath)
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
 	// ssh
@@ -384,24 +378,6 @@ func Run(args []string, underTest bool) {
 	case helmDeconfigure.FullCommand():
 		onHelmDeconfigure(&cf)
 	}
-}
-
-// readFileConfig reads tsh configuration file.
-//
-// The order in which config file locations are considered is as follows:
-//
-//   1. Explicit path specified with --config flag.
-//   2. tsh.yaml in user profile directory (~/.tsh).
-//   3. tsh.yaml in /etc.
-func readFileConfig(cf *CLIConf) (*config.FileConfig, error) {
-	profileDir := client.FullProfilePath(cf.ProfileDir)
-	fileConfig, err := config.ReadConfigFile(cf.ConfigPath,
-		filepath.Join(profileDir, defaults.TshConfig),
-		filepath.Join(defaults.EtcDir, defaults.TshConfig))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return fileConfig, nil
 }
 
 // onPlay replays a session with a given ID
@@ -1007,17 +983,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
 	c.BindAddr = cf.BindAddr
-
-	// Read and apply settings from tsh file config, if there is any.
-	fileConfig, err := readFileConfig(cf)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = config.ApplyToClientConfig(*fileConfig, c)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return client.NewClient(c)
 }
 

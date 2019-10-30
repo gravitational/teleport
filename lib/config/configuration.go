@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/extensions"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
@@ -96,32 +95,23 @@ type CommandLineFlags struct {
 	InsecureMode bool
 }
 
-// ReadConfigFile reads the specified configuration file and returns FileConfig.
-//
-// If the config file is not specified explicitly, falls back to reading it
-// from one of the specified default locations, in the order they were provided.
-//
-// If those don't exist as well, returns an empty config.
-func ReadConfigFile(cliConfigPath string, defaultConfigPaths ...string) (*FileConfig, error) {
-	// If config was passed explicitly, the file must exist.
-	configFilePath := cliConfigPath
-	if configFilePath != "" && !fileExists(configFilePath) {
-		return nil, trace.NotFound("configuration file not found: %s", configFilePath)
-	}
-	// See if any of the default configs exist if none was explicitly specified.
-	if configFilePath == "" {
-		for _, configPath := range defaultConfigPaths {
-			if fileExists(configPath) {
-				configFilePath = configPath
-				break
-			}
+// readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
+// and overrides values in 'cfg' structure
+func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
+	configFilePath := defaults.ConfigFilePath
+	// --config tells us to use a specific conf. file:
+	if cliConfigPath != "" {
+		configFilePath = cliConfigPath
+		if !fileExists(configFilePath) {
+			return nil, trace.Errorf("file not found: %s", configFilePath)
 		}
 	}
-	if configFilePath == "" {
-		log.Info("Not using a config file.")
-		return &FileConfig{}, nil
+	// default config doesn't exist? quietly return:
+	if !fileExists(configFilePath) {
+		log.Info("not using a config file")
+		return nil, nil
 	}
-	log.Infof("Using config file %v.", configFilePath)
+	log.Debug("reading config file: ", configFilePath)
 	return ReadFromFile(configFilePath)
 }
 
@@ -322,27 +312,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	return nil
-}
-
-// ApplyToClientConfig applies the provided file config to the specified
-// Teleport client configuration.
-func ApplyToClientConfig(fc FileConfig, cfg *client.Config) error {
-	if cfg.Configurators == nil {
-		cfg.Configurators = map[string]extensions.Configurator{}
-	}
-	// Automatic Docker/Helm login for clusters that support them is enabled,
-	// unless explicitly turned off.
-	if fc.DockerRegistry == nil || *fc.DockerRegistry {
-		cfg.Configurators[client.FeatureDocker] = extensions.NewDockerConfigurator()
-	} else {
-		log.Debug("Docker registry login is disabled via file config.")
-	}
-	if fc.HelmRepository == nil || *fc.HelmRepository {
-		cfg.Configurators[client.FeatureHelm] = extensions.NewHelmConfigurator()
-	} else {
-		log.Debug("Helm repository login is disabled via file config.")
-	}
 	return nil
 }
 
@@ -833,7 +802,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// load /etc/teleport.yaml and apply it's values:
-	fileConf, err := ReadConfigFile(clf.ConfigFile, defaults.ConfigFilePath)
+	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
 		return trace.Wrap(err)
 	}

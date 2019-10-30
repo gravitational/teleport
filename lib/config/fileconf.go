@@ -149,8 +149,6 @@ var (
 		"ca_pin":                  false,
 		"keep_alive_interval":     false,
 		"keep_alive_count_max":    false,
-		"docker_registry":         false,
-		"helm_repository":         false,
 	}
 )
 
@@ -183,7 +181,7 @@ func ReadFromString(configString string) (*FileConfig, error) {
 	data, err := base64.StdEncoding.DecodeString(configString)
 	if err != nil {
 		return nil, trace.BadParameter(
-			"configuration should be base64 encoded: %v", err)
+			"confiugraion should be base64 encoded: %v", err)
 	}
 	return ReadConfig(bytes.NewBuffer(data))
 }
@@ -393,11 +391,6 @@ type Global struct {
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
 	CAPin string `yaml:"ca_pin"`
-
-	// DockerRegistry allows to disable automatic login to Docker registry.
-	DockerRegistry *bool `yaml:"docker_registry,omitempty"`
-	// HelmRepository allows to disable automatic login to Helm repository.
-	HelmRepository *bool `yaml:"helm_repository,omitempty"`
 }
 
 // CachePolicy is used to control  local cache
