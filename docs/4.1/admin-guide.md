@@ -2300,8 +2300,8 @@ clients, etc), the following rules apply:
 As an extra precaution you might want to backup your application prior to upgrading. We provide more instructionsin [Backing up Dynamic Configuration](#backing-up-dynamic-configuration).
 
 !!! warning "Upgrading to Teleport 4.0+":
-    Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP2 Spec banned
-    two previously recommend ciphers. `tls-rsa-with-aes-128-gcm-sha256` &     `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml` 
+    Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
+    two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
     [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
 
 ### Upgrade Sequence
