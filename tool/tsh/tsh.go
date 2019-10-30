@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/extensions"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeclient "github.com/gravitational/teleport/lib/kube/client"
 	"github.com/gravitational/teleport/lib/session"
@@ -155,9 +154,6 @@ type CLIConf struct {
 
 	// Debug sends debug logs to stdout.
 	Debug bool
-
-	// ProfileDir specifies the client profile directory.
-	ProfileDir string
 }
 
 func main() {
@@ -281,26 +277,6 @@ func Run(args []string, underTest bool) {
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
 
-	// Commands specific to Gravity clusters reside under "gravity" subcommand.
-	gravity := app.Command("gravity", "Commands specific to Gravity clusters")
-
-	// The docker configure command sets up the local Docker daemon to use the
-	// key and certificate obtained as a result of tsh login for a registry
-	// access by symlinking them to /etc/docker/certs.d/<proxy> directory.
-	docker := gravity.Command("docker", "Manage access to Docker registry provided by a proxy server")
-	dockerConfigure := docker.Command("configure", "Configure local Docker client for registry access").Hidden()
-	dockerConfigure.Flag("profile-dir", fmt.Sprintf("Client profile directory, defaults to %v in the user's home directory", client.ProfileDir)).StringVar(&cf.ProfileDir)
-	dockerDeconfigure := docker.Command("deconfigure", "Remove local Docker client configuration").Hidden()
-	dockerDeconfigure.Flag("profile-dir", fmt.Sprintf("Client profile directory, defaults to %v in the user's home directory", client.ProfileDir)).StringVar(&cf.ProfileDir)
-
-	// The helm configure command adds the proxy the current user is logged
-	// into as a Helm chart repository.
-	helm := gravity.Command("helm", "Manage access to Helm repository provided by a proxy server")
-	helmConfigure := helm.Command("configure", "Configure local Helm client for repository access").Hidden()
-	helmConfigure.Flag("profile-dir", fmt.Sprintf("Client profile directory, defaults to %v in the user's home directory", client.ProfileDir)).StringVar(&cf.ProfileDir)
-	helmDeconfigure := helm.Command("deconfigure", "Remove local Helm client configuration").Hidden()
-	helmDeconfigure.Flag("profile-dir", fmt.Sprintf("Client profile directory, defaults to %v in the user's home directory", client.ProfileDir)).StringVar(&cf.ProfileDir)
-
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == teleport.WindowsOS {
@@ -369,14 +345,6 @@ func Run(args []string, underTest bool) {
 		onShow(&cf)
 	case status.FullCommand():
 		onStatus(&cf)
-	case dockerConfigure.FullCommand():
-		onDockerConfigure(&cf)
-	case dockerDeconfigure.FullCommand():
-		onDockerDeconfigure(&cf)
-	case helmConfigure.FullCommand():
-		onHelmConfigure(&cf)
-	case helmDeconfigure.FullCommand():
-		onHelmDeconfigure(&cf)
 	}
 }
 
@@ -1319,72 +1287,4 @@ func host(in string) string {
 		return in
 	}
 	return out
-}
-
-// onDockerConfigure command configures local Docker client with key/certificate
-// from the current client profile.
-//
-// This command must be executed as a user that has permissions to /etc/docker
-// directory in order to be able to symlink certificates, otherwise it will
-// fail with a permission error.
-func onDockerConfigure(cf *CLIConf) {
-	docker := extensions.NewDockerConfigurator()
-	if err := tryConfigure(cf, docker); err != nil {
-		utils.FatalError(err)
-	}
-}
-
-// onDockerDeconfigure command removes local Docker client configuration for
-// the current client profile.
-func onDockerDeconfigure(cf *CLIConf) {
-	docker := extensions.NewDockerConfigurator()
-	if err := tryDeconfigure(cf, docker); err != nil {
-		utils.FatalError(err)
-	}
-}
-
-// onHelmConfigure command configures local Helm client to use the current
-// proxy as a Helm chart repository.
-func onHelmConfigure(cf *CLIConf) {
-	helm := extensions.NewHelmConfigurator()
-	if err := tryConfigure(cf, helm); err != nil {
-		utils.FatalError(err)
-	}
-}
-
-// onHelmDeonfigure command removes Helm chart repository for the current
-// client profile.
-func onHelmDeconfigure(cf *CLIConf) {
-	helm := extensions.NewHelmConfigurator()
-	if err := tryDeconfigure(cf, helm); err != nil {
-		utils.FatalError(err)
-	}
-}
-
-func tryConfigure(cf *CLIConf, configurator extensions.Configurator) error {
-	profile, err := client.CurrentProfile(cf.ProfileDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = configurator.Configure(profile.ToConfig(cf.ProfileDir))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Successfully configured access to %s for %v\n",
-		configurator, profile.WebProxyAddr)
-	return nil
-}
-
-func tryDeconfigure(cf *CLIConf, configurator extensions.Configurator) error {
-	profile, err := client.CurrentProfile(cf.ProfileDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = configurator.Deconfigure(profile.ToConfig(cf.ProfileDir))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Removed %s configuration for %v\n",
-		configurator, profile.WebProxyAddr)
-	return nil
 }

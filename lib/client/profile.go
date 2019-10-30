@@ -115,7 +115,6 @@ func (c *ClientProfile) ToConfig(profileDir string) extensions.Config {
 		ProxyAddress:    c.WebProxyAddr,
 		CertificatePath: c.TLSCertificatePath(profileDir),
 		KeyPath:         c.KeyPath(profileDir),
-		ProfileDir:      FullProfilePath(profileDir),
 	}
 }
 

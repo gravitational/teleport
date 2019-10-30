@@ -31,7 +31,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var log = logrus.WithField(trace.Component, "clt/ext")
+var log = logrus.WithField(trace.Component, "client:ext")
 
 // Configurator defines an interface for configuring additional services
 // provided by a Teleport server such as a Docker registry or Helm chart
@@ -53,8 +53,6 @@ type Config struct {
 	CertificatePath string
 	// KeyPath is the full path to the client private key file.
 	KeyPath string
-	// ProfileDir is the path to the tsh profile directory.
-	ProfileDir string
 }
 
 // NewDockerConfigurator returns a new instance of a Docker configurator.

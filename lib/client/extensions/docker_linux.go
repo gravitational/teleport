@@ -18,6 +18,7 @@ package extensions
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
@@ -52,7 +53,7 @@ func (c *dockerConfigurator) Configure(config Config) error {
 	}
 	// Output a message for the user informing them that tsh doesn't have
 	// enough permissions to configure Docker and the way to do it.
-	color.Yellow(errorMessage, config.ProxyAddress, config.ProfileDir)
+	printError(config)
 	return nil
 }
 
@@ -140,6 +141,17 @@ func (c *dockerConfigurator) getSymlinks(config Config) (map[string]string, erro
 	}, nil
 }
 
+// printError outputs a message indicating that tsh does not have permissions
+// to create Docker certificate symlinks.
+func printError(config Config) {
+	currentUser, err := user.Current()
+	if err != nil {
+		log.WithError(err).Warn("Failed to determine the current user.")
+		color.Yellow(errorMessage, config.ProxyAddress, "<user>")
+	}
+	color.Yellow(errorMessage, config.ProxyAddress, currentUser.Username)
+}
+
 const (
 	// dockerCerts is the directory where Docker keeps client certificates.
 	dockerCerts = "/etc/docker/certs.d"
@@ -150,14 +162,16 @@ const (
 	// errorMessage is a message that gets shown to a user if tsh wasn't
 	// unable to configure Docker certificates due to permissions issue.
 	errorMessage = `
-The server %v provides Docker registry support but tsh was unable to configure your local Docker client due to insufficient permissions.
+The server %[1]v provides Docker registry support but tsh was unable to configure your local Docker client due to insufficient permissions.
 
 To configure your local Docker client tsh needs to symlink obtained certificates to /etc/docker/certs.d.
 See https://docs.docker.com/engine/security/certificates/ for details.
 
-If you'd like to configure your local Docker client, please run the following command as a user that has permissions for /etc/docker/certs.d directory (for example, root):
+If you'd like to configure your local Docker client, please create the following directory and make sure tsh has write permissions for it, for example:
 
-  tsh gravity docker configure --profile-dir=%v
+  mkdir -p /etc/docker/certs.d/%[1]v && chown -R %[2]v /etc/docker/certs.d/%[1]v
+
+And then execute the tsh login command again.
 
 `
 )
