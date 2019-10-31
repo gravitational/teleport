@@ -149,7 +149,7 @@ func (s *Service) loop() {
 				events.Argv:       event.Argv,
 				events.ReturnCode: event.ReturnCode,
 			}
-			go ctx.AuditLog.EmitAuditEvent(events.SessionExec, eventFields)
+			ctx.AuditLog.EmitAuditEvent(events.SessionExec, eventFields)
 		case event := <-s.open.eventsCh():
 			ctx, ok := s.watch[event.CgroupID]
 			if !ok {
@@ -171,7 +171,7 @@ func (s *Service) loop() {
 				events.Flags:      event.Flags,
 				events.ReturnCode: event.ReturnCode,
 			}
-			go ctx.AuditLog.EmitAuditEvent(events.SessionOpen, eventFields)
+			ctx.AuditLog.EmitAuditEvent(events.SessionOpen, eventFields)
 		case event := <-s.conn.eventsCh():
 			ctx, ok := s.watch[event.CgroupID]
 			if !ok {
@@ -194,7 +194,7 @@ func (s *Service) loop() {
 				events.DstPort:    event.DstPort,
 				events.TCPVersion: event.Version,
 			}
-			go ctx.AuditLog.EmitAuditEvent(events.SessionConnect, eventFields)
+			ctx.AuditLog.EmitAuditEvent(events.SessionConnect, eventFields)
 		case <-s.closeContext.Done():
 			return
 		}

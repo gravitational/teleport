@@ -42,7 +42,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/kardianos/osext"
-	"github.com/pborman/uuid"
+	//"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -149,8 +149,6 @@ func (e *localExec) SetCommand(command string) {
 // Start launches the given command returns (nil, nil) if successful.
 // ExecResult is only used to communicate an error while launching.
 func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
-	//var err error
-
 	// Parse the command to see if it is scp.
 	err := e.transformSecureCopy()
 	if err != nil {
@@ -227,29 +225,29 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 
 	e.Ctx.Infof("Started local command execution: %q", e.Command)
 
-	// TODO(russjones): Check if enhanced auditing is enabled.
-	// If eBPF-based enhanced auditing is enabled, open a BPF session.
-	hasEnhancedAuditing := true
-	if hasEnhancedAuditing && e.Ctx.srv.Component() == teleport.ComponentNode {
-		e.sessionContext = &bpf.SessionContext{
-			PID:       e.Cmd.Process.Pid,
-			AuditLog:  e.Ctx.srv.GetAuditLog(),
-			Namespace: e.Ctx.srv.GetNamespace(),
-			SessionID: uuid.New(),
-			ServerID:  e.Ctx.srv.HostUUID(),
-			Login:     e.Ctx.Identity.Login,
-			User:      e.Ctx.Identity.TeleportUser,
-		}
-		ebpf, err := e.Ctx.srv.GetBPF()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		err = ebpf.OpenSession(e.sessionContext)
-		if err != nil {
-			e.Ctx.Errorf("Failed to open enhanced auditing exec session: %v: %v.", e.GetCommand(), err)
-			return nil, trace.Wrap(err)
-		}
-	}
+	//// TODO(russjones): Check if enhanced auditing is enabled.
+	//// If eBPF-based enhanced auditing is enabled, open a BPF session.
+	//hasEnhancedAuditing := true
+	//if hasEnhancedAuditing && e.Ctx.srv.Component() == teleport.ComponentNode {
+	//	e.sessionContext = &bpf.SessionContext{
+	//		PID:       e.Cmd.Process.Pid,
+	//		AuditLog:  e.Ctx.srv.GetAuditLog(),
+	//		Namespace: e.Ctx.srv.GetNamespace(),
+	//		SessionID: uuid.New(),
+	//		ServerID:  e.Ctx.srv.HostUUID(),
+	//		Login:     e.Ctx.Identity.Login,
+	//		User:      e.Ctx.Identity.TeleportUser,
+	//	}
+	//	ebpf, err := e.Ctx.srv.GetBPF()
+	//	if err != nil {
+	//		return nil, trace.Wrap(err)
+	//	}
+	//	err = ebpf.OpenSession(e.sessionContext)
+	//	if err != nil {
+	//		e.Ctx.Errorf("Failed to open enhanced auditing exec session: %v: %v.", e.GetCommand(), err)
+	//		return nil, trace.Wrap(err)
+	//	}
+	//}
 
 	return nil, nil
 
@@ -311,20 +309,20 @@ func (e *localExec) Wait() *ExecResult {
 		Code:    exitCode(err),
 	}
 
-	// TODO(russjones): Check if enhanced auditing is enabled.
-	hasEnhancedAuditing := true
-	if hasEnhancedAuditing && e.Ctx.srv.Component() == teleport.ComponentNode {
-		ebpf, err := e.Ctx.srv.GetBPF()
-		if err != nil {
-			e.Ctx.Warnf("Attempting to close session, but BPF recorder not found.")
-			return execResult
-		}
-		err = ebpf.CloseSession(e.sessionContext)
-		if err != nil {
-			e.Ctx.Errorf("Failed to close enhanced auditing exec session: %v: %v.", e.GetCommand(), err)
-			return execResult
-		}
-	}
+	//// TODO(russjones): Check if enhanced auditing is enabled.
+	//hasEnhancedAuditing := true
+	//if hasEnhancedAuditing && e.Ctx.srv.Component() == teleport.ComponentNode {
+	//	ebpf, err := e.Ctx.srv.GetBPF()
+	//	if err != nil {
+	//		e.Ctx.Warnf("Attempting to close session, but BPF recorder not found.")
+	//		return execResult
+	//	}
+	//	err = ebpf.CloseSession(e.sessionContext)
+	//	if err != nil {
+	//		e.Ctx.Errorf("Failed to close enhanced auditing exec session: %v: %v.", e.GetCommand(), err)
+	//		return execResult
+	//	}
+	//}
 
 	return execResult
 }

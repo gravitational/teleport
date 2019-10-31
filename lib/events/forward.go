@@ -89,6 +89,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	return &Forwarder{
 		ForwarderConfig: cfg,
 		sessionLogger:   diskLogger,
+		enhancedIndexes: map[string]int64{
+			SessionExecEvent:    0,
+			SessionOpenEvent:    0,
+			SessionConnectEvent: 0,
+		},
 	}, nil
 }
 
@@ -96,9 +101,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 // to the auth server, and writes the session playback to disk
 type Forwarder struct {
 	ForwarderConfig
-	sessionLogger *DiskSessionLogger
-	lastChunk     *SessionChunk
-	eventIndex    int64
+	sessionLogger   *DiskSessionLogger
+	lastChunk       *SessionChunk
+	eventIndex      int64
+	enhancedIndexes map[string]int64
 	sync.Mutex
 	isClosed bool
 }
@@ -151,6 +157,7 @@ func (l *Forwarder) PostSessionSlice(slice SessionSlice) error {
 	}
 
 	// log all events and session recording locally
+	//fmt.Printf("--> l.sessionLogger: %T.\n", l.sessionLogger)
 	err = l.sessionLogger.PostSessionSlice(slice)
 	if err != nil {
 		return trace.Wrap(err)
@@ -179,12 +186,19 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 	// setup chunk indexes
 	var chunks []*SessionChunk
 	for _, chunk := range slice.Chunks {
-		chunk.EventIndex = l.eventIndex
-		l.eventIndex += 1
+
 		switch chunk.EventType {
 		case "":
 			return nil, trace.BadParameter("missing event type")
+		case SessionExecEvent, SessionOpenEvent, SessionConnectEvent:
+			chunk.EventIndex = l.enhancedIndexes[chunk.EventType]
+			l.enhancedIndexes[chunk.EventType] += 1
+
+			chunks = append(chunks, chunk)
 		case SessionPrintEvent:
+			chunk.EventIndex = l.eventIndex
+			l.eventIndex += 1
+
 			// filter out chunks with session print events,
 			// as this logger forwards only audit events to the auth server
 			if l.lastChunk != nil {
@@ -194,6 +208,9 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 			}
 			l.lastChunk = chunk
 		default:
+			chunk.EventIndex = l.eventIndex
+			l.eventIndex += 1
+
 			chunks = append(chunks, chunk)
 		}
 	}

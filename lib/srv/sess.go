@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"path/filepath"
 	"sync"
 	"time"
@@ -74,7 +75,9 @@ type SessionRegistry struct {
 	// log holds the structured logger
 	log *logrus.Entry
 
-	// sessions holds a map between session ID and the session object.
+	// sessions holds a map between session ID and the session object. Used to
+	// find active sessions as well as close all sessions when the registry
+	// is closing.
 	sessions map[rsession.ID]*session
 
 	// srv refers to the upon which this session registry is created.
@@ -99,6 +102,17 @@ func (s *SessionRegistry) addSession(sess *session) {
 	s.Lock()
 	defer s.Unlock()
 	s.sessions[sess.id] = sess
+}
+
+func (s *SessionRegistry) removeSession(sess *session) {
+	s.Lock()
+	defer s.Unlock()
+	delete(s.sessions, sess.id)
+}
+
+func (s *SessionRegistry) findSession(id rsession.ID) (*session, bool) {
+	sess, found := s.sessions[id]
+	return sess, found
 }
 
 func (s *SessionRegistry) Close() {
@@ -180,12 +194,45 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 	}
 	ctx.session = sess
 	s.addSession(sess)
-	ctx.Infof("Creating session %v.", sid)
+	ctx.Infof("Creating interactive session %v.", sid)
 
-	if err := sess.start(ch, ctx); err != nil {
+	// Start an interactive session (TTY attached). Close the session if an error
+	// occurs, otherwise it will be closed by the callee.
+	if err := sess.startInteractive(ch, ctx); err != nil {
 		sess.Close()
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+	// Create a new session ID. These sessions can not be joined so no point in
+	// looking for an exisiting one.
+	sessionID := rsession.NewID()
+
+	// This logic allows concurrent request to create a new session
+	// to fail, what is ok because we should never have this condition.
+	sess, err := newSession(sessionID, s, ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	//ctx.session = sess
+	ctx.Infof("Creating non-interactive exec session %v.", s)
+
+	// Parse the exec request and store it in the context.
+	_, err = parseExecRequest(req, ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start a non-interactive session (TTY attached). Close the session if an error
+	// occurs, otherwise it will be closed by the callee.
+	err = sess.startExec(channel, ctx)
+	defer sess.Close()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -252,9 +299,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		s.log.Infof("Session %v will be garbage collected.", sess.id)
 
 		// no more people left? Need to end the session!
-		s.Lock()
-		delete(s.sessions, sess.id)
-		s.Unlock()
+		s.removeSession(sess)
 
 		// send an event indicating that this session has ended
 		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
@@ -380,11 +425,6 @@ func (s *SessionRegistry) broadcastResult(sid rsession.ID, r ExecResult) error {
 	}
 	sess.broadcastResult(r)
 	return nil
-}
-
-func (s *SessionRegistry) findSession(id rsession.ID) (*session, bool) {
-	sess, found := s.sessions[id]
-	return sess, found
 }
 
 // session struct describes an active (in progress) SSH session. These sessions
@@ -551,8 +591,9 @@ func (s *session) isLingering() bool {
 	return len(s.parties) == 0
 }
 
-// start starts a new interactive process (or a shell) in the current session
-func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
+// startInteractive starts a new interactive process (or a shell) in the
+// current session.
+func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	var err error
 
 	// create a new "party" (connected client)
@@ -753,6 +794,182 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		<-s.closeC
 		s.term.Kill()
 	}()
+	return nil
+}
+
+func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
+	var err error
+
+	// Get the audit log from the server and create a session recorder. this will
+	// be a discard audit log if the proxy is in recording mode and a teleport
+	// node so we don't create double recordings.
+	auditLog := s.registry.srv.GetAuditLog()
+	if auditLog == nil || isDiscardAuditLog(auditLog) {
+		s.recorder = &events.DiscardRecorder{}
+	} else {
+		s.recorder, err = events.NewForwardRecorder(events.ForwardRecorderConfig{
+			DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
+			SessionID:      s.id,
+			Namespace:      ctx.srv.GetNamespace(),
+			RecordSessions: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
+			Component:      teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			ForwardTo:      auditLog,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	eventFields := events.EventFields{
+		events.EventNamespace:  ctx.srv.GetNamespace(),
+		events.SessionEventID:  string(s.id),
+		events.SessionServerID: ctx.srv.HostUUID(),
+		events.EventLogin:      ctx.Identity.Login,
+		events.EventUser:       ctx.Identity.TeleportUser,
+		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
+	}
+	// Local address only makes sense for non-tunnel nodes.
+	if !ctx.srv.UseTunnel() {
+		eventFields[events.LocalAddr] = ctx.Conn.LocalAddr().String()
+	}
+	s.recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, eventFields)
+
+	// If this code is running on a Teleport node and PAM is enabled, then open a
+	// PAM context.
+	var pamContext *pam.PAM
+	if ctx.srv.Component() == teleport.ComponentNode {
+		conf, err := s.registry.srv.GetPAM()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if conf.Enabled == true {
+			// Note, stdout/stderr is discarded here, otherwise MOTD would be printed to
+			// the users screen during exec requests.
+			pamContext, err = pam.Open(&pam.Config{
+				ServiceName: conf.ServiceName,
+				Username:    ctx.Identity.Login,
+				Stdin:       channel,
+				Stderr:      ioutil.Discard,
+				Stdout:      ioutil.Discard,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			ctx.Debugf("Opening PAM context for exec request %q.", ctx.ExecRequest.GetCommand())
+		}
+	}
+
+	// Start execution. If the program failed to start, send that result back.
+	result, err := ctx.ExecRequest.Start(channel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if result != nil {
+		ctx.Debugf("Exec request (%v) result: %v.", ctx.ExecRequest, result)
+		ctx.SendExecResult(*result)
+	}
+
+	// TODO(russjones): Check if enhanced auditing is enabled.
+	// If eBPF-based enhanced auditing is enabled, open a BPF session.
+	hasEnhancedAuditing := true
+	var sessionContext *bpf.SessionContext
+	if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
+		lr, ok := ctx.ExecRequest.(*localExec)
+		if !ok {
+			return trace.BadParameter("command is of invalid type %T", ctx.ExecRequest)
+		}
+
+		sessionContext = &bpf.SessionContext{
+			PID:       lr.Cmd.Process.Pid,
+			AuditLog:  s.recorder.GetAuditLog(),
+			Namespace: ctx.srv.GetNamespace(),
+			SessionID: string(s.id),
+			ServerID:  ctx.srv.HostUUID(),
+			Login:     ctx.Identity.Login,
+			User:      ctx.Identity.TeleportUser,
+		}
+		ebpf, err := ctx.srv.GetBPF()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = ebpf.OpenSession(sessionContext)
+		if err != nil {
+			ctx.Errorf("Failed to open enhanced auditing exec session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
+			return trace.Wrap(err)
+		}
+	}
+
+	// Process is running, wait for it to stop.
+	go func() {
+		result = ctx.ExecRequest.Wait()
+		if result != nil {
+			ctx.SendExecResult(*result)
+		}
+
+		// TODO(russjones): Check if enhanced auditing is enabled.
+		hasEnhancedAuditing := true
+		if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
+			ebpf, err := ctx.srv.GetBPF()
+			if err != nil {
+				ctx.Warnf("Attempting to close session, but BPF recorder not found.")
+				return
+			}
+			err = ebpf.CloseSession(sessionContext)
+			if err != nil {
+				ctx.Errorf("Failed to close enhanced auditing exec session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
+				return
+			}
+		}
+
+		// If this code is running on a Teleport node and PAM is enabled, close the context.
+		if ctx.srv.Component() == teleport.ComponentNode {
+			conf, err := s.registry.srv.GetPAM()
+			if err != nil {
+				ctx.Errorf("Unable to get PAM configuration from server: %v", err)
+				return
+			}
+
+			if conf.Enabled == true {
+				err = pamContext.Close()
+				if err != nil {
+					ctx.Errorf("Unable to close PAM context for exec request: %q: %v", ctx.ExecRequest.GetCommand(), err)
+					return
+				}
+				ctx.Debugf("Closing PAM context for exec request: %q.", ctx.ExecRequest.GetCommand())
+			}
+		}
+
+		// Remove the session from the in-memory map.
+		s.registry.removeSession(s)
+
+		// send an event indicating that this session has ended
+		eventFields := events.EventFields{
+			events.SessionEventID:  string(s.id),
+			events.SessionServerID: ctx.srv.HostUUID(),
+			events.EventNamespace:  ctx.srv.GetNamespace(),
+		}
+		s.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
+
+		// Close recorder to free up associated resources and flush data.
+		s.recorder.Close()
+
+		err = s.Close()
+		if err != nil {
+			ctx.Errorf("Failed to close session %v: %v.", s.id, err)
+		}
+
+		// Remove the session from the backend.
+		if ctx.srv.GetSessionServer() != nil {
+			err := ctx.srv.GetSessionServer().DeleteSession(ctx.srv.GetNamespace(), s.id)
+			if err != nil {
+				ctx.Errorf("Failed to remove active session: %v: %v. "+
+					"Access to backend may be degraded, check connectivity to backend.",
+					s.id, err)
+			}
+		}
+	}()
+
 	return nil
 }
 
