@@ -13,7 +13,7 @@ install any version listed in our [Release History](https://gravitational.com/te
 Gravitational Teleport provides a checksum from the Downloads page.  This should
 be used to verify the integrity of our binary.
 
-![Teleport Checksum](../img/teleport-sha.png)
+![Teleport Checksum](./img/teleport-sha.png)
 
 If you download Teleport via an automated system, you can programmatically
 obtain the checksum  by adding `.sha256` to the binary. This is the method shown
