@@ -28,9 +28,9 @@ make create-stack-vpc
 ```
 
 ### Using CloudFormation UI
-Download 'vpc.yaml' and upload it to the CloudFormation UI. 
+Download [vpc.yaml](https://github.com/gravitational/teleport/blob/master/examples/aws/cloudformation/vpc.yaml) and upload it to the CloudFormation UI. 
 
-![Uploading YAML](/img/aws-cf-oss-teleport-img.png)
+![Uploading YAML](./img/aws-cf-oss-teleport-img.png)
 
 ## Launch Teleport Cluster
 The example CloudFormation template requires a VPC, you can modify the oss.yaml to
@@ -56,7 +56,7 @@ make create-stack
 ### Using CloudFormation UI
 Once uploaded CloudFormation will ask for a bunch of parameters to configure Teleport.
 
-![Adding Setting](/img/aws-cf-oss-teleport.png)
+![Adding Setting](./img/aws-cf-oss-teleport.png)
 
 The setup might take up to 20 minutes as it'll have to request a 509x certificate
 from Let's Encrypt to setup your cluster. 
