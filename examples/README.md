@@ -17,8 +17,8 @@
 
 ## Kubernetes - Helm Charts
 
-* [Helm Chart - Teleport Enterprise](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) : For Deploying into Kubernetes using Helm 
-* [Helm Chart - Teleport Demo](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-demo) : An internal demo app showing Teleport components deployed into Kuubernetes using Helm Charts. 
+* [Helm Chart - Teleport Enterprise](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) : For deploying into Kubernetes using Helm 
+* [Helm Chart - Teleport Demo](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-demo) : An internal demo app showing Teleport components deployed into Kubernetes using Helm Charts. 
 
 
 ## SSO Connector Examples and Trusted Cluster Examples
