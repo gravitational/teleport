@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:a24d4f0bfca235899423e806a033447bb840d48970ecd8e1bc409537d0289c23"
+  name = "cloud.google.com/go"
+  packages = ["compute/metadata"]
+  pruneopts = "NUT"
+  revision = "cfe8f6d1fe6976d03af790d7a8b9bf6aa73287bd"
+  version = "v0.47.0"
+
+[[projects]]
   branch = "master"
   digest = "1:81f8c061c3d18ed1710957910542bc17d2b789c6cd19e0f654c30b35fd255ca5"
   name = "github.com/Azure/go-ansiterm"
@@ -930,10 +938,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:0fcfb2bfaeb68353db0d1611bec6a7f5488214d522988e7ad7d4b5e91fbd2d0e"
+  digest = "1:c0a943c59d69fcb2b1573934d39e92024a78f16a752b83348520ba9ad93e97df"
   name = "golang.org/x/net"
   packages = [
     "context",
+    "context/ctxhttp",
     "http/httpguts",
     "http2",
     "http2/hpack",
@@ -946,6 +955,20 @@
   ]
   pruneopts = "NUT"
   revision = "8a410e7b638dca158bf9e766925842f6651ff828"
+
+[[projects]]
+  branch = "master"
+  digest = "1:1519760444b90c560eb01373869bc66fd539e6fe1bf77af22047c43edc40ab35"
+  name = "golang.org/x/oauth2"
+  packages = [
+    ".",
+    "google",
+    "internal",
+    "jws",
+    "jwt",
+  ]
+  pruneopts = "NUT"
+  revision = "0f29369cfe4552d0e4bcddc57cc75f4d7e672a33"
 
 [[projects]]
   branch = "master"
@@ -981,6 +1004,25 @@
   ]
   pruneopts = "NUT"
   revision = "19e51611da83d6be54ddafce4a4af510cb3e9ea4"
+
+[[projects]]
+  digest = "1:c381a96ea5276e8c5e98b2fa4fab83be71a959ff37dc51117555dc5059390c18"
+  name = "google.golang.org/appengine"
+  packages = [
+    ".",
+    "internal",
+    "internal/app_identity",
+    "internal/base",
+    "internal/datastore",
+    "internal/log",
+    "internal/modules",
+    "internal/remote_api",
+    "internal/urlfetch",
+    "urlfetch",
+  ]
+  pruneopts = "NUT"
+  revision = "971852bfffca25b069c31162ae8f247a3dba083b"
+  version = "v1.6.5"
 
 [[projects]]
   branch = "master"
@@ -1231,7 +1273,6 @@
     "github.com/aws/aws-sdk-go/service/s3/s3manager",
     "github.com/beevik/etree",
     "github.com/codahale/hdrhistogram",
-    "github.com/coreos/go-oidc/http",
     "github.com/coreos/go-oidc/jose",
     "github.com/coreos/go-oidc/oauth2",
     "github.com/coreos/go-oidc/oidc",
@@ -1302,6 +1343,8 @@
     "golang.org/x/net/http2",
     "golang.org/x/net/proxy",
     "golang.org/x/net/websocket",
+    "golang.org/x/oauth2/google",
+    "golang.org/x/oauth2/jwt",
     "golang.org/x/text/encoding",
     "golang.org/x/text/encoding/unicode",
     "google.golang.org/grpc",
