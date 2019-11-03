@@ -432,6 +432,8 @@ const (
 	GSuiteGroupsEndpoint = "https://www.googleapis.com/admin/directory/v1/groups"
 	// GSuiteGroupsScope is a scope to get access to admin groups API
 	GSuiteGroupsScope = "https://www.googleapis.com/auth/admin.directory.group.readonly"
+	// GSuiteDomainClaim is the domain name claim for GSuite
+	GSuiteDomainClaim = "hd"
 )
 
 // SCP is Secure Copy.
