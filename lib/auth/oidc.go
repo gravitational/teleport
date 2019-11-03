@@ -30,11 +30,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	phttp "github.com/coreos/go-oidc/http"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
+	"golang.org/x/oauth2/google"
+	"golang.org/x/oauth2/jwt"
 )
 
 func (s *AuthServer) getOrCreateOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
@@ -261,7 +262,7 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, 
 	}
 
 	// extract claims from both the id token and the userinfo endpoint and merge them
-	claims, err := a.getClaims(oidcClient, connector.GetIssuerURL(), connector.GetScope(), code)
+	claims, err := a.getClaims(oidcClient, connector, code)
 	if err != nil {
 		return nil, trace.WrapWithMessage(
 			// preserve the original error message, to avoid leaking
@@ -580,21 +581,16 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	return claims, nil
 }
 
-func (a *AuthServer) claimsFromGSuite(oidcClient *oidc.Client, issuerURL string, userEmail string, accessToken string) (jose.Claims, error) {
-	client, err := a.newGsuiteClient(oidcClient, issuerURL, userEmail, accessToken)
+func (a *AuthServer) claimsFromGSuite(config *jwt.Config, issuerURL string, userEmail string, domain string) (jose.Claims, error) {
+	client, err := a.newGsuiteClient(config, issuerURL, userEmail, domain)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return client.fetchGroups()
 }
 
-func (a *AuthServer) newGsuiteClient(oidcClient *oidc.Client, issuerURL string, userEmail string, accessToken string) (*gsuiteClient, error) {
+func (a *AuthServer) newGsuiteClient(config *jwt.Config, issuerURL string, userEmail string, domain string) (*gsuiteClient, error) {
 	err := isHTTPS(issuerURL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	oac, err := oidcClient.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -605,20 +601,22 @@ func (a *AuthServer) newGsuiteClient(oidcClient *oidc.Client, issuerURL string, 
 	}
 
 	return &gsuiteClient{
-		Client:      oac.HttpClient(),
-		url:         *u,
-		userEmail:   userEmail,
-		accessToken: accessToken,
-		auditLog:    a,
+		domain:    domain,
+		client:    config.Client(context.TODO()),
+		url:       *u,
+		userEmail: userEmail,
+		config:    config,
+		auditLog:  a,
 	}, nil
 }
 
 type gsuiteClient struct {
-	phttp.Client
-	url         url.URL
-	userEmail   string
-	accessToken string
-	auditLog    events.IAuditLog
+	client    *http.Client
+	url       url.URL
+	userEmail string
+	domain    string
+	config    *jwt.Config
+	auditLog  events.IAuditLog
 }
 
 // fetchGroups fetches GSuite groups a user belongs to and returns
@@ -661,6 +659,7 @@ func (g *gsuiteClient) fetchGroupsPage(pageToken string) (*gsuiteGroups, error) 
 	u := g.url
 	q := u.Query()
 	q.Set("userKey", g.userEmail)
+	q.Set("domain", g.domain)
 	if pageToken != "" {
 		q.Set("pageToken", pageToken)
 	}
@@ -673,9 +672,8 @@ func (g *gsuiteClient) fetchGroupsPage(pageToken string) (*gsuiteGroups, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", g.accessToken))
 
-	resp, err := g.Do(req)
+	resp, err := g.client.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -725,7 +723,7 @@ func mergeClaims(a jose.Claims, b jose.Claims) (jose.Claims, error) {
 }
 
 // getClaims gets claims from ID token and UserInfo and returns UserInfo claims merged into ID token claims.
-func (a *AuthServer) getClaims(oidcClient *oidc.Client, issuerURL string, scope []string, code string) (jose.Claims, error) {
+func (a *AuthServer) getClaims(oidcClient *oidc.Client, connector services.OIDCConnector, code string) (jose.Claims, error) {
 	var err error
 
 	oac, err := oidcClient.OAuthClient()
@@ -745,7 +743,7 @@ func (a *AuthServer) getClaims(oidcClient *oidc.Client, issuerURL string, scope 
 	}
 	log.Debugf("OIDC ID Token claims: %v.", idTokenClaims)
 
-	userInfoClaims, err := claimsFromUserInfo(oidcClient, issuerURL, t.AccessToken)
+	userInfoClaims, err := claimsFromUserInfo(oidcClient, connector.GetIssuerURL(), t.AccessToken)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			log.Debugf("OIDC provider doesn't offer UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
@@ -783,12 +781,51 @@ func (a *AuthServer) getClaims(oidcClient *oidc.Client, issuerURL string, scope 
 
 	// for GSuite users, fetch extra data from the proprietary google API
 	// only if scope includes admin groups readonly scope
-	if issuerURL == teleport.GSuiteIssuerURL && utils.SliceContainsStr(scope, teleport.GSuiteGroupsScope) {
+	if connector.GetIssuerURL() == teleport.GSuiteIssuerURL {
 		email, _, err := claims.StringClaim("email")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		gsuiteClaims, err := a.claimsFromGSuite(oidcClient, issuerURL, email, t.AccessToken)
+
+		serviceAccountURI := connector.GetGoogleServiceAccountURI()
+		if serviceAccountURI == "" {
+			return nil, trace.NotFound(
+				"the gsuite connector requires google_service_account_uri parameter to be specified and pointing to a valid google service account file with credentials, read this article for more details https://developers.google.com/admin-sdk/directory/v1/guides/delegation")
+		}
+
+		uri, err := utils.ParseSessionsURI(serviceAccountURI)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse google_service_account_uri: %v", err)
+		}
+
+		impersonateAdmin := connector.GetGoogleAdminEmail()
+		if impersonateAdmin == "" {
+			return nil, trace.NotFound(
+				"the gsuite connector requires google_admin_email user to impersonate, as service accounts can not be used directly https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority")
+		}
+
+		jsonCredentials, err := ioutil.ReadFile(uri.Path)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		config, err := google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
+		if err != nil {
+			return nil, trace.BadParameter("unable to parse client secret file to config: %v", err)
+		}
+		// User should impersonate admin user, otherwise it won't work:
+		//
+		// https://developers.google.com/admin-sdk/directory/v1/guides/delegation
+		//
+		// "Note: Only users with access to the Admin APIs can access the Admin SDK Directory API, therefore your service account needs to impersonate one of those users to access the Admin SDK Directory API. Additionally, the user must have logged in at least once and accepted the G Suite Terms of Service."
+		//
+		domain, exists, err := userInfoClaims.StringClaim(teleport.GSuiteDomainClaim)
+		if err != nil || !exists {
+			return nil, trace.BadParameter("hd is the required claim for GSuite")
+		}
+		config.Subject = impersonateAdmin
+
+		gsuiteClaims, err := a.claimsFromGSuite(config, connector.GetIssuerURL(), email, domain)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
