@@ -16,7 +16,7 @@ limitations under the License.
 
 import ReactDOM from 'react-dom';
 import React from 'react';
-import { Route } from 'teleport/components/Router';
+import { Route } from 'shared/components/Router';
 import history from 'teleport/services/history';
 import Teleport from 'teleport';
 import cfg from 'teleport/config';
