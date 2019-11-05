@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.1.4
+
+This release of Teleport contains a bug fix.
+
+* Fixed GSuite integration by adding support for service accounts. [#3122](https://github.com/gravitational/teleport/pull/3122)
+
 ## 4.1.3
 
 This release of Teleport contains multiple bug fixes.
