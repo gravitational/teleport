@@ -1,12 +1,25 @@
 # Changelog
 
-## 4.1.2
+## 4.1.4
+
+This release of Teleport contains a bug fix.
+
+* Fixed GSuite integration by adding support for service accounts. [#3122](https://github.com/gravitational/teleport/pull/3122)
+
+## 4.1.3
 
 This release of Teleport contains multiple bug fixes.
 
 * Removed `TLS_RSA_WITH_AES_128_GCM_SHA{256,384}` from default ciphersuites due to compatibility issues with HTTP2.
 * Fixed issues with `local_auth` for FIPS builds. [#3100](https://github.com/gravitational/teleport/pull/3100)
 * Upgraded Go runtime to 1.13.2 to mitigate [CVE-2019-16276](https://github.com/golang/go/issues/34540) and [CVE-2019-17596](https://github.com/golang/go/issues/34960).
+
+## 4.1.2
+
+This release of Teleport contains improvements to the build code.
+
+* Added support for building Docker images using the FIPS-compliant version of Teleport. The first of these images is quay.io/gravitational/teleport-ent:4.1.2-fips
+* In future, these images will be automatically built for use by Teleport Enterprise customers.
 
 ## 4.1.1
 
