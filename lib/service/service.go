@@ -525,7 +525,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	var ebpf *bpf.Service
 	hasEnhancedAuditing := true
 	if hasEnhancedAuditing {
-		ebpf, err = bpf.New()
+		ebpf, err = bpf.New(&bpf.Config{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

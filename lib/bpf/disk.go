@@ -21,10 +21,7 @@ package bpf
 import "C"
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"unsafe"
 
 	"github.com/gravitational/trace"
 
@@ -53,42 +50,43 @@ type rawOpenEvent struct {
 	Flags int32
 }
 
-//// openEvent is a parsed open event.
-//type openEvent struct {
-//	// PID is the ID of the process.
-//	PID uint64
-//
-//	// ReturnCode is the return code of open.
-//	ReturnCode int32
-//
-//	// Program is name of the executable opening the file.
-//	Program string
-//
-//	// Path is the full path to the file being opened.
-//	Path string
-//
-//	// Flags are the flags passed to open.
-//	Flags int32
-//
-//	// CgroupID is the internal cgroupv2 ID of the event.
-//	CgroupID uint64
-//}
-
+// exec runs a BPF program (opensnoop) that hooks execve.
 type open struct {
 	closeContext context.Context
 
-	eventsCh chan []byte
+	eventCh <-chan []byte
 
 	perfMaps []*bcc.PerfMap
 	module   *bcc.Module
 }
 
-func newOpen(closeContext context.Context) (*open, error) {
+// startOpen will compile, load, start, and pull events off the perf buffer
+// for the BPF program.
+func startOpen(closeContext context.Context) (*open, error) {
+	var err error
+
 	e := &open{
 		closeContext: closeContext,
 	}
 
-	err := e.start()
+	// Compile the BPF program.
+	e.module = bcc.NewModule(openSource, []string{})
+	if e.module == nil {
+		return nil, trace.BadParameter("failed to load libbcc")
+	}
+
+	// Hook open syscall.
+	err = attachProbe(e.module, "do_sys_open", "trace_entry")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = attachRetProbe(e.module, "do_sys_open", "trace_return")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Open perf buffer and start processing open events.
+	e.eventCh, err = openPerfBuffer(e.module, e.perfMaps, "open_events")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,33 +94,8 @@ func newOpen(closeContext context.Context) (*open, error) {
 	return e, nil
 }
 
-func (e *open) start() error {
-	var err error
-
-	e.module = bcc.NewModule(openSource, []string{})
-	if e.module == nil {
-		return trace.BadParameter("failed to load libbcc")
-	}
-
-	// Hook open syscall.
-	err = attachProbe(e.module, "do_sys_open", "trace_entry")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = attachRetProbe(e.module, "do_sys_open", "trace_return")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Open perf buffer and start processing open events.
-	e.eventCh, err = openPerfBuffer(e.module, e.perfMaps, "open_events")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
+// close will stop reading events off the perf buffer and unload the BPF
+// program.
 func (e *open) close() {
 	for _, perfMap := range e.perfMaps {
 		perfMap.Stop()
@@ -130,8 +103,9 @@ func (e *open) close() {
 	e.module.Close()
 }
 
-func (e *open) eventsCh() <-chan []byte {
-	return e.eventsCh
+// events contains raw events off the perf buffer.
+func (e *open) events() <-chan []byte {
+	return e.eventCh
 }
 
 const openSource string = `

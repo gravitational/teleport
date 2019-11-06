@@ -32,9 +32,10 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentBPF,
 })
 
-// SessionContext ...
-// TODO(russjones): This data has to be copied over to break circular
-// imports with lib/srv.
+// SessionContext contains all the information needed to track and emit
+// events for a particular session. Most of this information is already within
+// srv.ServerContext, unfortunately due to circular imports with lib/srv and
+// lib/bpf, part of that structure is reproduced in SessionContext.
 type SessionContext struct {
 	// Namespace is the namespace within which this session occurs.
 	Namespace string
@@ -116,10 +117,6 @@ const (
 
 	// argvMax is the maximum length of the args vector.
 	argvMax = 128
-
-	//// bufferSize is the size of the exec, open, and conn buffers. This number is
-	//// arbitrary if it needs to be bigger, feel free to bump it.
-	//bufferSize = 1000000
 
 	// eventArg is an exec event that holds the arguments to a function.
 	eventArg = 0

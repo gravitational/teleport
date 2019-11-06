@@ -24,7 +24,6 @@ import "C"
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -63,12 +62,15 @@ func (c *Config) CheckAndSetDefaults() error {
 }
 
 type Service struct {
+	*Config
 }
 
-func New() (*Service, error) {
+func New(config *Config) (*Service, error) {
 	var err error
 
-	s := &Service{}
+	s := &Service{
+		Config: config,
+	}
 
 	if !isMounted() {
 		err = mount()

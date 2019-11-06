@@ -21,10 +21,7 @@ package bpf
 import "C"
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"unsafe"
 
 	"github.com/gravitational/trace"
 
@@ -56,46 +53,43 @@ type rawExecEvent struct {
 	CgroupID uint64
 }
 
-//// execEvent is the parsed execve event.
-//type execEvent struct {
-//	// PID is the ID of the process.
-//	PID uint64
-//
-//	// PPID is the PID of the parent process.
-//	PPID uint64
-//
-//	// Program is name of the executable.
-//	Program string
-//
-//	// Path is the full path to the executable.
-//	Path string
-//
-//	// Argv is the list of arguments to the program. Note, the first element does
-//	// not contain the name of the process.
-//	Argv []string
-//
-//	// ReturnCode is the return code of execve.
-//	ReturnCode int32
-//
-//	// CgroupID is the internal cgroupv2 ID of the event.
-//	CgroupID uint64
-//}
-
+// exec runs a BPF program (execsnoop) that hooks execve.
 type exec struct {
 	closeContext context.Context
 
-	eventsCh chan []byte
+	eventCh <-chan []byte
 
 	perfMaps []*bcc.PerfMap
 	module   *bcc.Module
 }
 
-func newExec(closeContext context.Context) (*exec, error) {
+// startExec will compile, load, start, and pull events off the perf buffer
+// for the BPF program.
+func startExec(closeContext context.Context) (*exec, error) {
+	var err error
+
 	e := &exec{
 		closeContext: closeContext,
 	}
 
-	err := e.start()
+	// Compile the BPF program.
+	e.module = bcc.NewModule(execveSource, []string{})
+	if e.module == nil {
+		return nil, trace.BadParameter("failed to load libbcc")
+	}
+
+	// Hook execve syscall.
+	err = attachProbe(e.module, bcc.GetSyscallFnName("execve"), "syscall__execve")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = attachRetProbe(e.module, bcc.GetSyscallFnName("execve"), "do_ret_sys_execve")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Open perf buffer and start processing execve events.
+	e.eventCh, err = openPerfBuffer(e.module, e.perfMaps, "execve_events")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,33 +97,8 @@ func newExec(closeContext context.Context) (*exec, error) {
 	return e, nil
 }
 
-func (e *exec) start() error {
-	var err error
-
-	e.module = bcc.NewModule(execveSource, []string{})
-	if e.module == nil {
-		return trace.BadParameter("failed to load libbcc")
-	}
-
-	// Hook execve syscall.
-	err = attachProbe(e.module, bcc.GetSyscallFnName("execve"), "syscall__execve")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = attachRetProbe(e.module, bcc.GetSyscallFnName("execve"), "do_ret_sys_execve")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Open perf buffer and start processing execve events.
-	e.eventCh, err = openPerfBuffer(e.module, e.perfMaps, "execve_events")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
+// close will stop reading events off the perf buffer and unload the BPF
+// program.
 func (e *exec) close() {
 	for _, perfMap := range e.perfMaps {
 		perfMap.Stop()
@@ -137,8 +106,9 @@ func (e *exec) close() {
 	e.module.Close()
 }
 
-func (e *exec) eventsCh() <-chan []byte {
-	return e.eventsCh
+// events contains raw events off the perf buffer.
+func (e *exec) events() <-chan []byte {
+	return e.eventCh
 }
 
 const execveSource string = `
@@ -194,6 +164,7 @@ int syscall__execve(struct pt_regs *ctx,
     struct task_struct *task;
 
     data.pid = bpf_get_current_pid_tgid() >> 32;
+    data.cgroup = bpf_get_current_cgroup_id();
 
     task = (struct task_struct *)bpf_get_current_task();
     // Some kernels, like Ubuntu 4.13.0-generic, return 0

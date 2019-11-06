@@ -24,8 +24,13 @@ package bpf
 import "C"
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"net"
+	"strconv"
 	"sync"
+	"time"
 	"unsafe"
 
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
@@ -34,8 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/iovisor/gobpf/bcc"
 )
 
 // Config holds configuration for the BPF service.
@@ -73,6 +80,10 @@ type Service struct {
 	watch   map[uint64]*SessionContext
 	watchMu sync.Mutex
 
+	// argsCache holds the arguments to execve because they come a different
+	// event than the result.
+	argsCache *ttlmap.TTLMap
+
 	// closeContext is used to signal the BPF service is shutting down to all
 	// goroutines.
 	closeContext context.Context
@@ -99,14 +110,14 @@ func New(config *Config) (*Service, error) {
 	}
 
 	// Check if the host can run BPF programs.
-	err := isHostCompatible()
+	err = isHostCompatible()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Create a cgroup controller to add/remote cgroups.
 	cgroup, err := controlgroup.New(&controlgroup.Config{
-		MountPath: c.CgroupMountPath,
+		MountPath: config.CgroupMountPath,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -125,21 +136,29 @@ func New(config *Config) (*Service, error) {
 		cgroup: cgroup,
 	}
 
-	// Load BPF programs.
-	s.exec, err = newExec(closeContext)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	s.open, err = newOpen(closeContext)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	s.conn, err = newConn(closeContext)
+	// Create args cache used by the exec BPF program.
+	s.argsCache, err = ttlmap.New(defaults.ArgsCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Start pulling events off the perf buffers and emitting them to the audit log.
+	// TODO: Pass config.PerfBufferPageCount here.
+	// Compile and start BPF programs.
+	s.exec, err = startExec(closeContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.open, err = startOpen(closeContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.conn, err = startConn(closeContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Start pulling events off the perf buffers and emitting them to the
+	// Audit Log.
 	go s.loop()
 
 	return s, nil
@@ -160,6 +179,8 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// OpenSession will place a process within a cgroup and being monitoring all
+// events from that cgroup and emitting the results to the audit log.
 func (s *Service) OpenSession(ctx *SessionContext) error {
 	err := s.cgroup.Create(ctx.SessionID)
 	if err != nil {
@@ -183,6 +204,8 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 	return nil
 }
 
+// CloseSession will stop monitoring events from a particular cgroup and
+// remove the cgroup.
 func (s *Service) CloseSession(ctx *SessionContext) error {
 	cgroupID, err := controlgroup.ID(ctx.SessionID)
 	if err != nil {
@@ -202,260 +225,248 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	return nil
 }
 
+// loop pulls events off the perf ring buffer, parses them, and emits them to
+// the audit log.
 func (s *Service) loop() {
 	for {
 		select {
-		case event := <-s.exec.eventsCh():
-			//	// TODO(russjones): Replace with ttlmap.
-			//	args := make(map[uint64][]string)
-			//
-			//	for {
-			//		select {
-			//		case eventBytes := <-eventCh:
-			//			var event rawExecEvent
-			//
-			//			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
-			//			if err != nil {
-			//				log.Debugf("Failed to read binary data: %v.", err)
-			//				continue
-			//			}
-			//
-			//			if eventArg == event.Type {
-			//				buf, ok := args[event.PID]
-			//				if !ok {
-			//					buf = make([]string, 0)
-			//				}
-			//
-			//				argv := (*C.char)(unsafe.Pointer(&event.Argv))
-			//				buf = append(buf, C.GoString(argv))
-			//				args[event.PID] = buf
-			//			} else {
-			//				// The args should have come in a previous event, find them by PID.
-			//				argv, ok := args[event.PID]
-			//				if !ok {
-			//					log.Debugf("Got event with missing args: skipping.")
-			//					continue
-			//				}
-			//
-			//				// TODO(russjones): Who free's this C string?
-			//				// Convert C string that holds the command name into a Go string.
-			//				command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-			//
-			//				select {
-			//				case e.events <- &execEvent{
-			//					PID:        event.PPID,
-			//					PPID:       event.PID,
-			//					CgroupID:   event.CgroupID,
-			//					Program:    command,
-			//					Path:       argv[0],
-			//					Argv:       argv[1:],
-			//					ReturnCode: event.ReturnCode,
-			//				}:
-			//				case <-e.closeContext.Done():
-			//					return
-			//				default:
-			//					log.Warnf("Dropping exec event %v/%v %v, events buffer full.", event.CgroupID, event.PID, argv)
-			//				}
-			//
-			//				//// Remove, only for debugging.
-			//				//fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Program=%v Path=%v Args=%v ReturnCode=%v.\n",
-			//				//	event.CgroupID, event.PID, event.PPID, command, argv[0], argv[1:], event.ReturnCode)
-			//			}
-
-			ctx, ok := s.watch[event.CgroupID]
-			if !ok {
-				continue
-			}
-
-			// Emit "session.exec" event.
-			eventFields := events.EventFields{
-				// Common fields.
-				events.EventNamespace:  ctx.Namespace,
-				events.SessionEventID:  ctx.SessionID,
-				events.SessionServerID: ctx.ServerID,
-				events.EventLogin:      ctx.Login,
-				events.EventUser:       ctx.User,
-				// Exec fields.
-				events.PID:        event.PPID,
-				events.PPID:       event.PID,
-				events.CgroupID:   event.CgroupID,
-				events.Program:    event.Program,
-				events.Path:       event.Path,
-				events.Argv:       event.Argv,
-				events.ReturnCode: event.ReturnCode,
-			}
-			ctx.AuditLog.EmitAuditEvent(events.SessionExec, eventFields)
-		case event := <-s.open.eventsCh():
-			//var event rawOpenEvent
-
-			//err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
-			//if err != nil {
-			//	log.Debugf("Failed to read binary data: %v.", err)
-			//	return
-			//}
-
-			//// Convert C string that holds the command name into a Go string.
-			//command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
-			//// Convert C string that holds the path into a Go string.
-			//path := C.GoString((*C.char)(unsafe.Pointer(&event.Path)))
-
-			//select {
-			//case e.events <- &openEvent{
-			//	PID:        event.PID,
-			//	ReturnCode: event.ReturnCode,
-			//	Program:    command,
-			//	Path:       path,
-			//	Flags:      event.Flags,
-			//	CgroupID:   event.CgroupID,
-			//}:
-			//case <-e.closeContext.Done():
-			//	return
-			//default:
-			//	log.Warnf("Dropping open event %v/%v %v %v, events buffer full.", event.CgroupID, event.PID, path, event.Flags)
-			//}
-
-			////// Remove, only for debugging.
-			////fmt.Printf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.\n",
-			////	event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
-
-			ctx, ok := s.watch[event.CgroupID]
-			if !ok {
-				continue
-			}
-
-			eventFields := events.EventFields{
-				// Common fields.
-				events.EventNamespace:  ctx.Namespace,
-				events.SessionEventID:  ctx.SessionID,
-				events.SessionServerID: ctx.ServerID,
-				events.EventLogin:      ctx.Login,
-				events.EventUser:       ctx.User,
-				// Open fields.
-				events.PID:        event.PID,
-				events.CgroupID:   event.CgroupID,
-				events.Program:    event.Program,
-				events.Path:       event.Path,
-				events.Flags:      event.Flags,
-				events.ReturnCode: event.ReturnCode,
-			}
-			ctx.AuditLog.EmitAuditEvent(events.SessionOpen, eventFields)
-		case event := <-s.conn.eventsCh():
-			//var event rawConn4Event
-
-			//err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
-			//if err != nil {
-			//	log.Debugf("Failed to read binary data: %v.", err)
-			//	continue
-			//}
-
-			//// Source.
-			//src := make([]byte, 4)
-			//binary.LittleEndian.PutUint32(src, uint32(event.SrcAddr))
-			//srcAddr := net.IP(src)
-
-			//// Destination.
-			//dst := make([]byte, 4)
-			//binary.LittleEndian.PutUint32(dst, uint32(event.DstAddr))
-			//dstAddr := net.IP(dst)
-
-			//// Convert C string that holds the command name into a Go string.
-			//command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
-			//select {
-			//case e.events <- &connEvent{
-			//	PID:      event.PID,
-			//	CgroupID: event.CgroupID,
-			//	SrcAddr:  srcAddr,
-			//	DstAddr:  dstAddr,
-			//	Version:  4,
-			//	DstPort:  event.DstPort,
-			//	Program:  command,
-			//}:
-			//case <-e.closeContext.Done():
-			//	return
-			//default:
-			//	log.Warnf("Dropping connect (IPv4) event %v/%v %v %v, buffer full.", event.CgroupID, event.PID, srcAddr, dstAddr)
-			//}
-
-			//// Remove, only for debugging.
-			//fmt.Printf("--> Event=conn4 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
-			//	event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
-
-			//// V6
-			//var event rawConn6Event
-
-			//err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
-			//if err != nil {
-			//	log.Debugf("Failed to read binary data: %v.", err)
-			//	continue
-			//}
-
-			//// Source.
-			//src := make([]byte, 16)
-			//binary.LittleEndian.PutUint32(src[0:], event.SrcAddr[0])
-			//binary.LittleEndian.PutUint32(src[4:], event.SrcAddr[1])
-			//binary.LittleEndian.PutUint32(src[8:], event.SrcAddr[2])
-			//binary.LittleEndian.PutUint32(src[12:], event.SrcAddr[3])
-			//srcAddr := net.IP(src)
-
-			//// Destination.
-			//dst := make([]byte, 16)
-			//binary.LittleEndian.PutUint32(dst[0:], event.DstAddr[0])
-			//binary.LittleEndian.PutUint32(dst[4:], event.DstAddr[1])
-			//binary.LittleEndian.PutUint32(dst[8:], event.DstAddr[2])
-			//binary.LittleEndian.PutUint32(dst[12:], event.DstAddr[3])
-			//dstAddr := net.IP(dst)
-
-			//// Convert C string that holds the command name into a Go string.
-			//command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
-			//select {
-			//case e.events <- &connEvent{
-			//	PID:      event.PID,
-			//	CgroupID: event.CgroupID,
-			//	SrcAddr:  srcAddr,
-			//	DstAddr:  dstAddr,
-			//	Version:  6,
-			//	DstPort:  event.DstPort,
-			//	Program:  command,
-			//}:
-			//case <-e.closeContext.Done():
-			//	return
-			//default:
-			//	log.Warnf("Dropping connect (IPv6) event %v/%v %v %v, buffer full.", event.CgroupID, event.PID, srcAddr, dstAddr)
-			//}
-
-			////// Remove, only for debugging.
-			////fmt.Printf("--> Event=conn6 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
-			////	event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
-
-			ctx, ok := s.watch[event.CgroupID]
-			if !ok {
-				continue
-			}
-
-			eventFields := events.EventFields{
-				// Common fields.
-				events.EventNamespace:  ctx.Namespace,
-				events.SessionEventID:  ctx.SessionID,
-				events.SessionServerID: ctx.ServerID,
-				events.EventLogin:      ctx.Login,
-				events.EventUser:       ctx.User,
-				// Connect fields.
-				events.PID:        event.PID,
-				events.CgroupID:   event.CgroupID,
-				events.Program:    event.Program,
-				events.SrcAddr:    event.SrcAddr,
-				events.DstAddr:    event.DstAddr,
-				events.DstPort:    event.DstPort,
-				events.TCPVersion: event.Version,
-			}
-			ctx.AuditLog.EmitAuditEvent(events.SessionConnect, eventFields)
+		// Program execution.
+		case event := <-s.exec.events():
+			s.emitCommandEvent(event)
+		// Disk access.
+		case event := <-s.open.events():
+			s.emitDiskEvent(event)
+		// Network access (IPv4).
+		case event := <-s.conn.v4Events():
+			s.emit4NetworkEvent(event)
+		// Network access (IPv4).
+		case event := <-s.conn.v6Events():
+			s.emit6NetworkEvent(event)
 		case <-s.closeContext.Done():
 			return
 		}
 	}
+}
+
+// emitCommandEvent will parse and emit command events to the Audit Log.
+func (s *Service) emitCommandEvent(eventBytes []byte) {
+	var event rawExecEvent
+
+	err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
+	if err != nil {
+		log.Debugf("Failed to read binary data: %v.", err)
+		return
+	}
+
+	// If the event comes from a unmonitored process/cgroup, don't process it.
+	ctx, ok := s.watch[event.CgroupID]
+	if !ok {
+		return
+	}
+
+	switch event.Type {
+	// Args are sent in their own event by execsnoop to save stack space. Store
+	// the args in a ttlmap so they can be retrieved when the return event arrives.
+	case eventArg:
+		var buf []string
+		buffer, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
+		if !ok {
+			buf = make([]string, 0)
+		} else {
+			buf = buffer.([]string)
+		}
+
+		argv := (*C.char)(unsafe.Pointer(&event.Argv))
+		buf = append(buf, C.GoString(argv))
+		s.argsCache.Set(strconv.FormatUint(event.PID, 10), buf, 24*time.Hour)
+	// The event has returned, emit the fully parsed event.
+	case eventRet:
+		// The args should have come in a previous event, find them by PID.
+		args, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
+		if !ok {
+			// TODO: Emit metric here.
+			// TODO: Hook into dropped event callback.
+			log.Debugf("Got event with missing args: skipping.")
+			return
+		}
+		argv := args.([]string)
+
+		// Convert C string that holds the command name into a Go string.
+		command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
+
+		// Emit "command" event.
+		eventFields := events.EventFields{
+			// Common fields.
+			events.EventNamespace:  ctx.Namespace,
+			events.SessionEventID:  ctx.SessionID,
+			events.SessionServerID: ctx.ServerID,
+			events.EventLogin:      ctx.Login,
+			events.EventUser:       ctx.User,
+			// Exec fields.
+			events.PID:        event.PPID,
+			events.PPID:       event.PID,
+			events.CgroupID:   event.CgroupID,
+			events.Program:    command,
+			events.Path:       argv[0],
+			events.Argv:       argv[1:],
+			events.ReturnCode: event.ReturnCode,
+		}
+		ctx.AuditLog.EmitAuditEvent(events.SessionExec, eventFields)
+
+		//// Remove, only for debugging.
+		//fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Program=%v Path=%v Args=%v ReturnCode=%v.\n",
+		//	event.CgroupID, event.PID, event.PPID, command, argv[0], argv[1:], event.ReturnCode)
+	}
+}
+
+// emitDiskEvent will parse and emit disk events to the Audit Log.
+func (s *Service) emitDiskEvent(eventBytes []byte) {
+	var event rawOpenEvent
+
+	err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
+	if err != nil {
+		log.Debugf("Failed to read binary data: %v.", err)
+		return
+	}
+
+	// If the event comes from a unmonitored process/cgroup, don't process it.
+	ctx, ok := s.watch[event.CgroupID]
+	if !ok {
+		return
+	}
+
+	// Convert C string that holds the command name into a Go string.
+	command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
+
+	// Convert C string that holds the path into a Go string.
+	path := C.GoString((*C.char)(unsafe.Pointer(&event.Path)))
+
+	eventFields := events.EventFields{
+		// Common fields.
+		events.EventNamespace:  ctx.Namespace,
+		events.SessionEventID:  ctx.SessionID,
+		events.SessionServerID: ctx.ServerID,
+		events.EventLogin:      ctx.Login,
+		events.EventUser:       ctx.User,
+		// Open fields.
+		events.PID:        event.PID,
+		events.CgroupID:   event.CgroupID,
+		events.Program:    command,
+		events.Path:       path,
+		events.Flags:      event.Flags,
+		events.ReturnCode: event.ReturnCode,
+	}
+	ctx.AuditLog.EmitAuditEvent(events.SessionOpen, eventFields)
+
+	//// Remove, only for debugging.
+	//fmt.Printf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.\n",
+	//	event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
+}
+
+// emit4NetworkEvent will parse and emit IPv4 events to the Audit Log.
+func (s *Service) emit4NetworkEvent(eventBytes []byte) {
+	var event rawConn4Event
+
+	err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
+	if err != nil {
+		log.Debugf("Failed to read binary data: %v.", err)
+		return
+	}
+
+	// If the event comes from a unmonitored process/cgroup, don't process it.
+	ctx, ok := s.watch[event.CgroupID]
+	if !ok {
+		return
+	}
+
+	// Source.
+	src := make([]byte, 4)
+	binary.LittleEndian.PutUint32(src, uint32(event.SrcAddr))
+	srcAddr := net.IP(src)
+
+	// Destination.
+	dst := make([]byte, 4)
+	binary.LittleEndian.PutUint32(dst, uint32(event.DstAddr))
+	dstAddr := net.IP(dst)
+
+	// Convert C string that holds the command name into a Go string.
+	command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
+
+	eventFields := events.EventFields{
+		// Common fields.
+		events.EventNamespace:  ctx.Namespace,
+		events.SessionEventID:  ctx.SessionID,
+		events.SessionServerID: ctx.ServerID,
+		events.EventLogin:      ctx.Login,
+		events.EventUser:       ctx.User,
+		// Connect fields.
+		events.PID:        event.PID,
+		events.CgroupID:   event.CgroupID,
+		events.Program:    command,
+		events.SrcAddr:    srcAddr,
+		events.DstAddr:    dstAddr,
+		events.DstPort:    event.DstPort,
+		events.TCPVersion: 4,
+	}
+	ctx.AuditLog.EmitAuditEvent(events.SessionConnect, eventFields)
+}
+
+// emit6NetworkEvent will parse and emit IPv6 events to the Audit Log.
+func (s *Service) emit6NetworkEvent(eventBytes []byte) {
+	var event rawConn6Event
+
+	err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
+	if err != nil {
+		log.Debugf("Failed to read binary data: %v.", err)
+		return
+	}
+
+	// If the event comes from a unmonitored process/cgroup, don't process it.
+	ctx, ok := s.watch[event.CgroupID]
+	if !ok {
+		return
+	}
+
+	// Source.
+	src := make([]byte, 16)
+	binary.LittleEndian.PutUint32(src[0:], event.SrcAddr[0])
+	binary.LittleEndian.PutUint32(src[4:], event.SrcAddr[1])
+	binary.LittleEndian.PutUint32(src[8:], event.SrcAddr[2])
+	binary.LittleEndian.PutUint32(src[12:], event.SrcAddr[3])
+	srcAddr := net.IP(src)
+
+	// Destination.
+	dst := make([]byte, 16)
+	binary.LittleEndian.PutUint32(dst[0:], event.DstAddr[0])
+	binary.LittleEndian.PutUint32(dst[4:], event.DstAddr[1])
+	binary.LittleEndian.PutUint32(dst[8:], event.DstAddr[2])
+	binary.LittleEndian.PutUint32(dst[12:], event.DstAddr[3])
+	dstAddr := net.IP(dst)
+
+	// Convert C string that holds the command name into a Go string.
+	command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
+
+	eventFields := events.EventFields{
+		// Common fields.
+		events.EventNamespace:  ctx.Namespace,
+		events.SessionEventID:  ctx.SessionID,
+		events.SessionServerID: ctx.ServerID,
+		events.EventLogin:      ctx.Login,
+		events.EventUser:       ctx.User,
+		// Connect fields.
+		events.PID:        event.PID,
+		events.CgroupID:   event.CgroupID,
+		events.Program:    command,
+		events.SrcAddr:    srcAddr,
+		events.DstAddr:    dstAddr,
+		events.DstPort:    event.DstPort,
+		events.TCPVersion: 6,
+	}
+	ctx.AuditLog.EmitAuditEvent(events.SessionConnect, eventFields)
+
+	//// Remove, only for debugging.
+	//fmt.Printf("--> Event=conn6 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
+	//	event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
 }
 
 func (s *Service) addWatch(cgroupID uint64, ctx *SessionContext) {

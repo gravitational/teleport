@@ -391,6 +391,10 @@ const (
 
 	// CgroupMountPath is where the cgroupv2 hierarchy will be mounted.
 	CgroupMountPath = "/cgroup2"
+
+	// ArgsCacheSize is the number of args events to store before dropping args
+	// events.
+	ArgsCacheSize = 1024
 )
 
 var (

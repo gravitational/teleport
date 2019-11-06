@@ -21,11 +21,7 @@ package bpf
 import "C"
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"net"
-	"unsafe"
 
 	"github.com/gravitational/trace"
 
@@ -82,46 +78,56 @@ type rawConn6Event struct {
 	Command [commMax]byte
 }
 
-//// conn6Event is a parsed connection event.
-//type connEvent struct {
-//	// PID is the process ID.
-//	PID uint32
-//
-//	// CgroupID is the internal cgroupv2 ID of the event.
-//	CgroupID uint64
-//
-//	// SrcAddr is the source IP address.
-//	SrcAddr net.IP
-//
-//	// DstAddr is the destination IP address.
-//	DstAddr net.IP
-//
-//	// Version is the version of TCP (4 or 6).
-//	Version uint64
-//
-//	// DstPort is the port the connection is being made to.
-//	DstPort uint16
-//
-//	// Program is name of the executable making the connection.
-//	Program string
-//}
-
 type conn struct {
 	closeContext context.Context
 
-	v4EventsCh chan []byte
-	v6EventsCh chan []byte
+	v4EventCh <-chan []byte
+	v6EventCh <-chan []byte
 
 	module   *bcc.Module
 	perfMaps []*bcc.PerfMap
 }
 
-func newConn(closeContext context.Context) (*conn, error) {
+func startConn(closeContext context.Context) (*conn, error) {
+	var err error
+
 	e := &conn{
 		closeContext: closeContext,
 	}
 
-	err := e.start()
+	e.module = bcc.NewModule(connSource, []string{})
+	if e.module == nil {
+		return nil, trace.BadParameter("failed to load libbcc")
+	}
+
+	// Hook IPv4 connection attempts.
+	err = attachProbe(e.module, "tcp_v4_connect", "trace_connect_entry")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = attachRetProbe(e.module, "tcp_v4_connect", "trace_connect_v4_return")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Hook IPv6 connection attempts.
+	err = attachProbe(e.module, "tcp_v6_connect", "trace_connect_entry")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = attachRetProbe(e.module, "tcp_v6_connect", "trace_connect_v6_return")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Open perf buffer and start processing IPv4 events.
+	e.v4EventCh, err = openPerfBuffer(e.module, e.perfMaps, "ipv4_events")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Open perf buffer and start processing IPv6 events.
+	e.v6EventCh, err = openPerfBuffer(e.module, e.perfMaps, "ipv6_events")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,49 +135,8 @@ func newConn(closeContext context.Context) (*conn, error) {
 	return e, nil
 }
 
-func (e *conn) start() error {
-	var err error
-
-	e.module = bcc.NewModule(connSource, []string{})
-	if e.module == nil {
-		return trace.BadParameter("failed to load libbcc")
-	}
-
-	// Hook IPv4 connection attempts.
-	err = attachProbe(e.module, "tcp_v4_connect", "trace_connect_entry")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = attachRetProbe(e.module, "tcp_v4_connect", "trace_connect_v4_return")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Hook IPv6 connection attempts.
-	err = attachProbe(e.module, "tcp_v6_connect", "trace_connect_entry")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = attachRetProbe(e.module, "tcp_v6_connect", "trace_connect_v6_return")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Open perf buffer and start processing IPv4 events.
-	e.v4EventCh, err = openPerfBuffer(e.module, e.perfMaps, "ipv4_events")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Open perf buffer and start processing IPv6 events.
-	e.v6EventCh, err = openPerfBuffer(e.module, e.perfMaps, "ipv6_events")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
+// close will stop reading events off the perf buffer and unload the BPF
+// program.
 func (e *conn) close() {
 	for _, perfMap := range e.perfMaps {
 		perfMap.Stop()
@@ -179,12 +144,14 @@ func (e *conn) close() {
 	e.module.Close()
 }
 
-func (e *conn) v4EventsCh() <-chan []byte {
-	return e.v4EventsCh
+// v4Events contains raw events off the perf buffer.
+func (e *conn) v4Events() <-chan []byte {
+	return e.v4EventCh
 }
 
-func (e *conn) v6EventsCh() <-chan []byte {
-	return e.v6EventsCh
+// v6Events contains raw events off the perf buffer.
+func (e *conn) v6Events() <-chan []byte {
+	return e.v6EventCh
 }
 
 const connSource string = `
