@@ -22,6 +22,9 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/gravitational/teleport/lib/backend/firestore"
+	"github.com/gravitational/teleport/lib/events/firestoreevents"
+	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"io"
 	"io/ioutil"
 	"net"
@@ -69,7 +72,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -764,6 +767,14 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 	}
 
 	switch uri.Scheme {
+	case teleport.SchemeGCS:
+		config := gcssessions.Config{}
+		config.SetFromURL(uri)
+		handler, err := gcssessions.DefaultNewHandler(config)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return handler, nil
 	case teleport.SchemeS3:
 		region := auditConfig.Region
 		if uriRegion := uri.Query().Get(teleport.Region); uriRegion != "" {
@@ -817,6 +828,18 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 			return nil, trace.Wrap(err)
 		}
 		switch uri.Scheme {
+		case firestore.GetName():
+			hasNonFileLog = true
+			cfg := firestoreevents.EventsConfig{}
+			err = cfg.SetFromURL(uri)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			logger, err := firestoreevents.New(cfg)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			loggers = append(loggers, logger)
 		case dynamo.GetName():
 			hasNonFileLog = true
 			logger, err := dynamoevents.New(dynamoevents.Config{
@@ -951,6 +974,7 @@ func (process *TeleportProcess) initAuthService() error {
 		HostUUID:             cfg.HostUUID,
 		NodeName:             cfg.Hostname,
 		Authorities:          cfg.Auth.Authorities,
+		Resources:            cfg.Auth.Resources,
 		ReverseTunnels:       cfg.ReverseTunnels,
 		Trust:                cfg.Trust,
 		Presence:             cfg.Presence,
@@ -1612,7 +1636,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 // and prometheus endpoints
 func (process *TeleportProcess) initDiagnosticService() error {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", prometheus.Handler())
+	mux.Handle("/metrics", promhttp.Handler())
 
 	if process.Config.Debug {
 		log.Infof("Adding diagnostic debugging handlers. To connect with profiler, use `go tool pprof %v`.", process.Config.DiagnosticAddr.Addr)
@@ -2252,6 +2276,9 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	// SQLite backend (or alt name dir).
 	case lite.GetName():
 		bk, err = lite.New(context.TODO(), bc.Params)
+	// Firestore backend:
+	case firestore.GetName():
+		bk, err = firestore.New(context.TODO(), bc.Params)
 	// DynamoDB backend.
 	case dynamo.GetName():
 		bk, err = dynamo.New(context.TODO(), bc.Params)

@@ -20,8 +20,7 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
-
-ignored = ["github.com/Sirupsen/logrus"]
+ignored = ["github.com/Sirupsen/logrus", "github.com/gravitational/license/generate*", "github.com/gravitational/license/authority*", "github.com/cloudflare/cfssl*"]
 
 [prune]
   go-tests = true
@@ -69,8 +68,8 @@ ignored = ["github.com/Sirupsen/logrus"]
   version = "1.12.17"
 
 [[constraint]]
-  name = "github.com/coreos/etcd"
-  version = "3.3.9"
+  name = "go.etcd.io/etcd"
+  version = "3.3.15"
 
 [[constraint]]
   name = "github.com/davecgh/go-spew"
@@ -134,7 +133,15 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"
-  version = "0.9.2"
+  version = "1.0.0"
+
+[[override]]
+  name = "github.com/prometheus/procfs"
+  version = "v0.0.2"
+
+[[constraint]]
+  name = "github.com/prometheus/common"
+  version = "0.4.1"
 
 [[constraint]]
   branch = "master"
@@ -142,7 +149,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = ">=1.14.0"
+  version = ">=1.23.0"
 
 [[constraint]]
   name = "github.com/gravitational/trace"
@@ -184,7 +191,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/golang/protobuf"
-  version = "=v1.1.0"
+  version = "=v1.3.1"
 
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
@@ -194,3 +201,6 @@ ignored = ["github.com/Sirupsen/logrus"]
   name = "github.com/jonboulle/clockwork"
   branch = "master"
 
+[[constraint]]
+  name = "cloud.google.com/go"
+  version = "=v0.41.0"

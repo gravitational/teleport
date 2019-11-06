@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -103,7 +104,7 @@ func GetStringMapValue(mapVal, keyVal interface{}) (interface{}, error) {
 			return n, nil
 		}
 		return m[key], nil
-	case Traits:
+	case wrappers.Traits:
 		if len(m) == 0 {
 			// to return nil with a proper type
 			var n []string

@@ -14,7 +14,7 @@ MARKETPLACE_AMI_NAME ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 4.0.4
+TELEPORT_VERSION ?= 4.1.0
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -52,7 +52,7 @@ oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -except teleport-aws-linux-marketplace single-ami.json
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 # Build named 'production' AMI and marketplace version
@@ -65,7 +65,7 @@ oss-jenkins-build:
 	@echo "Marketplace AMI name: $(MARKETPLACE_AMI_NAME)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_type=production -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) -except teleport-aws-linux-fips single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 .PHONY: change-amis-to-public-oss
@@ -80,7 +80,7 @@ ent: check-vars
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -except teleport-aws-linux-marketplace single-ami.json
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 # Build named 'production' AMI and marketplace version
@@ -90,16 +90,22 @@ ent-jenkins-build: check-vars
 ent-jenkins-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via Jenkins"
 	@echo "Public AMI name: $(PUBLIC_AMI_NAME)"
+	@echo "FIPS AMI name: $(FIPS_AMI_NAME)"
 	@echo "Marketplace AMI name: $(MARKETPLACE_AMI_NAME)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_type=production -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var fips_ami_name=$(FIPS_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 .PHONY: change-amis-to-public-ent
 change-amis-to-public-ent:
 	@echo "Making Enterprise AMIs public"
 	bash files/make-amis-public.sh ent
+
+.PHONY: change-amis-to-public-ent-fips
+change-amis-to-public-ent-fips:
+	@echo "Making FIPS Enterprise AMIs public"
+	bash files/make-amis-public.sh ent-fips
 
 
 # Other helpers

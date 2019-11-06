@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -39,7 +40,7 @@ func (s *SAMLSuite) SetUpSuite(c *check.C) {
 func (s *SAMLSuite) TestParseFromMetadata(c *check.C) {
 	input := fixtures.SAMLOktaConnectorV2
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), 32*1024)
+	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
 	var raw UnknownResource
 	err := decoder.Decode(&raw)
 	c.Assert(err, check.IsNil)

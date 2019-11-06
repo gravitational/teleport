@@ -67,15 +67,31 @@ Mappings:
     t2.micro: {Arch: HVM64}
 
   AWSRegionArch2AMI:
-    eu-west-1: {HVM64 : ami-63ddee1a}
-    us-east-1: {HVM64 : ami-3adb4b45}
-    us-east-2: {HVM64 : ami-0c80bd69}
-    us-west-2: {HVM64 : ami-0d0b7675}
+    # eu-west-1 = EU (Ireland)
+    # us-east-1 = US East (N. Virginia)
+    # us-east-2 = US East (Ohio)
+    # us-west-2 = US West (Oregon)
+    # All AMIs from AWS - gravitational-teleport-ami-ent-4.0.4
+    eu-west-1: {HVM64 : ami-075c9f83d9d48f5ca}
+    us-east-1: {HVM64 : ami-0e53cd757bc98e23b}
+    us-east-2: {HVM64 : ami-0f7b4cc718ce99dce}
+    us-west-2: {HVM64 : ami-0792ee534d2e47623}
 
 Resources:
 # Auth server setup
   AuthSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W40
+            reason: "We want to allow all protocols on egress."
+          - id: W5
+            reason: "We want to allow egress traffic to anywhere."
+          - id: W9
+            reason: "Rules are deliberately relaxed here to allow VPC peered nodes to speak to auth services."
+          - id: W2
+            reason: "Rules are deliberately relaxed here to allow VPC peered nodes to speak to auth services."
     Properties:
       VpcId: {Ref: VPC}
       GroupDescription: Allow proxy and auth server access
@@ -105,6 +121,13 @@ Resources:
   # Nodes could be only accessed from proxies
   NodeSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W40
+            reason: "We want to allow all protocols on egress."
+          - id: W5
+            reason: "We want to allow egress traffic to anywhere."
     Properties:
       VpcId: {Ref: VPC}
       GroupDescription: Allow proxy access
@@ -276,6 +299,17 @@ Resources:
   #
   ProxySecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W40
+            reason: "We want to allow all protocols on egress."
+          - id: W5
+            reason: "We want to allow egress traffic to anywhere."
+          - id: W9
+            reason: "We want to permit incoming traffic from anywhere."
+          - id: W2
+            reason: "We want to permit incoming traffic from anywhere."
     Properties:
       VpcId: {Ref: VPC}
       GroupDescription: Allow proxy and auth server access
@@ -538,6 +572,11 @@ Resources:
   # to SSM parameter store
   AuthPolicies:
     Type: AWS::IAM::Policy
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: "The use of the * resource here is fine."
     Properties:
       PolicyName: !Join ["-", [!Ref AuthRole, "ssm"]]
       PolicyDocument:
@@ -565,14 +604,31 @@ Resources:
             Effect: "Allow"
             Resource: !GetAtt MainTable.Arn
             Action:
-            - "dynamodb:*"
+            - "dynamodb:BatchGet*"
+            - "dynamodb:DescribeStream"
+            - "dynamodb:DescribeTable"
+            - "dynamodb:Get*"
+            - "dynamodb:Query"
+            - "dynamodb:Scan"
+            - "dynamodb:BatchWrite*"
+            - "dynamodb:CreateTable"
+            - "dynamodb:Delete*"
+            - "dynamodb:Update*"
+            - "dynamodb:PutItem"
+            - "dynamodb:List*"
+            - "dynamodb:DescribeReservedCapacity*"
+            - "dynamodb:DescribeLimits"
+            - "dynamodb:DescribeTimeToLive"
 
           # Allow auth server to use streams on main DynamoDB table
           -
             Effect: "Allow"
             Resource: !Join ["", [!GetAtt MainTable.Arn, "/stream/*"]]
             Action:
-            - "dynamodb:*"
+            - "dynamodb:DescribeStream"
+            - "dynamodb:ListStream"
+            - "dynamodb:GetRecords"
+            - "dynamodb:GetShardIterator"
 
           # Allow auth server to control audit dynamo db table
           # and it's secondary indexes
@@ -580,20 +636,49 @@ Resources:
             Effect: "Allow"
             Resource: !GetAtt EventsTable.Arn
             Action:
-            - "dynamodb:*"
+            - "dynamodb:BatchGet*"
+            - "dynamodb:DescribeStream"
+            - "dynamodb:DescribeTable"
+            - "dynamodb:Get*"
+            - "dynamodb:Query"
+            - "dynamodb:Scan"
+            - "dynamodb:BatchWrite*"
+            - "dynamodb:CreateTable"
+            - "dynamodb:Delete*"
+            - "dynamodb:Update*"
+            - "dynamodb:PutItem"
+            - "dynamodb:List*"
+            - "dynamodb:DescribeReservedCapacity*"
+            - "dynamodb:DescribeLimits"
+            - "dynamodb:DescribeTimeToLive"
 
           -
             Effect: "Allow"
             Resource: !Join ["", [!GetAtt EventsTable.Arn, "/index/*"]]
             Action:
-            - "dynamodb:*"
+            - "dynamodb:Query"
+            - "dynamodb:Scan"
 
           # Allow auth server to control locks dynamo db table
           -
             Effect: "Allow"
             Resource: !GetAtt LocksTable.Arn
             Action:
-            - "dynamodb:*"
+            - "dynamodb:BatchGet*"
+            - "dynamodb:DescribeStream"
+            - "dynamodb:DescribeTable"
+            - "dynamodb:Get*"
+            - "dynamodb:Query"
+            - "dynamodb:Scan"
+            - "dynamodb:BatchWrite*"
+            - "dynamodb:CreateTable"
+            - "dynamodb:Delete*"
+            - "dynamodb:Update*"
+            - "dynamodb:PutItem"
+            - "dynamodb:List*"
+            - "dynamodb:DescribeReservedCapacity*"
+            - "dynamodb:DescribeLimits"
+            - "dynamodb:DescribeTimeToLive"
 
           # Auth server is allowed to read and write from the bucket
           -
@@ -601,6 +686,7 @@ Resources:
             Resource: !GetAtt Bucket.Arn
             Action:
             - "s3:ListBucket"
+            - "s3:ListBucketVersions"
 
           -
             Effect: "Allow"
@@ -608,6 +694,7 @@ Resources:
             Action:
             - "s3:GetObject"
             - "s3:PutObject"
+            - "s3:GetObjectVersion"
 
           # Allow to list hosted zone changes
           -
@@ -685,12 +772,14 @@ Resources:
             Resource: !GetAtt Bucket.Arn
             Action:
             - "s3:ListBucket"
+            - "s3:ListBucketVersions"
 
           -
             Effect: "Allow"
             Resource: !Join ["/", [!GetAtt Bucket.Arn, "*"]]
             Action:
             - "s3:GetObject"
+            - "s3:GetObjectVersion"
 
       Roles:
       - {Ref: ProxyRole}
@@ -759,6 +848,7 @@ Resources:
     Type: "AWS::KMS::Key"
     Properties:
       Description: "SSM Key used by Teleport"
+      EnableKeyRotation: True
       KeyPolicy: 
         Version: "2012-10-17"
         Id: "key-default-1"
@@ -887,6 +977,11 @@ Resources:
   # and store recorded SSH sessions
   Bucket:
     Type: AWS::S3::Bucket
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W35
+            reason: "We don't need access logging configured here."
     # Cloudformation can't delete non-empty bucket
     DeletionPolicy: Retain    
     Properties:

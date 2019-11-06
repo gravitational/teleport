@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tsh/common"
 
 	"gopkg.in/check.v1"
 )
@@ -104,7 +105,7 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 	}
 	for _, id := range ids {
 		// test reading:
-		k, cb, err := loadIdentity(fmt.Sprintf("../../fixtures/certs/identities/%s", id))
+		k, cb, err := common.LoadIdentity(fmt.Sprintf("../../fixtures/certs/identities/%s", id))
 		c.Assert(err, check.IsNil)
 		c.Assert(k, check.NotNil)
 		c.Assert(cb, check.IsNil)
@@ -114,12 +115,12 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Assert(am, check.NotNil)
 	}
-	k, _, err := loadIdentity("../../fixtures/certs/identities/lonekey")
+	k, _, err := common.LoadIdentity("../../fixtures/certs/identities/lonekey")
 	c.Assert(k, check.IsNil)
 	c.Assert(err, check.NotNil)
 
 	// lets read an indentity which includes a CA cert
-	k, hostAuthCallback, err := loadIdentity("../../fixtures/certs/identities/key-cert-ca.pem")
+	k, hostAuthCallback, err := common.LoadIdentity("../../fixtures/certs/identities/key-cert-ca.pem")
 	c.Assert(err, check.IsNil)
 	c.Assert(k, check.NotNil)
 	c.Assert(hostAuthCallback, check.NotNil)
@@ -134,7 +135,7 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// load an identity which include TLS certificates
-	k, _, err = loadIdentity("../../fixtures/certs/identities/tls.pem")
+	k, _, err = common.LoadIdentity("../../fixtures/certs/identities/tls.pem")
 	c.Assert(err, check.IsNil)
 	c.Assert(k, check.NotNil)
 	c.Assert(k.TLSCert, check.NotNil)

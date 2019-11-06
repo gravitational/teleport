@@ -17,15 +17,22 @@ limitations under the License.
 package services
 
 import (
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/pquerna/otp/totp"
+	"github.com/tstranex/u2f"
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -343,3 +350,140 @@ func (t *TeleportAuthPreferenceMarshaler) Unmarshal(bytes []byte, opts ...Marsha
 func (t *TeleportAuthPreferenceMarshaler) Marshal(c AuthPreference, opts ...MarshalOption) ([]byte, error) {
 	return json.Marshal(c)
 }
+
+// GetPubKeyDecoded decodes the DER encoded PubKey field into an `ecdsa.PublicKey` instance.
+func (reg *U2FRegistrationData) GetPubKeyDecoded() (*ecdsa.PublicKey, error) {
+	pubKeyI, err := x509.ParsePKIXPublicKey(reg.PubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pubKey, ok := pubKeyI.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, trace.Errorf("expected *ecdsa.PublicKey, got %T", pubKeyI)
+	}
+	return pubKey, nil
+}
+
+// Check validates basic u2f registration values
+func (reg *U2FRegistrationData) Check() error {
+	if len(reg.KeyHandle) < 1 {
+		return trace.BadParameter("missing u2f key handle")
+	}
+	if len(reg.PubKey) < 1 {
+		return trace.BadParameter("missing u2f pubkey")
+	}
+	if _, err := reg.GetPubKeyDecoded(); err != nil {
+		return trace.BadParameter("invalid u2f pubkey")
+	}
+	return nil
+}
+
+// Equals checks equality (nil safe).
+func (lhs *U2FRegistrationData) Equals(rhs *U2FRegistrationData) bool {
+	if (lhs == nil) || (rhs == nil) {
+		return (lhs == nil) && (rhs == nil)
+	}
+	if !bytes.Equal(lhs.Raw, rhs.Raw) {
+		return false
+	}
+	if !bytes.Equal(lhs.KeyHandle, rhs.KeyHandle) {
+		return false
+	}
+	return bytes.Equal(lhs.PubKey, rhs.PubKey)
+}
+
+// GetU2FRegistration decodes the u2f registration data and builds the expected
+// registration object.  Returns (nil,nil) if no registration data is present.
+func (l *LocalAuthSecrets) GetU2FRegistration() (*u2f.Registration, error) {
+	if l.U2FRegistration == nil {
+		return nil, nil
+	}
+	pubKey, err := l.U2FRegistration.GetPubKeyDecoded()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &u2f.Registration{
+		Raw:       l.U2FRegistration.Raw,
+		KeyHandle: l.U2FRegistration.KeyHandle,
+		PubKey:    *pubKey,
+	}, nil
+}
+
+// SetU2FRegistration encodes and stores a u2f registration.  Use nil to
+// delete an existing registration.
+func (l *LocalAuthSecrets) SetU2FRegistration(reg *u2f.Registration) error {
+	if reg == nil {
+		l.U2FRegistration = nil
+		return nil
+	}
+	pubKeyDer, err := x509.MarshalPKIXPublicKey(&reg.PubKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	l.U2FRegistration = &U2FRegistrationData{
+		Raw:       reg.Raw,
+		KeyHandle: reg.KeyHandle,
+		PubKey:    pubKeyDer,
+	}
+	if err := l.U2FRegistration.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// Check validates local auth secret members.
+func (l *LocalAuthSecrets) Check() error {
+	if len(l.PasswordHash) > 0 {
+		if _, err := bcrypt.Cost(l.PasswordHash); err != nil {
+			return trace.BadParameter("invalid password hash")
+		}
+	}
+	if len(l.TOTPKey) > 0 {
+		if _, err := totp.GenerateCode(l.TOTPKey, time.Time{}); err != nil {
+			return trace.BadParameter("invalid TOTP key")
+		}
+	}
+	if l.U2FRegistration != nil {
+		if err := l.U2FRegistration.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// Equals checks equality (nil safe).
+func (lhs *LocalAuthSecrets) Equals(rhs *LocalAuthSecrets) bool {
+	if (lhs == nil) || (rhs == nil) {
+		return (lhs == nil) && (rhs == nil)
+	}
+	if !bytes.Equal(lhs.PasswordHash, rhs.PasswordHash) {
+		return false
+	}
+	if !(lhs.TOTPKey == rhs.TOTPKey) {
+		return false
+	}
+	if !(lhs.U2FCounter == rhs.U2FCounter) {
+		return false
+	}
+	return lhs.U2FRegistration.Equals(rhs.U2FRegistration)
+}
+
+// LocalAuthSecretsSchema is a JSON schema for LocalAuthSecrets
+const LocalAuthSecretsSchema = `{
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "password_hash": {"type": "string"},
+        "totp_key": {"type": "string"},
+        "u2f_registration": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "raw": {"type": "string"},
+                "key_handle": {"type": "string"},
+                "pubkey": {"type": "string"}
+            }
+        },
+        "u2f_counter": {"type": "number"}
+    }
+}`

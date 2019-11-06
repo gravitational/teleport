@@ -167,7 +167,12 @@ func (s *AuthServer) AuthenticateWebUser(req AuthenticateUserRequest) (services.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if clusterConfig.GetLocalAuth() == false {
+
+	// Disable all local auth requests,
+	// except session ID renewal requests that are using the same method.
+	// This condition uses Session as a blanket check, because any new method added
+	// to the local auth will be disabled by default.
+	if clusterConfig.GetLocalAuth() == false && req.Session == nil {
 		s.emitNoLocalAuthEvent(req.Username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
@@ -182,7 +187,13 @@ func (s *AuthServer) AuthenticateWebUser(req AuthenticateUserRequest) (services.
 	if err := s.AuthenticateUser(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := s.NewWebSession(req.Username)
+	user, err := s.GetUser(req.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// It's safe to extract the roles and traits directly from services.User as
+	// this endpoint is only used for local accounts.
+	sess, err := s.NewWebSession(req.Username, user.GetRoles(), user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -298,11 +309,14 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 	if err := s.AuthenticateUser(req.AuthenticateUserRequest); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := s.GetUser(req.Username)
+
+	// It's safe to extract the roles and traits directly from services.User as
+	// this endpoint is only used for local accounts.
+	user, err := s.GetUser(req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, err := services.FetchRoles(user.GetRoles(), s, user.GetTraits())
+	checker, err := services.FetchRoles(user.GetRoles(), s, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -321,10 +335,11 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 
 	certs, err := s.generateUserCert(certRequest{
 		user:          user,
-		roles:         roles,
 		ttl:           req.TTL,
 		publicKey:     req.PublicKey,
 		compatibility: req.CompatibilityMode,
+		checker:       checker,
+		traits:        user.GetTraits(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

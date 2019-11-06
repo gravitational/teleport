@@ -869,7 +869,7 @@ func (c *user) erase() error {
 }
 
 func (c *user) fetch() error {
-	resources, err := c.Users.GetUsers()
+	resources, err := c.Users.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

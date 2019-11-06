@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -27,6 +28,8 @@ import (
 
 type ServicesSuite struct {
 }
+
+func TestServices(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&ServicesSuite{})
 

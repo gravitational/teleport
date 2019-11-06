@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -81,6 +82,8 @@ type Identity struct {
 	// RouteToCluster specifies the target cluster
 	// if present in the session
 	RouteToCluster string
+	// Traits hold claim data used to populate a role at runtime.
+	Traits wrappers.Traits
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -95,7 +98,12 @@ func (i *Identity) CheckAndSetDefaults() error {
 }
 
 // Subject converts identity to X.509 subject name
-func (id *Identity) Subject() pkix.Name {
+func (id *Identity) Subject() (pkix.Name, error) {
+	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
+	if err != nil {
+		return pkix.Name{}, trace.Wrap(err)
+	}
+
 	subject := pkix.Name{
 		CommonName: id.Username,
 	}
@@ -104,7 +112,9 @@ func (id *Identity) Subject() pkix.Name {
 	subject.Locality = append([]string{}, id.Principals...)
 	subject.Province = append([]string{}, id.KubernetesGroups...)
 	subject.StreetAddress = []string{id.RouteToCluster}
-	return subject
+	subject.PostalCode = []string{string(rawTraits)}
+
+	return subject, nil
 }
 
 // FromSubject returns identity from subject name
@@ -120,6 +130,13 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 	if len(subject.StreetAddress) > 0 {
 		i.RouteToCluster = subject.StreetAddress[0]
 	}
+	if len(subject.PostalCode) > 0 {
+		err := wrappers.UnmarshalTraits([]byte(subject.PostalCode[0]), &i.Traits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if err := i.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -19,13 +19,10 @@ package utils
 import (
 	"net"
 	"strings"
-	"testing"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 )
-
-func TestAddrStruct(t *testing.T) { TestingT(t) }
 
 type AddrTestSuite struct {
 }
@@ -289,5 +286,30 @@ func (s *AddrTestSuite) TestUnmarshal(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(addr, DeepEquals, testCase.expected,
 			Commentf("test case %v, %v should be unmarshalled to: %v", i, testCase.in, testCase.expected))
+	}
+}
+
+func (s *AddrTestSuite) TestParseMultiple(c *C) {
+	tests := []struct {
+		in  []string
+		out []NetAddr
+	}{
+		{
+			in: []string{
+				"https://localhost:3080",
+				"tcp://example:587/path",
+				"[::1]:465",
+			},
+			out: []NetAddr{
+				{Addr: "localhost:3080", AddrNetwork: "https"},
+				{Addr: "example:587", AddrNetwork: "tcp", Path: "/path"},
+				{Addr: "[::1]:465", AddrNetwork: "tcp"},
+			},
+		},
+	}
+	for _, test := range tests {
+		parsed, err := ParseAddrs(test.in)
+		c.Assert(err, IsNil)
+		c.Assert(parsed, DeepEquals, test.out)
 	}
 }

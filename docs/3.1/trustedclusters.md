@@ -155,17 +155,17 @@ First, we need to create a special role for main users on "east":
 ```yaml
 # save this into main-user-role.yaml on the east cluster and execute:
 # tctl create main-user-role.yaml
-- kind: role
-  version: v3
-  metadata:
-    name: local-admin
-  spec:
-    allow:
-      node_labels:
-        '*': '*'
-    deny:
-      node_labels:
-        "environment": "production"
+kind: role
+version: v3
+metadata:
+  name: local-admin
+spec:
+  allow:
+    node_labels:
+      '*': '*'
+  deny:
+    node_labels:
+      "environment": "production"
 ```
 
 Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is

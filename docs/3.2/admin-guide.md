@@ -286,8 +286,10 @@ teleport:
     # List of the supported ciphersuites. If this section is not specified,
     # only the default ciphersuites are enabled.
     ciphersuites:
-       - tls-rsa-with-aes-128-gcm-sha256
-       - tls-rsa-with-aes-256-gcm-sha384
+       # Note: These two ciphersuites are unsupported when upgrading to Teleport
+       # 4.0+ see https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446
+       #- tls-rsa-with-aes-128-gcm-sha256
+       #- tls-rsa-with-aes-256-gcm-sha384
        - tls-ecdhe-rsa-with-aes-128-gcm-sha256
        - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
        - tls-ecdhe-rsa-with-aes-256-gcm-sha384
@@ -367,6 +369,13 @@ auth_service:
     # Determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session. (default is 'no')
     disconnect_expired_cert: no
+
+    # Determines the interval at which Teleport will send keep-alive messages. The 
+    # default value mirrors sshd at 15 minutes.  keep_alive_count_max is the number 
+    # of missed keep-alive messages before the server tears down the connection to the 
+    # client.
+    keep_alive_interval: 15
+    keep_alive_count_max: 3
 
     # License file to start auth server with. Note that this setting is ignored
     # in open-source Teleport and is required only for Teleport Pro, Business
@@ -1508,7 +1517,7 @@ providers such as Github. First, the Teleport auth service must be configured
 to use Github for authentication:
 
 ```yaml
-# snippet from /etc/teleport.yaaml
+# snippet from /etc/teleport.yaml
 auth_service:
   authentication:
       type: github

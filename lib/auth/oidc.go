@@ -469,7 +469,7 @@ func (a *AuthServer) createOIDCUser(p *createUserParams) (services.User, error) 
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Identity.GetUser(p.username)
+	existingUser, err := a.Identity.GetUser(p.username, false)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)

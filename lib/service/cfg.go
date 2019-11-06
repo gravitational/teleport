@@ -41,7 +41,7 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// Config structure is used to initialize _all_ services Teleporot can run.
+// Config structure is used to initialize _all_ services Teleport can run.
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
 type Config struct {
@@ -358,6 +358,10 @@ type AuthConfig struct {
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
 	Authorities []services.CertAuthority
+
+	// Resources is a set of previously backed up resources
+	// used to bootstrap backend state on the first start.
+	Resources []services.Resource
 
 	// Roles is a set of roles to pre-provision for this cluster
 	Roles []services.Role
