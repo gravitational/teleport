@@ -384,6 +384,15 @@ const (
 	RoleAuthService = "auth"
 )
 
+const (
+	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
+	// Must be multiple if 2.
+	PerfBufferPageCount = 8
+
+	// CgroupMountPath is where the cgroupv2 hierarchy will be mounted.
+	CgroupMountPath = "/cgroup2"
+)
+
 var (
 	// ConfigFilePath is default path to teleport config file
 	ConfigFilePath = "/etc/teleport.yaml"

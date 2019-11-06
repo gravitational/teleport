@@ -116,6 +116,10 @@ func (m *MultiLog) GetSessionEvents(namespace string, sid session.ID, after int,
 	return events, err
 }
 
+func (m *MultiLog) GetRawSessionEvents(namespace string, sid session.ID, eventType string) ([]byte, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
 // SearchEvents is a flexible way to find events. The format of a query string
 // depends on the implementing backend. A recommended format is urlencoded
 // (good enough for Lucene/Solr)

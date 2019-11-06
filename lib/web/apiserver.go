@@ -197,6 +197,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                               // search site events
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/:type", h.siteRawSessionEventsGet)
 
 	// scp file transfer
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
@@ -1751,6 +1752,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		onError(err)
 		return
 	}
+
 	// get the session:
 	sid, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
@@ -1763,7 +1765,6 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		onError(trace.Wrap(err))
 		return
 	}
-
 	// look at 'offset' parameter
 	query := r.URL.Query()
 	offset, _ := strconv.Atoi(query.Get("offset"))
@@ -1846,6 +1847,10 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
+
+	raw, err := clt.GetRawSessionEvents("default", *sessionID, "session.exec")
+	fmt.Printf("--> raw: %v, err: %v.\n", string(raw), err)
+
 	e, err := clt.GetSessionEvents(namespace, *sessionID, afterN, true)
 	if err != nil {
 		logger.Debugf("Unable to find events for session %v: %v.", sessionID, err)
@@ -1856,6 +1861,92 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 	return eventsListGetResponse{Events: e}, nil
+}
+
+func (h *Handler) siteRawSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	httplib.SetNoCacheHeaders(w.Header())
+	logger := log.WithFields(log.Fields{
+		trace.Component: teleport.ComponentWeb,
+	})
+
+	var site reversetunnel.RemoteSite
+	onError := func(err error) {
+		logger.Debugf("Unable to retrieve session chunk: %v.", err)
+		w.WriteHeader(trace.ErrorToCode(err))
+		w.Write([]byte(err.Error()))
+	}
+
+	// authenticate first:
+	ctx, err := h.AuthenticateRequest(w, r, true)
+	if err != nil {
+		log.Info(err)
+		// clear session just in case if the authentication request is not valid
+		ClearSession(w)
+		onError(err)
+		return
+	}
+
+	// get the session:
+	sid, err := session.ParseID(p.ByName("sid"))
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		onError(trace.BadParameter("invalid namespace %q", namespace))
+		return
+	}
+	eventType := p.ByName("type")
+	if eventType == "" {
+		onError(trace.BadParameter("missing type"))
+		return
+	}
+
+	// get the site interface:
+	siteName := p.ByName("site")
+	if siteName == currentSiteShortcut {
+		sites := h.cfg.Proxy.GetSites()
+		if len(sites) < 1 {
+			onError(trace.NotFound("no active sites"))
+			return
+		}
+		siteName = sites[0].GetName()
+	}
+	site, err = h.cfg.Proxy.GetSite(siteName)
+	if err != nil {
+		onError(err)
+		return
+	}
+
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+
+	// call the site API to get the chunk:
+	bytes, err := clt.GetRawSessionEvents(namespace, *sid, eventType)
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+	// see if we can gzip it:
+	var writer io.Writer = w
+	for _, acceptedEnc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		if strings.TrimSpace(acceptedEnc) == "gzip" {
+			gzipper := gzip.NewWriter(w)
+			writer = gzipper
+			defer gzipper.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+		}
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	_, err = writer.Write(bytes)
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
 }
 
 // hostCredentials sends a registration token and metadata to the Auth Server

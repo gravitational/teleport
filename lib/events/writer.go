@@ -103,6 +103,10 @@ func (w *WriterLog) GetSessionEvents(namespace string, sid session.ID, after int
 	return nil, trace.NotImplemented("not implemented")
 }
 
+func (w *WriterLog) GetRawSessionEvents(namespace string, sid session.ID, eventType string) ([]byte, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
 // SearchEvents is a flexible way to find events. The format of a query string
 // depends on the implementing backend. A recommended format is urlencoded
 // (good enough for Lucene/Solr)

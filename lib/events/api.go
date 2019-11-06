@@ -287,6 +287,9 @@ type IAuditLog interface {
 	// replay recorded session streams.
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
+	// TODO(russjones): This is a different signature than GetSessionEvents, explain why.
+	GetRawSessionEvents(namespace string, sid session.ID, eventType string) ([]byte, error)
+
 	// SearchEvents is a flexible way to find events. The format of a query string
 	// depends on the implementing backend. A recommended format is urlencoded
 	// (good enough for Lucene/Solr)

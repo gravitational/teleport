@@ -243,6 +243,10 @@ func (l *Forwarder) GetSessionEvents(namespace string, sid session.ID, after int
 	return l.ForwardTo.GetSessionEvents(namespace, sid, after, includePrintEvents)
 }
 
+func (l *Forwarder) GetRawSessionEvents(namespace string, sid session.ID, eventType string) ([]byte, error) {
+	return l.ForwardTo.GetRawSessionEvents(namespace, sid, eventType)
+}
+
 // SearchEvents is a flexible way to find  The format of a query string
 // depends on the implementing backend. A recommended format is urlencoded
 // (good enough for Lucene/Solr)

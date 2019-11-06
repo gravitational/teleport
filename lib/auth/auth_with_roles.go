@@ -1221,6 +1221,14 @@ func (a *AuthWithRoles) GetSessionEvents(namespace string, sid session.ID, after
 	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
 }
 
+func (a *AuthWithRoles) GetRawSessionEvents(namespace string, sid session.ID, eventType string) ([]byte, error) {
+	if err := a.action(namespace, services.KindSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.alog.GetRawSessionEvents(namespace, sid, eventType)
+}
+
 func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
 	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)

@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	//"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -456,6 +457,16 @@ func (idx *sessionIndex) eventsFileName(index int) string {
 	return filepath.Join(idx.dataDir, entry.authServer, SessionLogsDir, idx.namespace, entry.FileName)
 }
 
+func (idx *sessionIndex) enhancedIndexes(eventType string) []string {
+	fileNames := make([]string, len(idx.events))
+	for i := 0; i < len(idx.events); i++ {
+		if strings.Contains(idx.events[i].FileName, eventType) {
+			fileNames[i] = idx.eventsFileName(i)
+		}
+	}
+	return fileNames
+}
+
 func (idx *sessionIndex) eventsFile(afterN int) (int, error) {
 	for i := len(idx.events) - 1; i >= 0; i-- {
 		entry := idx.events[i]
@@ -839,6 +850,60 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int
 		events = append(events, out...)
 	}
 	return events, nil
+}
+
+func (l *AuditLog) GetRawSessionEvents(namespace string, sid session.ID, eventType string) ([]byte, error) {
+	l.WithFields(log.Fields{"sid": string(sid), "eventType": eventType}).Debugf("GetRawSessionEvents.")
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+
+	if l.UploadHandler != nil {
+		if err := l.downloadSession(namespace, sid); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	idx, err := l.readSessionIndex(namespace, sid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var buffer bytes.Buffer
+	for _, fileName := range idx.enhancedIndexes(eventType) {
+		fmt.Printf("--> Trying to read: %v.\n", fileName)
+		err = l.readRaw(fileName, &buffer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return buffer.Bytes(), nil
+}
+
+func (l *AuditLog) readRaw(fileName string, buffer *bytes.Buffer) error {
+	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0640)
+	if err != nil {
+		// no file found? this means no events have been logged yet
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	defer logFile.Close()
+
+	reader, err := gzip.NewReader(logFile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer reader.Close()
+
+	_, err = buffer.ReadFrom(reader)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventFields, error) {

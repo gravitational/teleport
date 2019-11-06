@@ -1,3 +1,5 @@
+// +build linux
+
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -51,31 +53,31 @@ type rawOpenEvent struct {
 	Flags int32
 }
 
-// openEvent is a parsed open event.
-type openEvent struct {
-	// PID is the ID of the process.
-	PID uint64
-
-	// ReturnCode is the return code of open.
-	ReturnCode int32
-
-	// Program is name of the executable opening the file.
-	Program string
-
-	// Path is the full path to the file being opened.
-	Path string
-
-	// Flags are the flags passed to open.
-	Flags int32
-
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint64
-}
+//// openEvent is a parsed open event.
+//type openEvent struct {
+//	// PID is the ID of the process.
+//	PID uint64
+//
+//	// ReturnCode is the return code of open.
+//	ReturnCode int32
+//
+//	// Program is name of the executable opening the file.
+//	Program string
+//
+//	// Path is the full path to the file being opened.
+//	Path string
+//
+//	// Flags are the flags passed to open.
+//	Flags int32
+//
+//	// CgroupID is the internal cgroupv2 ID of the event.
+//	CgroupID uint64
+//}
 
 type open struct {
 	closeContext context.Context
 
-	events chan *openEvent
+	eventsCh chan []byte
 
 	perfMaps []*bcc.PerfMap
 	module   *bcc.Module
@@ -84,7 +86,6 @@ type open struct {
 func newOpen(closeContext context.Context) (*open, error) {
 	e := &open{
 		closeContext: closeContext,
-		events:       make(chan *openEvent, bufferSize),
 	}
 
 	err := e.start()
@@ -96,10 +97,15 @@ func newOpen(closeContext context.Context) (*open, error) {
 }
 
 func (e *open) start() error {
+	var err error
+
 	e.module = bcc.NewModule(openSource, []string{})
+	if e.module == nil {
+		return trace.BadParameter("failed to load libbcc")
+	}
 
 	// Hook open syscall.
-	err := attachProbe(e.module, "do_sys_open", "trace_entry")
+	err = attachProbe(e.module, "do_sys_open", "trace_entry")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -109,58 +115,14 @@ func (e *open) start() error {
 	}
 
 	// Open perf buffer and start processing open events.
-	eventCh, err := openPerfBuffer(e.module, e.perfMaps, "open_events")
+	e.eventCh, err = openPerfBuffer(e.module, e.perfMaps, "open_events")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go e.handleEvents(eventCh)
 
 	return nil
 }
 
-func (e *open) handleEvents(eventCh <-chan []byte) {
-	for {
-		select {
-		case eventBytes := <-eventCh:
-			go func() {
-				var event rawOpenEvent
-
-				err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
-				if err != nil {
-					log.Debugf("Failed to read binary data: %v.", err)
-					return
-				}
-
-				// Convert C string that holds the command name into a Go string.
-				command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
-				// Convert C string that holds the path into a Go string.
-				path := C.GoString((*C.char)(unsafe.Pointer(&event.Path)))
-
-				select {
-				case e.events <- &openEvent{
-					PID:        event.PID,
-					ReturnCode: event.ReturnCode,
-					Program:    command,
-					Path:       path,
-					Flags:      event.Flags,
-					CgroupID:   event.CgroupID,
-				}:
-				case <-e.closeContext.Done():
-					return
-				default:
-					log.Warnf("Dropping open event %v/%v %v %v, events buffer full.", event.CgroupID, event.PID, path, event.Flags)
-				}
-
-				//// Remove, only for debugging.
-				//fmt.Printf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.\n",
-				//	event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
-			}()
-		}
-	}
-}
-
-// TODO(russjones): Make sure this program is actually unloaded upon exit.
 func (e *open) close() {
 	for _, perfMap := range e.perfMaps {
 		perfMap.Stop()
@@ -168,8 +130,8 @@ func (e *open) close() {
 	e.module.Close()
 }
 
-func (e *open) eventsCh() <-chan *openEvent {
-	return e.events
+func (e *open) eventsCh() <-chan []byte {
+	return e.eventsCh
 }
 
 const openSource string = `
@@ -235,5 +197,4 @@ int trace_return(struct pt_regs *ctx)
     infotmp.delete(&id);
 
     return 0;
-}
-`
+}`

@@ -1,3 +1,5 @@
+// +build linux
+
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -80,34 +82,35 @@ type rawConn6Event struct {
 	Command [commMax]byte
 }
 
-// conn6Event is a parsed connection event.
-type connEvent struct {
-	// PID is the process ID.
-	PID uint32
-
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint64
-
-	// SrcAddr is the source IP address.
-	SrcAddr net.IP
-
-	// DstAddr is the destination IP address.
-	DstAddr net.IP
-
-	// Version is the version of TCP (4 or 6).
-	Version uint64
-
-	// DstPort is the port the connection is being made to.
-	DstPort uint16
-
-	// Program is name of the executable making the connection.
-	Program string
-}
+//// conn6Event is a parsed connection event.
+//type connEvent struct {
+//	// PID is the process ID.
+//	PID uint32
+//
+//	// CgroupID is the internal cgroupv2 ID of the event.
+//	CgroupID uint64
+//
+//	// SrcAddr is the source IP address.
+//	SrcAddr net.IP
+//
+//	// DstAddr is the destination IP address.
+//	DstAddr net.IP
+//
+//	// Version is the version of TCP (4 or 6).
+//	Version uint64
+//
+//	// DstPort is the port the connection is being made to.
+//	DstPort uint16
+//
+//	// Program is name of the executable making the connection.
+//	Program string
+//}
 
 type conn struct {
 	closeContext context.Context
 
-	events chan *connEvent
+	v4EventsCh chan []byte
+	v6EventsCh chan []byte
 
 	module   *bcc.Module
 	perfMaps []*bcc.PerfMap
@@ -116,7 +119,6 @@ type conn struct {
 func newConn(closeContext context.Context) (*conn, error) {
 	e := &conn{
 		closeContext: closeContext,
-		events:       make(chan *connEvent, bufferSize),
 	}
 
 	err := e.start()
@@ -128,10 +130,15 @@ func newConn(closeContext context.Context) (*conn, error) {
 }
 
 func (e *conn) start() error {
+	var err error
+
 	e.module = bcc.NewModule(connSource, []string{})
+	if e.module == nil {
+		return trace.BadParameter("failed to load libbcc")
+	}
 
 	// Hook IPv4 connection attempts.
-	err := attachProbe(e.module, "tcp_v4_connect", "trace_connect_entry")
+	err = attachProbe(e.module, "tcp_v4_connect", "trace_connect_entry")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -151,125 +158,20 @@ func (e *conn) start() error {
 	}
 
 	// Open perf buffer and start processing IPv4 events.
-	v4EventCh, err := openPerfBuffer(e.module, e.perfMaps, "ipv4_events")
+	e.v4EventCh, err = openPerfBuffer(e.module, e.perfMaps, "ipv4_events")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go e.handle4Events(v4EventCh)
 
 	// Open perf buffer and start processing IPv6 events.
-	v6EventCh, err := openPerfBuffer(e.module, e.perfMaps, "ipv6_events")
+	e.v6EventCh, err = openPerfBuffer(e.module, e.perfMaps, "ipv6_events")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go e.handle6Events(v6EventCh)
 
 	return nil
 }
 
-func (e *conn) handle4Events(eventCh <-chan []byte) {
-	for {
-		select {
-		case eventBytes := <-eventCh:
-			var event rawConn4Event
-
-			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
-			if err != nil {
-				log.Debugf("Failed to read binary data: %v.", err)
-				continue
-			}
-
-			// Source.
-			src := make([]byte, 4)
-			binary.LittleEndian.PutUint32(src, uint32(event.SrcAddr))
-			srcAddr := net.IP(src)
-
-			// Destination.
-			dst := make([]byte, 4)
-			binary.LittleEndian.PutUint32(dst, uint32(event.DstAddr))
-			dstAddr := net.IP(dst)
-
-			// Convert C string that holds the command name into a Go string.
-			command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
-			select {
-			case e.events <- &connEvent{
-				PID:      event.PID,
-				CgroupID: event.CgroupID,
-				SrcAddr:  srcAddr,
-				DstAddr:  dstAddr,
-				Version:  4,
-				DstPort:  event.DstPort,
-				Program:  command,
-			}:
-			case <-e.closeContext.Done():
-				return
-			default:
-				log.Warnf("Dropping connect (IPv4) event %v/%v %v %v, buffer full.", event.CgroupID, event.PID, srcAddr, dstAddr)
-			}
-
-			//// Remove, only for debugging.
-			//fmt.Printf("--> Event=conn4 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
-			//	event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
-		}
-	}
-}
-
-func (e *conn) handle6Events(eventCh <-chan []byte) {
-	for {
-		select {
-		case eventBytes := <-eventCh:
-			var event rawConn6Event
-
-			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
-			if err != nil {
-				log.Debugf("Failed to read binary data: %v.", err)
-				continue
-			}
-
-			// Source.
-			src := make([]byte, 16)
-			binary.LittleEndian.PutUint32(src[0:], event.SrcAddr[0])
-			binary.LittleEndian.PutUint32(src[4:], event.SrcAddr[1])
-			binary.LittleEndian.PutUint32(src[8:], event.SrcAddr[2])
-			binary.LittleEndian.PutUint32(src[12:], event.SrcAddr[3])
-			srcAddr := net.IP(src)
-
-			// Destination.
-			dst := make([]byte, 16)
-			binary.LittleEndian.PutUint32(dst[0:], event.DstAddr[0])
-			binary.LittleEndian.PutUint32(dst[4:], event.DstAddr[1])
-			binary.LittleEndian.PutUint32(dst[8:], event.DstAddr[2])
-			binary.LittleEndian.PutUint32(dst[12:], event.DstAddr[3])
-			dstAddr := net.IP(dst)
-
-			// Convert C string that holds the command name into a Go string.
-			command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
-			select {
-			case e.events <- &connEvent{
-				PID:      event.PID,
-				CgroupID: event.CgroupID,
-				SrcAddr:  srcAddr,
-				DstAddr:  dstAddr,
-				Version:  6,
-				DstPort:  event.DstPort,
-				Program:  command,
-			}:
-			case <-e.closeContext.Done():
-				return
-			default:
-				log.Warnf("Dropping connect (IPv6) event %v/%v %v %v, buffer full.", event.CgroupID, event.PID, srcAddr, dstAddr)
-			}
-
-			//// Remove, only for debugging.
-			//fmt.Printf("--> Event=conn6 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
-			//	event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
-		}
-	}
-}
-
-// TODO(russjones): Make sure this program is actually unloaded upon exit.
 func (e *conn) close() {
 	for _, perfMap := range e.perfMaps {
 		perfMap.Stop()
@@ -277,8 +179,12 @@ func (e *conn) close() {
 	e.module.Close()
 }
 
-func (e *conn) eventsCh() <-chan *connEvent {
-	return e.events
+func (e *conn) v4EventsCh() <-chan []byte {
+	return e.v4EventsCh
+}
+
+func (e *conn) v6EventsCh() <-chan []byte {
+	return e.v6EventsCh
 }
 
 const connSource string = `
@@ -394,5 +300,4 @@ int trace_connect_v4_return(struct pt_regs *ctx)
 int trace_connect_v6_return(struct pt_regs *ctx)
 {
     return trace_connect_return(ctx, 6);
-}
-`
+}`

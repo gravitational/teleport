@@ -37,6 +37,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 
@@ -47,7 +48,19 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentBPF,
 })
 
-var _ = fmt.Printf
+// Config holds configuration for the cgroup service.
+type Config struct {
+	// MountPath is where the cgroupv2 hierarchy is mounted.
+	MountPath string
+}
+
+// CheckAndSetDefaults checks BPF configuration.
+func (c *Config) CheckAndSetDefaults() error {
+	if c.MountPath == "" {
+		c.MountPath = defaults.CgroupMountPath
+	}
+	return nil
+}
 
 type Service struct {
 }

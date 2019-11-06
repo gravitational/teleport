@@ -1,3 +1,5 @@
+// +build linux
+
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -54,35 +56,35 @@ type rawExecEvent struct {
 	CgroupID uint64
 }
 
-// execEvent is the parsed execve event.
-type execEvent struct {
-	// PID is the ID of the process.
-	PID uint64
-
-	// PPID is the PID of the parent process.
-	PPID uint64
-
-	// Program is name of the executable.
-	Program string
-
-	// Path is the full path to the executable.
-	Path string
-
-	// Argv is the list of arguments to the program. Note, the first element does
-	// not contain the name of the process.
-	Argv []string
-
-	// ReturnCode is the return code of execve.
-	ReturnCode int32
-
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint64
-}
+//// execEvent is the parsed execve event.
+//type execEvent struct {
+//	// PID is the ID of the process.
+//	PID uint64
+//
+//	// PPID is the PID of the parent process.
+//	PPID uint64
+//
+//	// Program is name of the executable.
+//	Program string
+//
+//	// Path is the full path to the executable.
+//	Path string
+//
+//	// Argv is the list of arguments to the program. Note, the first element does
+//	// not contain the name of the process.
+//	Argv []string
+//
+//	// ReturnCode is the return code of execve.
+//	ReturnCode int32
+//
+//	// CgroupID is the internal cgroupv2 ID of the event.
+//	CgroupID uint64
+//}
 
 type exec struct {
 	closeContext context.Context
 
-	events chan *execEvent
+	eventsCh chan []byte
 
 	perfMaps []*bcc.PerfMap
 	module   *bcc.Module
@@ -91,7 +93,6 @@ type exec struct {
 func newExec(closeContext context.Context) (*exec, error) {
 	e := &exec{
 		closeContext: closeContext,
-		events:       make(chan *execEvent, bufferSize),
 	}
 
 	err := e.start()
@@ -103,10 +104,15 @@ func newExec(closeContext context.Context) (*exec, error) {
 }
 
 func (e *exec) start() error {
+	var err error
+
 	e.module = bcc.NewModule(execveSource, []string{})
+	if e.module == nil {
+		return trace.BadParameter("failed to load libbcc")
+	}
 
 	// Hook execve syscall.
-	err := attachProbe(e.module, bcc.GetSyscallFnName("execve"), "syscall__execve")
+	err = attachProbe(e.module, bcc.GetSyscallFnName("execve"), "syscall__execve")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -116,78 +122,14 @@ func (e *exec) start() error {
 	}
 
 	// Open perf buffer and start processing execve events.
-	eventCh, err := openPerfBuffer(e.module, e.perfMaps, "execve_events")
+	e.eventCh, err = openPerfBuffer(e.module, e.perfMaps, "execve_events")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go e.handleEvents(eventCh)
 
 	return nil
 }
 
-func (e *exec) handleEvents(eventCh <-chan []byte) {
-	// TODO(russjones): Replace with ttlmap.
-	args := make(map[uint64][]string)
-
-	for {
-		select {
-		case eventBytes := <-eventCh:
-			var event rawExecEvent
-
-			err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
-			if err != nil {
-				log.Debugf("Failed to read binary data: %v.", err)
-				continue
-			}
-
-			if eventArg == event.Type {
-				buf, ok := args[event.PID]
-				if !ok {
-					buf = make([]string, 0)
-				}
-
-				argv := (*C.char)(unsafe.Pointer(&event.Argv))
-				buf = append(buf, C.GoString(argv))
-				args[event.PID] = buf
-			} else {
-				// The args should have come in a previous event, find them by PID.
-				argv, ok := args[event.PID]
-				if !ok {
-					log.Debugf("Got event with missing args: skipping.")
-					continue
-				}
-
-				// TODO(russjones): Who free's this C string?
-				// Convert C string that holds the command name into a Go string.
-				command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
-				select {
-				case e.events <- &execEvent{
-					PID:        event.PPID,
-					PPID:       event.PID,
-					CgroupID:   event.CgroupID,
-					Program:    command,
-					Path:       argv[0],
-					Argv:       argv[1:],
-					ReturnCode: event.ReturnCode,
-				}:
-				case <-e.closeContext.Done():
-					return
-				default:
-					log.Warnf("Dropping exec event %v/%v %v, events buffer full.", event.CgroupID, event.PID, argv)
-				}
-
-				//// Remove, only for debugging.
-				//fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Program=%v Path=%v Args=%v ReturnCode=%v.\n",
-				//	event.CgroupID, event.PID, event.PPID, command, argv[0], argv[1:], event.ReturnCode)
-			}
-		case <-e.closeContext.Done():
-			return
-		}
-	}
-}
-
-// TODO(russjones): Make sure this program is actually unloaded upon exit.
 func (e *exec) close() {
 	for _, perfMap := range e.perfMaps {
 		perfMap.Stop()
@@ -195,8 +137,8 @@ func (e *exec) close() {
 	e.module.Close()
 }
 
-func (e *exec) eventsCh() <-chan *execEvent {
-	return e.events
+func (e *exec) eventsCh() <-chan []byte {
+	return e.eventsCh
 }
 
 const execveSource string = `
@@ -300,10 +242,4 @@ int do_ret_sys_execve(struct pt_regs *ctx)
     execve_events.perf_submit(ctx, &data, sizeof(data));
 
     return 0;
-}
-`
-
-const (
-	eventArg = 0
-	eventRet = 1
-)
+}`
