@@ -109,16 +109,19 @@ spec:
     # regular users can only be guests and their certificates will have a TTL of 1 hour:
     max_session_ttl: "1h"
   allow:
-    # only allow login as either ubuntu or the username claim
-    logins: [ "{{external.username}}", ubuntu ]
+    # only allow login as either ubuntu or the 'windowsaccountname' claim
+    logins: [ '{{external."http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"}}', ubuntu ]
+    node_labels:
+      "access": "relaxed"
 ```
 
 This role declares:
 
-* Devs are only allowed to login to nodes labelled with `access: relaxed` label. 
+* Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 * Developers can log in as `ubuntu` user
-* Notice `{{external.username}}` login. It configures Teleport to look at
-  _"username"_ ADFS claim and use that field as an allowed login for each user.
+* Notice `{{external."http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"}}` login. It configures Teleport to look at
+  _"http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"_ ADFS claim and use that field as an allowed login for each user.
+  Also note the double quotes (`"`) around the claim name - these are important.
 * Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
@@ -132,7 +135,7 @@ metadata:
 spec:
   # display allows to set the caption of the "login" button
   # in the Web interface
-  display: "Login with MS Active Directory"
+  display: "MS Active Directory"
   provider: "adfs"
   acs: "https://localhost:3080/v1/webapi/saml/acs"
   entity_descriptor_url: "https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml"

@@ -1,16 +1,17 @@
-{% if page %}
-  <script>
-    // current page data
-    var mkdocs_page_name = "{{ page.title }}";
-    var mkdocs_page_input_path = "{{ page.input_path }}";
-    var mkdocs_page_url = "{{ page.abs_url }}";
 
-    // configure UI components
-    window.grvConfig = window.grvConfig || {
-      docVersions:  ["1.3", "2.0", "2.3", "2.4", "2.5", "2.7", "3.0", "3.1", "3.2", "4.0"],
+{% if page %}
+<script>
+  // Current page data
+  var mkdocs_page_name = "{{ page.title }}";
+  var mkdocs_page_input_path = "{{ page.input_path }}";
+  var mkdocs_page_url = "{{ page.abs_url }}";
+
+ // configure UI components
+ window.grvConfig = window.grvConfig || {
+      docVersions:  ["1.3", "2.0", "2.3", "2.4", "2.5", "2.7", "3.0", "3.1", "3.2", "4.0", "4.1"],
       docCurrentVer:  "{{ config.extra.version }}"
     };
-  </script>
+ </script>
 {% endif %}
 
 <script src="{{ base_url }}/src/prettify.js"></script>
@@ -23,4 +24,5 @@
 {%- endfor %}
 
 <script src="{{ base_url }}/src/third-party.js"></script>
-<script src="https://cdn.pagesense.io/js/nbytqvvf/0607e6b1830a470b933a4028e91195ab.js"></script>
+
+

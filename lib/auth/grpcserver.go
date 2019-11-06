@@ -146,6 +146,45 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCerts
 	return certs, err
 }
 
+func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*services.UserV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	user, err := auth.AuthWithRoles.GetUser(req.Name, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	v2, ok := user.(*services.UserV2)
+	if !ok {
+		log.Warnf("expected type services.UserV2, got %T for user %q", user, user.GetName())
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected user type"))
+	}
+	return v2, nil
+}
+
+func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthService_GetUsersServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	users, err := auth.AuthWithRoles.GetUsers(req.WithSecrets)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	for _, user := range users {
+		v2, ok := user.(*services.UserV2)
+		if !ok {
+			log.Warnf("expected type services.UserV2, got %T for user %q", user, user.GetName())
+			return trail.ToGRPC(trace.Errorf("encountered unexpected user type"))
+		}
+		if err := stream.Send(v2); err != nil {
+			return trail.ToGRPC(err)
+		}
+	}
+	return nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

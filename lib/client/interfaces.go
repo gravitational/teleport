@@ -57,6 +57,14 @@ type Key struct {
 	ClusterName string
 }
 
+// TLSCAs returns all TLS CA certificates from this key
+func (k *Key) TLSCAs() (result [][]byte) {
+	for _, ca := range k.TrustedCA {
+		result = append(result, ca.TLSCertificates...)
+	}
+	return result
+}
+
 // TLSConfig returns client TLS configuration used
 // to authenticate against API servers
 func (k *Key) ClientTLSConfig() (*tls.Config, error) {

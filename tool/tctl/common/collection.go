@@ -37,10 +37,18 @@ type ResourceCollection interface {
 	writeText(w io.Writer) error
 	writeJSON(w io.Writer) error
 	writeYAML(w io.Writer) error
+	resources() []services.Resource
 }
 
 type roleCollection struct {
 	roles []services.Role
+}
+
+func (c *roleCollection) resources() (r []services.Resource) {
+	for _, resource := range c.roles {
+		r = append(r, resource)
+	}
+	return r
 }
 
 func (r *roleCollection) writeText(w io.Writer) error {
@@ -81,6 +89,13 @@ func (r *roleCollection) writeYAML(w io.Writer) error {
 
 type namespaceCollection struct {
 	namespaces []services.Namespace
+}
+
+func (c *namespaceCollection) resources() (r []services.Resource) {
+	for _, resource := range c.namespaces {
+		r = append(r, &resource)
+	}
+	return r
 }
 
 func (n *namespaceCollection) writeText(w io.Writer) error {
@@ -135,6 +150,13 @@ type serverCollection struct {
 	servers []services.Server
 }
 
+func (c *serverCollection) resources() (r []services.Resource) {
+	for _, resource := range c.servers {
+		r = append(r, resource)
+	}
+	return r
+}
+
 func (s *serverCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Nodename", "UUID", "Address", "Labels"})
 	for _, s := range s.servers {
@@ -170,6 +192,13 @@ type userCollection struct {
 	users []services.User
 }
 
+func (c *userCollection) resources() (r []services.Resource) {
+	for _, resource := range c.users {
+		r = append(r, resource)
+	}
+	return r
+}
+
 func (s *userCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"User"})
 	for _, u := range s.users {
@@ -201,6 +230,13 @@ func (r *userCollection) writeYAML(w io.Writer) error {
 
 type authorityCollection struct {
 	cas []services.CertAuthority
+}
+
+func (c *authorityCollection) resources() (r []services.Resource) {
+	for _, resource := range c.cas {
+		r = append(r, resource)
+	}
+	return r
 }
 
 func (a *authorityCollection) writeText(w io.Writer) error {
@@ -253,6 +289,13 @@ type reverseTunnelCollection struct {
 	tunnels []services.ReverseTunnel
 }
 
+func (c *reverseTunnelCollection) resources() (r []services.Resource) {
+	for _, resource := range c.tunnels {
+		r = append(r, resource)
+	}
+	return r
+}
+
 func (r *reverseTunnelCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Cluster Name", "Dial Addresses"})
 	for _, tunnel := range r.tunnels {
@@ -286,6 +329,13 @@ func (r *reverseTunnelCollection) writeYAML(w io.Writer) error {
 
 type oidcCollection struct {
 	connectors []services.OIDCConnector
+}
+
+func (c *oidcCollection) resources() (r []services.Resource) {
+	for _, resource := range c.connectors {
+		r = append(r, resource)
+	}
+	return r
 }
 
 func (c *oidcCollection) writeText(w io.Writer) error {
@@ -323,6 +373,13 @@ type samlCollection struct {
 	connectors []services.SAMLConnector
 }
 
+func (c *samlCollection) resources() (r []services.Resource) {
+	for _, resource := range c.connectors {
+		r = append(r, resource)
+	}
+	return r
+}
+
 func (c *samlCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Name", "SSO URL"})
 	for _, conn := range c.connectors {
@@ -356,6 +413,19 @@ type connectorsCollection struct {
 	oidc   []services.OIDCConnector
 	saml   []services.SAMLConnector
 	github []services.GithubConnector
+}
+
+func (c *connectorsCollection) resources() (r []services.Resource) {
+	for _, resource := range c.oidc {
+		r = append(r, resource)
+	}
+	for _, resource := range c.saml {
+		r = append(r, resource)
+	}
+	for _, resource := range c.github {
+		r = append(r, resource)
+	}
+	return r
 }
 
 func (c *connectorsCollection) writeText(w io.Writer) error {
@@ -428,6 +498,13 @@ type trustedClusterCollection struct {
 	trustedClusters []services.TrustedCluster
 }
 
+func (c *trustedClusterCollection) resources() (r []services.Resource) {
+	for _, resource := range c.trustedClusters {
+		r = append(r, resource)
+	}
+	return r
+}
+
 func (c *trustedClusterCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{
 		"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map"})
@@ -467,6 +544,13 @@ func (c *trustedClusterCollection) writeYAML(w io.Writer) error {
 
 type githubCollection struct {
 	connectors []services.GithubConnector
+}
+
+func (c *githubCollection) resources() (r []services.Resource) {
+	for _, resource := range c.connectors {
+		r = append(r, resource)
+	}
+	return r
 }
 
 func (c *githubCollection) writeText(w io.Writer) error {
@@ -510,6 +594,13 @@ func formatTeamsToLogins(mappings []services.TeamMapping) string {
 
 type remoteClusterCollection struct {
 	remoteClusters []services.RemoteCluster
+}
+
+func (c *remoteClusterCollection) resources() (r []services.Resource) {
+	for _, resource := range c.remoteClusters {
+		r = append(r, resource)
+	}
+	return r
 }
 
 func (c *remoteClusterCollection) writeText(w io.Writer) error {

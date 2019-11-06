@@ -19,7 +19,7 @@ $ sudo make install
 Gravitational Teleport is written in Go language. It requires Golang v1.8.3 or
 newer.
 
-```yaml
+```bash
 # get the source & build:
 $ mkdir -p $GOPATH/src/github.com/gravitational
 $ cd $GOPATH/src/github.com/gravitational
@@ -30,6 +30,36 @@ $ make full
 # create the default data directory before starting:
 $ sudo mkdir -p /var/lib/teleport
 ```
+
+### Teleport Checksum
+
+Gravitational Teleport provides a checksum from the Downloads page.  This can be used to 
+verify the integrity of our binary. 
+
+![Teleport Checksum](img/teleport-sha.png)
+
+**Checking Checksum on Mac OS**
+```bash
+$ shasum -a 256 teleport-v4.0.8-darwin-amd64-bin.tar.gz
+0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+```
+
+**Checking Checksum on Linux**
+```bash
+$ sha256sum teleport-v4.0.8-darwin-amd64-bin.tar.gz
+0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+```
+
+**Checking Checksum on Automated Systems**
+
+If you download Teleport via an automated system, you can programmatically obtain the checksum 
+by adding `.sha256` to the binary. 
+
+```bash
+$ curl https://get.gravitational.com/teleport-v4.0.8-darwin-amd64-bin.tar.gz.sha256
+0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+```
+
 
 ## Definitions
 
@@ -76,9 +106,9 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
-ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/var/run/teleport.pid
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/teleport.pid
+PIDFile=/run/teleport.pid
 
 [Install]
 WantedBy=multi-user.target
@@ -295,8 +325,6 @@ teleport:
     # List of the supported ciphersuites. If this section is not specified,
     # only the default ciphersuites are enabled.
     ciphersuites:
-       - tls-rsa-with-aes-128-gcm-sha256
-       - tls-rsa-with-aes-256-gcm-sha384
        - tls-ecdhe-rsa-with-aes-128-gcm-sha256
        - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
        - tls-ecdhe-rsa-with-aes-256-gcm-sha384
@@ -376,6 +404,13 @@ auth_service:
     # Determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session. (default is 'no')
     disconnect_expired_cert: no
+
+    # Determines the interval at which Teleport will send keep-alive messages. The 
+    # default value mirrors sshd at 15 minutes.  keep_alive_count_max is the number 
+    # of missed keep-alive messages before the server tears down the connection to the 
+    # client. 
+    keep_alive_interval: 15
+    keep_alive_count_max: 3
 
     # License file to start auth server with. Note that this setting is ignored
     # in open-source Teleport and is required only for Teleport Pro, Business
@@ -483,7 +518,7 @@ proxy_service:
 
 #### Public Addr
 
-Notice that all three Teleport sevices (proxy, auth, node) have an optional
+Notice that all three Teleport services (proxy, auth, node) have an optional
 `public_addr` property. The public address can take an IP or a DNS name.
 It can also be a list of values:
 
@@ -578,7 +613,7 @@ hardware keys as a second authentication factor. By default U2F is disabled. To 
 * For web-based logins you have to use Google Chrome, as it is the only browser supporting U2F at this time.
 
 ```yaml
-# snippet from /etc/teleport.yaml to show an examlpe configuration of U2F:
+# snippet from /etc/teleport.yaml to show an example configuration of U2F:
 auth_service:
   authentication:
     type: local
@@ -961,7 +996,7 @@ command: ["/bin/uname", "-m"]
 command: ["/bin/uname -m"]
 
 # if you want to pipe several bash commands together, here's how to do it:
-# notice how ' and " are iterchangeable and you can use it for quoting:
+# notice how ' and " are interchangeable and you can use it for quoting:
 command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+'"]
 ```
 
@@ -971,7 +1006,7 @@ command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+'"]
 Teleport logs every SSH event into its audit log. There are two components of the audit log:
 
 1. **SSH Events:** Teleport logs events like successful user logins along with
-   the metadata like remote IP address, time and the sesion ID.
+   the metadata like remote IP address, time and the session ID.
 2. **Recorded Sessions:** Every SSH shell session is recorded and can be replayed
    later. The recording is done by the nodes themselves, by default, but can be configured
    to be done by the proxy.
@@ -990,7 +1025,7 @@ chapters on how to configure the SSH events and recorded sessions to be stored
 on network storage. It is even possible to store the audit log in multiple places at the same time,
 see `audit_events_uri` setting in the sample configuration file above for how to do that.
 
-Let's examing the Teleport audit log using the `dir` backend. The event log is
+Let's examine the Teleport audit log using the `dir` backend. The event log is
 stored in `data_dir` under `log` directory, usually `/var/lib/teleport/log`.
 Each day is represented as a file:
 
@@ -1017,7 +1052,7 @@ Each line represents an event and has the following format:
    "namespace"  : "default",
    // Unique server ID.
    "server_id"  : "f84f7386-5e22-45ff-8f7d-b8079742e63f",
-   // Session ID. Can be used to replay the sesssion.
+   // Session ID. Can be used to replay the session.
    "sid"        : "8d3895b6-e9dd-11e6-94de-40167e68e931",
    // Address of the SSH node
    "addr.local" : "10.5.l.15:3022",
@@ -1220,9 +1255,9 @@ manipulated with just 3 CLI commands:
 
 Command         | Description | Examples
 ----------------|-------------|----------
-`tctl get`      | Get one or multipe resources           | `tctl get users` or `tctl get user/joe`
+`tctl get`      | Get one or multiple resources           | `tctl get users` or `tctl get user/joe`
 `tctl rm`       | Delete a resource by type/name         | `tctl rm user/joe`
-`tctl create`   | Create a new resource from a YAML file. Use `-f` to overide / update | `tctl create -f joe.yaml`
+`tctl create`   | Create a new resource from a YAML file. Use `-f` to override / update | `tctl create -f joe.yaml`
 
 !!! warning "YAML Format":
     By default Teleport uses [YAML format](https://en.wikipedia.org/wiki/YAML)
@@ -1352,7 +1387,7 @@ world usage examples of this capability include:
 
 Let's take a look at how a connection is established between the "main" cluster and the "east" cluster:
 
-![Tunnels](img/tunnel.svg)
+![Tunnels](/img/trusted-clusters/TrustedClusters-Simple.svg)
 
 This setup works as follows:
 
@@ -1399,7 +1434,7 @@ The cluster invite token: generated-token-to-add-new-clusters
 
 **Using a Cluster Join Token**
 
-Now, the administrator of "east" must create the following resource file:
+Now, the administrator of "east (leaf)" must create the following resource file:
 
 ```yaml
 # cluster.yaml
@@ -1408,7 +1443,7 @@ version: v2
 metadata:
   # the trusted cluster name MUST match the 'cluster_name' setting of the
   # cluster
-  name: main
+  name: east
 spec:
   # this field allows to create tunnels that are disabled, but can be enabled later.
   enabled: true
@@ -1446,7 +1481,7 @@ list of available clusters.
 
 ### Using Trusted Clusters
 
-As mentioned above, accessibility is only granted in one direction. So, only users from the "main" (trusted cluster) can now access nodes in the "east" (trusting cluster). Users in the "east" cluster will not be able to access the "main" cluster.
+As mentioned above, accessibility is only granted in one direction. So, only users from the "main" (root cluster) can now access nodes in the "east" (leaf cluster). Users in the "east" cluster will not be able to access the "main" cluster.
 
 ```bsh
 # login into the main cluster:
@@ -1491,7 +1526,7 @@ $ tctl rm tc/east
 
 While accessibility is only granted in one direction, trust is granted in both directions. If you remote "east" from "main", the following will happen:
 
-* Two clusters will be disconnected, becase "main" will drop the inbound SSH tunnel connection from "east" and will not allow a new one.
+* Two clusters will be disconnected, because "main" will drop the inbound SSH tunnel connection from "east" and will not allow a new one.
 * "main" will stop trusting certificates issued by "east".
 * "east" will continue to trust certificates issued by "main".
 
@@ -1520,7 +1555,7 @@ providers such as Github. First, the Teleport auth service must be configured
 to use Github for authentication:
 
 ```yaml
-# snippet from /etc/teleport.yaaml
+# snippet from /etc/teleport.yaml
 auth_service:
   authentication:
       type: github
@@ -2028,7 +2063,7 @@ teleport:
 
 !!! tip "AWS Authentication":
     The configuration examples below contain AWS access keys and secret keys. They are optional,
-    they exist for your convenience but we DO NOT RECOMMEND usign them in
+    they exist for your convenience but we DO NOT RECOMMEND using them in
     production. If Teleport is running on an AWS instance it will automatically
     use the instance IAM role. Teleport also will pick up AWS credentials from
     the `~/.aws` folder, just like the AWS CLI tool.
@@ -2109,7 +2144,7 @@ teleport:
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 * Audit log settings above are optional. If specified, Teleport will store the
-  audit log in DyamoDB and the session recordings **must** be stored in an S3
+  audit log in DynamoDB and the session recordings **must** be stored in an S3
   bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
@@ -2131,6 +2166,12 @@ teleport:
             "Effect": "Allow",
             "Action": "dynamodb:*",
             "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
+        },
+        {
+            "Sid": "AllAPIActionsOnTeleportStreams",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth/stream/*"
         }
     ]
 }
@@ -2154,13 +2195,18 @@ which makes it easy to tell if a specific version is recommended for production 
 When running multiple binaries of Teleport within a cluster (nodes, proxies,
 clients, etc), the following rules apply:
 
-* Patch versions are always compatible, for example any 4.0.1 compoment will
+* Patch versions are always compatible, for example any 4.0.1 component will
   work with any 4.0.3 component.
 * Other versions are always compatible with their **previous** release. This
   means you must not attempt to upgrade from 3.3 straight to 3.5. You must
   upgrade to 3.4 first.
 * Teleport clients (`tsh` for users and `tctl` for admins) may not be compatible if older than the auth or the proxy server. They will print an error if there is an incompatibility.
 * While 4.0 is a major release. 3.2 can be upgraded to 4.0 using the same upgrade sequence below. 
+
+!!! warning "Upgrading to Teleport 4.0+":
+    Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
+    two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
+    [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
 
 ### Upgrade Sequence
 

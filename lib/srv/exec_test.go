@@ -25,10 +25,13 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"strconv"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -39,11 +42,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/docker/docker/pkg/term"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
-
-func TestExec(t *testing.T) { check.TestingT(t) }
 
 // ExecSuite also implements ssh.ConnMetadata
 type ExecSuite struct {
@@ -89,7 +91,14 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	s.usr, _ = user.Current()
-	s.ctx = &ServerContext{IsTestStub: true, srv: &fakeServer{accessPoint: a, id: "00000000-0000-0000-0000-000000000000"}}
+	s.ctx = &ServerContext{
+		IsTestStub: true,
+		srv: &fakeServer{
+			accessPoint: a,
+			auditLog:    &fakeLog{},
+			id:          "00000000-0000-0000-0000-000000000000",
+		},
+	}
 	s.ctx.Identity.Login = s.usr.Username
 	s.ctx.session = &session{id: "xxx", term: &fakeTerminal{f: f}}
 	s.ctx.Identity.TeleportUser = "galt"
@@ -162,6 +171,47 @@ func (s *ExecSuite) TestLoginDefsParser(c *check.C) {
 	c.Assert(getDefaultEnvPath("0", "../../fixtures/login.defs"), check.Equals, expectedEnvSuPath)
 	c.Assert(getDefaultEnvPath("1000", "../../fixtures/login.defs"), check.Equals, expectedSuPath)
 	c.Assert(getDefaultEnvPath("1000", "bad/file"), check.Equals, defaultEnvPath)
+}
+
+// TestEmitExecAuditEvent make sure the full command and exit code for a
+// command is always recorded.
+func (s *ExecSuite) TestEmitExecAuditEvent(c *check.C) {
+	fakeLog, ok := s.ctx.srv.GetAuditLog().(*fakeLog)
+	c.Assert(ok, check.Equals, true)
+
+	var tests = []struct {
+		inCommand  string
+		inError    error
+		outCommand string
+		outCode    string
+	}{
+		// Successful execution.
+		{
+			inCommand:  "exit 0",
+			inError:    nil,
+			outCommand: "exit 0",
+			outCode:    strconv.Itoa(teleport.RemoteCommandSuccess),
+		},
+		// Exited with error.
+		{
+			inCommand:  "exit 255",
+			inError:    fmt.Errorf("unknown error"),
+			outCommand: "exit 255",
+			outCode:    strconv.Itoa(teleport.RemoteCommandFailure),
+		},
+		// Command injection.
+		{
+			inCommand:  "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
+			inError:    fmt.Errorf("unknown error"),
+			outCommand: "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
+			outCode:    strconv.Itoa(teleport.RemoteCommandFailure),
+		},
+	}
+	for _, tt := range tests {
+		emitExecAuditEvent(s.ctx, tt.inCommand, tt.inError)
+		c.Assert(fakeLog.lastEvent.GetString(events.ExecEventCommand), check.Equals, tt.outCommand)
+		c.Assert(fakeLog.lastEvent.GetString(events.ExecEventCode), check.Equals, tt.outCode)
+	}
 }
 
 // implementation of ssh.Conn interface
@@ -261,11 +311,16 @@ func (f *fakeTerminal) SetTermType(string) {
 
 // fakeServer is stub for tests
 type fakeServer struct {
+	auditLog    events.IAuditLog
 	accessPoint auth.AccessPoint
 	id          string
 }
 
 func (f *fakeServer) ID() string {
+	return f.id
+}
+
+func (f *fakeServer) HostUUID() string {
 	return f.id
 }
 
@@ -289,7 +344,7 @@ func (s *fakeServer) EmitAuditEvent(events.Event, events.EventFields) {
 }
 
 func (f *fakeServer) GetAuditLog() events.IAuditLog {
-	return nil
+	return f.auditLog
 }
 
 func (f *fakeServer) GetAccessPoint() auth.AccessPoint {
@@ -318,4 +373,46 @@ func (f *fakeServer) GetInfo() services.Server {
 
 func (f *fakeServer) UseTunnel() bool {
 	return false
+}
+
+// fakeLog is used in tests to obtain the last event emit to the Audit Log.
+type fakeLog struct {
+	lastEvent events.EventFields
+}
+
+func (a *fakeLog) EmitAuditEvent(e events.Event, f events.EventFields) error {
+	a.lastEvent = f
+	return nil
+}
+
+func (a *fakeLog) PostSessionSlice(s events.SessionSlice) error {
+	return trace.NotImplemented("not implemented")
+}
+
+func (a *fakeLog) UploadSessionRecording(r events.SessionRecording) error {
+	return trace.NotImplemented("not implemented")
+}
+
+func (a *fakeLog) GetSessionChunk(namespace string, sid rsession.ID, offsetBytes int, maxBytes int) ([]byte, error) {
+	return nil, trace.NotFound("")
+}
+
+func (a *fakeLog) GetSessionEvents(namespace string, sid rsession.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
+	return nil, trace.NotFound("")
+}
+
+func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]events.EventFields, error) {
+	return nil, trace.NotFound("")
+}
+
+func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]events.EventFields, error) {
+	return nil, trace.NotFound("")
+}
+
+func (a *fakeLog) WaitForDelivery(context.Context) error {
+	return trace.NotImplemented("not implemented")
+}
+
+func (a *fakeLog) Close() error {
+	return trace.NotFound("")
 }

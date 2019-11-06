@@ -661,7 +661,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 	err = p.usersS.UpsertUser(user)
 	c.Assert(err, check.IsNil)
 
-	user, err = p.usersS.GetUser(user.GetName())
+	user, err = p.usersS.GetUser(user.GetName(), false)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -671,7 +671,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetUser(user.GetName())
+	out, err := p.cache.GetUser(user.GetName(), false)
 	c.Assert(err, check.IsNil)
 	user.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, user, out)
@@ -682,7 +682,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 	err = p.usersS.UpsertUser(user)
 	c.Assert(err, check.IsNil)
 
-	user, err = p.usersS.GetUser(user.GetName())
+	user, err = p.usersS.GetUser(user.GetName(), false)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -692,7 +692,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetUser(user.GetName())
+	out, err = p.cache.GetUser(user.GetName(), false)
 	c.Assert(err, check.IsNil)
 	user.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, user, out)
@@ -706,7 +706,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetUser(user.GetName())
+	_, err = p.cache.GetUser(user.GetName(), false)
 	fixtures.ExpectNotFound(c, err)
 }
 

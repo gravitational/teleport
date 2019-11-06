@@ -9,5 +9,5 @@ PORT=6600
 cd $(dirname $0)
 ./build.sh || exit $?
 
-echo -e "\n\n----> LIVE EDIT HERE: http://localhost:$PORT/admin-guide/\n"
+echo -e "\n\n----> LIVE EDIT HERE: http://localhost:$PORT/intro/\n"
 mkdocs serve --livereload --config-file=latest.yaml --dev-addr=0.0.0.0:$PORT & wait

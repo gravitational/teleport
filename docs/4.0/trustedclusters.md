@@ -1,5 +1,17 @@
 # Trusted Clusters
 
+The design of trusted clusters allows Teleport users to connect to compute infrastructure 
+located behind firewalls without any open TCP ports. The real world usage examples of this 
+capability include:
+
+ - Managed service providers (MSP) remotely managing infrastructure of their clients.
+ - Device manufacturers remotely maintaining computing appliances deployed on premises.
+ - Large cloud software vendors manage multiple data centers using a common proxy.
+
+**Example of a MSP provider using trusted cluster to obtain access to clients clusters.**
+![MSP Example](img/trusted-clusters/TrustedClusters-MSP.svg)
+
+
 If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.md#trusted-clusters)
 in the Admin Guide we recommend you review that for an overview before continuing with this guide.
 
@@ -33,15 +45,15 @@ _proxy server_. So, if users want to connect to nodes belonging to different
 clusters, they would normally have to use different `--proxy` flags for each
 cluster. This is not always convenient.
 
-The concept of _trusted clusters_ allows Teleport administrators to connect
+The concept of _leaf clusters_ allows Teleport administrators to connect
 multiple clusters together and establish trust between them. Trusted clusters
-allow users of one cluster to seamlessly SSH into the nodes of another cluster
-without having to "hop" between proxy servers. Moreover, users don't even need
-to have a direct connection to other clusters' proxy servers. The user
+allow users of one cluster, the root cluster to seamlessly SSH into the nodes of 
+another cluster without having to "hop" between proxy servers. Moreover, users don't
+even need to have a direct connection to other clusters' proxy servers. The user
 experience looks like this:
 
 ```bsh
-# login using the "main" cluster credentials:
+# login using the root "main" cluster credentials:
 $ tsh login --proxy=main.example.com
 
 # SSH into some host inside the "main" cluster:
@@ -55,17 +67,20 @@ $ tsh ssh --cluster=east host
 $ tsh clusters
 ```
 
-Trusted clusters also have their own restrictions on user access, i.e.
+Leaf clusters also have their own restrictions on user access, i.e.
 _permissions mapping_ takes place.
+
+**Once connection has been established it's easy to switch from the "main" root cluster**
+![Teleport Cluster Switcher](img/trusted-clusters/Teleport-Cluster-switcher.png)
 
 ## Join Tokens
 
 Lets start with the diagram of how connection between two clusters is established:
 
-![Tunnels](img/tunnel.svg)
+![Tunnels](img/trusted-clusters/TrustedClusters-Simple.svg)
 
 The first step in establishing a secure tunnel between two clusters is for the
-_trusting_ cluster "east" to connect to the _trusted_ cluster "main". When this
+_leaf_ cluster "east" to connect to the _root_ cluster "main". When this
 happens for _the first time_, clusters know nothing about each other, thus a
 shared secret needs to exist in order for "main" to accept the connection from
 "east".
@@ -74,12 +89,14 @@ This shared secret is called a "join token". There are two ways to create join
 tokens: to statically define them in a configuration file, or to create them on
 the fly using `tctl` tool.
 
+
+
 !!! tip "Important":
     It is important to realize that join tokens are only used to establish the
     connection for the first time. The clusters will exchange certificates and
     won't be using the token to re-establish the connection in the future.
 
-### Static Tokens
+### Static Join Tokens
 
 To create a static join token, update the configuration file on "main" cluster
 to look like this:
@@ -94,7 +111,7 @@ auth_service:
 
 This token can be used unlimited number of times.
 
-### Dynamic Tokens
+### Dynamic Join Tokens
 
 Creating a token dynamically with a CLI tool offers the advantage of applying a
 time to live (TTL) interval on it, i.e. it will be impossible to re-use such
@@ -131,7 +148,7 @@ more complicated.
 
 !!! warning "Version Warning":
     The RBAC section is applicable only to Teleport Enterprise. The open source
-    version does not suppport SSH roles.
+    version does not support SSH roles.
 
 When a _trusting_ cluster "east" from the diagram above establishes trust with
 the _trusted_ cluster "main", it needs a way to configure which users from
@@ -144,6 +161,7 @@ Consider the following:
 * Every user in Teleport Enterprise is assigned a role.
 * When creating a _trusted cluster_ resource, the administrator of "east" must
   define how roles from "main" map to roles on "east".
+* To update role map for an existing _trusted cluster_ delete and re-create the _trusted cluster_ with the updated role map
 
 ### Example
 
@@ -161,17 +179,17 @@ First, we need to create a special role for main users on "east":
 ```yaml
 # save this into main-user-role.yaml on the east cluster and execute:
 # tctl create main-user-role.yaml
-- kind: role
-  version: v3
-  metadata:
-    name: local-admin
-  spec:
-    allow:
-      node_labels:
-        '*': '*'
-    deny:
-      node_labels:
-        "environment": "production"
+kind: role
+version: v3
+metadata:
+  name: local-admin
+spec:
+  allow:
+    node_labels:
+      '*': '*'
+  deny:
+    node_labels:
+      "environment": "production"
 ```
 
 Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is
@@ -218,13 +236,39 @@ role name and use reference it to name the local role:
 **NOTE:** The regexp matching is activated only when the expression starts
 with `^` and ends with `$`
 
+
+### Trusted Cluster UI
+For customers using Teleport Enterprise, they can easily configure _leaf_ nodes using the 
+Teleport Proxy UI. 
+
+**Creating Trust from the Leaf node to the root node.**
+![Tunnels](img/trusted-clusters/setting-up-trust.png)
+
+**The root cluster showing the cluster switching UI.** 
+![Teleport Cluster Switcher](img/trusted-clusters/Teleport-Cluster-switcher.png)
+
+## Updating Trusted Cluster Role Map
+
+In order to update the role map for a trusted cluster first we will need to remove the cluster by executing:
+
+```bsh
+$ tctl rm main-cluster.yaml
+```
+
+Then following updating the role map, we can re-create the cluster by executing:
+
+```bsh
+$ tctl create main-user-updated-role.yaml
+```
+
+
 ## Using Trusted Clusters
 
 Now an admin from the main cluster can now see and access the "east" cluster:
 
 ```bsh
 # login into the main cluster:
-$ tsh --proxy=proxy.main login admin
+$ tsh --proxy=main.example.com login admin
 ```
 
 ```bsh
@@ -288,8 +332,8 @@ certificate authority. A certificate contains four important pieces of data:
 Try executing `tsh status` right after `tsh login` to see all these fields in the
 client certificate.
 
-When a user from "main" tries to connect to a node inside "east" cluster, her
-certificate is presented to the auth server of "east" and it performs the
+When a user from "main (root)" tries to connect to a node inside "east (leaf)" cluster, her
+certificate is presented to the auth server of "east (leaf)" and it performs the
 following checks:
 
 * Checks that the certificate signature matches one of the trusted clusters.
@@ -302,7 +346,7 @@ following checks:
 There are three common types of problems Teleport administrators can run into when configuring
 trust between two clusters:
 
-* **HTTPS configuration**: when the main cluster uses a self-sgined or invalid HTTPS certificate.
+* **HTTPS configuration**: when the main cluster uses a self-signed or invalid HTTPS certificate.
 
 * **Connectivity problems**: when a trusting cluster "east" does not show up in
   `tsh clusters` output on "main".

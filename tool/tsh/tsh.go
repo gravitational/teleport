@@ -17,14 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
@@ -39,7 +34,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeclient "github.com/gravitational/teleport/lib/kube/client"
@@ -47,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tsh/common"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -157,6 +152,13 @@ type CLIConf struct {
 
 	// Verbose is used to print extra output.
 	Verbose bool
+
+	// NoRemoteExec will not execute a remote command after connecting to a host,
+	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
+	NoRemoteExec bool
+
+	// Debug sends debug logs to stdout.
+	Debug bool
 }
 
 func main() {
@@ -180,6 +182,7 @@ const (
 	clusterEnvVar  = "TELEPORT_SITE"
 	clusterHelp    = "Specify the cluster to connect"
 	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
+	authEnvVar     = "TELEPORT_AUTH"
 )
 
 // Run executes TSH client. same as main() but easier to test
@@ -204,12 +207,12 @@ func Run(args []string, underTest bool) {
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
-	app.Flag("auth", "Specify the type of authentication connector to use.").StringVar(&cf.AuthConnector)
+	app.Flag("auth", "Specify the type of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
-	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
+	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
 	// ssh
@@ -225,6 +228,7 @@ func Run(args []string, underTest bool) {
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
+	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -299,8 +303,8 @@ func Run(args []string, underTest bool) {
 		utils.FatalError(err)
 	}
 
-	// apply -d flag:
-	if *debugMode {
+	// While in debug mode, send logs to stdout.
+	if cf.Debug {
 		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 	}
 
@@ -373,6 +377,13 @@ func onLogin(cf *CLIConf) {
 		key *client.Key
 	)
 
+	// populate cluster name from environment variables
+	// only if not set by argument (that does not support env variables)
+	clusterName := os.Getenv(clusterEnvVar)
+	if cf.SiteName == "" {
+		cf.SiteName = clusterName
+	}
+
 	if cf.IdentityFileIn != "" {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
 	}
@@ -401,11 +412,11 @@ func onLogin(cf *CLIConf) {
 		switch {
 		// in case if nothing is specified, print current status
 		case cf.Proxy == "" && cf.SiteName == "":
-			printProfiles(profile, profiles)
+			printProfiles(cf.Debug, profile, profiles)
 			return
 		// in case if parameters match, print current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster:
-			printProfiles(profile, profiles)
+			printProfiles(cf.Debug, profile, profiles)
 			return
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
@@ -866,7 +877,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 			hostAuthFunc ssh.HostKeyCallback
 		)
 		// read the ID file and create an "auth method" from it:
-		key, hostAuthFunc, err = loadIdentity(cf.IdentityFileIn)
+		key, hostAuthFunc, err = common.LoadIdentity(cf.IdentityFileIn)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -980,6 +991,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
 	c.BindAddr = cf.BindAddr
+
+	// Don't execute remote command, used when port forwarding.
+	c.NoRemoteExec = cf.NoRemoteExec
+
 	return client.NewClient(c)
 }
 
@@ -1013,189 +1028,6 @@ func refuseArgs(command string, args []string) {
 	}
 }
 
-// rawIdentity encodes the basic components of an identity file.
-type rawIdentity struct {
-	PrivateKey []byte
-	Certs      struct {
-		SSH []byte
-		TLS []byte
-	}
-	CACerts struct {
-		SSH [][]byte
-		TLS [][]byte
-	}
-}
-
-// decodeIdentity attempts to break up the contents of an identity file
-// into its respective components.
-func decodeIdentity(r io.Reader) (*rawIdentity, error) {
-	scanner := bufio.NewScanner(r)
-	var ident rawIdentity
-	// Subslice of scanner's buffer pointing to current line
-	// with leading and trailing whitespace trimmed.
-	var line []byte
-	// Attempt to scan to the next line.
-	scanln := func() bool {
-		if !scanner.Scan() {
-			line = nil
-			return false
-		}
-		line = bytes.TrimSpace(scanner.Bytes())
-		return true
-	}
-	// Check if the current line starts with prefix `p`.
-	peekln := func(p string) bool {
-		return bytes.HasPrefix(line, []byte(p))
-	}
-	// Get an "owned" copy of the current line.
-	cloneln := func() []byte {
-		ln := make([]byte, len(line))
-		copy(ln, line)
-		return ln
-	}
-	// Scan through all lines of identity file.  Lines with a known prefix
-	// are copied out of the scanner's buffer.  All others are ignored.
-	for scanln() {
-		switch {
-		case peekln("ssh"):
-			ident.Certs.SSH = cloneln()
-		case peekln("@cert-authority"):
-			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
-		case peekln("-----BEGIN"):
-			// Current line marks the beginning of a PEM block.  Consume all
-			// lines until a corresponding END is found.
-			var pemBlock []byte
-			for {
-				pemBlock = append(pemBlock, line...)
-				pemBlock = append(pemBlock, '\n')
-				if peekln("-----END") {
-					break
-				}
-				if !scanln() {
-					// If scanner has terminated in the middle of a PEM block, either
-					// the reader encountered an error, or the PEM block is a fragment.
-					if err := scanner.Err(); err != nil {
-						return nil, trace.Wrap(err)
-					}
-					return nil, trace.BadParameter("invalid PEM block (fragment)")
-				}
-			}
-			// Decide where to place the pem block based on
-			// which pem blocks have already been found.
-			switch {
-			case ident.PrivateKey == nil:
-				ident.PrivateKey = pemBlock
-			case ident.Certs.TLS == nil:
-				ident.Certs.TLS = pemBlock
-			default:
-				ident.CACerts.TLS = append(ident.CACerts.TLS, pemBlock)
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &ident, nil
-}
-
-// loadIdentity loads the private key + certificate from a file
-// Returns:
-//	 - client key: user's private key+cert
-//   - host auth callback: function to validate the host (may be null)
-//   - error, if somthing happens when reading the identityf file
-//
-// If the "host auth callback" is not returned, user will be prompted to
-// trust the proxy server.
-func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
-	log.Infof("Reading identity file: %v", idFn)
-
-	f, err := os.Open(idFn)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	defer f.Close()
-	ident, err := decodeIdentity(f)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "failed to parse identity file")
-	}
-	// did not find the certificate in the file? look in a separate file with
-	// -cert.pub prefix
-	if len(ident.Certs.SSH) == 0 {
-		certFn := idFn + "-cert.pub"
-		log.Infof("Certificate not found in %s. Looking in %s.", idFn, certFn)
-		ident.Certs.SSH, err = ioutil.ReadFile(certFn)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	}
-	// validate both by parsing them:
-	privKey, err := ssh.ParseRawPrivateKey(ident.PrivateKey)
-	if err != nil {
-		return nil, nil, trace.BadParameter("invalid identity: %s. %v", idFn, err)
-	}
-	signer, err := ssh.NewSignerFromKey(privKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	// validate TLS Cert (if present):
-	if len(ident.Certs.TLS) > 0 {
-		_, err := tls.X509KeyPair(ident.Certs.TLS, ident.PrivateKey)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	}
-	// Validate TLS CA certs (if present).
-	var trustedCA []auth.TrustedCerts
-	if len(ident.CACerts.TLS) > 0 {
-		var trustedCerts auth.TrustedCerts
-		pool := x509.NewCertPool()
-		for i, certPEM := range ident.CACerts.TLS {
-			if !pool.AppendCertsFromPEM(certPEM) {
-				return nil, nil, trace.BadParameter("identity file contains invalid TLS CA cert (#%v)", i+1)
-			}
-			trustedCerts.TLSCertificates = append(trustedCerts.TLSCertificates, certPEM)
-		}
-		trustedCA = []auth.TrustedCerts{trustedCerts}
-	}
-	var hostAuthFunc ssh.HostKeyCallback = nil
-	// validate CA (cluster) cert
-	if len(ident.CACerts.SSH) > 0 {
-		var trustedKeys []ssh.PublicKey
-		for _, caCert := range ident.CACerts.SSH {
-			_, _, publicKey, _, _, err := ssh.ParseKnownHosts(caCert)
-			if err != nil {
-				return nil, nil, trace.BadParameter("CA cert parsing error: %v. cert line :%v",
-					err.Error(), string(caCert))
-			}
-			trustedKeys = append(trustedKeys, publicKey)
-		}
-
-		// found CA cert in the indentity file? construct the host key checking function
-		// and return it:
-		hostAuthFunc = func(host string, a net.Addr, hostKey ssh.PublicKey) error {
-			clusterCert, ok := hostKey.(*ssh.Certificate)
-			if ok {
-				hostKey = clusterCert.SignatureKey
-			}
-			for _, trustedKey := range trustedKeys {
-				if sshutils.KeysEqual(trustedKey, hostKey) {
-					return nil
-				}
-			}
-			err = trace.AccessDenied("host %v is untrusted", host)
-			log.Error(err)
-			return err
-		}
-	}
-	return &client.Key{
-		Priv:      ident.PrivateKey,
-		Pub:       signer.PublicKey().Marshal(),
-		Cert:      ident.Certs.SSH,
-		TLSCert:   ident.Certs.TLS,
-		TrustedCA: trustedCA,
-	}, hostAuthFunc, nil
-}
-
 // authFromIdentity returns a standard ssh.Authmethod for a given identity file
 func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 	signer, err := sshutils.NewSigner(k.Priv, k.Cert)
@@ -1207,7 +1039,7 @@ func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) {
-	key, _, err := loadIdentity(cf.IdentityFileIn)
+	key, _, err := common.LoadIdentity(cf.IdentityFileIn)
 
 	// unmarshal certificate bytes into a ssh.PublicKey
 	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
@@ -1233,7 +1065,8 @@ func onShow(cf *CLIConf) {
 }
 
 // printStatus prints the status of the profile.
-func printStatus(p *client.ProfileStatus, isActive bool) {
+func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
+	var count int
 	var prefix string
 	if isActive {
 		prefix = "> "
@@ -1252,9 +1085,21 @@ func printStatus(p *client.ProfileStatus, isActive bool) {
 		fmt.Printf("  Cluster:      %v\n", p.Cluster)
 	}
 	fmt.Printf("  Roles:        %v*\n", strings.Join(p.Roles, ", "))
+	if debug {
+		for k, v := range p.Traits {
+			if count == 0 {
+				fmt.Printf("  Traits:       %v: %v\n", k, v)
+			} else {
+				fmt.Printf("                %v: %v\n", k, v)
+			}
+			count = count + 1
+		}
+	}
 	fmt.Printf("  Logins:       %v\n", strings.Join(p.Logins, ", "))
 	fmt.Printf("  Valid until:  %v [%v]\n", p.ValidUntil, humanDuration)
-	fmt.Printf("  Extensions:   %v\n\n", strings.Join(p.Extensions, ", "))
+	fmt.Printf("  Extensions:   %v\n", strings.Join(p.Extensions, ", "))
+
+	fmt.Printf("\n")
 }
 
 // onStatus command shows which proxy the user is logged into and metadata
@@ -1270,18 +1115,18 @@ func onStatus(cf *CLIConf) {
 		}
 		utils.FatalError(err)
 	}
-	printProfiles(profile, profiles)
+	printProfiles(cf.Debug, profile, profiles)
 }
 
-func printProfiles(profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
+func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
 	// Print the active profile.
 	if profile != nil {
-		printStatus(profile, true)
+		printStatus(debug, profile, true)
 	}
 
 	// Print all other profiles.
 	for _, p := range profiles {
-		printStatus(p, false)
+		printStatus(debug, p, false)
 	}
 
 	// If we are printing profile, add a note that even though roles are listed

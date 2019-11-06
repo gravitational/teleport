@@ -169,6 +169,9 @@ func (s *remoteSite) Close() error {
 		s.connections[i].Close()
 	}
 	s.connections = []*remoteConn{}
+	if s.remoteAccessPoint != nil {
+		return s.remoteAccessPoint.Close()
+	}
 	return nil
 }
 
@@ -562,6 +565,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Address:         params.Address,
 		UseTunnel:       targetConn.UseTunnel(),
 		FIPS:            s.srv.FIPS,
+		HostUUID:        s.srv.ID,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

@@ -35,7 +35,7 @@ type KeepAliveSuite struct{}
 var _ = fmt.Printf
 var _ = check.Suite(&KeepAliveSuite{})
 
-func Test(t *testing.T) { check.TestingT(t) }
+func TestSrv(t *testing.T) { check.TestingT(t) }
 
 func (s *KeepAliveSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()

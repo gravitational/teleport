@@ -420,6 +420,12 @@ const (
 	U2FChallengeTimeout = 5 * time.Minute
 )
 
+const (
+	// LookaheadBufSize is a reasonable buffer size for decoders that need
+	// to buffer for the purposes of lookahead (e.g. `YAMLOrJSONDecoder`).
+	LookaheadBufSize = 32 * 1024
+)
+
 // TLS constants for Web Proxy HTTPS connection
 const (
 	// path to a self-signed TLS PRIVATE key file for HTTPS connection for the web proxy
@@ -519,8 +525,18 @@ const WindowsOpenSSHNamedPipe = `\\.\pipe\openssh-ssh-agent`
 var (
 	// FIPSCipherSuites is a list of supported FIPS compliant TLS cipher suites.
 	FIPSCipherSuites = []uint16{
-		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		//
+		// These two ciper suites:
+		//
+		// tls.TLS_RSA_WITH_AES_128_GCM_SHA256
+		// tls.TLS_RSA_WITH_AES_256_GCM_SHA384
+		//
+		// although supported by FIPS, are blacklisted in http2 spec:
+		//
+		// https://tools.ietf.org/html/rfc7540#appendix-A
+		//
+		// therefore we do not include them in this list.
+		//
 		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -548,3 +564,23 @@ var (
 		"hmac-sha2-256",
 	}
 )
+
+// CheckPasswordLimiter creates a rate limit that can be used to slow down
+// requests that come to the check password endpoint.
+func CheckPasswordLimiter() *limiter.Limiter {
+	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{
+		MaxConnections:   LimiterMaxConnections,
+		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
+		Rates: []limiter.Rate{
+			limiter.Rate{
+				Period:  1 * time.Second,
+				Average: 10,
+				Burst:   10,
+			},
+		},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
+	}
+	return limiter
+}

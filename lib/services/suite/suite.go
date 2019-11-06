@@ -163,34 +163,34 @@ func newUser(name string, roles []string) services.User {
 }
 
 func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
-	u, err := s.WebS.GetUsers()
+	u, err := s.WebS.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(u), check.Equals, 0)
 
 	c.Assert(s.WebS.UpsertPasswordHash("user1", []byte("hash")), check.IsNil)
 	c.Assert(s.WebS.UpsertPasswordHash("user2", []byte("hash2")), check.IsNil)
 
-	u, err = s.WebS.GetUsers()
+	u, err = s.WebS.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	userSlicesEqual(c, u, []services.User{newUser("user1", nil), newUser("user2", nil)})
 
-	out, err := s.WebS.GetUser("user1")
+	out, err := s.WebS.GetUser("user1", false)
 	usersEqual(c, out, u[0])
 
 	user := newUser("user1", []string{"admin", "user"})
 	c.Assert(s.WebS.UpsertUser(user), check.IsNil)
 
-	out, err = s.WebS.GetUser("user1")
+	out, err = s.WebS.GetUser("user1", false)
 	c.Assert(err, check.IsNil)
 	usersEqual(c, out, user)
 
-	out, err = s.WebS.GetUser("user1")
+	out, err = s.WebS.GetUser("user1", false)
 	c.Assert(err, check.IsNil)
 	usersEqual(c, out, user)
 
 	c.Assert(s.WebS.DeleteUser("user1"), check.IsNil)
 
-	u, err = s.WebS.GetUsers()
+	u, err = s.WebS.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	userSlicesEqual(c, u, []services.User{newUser("user2", nil)})
 
@@ -218,14 +218,14 @@ func (s *ServicesTestSuite) UsersExpiry(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Make sure the user exists.
-	u, err := s.WebS.GetUser("foo")
+	u, err := s.WebS.GetUser("foo", false)
 	c.Assert(err, check.IsNil)
 	c.Assert(u.GetName(), check.Equals, "foo")
 
 	s.Clock.Advance(2 * time.Minute)
 
 	// Make sure the user is now gone.
-	u, err = s.WebS.GetUser("foo")
+	u, err = s.WebS.GetUser("foo", false)
 	c.Assert(err, check.NotNil)
 }
 
@@ -675,8 +675,8 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 			Namespace: defaults.Namespace,
 		},
 		Spec: services.SAMLConnectorSpecV2{
-			Issuer: "http://example.com",
-			SSO:    "https://example.com/saml/sso",
+			Issuer:                   "http://example.com",
+			SSO:                      "https://example.com/saml/sso",
 			AssertionConsumerService: "https://localhost/acs",
 			Audience:                 "https://localhost/aud",
 			ServiceProviderIssuer:    "https://localhost/iss",
@@ -1184,7 +1184,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				user := newUser("user1", []string{"admin"})
 				err := s.Users().UpsertUser(user)
 
-				out, err := s.Users().GetUser(user.GetName())
+				out, err := s.Users().GetUser(user.GetName(), false)
 				c.Assert(err, check.IsNil)
 
 				c.Assert(s.Users().DeleteUser(user.GetName()), check.IsNil)

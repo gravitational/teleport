@@ -1,5 +1,82 @@
 # Changelog
 
+## 4.1.4
+
+This release of Teleport contains a bug fix.
+
+* Fixed GSuite integration by adding support for service accounts. [#3122](https://github.com/gravitational/teleport/pull/3122)
+
+## 4.1.3
+
+This release of Teleport contains multiple bug fixes.
+
+* Removed `TLS_RSA_WITH_AES_128_GCM_SHA{256,384}` from default ciphersuites due to compatibility issues with HTTP2.
+* Fixed issues with `local_auth` for FIPS builds. [#3100](https://github.com/gravitational/teleport/pull/3100)
+* Upgraded Go runtime to 1.13.2 to mitigate [CVE-2019-16276](https://github.com/golang/go/issues/34540) and [CVE-2019-17596](https://github.com/golang/go/issues/34960).
+
+## 4.1.2
+
+This release of Teleport contains improvements to the build code.
+
+* Added support for building Docker images using the FIPS-compliant version of Teleport. The first of these images is quay.io/gravitational/teleport-ent:4.1.2-fips
+* In future, these images will be automatically built for use by Teleport Enterprise customers.
+
+## 4.1.1
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue with multi-cluster EKS when the Teleport proxy runs outside EKS. [#3070](https://github.com/gravitational/teleport/pull/3070)
+
+## 4.1.0
+
+This is a major Teleport release with a focus on stability and bug fixes.
+
+### Improvements
+
+* Support for IPv6. [#2124](https://github.com/gravitational/teleport/issues/2124)
+* Kubernetes support does not require SNI. [#2766](https://github.com/gravitational/teleport/issues/2766)
+* Support use of a path for `auth_token` in `teleport.yaml`. [#2515](https://github.com/gravitational/teleport/issues/2515)
+* Implement ProxyJump compatibility. [#2543](https://github.com/gravitational/teleport/issues/2543)
+* Audit logs should show roles. [#2823](https://github.com/gravitational/teleport/issues/2823)
+* Allow tsh to go background and without executing remote command. [#2297](https://github.com/gravitational/teleport/issues/2297)
+* Provide a high level tool to backup and restore the cluster state. [#2480](https://github.com/gravitational/teleport/issues/2480)
+* Investigate nodes using stale list when connecting to proxies (discovery protocol). [#2832](https://github.com/gravitational/teleport/issues/2832)
+
+### Fixes
+
+* Proxy can hang due to invalid OIDC connector. [#2690](https://github.com/gravitational/teleport/issues/2690)
+* Proper `-D` flag parsing. [#2663](https://github.com/gravitational/teleport/issues/2663)
+* tsh status does not show correct cluster name. [#2671](https://github.com/gravitational/teleport/issues/2671)
+* Teleport truncates MOTD with PAM. [#2477](https://github.com/gravitational/teleport/issues/2477)
+* Miscellaneous fixes around error handling and reporting.
+
+## 4.0.10
+
+This release of Teleport contains a bug fix.
+
+* Fixed a goroutine leak that occured whenever a leaf cluster disconnected from the root cluster. [#3037](https://github.com/gravitational/teleport/pull/3037)
+
+## 4.0.9
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue where Web UI could not connect to older nodes within a cluster. [#2993](https://github.com/gravitational/teleport/pull/2993)
+
+## 4.0.8
+
+This release of Teleport contains two bug fixes.
+
+### Description
+
+* Fixed issue where new versions of tsh could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
+* Fixed trait encoding to be more robust. [#2970](https://github.com/gravitational/teleport/pull/2970)
+
+## 4.0.6
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue introduced in 4.0.5 that broke session recording when using the recording proxy. [#2957](https://github.com/gravitational/teleport/pull/2957)
+
 ## 4.0.4
 
 This release of Teleport contains a bug fix.
@@ -65,6 +142,25 @@ Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend 
 
 Teleport has always validated host certificates when a client connects to a server, however prior to Teleport 4.0, Teleport did not validate the host the user requests a connection to is in the list of principals on the certificate. To ensure a seamless upgrade, make sure the hosts you connect to have the appropriate address set in `public_addr` in `teleport.yaml` before upgrading.
 
+## 3.2.12
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue where Web UI could not connect to older nodes within a cluster. [#2993](https://github.com/gravitational/teleport/pull/2993)
+
+## 3.2.11
+
+This release of Teleport contains two bug fixes.
+
+* Fixed issue where new versions of tsh could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
+* Fixed trait encoding to be more robust. [#2970](https://github.com/gravitational/teleport/pull/2970)
+
+## 3.2.9
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue introduced in 3.2.8 that broke session recording when using the recording proxy. [#2957](https://github.com/gravitational/teleport/pull/2957)
+
 ## 3.2.4
 
 This release of Teleport contains multiple bug fixes.
@@ -93,6 +189,25 @@ This release of Teleport contains a new feature.
 This version brings support for Amazon's managed Kubernetes offering (EKS).
 
 Starting with this release, Teleport proxy uses [the impersonation API](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation) instead of the [CSR API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/#requesting-a-certificate).
+
+## 3.1.14
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue where Web UI could not connect to older nodes within a cluster. [#2993](https://github.com/gravitational/teleport/pull/2993)
+
+## 3.1.13
+
+This release of Teleport contains two bug fixes.
+
+* Fixed issue where new versions of tsh could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
+* Fixed trait encoding to be more robust. [#2970](https://github.com/gravitational/teleport/pull/2970)
+
+## 3.1.11
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue introduced in 3.1.10 that broke session recording when using the recording proxy. [#2957](https://github.com/gravitational/teleport/pull/2957)
 
 ## 3.1.8
 

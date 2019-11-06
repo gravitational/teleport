@@ -314,7 +314,7 @@ type RegisteredListener struct {
 type FileDescriptor struct {
 	// Type is a listener type, e.g. auth:ssh
 	Type string
-	// Address is an addresss of the listener, e.g. 127.0.0.1:3025
+	// Address is an address of the listener, e.g. 127.0.0.1:3025
 	Address string
 	// File is a file descriptor associated with the listener
 	File *os.File

@@ -42,7 +42,7 @@
     "tags": {
       "Name": "{{user `ami_name`}}",
       "BuildTimestamp": "{{user `build_timestamp`}}",
-      "BuildType": "{{user `build_type`}}"
+      "BuildType": "production"
     },
     "run_tags": {
       "Name": "{{user `ami_name`}}"
@@ -52,6 +52,45 @@
     },
     "snapshot_tags": {
       "Name": "{{user `ami_name`}}"
+    }
+  },{
+    "name": "teleport-aws-linux-fips",
+    "ami_description": "Gravitational Teleport with FIPS support using AWS Linux AMI for AWS Marketplace",
+    "type": "amazon-ebs",
+    "region": "{{user `aws_region`}}",
+    "source_ami_filter": {
+        "filters": {
+            "virtualization-type": "hvm",
+            "name": "amzn2-ami-hvm*-ebs",
+            "root-device-type": "ebs"
+        },
+        "owners": ["137112412989", "591542846629", "801119661308",
+                   "102837901569", "013907871322", "206029621532",
+                   "286198878708", "443319210888"],
+        "most_recent": true
+    },
+    "instance_type": "{{user `instance_type`}}",
+    "ssh_username": "ec2-user",
+    "ami_name": "{{user `fips_ami_name` | clean_ami_name}}",
+    "ssh_pty" : true,
+    "associate_public_ip_address": true,
+    "vpc_id": "{{user `vpc`}}",
+    "subnet_id": "{{user `subnet`}}",
+    "ami_regions": "{{user `destination_regions`}}",
+    "force_delete_snapshot": "true",
+    "tags": {
+      "Name": "{{user `fips_ami_name`}}",
+      "BuildTimestamp": "{{user `build_timestamp`}}",
+      "BuildType": "production-fips"
+    },
+    "run_tags": {
+      "Name": "{{user `fips_ami_name`}}"
+    },
+    "run_volume_tags": {
+      "Name": "{{user `fips_ami_name`}}"
+    },
+    "snapshot_tags": {
+      "Name": "{{user `fips_ami_name`}}"
     }
   },{
     "name": "teleport-aws-linux-marketplace",
@@ -108,6 +147,13 @@
         "sudo cp /tmp/files/bin/* /usr/bin/"
       ],
       "type": "shell"
+  },
+  {
+    "type": "shell",
+    "inline": [
+      "touch /tmp/teleport-fips"
+    ],
+    "only": ["teleport-aws-linux-fips"]
   },
   {
     "type": "shell",

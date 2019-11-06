@@ -25,6 +25,9 @@ resource "aws_dynamodb_table" "teleport" {
     type = "S"
   }
 
+  stream_enabled = "true"
+  stream_view_type = "NEW_IMAGE"
+
   ttl {
      attribute_name = "Expires"
      enabled = true

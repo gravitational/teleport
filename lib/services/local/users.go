@@ -57,7 +57,10 @@ func (s *IdentityService) DeleteAllUsers() error {
 }
 
 // GetUsers returns a list of users registered with the local auth server
-func (s *IdentityService) GetUsers() ([]services.User, error) {
+func (s *IdentityService) GetUsers(withSecrets bool) ([]services.User, error) {
+	if withSecrets {
+		return s.getUsersWithSecrets()
+	}
 	startKey := backend.Key(webPrefix, usersPrefix)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -73,9 +76,33 @@ func (s *IdentityService) GetUsers() ([]services.User, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if !withSecrets {
+			u.SetLocalAuth(nil)
+		}
 		out = append(out, u)
 	}
 	return out, nil
+}
+
+func (s *IdentityService) getUsersWithSecrets() ([]services.User, error) {
+	startKey := backend.Key(webPrefix, usersPrefix)
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collected, _, err := collectUserItems(result.Items)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	users := make([]services.User, 0, len(collected))
+	for uname, uitems := range collected {
+		user, err := userFromUserItems(uname, uitems)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		users = append(users, user)
+	}
+	return users, nil
 }
 
 // CreateUser creates user if it does not exist
@@ -95,6 +122,12 @@ func (s *IdentityService) CreateUser(user services.User) error {
 	_, err = s.Create(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if auth := user.GetLocalAuth(); auth != nil {
+		err = s.upsertLocalAuthSecrets(user.GetName(), *auth)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -118,11 +151,20 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if auth := user.GetLocalAuth(); auth != nil {
+		err = s.upsertLocalAuthSecrets(user.GetName(), *auth)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
 // GetUser returns a user by name
-func (s *IdentityService) GetUser(user string) (services.User, error) {
+func (s *IdentityService) GetUser(user string, withSecrets bool) (services.User, error) {
+	if withSecrets {
+		return s.getUserWithSecrets(user)
+	}
 	if user == "" {
 		return nil, trace.BadParameter("missing user name")
 	}
@@ -135,13 +177,69 @@ func (s *IdentityService) GetUser(user string) (services.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !withSecrets {
+		u.SetLocalAuth(nil)
+	}
 	return u, nil
+}
+
+func (s *IdentityService) getUserWithSecrets(user string) (services.User, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing user name")
+	}
+	startKey := backend.Key(webPrefix, usersPrefix, user)
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var uitems userItems
+	for _, item := range result.Items {
+		suffix := trimToSuffix(string(item.Key))
+		uitems.Set(suffix, item) // Result of Set i
+	}
+	u, err := userFromUserItems(user, uitems)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u, nil
+}
+
+func (s *IdentityService) upsertLocalAuthSecrets(user string, auth services.LocalAuthSecrets) error {
+	if len(auth.PasswordHash) > 0 {
+		err := s.UpsertPasswordHash(user, auth.PasswordHash)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if len(auth.TOTPKey) > 0 {
+		err := s.UpsertTOTP(user, auth.TOTPKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if auth.U2FRegistration != nil {
+		reg, err := auth.GetU2FRegistration()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = s.UpsertU2FRegistration(user, reg)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if auth.U2FCounter > 0 || auth.U2FRegistration != nil {
+		err := s.UpsertU2FRegistrationCounter(user, auth.U2FCounter)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
 func (s *IdentityService) GetUserByOIDCIdentity(id services.ExternalIdentity) (services.User, error) {
-	users, err := s.GetUsers()
+	users, err := s.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,7 +256,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id services.ExternalIdentity) (s
 // GetUserBySAMLCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
 func (s *IdentityService) GetUserBySAMLIdentity(id services.ExternalIdentity) (services.User, error) {
-	users, err := s.GetUsers()
+	users, err := s.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -174,7 +272,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id services.ExternalIdentity) (s
 
 // GetUserByGithubIdentity returns the first found user with specified Github identity
 func (s *IdentityService) GetUserByGithubIdentity(id services.ExternalIdentity) (services.User, error) {
-	users, err := s.GetUsers()
+	users, err := s.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,7 +288,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id services.ExternalIdentity) 
 
 // DeleteUser deletes a user with all the keys from the backend
 func (s *IdentityService) DeleteUser(user string) error {
-	_, err := s.GetUser(user)
+	_, err := s.GetUser(user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

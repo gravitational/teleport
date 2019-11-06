@@ -29,6 +29,9 @@ like:
 ![Setup Application Type](img/gsuite/gsuite-3-oauth.png)
 
 5. Copy OAuth Client ID and Client Secret for YAML Below.
+
+Note: The redirect_url: `https://teleport.example.com:3080/v1/webapi/oidc/callback`
+
 ![Copy Client Secret](img/gsuite/gsuite-5-copy-client-id.png)
 
 6. To allow for fine grained role based access control (RBAC) you'll first need to
