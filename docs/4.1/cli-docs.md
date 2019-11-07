@@ -8,9 +8,9 @@ the following services.
 
 | Service | Role Name | Description
 | ------- | --------- | ----------- |
-| [Node](../architecture/teleport_nodes/) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients.
-| [Auth](../architecture/teleport_auth/) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster
-| [Proxy](../architecture/teleport_proxy/) | `proxy` | The gateway that clients use to connect to the Auth or Node Services
+| [Node](/architecture/teleport_nodes/) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients.
+| [Auth](/architecture/teleport_auth/) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster
+| [Proxy](/architecture/teleport_proxy/) | `proxy` | The gateway that clients use to connect to the Auth or Node Services
 
 ## teleport start
 
