@@ -150,6 +150,15 @@ var (
 		Name: AuthAttemptEvent,
 		Code: AuthAttemptFailureCode,
 	}
+	// AccessRequestCreated is emitted when an access request is created.
+	AccessRequestCreated = Event{
+		Name: AccessRequestCreateEvent,
+		Code: AccessRequestCreateCode,
+	}
+	AccessRequestUpdated = Event{
+		Name: AccessRequestUpdateEvent,
+		Code: AccessRequestUpdateCode,
+	}
 )
 
 var (
@@ -203,4 +212,8 @@ var (
 	ClientDisconnectCode = "T3006I"
 	// AuthAttemptFailureCode is the auth attempt failure event code.
 	AuthAttemptFailureCode = "T3007W"
+	// AccessRequestCreateCode is the the access request creation code.
+	AccessRequestCreateCode = "T5000I"
+	// AccessRequestUpdateCode is the access request state update code.
+	AccessRequestUpdateCode = "T5001I"
 )

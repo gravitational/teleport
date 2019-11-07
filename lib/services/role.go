@@ -86,7 +86,7 @@ func RoleNameForCertAuthority(name string) string {
 }
 
 // NewAdminRole is the default admin role for all local users if another role
-// is not explicitly assigned (Enterprise only).
+// is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
 	role := &RoleV3{
 		Kind:    KindRole,
@@ -265,6 +265,11 @@ type Role interface {
 	GetKubeGroups(RoleConditionType) []string
 	// SetKubeGroups sets kubernetes groups for allow or deny condition.
 	SetKubeGroups(RoleConditionType, []string)
+
+	// GetAccessRequestConditions gets allow/deny conditions for access requests.
+	GetAccessRequestConditions(RoleConditionType) AccessRequestConditions
+	// SetAccessRequestConditions sets allow/deny conditions for access requests.
+	SetAccessRequestConditions(RoleConditionType, AccessRequestConditions)
 }
 
 // ApplyTraits applies the passed in traits to any variables within the role
@@ -513,6 +518,27 @@ func (r *RoleV3) SetKubeGroups(rct RoleConditionType, groups []string) {
 		r.Spec.Allow.KubeGroups = lcopy
 	} else {
 		r.Spec.Deny.KubeGroups = lcopy
+	}
+}
+
+// GetAccessRequestConditions gets conditions for access requests.
+func (r *RoleV3) GetAccessRequestConditions(rct RoleConditionType) AccessRequestConditions {
+	cond := r.Spec.Deny.Request
+	if rct == Allow {
+		cond = r.Spec.Allow.Request
+	}
+	if cond == nil {
+		return AccessRequestConditions{}
+	}
+	return *cond
+}
+
+// SetAccessRequestConditions sets allow/deny conditions for access requests.
+func (r *RoleV3) SetAccessRequestConditions(rct RoleConditionType, cond AccessRequestConditions) {
+	if rct == Allow {
+		r.Spec.Allow.Request = &cond
+	} else {
+		r.Spec.Deny.Request = &cond
 	}
 }
 
@@ -2198,6 +2224,16 @@ const RoleSpecV3SchemaDefinitions = `
         "type": "array",
         "items": { "type": "string" }
       },
+	  "request": {
+	    "type": "object",
+		"additionalProperties": false,
+		"properties": {
+		  "roles": {
+		    "type": "array",
+			"items": { "type": "string" }
+		  }
+		}
+	  },
       "rules": {
         "type": "array",
         "items": {

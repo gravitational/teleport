@@ -371,6 +371,55 @@ message Namespace  {
 message NamespaceSpec {
 }
 
+// AccessRequest represents an access request resource specification
+message AccessRequestV3  {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    // SubKind is an optional resource sub kind, used in some resources
+	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+	// Version is version
+    string Version = 3 [(gogoproto.jsontag) = "version"];
+	// Metadata is AccessRequest metadata
+    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    // Spec is an AccessReqeust specification
+    AccessRequestSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+}
+
+// RequestState represents the state of a request for escalated privilege.
+enum RequestState {
+    NONE = 0;
+    PENDING = 1;
+    APPROVED = 2;
+    DENIED = 3;
+}
+
+// AccessRequestSpec is the specification for AccessRequest
+message AccessRequestSpecV3 {
+    // User is the name of the user to whom the roles will be applied.
+    string User = 1 [(gogoproto.jsontag) = "user"];
+    // Roles is the name of the roles being requested.
+    repeated string Roles = 2 [(gogoproto.jsontag) = "roles"];
+    // State is the current state of this access request.
+    RequestState State = 3 [(gogoproto.jsontag) = "state,omitempty"];
+    // Created encodes the time at which the request was registered with the auth server.
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "created,omitempty"];
+    // Expires constrains the maximum lifetime of any login session for which this request is active. 
+    google.protobuf.Timestamp Expires = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "expires,omitempty"];
+}
+
+// AccessRequestFilter encodes filter params for access requests.
+message AccessRequestFilter {
+    // ID specifies a request ID if set.
+    string ID = 1 [(gogoproto.jsontag) = "id"];
+    // User specifies a username if set.
+    string User = 2 [(gogoproto.jsontag) = "user"];
+    // RequestState filters for requests in a specific state.
+    RequestState State = 3 [(gogoproto.jsontag) = "state"];
+}
+
 // RoleV3 represents role resource specification
 message RoleV3  {
     option (gogoproto.goproto_stringer) = false;
@@ -444,6 +493,14 @@ message RoleConditions {
 
 	// KubeGroups is a list of kubernetes groups
 	repeated string KubeGroups = 5 [(gogoproto.jsontag) = "kubernetes_groups,omitempty"];
+
+    AccessRequestConditions Request = 6 [(gogoproto.jsontag) = "request,omitempty"];
+}
+
+// AccessRequestConditions is a matcher for allow/deny restrictions on access-requests.
+message AccessRequestConditions {
+    // Roles is the name of roles which will match the request rule.
+    repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
 }
 
 // Rule represents allow or deny rule that is executed to check

@@ -368,6 +368,11 @@ const (
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
 	RotationGracePeriod = MaxCertDuration
+	// PendingAccessDuration defines the expiry of a pending access request.
+	PendingAccessDuration = time.Hour
+	// MaxAccessDuration defines the maximum time for which an access request
+	// can be active.
+	MaxAccessDuration = MaxCertDuration
 )
 
 // list of roles teleport service can run as:

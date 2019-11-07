@@ -139,6 +139,17 @@ const (
 	// UserConnector is the connector used to create the user.
 	UserConnector = "connector"
 
+	// AccessRequestCreateEvent is emitted when a new access request is created.
+	AccessRequestCreateEvent = "access_request.create"
+	// AccessRequestUpdateEvent is emitted when a request's state is updated.
+	AccessRequestUpdateEvent = "access_request.update"
+	// AccessRequestUpdateBy indicates the user that updated the request state.
+	AccessRequestUpdateBy = "updated_by"
+	// AccessRequestState is the state of a request.
+	AccessRequestState = "state"
+	// AccessRequestID is the ID of an access request.
+	AccessRequestID = "id"
+
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
 	ExecEvent        = "exec"
