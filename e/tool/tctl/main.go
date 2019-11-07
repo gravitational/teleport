@@ -20,6 +20,7 @@ func main() {
 		&common.AuthCommand{},
 		&common.StatusCommand{},
 		&common.TopCommand{},
+		&common.AccessRequestCommand{},
 		&ResourceCommandE{},
 		&SAMLCommand{},
 	}
