@@ -23,10 +23,26 @@ import "C"
 import (
 	"context"
 
+	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var (
+	lostCommandEvents = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricLostCommandEvents,
+			Help: "Number of lost command events.",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(lostCommandEvents)
+}
 
 // rawExecEvent is sent by the eBPF program that Teleport pulls off the perf
 // buffer.
@@ -58,6 +74,7 @@ type exec struct {
 	closeContext context.Context
 
 	eventCh <-chan []byte
+	lostCh  <-chan uint64
 
 	perfMaps []*bcc.PerfMap
 	module   *bcc.Module
@@ -65,7 +82,7 @@ type exec struct {
 
 // startExec will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
-func startExec(closeContext context.Context) (*exec, error) {
+func startExec(closeContext context.Context, pageCount int) (*exec, error) {
 	var err error
 
 	e := &exec{
@@ -89,10 +106,13 @@ func startExec(closeContext context.Context) (*exec, error) {
 	}
 
 	// Open perf buffer and start processing execve events.
-	e.eventCh, err = openPerfBuffer(e.module, e.perfMaps, "execve_events")
+	e.eventCh, e.lostCh, err = openPerfBuffer(e.module, e.perfMaps, pageCount, "execve_events")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Start a loop that will emit lost events to prometheus.
+	go e.lostLoop()
 
 	return e, nil
 }
@@ -109,6 +129,19 @@ func (e *exec) close() {
 // events contains raw events off the perf buffer.
 func (e *exec) events() <-chan []byte {
 	return e.eventCh
+}
+
+// lostLoop keeps emitting the number of lost events to prometheus.
+func (e *exec) lostLoop() {
+	for {
+		select {
+		case n := <-e.lostCh:
+			log.Debugf("Lost %v command events.", n)
+			lostCommandEvents.Add(float64(n))
+		case <-e.closeContext.Done():
+			return
+		}
+	}
 }
 
 const execveSource string = `

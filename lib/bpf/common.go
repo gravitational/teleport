@@ -91,21 +91,23 @@ func attachRetProbe(module *bcc.Module, eventName string, functionName string) e
 }
 
 // openPerfBuffer will open a perf buffer for a particular module.
-func openPerfBuffer(module *bcc.Module, perfMaps []*bcc.PerfMap, name string) (<-chan []byte, error) {
+func openPerfBuffer(module *bcc.Module, perfMaps []*bcc.PerfMap, pageCount int, name string) (<-chan []byte, <-chan uint64, error) {
 	var err error
 
-	eventCh := make(chan []byte, 1024)
+	eventCh := make(chan []byte, chanSize)
+	lostCh := make(chan uint64, chanSize)
+
 	table := bcc.NewTable(module.TableId(name), module)
 
-	perfMap, err := bcc.InitPerfMap(table, eventCh)
+	perfMap, err := bcc.InitPerfMap(table, eventCh, lostCh, uint(pageCount))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	perfMap.Start()
 
 	perfMaps = append(perfMaps, perfMap)
 
-	return eventCh, nil
+	return eventCh, lostCh, nil
 }
 
 const (
@@ -123,4 +125,14 @@ const (
 
 	// eventRet holds the return value and other data about about an event.
 	eventRet = 1
+
+	// defaultPageCount is the default page count for the perf buffer.
+	defaultPageCount = 8
+
+	// openPageCount is the page count for the perf buffer. Open events generate
+	// many events so this buffer needs to be extra large.
+	openPageCount = 128
+
+	// chanSize is the size of the event and lost event channels.
+	chanSize = 1024
 )

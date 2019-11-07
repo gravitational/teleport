@@ -50,21 +50,12 @@ type Config struct {
 	// Enabled is if this service will try and install BPF programs on this system.
 	Enabled bool
 
-	// PerfBufferPageCount is the size of the perf buffer.
-	PerfBufferPageCount int
-
 	// CgroupMountPath is where the cgroupv2 hierarchy is mounted.
 	CgroupMountPath string
 }
 
 // CheckAndSetDefaults checks BPF configuration.
 func (c *Config) CheckAndSetDefaults() error {
-	if c.PerfBufferPageCount == 0 {
-		c.PerfBufferPageCount = defaults.PerfBufferPageCount
-	}
-	if c.PerfBufferPageCount&(c.PerfBufferPageCount-1) != 0 {
-		return trace.BadParameter("perf buffer page count must be multiple of 2")
-	}
 	if c.CgroupMountPath == "" {
 		c.CgroupMountPath = defaults.CgroupMountPath
 	}
@@ -142,17 +133,16 @@ func New(config *Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: Pass config.PerfBufferPageCount here.
 	// Compile and start BPF programs.
-	s.exec, err = startExec(closeContext)
+	s.exec, err = startExec(closeContext, defaultPageCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.open, err = startOpen(closeContext)
+	s.open, err = startOpen(closeContext, openPageCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.conn, err = startConn(closeContext)
+	s.conn, err = startConn(closeContext, defaultPageCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,9 +274,8 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		// The args should have come in a previous event, find them by PID.
 		args, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
 		if !ok {
-			// TODO: Emit metric here.
-			// TODO: Hook into dropped event callback.
 			log.Debugf("Got event with missing args: skipping.")
+			lostCommandEvents.Add(float64(n))
 			return
 		}
 		argv := args.([]string)

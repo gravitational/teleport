@@ -23,10 +23,26 @@ import "C"
 import (
 	"context"
 
+	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var (
+	lostNetworkEvents = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricLostNetworkEvents,
+			Help: "Number of lost network events.",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(lostNetworkEvents)
+}
 
 // rawConn4Event is sent by the eBPF program that Teleport pulls off the perf
 // buffer.
@@ -81,14 +97,21 @@ type rawConn6Event struct {
 type conn struct {
 	closeContext context.Context
 
+	// v{4,6}EventCh are the channels upon which the perf buffer places
+	// events.
 	v4EventCh <-chan []byte
 	v6EventCh <-chan []byte
+
+	// v{4,6}LostCh are the channels upon which the perf buffer places lost
+	// event count.
+	v4LostCh <-chan uint64
+	v6LostCh <-chan uint64
 
 	module   *bcc.Module
 	perfMaps []*bcc.PerfMap
 }
 
-func startConn(closeContext context.Context) (*conn, error) {
+func startConn(closeContext context.Context, pageCount int) (*conn, error) {
 	var err error
 
 	e := &conn{
@@ -121,16 +144,19 @@ func startConn(closeContext context.Context) (*conn, error) {
 	}
 
 	// Open perf buffer and start processing IPv4 events.
-	e.v4EventCh, err = openPerfBuffer(e.module, e.perfMaps, "ipv4_events")
+	e.v4EventCh, e.v4LostCh, err = openPerfBuffer(e.module, e.perfMaps, pageCount, "ipv4_events")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Open perf buffer and start processing IPv6 events.
-	e.v6EventCh, err = openPerfBuffer(e.module, e.perfMaps, "ipv6_events")
+	e.v6EventCh, e.v6LostCh, err = openPerfBuffer(e.module, e.perfMaps, pageCount, "ipv6_events")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Start a loop that will emit lost events to prometheus.
+	go e.lostLoop()
 
 	return e, nil
 }
@@ -142,6 +168,22 @@ func (e *conn) close() {
 		perfMap.Stop()
 	}
 	e.module.Close()
+}
+
+// lostLoop keeps emitting the number of lost events to prometheus.
+func (e *conn) lostLoop() {
+	for {
+		select {
+		case n := <-e.v4LostCh:
+			log.Debugf("Lost %v IPv4 events.", n)
+			lostNetworkEvents.Add(float64(n))
+		case n := <-e.v6LostCh:
+			log.Debugf("Lost %v IPv6 events.", n)
+			lostNetworkEvents.Add(float64(n))
+		case <-e.closeContext.Done():
+			return
+		}
+	}
 }
 
 // v4Events contains raw events off the perf buffer.

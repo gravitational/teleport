@@ -23,10 +23,26 @@ import "C"
 import (
 	"context"
 
+	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var (
+	lostDiskEvents = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricLostDiskEvents,
+			Help: "Number of lost disk events.",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(lostDiskEvents)
+}
 
 // rawOpenEvent is sent by the eBPF program that Teleport pulls off the perf
 // buffer.
@@ -55,6 +71,7 @@ type open struct {
 	closeContext context.Context
 
 	eventCh <-chan []byte
+	lostCh  <-chan uint64
 
 	perfMaps []*bcc.PerfMap
 	module   *bcc.Module
@@ -62,7 +79,7 @@ type open struct {
 
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
-func startOpen(closeContext context.Context) (*open, error) {
+func startOpen(closeContext context.Context, pageCount int) (*open, error) {
 	var err error
 
 	e := &open{
@@ -86,10 +103,13 @@ func startOpen(closeContext context.Context) (*open, error) {
 	}
 
 	// Open perf buffer and start processing open events.
-	e.eventCh, err = openPerfBuffer(e.module, e.perfMaps, "open_events")
+	e.eventCh, e.lostCh, err = openPerfBuffer(e.module, e.perfMaps, pageCount, "open_events")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Start a loop that will emit lost events to prometheus.
+	go e.lostLoop()
 
 	return e, nil
 }
@@ -101,6 +121,19 @@ func (e *open) close() {
 		perfMap.Stop()
 	}
 	e.module.Close()
+}
+
+// lostLoop keeps emitting the number of lost events to prometheus.
+func (e *open) lostLoop() {
+	for {
+		select {
+		case n := <-e.lostCh:
+			log.Debugf("Lost %v disk events.", n)
+			lostDiskEvents.Add(float64(n))
+		case <-e.closeContext.Done():
+			return
+		}
+	}
 }
 
 // events contains raw events off the perf buffer.
