@@ -123,7 +123,7 @@ func DecodeClusterName(serverName string) (string, error) {
 	}
 	const suffix = "." + teleport.APIDomain
 	if !strings.HasSuffix(serverName, suffix) {
-		return "", trace.BadParameter("unrecognized name, expected suffix %v, got %q", teleport.APIDomain, serverName)
+		return "", trace.NotFound("no cluster name is encoded")
 	}
 	clusterName := strings.TrimSuffix(serverName, suffix)
 
@@ -810,6 +810,7 @@ func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services
 			Name:        kind.Name,
 			Kind:        kind.Kind,
 			LoadSecrets: kind.LoadSecrets,
+			Filter:      kind.Filter,
 		})
 	}
 	stream, err := clt.WatchEvents(cancelCtx, &protoWatch)
@@ -2530,6 +2531,67 @@ func (c *Client) DeleteTrustedCluster(name string) error {
 	return trace.Wrap(err)
 }
 
+func (c *Client) GetAccessRequests(filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rsp, err := clt.GetAccessRequests(context.TODO(), &filter)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	reqs := make([]services.AccessRequest, 0, len(rsp.AccessRequests))
+	for _, req := range rsp.AccessRequests {
+		reqs = append(reqs, req)
+	}
+	return reqs, nil
+}
+
+func (c *Client) CreateAccessRequest(req services.AccessRequest) error {
+	r, ok := req.(*services.AccessRequestV3)
+	if !ok {
+		return trace.BadParameter("unexpected access request type %T", req)
+	}
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.CreateAccessRequest(context.TODO(), r)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+func (c *Client) DeleteAccessRequest(reqID string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteAccessRequest(context.TODO(), &proto.RequestID{
+		ID: reqID,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+func (c *Client) SetAccessRequestState(reqID string, state services.RequestState) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.SetAccessRequestState(context.TODO(), &proto.RequestStateSetter{
+		ID:    reqID,
+		State: state,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -2750,4 +2812,12 @@ type ClientI interface {
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if sucessful.
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
+	// GetAccessRequests lists all existing access requests.
+	GetAccessRequests(services.AccessRequestFilter) ([]services.AccessRequest, error)
+	// CreateAccessRequest creates a new access request.
+	CreateAccessRequest(req services.AccessRequest) error
+	// DeleteAccessRequest deletes an access request.
+	DeleteAccessRequest(reqID string) error
+	// SetAccessRequestState updates the state of an existing access request.
+	SetAccessRequestState(reqID string, state services.RequestState) error
 }

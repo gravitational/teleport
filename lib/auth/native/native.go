@@ -291,6 +291,13 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 		if c.RouteToCluster != "" {
 			cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster] = c.RouteToCluster
 		}
+		if !c.ActiveRequests.IsEmpty() {
+			requests, err := c.ActiveRequests.Marshal()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests] = string(requests)
+		}
 	}
 
 	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)

@@ -62,6 +62,9 @@ const (
 	// KindRole is a role resource
 	KindRole = "role"
 
+	// KindAccessRequest is an AccessReqeust resource
+	KindAccessRequest = "access_request"
+
 	// KindOIDC is OIDC connector resource
 	KindOIDC = "oidc"
 

@@ -373,6 +373,9 @@ const (
 	CertExtensionTeleportRouteToCluster = "teleport-route-to-cluster"
 	// CertExtensionTeleportTraits is used to propagate traits about the user.
 	CertExtensionTeleportTraits = "teleport-traits"
+	// CertExtensionTeleportActiveRequests is used to track which privilege
+	// escalation requests were used to construct the certificate.
+	CertExtensionTeleportActiveRequests = "teleport-active-requests"
 )
 
 const (
