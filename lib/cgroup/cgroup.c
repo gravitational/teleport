@@ -29,7 +29,7 @@ struct cgid_file_handle {
 	uint64_t cgid;
 };
 
-// Returns the ID of the given cgroup at path.
+// cgroup_id returns the ID of the given cgroup at path.
 uint64_t cgroup_id(char *path)
 {
     int ret;

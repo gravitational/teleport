@@ -23,10 +23,8 @@ import "C"
 
 import (
 	"bufio"
-	"bytes"
-	"io/ioutil"
 	"os"
-	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -40,12 +38,17 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
+	"k8s.io/kubernetes/pkg/util/mount"
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentBPF,
+	trace.Component: teleport.ComponentCgroup,
 })
+
+// mounter is an empty struct used to get mount information.
+var mounter mount.Mounter
 
 // Config holds configuration for the cgroup service.
 type Config struct {
@@ -61,26 +64,31 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Service manages cgroup orchestration.
 type Service struct {
 	*Config
 }
 
+// New creates a new cgroup service.
 func New(config *Config) (*Service, error) {
-	var err error
+	err := config.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	s := &Service{
 		Config: config,
 	}
 
-	if !isMounted() {
-		err = mount()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Mount the cgroup2 filesystem.
+	err = s.mount()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// Teleport has restarted, all sessions have been killed, remove all cgroups.
-	err = s.removeAll()
+	// Cleanup the Teleport cgroup2 hierarchy. This is called upon restart of
+	// Teleport, so all existing sessions should be done.
+	err = s.cleanupHierarchy()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,33 +96,42 @@ func New(config *Config) (*Service, error) {
 	return s, nil
 }
 
+// Close will unmount the cgroup filesystem.
 func (s *Service) Close() error {
-	return unmount()
-}
-
-func (s *Service) Create(sessionID string) error {
-	path := "/cgroup2/teleport/" + sessionID
-
-	err := os.Mkdir(path, 0555)
+	err := s.unmount()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
+// Create will create a cgroup for a given session.
+func (s *Service) Create(sessionID string) error {
+	err := os.Mkdir(path.Join(s.MountPath, teleportRoot, sessionID), fileMode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// Remove will remove the cgroup for a session. An existing processes will be
+// moved to the root controller.
 func (s *Service) Remove(sessionID string) error {
-	pids, err := readPids("/cgroup2/teleport/" + sessionID + "/cgroup.procs")
+	// Read in all PIDs for the cgroup.
+	pids, err := readPids(path.Join(s.MountPath, teleportRoot, sessionID, cgroupProcs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = writePids("/cgroup2/cgroup.procs", pids)
+	// Move all PIDs to the root controller. This has to be done before a cgroup
+	// can be removed.
+	err = writePids(path.Join(s.MountPath, cgroupProcs), pids)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = exec.Command("/bin/rmdir", "/cgroup2/teleport/"+sessionID).Run()
+	// The rmdir syscall is used to remove a cgroup.
+	err = unix.Rmdir(path.Join(s.MountPath, teleportRoot, sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,16 +141,17 @@ func (s *Service) Remove(sessionID string) error {
 	return nil
 }
 
-// TODO(russjones): Check if multiple processes write to the same cgroup file
-// atomically.
-// Place will place a process in the cgroup for that session.
+// Place  place a process in the cgroup for that session.
 func (s *Service) Place(sessionID string, pid int) error {
-	f, err := os.OpenFile("/cgroup2/teleport/"+sessionID+"/cgroup.procs", os.O_APPEND|os.O_WRONLY, 0755)
+	// Open cgroup.procs file for the cgroup.
+	filepath := path.Join(s.MountPath, teleportRoot, sessionID, cgroupProcs)
+	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY, fileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer f.Close()
 
+	// Write PID and place process in cgroup.
 	_, err = f.WriteString(strconv.Itoa(pid))
 	if err != nil {
 		return trace.Wrap(err)
@@ -142,6 +160,8 @@ func (s *Service) Place(sessionID string, pid int) error {
 	return nil
 }
 
+// readPids returns a slice of PIDs from a file. Used to get list of all PIDs
+// within a cgroup.
 func readPids(path string) ([]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -161,8 +181,10 @@ func readPids(path string) ([]string, error) {
 	return pids, nil
 }
 
+// writePids writes a slice of PIDS to a given file. Used to add processes to
+// a cgroup.
 func writePids(path string, pids []string) error {
-	f, err := os.OpenFile(path, os.O_WRONLY, 0555)
+	f, err := os.OpenFile(path, os.O_WRONLY, fileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,21 +200,29 @@ func writePids(path string, pids []string) error {
 	return nil
 }
 
-// TODO(russjones): Does this make sense in the situation where you restart?
-// What if it's a graceful restart?
-func (s *Service) removeAll() error {
+// cleanupHierarchy removes any cgroups for any exisiting sessions.
+func (s *Service) cleanupHierarchy() error {
 	var sessions []string
 
-	err := filepath.Walk("/cgroup2", func(path string, info os.FileInfo, err error) error {
-		if !cgroupPattern.MatchString(path) {
+	// Recursively look within the Teleport hierarchy for cgroups for session.
+	err := filepath.Walk(path.Join(s.MountPath, teleportRoot), func(path string, info os.FileInfo, err error) error {
+		// Only pick up cgroup.procs files.
+		if !pattern.MatchString(path) {
 			return nil
 		}
 
-		parts := strings.Split(path, "/")
+		// Extract the session ID. Skip over cgroup.procs files not for sessions.
+		parts := strings.Split(path, string(filepath.Separator))
 		if len(parts) != 5 {
-			return trace.BadParameter("invalid cgroup: %v", path)
+			return nil
 		}
-		sessions = append(sessions, parts[3])
+		sessionID := uuid.Parse(parts[3])
+		if sessionID == nil {
+			return nil
+		}
+
+		// Append to the list of sessions within the cgroup hierarchy.
+		sessions = append(sessions, sessionID.String())
 
 		return nil
 	})
@@ -200,6 +230,7 @@ func (s *Service) removeAll() error {
 		return trace.Wrap(err)
 	}
 
+	// Remove all sessions that were found.
 	for _, sessionID := range sessions {
 		err := s.Remove(sessionID)
 		if err != nil {
@@ -210,33 +241,40 @@ func (s *Service) removeAll() error {
 	return nil
 }
 
-// isMounted checks if the cgroup filesystem has already been mounted.
-// TODO(russjones): Parse /proc/mounts line by line and check if the
-// filesystem cgroup2 is not mounted, not that it doesn't occur anywhere in
-// the file.
-func isMounted() bool {
-	buf, err := ioutil.ReadFile("/proc/mounts")
-	if err != nil {
-		return false
-	}
-
-	return bytes.Contains(buf, []byte("cgroup2"))
-}
-
-// mount will mount the cgroupv2 filesystem.
-func mount() error {
-	log.Printf("--> Attempting to mount.\n")
-	// TODO: Log debug error.
-	os.Mkdir("/cgroup2", 0555)
-
-	// TODO(russjones): Replace with:
-	// return unix.Mount("", "/cgroup2", "cgroup2", 0, "ro")
-	err := exec.Command("/usr/bin/mount", "-t", "cgroup2", "none", "/cgroup2").Run()
+// mount mounts the cgroup2 filesystem.
+func (s *Service) mount() error {
+	// Make sure path to cgroup2 mount point exists.
+	err := os.MkdirAll(s.MountPath, fileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = os.Mkdir("/cgroup2/teleport", 0555)
+	// Check if the Teleport root cgroup exists, if it does the cgroup filesystem
+	// is already mounted, return right away.
+	_, err = os.Stat(path.Join(s.MountPath, teleportRoot))
+	if err == nil {
+		return nil
+	}
+
+	// Mount the cgroup2 filesystem. Even if the cgroup filesystem is already
+	// mounted, it is safe to re-mount it at another location, both will have
+	// the exact same view of the hierarchy. From "man cgroups":
+	//
+	//   "It is not possible to mount the same controller against multiple
+	//   cgroup hierarchies.  For example, it is not possible to mount both
+	//   the cpu and cpuacct controllers against one hierarchy, and to mount
+	//   the cpu controller alone against another hierarchy.  It is possible
+	//   to create multiple mount points with exactly the same set of
+	//   comounted controllers.  However, in this case all that results is
+	//   multiple mount points providing a view of the same hierarchy."
+	err = mounter.Mount("none", s.MountPath, "cgroup2", nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.Debugf("Mounted cgroup filesystem to %v.", s.MountPath)
+
+	// Create cgroup that will hold Teleport sessions.
+	err = os.MkdirAll(path.Join(s.MountPath, teleportRoot), fileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -245,17 +283,22 @@ func mount() error {
 }
 
 // unmount will unmount the cgroupv2 filesystem.
-func unmount() error {
-	return unix.Unmount("/cgroup2", 0)
+func (s *Service) unmount() error {
+	err := mounter.Unmount(s.MountPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // ID returns the cgroup ID for the given session.
-func ID(sessionID string) (uint64, error) {
-	path := "/cgroup2/teleport/" + sessionID
+func (s *Service) ID(sessionID string) (uint64, error) {
+	path := path.Join(s.MountPath, teleportRoot, sessionID)
 
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
 
+	// Returns the cgroup ID of a given path.
 	cgid := C.cgroup_id(cpath)
 	if cgid == 0 {
 		return 0, trace.BadParameter("cgroup resolution failed")
@@ -264,4 +307,21 @@ func ID(sessionID string) (uint64, error) {
 	return uint64(cgid), nil
 }
 
-var cgroupPattern = regexp.MustCompile(`^/cgroup2/teleport/[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}/cgroup.procs`)
+var (
+	// pattern matches cgroup process files.
+	pattern = regexp.MustCompile(`cgroup\.procs$`)
+)
+
+const (
+	// fileMode is the mode files and directories are created in within the
+	// cgroup filesystem.
+	fileMode = 0555
+
+	// teleportRoot is the name of the root cgroup that holds all other
+	// Teleport cgroups.
+	teleportRoot = "teleport"
+
+	// cgroupProcs is the name of the file that contains all processes within
+	// a cgroup.
+	cgroupProcs = "cgroup.procs"
+)

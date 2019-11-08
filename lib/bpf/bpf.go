@@ -169,6 +169,8 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// TODO: Make sure this function returns before bash is executed. Otherwise
+// a race can occur and events missed.
 // OpenSession will place a process within a cgroup and being monitoring all
 // events from that cgroup and emitting the results to the audit log.
 func (s *Service) OpenSession(ctx *SessionContext) error {
@@ -177,7 +179,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 		return trace.Wrap(err)
 	}
 
-	cgroupID, err := controlgroup.ID(ctx.SessionID)
+	cgroupID, err := s.cgroup.ID(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -197,7 +199,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 // CloseSession will stop monitoring events from a particular cgroup and
 // remove the cgroup.
 func (s *Service) CloseSession(ctx *SessionContext) error {
-	cgroupID, err := controlgroup.ID(ctx.SessionID)
+	cgroupID, err := s.cgroup.ID(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -275,7 +277,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		args, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
 		if !ok {
 			log.Debugf("Got event with missing args: skipping.")
-			lostCommandEvents.Add(float64(n))
+			lostCommandEvents.Add(float64(1))
 			return
 		}
 		argv := args.([]string)
