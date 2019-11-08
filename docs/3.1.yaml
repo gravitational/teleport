@@ -9,8 +9,9 @@ copyright: Gravitational Inc, 2016-18
 site_dir: ../build/docs/3.1
 docs_dir: "3.1"
 
-theme: readthedocs
-theme_dir: theme
+theme:
+    name: null
+    custom_dir: 'theme/'
 markdown_extensions:
   - markdown_include.include
   - admonition
@@ -20,7 +21,7 @@ extra_css: []
 extra_javascript: []
 extra:    
     version: 3.1
-pages:
+nav:
     - Documentation:
         - Introduction: intro.md
         - Quick Start Guide: quickstart.md

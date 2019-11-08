@@ -13,7 +13,7 @@
             {% for nav_item in nav_item.children %}
               <ul class="side-nav-buttons">
                 <li>
-                  <a class="{% if nav_item.active%}is-active{%endif%}" href="{{ nav_item.url }}">{{ nav_item.title }}</a>
+                  <a class="{% if nav_item.active%}is-active{%endif%}" href="/{{ nav_item.url }}">{{ nav_item.title }}</a>
                 </li>
               </ul>
             {% endfor %}
@@ -21,7 +21,7 @@
         {% else %}
           <ul class="side-nav-buttons">
             <li>
-              <a class="{% if nav_item.active%}is-active{%endif%}" href="{{ nav_item.url }}">{{ nav_item.title }}</a>
+              <a class="{% if nav_item.active%}is-active{%endif%}" href="/{{ nav_item.url }}">{{ nav_item.title }}</a>
             </li>
           </ul>
 

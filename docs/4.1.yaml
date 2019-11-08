@@ -9,20 +9,22 @@ copyright: Gravitational Inc, 2016-19
 site_dir: ../build/docs/4.1
 docs_dir: "4.1"
 
-theme: readthedocs
-theme_dir: theme
+theme:
+    name: null
+    custom_dir: 'theme/'
 markdown_extensions:
   - markdown_include.include
   - admonition
   - def_list
   - footnotes
+  #- codehilite
   - toc:
       marker: '[TOC]'
 extra_css: []
 extra_javascript: []
 extra:
     version: 4.1
-pages:
+nav:
     - Documentation:
         - Introduction: intro.md
         - Quick Start Guide: quickstart.md
