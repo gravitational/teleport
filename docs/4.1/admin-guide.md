@@ -303,9 +303,10 @@ auth_service:
     cluster_name: "main"
 
     authentication:
-        # default authentication type. possible values are 'local', 'oidc', 'saml' and 'false'
+        # default authentication type. possible values are 'local' and 'github' for OSS
+        #  and 'oidc', 'saml' and 'false' for Enterprise.
         # 'false' is required for FedRAMP / FIPS, see 
-        #  https://gravitational.com/teleport/docs/enterprise/ssh_fips/#teleport-auth-server
+        #  https://gravitational.com/teleport/docs/enterprise/ssh_fips#teleport-auth-server
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
         type: local

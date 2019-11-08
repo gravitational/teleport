@@ -304,7 +304,7 @@ Take a look at the [SSH via Single Sign-on](ssh_sso/) chapter learn the basics o
 Teleport with SSO providers. We have the following detailed guides for
 configuring SSO providers:
 
-* [Okta](//ssh_okta/)
+* [Okta](../ssh_okta/)
 * [Active Directory](../ssh_adfs/)
 * [One Login](../ssh_one_login/)
 * [Github](../admin-guide/#github-oauth-20)
