@@ -127,11 +127,11 @@ cryptographic module (BoringCrypto) and fails to start if it was not.
 
 * If no ciphersuites are provided, Teleport will set the default ciphersuites to be FIPS 140-2 compliant. 
 
-* If the ciphersuites are provided in Teleport configuration, validate they are FIPS 140-2 compliant.
+* If ciphersuites are provided in the Teleport configuration, Teleport will validate that they are FIPS 140-2 compliant.
 
-* If no ciphers, kex, and mac algorithms are provided, set the default ciphers, kex, and mac algorithms to be FIPS 140-2 compliant. If the ciphers, kex, and mac algorithms are provided in Teleport configuration, validate they are FIPS 140-2 compliant.
+* If ciphersuites, key exchange and MAC algorithms are provided in the Teleport configuration, Teleport will validate that they are FIPS 140-2 compliant..
 
-* Always enable at-rest encryption for both DynamoDB and S3.
+* Teleport will always enable at-rest encryption for both DynamoDB and S3.
 
 * If recording proxy mode is selected, validation of host certificates should always happen.
 
@@ -140,4 +140,4 @@ cryptographic module (BoringCrypto) and fails to start if it was not.
 * Supporting configurable TLS versions. This is to ensure that only TLS 1.2 is supported in FedRAMP mode.
 * Removes all uses of non-compliant algorithms like NaCl and replace with compliant algorithms like AES-GCM.
 * Teleport is complied  with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/Certificate/2964)
-* User and host certificates (and host keys for recording proxy mode) should only be 2048-bit RSA. If a certificate, the signer should also be 2048-bit RSA.
+* User and host certificates (and host keys for recording proxy mode) should only be 2048-bit RSA. For a certificate, the signer should also be.
