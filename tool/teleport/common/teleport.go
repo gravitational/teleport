@@ -64,6 +64,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	// define global flags:
 	var ccf config.CommandLineFlags
 	var scpFlags scp.Flags
+	var execDebug bool
 
 	// define commands:
 	start := app.Command("start", "Starts the Teleport service.")
@@ -139,6 +140,9 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	scpc.Flag("local-addr", "local address which accepted the request").StringVar(&scpFlags.LocalAddr)
 	scpc.Arg("target", "").StringsVar(&scpFlags.Target)
 
+	// Define flags for the "exec" subcommand.
+	exec.Flag("debug", "Debug mode").Short('d').Default("false").BoolVar(&execDebug)
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
 	if err != nil {
@@ -170,7 +174,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	case dump.FullCommand():
 		onConfigDump()
 	case exec.FullCommand():
-		err = onExec()
+		err = onExec(execDebug)
 	case ver.FullCommand():
 		utils.PrintVersion()
 	}
@@ -262,13 +266,15 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
 }
 
-func onExec() error {
-	err := srv.RunCommand()
-	if err != nil {
-		return trace.Wrap(err)
+// onExec will re-execute Teleport.
+func onExec(debug bool) error {
+	exitCode, err := srv.RunCommand()
+	if err != nil && debug {
+		// TODO: Should this go to stdout, or to a channel somewhere?
+		fmt.Printf("Failed to run command: %v.\n", err)
 	}
-
-	return nil
+	os.Exit(exitCode)
+	return trace.Wrap(err)
 }
 
 type StdReadWriter struct {

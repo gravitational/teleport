@@ -61,6 +61,10 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
+	// Continue will resume execution of the process after it completes its
+	// pre-processing routine (placed in a cgroup).
+	Continue()
+
 	// Kill will force kill the terminal.
 	Kill() error
 
@@ -130,6 +134,10 @@ type terminal struct {
 
 	termType string
 	params   rsession.TerminalParams
+
+	// contw is one end of a pipe that is used to signal to the child process
+	// that it has been placed in a cgroup and it can continue.
+	contw *os.File
 }
 
 // NewLocalTerminal creates and returns a local PTY.
@@ -170,19 +178,6 @@ func (t *terminal) AddParty(delta int) {
 func (t *terminal) Run() error {
 	defer t.closeTTY()
 
-	//t.cmd = cmd
-
-	//cmd.Stdout = t.tty
-	//cmd.Stdin = t.tty
-	//cmd.Stderr = t.tty
-	//cmd.SysProcAttr.Setctty = true
-	//cmd.SysProcAttr.Setsid = true
-
-	//err = cmd.Start()
-	//if err != nil {
-	//	return trace.Wrap(err)
-	//}
-
 	// Create and marshal command to execute.
 	cmdmsg, err := prepareCommand(t.ctx)
 	if err != nil {
@@ -193,17 +188,26 @@ func (t *terminal) Run() error {
 		return trace.Wrap(err)
 	}
 
+	// Create a pipe used to signal to the process it's safe to continue.
+	// Used to make the process wait until it's been placed in a cgroup by the
+	// parent process.
+	contr, contw, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	t.contw = contw
+
 	// Create pipe and write bytes to pipe. The child process will read the
 	// command to execute from this pipe.
-	cmdReader, cmdWriter, err := os.Pipe()
+	cmdr, cmdw, err := os.Pipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = io.Copy(cmdWriter, bytes.NewReader(cmdbytes))
+	_, err = io.Copy(cmdw, bytes.NewReader(cmdbytes))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = cmdWriter.Close()
+	err = cmdw.Close()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -219,7 +223,8 @@ func (t *terminal) Run() error {
 		Args: []string{teleportPath, "exec"},
 		Dir:  cmdmsg.Dir,
 		ExtraFiles: []*os.File{
-			cmdReader,
+			cmdr,
+			contr,
 			t.pty,
 			t.tty,
 		},
@@ -257,6 +262,12 @@ func (t *terminal) Wait() (*ExecResult, error) {
 		Code:    status.ExitStatus(),
 		Command: t.cmd.Path,
 	}, nil
+}
+
+// Continue will resume execution of the process after it completes its
+// pre-processing routine (placed in a cgroup).
+func (t *terminal) Continue() {
+	t.contw.Close()
 }
 
 // Kill will force kill the terminal.
@@ -550,6 +561,11 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 		Code:    teleport.RemoteCommandSuccess,
 		Command: t.ctx.ExecRequest.GetCommand(),
 	}, nil
+}
+
+// Continue does nothing for remote command execution.
+func (r *remoteTerminal) Continue() {
+	return
 }
 
 func (t *remoteTerminal) Kill() error {

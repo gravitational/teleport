@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"path/filepath"
 	"sync"
 	"time"
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -205,6 +203,7 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 	return nil
 }
 
+// OpenExecSession opens an non-interactive exec session.
 func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
 	// Create a new session ID. These sessions can not be joined so no point in
 	// looking for an exisiting one.
@@ -216,7 +215,6 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	//ctx.session = sess
 	ctx.Infof("Creating non-interactive exec session %v.", s)
 
 	// Parse the exec request and store it in the context.
@@ -620,30 +618,6 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	}
 	s.writer.addWriter("session-recorder", s.recorder, true)
 
-	// If this code is running on a Teleport node and PAM is enabled, then open a
-	// PAM context.
-	var pamContext *pam.PAM
-	if ctx.srv.Component() == teleport.ComponentNode {
-		conf, err := s.registry.srv.GetPAM()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if conf.Enabled == true {
-			pamContext, err = pam.Open(&pam.Config{
-				ServiceName: conf.ServiceName,
-				Username:    ctx.Identity.Login,
-				Stdin:       ch,
-				Stderr:      s.writer,
-				Stdout:      s.writer,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			ctx.Debugf("Opening PAM context for session %v.", s.id)
-		}
-	}
-
 	// allocate a terminal or take the one previously allocated via a
 	// seaprate "allocate TTY" SSH request
 	if ctx.GetTerm() != nil {
@@ -687,6 +661,9 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	// Process has been placed in a cgroup, continue execution.
+	s.term.Continue()
 
 	params := s.term.GetTerminalParams()
 
@@ -746,24 +723,6 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		case <-doneCh:
 		}
 
-		// If this code is running on a Teleport node and PAM is enabled, close the context.
-		if ctx.srv.Component() == teleport.ComponentNode {
-			conf, err := s.registry.srv.GetPAM()
-			if err != nil {
-				ctx.Errorf("Unable to get PAM configuration from server: %v", err)
-				return
-			}
-
-			if conf.Enabled == true {
-				err = pamContext.Close()
-				if err != nil {
-					ctx.Errorf("Unable to close PAM context for session: %v: %v", s.id, err)
-					return
-				}
-				ctx.Debugf("Closing PAM context for session: %v.", s.id)
-			}
-		}
-
 		// TODO(russjones): Check if enhanced auditing is enabled.
 		if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
 			ebpf, err := ctx.srv.GetBPF()
@@ -820,6 +779,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 
+	// Emit a session.start event.
 	eventFields := events.EventFields{
 		events.EventNamespace:  ctx.srv.GetNamespace(),
 		events.SessionEventID:  string(s.id),
@@ -834,33 +794,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	}
 	s.recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, eventFields)
 
-	// If this code is running on a Teleport node and PAM is enabled, then open a
-	// PAM context.
-	var pamContext *pam.PAM
-	if ctx.srv.Component() == teleport.ComponentNode {
-		conf, err := s.registry.srv.GetPAM()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if conf.Enabled == true {
-			// Note, stdout/stderr is discarded here, otherwise MOTD would be printed to
-			// the users screen during exec requests.
-			pamContext, err = pam.Open(&pam.Config{
-				ServiceName: conf.ServiceName,
-				Username:    ctx.Identity.Login,
-				Stdin:       channel,
-				Stderr:      ioutil.Discard,
-				Stdout:      ioutil.Discard,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			ctx.Debugf("Opening PAM context for exec request %q.", ctx.ExecRequest.GetCommand())
-		}
-	}
-
 	// Start execution. If the program failed to start, send that result back.
+	// Note this is a partial start. Teleport will have re-exec'ed itself and
+	// wait until it's been placed in a cgroup and told to continue.
 	result, err := ctx.ExecRequest.Start(channel)
 	if err != nil {
 		return trace.Wrap(err)
@@ -900,6 +836,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 
+	// Process has been placed in a cgroup, continue execution.
+	ctx.ExecRequest.Continue()
+
 	// Process is running, wait for it to stop.
 	go func() {
 		result = ctx.ExecRequest.Wait()
@@ -922,28 +861,10 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			}
 		}
 
-		// If this code is running on a Teleport node and PAM is enabled, close the context.
-		if ctx.srv.Component() == teleport.ComponentNode {
-			conf, err := s.registry.srv.GetPAM()
-			if err != nil {
-				ctx.Errorf("Unable to get PAM configuration from server: %v", err)
-				return
-			}
-
-			if conf.Enabled == true {
-				err = pamContext.Close()
-				if err != nil {
-					ctx.Errorf("Unable to close PAM context for exec request: %q: %v", ctx.ExecRequest.GetCommand(), err)
-					return
-				}
-				ctx.Debugf("Closing PAM context for exec request: %q.", ctx.ExecRequest.GetCommand())
-			}
-		}
-
 		// Remove the session from the in-memory map.
 		s.registry.removeSession(s)
 
-		// send an event indicating that this session has ended
+		// Emit a session.end event.
 		eventFields := events.EventFields{
 			events.SessionEventID:  string(s.id),
 			events.SessionServerID: ctx.srv.HostUUID(),
@@ -954,6 +875,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		// Close recorder to free up associated resources and flush data.
 		s.recorder.Close()
 
+		// Close the session.
 		err = s.Close()
 		if err != nil {
 			ctx.Errorf("Failed to close session %v: %v.", s.id, err)

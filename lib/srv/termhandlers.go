@@ -96,7 +96,6 @@ func (t *TermHandlers) HandleShell(ch ssh.Channel, req *ssh.Request, ctx *Server
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	if err := t.SessionRegistry.OpenSession(ch, req, ctx); err != nil {
 		return trace.Wrap(err)
 	}
