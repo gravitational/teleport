@@ -1675,6 +1675,8 @@ removed if you uninstall `openssh-server` package. We recommend creating your
 own PAM service file like `/etc/pam.d/teleport` and specifying it as
 `service_name` above.
 
+!!! tip "Note":
+    Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport. 
 
 ## Using Teleport with OpenSSH
 
