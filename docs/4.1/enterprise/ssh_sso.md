@@ -1,4 +1,4 @@
-<h1>Single Sign-On (SSO) for SSH</h1>
+# Single Sign-On (SSO) for SSH
 
 ## Introduction
 
@@ -53,7 +53,7 @@ To configure [SSO](https://en.wikipedia.org/wiki/Single_sign-on), a Teleport adm
 
 * Update `/etc/teleport.yaml` on the auth server to set the default
   authentication connector.
-* Define the connector [resource](admin-guide/#resources) and save it into
+* Define the connector [resource](../admin-guide/#resources) and save it into
   a YAML file (like `connector.yaml`)
 * Create the connector using `tctl create connector.yaml`.
 
@@ -131,7 +131,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources section](admin-guide/#resources) in the Admin Manual.
+as described in the [Resources section](../admin-guide/#resources) in the Admin Manual.
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:

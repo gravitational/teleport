@@ -34,10 +34,11 @@ pages:
         - AWS: aws_oss_guide.md
         - Kubernetes Guide: kubernetes_ssh.md
     - Enterprise Guides:
-        - Introduction: enterprise.md
-        - Quick Start Guide: quickstart-enterprise.md
-        - RBAC: ssh_rbac.md
-        - Single sign-on (SSO): ssh_sso.md    
+        - Introduction: enterprise/index.md
+        - Quick Start Guide: enterprise/quickstart-enterprise.md
+        - Single sign-on (SSO): enterprise/ssh_sso.md   
+        - FedRAMP & FIPS: enterprise/ssh_fips.md        
+        - RBAC: enterprise/ssh_rbac.md 
     - SSO Guides:
         - Active Directory (ADFS): ssh_adfs.md
         - G Suite: ssh_gsuite.md

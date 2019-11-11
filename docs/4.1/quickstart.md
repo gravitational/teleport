@@ -6,6 +6,8 @@ This tutorial will guide you through the steps needed to install and run
 Teleport on a single node which could be your local machine but we recommend a
 VM.
 
+**Table of Contents**
+
 [TOC]
 
 ### Prerequisites
@@ -23,7 +25,7 @@ This guide is only meant to demonstrate how to run teleport in a sandbox or demo
 environment and showcase a few basic tasks you can do with Teleport.
 
 **You should not follow this guide if you want to set up Teleport in production.
-Instead follow the [Admin Guide](../admin-guide))**
+Instead follow the [Admin Guide](./admin-guide))**
 
 ## Step 1: Install Teleport
 
