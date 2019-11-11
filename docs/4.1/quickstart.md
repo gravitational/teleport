@@ -282,8 +282,8 @@ $ echo "Awesome!"
 Congratulations! You've completed the Teleport Quickstart. In this guide you've
 learned how to install Teleport on a single-node and seen a few of the most
 practical features in action. When you're ready to learn how to set up Teleport
-for your team we recommend that you read our [Admin Guide](../admin-guide) to
-get all the important details. The [Admin Guide](../admin-guide) will lay out
+for your team we recommend that you read our [Admin Guide](./admin-guide) to
+get all the important details. The [Admin Guide](./admin-guide) will lay out
 everything you need to safely run Teleport in production including SSL
 certificates, security considerations, and YAML configuration.
 
