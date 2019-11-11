@@ -25,7 +25,7 @@ government agencies.
 Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
 
 # Setup
-Customers can follow our [Enterprise Quickstart](enterprise/quickstart-enterprise.md) for basic 
+Customers can follow our [Enterprise Quickstart](quickstart-enterprise.md) for basic 
 instructions on how to setup Teleport Enterprise. You'll need to start with the Teleport 
 Enterprise FIPS Binary. 
 

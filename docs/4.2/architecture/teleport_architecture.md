@@ -71,7 +71,7 @@ Teleport supports two types of user accounts:
 
 !!! tip "Version Warning":
     SAML, OIDC and Active Directory are only supported in Teleport Enterprise. Please
-    take a look at the [Teleport Enterprise](enterprise/index.md) chapter for more information.
+    take a look at the [Teleport Enterprise](enterprise.md) chapter for more information.
 
 It is possible to have multiple identity sources configured for a Teleport cluster. In this
 case, an identity source (called a "connector") will have to be passed to `tsh --auth=connector_name login`.

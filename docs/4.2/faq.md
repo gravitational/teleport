@@ -82,7 +82,7 @@ The Teleport Enterprise offering gives users the following additional features:
 We also offer implementation services, to help you integrate
 Teleport with your existing systems and processes.
 
-You can read more in the [Teleport Enterprise section of the docs](enterprise)
+You can read more in the [Teleport Enterprise section of the docs](enterprise/index.md)
 
 ### Does Teleport send any data to Gravitational?
 
