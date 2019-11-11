@@ -852,35 +852,6 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int
 	return events, nil
 }
 
-func (l *AuditLog) GetRawSessionEvents(namespace string, sid session.ID, eventType string) ([]byte, error) {
-	l.WithFields(log.Fields{"sid": string(sid), "eventType": eventType}).Debugf("GetRawSessionEvents.")
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
-	}
-
-	if l.UploadHandler != nil {
-		if err := l.downloadSession(namespace, sid); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	idx, err := l.readSessionIndex(namespace, sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var buffer bytes.Buffer
-	for _, fileName := range idx.enhancedIndexes(eventType) {
-		fmt.Printf("--> Trying to read: %v.\n", fileName)
-		err = l.readRaw(fileName, &buffer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return buffer.Bytes(), nil
-}
-
 func (l *AuditLog) readRaw(fileName string, buffer *bytes.Buffer) error {
 	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0640)
 	if err != nil {

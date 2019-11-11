@@ -163,7 +163,6 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/namespaces/:namespace/sessions/:id/recording", srv.withAuth(srv.uploadSessionRecording))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/events/:type", srv.withAuth(srv.getRawSessionEvents))
 
 	// Namespaces
 	srv.POST("/:version/namespaces", srv.withAuth(srv.upsertNamespace))
@@ -2119,31 +2118,6 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 	}
 
 	return auth.GetSessionEvents(namespace, *sid, afterN, includePrintEvents)
-}
-
-func (s *APIServer) getRawSessionEvents(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	sid, err := session.ParseID(p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	eventType := p.ByName("type")
-	if eventType == "" {
-		return nil, trace.BadParameter("missing event type")
-	}
-
-	buffer, err := auth.GetRawSessionEvents(namespace, *sid, eventType)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if _, err = w.Write(buffer); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	w.Header().Set("Content-Type", "application/octet-stream")
-	return nil, nil
 }
 
 type upsertNamespaceReq struct {

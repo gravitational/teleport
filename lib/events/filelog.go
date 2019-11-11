@@ -287,10 +287,6 @@ func (l *FileLog) GetSessionEvents(namespace string, sid session.ID, after int, 
 	return nil, trace.NotImplemented("not implemented")
 }
 
-func (l *FileLog) GetRawSessionEvents(namespace string, sid session.ID, eventType string) ([]byte, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
 // rotateLog checks if the current log file is older than a given duration,
 // and if it is, closes it and opens a new one.
 func (l *FileLog) rotateLog() (err error) {

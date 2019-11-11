@@ -2145,20 +2145,6 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 	return retval, nil
 }
 
-func (c *Client) GetRawSessionEvents(namespace string, sid session.ID, eventType string) ([]byte, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	if eventType == "" {
-		return nil, trace.BadParameter("missing event type")
-	}
-	response, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(sid), "events", eventType), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response.Bytes(), nil
-}
-
 // SearchEvents returns events that fit the criteria
 func (c *Client) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
 	q, err := url.ParseQuery(query)
