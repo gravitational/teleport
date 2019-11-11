@@ -1,6 +1,6 @@
 [Unit]
 Description=Teleport SSH Service
-After=network.target 
+After=network.target
 
 [Service]
 Type=simple

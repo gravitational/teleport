@@ -286,8 +286,10 @@ teleport:
     # List of the supported ciphersuites. If this section is not specified,
     # only the default ciphersuites are enabled.
     ciphersuites:
-       - tls-rsa-with-aes-128-gcm-sha256
-       - tls-rsa-with-aes-256-gcm-sha384
+       # Note: These two ciphersuites are unsupported when upgrading to Teleport
+       # 4.0+ see https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446
+       #- tls-rsa-with-aes-128-gcm-sha256
+       #- tls-rsa-with-aes-256-gcm-sha384
        - tls-ecdhe-rsa-with-aes-128-gcm-sha256
        - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
        - tls-ecdhe-rsa-with-aes-256-gcm-sha384

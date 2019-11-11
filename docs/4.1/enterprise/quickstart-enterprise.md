@@ -110,6 +110,7 @@ ssh_service:
   enabled: "yes"
 ```
 
+
 ### Systemd Unit File
 
 Next, download the systemd service unit file from [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd)
@@ -129,7 +130,7 @@ $ sudo systemctl start teleport
 ```
 
 Teleport daemon should start and you can use `netstat -lptne` to make sure that
-it's listening on [TCP/IP ports](admin-guide/#ports). On _auth.example.com_, it should
+it's listening on [TCP/IP ports](../admin-guide/#ports). On _auth.example.com_, it should
 look something like this:
 
 ```bsh
@@ -303,10 +304,10 @@ Take a look at the [SSH via Single Sign-on](ssh_sso/) chapter learn the basics o
 Teleport with SSO providers. We have the following detailed guides for
 configuring SSO providers:
 
-* [Okta](ssh_okta/)
-* [Active Directory](ssh_adfs/)
-* [One Login](ssh_one_login/)
-* [Github](admin-guide/#github-oauth-20)
+* [Okta](../ssh_okta/)
+* [Active Directory](../ssh_adfs/)
+* [One Login](../ssh_one_login/)
+* [Github](../admin-guide/#github-oauth-20)
 
 Any SAML-compliant provider can be configured with Teleport by following the
 same steps.  There are Teleport Enterprise customers who are using Oracle IDM,

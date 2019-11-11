@@ -1,4 +1,4 @@
-<h1>Role Based Access Control for SSH</h1>
+# Role Based Access Control for SSH
 
 ## Introduction
 
@@ -35,7 +35,7 @@ user permissions.
 Some of the permissions a role could define include:
 
 * Which SSH nodes a user can or cannot access. Teleport uses [node
-  labels](admin-guide/#labeling-nodes) to do this, i.e. some nodes can be
+  labels](../admin-guide/#labeling-nodes) to do this, i.e. some nodes can be
   labeled "production" while others can be labeled "staging".
 * Ability to replay recorded sessions.
 * Ability to update cluster configuration.
@@ -63,7 +63,7 @@ all of the available resources and verbs under the `allow` section in the `admin
 below.
 
 To manage cluster roles, a Teleport administrator can use the Web UI or the command
-line using [tctl resource commands](admin-guide#resources). To see the list of
+line using [tctl resource commands](../admin-guide/#resources). To see the list of
 roles in a Teleport cluster, an administrator can execute:
 
 ```bsh
@@ -181,7 +181,7 @@ Option                    | Description                          | Multi-role be
 ## RBAC for Hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
-This works by [labeling nodes](admin-guide/#labeling-nodes) and listing
+This works by [labeling nodes](../admin-guide/#labeling-nodes) and listing
 allow/deny labels in a role definition.
 
 Consider the following use case:

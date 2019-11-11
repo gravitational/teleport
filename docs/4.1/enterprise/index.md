@@ -101,3 +101,5 @@ configure the TLS and SSH servers with FIPS compliant cryptographic algorithms.
 In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to start.
 In addition, Teleport checks if the binary was compiled against an approved
 cryptographic module (BoringCrypto) and fails to start if it was not.
+
+See our [Enterprise Guide for more information](./ssh_fips.md)
