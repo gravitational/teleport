@@ -167,7 +167,12 @@ func (s *AuthServer) AuthenticateWebUser(req AuthenticateUserRequest) (services.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if clusterConfig.GetLocalAuth() == false {
+
+	// Disable all local auth requests,
+	// except session ID renewal requests that are using the same method.
+	// This condition uses Session as a blanket check, because any new method added
+	// to the local auth will be disabled by default.
+	if clusterConfig.GetLocalAuth() == false && req.Session == nil {
 		s.emitNoLocalAuthEvent(req.Username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}

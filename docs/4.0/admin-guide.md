@@ -325,8 +325,6 @@ teleport:
     # List of the supported ciphersuites. If this section is not specified,
     # only the default ciphersuites are enabled.
     ciphersuites:
-       - tls-rsa-with-aes-128-gcm-sha256
-       - tls-rsa-with-aes-256-gcm-sha384
        - tls-ecdhe-rsa-with-aes-128-gcm-sha256
        - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
        - tls-ecdhe-rsa-with-aes-256-gcm-sha384
@@ -2204,6 +2202,11 @@ clients, etc), the following rules apply:
   upgrade to 3.4 first.
 * Teleport clients (`tsh` for users and `tctl` for admins) may not be compatible if older than the auth or the proxy server. They will print an error if there is an incompatibility.
 * While 4.0 is a major release. 3.2 can be upgraded to 4.0 using the same upgrade sequence below. 
+
+!!! warning "Upgrading to Teleport 4.0+":
+    Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
+    two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
+    [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
 
 ### Upgrade Sequence
 

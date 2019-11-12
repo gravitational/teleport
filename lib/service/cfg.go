@@ -41,7 +41,7 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// Config structure is used to initialize _all_ services Teleporot can run.
+// Config structure is used to initialize _all_ services Teleport can run.
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
 type Config struct {

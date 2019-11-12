@@ -1,37 +1,42 @@
 <nav id="side-nav" class="side-nav is-condensed">
   <header>{% include "searchbox.html" %}</header>
-  {% for nav_item in nav %}
-    {% if nav_item.children %}
-      <div id="side-nav-menu" class="side-nav-menu">
-        <h3 class="side-nav-section-header">
-          {{ nav_item.title }}
-        </h3>
 
-        {% for nav_item2 in nav_item.children %}
-          {% if nav_item2 == page %}
-            <ul class="side-nav-buttons">
-              <li>
-                <a class="{% if nav_item2.active%}is-active{%endif%}" href="{{ nav_item2.url }}">{{ nav_item2.title }}</a>
-              </li>
-            </ul>
+  <div id="side-nav-menu" class="side-nav-menu">
+    {% for nav_item in nav %}
+      {% if nav_item.title != "hidden" %}
+        {% if nav_item.children %}
+          <h3 class="side-nav-section-header">
+            {{ nav_item.title }}
+          </h3>
 
-            {% for nav_item3 in page.toc %}
-              <ul class="side-nav-secondary-buttons">
-                <li class="{% if nav_item3.active%}is-active{%endif%} "><a href="{{ nav_item3.url }}">{{ nav_item3.title }}</a></li>
-              {% for nav_item4 in nav_item3.children %}
-                <li><a href="{{ nav_item4.url }}">{{ nav_item4.title }}</a></li>
-              {% endfor %}
+          {% if nav_item.title != "hidden" %}
+            {% for nav_item in nav_item.children %}
+              <ul class="side-nav-buttons">
+                <li>
+                  <a class="{% if nav_item.active%}is-active{%endif%}" href="{{ nav_item.url }}">{{ nav_item.title }}</a>
+                </li>
               </ul>
             {% endfor %}
           {% endif %}
+        {% else %}
+          <ul class="side-nav-buttons">
+            <li>
+              <a class="{% if nav_item.active%}is-active{%endif%}" href="{{ nav_item.url }}">{{ nav_item.title }}</a>
+            </li>
+          </ul>
 
-          {% if nav_item2 != page %}
-            <ul class="side-nav-buttons">
-              <li><a class="{% if nav_item2.active%}is-active{%endif%}" href="{{ nav_item2.url }}">{{ nav_item2.title }}</a></li>
+          {% if nav_item == page %}
+            <ul class="side-nav-secondary-buttons">
+              {% for toc_item in page.toc %}
+                <li class="{% if toc_item.active%}is-active{%endif%}"><a href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
+                {% for toc_item in toc_item.children %}
+                <li><a href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
+                {% endfor %}
+              {% endfor %}
             </ul>
           {% endif %}
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endfor %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+  </div>
 </nav>

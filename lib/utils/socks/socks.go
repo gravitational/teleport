@@ -19,6 +19,7 @@ package socks
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -155,14 +156,7 @@ func readRequest(conn net.Conn) (string, error) {
 
 	// Read in the address type and determine how many more bytes need to be
 	// read in to read in the remote host address.
-	addrLen, err := readAddrType(conn)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// Read in the destination address.
-	destAddr := make([]byte, addrLen)
-	_, err = io.ReadFull(conn, destAddr)
+	destAddr, err := readDestAddr(conn)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -174,16 +168,15 @@ func readRequest(conn net.Conn) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return net.JoinHostPort(string(destAddr), strconv.Itoa(int(destPort))), nil
+	return net.JoinHostPort(destAddr, strconv.Itoa(int(destPort))), nil
 }
 
-// readAddrType reads in the address type and returns the length of the dest
-// addr field.
-func readAddrType(conn net.Conn) (int, error) {
+// readDestAddr reads in the destination address.
+func readDestAddr(conn net.Conn) (string, error) {
 	// Read in the type of the remote host.
 	addrType, err := readByte(conn)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	// Based off the type, determine how many more bytes to read in for the
@@ -191,17 +184,32 @@ func readAddrType(conn net.Conn) (int, error) {
 	// names read in another byte to determine the length of the field.
 	switch addrType {
 	case socks5AddressTypeIPv4:
-		return net.IPv4len, nil
+		destAddr := make([]byte, net.IPv4len)
+		_, err = io.ReadFull(conn, destAddr)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("%s", net.IP(destAddr)), nil
 	case socks5AddressTypeIPv6:
-		return net.IPv6len, nil
+		destAddr := make([]byte, net.IPv6len)
+		_, err = io.ReadFull(conn, destAddr)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("%s", net.IP(destAddr)), nil
 	case socks5AddressTypeDomainName:
 		len, err := readByte(conn)
 		if err != nil {
-			return 0, trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
-		return int(len), nil
+		destAddr := make([]byte, len)
+		_, err = io.ReadFull(conn, destAddr)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return string(destAddr), nil
 	default:
-		return 0, trace.BadParameter("unsupported address type: %v", addrType)
+		return "", trace.BadParameter("unsupported address type: %v", addrType)
 	}
 }
 

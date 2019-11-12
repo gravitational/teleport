@@ -6,7 +6,7 @@
 
 We provide these CloudFormation templates as an example of how to setup HA Teleport in
 AWS using our AMIs. The current template will create a Highly available Teleport setup
-using DynamoDB and S3 to store logs. This setup will acquire a Let's Encrypt 509x certificate
+using DynamoDB and S3 to store logs. This setup will acquire a Let's Encrypt x509 certificate
 for you. 
 
 ## Launch VPC
@@ -28,9 +28,9 @@ make create-stack-vpc
 ```
 
 ### Using CloudFormation UI
-Download 'vpc.yaml' and upload it to the CloudFormation UI. 
+Download [vpc.yaml](https://github.com/gravitational/teleport/blob/master/examples/aws/cloudformation/vpc.yaml) and upload it to the CloudFormation UI. 
 
-![Uploading YAML](/img/aws-cf-oss-teleport-img.png)
+![Uploading YAML](./img/aws-cf-oss-teleport-img.png)
 
 ## Launch Teleport Cluster
 The example CloudFormation template requires a VPC, you can modify the oss.yaml to
@@ -56,7 +56,7 @@ make create-stack
 ### Using CloudFormation UI
 Once uploaded CloudFormation will ask for a bunch of parameters to configure Teleport.
 
-![Adding Setting](/img/aws-cf-oss-teleport.png)
+![Adding Setting](./img/aws-cf-oss-teleport.png)
 
-The setup might take up to 20 minutes as it'll have to request a 509x certificate
+The setup might take up to 20 minutes as it'll have to request a x509 certificate
 from Let's Encrypt to setup your cluster. 
