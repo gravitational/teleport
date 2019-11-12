@@ -75,6 +75,7 @@ information about the cluster.
 | `-l, --login` | none | an identity name | the login identity that the Teleport User should use
 | `--proxy` | none | `host:https_port[,ssh_proxy_port]` | set SSH proxy address
 | `--user` | `$USER` | none | the Teleport User name
+| `--request-roles` | none |  RBAC Role | request a different role
 | `--ttl` | none | relative duration like 5s, 2m, or 3h | set time to live for a SSH session, session ttl unrestricted if unset <!--TODO Check this-->
 | `-i, --identity` | none | **string** filepath | Identity file
 | `--cert-format` | `file` | `file` or `openssh` | SSH certificate format
@@ -348,7 +349,7 @@ Section](#tsh-global-flags)
 ### Examples
 
 _The proxy endpoint can take a https and ssh port in this format
-`host:https_port[,ssh_proxy_port]` _
+`host:https_port[,ssh_proxy_port]`_
 
 ``` bsh
 # Use ports 8080 and 8023 for https and SSH proxy:
@@ -479,6 +480,60 @@ Deletes user accounts **Usage**: `tctl users rm <logins>`
 ``` bsh
 tctl users rm sally,tim
 # Removes users sally and tim
+```
+
+## tctl request ls
+
+List of open requests **Usage**: `tctl request ls`
+
+### Examples
+
+``` bsh
+tctl request ls
+Token                                Requestor Metadata       Created At (UTC)    Status  
+------------------------------------ --------- -------------- ------------------- ------- 
+bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
+```
+## tctl request approve 
+
+Approve a users request. **Usage**: `tctl request approve [token]`
+
+### Arguments
+
+* `<tokens>` - comma-separated list of Teleport tokens.
+
+### Examples
+
+``` bsh
+tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9,3iwoxHenTp4zNttjWvn5niL5oGNvCnBormFanU
+```
+
+## tctl request deny 
+
+Denies a users request. **Usage**: `tctl request deny [token]`
+
+### Arguments
+
+* `<tokens>` - comma-separated list of Teleport tokens.
+
+### Examples
+
+``` bsh
+tctl request deny bc8ca931-fec9-4b15-9a6f-20c13c5641a9,3iwoxHenTp4zNttjWvn5niL5oGNvCnBormFanU
+```
+
+## tctl request rm 
+
+Delete a users role request. **Usage**: `tctl request rm [token]`
+
+### Arguments
+
+* `<tokens>` - comma-separated list of Teleport tokens.
+
+### Examples
+
+``` bsh
+tctl request rm bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 ```
 
 ## tctl nodes add
