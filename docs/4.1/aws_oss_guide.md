@@ -12,6 +12,7 @@ We have split this guide into:
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips-tricks)
 
 ### Teleport on AWS FAQ
+
 **Why would you want to use Teleport with AWS?**
 
 At some point you'll want to log into the system using SSH
@@ -39,7 +40,7 @@ for the below.
 - Fargate
 - AWS ECS
 
-## Teleports Introduction
+## Teleport Introduction
 
 This guide will cover how to setup, configure and run Teleport on [AWS](https://aws.amazon.com/).
 

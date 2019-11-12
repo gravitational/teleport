@@ -44,7 +44,7 @@ where the auth server is running, i.e. `teleport` was started with
 `--roles=auth` .
 
 A cluster administrator must create account entries for every Teleport user with
-[ `tctl users add` ](../cli-docs). Every Teleport User must be associated with a
+[ `tctl users add` ](../cli-docs.md). Every Teleport User must be associated with a
 list of one or more machine-level OS usernames.it can authenticate as during a
 login. This list is called "user mappings".
 
@@ -100,12 +100,12 @@ OpenID/OAuth2 or SAML endpoint.
 
 It is possible to have multiple identity sources configured for a Teleport
 cluster. In this case, an identity source (called a "connector") will have to be
-passed to [ `tsh --auth=connector_name login` ](../cli-docs/#tsh-login).
+passed to [ `tsh --auth=connector_name login` ](../cli-docs.md#tsh-login).
 
 <!--TODO: Production Configuration-->
 
 The local users connector can be specified via [`tsh --auth=local
-login`](../cli-docs/#tsh-login).
+login`](../cli-docs.md#tsh-login).
 
 ## User Roles
 
@@ -118,7 +118,7 @@ subset of nodes in a cluster.
 
 ## More Concepts
 
-* [Architecture Overview](./teleport_architecture_overview)
-* [Teleport Auth](./teleport_auth)
-* [Teleport Nodes](./teleport_nodes)
-* [Teleport Proxy](./teleport_proxy)
+* [Architecture Overview](teleport_architecture_overview.md)
+* [Teleport Auth](teleport_auth.md)
+* [Teleport Nodes](teleport_nodes.md)
+* [Teleport Proxy](teleport_proxy.md)

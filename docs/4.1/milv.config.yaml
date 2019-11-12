@@ -1,0 +1,23 @@
+request-repeats: 3
+timeout: 5
+allow-redirect: false
+allow-code-blocks: true
+ignore-external: true
+white-list-internal:
+  - "mailto:sales@gravitational.com"
+  - "mailto:info@gravitational.com"
+black-list:
+  - "./architecture/teleport_architecture.md"
+  - "./quickstart__archive.md"
+files:
+  - path: "./aws_oss_guide.md"
+    config:
+      white-list-internal:
+        - "#teleport-aws-tips-tricks"
+        - "#ec2-autoscale"
+        - "#acm"
+        - "#single-oss-teleport-amis-manual-gui-setup"
+  - path: "./enterprise/index.md"
+    config:
+      white-list-internal:
+        - "#fedrampfips"

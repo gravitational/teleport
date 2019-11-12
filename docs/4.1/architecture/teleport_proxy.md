@@ -9,7 +9,7 @@ Teleport cluster:
 
 1. It serves as an authentication gateway. It asks for credentials from
    connecting clients and forwards them to the Auth server via [Auth
-   API](./auth/#auth-api).
+   API](teleport_auth.md#auth-api).
 
 2. It looks up the IP address for a requested Node and then proxies a connection
    from client to Node.
@@ -54,14 +54,14 @@ Authority (CA)](./auth/#authentication-in-teleport).:
 
 ![Teleport Proxy SSH](../img/proxy-ssh-1.svg)
 
-1. A [`tsh` client](../cli-docs/#tsh) generates an OpenSSH keypair. It forwards
+1. A [`tsh` client](../cli-docs.md#tsh) generates an OpenSSH keypair. It forwards
    the generated public key, username, password and second factor token to the
    proxy.
 2. The Proxy Server forwards request to the Auth Server.
 3. If Auth Server accepts credentials, it generates a new certificate signed by
    its user CA and sends it back to the Proxy Server. The certificate has a TTL
    which defaults to 24 hours, but can be configured in
-   [`tctl`](../cli-docs/#tctl).
+   [`tctl`](../cli-docs.md#tctl).
 4. The Proxy Server returns the user certificate to the client and client stores
    it in `~/.tsh/keys`. The certificate is also added to the local SSH agent if
    one is running.
@@ -95,7 +95,7 @@ client `ssh` or using `tsh`:
 
 ## More Concepts
 
-* [Architecture Overview](./teleport_architecture_overview)
-* [Teleport Users](./teleport_users)
-* [Teleport Auth](./teleport_auth)
-* [Teleport Proxy](./teleport_proxy)
+* [Architecture Overview](teleport_architecture_overview.md)
+* [Teleport Users](teleport_users.md)
+* [Teleport Auth](teleport_auth.md)
+* [Teleport Proxy](teleport_proxy.md)

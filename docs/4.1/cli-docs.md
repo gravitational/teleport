@@ -8,9 +8,9 @@ the following services.
 
 | Service | Role Name | Description
 | ------- | --------- | ----------- |
-| [Node](/architecture/teleport_nodes/) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients.
-| [Auth](/architecture/teleport_auth/) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster
-| [Proxy](/architecture/teleport_proxy/) | `proxy` | The gateway that clients use to connect to the Auth or Node Services
+| [Node](architecture/teleport_nodes.md) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients.
+| [Auth](architecture/teleport_auth.md) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster
+| [Proxy](architecture/teleport_proxy.md) | `proxy` | The gateway that clients use to connect to the Auth or Node Services
 
 ## teleport start
 
@@ -20,7 +20,7 @@ the following services.
 |------|---------|----------------|----------------------------|
 | `-d, --debug` | none | none | enable verbose logging to stderr
 | `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally.
-| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](architecture_overview) document.
+| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](architecture/teleport_architecture_overview.md) document.
 | `--pid-file` | none | **string** filepath | create a PID file at the path
 | `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT
 | `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP
@@ -30,7 +30,7 @@ the following services.
 | `--nodename` | `hostname` command on the machine | **string** | assigns an alternative name for the node which can be used by clients to login. By default it's equal to the value returned by
 | `-c, --config` | `/etc/teleport.yaml` | **string** `.yaml` filepath | starts services with config specified in the YAML file, overrides CLI flags if set
 | `--bootstrap` | none | **string** `.yaml` filepath | bootstrap configured YAML resources <!--TODO link how to configure this file-->
-| `--labels` | none | **string** comma-separated list | assigns a set of labels to a node. See the explanation of labeling mechanism in the [Labeling Nodes](./admin-guide/#labeling-nodes) section.
+| `--labels` | none | **string** comma-separated list | assigns a set of labels to a node. See the explanation of labeling mechanism in the [Labeling Nodes](admin-guide.md#labeling-nodes) section.
 | `--insecure` | none | none | disable certificate validation on Proxy Service, validation still occurs on Auth Service.
 | `--fips` | none | none | start Teleport in FedRAMP/FIPS 140-2 mode.
 | `--diag-addr` | none | none | Enable diagnostic endpoints
@@ -79,7 +79,7 @@ information about the cluster.
 | `-i, --identity` | none | **string** filepath | Identity file
 | `--cert-format` | `file` | `file` or `openssh` | SSH certificate format
 | `--insecure` | none | none | Do not verify server's certificate and host name. Use only in test environments
-| `--auth` | `local` | any defined [authentication connector](./admin-guide/#authentication) |  Specify the type of authentication connector to use.
+| `--auth` | `local` | any defined [authentication connector](admin-guide.md#authentication) |  Specify the type of authentication connector to use.
 | `--skip-version` | none | none | Skip version checking between server and client.
 | `-d, --debug` | none | none | Verbose logging to stdout
 | `-J, --jumphost` | none | A jump host | SSH jumphost
@@ -328,7 +328,7 @@ interval via `--ttl` flag (capped by the server-side configuration).
 
 ### Arguments
 
-* `<cluster>` - the name of the cluster,  see [Trusted Cluster](./trustedclusters.md/#introduction ) for more information. 
+* `<cluster>` - the name of the cluster,  see [Trusted Cluster](trustedclusters.md#introduction ) for more information. 
 
 ### Flags
 
@@ -692,7 +692,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 Create or update a Teleport resource from a YAML file.
 
 The supported resource types are: user, node, cluster, role, connector.
-See the [Resource Guide](./admin-guide/#resources) for complete docs on how to build these yaml files.
+See the [Resource Guide](admin-guide.md#resources) for complete docs on how to build these yaml files.
 
 **Usage**: `tctl create [<flags>] <filename>`
 

@@ -13,12 +13,12 @@ document you will learn how to:
 * Replay recorded interactive sessions.
 
 In addition to this document, you can always simply type `tsh` into your
-terminal for the [CLI reference](./cli-docs).
+terminal for the [CLI reference](cli-docs.md).
 
 ## Introduction
 
 For the impatient, here's an example of how a user would typically use
-[`tsh`](./cli-docs/$tsh):
+[`tsh`](cli-docs.md#tsh):
 
 ```bash
 # Login into a Teleport cluster. This command retrieves user's certificates
@@ -44,7 +44,7 @@ $ tsh logout
 
 In other words, Teleport was designed to be fully compatible with existing
 SSH-based workflows and does not require users to learn anything new, other than
-to call [`tsh login`](./cli-docs/$tsh-login) in the beginning.
+to call [`tsh login`](cli-docs.md#tsh-login) in the beginning.
 
 ## User Identities
 
@@ -61,7 +61,7 @@ passed as `login@host`, using syntax compatible with traditional `ssh`.
 # as root:
 $ tsh ssh --proxy=work.example.com --user=joe root@node
 ```
-[CLI Docs - tsh ssh](./cli-docs/#tsh-ssh)
+[CLI Docs - tsh ssh](cli-docs.md#tsh-ssh)
 
 ## Logging In
 
@@ -80,7 +80,7 @@ $ tsh login --proxy=work.example.com:5000
 # Using custom SSH proxy port, which is set on the Auth Server:
 $ tsh login --proxy=work.example.com:2002
 ```
-[CLI Docs - tsh login](./cli-docs/#tsh-login)
+[CLI Docs - tsh login](cli-docs.md#tsh-login)
 
 Port               | Description
 -------------------|-------------------------------------
@@ -98,7 +98,7 @@ temporary certificate expires. By default, Teleport issues user certificates
 with a TTL (time to live) of 12 hours.
 
 !!! tip "Tip":
-    It is recommended to always use [`tsh login`](./cli-docs/#tsh-login) before
+    It is recommended to always use [`tsh login`](cli-docs.md#tsh-login) before
     using any other `tsh` commands. This
     allows users to omit `--proxy` flag in subsequent tsh commands. For example
     `tsh ssh user@host` will work.
@@ -116,7 +116,7 @@ $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 # Login using Github as an SSO provider, assuming the Github connector is called "github"
 $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 ```
-[CLI Docs - tsh login](./cli-docs/#tsh-login)
+[CLI Docs - tsh login](cli-docs.md#tsh-login)
 
 ### Inspecting SSH Certificate
 
@@ -133,7 +133,7 @@ $ tsh status
   Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
   Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
-[CLI Docs - tsh status](./cli-docs/#tsh-status)
+[CLI Docs - tsh status](cli-docs.md#tsh-status)
 
 ### SSH Agent Support
 
@@ -150,7 +150,7 @@ to OpenSSH `ssh`.
 
 ### Identity Files
 
-[`tsh login`](./cli-docs/#tsh-login) can also save the user certificate into a
+[`tsh login`](cli-docs.md#tsh-login) can also save the user certificate into a
 file:
 
 ```bash
@@ -194,7 +194,7 @@ jenkins user and storing it in jenkins.pem file, which can be later used with
 # to be executed on a Teleport auth server
 $ tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
 ```
-[CLI Docs - tctl auth sign](./cli-docs/#tctl-auth-sign)
+[CLI Docs - tctl auth sign](cli-docs.md#tctl-auth-sign)
 
 Now `jenkins.pem` can be copied to the jenkins server and passed to `-i`
 (identity file) flag of `tsh`. Essentially `tctl auth sign` is an admin's
@@ -218,7 +218,7 @@ turing        11111111-dddd-4132     10.1.0.5:3022      os:linux
 turing        22222222-cccc-8274     10.1.0.6:3022      os:linux
 graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
-[CLI Docs - tsh ls](./cli-docs/#tsh-ls)
+[CLI Docs - tsh ls](cli-docs.md#tsh-ls)
 
 `tsh ls` can apply a filter based on the node labels.
 
@@ -230,7 +230,7 @@ Node Name     Node ID                Address            Labels
 ---------     -------                -------            ------
 graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
-[CLI Docs -tsh ls](./cli-docs/#tsh-ls)
+[CLI Docs -tsh ls](cli-docs.md#tsh-ls)
 
 ## Interactive Shell
 
@@ -419,7 +419,7 @@ tunnels from behind-firewall environments into a Teleport proxy you have access
 to. This feature is called "Trusted Clusters".
 
 This chapter explains how to a user may connect to a trusted cluster. Refer to
-[the admin manual](admin-guide/#trusted-clusters) to learn how a trusted cluster
+[the admin manual](admin-guide.md#trusted-clusters) to learn how a trusted cluster
 can be configured.
 
 Assuming the "work" Teleport proxy server is configured with a few trusted
@@ -433,7 +433,7 @@ Cluster Name     Status
 staging          online
 production       offline
 ```
-[CLI Docs - tsh clusters](./cli-docs/#tsh-clusters)
+[CLI Docs - tsh clusters](cli-docs.md#tsh-clusters)
 
 Now you can use `--cluster` flag with any `tsh` command. For example, to list
 SSH nodes that are members of the "production" cluster, simply do:
@@ -542,7 +542,7 @@ the certificate must be passed to `ssh` via `IdentityFile` option (see `man
 ssh_config`). Consider this example: the Teleport user "joe" wants to login into
 the proxy named "lab.example.com".
 
-He executes [`tsh login`](./cli-docs/#tsh-login) command:
+He executes [`tsh login`](cli-docs.md#tsh-login) command:
 
 ```bash
 $ tsh --proxy=lab.example.com login --user=joe

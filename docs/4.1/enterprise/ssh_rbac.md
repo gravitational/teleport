@@ -63,7 +63,7 @@ all of the available resources and verbs under the `allow` section in the `admin
 below.
 
 To manage cluster roles, a Teleport administrator can use the Web UI or the command
-line using [tctl resource commands](../admin-guide/#resources). To see the list of
+line using [tctl resource commands](../admin-guide.md#resources). To see the list of
 roles in a Teleport cluster, an administrator can execute:
 
 ```bsh
@@ -181,7 +181,7 @@ Option                    | Description                          | Multi-role be
 ## RBAC for Hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
-This works by [labeling nodes](../admin-guide/#labeling-nodes) and listing
+This works by [labeling nodes](../admin-guide.md#labeling-nodes) and listing
 allow/deny labels in a role definition.
 
 Consider the following use case:
