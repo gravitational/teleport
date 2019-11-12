@@ -162,12 +162,12 @@ Joins an active session
 |------|---------|----------------|----------------------------|
 | `--cluster` | none | a cluster_name | Specify the cluster to connect
 
-### [Global Flags](./#tsh-global-flags)
+### [Global Flags](#tctl-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
 --identity, --cert-format, --insecure, --auth, --skip-version, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](./#tsh-global-flags)
+Section](#tsh-global-flags)
 
 ### Examples
 
@@ -194,12 +194,12 @@ Plays back a prior session
 |------|---------|----------------|----------------------------|
 | `--cluster` | none | a cluster_name | Specify the cluster to connect
 
-### [Global Flags](./#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
 --identity, --cert-format, --insecure, --auth, --skip-version, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](./#tsh-global-flags)
+Section](#tsh-global-flags)
 
 ### Examples
 
@@ -228,12 +228,12 @@ Copies files from source to dest
 | `-P, --port` | none | port number | Port to connect to on the remote host
 | `-q, --quiet` | none | none | Quiet mode
 
-### [Global Flags](./#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
 --identity, --cert-format, --insecure, --auth, --skip-version, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](./#tsh-global-flags)
+Section](#tsh-global-flags)
 
 ### Examples
 
@@ -258,12 +258,12 @@ like it only supports one label at a time-->
 |------|---------|----------------|----------------------------|
 | `-v, --verbose` | none | none | also print Node ID
 
-### [Global Flags](./#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
 --identity, --cert-format, --insecure, --auth, --skip-version, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](./#tsh-global-flags)
+Section](#tsh-global-flags)
 
 ### Examples
 
@@ -298,12 +298,12 @@ grav-02      10.156.0.7:3022    os:osx
 |------|---------|----------------|----------------------------|
 | `-q, --quiet` | none | none | no headers in output
 
-### [Global Flags](./#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
 --identity, --cert-format, --insecure, --auth, --skip-version, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](./#tsh-global-flags)
+Section](#tsh-global-flags)
 
 ### Examples
 
@@ -338,12 +338,12 @@ interval via `--ttl` flag (capped by the server-side configuration).
 | `-o, --out` | none | filepath | Identity output filepath
 | `--format` | `file` | `file` or `openssh` | Identity format
 
-### [Global Flags](./#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
 --identity, --cert-format, --insecure, --auth, --skip-version, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](./#tsh-global-flags)
+Section](#tsh-global-flags)
 
 ### Examples
 
@@ -446,10 +446,10 @@ Generates a user invitation token.
 | `--k8s-groups` | none | a kubernetes group | Kubernetes groups to assign to a user.e.g. `system:masters`
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token
 
-### [Global Flags](./#tctl-global-flags)
+### [Global Flags](#tctl-global-flags)
 
 These flags are available for all commands `--debug, --config` . Run `tctl help
-<subcommand>` or see the [Global Flags Section](./#tsh-global-flags)
+<subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 ### Examples
 
@@ -495,10 +495,10 @@ Generate a node invitation token
 | `--ttl` | 30m | relative duration like 5s, 2m, or 3h | Time to live for a generated token
 | `--token` | none | **string** token value | A custom token to use, auto-generated if not provided. Should match token set with `teleport start --token`
 
-### [Global Flags](./#tctl-global-flags)
+### [Global Flags](#tctl-global-flags)
 
 These flags are available for all commands `--debug, --config` . Run `tctl help
-<subcommand>` or see the [Global Flags Section](./#tsh-global-flags)
+<subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 ### Examples
 
@@ -523,10 +523,10 @@ List all active SSH nodes within the cluster
 |------|---------|----------------|----------------------------|
 | `--namespace` | none | **string** namespace | Namespace of the nodes
 
-### [Global Flags](./#tctl-global-flags)
+### [Global Flags](#tctl-global-flags)
 
 These flags are available for all commands `--debug, --config` . Run `tctl help
-<subcommand>` or see the [Global Flags Section](./#tsh-global-flags)
+<subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 ## tctl tokens add
 
@@ -542,10 +542,10 @@ Create an invitation token
 | `--value` | none | **string** token value | Value of token to add
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token
 
-### [Global Flags](./#tctl-global-flags)
+### [Global Flags](#tctl-global-flags)
 
 These flags are available for all commands `--debug, --config` . Run `tctl help
-<subcommand>` or see the [Global Flags Section](./#tsh-global-flags)
+<subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 ### Examples
 
@@ -599,10 +599,10 @@ Export public cluster (CA) keys to stdout
 `--compat` | none | version number | export certificates compatible with specific version of Teleport
 `--type` | none | `user, host` or `tls` | certificate type
 
-### [Global Flags](./#tctl-global-flags)
+### [Global Flags](#tctl-global-flags)
 
 These flags are available for all commands `--debug, --config` . Run `tctl help
-<subcommand>` or see the [Global Flags Section](./#tsh-global-flags)
+<subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 ### Examples
 
@@ -633,10 +633,10 @@ Create an identity file(s) for a given user
 `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate
 `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag
 
-### [Global Flags](./#tctl-global-flags)
+### [Global Flags](#tctl-global-flags)
 
 These flags are available for all commands `--debug, --config` . Run `tctl help
-<subcommand>` or see the [Global Flags Section](./#tsh-global-flags)
+<subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 ### Examples
 
@@ -673,9 +673,9 @@ Rotate certificate authorities in the cluster
 `--type` | `user,host` | `user` or `host` | Certificate authority to rotate
 `--phase` | | `init, standby, update_clients, update_servers, rollback` | Target rotation phase to set, used in manual rotation
 
-### [Global Flags](./#tctl-global-flags)
+### [Global Flags](#tctl-global-flags)
 
-These flags are available for all commands `--debug, --config` . Run `tctl help <subcommand>` or see the [Global Flags Section](./#tsh-global-flags)
+These flags are available for all commands `--debug, --config` . Run `tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 ### Examples
 
@@ -706,9 +706,9 @@ See the [Resource Guide](./admin-guide/#resources) for complete docs on how to b
 |------|---------|----------------|----------------------------|
 `-f, --force` | none | none | Overwrite the resource if already exists
 
-### [Global Flags](./#tctl-global-flags)
+### [Global Flags](#tctl-global-flags)
 
-These flags are available for all commands `--debug, --config` . Run `tctl help <subcommand>` or see the [Global Flags Section](./#tsh-global-flags)
+These flags are available for all commands `--debug, --config` . Run `tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 ### Examples
 
@@ -761,9 +761,9 @@ Print a YAML declaration of various Teleport resources
 `--format` | | `yaml, json` or `text` | Output format
 `--with-secrets` | none | none |  Include secrets in resources like certificate authorities or OIDC connectors
 
-### [Global Flags](./#tctl-global-flags)
+### [Global Flags](#tctl-global-flags)
 
-These flags are available for all commands `--debug, --config` . Run `tctl help <subcommand>` or see the [Global Flags Section](./#tsh-global-flags)
+These flags are available for all commands `--debug, --config` . Run `tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 ### Examples
 
