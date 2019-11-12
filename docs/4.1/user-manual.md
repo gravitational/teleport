@@ -580,4 +580,4 @@ Github](https://github.com/gravitational/teleport/issues). Alternatively, you
 can reach through the contact form on our [website](https://gravitational.com/).
 
 For commercial support, custom features or to try our [Enterprise edition of
-Teleport](/enterprise/), please reach out to us: `sales@gravitational.com`.
+Teleport](enterprise/index.md), please reach out to us: `sales@gravitational.com`.
