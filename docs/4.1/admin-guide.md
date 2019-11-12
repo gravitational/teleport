@@ -1008,7 +1008,7 @@ the audit log:
    but can be configured to be done by the proxy.
 
 Refer to the ["Audit Log" chapter in the Teleport
-Architecture](architecture_auth/#audit-log) to learn more about how the audit Log and
+Architecture](architecture/teleport_auth#audit-log) to learn more about how the audit Log and
 session recording are designed.
 
 ### SSH Events
@@ -1855,7 +1855,7 @@ To allow access for all users:
 
 ## Certificate Rotation
 
-Take a look at the [Certificates chapter](architecture_auth/#authentication-in-teleport) in the
+Take a look at the [Certificates chapter](architecture/teleport_auth#authentication-in-teleport) in the
 architecture document to learn how the certificate rotation works. This section
 will show you how to implement certificate rotation in practice.
 
