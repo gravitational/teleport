@@ -107,6 +107,10 @@ spec:
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
     kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
+    # Teleport 4.2 allows users to request another role.
+    request: 
+      # In this example, the user can request a role called 'example-dba'
+      roles: ['example-dba']
 
     # list of node labels a user will be allowed to connect to:
     node_labels:
@@ -123,6 +127,10 @@ spec:
     # list of allow-rules. see below for more information.
     rules:
     - resources: [role]
+      verbs: [list, create, read, update, delete]
+    # Access Request is part of Approval Workflows introduced in 4.2
+    # `access_request` should only be given to Teleport Admins. 
+    - resources: [access_request]
       verbs: [list, create, read, update, delete]
     - resources: [auth_connector]
       verbs: [connect, list, create, read, update, delete]
