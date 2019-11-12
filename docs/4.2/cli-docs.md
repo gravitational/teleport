@@ -351,7 +351,7 @@ Section](#tsh-global-flags)
 _The proxy endpoint can take a https and ssh port in this format
 `host:https_port[,ssh_proxy_port]`_
 
-``` bsh
+```bsh
 # Use ports 8080 and 8023 for https and SSH proxy:
 $ tsh --proxy=proxy.example.com:8080,8023 login
 
