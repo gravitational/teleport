@@ -420,12 +420,13 @@ func (l *AuditLog) getAuthServers() ([]string, error) {
 }
 
 type sessionIndex struct {
-	dataDir    string
-	namespace  string
-	sid        session.ID
-	events     []indexEntry
-	chunks     []indexEntry
-	indexFiles []string
+	dataDir        string
+	namespace      string
+	sid            session.ID
+	events         []indexEntry
+	enhancedEvents map[string][]indexEntry
+	chunks         []indexEntry
+	indexFiles     []string
 }
 
 func (idx *sessionIndex) fileNames() []string {
@@ -440,6 +441,13 @@ func (idx *sessionIndex) fileNames() []string {
 		files = append(files, idx.chunksFileName(i))
 	}
 
+	// Enhanced events.
+	for k, v := range idx.enhancedEvents {
+		for i := range v {
+			files = append(files, idx.enhancedFileName(i, k))
+		}
+	}
+
 	return files
 }
 
@@ -450,21 +458,27 @@ func (idx *sessionIndex) sort() {
 	sort.Slice(idx.chunks, func(i, j int) bool {
 		return idx.chunks[i].Offset < idx.chunks[j].Offset
 	})
+
+	// Enhanced events.
+	sort.Slice(idx.enhancedEvents[SessionCommandEvent], func(i, j int) bool {
+		return idx.enhancedEvents[SessionCommandEvent][i].Index < idx.enhancedEvents[SessionCommandEvent][j].Index
+	})
+	sort.Slice(idx.enhancedEvents[SessionDiskEvent], func(i, j int) bool {
+		return idx.enhancedEvents[SessionDiskEvent][i].Index < idx.enhancedEvents[SessionDiskEvent][j].Index
+	})
+	sort.Slice(idx.enhancedEvents[SessionNetworkEvent], func(i, j int) bool {
+		return idx.enhancedEvents[SessionNetworkEvent][i].Index < idx.enhancedEvents[SessionNetworkEvent][j].Index
+	})
+}
+
+func (idx *sessionIndex) enhancedFileName(index int, eventType string) string {
+	entry := idx.enhancedEvents[eventType][index]
+	return filepath.Join(idx.dataDir, entry.authServer, SessionLogsDir, idx.namespace, entry.FileName)
 }
 
 func (idx *sessionIndex) eventsFileName(index int) string {
 	entry := idx.events[index]
 	return filepath.Join(idx.dataDir, entry.authServer, SessionLogsDir, idx.namespace, entry.FileName)
-}
-
-func (idx *sessionIndex) enhancedIndexes(eventType string) []string {
-	fileNames := make([]string, len(idx.events))
-	for i := 0; i < len(idx.events); i++ {
-		if strings.Contains(idx.events[i].FileName, eventType) {
-			fileNames[i] = idx.eventsFileName(i)
-		}
-	}
-	return fileNames
 }
 
 func (idx *sessionIndex) eventsFile(afterN int) (int, error) {
@@ -517,6 +531,11 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 		sid:       sid,
 		dataDir:   dataDir,
 		namespace: namespace,
+		enhancedEvents: map[string][]indexEntry{
+			SessionCommandEvent: []indexEntry{},
+			SessionDiskEvent:    []indexEntry{},
+			SessionNetworkEvent: []indexEntry{},
+		},
 	}
 	for _, authServer := range authServers {
 		indexFileName := filepath.Join(dataDir, authServer, SessionLogsDir, namespace, fmt.Sprintf("%v.index", sid))
@@ -529,12 +548,15 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 			continue
 		}
 		index.indexFiles = append(index.indexFiles, indexFileName)
-		events, chunks, err := readIndexEntries(indexFile, authServer)
+		events, chunks, cmdEvents, diskEvents, netEvents, err := readIndexEntries(indexFile, authServer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		index.events = append(index.events, events...)
 		index.chunks = append(index.chunks, chunks...)
+		index.enhancedEvents[SessionCommandEvent] = append(index.enhancedEvents[SessionCommandEvent], cmdEvents...)
+		index.enhancedEvents[SessionDiskEvent] = append(index.enhancedEvents[SessionDiskEvent], diskEvents...)
+		index.enhancedEvents[SessionNetworkEvent] = append(index.enhancedEvents[SessionNetworkEvent], netEvents...)
 		err = indexFile.Close()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -544,12 +566,18 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 	return &index, nil
 }
 
-func readIndexEntries(file *os.File, authServer string) (events []indexEntry, chunks []indexEntry, err error) {
+func readIndexEntries(file *os.File, authServer string) ([]indexEntry, []indexEntry, []indexEntry, []indexEntry, []indexEntry, error) {
+	var events []indexEntry
+	var chunks []indexEntry
+	var commandEvents []indexEntry
+	var diskEvents []indexEntry
+	var networkEvents []indexEntry
+
 	scanner := bufio.NewScanner(file)
 	for lineNo := 0; scanner.Scan(); lineNo++ {
 		var entry indexEntry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, nil, nil, nil, trace.Wrap(err)
 		}
 		entry.authServer = authServer
 		switch entry.Type {
@@ -557,11 +585,17 @@ func readIndexEntries(file *os.File, authServer string) (events []indexEntry, ch
 			events = append(events, entry)
 		case fileTypeChunks:
 			chunks = append(chunks, entry)
+		case SessionCommandEvent:
+			commandEvents = append(commandEvents, entry)
+		case SessionDiskEvent:
+			diskEvents = append(diskEvents, entry)
+		case SessionNetworkEvent:
+			networkEvents = append(networkEvents, entry)
 		default:
-			return nil, nil, trace.BadParameter("unsupported type: %q", entry.Type)
+			return nil, nil, nil, nil, nil, trace.BadParameter("unsupported type: %q", entry.Type)
 		}
 	}
-	return
+	return events, chunks, commandEvents, diskEvents, networkEvents, nil
 }
 
 // createOrGetDownload creates a new download sync entry for a given session,
@@ -852,30 +886,30 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int
 	return events, nil
 }
 
-func (l *AuditLog) readRaw(fileName string, buffer *bytes.Buffer) error {
-	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0640)
-	if err != nil {
-		// no file found? this means no events have been logged yet
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-	defer logFile.Close()
-
-	reader, err := gzip.NewReader(logFile)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer reader.Close()
-
-	_, err = buffer.ReadFrom(reader)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
+//func (l *AuditLog) readRaw(fileName string, buffer *bytes.Buffer) error {
+//	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0640)
+//	if err != nil {
+//		// no file found? this means no events have been logged yet
+//		if os.IsNotExist(err) {
+//			return nil
+//		}
+//		return trace.Wrap(err)
+//	}
+//	defer logFile.Close()
+//
+//	reader, err := gzip.NewReader(logFile)
+//	if err != nil {
+//		return trace.Wrap(err)
+//	}
+//	defer reader.Close()
+//
+//	_, err = buffer.ReadFrom(reader)
+//	if err != nil {
+//		return trace.Wrap(err)
+//	}
+//
+//	return nil
+//}
 
 func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventFields, error) {
 	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0640)

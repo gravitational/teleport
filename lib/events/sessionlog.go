@@ -104,14 +104,14 @@ func NewDiskSessionLogger(cfg DiskSessionLoggerConfig) (*DiskSessionLogger, erro
 		lastChunkIndex: -1,
 
 		enhancedIndexes: map[string]int64{
-			SessionExecEvent:    -1,
-			SessionOpenEvent:    -1,
-			SessionConnectEvent: -1,
+			SessionCommandEvent: -1,
+			SessionDiskEvent:    -1,
+			SessionNetworkEvent: -1,
 		},
 		enhancedFiles: map[string]*gzipWriter{
-			SessionExecEvent:    nil,
-			SessionOpenEvent:    nil,
-			SessionConnectEvent: nil,
+			SessionCommandEvent: nil,
+			SessionDiskEvent:    nil,
+			SessionNetworkEvent: nil,
 		},
 	}
 	return sessionLogger, nil
@@ -300,7 +300,7 @@ func (sl *DiskSessionLogger) openChunksFile(offset int64) error {
 	}
 	chunksFileName := chunksFileName(sl.sessionDir, sl.SessionID, offset)
 
-	// udpate the index file to write down that new chunks file has been created
+	// Update the index file to write down that new chunks file has been created.
 	data, err := json.Marshal(indexEntry{
 		FileName: filepath.Base(chunksFileName),
 		Type:     fileTypeChunks,
@@ -341,11 +341,21 @@ func (sl *DiskSessionLogger) openEnhancedFile(eventType string, eventIndex int64
 	// Create a new events file.
 	eventsFileName := eventsFileName(sl.sessionDir, sl.SessionID, eventType, eventIndex)
 
+	// If the event is an enhanced event overwrite with the type of enhanced event.
+	var indexType string
+	switch eventType {
+	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+		indexType = eventType
+	default:
+		indexType = fileTypeEvents
+	}
+
 	// Update the index file to write down that new events file has been created.
 	data, err := json.Marshal(indexEntry{
 		FileName: filepath.Base(eventsFileName),
-		Type:     fileTypeEvents,
-		Index:    eventIndex,
+		//Type:     fileTypeEvents,
+		Type:  indexType,
+		Index: eventIndex,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -426,7 +436,7 @@ func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (
 		}
 		return n, nil
 	// Enhanced auditing events all go to their own events files.
-	case SessionExecEvent, SessionOpenEvent, SessionConnectEvent:
+	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
 		return sl.writeEnhancedChunk(sessionID, chunk)
 	// All other events get put into the general events file. These are events like
 	// session.join, session.end, etc.

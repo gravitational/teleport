@@ -150,20 +150,22 @@ var (
 		Name: AuthAttemptEvent,
 		Code: AuthAttemptFailureCode,
 	}
-	// SessionExec ...
-	SessionExec = Event{
-		Name: SessionExecEvent,
-		Code: SessionExecCode,
+	// SessionCommand is emitted upon execution of a command when using enhanced
+	// auditing.
+	SessionCommand = Event{
+		Name: SessionCommandEvent,
+		Code: SessionCommandCode,
 	}
-	// SessionOpen ...
-	SessionOpen = Event{
-		Name: SessionOpenEvent,
-		Code: SessionOpenCode,
+	// SessionDisk is emitted upon open of a file when using enhanced auditing.
+	SessionDisk = Event{
+		Name: SessionDiskEvent,
+		Code: SessionDiskCode,
 	}
-	// SessionConnect ...
-	SessionConnect = Event{
-		Name: SessionConnectEvent,
-		Code: SessionConnectCode,
+	// SessionNetwork is emitted when a network requests is is issued when
+	// using enhanced auditing.
+	SessionNetwork = Event{
+		Name: SessionNetworkEvent,
+		Code: SessionNetworkCode,
 	}
 )
 
@@ -218,10 +220,10 @@ var (
 	ClientDisconnectCode = "T3006I"
 	// AuthAttemptFailureCode is the auth attempt failure event code.
 	AuthAttemptFailureCode = "T3007W"
-	// SessionExecCode is a session exec code.
-	SessionExecCode = "T4000I"
-	// SessionOpenCode is a session open code.
-	SessionOpenCode = "T4001I"
-	// SessionConnectCode is a session connect code.
-	SessionConnectCode = "T4002I"
+	// SessionCommandCode is a session command code.
+	SessionCommandCode = "T4000I"
+	// SessionDiskCode is a session disk code.
+	SessionDiskCode = "T4001I"
+	// SessionNetworkCode is a session network code.
+	SessionNetworkCode = "T4002I"
 )

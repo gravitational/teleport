@@ -19,7 +19,6 @@ package events
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -29,8 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
-
-var _ = fmt.Printf
 
 // ForwarderConfig forwards session log events
 // to the auth server, and writes the session playback to disk
@@ -90,9 +87,9 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		ForwarderConfig: cfg,
 		sessionLogger:   diskLogger,
 		enhancedIndexes: map[string]int64{
-			SessionExecEvent:    0,
-			SessionOpenEvent:    0,
-			SessionConnectEvent: 0,
+			SessionCommandEvent: 0,
+			SessionDiskEvent:    0,
+			SessionNetworkEvent: 0,
 		},
 	}, nil
 }
@@ -183,14 +180,14 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 		return nil, trace.BadParameter("write on closed forwarder")
 	}
 
-	// setup chunk indexes
+	// Setup chunk indexes.
 	var chunks []*SessionChunk
 	for _, chunk := range slice.Chunks {
 
 		switch chunk.EventType {
 		case "":
 			return nil, trace.BadParameter("missing event type")
-		case SessionExecEvent, SessionOpenEvent, SessionConnectEvent:
+		case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
 			chunk.EventIndex = l.enhancedIndexes[chunk.EventType]
 			l.enhancedIndexes[chunk.EventType] += 1
 
@@ -199,8 +196,8 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 			chunk.EventIndex = l.eventIndex
 			l.eventIndex += 1
 
-			// filter out chunks with session print events,
-			// as this logger forwards only audit events to the auth server
+			// Filter out chunks with session print events, as this logger forwards
+			// only audit events to the auth server.
 			if l.lastChunk != nil {
 				chunk.Offset = l.lastChunk.Offset + int64(len(l.lastChunk.Data))
 				chunk.Delay = diff(time.Unix(0, l.lastChunk.Time), time.Unix(0, chunk.Time)) + l.lastChunk.Delay

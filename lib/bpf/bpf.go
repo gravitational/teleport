@@ -302,7 +302,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			events.Argv:       argv[1:],
 			events.ReturnCode: event.ReturnCode,
 		}
-		ctx.AuditLog.EmitAuditEvent(events.SessionExec, eventFields)
+		ctx.AuditLog.EmitAuditEvent(events.SessionCommand, eventFields)
 
 		//// Remove, only for debugging.
 		//fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Program=%v Path=%v Args=%v ReturnCode=%v.\n",
@@ -347,7 +347,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		events.Flags:      event.Flags,
 		events.ReturnCode: event.ReturnCode,
 	}
-	ctx.AuditLog.EmitAuditEvent(events.SessionOpen, eventFields)
+	ctx.AuditLog.EmitAuditEvent(events.SessionDisk, eventFields)
 
 	//// Remove, only for debugging.
 	//fmt.Printf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.\n",
@@ -399,7 +399,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		events.DstPort:    event.DstPort,
 		events.TCPVersion: 4,
 	}
-	ctx.AuditLog.EmitAuditEvent(events.SessionConnect, eventFields)
+	ctx.AuditLog.EmitAuditEvent(events.SessionNetwork, eventFields)
 }
 
 // emit6NetworkEvent will parse and emit IPv6 events to the Audit Log.
@@ -453,7 +453,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		events.DstPort:    event.DstPort,
 		events.TCPVersion: 6,
 	}
-	ctx.AuditLog.EmitAuditEvent(events.SessionConnect, eventFields)
+	ctx.AuditLog.EmitAuditEvent(events.SessionNetwork, eventFields)
 
 	//// Remove, only for debugging.
 	//fmt.Printf("--> Event=conn6 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",

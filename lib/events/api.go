@@ -185,15 +185,15 @@ const (
 	// data transfer
 	SessionDataIndex = math.MaxInt32 - 1
 
-	// SessionExecEvent is emitted when an executable is run within a session.
-	SessionExecEvent = "session.exec"
+	// SessionCommandEvent is emitted when an executable is run within a session.
+	SessionCommandEvent = "session.command"
 
-	// SessionOpenEvent is emitted when a file is opened within an session.
-	SessionOpenEvent = "session.open"
+	// SessionDiskEvent is emitted when a file is opened within an session.
+	SessionDiskEvent = "session.disk"
 
-	// SessionConnectEvent is emitted when a TCP connection is initated with a
+	// SessionNetworkEvent is emitted when a network connection is initated with a
 	// session.
-	SessionConnectEvent = "session.connect"
+	SessionNetworkEvent = "session.network"
 
 	// PID is the ID of the process.
 	PID = "pid"
