@@ -40,3 +40,21 @@ To run a specific version of the docs:
 ```bash
 $ mkdocs serve --config-file 1.3.yaml
 ```
+
+## Checking for bad links
+
+Install [milv (Markdown Internal Link Validator)](https://github.com/magicmatatjahu/milv) using `go get -u -v github.com/magicmatatjahu/milv`.
+
+Change to the appropriate base directory, then run `milv` and make sure it reports no errors:
+
+```bash
+$ cd docs/4.1`
+$ milv
+NO ISSUES :-)
+```
+
+`milv` will validate all internal and external links by default. The external link checking can take 30 seconds or so to run. You can run `milv -v` to see all outgoing requests if you think it's taking too long. You can also skip external link checking altogether with `milv --ignore-external` - this can be useful if you're rapidly trying to fix internal links.
+
+Make sure that you fix any broken links or errors before committing your changes!
+
+If there is a genuine false positive or case where `milv` is failing to parse a link correctly but it does work (and you have validated this using `make run-docs` or `mkdocs serve`) then you can add a whitelist under the appropriate section in `milv.config.yaml` and commit this back to the repo.
