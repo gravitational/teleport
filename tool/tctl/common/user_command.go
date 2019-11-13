@@ -118,6 +118,9 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	}
 	token, err := client.CreateSignupToken(user, u.ttl)
 	if err != nil {
+		if strings.Contains(err, "unknown long flag") {
+			return trace.Wrap(err, "NOTE: Make sure role used in flag has a corresponding Teleport role in RBAC")
+		}
 		return err
 	}
 
