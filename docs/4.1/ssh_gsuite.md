@@ -10,9 +10,23 @@ like:
 * ... and many others.
 
 !!! warning "Version Warning":
-    This guide requires a commercial edition of Teleport. The open source
+    This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
     edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
+
+<iframe width="712" height="400" src="https://www.youtube.com/embed/DG97l8WJ6oU?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameborder="0" allow="accelerometer; autoplay; encrypted-media; modestbranding; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+## Prerequisites:
+
+Before you get started you’ll need:
+
+- An Enterprise version of Teleport v4.1.4 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/). 
+- Be a G Suite Super Admin. As Google Best Practices, we would recommend setting up a seperate super admin with 2FA vs using your user.
+    - e.g. A dedicated account ben-ops@practice.io vs my daily ben@practice.io 
+- Ability to create GCP Project.
+    - This might require signing up to GCP, but for this project it won’t require using any paid services. It’s just a side effect of G Suite and GCP being closely related.
+- Have a [verified Domain](https://support.google.com/a/answer/60216?hl=en ). 
+- Setup G Suite Groups
 
 
 ## Configure G Suite
@@ -33,6 +47,35 @@ like:
 
 ![Copy Client Secret](img/gsuite/gsuite-5-copy-client-id.png)
 
+## Create a Service Account
+
+![Create OAuth Creds](img/gsuite/gsuite-5a-service-account.png)
+Leave Service account users roles, and admin roles as blank.
+![Create OAuth Creds](img/gsuite/gsuite-5b-service-account.png)
+Leave Service account permissions as blank.
+![Create OAuth Creds](img/gsuite/gsuite-5c-service-account.png)
+### Enable Account Delegation:
+![Create OAuth Creds](img/gsuite/gsuite-5d-service-account-delegation.png)
+![Create OAuth Creds](img/gsuite/gsuite-5e-enable-delegation.png)
+### Download Service Account JSON
+![Create OAuth Creds](img/gsuite/gsuite-5f-download-json.png)
+
+This JSON file will need to be uploaded to the Authentication server, and will be later referenced by 
+the OIDC Connector, under `google_service_account_uri`. 
+
+!!! note:  
+    Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
+    up in a HA config. 
+
+## API Scopes:
+
+Client name: Use Email from Service account creation ( this will be converted to numbers after it’s authorized )
+
+`https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://www.googleapis.com/auth/admin.directory.group.readonly, https://www.googleapis.com/auth/admin.directory.user.readonly`
+
+![Manage API Client Access](img/gsuite/gsuite-6-manage-api-access.png)
+Once saved, Google with convert the Client Name into the Client ID. 
+![Create OAuth Creds](img/gsuite/gsuite-6a-manage-access.png)
 
 
 ## Create a OIDC Connector
@@ -42,19 +85,25 @@ Write down this template as `gsuite-connector.yaml`:
 
 ```yaml
 kind: oidc
-version: v2
 metadata:
-  name: GSuite
+  name: gsuite
 spec:
-  redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-  client_id: exampleclientid11234.apps.googleusercontent.com
-  client_secret: examplesecret
-  issuer_url: https://accounts.google.com
-  scope: ['openid', 'email']
   claims_to_roles:
-    - {claim: "email", value: "ben@example.com", roles: ["admin"]}
-    - {claim: "email", value: "gus@example.com", roles: ["admin"]}
-    - {claim: "email", value: "*@example.com", roles: ["dev"]}
+  - claim: groups
+    roles:
+    - admin
+    value: dev@practice.io
+  client_id: GSUITE_CLIENT_ID.apps.googleusercontent.com
+  client_secret: OAUTH_CLIENT_SECRET
+  display: G Suite Group
+  google_admin_email: GSUITE_EMAIL
+  google_service_account_uri: file:///var/lib/teleport/gsuite-creds.json
+  issuer_url: https://accounts.google.com
+  redirect_url: https://TELEPORT_PROXY:3080/v1/webapi/oidc/callback
+  scope:
+  - openid
+  - email
+version: v2
 ```
 
 Create the connector using `tctl` tool:
@@ -115,7 +164,7 @@ $ tctl create dev.yaml
 ```
 
 ## Testing
-![Login with Gsuite](img/gsuite/gsuite-6-loginwithgsuite.png)
+![Login with Gsuite](img/gsuite/gsuite-7-loginwithgsuite.png)
 
 
 The Web UI will now contain a new button: "Login with GSuite". The CLI is
@@ -152,6 +201,5 @@ diagnosed using Teleport's `stderr` log, which is usually available via:
 $ sudo journalctl -fu teleport
 ```
 
-If you wish to increase the verbosity of Teleport's syslog, you can pass
-`--debug` flag to `teleport start` command.
-
+If you wish to increase the verbosity of Teleport's syslog, you can pass the
+[`--debug`](cli-docs.md#teleport-start) flag to `teleport start` command.

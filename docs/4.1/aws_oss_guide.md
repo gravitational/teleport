@@ -7,7 +7,6 @@ a deep dive into how to setup and run Teleport in production.
 We have split this guide into:
 
 - [Teleport on AWS FAQ](#teleport-on-aws-faq)
-- [Setting up Teleport OSS on AWS](#setting-up-teleport-oss-on-aws)
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips-tricks)
 
