@@ -1992,7 +1992,7 @@ $ tctl users add joe --k8s-groups="system:masters"
 ```
 
 !!! tip "NOTE":
-    In order to execute the above command, a Teleport role in RBAC needs to be created as `k8s-group`. An example RBAC role can be found in the [Kubernetes SSH](https://gravitational.com/teleport/docs/kubernetes_ssh/#impersonation) section.
+    In order to execute the above command, a Teleport role in RBAC needs to be created as `k8s-group`. An example RBAC role can be found in the [Kubernetes SSH](kubernetes_ssh.md#impersonation) section.
 
 If using Teleport Community SSO with Github, Kubernetes groups can be assigned
 to Github teams with a Teleport connector. See example above in [Github OAuth
