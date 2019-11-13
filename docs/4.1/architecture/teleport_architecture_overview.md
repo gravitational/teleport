@@ -51,7 +51,7 @@ Here are definitions of the key concepts you will use in teleport.
 ## Teleport Services
 
 Teleport uses three services which work together: [Nodes](teleport_nodes.md),
-[Auth](teleport_auth.md), and [Proxy](./proxy).
+[Auth](teleport_auth.md), and [Proxy](teleport_proxy.md).
 
 [**Teleport Nodes**](teleport_nodes.md) are servers which can be accessed remotely with
 SSH. The Teleport Node service runs on a machine and is similar to the `sshd`
