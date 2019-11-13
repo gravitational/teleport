@@ -924,15 +924,15 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Adding a node located behind NAT
 With the current setup you've only been able to add nodes that have direct access to the
 auth server and within the internal IP range of the cluster. We recommend
-setting up a [Trusted Cluster](/trustedclusters.md) if you have workloads split
+setting up a [Trusted Cluster](./trustedclusters.md) if you have workloads split
 across different networks / clouds.
 
 Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
 useful for IoT applications or for managing a couple of servers in a different network.  
 
-Similar to [Adding Nodes to Cluster](/quickstart.md#adding-nodes-to-cluster), use `tctl` to
+Similar to [Adding Nodes to Cluster](#adding-nodes-to-the-cluster), use `tctl` to
 create a single-use token for a node, but this time you'll replace the auth server IP with
-the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy
+the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy#adding-nodes-to-the-cluster
 web endpoint `teleport.example.com`.  
 
 ```bash
@@ -1375,7 +1375,7 @@ $ tctl rm users/admin
 
 ## Trusted Clusters
 
-As explained in the [architecture document](architecture/#core-concepts),
+As explained in the [architecture document](architecture/teleport_architecture_overview.md#design-principles),
 Teleport can partition compute infrastructure into multiple clusters. A cluster
 is a group of nodes connected to the cluster's auth server, acting as a
 certificate authority (CA) for all users and nodes.
@@ -1481,10 +1481,7 @@ To define a static cluster join token using the configuration file on "main":
 # fragment of /etc/teleport.yaml:
 auth_service:
   enabled: true
-  tokens:
-
-  + trusted_cluster:secret-token-to-add-new-clusters
-
+  tokens: trusted_cluster:secret-token-to-add-new-clusters
 ```
 
 If you wish to use auto-expiring cluster tokens, execute this CLI command on the
@@ -1615,7 +1612,7 @@ $ tctl rm tc/main
 
 ### Advanced Configuration
 
-Take a look at [Trusted Clusters Guide](trustedclusters.md) to learn more about
+Take a look at [Trusted Clusters Guide](./trustedclusters.md) to learn more about
 advanced topics:
 
 * Using dynamic cluster join tokens instead of pre-defined static tokens for
@@ -2180,7 +2177,7 @@ teleport:
 
 !!! tip "Tip":
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/#cluster-state) in Teleport
+    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport
     Architecture documentation.
 
 !!! tip "AWS Authentication":
@@ -2216,8 +2213,7 @@ running on an EC2 instance with an IAM role.
 
 !!! tip "Tip":
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/#cluster-state) in Teleport
-    Architecture documentation.
+    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport Architecture documentation.
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve

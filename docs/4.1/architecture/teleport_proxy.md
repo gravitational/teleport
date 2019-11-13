@@ -123,7 +123,7 @@ prevent sessions logs from reaching the Auth Server. With sessions recorded at
 the proxy, users with root privileges on nodes have no way of disabling the
 audit.
 
-See the [admin guide](admin-guide.md#recorded-sessions) to learn how to turn on
+See the [admin guide](../admin-guide.md#recorded-sessions) to learn how to turn on
 the recording proxy mode.
 
 ## More Concepts

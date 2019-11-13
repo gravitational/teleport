@@ -33,7 +33,7 @@ section of the Admin Manual.
 This has been a long standing [request](https://github.com/gravitational/teleport/issues/803) of Teleport and
 it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluster, change the node config
 option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr` 
-in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat-teleport-node-tunneling)
+in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat)
 
 ### What's Teleport scalability and hardware recommendations?
 
