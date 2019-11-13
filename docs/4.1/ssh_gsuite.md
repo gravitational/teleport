@@ -10,7 +10,7 @@ like:
 * ... and many others.
 
 !!! warning "Version Warning":
-    This guide requires an enterprise version of Teleport 4.1.4. The open source
+    This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
     edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
 
@@ -21,10 +21,10 @@ like:
 Before you get started you’ll need:
 
 - An Enterprise version of Teleport v4.1.4 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/). 
-- Be a  G Suite Super Admin. As Google Best Practices, we would recommend setting up a seperate super admin with 2FA vs using your user.
+- Be a G Suite Super Admin. As Google Best Practices, we would recommend setting up a seperate super admin with 2FA vs using your user.
     - e.g. A dedicated account ben-ops@practice.io vs my daily ben@practice.io 
 - Ability to create GCP Project.
-    - This might require signing up to GCP, but for this project it won’t require using any paid services. It’s just a side affect of G Suite and GCP being closing related.
+    - This might require signing up to GCP, but for this project it won’t require using any paid services. It’s just a side effect of G Suite and GCP being closely related.
 - Have a [verified Domain](https://support.google.com/a/answer/60216?hl=en ). 
 - Setup G Suite Groups
 
@@ -60,8 +60,12 @@ Leave Service account permissions as blank.
 ### Download Service Account JSON
 ![Create OAuth Creds](img/gsuite/gsuite-5f-download-json.png)
 
-This JSON file will need to be uploaded to the Authenication server, and will be later referenced by 
+This JSON file will need to be uploaded to the Authentication server, and will be later referenced by 
 the OIDC Connector, under `google_service_account_uri`. 
+
+!!! note:  
+    Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
+    up in a HA config. 
 
 ## API Scopes:
 
@@ -197,5 +201,5 @@ diagnosed using Teleport's `stderr` log, which is usually available via:
 $ sudo journalctl -fu teleport
 ```
 
-If you wish to increase the verbosity of Teleport's syslog, you can pass
-`--debug` flag to `teleport start` command.
+If you wish to increase the verbosity of Teleport's syslog, you can pass the
+[`--debug`](cli-docs.md#teleport-start) flag to `teleport start` command.

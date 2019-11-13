@@ -924,13 +924,13 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Adding a node located behind NAT
 With the current setup you've only been able to add nodes that have direct access to the
 auth server and within the internal IP range of the cluster. We recommend
-setting up a [Trusted Cluster](/trustedclusters) if you have workloads split
+setting up a [Trusted Cluster](/trustedclusters.md) if you have workloads split
 across different networks / clouds.
 
 Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
 useful for IoT applications or for managing a couple of servers in a different network.  
 
-Similar to [Adding Nodes to Cluster](/quickstart/#adding-nodes-to-cluster), use `tctl` to
+Similar to [Adding Nodes to Cluster](/quickstart.md#adding-nodes-to-cluster), use `tctl` to
 create a single-use token for a node, but this time you'll replace the auth server IP with
 the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy
 web endpoint `teleport.example.com`.  
@@ -2329,7 +2329,7 @@ clients, etc), the following rules apply:
 * Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins 
   may not be compatible
 
-As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before updading](#backup-before-upgrading).
+As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before upgrading](#backup-before-upgrading).
 
 !!! warning "Upgrading to Teleport 4.0+":
     Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
@@ -2338,8 +2338,8 @@ As an extra precaution you might want to backup your application prior to upgrad
 
 ### Backup Before Upgrading
 
-As an extra precaution you might want to backup your application prior to upgrading. We've 
-more instructions in Backing up and Bootstraping Teleport.
+As an extra precaution you might want to backup your application prior to upgrading. We have more
+instructions in [Backing up Teleport](#backing-up-teleport).
 
 ### Upgrade Sequence
 
@@ -2374,7 +2374,7 @@ With Teleport 4.1 you can now quickly export a collection of resources from
 Teleport. This feature set works best for local and etcd, it's currently experimental
 for AWS/GCP. 
 
-Using `tctl get all` it'll backup. 
+Using `tctl get all` will backup. 
 
 - Users
 - Certificate Authorities

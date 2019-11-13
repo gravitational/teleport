@@ -65,7 +65,7 @@ Please refer to the [Ports](admin-guide.md#ports) section of the Admin Manual.
 
 ### Does Teleport support authentication via OAuth, SAML or Active Directory?
 
-Gravitational offers this feature for the [commercial versions of Teleport](enterprise/index.md#sso).
+Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/index.md).
 
 ## Commercial Teleport Editions
 
