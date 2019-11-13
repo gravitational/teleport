@@ -62,16 +62,16 @@ code. This documentation is also available in [the Github
 repository](https://github.com/gravitational/teleport/tree/master/docs), so feel
 free to create an issue or pull request if you have comments.
 
-- [Quickstart Guide](quickstart/) - A quick tutorial to show off the basic
+- [Quickstart Guide](quickstart.md) - A quick tutorial to show off the basic
   capabilities of Teleport. A good place to start if you want to jump right in.
-- [Teleport Architecture](architecture/teleport_architecture_overview) - This section covers the underlying
+- [Teleport Architecture](architecture/teleport_architecture_overview.md) - This section covers the underlying
   design principles of Teleport and a detailed description of Teleport
   architecture. A good place to learn about Teleport's design and how it works.
-- [User Manual](user-manual/) - This manual expands on the Quickstart and
+- [User Manual](user-manual.md) - This manual expands on the Quickstart and
   provides end users with all they need to know about how to use Teleport.
-- [Admin Manual](admin-guide/) - This manual covers installation and
+- [Admin Manual](admin-guide.md) - This manual covers installation and
   configuration of Teleport and the ongoing management of Teleport.
-- [FAQ](faq/) - Common questions about Teleport.
+- [FAQ](faq.md) - Common questions about Teleport.
 
 ## Teleport Enterprise
 
@@ -82,20 +82,20 @@ majority of documentation between the Community and Enterprise Editions overlap,
 we have separated out the documentation that is specific to Teleport Enterprise.
 
 - [Teleport Enterprise Introduction](enterprise) - Overview of the additional capabilities of Teleport Enterprise.
-- [Teleport Enterprise Quick Start](quickstart-enterprise) - A quick tutorial to show off the basic capabilities of Teleport Enterprise.
+- [Teleport Enterprise Quick Start](enterprise/quickstart-enterprise.md) - A quick tutorial to show off the basic capabilities of Teleport Enterprise.
 A good place to start if you want to jump right in.
-- [RBAC for SSH](ssh_rbac) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
-- [SSO for SSH](ssh_sso) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
+- [RBAC for SSH](enterprise/ssh_rbac.md) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
+- [SSO for SSH](enterprise/ssh_sso.md) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
 
 ## Guides
 
 We also have several guides that go through the most typical configurations and integrations.
 
-- [Okta Integration](ssh_okta) - How to integrate Teleport Enterprise with Okta.
-- [ADFS Integration](ssh_adfs) - How to integrate Teleport Enterprise with Active Directory.
-- [One Login Integration](ssh_one_login) - How to integrate Teleport Enterprise with One Login.
-- [OIDC Integration](oidc) - How to integrate Teleport Enterprise with identity providers using OIDC/OAuth2.
-- [Kubernetes Integration](kubernetes_ssh) - How to configure Teleport to serve as a unified gateway for Kubernetes clusters and clusters of regular SSH nodes.
+- [Okta Integration](ssh_okta.md) - How to integrate Teleport Enterprise with Okta.
+- [ADFS Integration](ssh_adfs.md) - How to integrate Teleport Enterprise with Active Directory.
+- [One Login Integration](ssh_one_login.md) - How to integrate Teleport Enterprise with One Login.
+- [OIDC Integration](oidc.md) - How to integrate Teleport Enterprise with identity providers using OIDC/OAuth2.
+- [Kubernetes Integration](kubernetes_ssh.md) - How to configure Teleport to serve as a unified gateway for Kubernetes clusters and clusters of regular SSH nodes.
 
 ## Support and Contributing
 

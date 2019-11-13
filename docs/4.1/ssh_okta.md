@@ -10,7 +10,7 @@ like:
 
 !!! warning "Version Warning":
     This guide requires a commercial edition of Teleport. The open source
-    edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
+    edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
 
 ## Enable SAML Authentication
@@ -29,9 +29,9 @@ auth_service:
 
 First, create a SAML 2.0 Web App in Okta configuration section
 
-![Switch to classic UI](img/okta-saml-0.png?raw=true)
-![Create APP](img/okta-saml-1.png?raw=true)
-![Create APP name](img/okta-saml-2.png?raw=true)
+![Switch to classic UI](img/okta-saml-0.png)
+![Create APP](img/okta-saml-1.png)
+![Create APP name](img/okta-saml-2.png)
 
 **Create Groups**
 
@@ -80,12 +80,12 @@ Assign groups and people to your SAML app:
 Make sure to download the metadata in the form of an XML document. It will be used it to
 configure a Teleport connector:
 
-![Download metadata](img/okta-saml-4.png?raw=true)
+![Download metadata](img/okta-saml-4.png)
 
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](admin-guide#resources):
+Now, create a SAML connector [resource](admin-guide.md#resources):
 
 ```yaml
 # okta-connector.yaml

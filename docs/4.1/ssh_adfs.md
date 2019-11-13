@@ -12,7 +12,7 @@ like:
 
 !!! warning "Version Warning":
     This guide requires a commercial edition of Teleport. The open source
-    edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
+    edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
 
 ## Enable ADFS Authentication
@@ -39,15 +39,15 @@ mapping of the LDAP Attribute `E-Mail-Addresses` to `Name ID`. A group
 membership claim should be used to map users to roles (for example to
 separate normal users and admins).
 
-![Name ID Configuration](img/adfs-1.png?raw=true)
-![Group Configuration](img/adfs-2.png?raw=true)
+![Name ID Configuration](img/adfs-1.png)
+![Group Configuration](img/adfs-2.png)
 
 In addition if you are using dynamic roles (see below), it may be useful to map
 the LDAP Attribute `SAM-Account-Name` to `Windows account name` and create
 another mapping of `E-Mail-Addresses` to `UPN`.
 
-![WAN Configuration](img/adfs-3.png?raw=true)
-![UPN Configuration](img/adfs-4.png?raw=true)
+![WAN Configuration](img/adfs-3.png)
+![UPN Configuration](img/adfs-4.png)
 
 You'll also need to create a Relying Party Trust, use the below information to
 help guide you through the Wizard. Note, for development purposes we recommend
@@ -125,7 +125,7 @@ This role declares:
 * Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
-Next, create a SAML connector [resource](admin-guide#resources):
+Next, create a SAML connector [resource](admin-guide.md#resources):
 
 ```yaml
 kind: saml
