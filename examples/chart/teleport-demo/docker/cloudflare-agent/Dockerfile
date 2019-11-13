@@ -16,7 +16,8 @@ RUN curl ${CURL_OPTS} https://storage.googleapis.com/kubernetes-release/release/
     chmod +x /usr/local/bin/kubectl
 
 # Install certbot to get/rotate certificates, add certbot-dns-cloudflare for registration
-RUN pip3 install certbot certbot-dns-cloudflare
+RUN pip3 install wheel && \
+    pip3 install certbot certbot-dns-cloudflare
 
 COPY rootfs/ /
 
