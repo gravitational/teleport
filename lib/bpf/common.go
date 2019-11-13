@@ -32,34 +32,6 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentBPF,
 })
 
-// SessionContext contains all the information needed to track and emit
-// events for a particular session. Most of this information is already within
-// srv.ServerContext, unfortunately due to circular imports with lib/srv and
-// lib/bpf, part of that structure is reproduced in SessionContext.
-type SessionContext struct {
-	// Namespace is the namespace within which this session occurs.
-	Namespace string
-
-	// SessionID is the UUID of the given session.
-	SessionID string
-
-	// ServerID is the UUID of the server this session is executing on.
-	ServerID string
-
-	// Login is the Unix login for this session.
-	Login string
-
-	// User is the Teleport user.
-	User string
-
-	// PID is the process ID of Teleport when it re-executes itself. This is
-	// used by Telepor to find itself by cgroup.
-	PID int
-
-	// AuditLog is used to store events for a particular sessionl
-	AuditLog events.IAuditLog
-}
-
 // attachProbe will attach a kprobe to the given function name.
 func attachProbe(module *bcc.Module, eventName string, functionName string) error {
 	kprobe, err := module.LoadKprobe(functionName)
