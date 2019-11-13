@@ -33,8 +33,6 @@ rm -f /tmp/influxdb.rpm
 # Certbot is a tool to request letsencrypt certificates,
 # remove it if you don't need letsencrypt.
 sudo yum -y install python3 python3-pip
-#curl ${CURL_OPTS} -O https://bootstrap.pypa.io/get-pip.py
-#python3 get-pip.py
 pip3 install -I awscli requests
 pip3 install certbot certbot-dns-route53
 
