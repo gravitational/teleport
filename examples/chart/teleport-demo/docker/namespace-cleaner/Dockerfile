@@ -1,4 +1,4 @@
-FROM quay.io/gravitational/debian-grande:latest
+FROM quay.io/gravitational/debian-grande:buster
 
 ARG KUBECTL_VERSION="v1.12.5"
 ARG CURL_OPTS="-L --retry 100 --retry-delay 0 --connect-timeout 10 --max-time 300"
