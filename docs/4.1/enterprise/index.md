@@ -1,11 +1,10 @@
 # Teleport Enterprise
 
 This section will give an overview of Teleport Enterprise, the commercial product built around
-the open source Teleport Community core. For those that want to jump right in, you can play with 
-the [Quick Start Guide of Teleport Enterprise](quickstart-enterprise).
+the open source Teleport Community core. For those that want to jump right in, you can play
+with the [Quick Start Guide for Teleport Enterprise](quickstart-enterprise.md).
 
-The table below gives a quick overview of the
-benefits of Teleport Enterprise.
+The table below gives a quick overview of the benefits of Teleport Enterprise.
 
 |Teleport Enterprise Feature|Description
 ---------|--------------
@@ -102,4 +101,4 @@ In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to star
 In addition, Teleport checks if the binary was compiled against an approved
 cryptographic module (BoringCrypto) and fails to start if it was not.
 
-See our [Enterprise Guide for more information](./ssh_fips.md)
+See our [Enterprise Guide for more information](ssh_fips.md)

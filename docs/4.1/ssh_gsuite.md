@@ -11,7 +11,7 @@ like:
 
 !!! warning "Version Warning":
     This guide requires a commercial edition of Teleport. The open source
-    edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
+    edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
 
 
@@ -37,7 +37,7 @@ like:
 
 ## Create a OIDC Connector
 
-Now, create a OIDC connector [resource](admin-guide#resources).
+Now, create a OIDC connector [resource](admin-guide.md#resources).
 Write down this template as `gsuite-connector.yaml`:
 
 ```yaml

@@ -33,7 +33,7 @@ section of the Admin Manual.
 This has been a long standing [request](https://github.com/gravitational/teleport/issues/803) of Teleport and
 it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluster, change the node config
 option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr` 
-in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](quickstart/#adding-a-node-located-behind-nat-teleport-node-tunneling)
+in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](quickstart.md#adding-a-node-located-behind-nat-teleport-node-tunneling)
 
 ### What's Teleport scalability and hardware recommendations?
 
@@ -66,7 +66,7 @@ Please refer to the [Ports](admin-guide.md#ports) section of the Admin Manual.
 
 ### Does Teleport support authentication via OAuth, SAML or Active Directory?
 
-Gravitational offers this feature for the [commercial versions of Teleport](enterprise.md#rbac).
+Gravitational offers this feature for the [commercial versions of Teleport](enterprise/index.md#sso).
 
 ## Commercial Teleport Editions
 
@@ -74,15 +74,15 @@ Gravitational offers this feature for the [commercial versions of Teleport](ente
 
 The Teleport Enterprise offering gives users the following additional features:
 
-* Role-based access control, also known as [RBAC](enterprise#rbac).
+* Role-based access control, also known as [RBAC](enterprise/index.md#rbac).
 * Authentication via SAML and OpenID with providers like Okta, Active
-  Directory, Auth0, etc. (aka, [SSO](http://localhost:6600/ssh_sso/)).
+  Directory, Auth0, etc. (aka, [SSO](enterprise/ssh_sso.md)).
 * Premium support.
 
 We also offer implementation services, to help you integrate
 Teleport with your existing systems and processes.
 
-You can read more in the [Teleport Enterprise section of the docs](enterprise.md)
+You can read more in the [Teleport Enterprise section of the docs](enterprise/index.md)
 
 ### Does Teleport send any data to Gravitational?
 
