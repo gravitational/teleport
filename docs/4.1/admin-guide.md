@@ -924,7 +924,7 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Adding a node located behind NAT
 With the current setup you've only been able to add nodes that have direct access to the
 auth server and within the internal IP range of the cluster. We recommend
-setting up a [Trusted Cluster](./trustedclusters.md) if you have workloads split
+setting up a [Trusted Cluster](trustedclusters.md) if you have workloads split
 across different networks / clouds.
 
 Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
@@ -1612,7 +1612,7 @@ $ tctl rm tc/main
 
 ### Advanced Configuration
 
-Take a look at [Trusted Clusters Guide](./trustedclusters.md) to learn more about
+Take a look at [Trusted Clusters Guide](trustedclusters.md) to learn more about
 advanced topics:
 
 * Using dynamic cluster join tokens instead of pre-defined static tokens for
