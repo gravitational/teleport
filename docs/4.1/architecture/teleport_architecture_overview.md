@@ -73,9 +73,7 @@ authentication, and serves a [Web UI](teleport_proxy.md#web-to-ssh-proxy).
 ## Basic Architecture Overview
 
 The numbers correspond to the steps needed to connect a client to a node. These
-steps are explained below the diagram. Read the
-[Architecture Walkthrough](#architecture-walkthrough)
-for a detailed view into these connections steps.
+steps are explained below the diagram.
 
 !!! warning "Caution"
     The teleport daemon calls services "roles" in the CLI

@@ -921,6 +921,32 @@ del`](cli-docs.md#tctl-tokens-rm) command:
 $ tctl tokens del 696c0471453e75882ff70a761c1a8bfa
 Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ```
+## Adding a node located behind NAT
+With the current setup you've only been able to add nodes that have direct access to the
+auth server and within the internal IP range of the cluster. We recommend
+setting up a [Trusted Cluster](/trustedclusters) if you have workloads split
+across different networks / clouds.
+
+Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
+useful for IoT applications or for managing a couple of servers in a different network.  
+
+Similar to [Adding Nodes to Cluster](/quickstart/#adding-nodes-to-cluster), use `tctl` to
+create a single-use token for a node, but this time you'll replace the auth server IP with
+the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy
+web endpoint `teleport.example.com`.  
+
+```bash
+$ sudo tctl nodes add
+
+The invite token: n92bb958ce97f761da978d08c35c54a5c
+Run this on the new node to join the cluster:
+teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=teleport-proxy.example.com
+```
+
+Using the ports in the default configuration, the node needs to be able to talk to ports 3080
+and 3024 on the proxy. Port 3080 is used to initially fetch the credentials (SSH and TLS certificates)
+and for discovery (where is the reverse tunnel running, in this case 3024). Port 3024 is used to
+establish a connection to the Auth Server through the proxy.
 
 ## Labeling Nodes
 
@@ -1111,7 +1137,7 @@ $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931
 
 ### Recording Proxy Mode
 
-See [Audit Log Architecture](architecture/#audit-log) to understand how the
+See [Audit Log Architecture](architecture/teleport_auth.md#audit-log) to understand how the
 session recording works. By default, the recording is not available if a cluster
 runs `sshd` (the OpenSSH daemon) on the nodes.
 
@@ -2044,7 +2070,7 @@ $ tsh --proxy=main.example.com login east
 
 !!! tip "Tip":
     Before continuing, please make sure to take a look at the
-    [Cluster State section](architecture/#cluster-state) in the Teleport
+    [Cluster State section](architecture/teleport_nodes.md#cluster-state) in the Teleport
     Architecture documentation.
 
 Usually there are two ways to achieve high availability. You can "outsource"
@@ -2303,12 +2329,17 @@ clients, etc), the following rules apply:
 * Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins 
   may not be compatible
 
-As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backing up Dynamic Configuration](#backing-up-dynamic-configuration).
+As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before updading](#backup-before-upgrading).
 
 !!! warning "Upgrading to Teleport 4.0+":
     Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
     two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
     [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
+
+### Backup Before Upgrading
+
+As an extra precaution you might want to backup your application prior to upgrading. We've 
+more instructions in Backing up and Bootstraping Teleport.
 
 ### Upgrade Sequence
 
@@ -2337,6 +2368,57 @@ When upgrading multiple clusters:
 1. First, upgrade the main cluster, i.e. the one which other clusters trust.
 2. Upgrade the trusted clusters.
 
+## Backing Up Teleport
+
+With Teleport 4.1 you can now quickly export a collection of resources from 
+Teleport. This feature set works best for local and etcd, it's currently experimental
+for AWS/GCP. 
+
+Using `tctl get all` it'll backup. 
+
+- Users
+- Certificate Authorities
+- Trusted Clusters
+- Connectors:
+    - Github
+    - SAML [Teleport Enterprise]
+    - OIDC [Teleport Enterprise]
+    - Roles [Teleport Enterprise]
+
+When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly. 
+
+**Example of backing up and restoring a cluster.**
+
+```
+# export dynamic configuration state from old cluster
+tctl get all > state.yaml
+
+# prepare a new uninitialized backend (make sure to port
+# any non-default config values from the old config file)
+mkdir fresh && cat > fresh.yaml << EOF
+teleport:
+  data_dir: fresh
+EOF
+
+# bootstrap fresh server (kill the old one first!)
+teleport start --config fresh.yaml --bootstrap state.yaml
+
+# from another terminal, verify state transferred correctly
+tctl --config fresh.yaml get all
+# <your state here!>
+```
+
+The `--bootstrap` flag has no effect, except during backend initialization (performed
+by auth server on first start), so it is safe for use in supervised/HA contexts.
+
+**Limitations**
+
+- All the same limitations around modifying the config file of an existing cluster also apply to a new cluster being bootstrapped from the state of an old cluster. Of particular note:
+    - Changing cluster name will break your CAs (this will be caught and teleport will refuse to start).
+    - Some user authentication mechanisms (e.g. u2f) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).
+- Any node whose invite token is defined statically (in the config file of the auth server) will be able to join automatically, but nodes that were added dynamically will need to be re-invited
+
+
 ### Daemon Restarts
 
 As covered in the [Graceful Restarts](#graceful-restarts) section, Teleport
@@ -2344,7 +2426,6 @@ supports graceful restarts. To upgrade a host to a newer Teleport version, an
 administrator must:
 
 1. Replace the Teleport binaries, usually [ `teleport` ](cli-docs.md#teleport)
-
    and [ `tctl` ](cli-docs.md#tctl)
 
 2. Execute `systemctl restart teleport`
