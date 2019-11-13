@@ -7,7 +7,7 @@ ARG CURL_OPTS="-L --retry 100 --retry-delay 0 --connect-timeout 10 --max-time 30
 # Update packages
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && \
-    apt-get -y install curl jq python3 python3-pip && \
+    apt-get -y install curl jq python3 python3-pip python3-setuptools && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt
 
