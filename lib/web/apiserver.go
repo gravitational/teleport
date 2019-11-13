@@ -1764,6 +1764,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		onError(trace.Wrap(err))
 		return
 	}
+
 	// look at 'offset' parameter
 	query := r.URL.Query()
 	offset, _ := strconv.Atoi(query.Get("offset"))
@@ -1846,7 +1847,6 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-
 	e, err := clt.GetSessionEvents(namespace, *sessionID, afterN, true)
 	if err != nil {
 		logger.Debugf("Unable to find events for session %v: %v.", sessionID, err)

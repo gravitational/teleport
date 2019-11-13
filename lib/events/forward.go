@@ -144,8 +144,6 @@ func (l *Forwarder) EmitAuditEvent(event Event, fields EventFields) error {
 
 // PostSessionSlice sends chunks of recorded session to the event log
 func (l *Forwarder) PostSessionSlice(slice SessionSlice) error {
-	//var err error
-
 	// setup slice sets slice version, properly numerates
 	// all chunks and
 	chunksWithoutPrintEvents, err := l.setupSlice(&slice)
@@ -154,13 +152,10 @@ func (l *Forwarder) PostSessionSlice(slice SessionSlice) error {
 	}
 
 	// log all events and session recording locally
-	//fmt.Printf("--> l.sessionLogger: %T.\n", l.sessionLogger)
 	err = l.sessionLogger.PostSessionSlice(slice)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	//return nil
 
 	// no chunks to post (all chunks are print events)
 	if len(chunksWithoutPrintEvents) == 0 {

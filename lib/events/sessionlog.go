@@ -353,9 +353,8 @@ func (sl *DiskSessionLogger) openEnhancedFile(eventType string, eventIndex int64
 	// Update the index file to write down that new events file has been created.
 	data, err := json.Marshal(indexEntry{
 		FileName: filepath.Base(eventsFileName),
-		//Type:     fileTypeEvents,
-		Type:  indexType,
-		Index: eventIndex,
+		Type:     indexType,
+		Index:    eventIndex,
 	})
 	if err != nil {
 		return trace.Wrap(err)
