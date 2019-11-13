@@ -25,9 +25,7 @@
             "name": "amzn2-ami-hvm*-ebs",
             "root-device-type": "ebs"
         },
-        "owners": ["137112412989", "591542846629", "801119661308",
-                   "102837901569", "013907871322", "206029621532",
-                   "286198878708", "443319210888"],
+        "owners": ["amazon"],
         "most_recent": true
     },
     "instance_type": "{{user `instance_type`}}",
@@ -64,9 +62,7 @@
             "name": "amzn2-ami-hvm*-ebs",
             "root-device-type": "ebs"
         },
-        "owners": ["137112412989", "591542846629", "801119661308",
-                   "102837901569", "013907871322", "206029621532",
-                   "286198878708", "443319210888"],
+        "owners": ["amazon"],
         "most_recent": true
     },
     "instance_type": "{{user `instance_type`}}",
@@ -103,9 +99,7 @@
             "name": "amzn2-ami-hvm*-ebs",
             "root-device-type": "ebs"
         },
-        "owners": ["137112412989", "591542846629", "801119661308",
-                   "102837901569", "013907871322", "206029621532",
-                   "286198878708", "443319210888"],
+        "owners": ["amazon"],
         "most_recent": true
     },
     "instance_type": "{{user `instance_type`}}",
