@@ -326,7 +326,7 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthRespons
 	}
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		log.Warnf("Failed to retrieve SAML AssertionInfo from response: %v.", err)
+		log.Warnf("Received response with incorrect or no claims/attribute statements. Please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://gravitational.com/teleport/docs/ssh_okta/>")
 		return nil, trace.AccessDenied("bad SAML response")
 	}
 
