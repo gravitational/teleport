@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]> <-r go1.9.7|fips> <-s tarball source dir> <-m tsh> <-n>" 1>&2; exit 1; }
+usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]> <-r go1.9.7|fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
 while getopts ":t:v:p:a:r:s:m:" o; do
     case "${o}" in
         t)
@@ -109,26 +109,34 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         exit 5
     fi
 
-    if [ ! $(command -v codesign) ]; then
-        echo "You need to install codesign"
-        echo "Run: xcode-select --install or sudo xcode-select --reset"
-        exit 6
-    fi
+    if [[ "${BUILD_MODE}" == "tsh" ]]; then
+        if [ ! $(command -v codesign) ]; then
+            echo "You need to install codesign"
+            echo "Run: xcode-select --install or sudo xcode-select --reset"
+            exit 6
+        fi
 
-    if [ ! $(command -v gon) ]; then
-        echo "You need to install gon"
-        echo "Install a binary from https://github.com/mitchellh/gon and make sure it's in the system PATH"
-        exit 7
-    fi
+        if [ ! $(command -v productsign) ]; then
+            echo "You need to install productsign"
+            echo "Run: xcode-select --install or sudo xcode-select --reset"
+            exit 7
+        fi
 
-    if [[ "${APPLE_USERNAME}" == "" ]]; then
-        echo "The APPLE_USERNAME environment variable needs to be set to the email address of the Apple user which will submit the notarization request"
-        exit 8
-    fi
+        if [ ! $(command -v gon) ]; then
+            echo "You need to install gon"
+            echo "Install a binary from https://github.com/mitchellh/gon and make sure it's present in the system PATH"
+            exit 8
+        fi
 
-    if [[ "${APPLE_PASSWORD}" == "" ]]; then
-        echo "The APPLE_PASSWORD environment variable needs to be set to the password matching the email address of the Apple user which will submit the notarization request"
-        exit 9
+        if [[ "${APPLE_USERNAME}" == "" ]]; then
+            echo "The APPLE_USERNAME environment variable needs to be set to the email address of the Apple user which will submit the notarization request"
+            exit 9
+        fi
+
+        if [[ "${APPLE_PASSWORD}" == "" ]]; then
+            echo "The APPLE_PASSWORD environment variable needs to be set to the password matching the email address of the Apple user which will submit the notarization request"
+            exit 10
+        fi
     fi
 else
     PLATFORM="linux"
@@ -136,11 +144,18 @@ else
     if [[ "${ARCH}" == "" ]]; then
         usage
     fi
+    
     # set docker image appropriately
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         DOCKER_IMAGE="cdrx/fpm-debian:8"
     elif [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         DOCKER_IMAGE="cdrx/fpm-centos:7"
+    fi
+
+    # if client-only build is requested for a non-Mac platform, unset it
+    if [[ "${BUILD_MODE}" == "tsh" ]]; then
+        echo "Client-only builds are only offered for Mac"
+        unset BUILD_MODE
     fi
 fi
 
