@@ -369,9 +369,9 @@ func (s *Server) UseTunnel() bool {
 
 // GetBPF returns the BPF service used by enhanced auditing. BPF for the
 // forwarding server makes no sense (it has to run on the actual node), so
-// return trace.NotImplemented.
-func (s Server) GetBPF() (*bpf.Service, error) {
-	return nil, trace.NotImplemented("recording proxy does not support enhanced auditing")
+// return a NOP implementation.
+func (s Server) GetBPF() bpf.BPF {
+	return &bpf.NOP{}
 }
 
 // GetInfo returns a services.Server that represents this server.

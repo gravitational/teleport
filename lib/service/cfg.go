@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -172,6 +173,9 @@ type Config struct {
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+
+	// BPFConfig holds configuration for the BPF service.
+	BPFConfig *bpf.Config
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -414,6 +418,9 @@ type SSHConfig struct {
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
+
+	// BPF holds BPF configuration for Teleport.
+	BPF *bpf.Config
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
@@ -447,7 +454,7 @@ func ApplyDefaults(cfg *Config) {
 		log.Errorf("Failed to determine hostname: %v.", err)
 	}
 
-	// global defaults
+	// Global defaults.
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
 	cfg.Console = os.Stdout
@@ -456,7 +463,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.KEXAlgorithms = kex
 	cfg.MACAlgorithms = macs
 
-	// defaults for the auth service:
+	// Auth service defaults.
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
@@ -470,22 +477,23 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.Preference = ap
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
-	// defaults for the SSH proxy service:
+	// Proxy service defaults.
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 
-	// defaults for the Kubernetes proxy service
+	// Kubernetes proxy service defaults.
 	cfg.Proxy.Kube.Enabled = false
 	cfg.Proxy.Kube.ListenAddr = *defaults.KubeProxyListenAddr()
 
-	// defaults for the SSH service:
+	// SSH service defaults.
 	cfg.SSH.Enabled = true
 	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
+	cfg.SSH.BPF = &bpf.Config{Enabled: false}
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

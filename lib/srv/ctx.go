@@ -118,7 +118,7 @@ type Server interface {
 	UseTunnel() bool
 
 	// GetBPF returns the BPF service used for enhanced auditing.
-	GetBPF() (*bpf.Service, error)
+	GetBPF() bpf.BPF
 }
 
 // IdentityContext holds all identity information associated with the user

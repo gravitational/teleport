@@ -502,6 +502,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 // and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	var err error
+	var ebpf bpf.BPF
 
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
@@ -519,13 +520,11 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err, "configuration error")
 	}
 
-	// TODO(russjones): Get this from file configuration.
-	// Start BPF programs early in the startup process. If enhanced auditing is
-	// configured but BPF fails to start, Teleport should fail right away.
-	var ebpf *bpf.Service
-	hasEnhancedAuditing := true
-	if hasEnhancedAuditing {
-		ebpf, err = bpf.New(&bpf.Config{})
+	// If this is a Teleport node and BPF is enabled, start BPF programs early
+	// in the startup process. This allows Teleport to fail right away if
+	// BPF-based auditing is configured but can not start for whatever reason.
+	if cfg.SSH.Enabled {
+		ebpf, err = bpf.New(cfg.SSH.BPF)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1383,7 +1382,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 }
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
-func (process *TeleportProcess) initSSH(ebpf *bpf.Service) error {
+func (process *TeleportProcess) initSSH(ebpf bpf.BPF) error {
 	process.registerWithAuthServer(teleport.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)

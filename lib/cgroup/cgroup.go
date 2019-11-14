@@ -59,7 +59,7 @@ type Config struct {
 // CheckAndSetDefaults checks BPF configuration.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.MountPath == "" {
-		c.MountPath = defaults.CgroupMountPath
+		c.MountPath = defaults.CgroupPath
 	}
 	return nil
 }

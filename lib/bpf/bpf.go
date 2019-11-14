@@ -45,51 +45,6 @@ import (
 	"github.com/iovisor/gobpf/bcc"
 )
 
-// SessionContext contains all the information needed to track and emit
-// events for a particular session. Most of this information is already within
-// srv.ServerContext, unfortunately due to circular imports with lib/srv and
-// lib/bpf, part of that structure is reproduced in SessionContext.
-type SessionContext struct {
-	// Namespace is the namespace within which this session occurs.
-	Namespace string
-
-	// SessionID is the UUID of the given session.
-	SessionID string
-
-	// ServerID is the UUID of the server this session is executing on.
-	ServerID string
-
-	// Login is the Unix login for this session.
-	Login string
-
-	// User is the Teleport user.
-	User string
-
-	// PID is the process ID of Teleport when it re-executes itself. This is
-	// used by Telepor to find itself by cgroup.
-	PID int
-
-	// AuditLog is used to store events for a particular sessionl
-	AuditLog events.IAuditLog
-}
-
-// Config holds configuration for the BPF service.
-type Config struct {
-	// Enabled is if this service will try and install BPF programs on this system.
-	Enabled bool
-
-	// CgroupMountPath is where the cgroupv2 hierarchy is mounted.
-	CgroupMountPath string
-}
-
-// CheckAndSetDefaults checks BPF configuration.
-func (c *Config) CheckAndSetDefaults() error {
-	if c.CgroupMountPath == "" {
-		c.CgroupMountPath = defaults.CgroupMountPath
-	}
-	return nil
-}
-
 // Service manages BPF and control groups orchestration.
 type Service struct {
 	*Config
@@ -122,10 +77,16 @@ type Service struct {
 }
 
 // New creates a BPF service.
-func New(config *Config) (*Service, error) {
+func New(config *Config) (BPF, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// If BPF-based auditing is not enabled, don't configure anything return
+	// right away.
+	if !config.Enabled {
+		return &NOP{}, nil
 	}
 
 	// Check if the host can run BPF programs.
@@ -136,7 +97,7 @@ func New(config *Config) (*Service, error) {
 
 	// Create a cgroup controller to add/remote cgroups.
 	cgroup, err := controlgroup.New(&controlgroup.Config{
-		MountPath: config.CgroupMountPath,
+		MountPath: config.CgroupPath,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -162,18 +123,21 @@ func New(config *Config) (*Service, error) {
 	}
 
 	// Compile and start BPF programs.
-	s.exec, err = startExec(closeContext, defaultPageCount)
+	s.exec, err = startExec(closeContext, config.CommandBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.open, err = startOpen(closeContext, openPageCount)
+	s.open, err = startOpen(closeContext, config.DiskBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.conn, err = startConn(closeContext, defaultPageCount)
+	s.conn, err = startConn(closeContext, config.NetworkBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	log.Debugf("Started enhanced auditing with buffer sizes %v %v %v and cgroup mount path: %v.",
+		s.CommandBufferSize, s.DiskBufferSize, s.NetworkBufferSize, s.CgroupPath)
 
 	// Start pulling events off the perf buffers and emitting them to the
 	// Audit Log.
@@ -197,8 +161,6 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// TODO: Make sure this function returns before bash is executed. Otherwise
-// a race can occur and events missed.
 // OpenSession will place a process within a cgroup and being monitoring all
 // events from that cgroup and emitting the results to the audit log.
 func (s *Service) OpenSession(ctx *SessionContext) error {
@@ -502,7 +464,7 @@ func (s *Service) removeWatch(cgroupID uint64) {
 	delete(s.watch, cgroupID)
 }
 
-// isHostCompatible checks that eBPF programs can run on this host.
+// isHostCompatible checks that BPF programs can run on this host.
 func isHostCompatible() error {
 	// To find the cgroup ID of a program, bpf_get_current_cgroup_id is needed
 	// which was introduced in 4.18.

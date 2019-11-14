@@ -386,11 +386,16 @@ const (
 
 const (
 	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
-	// Must be multiple if 2.
+	// Must be power of 2.
 	PerfBufferPageCount = 8
 
-	// CgroupMountPath is where the cgroupv2 hierarchy will be mounted.
-	CgroupMountPath = "/cgroup2"
+	// OpenPerfBufferPageCount is the page count for the perf buffer. Open
+	// events generate many events so this buffer needs to be extra large.
+	// Must be power of 2.
+	OpenPerfBufferPageCount = 128
+
+	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
+	CgroupPath = "/cgroup2"
 
 	// ArgsCacheSize is the number of args events to store before dropping args
 	// events.

@@ -638,6 +638,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 
+	// Open a BPF recording session. If BPF was not configured, not available,
+	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
 		PID:       s.term.PID(),
 		AuditLog:  s.recorder.GetAuditLog(),
@@ -647,19 +649,10 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		Login:     ctx.Identity.Login,
 		User:      ctx.Identity.TeleportUser,
 	}
-
-	// TODO(russjones): Check if enhanced auditing is enabled.
-	hasEnhancedAuditing := true
-	if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
-		ebpf, err := ctx.srv.GetBPF()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = ebpf.OpenSession(sessionContext)
-		if err != nil {
-			ctx.Errorf("Failed to open enhanced auditing session: %v: %v.", s.id, err)
-			return trace.Wrap(err)
-		}
+	err = ctx.srv.GetBPF().OpenSession(sessionContext)
+	if err != nil {
+		ctx.Errorf("Failed to open enhanced auditing session: %v: %v.", s.id, err)
+		return trace.Wrap(err)
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -723,17 +716,11 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		case <-doneCh:
 		}
 
-		// TODO(russjones): Check if enhanced auditing is enabled.
-		if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
-			ebpf, err := ctx.srv.GetBPF()
-			if err != nil {
-				ctx.Warnf("Attempting to close session, but BPF recorder not found.")
-				return
-			}
-			err = ebpf.CloseSession(sessionContext)
-			if err != nil {
-				ctx.Errorf("Failed to close enhanced auditing session: %v: %v.", s.id, err)
-			}
+		// Close the BPF recording session. If BPF was not configured, not available,
+		// or running in a recording proxy, this is simply a NOP.
+		err = ctx.srv.GetBPF().CloseSession(sessionContext)
+		if err != nil {
+			ctx.Errorf("Failed to close enhanced auditing session: %v: %v.", s.id, err)
 		}
 
 		if result != nil {
@@ -806,34 +793,25 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		ctx.SendExecResult(*result)
 	}
 
-	// TODO(russjones): Check if enhanced auditing is enabled.
-	// If eBPF-based enhanced auditing is enabled, open a BPF session.
-	hasEnhancedAuditing := true
-	var sessionContext *bpf.SessionContext
-	if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
-		lr, ok := ctx.ExecRequest.(*localExec)
-		if !ok {
-			return trace.BadParameter("command is of invalid type %T", ctx.ExecRequest)
-		}
-
-		sessionContext = &bpf.SessionContext{
-			PID:       lr.Cmd.Process.Pid,
-			AuditLog:  s.recorder.GetAuditLog(),
-			Namespace: ctx.srv.GetNamespace(),
-			SessionID: string(s.id),
-			ServerID:  ctx.srv.HostUUID(),
-			Login:     ctx.Identity.Login,
-			User:      ctx.Identity.TeleportUser,
-		}
-		ebpf, err := ctx.srv.GetBPF()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = ebpf.OpenSession(sessionContext)
-		if err != nil {
-			ctx.Errorf("Failed to open enhanced auditing exec session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
-			return trace.Wrap(err)
-		}
+	// Open a BPF recording session. If BPF was not configured, not available,
+	// or running in a recording proxy, OpenSession is a NOP.
+	lexec, ok := ctx.ExecRequest.(*localExec)
+	if !ok {
+		return trace.BadParameter("command is of invalid type %T", ctx.ExecRequest)
+	}
+	sessionContext := &bpf.SessionContext{
+		PID:       lexec.Cmd.Process.Pid,
+		AuditLog:  s.recorder.GetAuditLog(),
+		Namespace: ctx.srv.GetNamespace(),
+		SessionID: string(s.id),
+		ServerID:  ctx.srv.HostUUID(),
+		Login:     ctx.Identity.Login,
+		User:      ctx.Identity.TeleportUser,
+	}
+	err = ctx.srv.GetBPF().OpenSession(sessionContext)
+	if err != nil {
+		ctx.Errorf("Failed to open enhanced auditing (exec) session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
+		return trace.Wrap(err)
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -846,19 +824,11 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			ctx.SendExecResult(*result)
 		}
 
-		// TODO(russjones): Check if enhanced auditing is enabled.
-		hasEnhancedAuditing := true
-		if hasEnhancedAuditing && ctx.srv.Component() == teleport.ComponentNode {
-			ebpf, err := ctx.srv.GetBPF()
-			if err != nil {
-				ctx.Warnf("Attempting to close session, but BPF recorder not found.")
-				return
-			}
-			err = ebpf.CloseSession(sessionContext)
-			if err != nil {
-				ctx.Errorf("Failed to close enhanced auditing exec session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
-				return
-			}
+		// Close the BPF recording session. If BPF was not configured, not available,
+		// or running in a recording proxy, this is simply a NOP.
+		err = ctx.srv.GetBPF().CloseSession(sessionContext)
+		if err != nil {
+			ctx.Errorf("Failed to close enhanced auditing (exec) session: %v: %v.", s.id, err)
 		}
 
 		// Remove the session from the in-memory map.

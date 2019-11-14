@@ -1,5 +1,3 @@
-// +build linux
-
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -19,92 +17,102 @@ limitations under the License.
 package bpf
 
 import (
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-
-	"github.com/gravitational/trace"
-
-	"github.com/iovisor/gobpf/bcc"
-	"github.com/sirupsen/logrus"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentBPF,
-})
+// BPF implements an interface to open and close a recording session.
+type BPF interface {
+	// OpenSession will start monitoring all events within a session and
+	// emitting them to the Audit Log.
+	OpenSession(ctx *SessionContext) error
 
-// attachProbe will attach a kprobe to the given function name.
-func attachProbe(module *bcc.Module, eventName string, functionName string) error {
-	kprobe, err := module.LoadKprobe(functionName)
-	if err != nil {
-		return trace.Wrap(err)
+	// CloseSession will stop monitoring events for a particular session.
+	CloseSession(ctx *SessionContext) error
+
+	// Close will stop any running BPF programs.
+	Close() error
+}
+
+// SessionContext contains all the information needed to track and emit
+// events for a particular session. Most of this information is already within
+// srv.ServerContext, unfortunately due to circular imports with lib/srv and
+// lib/bpf, part of that structure is reproduced in SessionContext.
+type SessionContext struct {
+	// Namespace is the namespace within which this session occurs.
+	Namespace string
+
+	// SessionID is the UUID of the given session.
+	SessionID string
+
+	// ServerID is the UUID of the server this session is executing on.
+	ServerID string
+
+	// Login is the Unix login for this session.
+	Login string
+
+	// User is the Teleport user.
+	User string
+
+	// PID is the process ID of Teleport when it re-executes itself. This is
+	// used by Telepor to find itself by cgroup.
+	PID int
+
+	// AuditLog is used to store events for a particular sessionl
+	AuditLog events.IAuditLog
+}
+
+// Config holds configuration for the BPF service.
+type Config struct {
+	// Enabled is if this service will try and install BPF programs on this system.
+	Enabled bool
+
+	// CommandBufferSize is the size of the perf buffer for command events.
+	CommandBufferSize int
+
+	// DiskBufferSize is the size of the perf buffer for disk events.
+	DiskBufferSize int
+
+	// NetworkBufferSize is the size of the perf buffer for network events.
+	NetworkBufferSize int
+
+	// CgroupPath is where the cgroupv2 hierarchy is mounted.
+	CgroupPath string
+}
+
+// CheckAndSetDefaults checks BPF configuration.
+func (c *Config) CheckAndSetDefaults() error {
+	if c.CommandBufferSize == 0 {
+		c.CommandBufferSize = defaults.PerfBufferPageCount
 	}
-
-	err = module.AttachKprobe(eventName, kprobe, -1)
-	if err != nil {
-		return trace.Wrap(err)
+	if c.DiskBufferSize == 0 {
+		c.DiskBufferSize = defaults.OpenPerfBufferPageCount
+	}
+	if c.NetworkBufferSize == 0 {
+		c.NetworkBufferSize = defaults.PerfBufferPageCount
+	}
+	if c.CgroupPath == "" {
+		c.CgroupPath = defaults.CgroupPath
 	}
 
 	return nil
 }
 
-// attachRetProbe will attach a kretprobe to the given function name.
-func attachRetProbe(module *bcc.Module, eventName string, functionName string) error {
-	kretprobe, err := module.LoadKprobe(functionName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+// NOP is used on either non-Linux systems or when BPF support is not enabled.
+type NOP struct {
+}
 
-	err = module.AttachKretprobe(eventName, kretprobe, -1)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+// Close will close the NOP service. Note this function does nothing.
+func (s *NOP) Close() error {
 	return nil
 }
 
-// openPerfBuffer will open a perf buffer for a particular module.
-func openPerfBuffer(module *bcc.Module, perfMaps []*bcc.PerfMap, pageCount int, name string) (<-chan []byte, <-chan uint64, error) {
-	var err error
-
-	eventCh := make(chan []byte, chanSize)
-	lostCh := make(chan uint64, chanSize)
-
-	table := bcc.NewTable(module.TableId(name), module)
-
-	perfMap, err := bcc.InitPerfMap(table, eventCh, lostCh, uint(pageCount))
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	perfMap.Start()
-
-	perfMaps = append(perfMaps, perfMap)
-
-	return eventCh, lostCh, nil
+// OpenSession will open a NOP session. Note this function does nothing.
+func (s *NOP) OpenSession(ctx *SessionContext) error {
+	return nil
 }
 
-const (
-	// commMax is the maximum length of a command from linux/sched.h.
-	commMax = 16
-
-	// pathMax is the maximum length of a path from linux/limits.h.
-	pathMax = 255
-
-	// argvMax is the maximum length of the args vector.
-	argvMax = 128
-
-	// eventArg is an exec event that holds the arguments to a function.
-	eventArg = 0
-
-	// eventRet holds the return value and other data about about an event.
-	eventRet = 1
-
-	// defaultPageCount is the default page count for the perf buffer.
-	defaultPageCount = 8
-
-	// openPageCount is the page count for the perf buffer. Open events generate
-	// many events so this buffer needs to be extra large.
-	openPageCount = 128
-
-	// chanSize is the size of the event and lost event channels.
-	chanSize = 1024
-)
+// OpenSession will open a NOP session. Note this function does nothing.
+func (s *NOP) CloseSession(ctx *SessionContext) error {
+	return nil
+}

@@ -151,7 +151,7 @@ type Server struct {
 	fips bool
 
 	// ebpf is the service used for enhanced auditing.
-	ebpf *bpf.Service
+	ebpf bpf.BPF
 }
 
 // GetClock returns server clock implementation
@@ -198,8 +198,8 @@ func (s *Server) UseTunnel() bool {
 }
 
 // GetBPF returns the BPF service used by enhanced auditing.
-func (s *Server) GetBPF() (*bpf.Service, error) {
-	return s.ebpf, nil
+func (s *Server) GetBPF() bpf.BPF {
+	return s.ebpf
 }
 
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
@@ -428,7 +428,7 @@ func SetFIPS(fips bool) ServerOption {
 	}
 }
 
-func SetBPF(ebpf *bpf.Service) ServerOption {
+func SetBPF(ebpf bpf.BPF) ServerOption {
 	return func(s *Server) error {
 		s.ebpf = ebpf
 		return nil
