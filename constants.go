@@ -561,5 +561,18 @@ const (
 	OpenBrowserWindows = "rundll32.exe"
 )
 
+const (
+	// SessionRecordingCommand is a role option that implies command events are
+	// captured.
+	SessionRecordingCommand = "command"
+
+	// SessionRecordingDisk is a role option that implies disk events are captured.
+	SessionRecordingDisk = "disk"
+
+	// SessionRecordingNetwork is a role option that implies network events
+	// are captured.
+	SessionRecordingNetwork = "command"
+)
+
 // RSAKeySize is the size of the RSA key.
 const RSAKeySize = 2048
