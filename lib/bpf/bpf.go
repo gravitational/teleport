@@ -1,4 +1,4 @@
-// +build linux
+// +build bpf,linux
 
 /*
 Copyright 2019 Gravitational, Inc.
