@@ -648,6 +648,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		ServerID:  ctx.srv.HostUUID(),
 		Login:     ctx.Identity.Login,
 		User:      ctx.Identity.TeleportUser,
+		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
 	}
 	err = ctx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
@@ -807,6 +808,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		ServerID:  ctx.srv.HostUUID(),
 		Login:     ctx.Identity.Login,
 		User:      ctx.Identity.TeleportUser,
+		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
 	}
 	err = ctx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {

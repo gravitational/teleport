@@ -60,6 +60,10 @@ type SessionContext struct {
 
 	// AuditLog is used to store events for a particular sessionl
 	AuditLog events.IAuditLog
+
+	// Events is the set of events (command, disk, or network) to record for
+	// this session.
+	Events map[string]bool
 }
 
 // Config holds configuration for the BPF service.

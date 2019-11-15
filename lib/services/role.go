@@ -1303,9 +1303,9 @@ type AccessChecker interface {
 	// RoleSet.
 	CertificateFormat() string
 
-	// EnhancedRecordingEvents returns the list of events that will be recorded
+	// EnhancedRecordingSet returns a set of events that will be recorded
 	// for enhanced session recording.
-	EnhancedRecordingEvents() string
+	EnhancedRecordingSet() map[string]bool
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1774,10 +1774,9 @@ func (set RoleSet) CertificateFormat() string {
 	return formats[0]
 }
 
-// EnhancedRecordingEvents returns the set of enhanced session recording
+// EnhancedRecordingSet returns the set of enhanced session recording
 // events to capture for thi role set.
-func (set RoleSet) EnhancedRecordingEvents() []string {
-	r := make([]string)
+func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 	m := make(map[string]bool)
 
 	// Loop over all roles and create a set of all options.
@@ -1787,11 +1786,7 @@ func (set RoleSet) EnhancedRecordingEvents() []string {
 		}
 	}
 
-	// Flatten the set and return a slice.
-	for opt, _ := range m {
-		r = append(r, opt)
-	}
-	return r
+	return m
 }
 
 // certificatePriority returns the priority of the certificate format. The
@@ -2225,7 +2220,10 @@ const RoleSpecV3SchemaTemplate = `{
         "cert_format": { "type": "string" },
         "client_idle_timeout": { "type": "string" },
         "disconnect_expired_cert": { "type": ["boolean", "string"] },
-		"enhanced_recording": { "type": "string" }
+		"enhanced_recording": { 
+          "type": "array",
+          "items": { "type": "string" }
+        }
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },

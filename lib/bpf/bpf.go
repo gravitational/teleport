@@ -27,12 +27,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"strconv"
 	"sync"
 	"time"
 	"unsafe"
 
+	"github.com/gravitational/teleport"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -246,6 +248,12 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		return
 	}
 
+	// If the command event is not being monitored, don't process it.
+	_, ok = ctx.Events[teleport.EnhancedRecordingCommand]
+	if !ok {
+		return
+	}
+
 	switch event.Type {
 	// Args are sent in their own event by execsnoop to save stack space. Store
 	// the args in a ttlmap so they can be retrieved when the return event arrives.
@@ -316,6 +324,12 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		return
 	}
 
+	// If the network event is not being monitored, don't process it.
+	_, ok = ctx.Events[teleport.EnhancedRecordingDisk]
+	if !ok {
+		return
+	}
+
 	// Convert C string that holds the command name into a Go string.
 	command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
 
@@ -356,6 +370,12 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
 	ctx, ok := s.watch[event.CgroupID]
+	if !ok {
+		return
+	}
+
+	// If the network event is not being monitored, don't process it.
+	_, ok = ctx.Events[teleport.EnhancedRecordingNetwork]
 	if !ok {
 		return
 	}
@@ -404,6 +424,12 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
 	ctx, ok := s.watch[event.CgroupID]
+	if !ok {
+		return
+	}
+
+	// If the network event is not being monitored, don't process it.
+	_, ok = ctx.Events[teleport.EnhancedRecordingNetwork]
 	if !ok {
 		return
 	}

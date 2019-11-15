@@ -562,16 +562,16 @@ const (
 )
 
 const (
-	// SessionRecordingCommand is a role option that implies command events are
+	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
-	SessionRecordingCommand = "command"
+	EnhancedRecordingCommand = "command"
 
-	// SessionRecordingDisk is a role option that implies disk events are captured.
-	SessionRecordingDisk = "disk"
+	// EnhancedRecordingDisk is a role option that implies disk events are captured.
+	EnhancedRecordingDisk = "disk"
 
-	// SessionRecordingNetwork is a role option that implies network events
+	// EnhancedRecordingNetwork is a role option that implies network events
 	// are captured.
-	SessionRecordingNetwork = "command"
+	EnhancedRecordingNetwork = "network"
 )
 
 // RSAKeySize is the size of the RSA key.
