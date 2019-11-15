@@ -23,17 +23,18 @@ import (
 	"github.com/iovisor/gobpf/pkg/cpuonline"
 )
 
-/*
-#cgo CFLAGS: -I/usr/include/bcc/compat
-#cgo LDFLAGS: -lbcc
-#include <bcc/bcc_common.h>
-#include <bcc/libbpf.h>
-#include <bcc/perf_reader.h>
-
-// perf_reader_raw_cb as defined in bcc libbpf.h
-// typedef void (*perf_reader_raw_cb)(void *cb_cookie, void *raw, int raw_size);
-extern void callback_to_go(void*, void*, int);
-*/
+// #cgo CFLAGS: -I/usr/include/bcc/compat
+// #cgo LDFLAGS: -ldl
+//
+// #include <bcc/bcc_common.h>
+// #include <bcc/libbpf.h>
+// #include <bcc/perf_reader.h>
+//
+// extern void callback_to_go(void*, void*, int);
+// extern void lost_callback(void *, uint64_t);
+// extern void *bpf_open_perf_buffer(perf_reader_raw_cb, perf_reader_lost_cb, void *, int, int, int);
+// extern int perf_reader_fd(struct perf_reader *);
+// extern int perf_reader_poll(int, struct perf_reader **, int);
 import "C"
 
 type PerfMap struct {
@@ -44,10 +45,10 @@ type PerfMap struct {
 
 type callbackData struct {
 	receiverChan chan []byte
+	lostCh       chan uint64
 }
 
-// TODO(russjones): Make this configurable.
-const BPF_PERF_READER_PAGE_CNT = 128
+const BPF_PERF_READER_PAGE_CNT = 8
 
 var byteOrder binary.ByteOrder
 var callbackRegister = make(map[uint64]*callbackData)
@@ -88,7 +89,17 @@ func lookupCallback(i uint64) *callbackData {
 //export callback_to_go
 func callback_to_go(cbCookie unsafe.Pointer, raw unsafe.Pointer, rawSize C.int) {
 	callbackData := lookupCallback(uint64(uintptr(cbCookie)))
-	callbackData.receiverChan <- C.GoBytes(raw, rawSize)
+	if callbackData.receiverChan != nil {
+		callbackData.receiverChan <- C.GoBytes(raw, rawSize)
+	}
+}
+
+//export lost_callback
+func lost_callback(cbCookie unsafe.Pointer, lost C.ulong) {
+	callbackData := lookupCallback(uint64(uintptr(cbCookie)))
+	if callbackData.lostCh != nil {
+		callbackData.lostCh <- uint64(lost)
+	}
 }
 
 // GetHostByteOrder returns the current byte-order.
@@ -109,7 +120,7 @@ func determineHostByteOrder() binary.ByteOrder {
 }
 
 // InitPerfMap initializes a perf map with a receiver channel.
-func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
+func InitPerfMap(table *Table, receiverChan chan []byte, lostCh chan uint64, pageCount uint) (*PerfMap, error) {
 	fd := table.Config()["fd"].(int)
 	keySize := table.Config()["key_size"].(uint64)
 	leafSize := table.Config()["leaf_size"].(uint64)
@@ -118,8 +129,17 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 		return nil, fmt.Errorf("passed table has wrong size")
 	}
 
+	// If page count is not set, use the default. Must be power of 2.
+	if pageCount == 0 {
+		pageCount = BPF_PERF_READER_PAGE_CNT
+	}
+	if pageCount&(pageCount-1) != 0 {
+		return nil, fmt.Errorf("page count must be power of 2")
+	}
+
 	callbackDataIndex := registerCallback(&callbackData{
-		receiverChan,
+		receiverChan: receiverChan,
+		lostCh:       lostCh,
 	})
 
 	key := make([]byte, keySize)
@@ -135,7 +155,7 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 	}
 
 	for _, cpu := range cpus {
-		reader, err := bpfOpenPerfBuffer(cpu, callbackDataIndex)
+		reader, err := bpfOpenPerfBuffer(cpu, callbackDataIndex, pageCount)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open perf buffer: %v", err)
 		}
@@ -187,13 +207,13 @@ func (pm *PerfMap) poll(timeout int) {
 	}
 }
 
-func bpfOpenPerfBuffer(cpu uint, callbackDataIndex uint64) (unsafe.Pointer, error) {
+func bpfOpenPerfBuffer(cpu uint, callbackDataIndex uint64, pageCount uint) (unsafe.Pointer, error) {
 	cpuC := C.int(cpu)
 	reader, err := C.bpf_open_perf_buffer(
 		(C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)),
-		nil,
+		(C.perf_reader_lost_cb)(unsafe.Pointer(C.lost_callback)),
 		unsafe.Pointer(uintptr(callbackDataIndex)),
-		-1, cpuC, BPF_PERF_READER_PAGE_CNT)
+		-1, cpuC, C.int(pageCount))
 	if reader == nil {
 		return nil, fmt.Errorf("failed to open perf buffer: %v", err)
 	}

@@ -208,4 +208,4 @@ ignored = ["github.com/Sirupsen/logrus", "github.com/gravitational/license/gener
 [[override]]
   name = "github.com/iovisor/gobpf"
   source = "github.com/gravitational/gobpf"
-  revision = "e2b48b86df690d4fe8ae8e647c406197a6252ee4"
+  revision = "0e328af3088341056aa453a95756f94c87492220"

@@ -560,14 +560,14 @@
   version = "v0.3.4"
 
 [[projects]]
-  digest = "1:5f68793ca30d888db2e9f40613ceeba87bd0ecebbfd58a9ec1d2e59c2e3d41c5"
+  digest = "1:6fdc5ab2b51daaff685258da6a6b6dec3fffcf4207fab3df360e3a2b42d2f1af"
   name = "github.com/iovisor/gobpf"
   packages = [
     "bcc",
     "pkg/cpuonline",
   ]
   pruneopts = "NUT"
-  revision = "e2b48b86df690d4fe8ae8e647c406197a6252ee4"
+  revision = "0e328af3088341056aa453a95756f94c87492220"
   source = "github.com/gravitational/gobpf"
 
 [[projects]]
@@ -615,7 +615,7 @@
   name = "github.com/kardianos/osext"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "ae77be60afb1dcacde03767a8c37337fad28ac14"
+  revision = "2bc1f35cddc0cc527b4bc3dce8578fc2a6c11384"
 
 [[projects]]
   digest = "1:b2a38ab351f5ef2dabe0235b4e91f14ea525832fcad6b199b13110679daf2c28"
@@ -1374,12 +1374,41 @@
   version = "v6.0.0"
 
 [[projects]]
+  digest = "1:c0693cb981f43d82a767a3217b7640a4bdb341731d3814b38602f4e5dc4f01b3"
+  name = "k8s.io/klog"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "2ca9ad30301bf30a8a6e0fa2110db6b8df699a91"
+  version = "v1.0.0"
+
+[[projects]]
   branch = "master"
   digest = "1:f60e3ccfe35ad7632217492c6709871d6c84b2ba77219f054f8d0ef7d1b996e2"
   name = "k8s.io/kube-openapi"
   packages = ["pkg/common"]
   pruneopts = "NUT"
   revision = "41e43949ca69d04b66104069ed3ffd619b289b3d"
+
+[[projects]]
+  digest = "1:a40b7acd3c9912ca02688a329cbdedcf7073bb38c15f422714f08c706a69130e"
+  name = "k8s.io/kubernetes"
+  packages = ["pkg/util/mount"]
+  pruneopts = "NUT"
+  revision = "b3cbbae08ec52a7fc73d334838e18d17e8512749"
+  version = "v1.16.3"
+
+[[projects]]
+  branch = "master"
+  digest = "1:c7bbfe1caee26db2e5ab9e5ae936b852479a9b6495be74ce19e23c20f8aacfe1"
+  name = "k8s.io/utils"
+  packages = [
+    "exec",
+    "io",
+    "keymutex",
+    "path",
+  ]
+  pruneopts = "NUT"
+  revision = "6ca3b61696b65b0e81f1a39b4937fc2d2994ed6a"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1512,6 +1541,7 @@
     "k8s.io/client-go/transport",
     "k8s.io/client-go/transport/spdy",
     "k8s.io/client-go/util/exec",
+    "k8s.io/kubernetes/pkg/util/mount",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

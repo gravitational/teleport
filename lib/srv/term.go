@@ -36,7 +36,6 @@ import (
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
-	"github.com/kardianos/osext"
 	"github.com/kr/pty"
 	log "github.com/sirupsen/logrus"
 )
@@ -214,7 +213,7 @@ func (t *terminal) Run() error {
 
 	// Re-execute Teleport and pass along the allocated PTY as well as the
 	// command reader from where Teleport will know how to re-spawn itself.
-	teleportPath, err := osext.Executable()
+	teleportPath, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
 	}

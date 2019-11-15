@@ -21,14 +21,18 @@ import (
 	"unsafe"
 )
 
-/*
-#cgo CFLAGS: -I/usr/include/bcc/compat
-#cgo LDFLAGS: -lbcc
-#include <bcc/bcc_common.h>
-#include <bcc/libbpf.h>
-#include <bcc/bcc_syms.h>
-extern void foreach_symbol_callback(char*, uint64_t);
-*/
+// #cgo CFLAGS: -I/usr/include/bcc/compat
+// #cgo LDFLAGS: -ldl
+//
+// #include <bcc/bcc_common.h>
+// #include <bcc/libbpf.h>
+// #include <bcc/bcc_syms.h>
+//
+// extern void foreach_symbol_callback(char*, uint64_t);
+// extern int bcc_foreach_function_symbol(const char *, SYM_CB);
+// extern int bcc_resolve_symname(const char *, const char *, const uint64_t, int, struct bcc_symbol_option*, struct bcc_symbol *);
+// extern void *bcc_symcache_new(int, struct bcc_symbol_option *);
+// extern int bcc_symcache_resolve_name(void *, const char *, const char *, uint64_t *);
 import "C"
 
 type symbolAddress struct {

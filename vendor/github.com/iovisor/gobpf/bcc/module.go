@@ -26,12 +26,34 @@ import (
 	"github.com/iovisor/gobpf/pkg/cpuonline"
 )
 
-/*
-#cgo CFLAGS: -I/usr/include/bcc/compat
-#cgo LDFLAGS: -lbcc
-#include <bcc/bcc_common.h>
-#include <bcc/libbpf.h>
-*/
+// #cgo CFLAGS: -I/usr/include/bcc/compat
+// #cgo LDFLAGS: -ldl
+//
+// #include <dlfcn.h>
+// #include <bcc/bcc_common.h>
+// #include <bcc/libbpf.h>
+//
+// extern char *bcc_library_name();
+// extern int init_symlookup(void *);
+// extern int bcc_prog_load(enum bpf_prog_type, const char *, const struct bpf_insn *, int, const char *, unsigned, int, char *, unsigned);
+// extern int bpf_attach_kprobe(int, enum bpf_probe_attach_type, const char *, const char *, uint64_t, int);
+// extern int bpf_attach_perf_event(int, uint32_t, uint32_t, uint64_t, uint64_t, pid_t, int, int);
+// extern int bpf_attach_raw_tracepoint(int, char *);
+// extern int bpf_attach_tracepoint(int, const char *, const char *);
+// extern int bpf_attach_uprobe(int, enum bpf_probe_attach_type, const char *, const char *, uint64_t, pid_t);
+// extern int bpf_attach_xdp(const char *, int, uint32_t);
+// extern int bpf_close_perf_event_fd(int);
+// extern int bpf_detach_kprobe(const char *);
+// extern int bpf_detach_tracepoint(const char *, const char *);
+// extern int bpf_detach_uprobe(const char *);
+// extern size_t bpf_function_size(void *, const char *);
+// extern void *bpf_function_start(void *, const char *);
+// extern void *bpf_module_create_c_from_string(const char *, unsigned, const char *[], int, bool, const char *);
+// extern void bpf_module_destroy(void *);
+// extern unsigned bpf_module_kern_version(void *);
+// extern char *bpf_module_license(void *);
+// extern int bpf_prog_get_tag(int, unsigned long long *);
+// extern size_t bpf_table_id(void *, const char *);
 import "C"
 
 // Module type
@@ -69,6 +91,9 @@ var (
 	defaultCflags []string
 	compileCh     chan compileRequest
 	bpfInitOnce   sync.Once
+
+	// bccHandle is a opaque handle to the libbcc object.
+	bccHandle unsafe.Pointer
 )
 
 func bpfInit() {
@@ -79,8 +104,21 @@ func bpfInit() {
 	go compile()
 }
 
+func init() {
+	bccHandle = C.dlopen(C.bcc_library_name(), C.RTLD_NOW)
+}
+
 // NewModule constructor
 func newModule(code string, cflags []string) *Module {
+	// Open libbcc and initialize the symbol lookup table.
+	if bccHandle == nil {
+		return nil
+	}
+	retval := C.init_symlookup(bccHandle)
+	if retval == -1 {
+		return nil
+	}
+
 	cflagsC := make([]*C.char, len(defaultCflags)+len(cflags))
 	defer func() {
 		for _, cflag := range cflagsC {
@@ -219,7 +257,7 @@ func (bpf *Module) load(name string, progType int, logLevel, logSize uint) (int,
 	license := C.bpf_module_license(bpf.p)
 	version := C.bpf_module_kern_version(bpf.p)
 	if start == nil {
-		return -1, fmt.Errorf("Module: unable to find %s", name)
+		return -1, fmt.Errorf("unable to find module %s", name)
 	}
 	var logBuf []byte
 	var logBufP *C.char
@@ -244,13 +282,17 @@ func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, 
 
 	evNameCS := C.CString(evName)
 	fnNameCS := C.CString(fnName)
-	res, err := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, (C.uint64_t)(0), C.int(maxActive))
-	C.free(unsafe.Pointer(evNameCS))
-	C.free(unsafe.Pointer(fnNameCS))
+	defer C.free(unsafe.Pointer(evNameCS))
+	defer C.free(unsafe.Pointer(fnNameCS))
 
+	res, err := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, (C.uint64_t)(0), C.int(maxActive))
+	if err != nil {
+		return err
+	}
 	if res < 0 {
 		return fmt.Errorf("failed to attach BPF kprobe: %v", err)
 	}
+
 	bpf.kprobes[evName] = int(res)
 	return nil
 }
@@ -258,13 +300,17 @@ func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, 
 func (bpf *Module) attachUProbe(evName string, attachType uint32, path string, addr uint64, fd, pid int) error {
 	evNameCS := C.CString(evName)
 	binaryPathCS := C.CString(path)
-	res, err := C.bpf_attach_uprobe(C.int(fd), attachType, evNameCS, binaryPathCS, (C.uint64_t)(addr), (C.pid_t)(pid))
-	C.free(unsafe.Pointer(evNameCS))
-	C.free(unsafe.Pointer(binaryPathCS))
+	defer C.free(unsafe.Pointer(evNameCS))
+	defer C.free(unsafe.Pointer(binaryPathCS))
 
+	res, err := C.bpf_attach_uprobe(C.int(fd), attachType, evNameCS, binaryPathCS, (C.uint64_t)(addr), (C.pid_t)(pid))
+	if err != nil {
+		return err
+	}
 	if res < 0 {
 		return fmt.Errorf("failed to attach BPF uprobe: %v", err)
 	}
+
 	bpf.uprobes[evName] = int(res)
 	return nil
 }
@@ -297,15 +343,17 @@ func (bpf *Module) AttachTracepoint(name string, fd int) error {
 
 	tpCategoryCS := C.CString(parts[0])
 	tpNameCS := C.CString(parts[1])
+	defer C.free(unsafe.Pointer(tpCategoryCS))
+	defer C.free(unsafe.Pointer(tpNameCS))
 
 	res, err := C.bpf_attach_tracepoint(C.int(fd), tpCategoryCS, tpNameCS)
-
-	C.free(unsafe.Pointer(tpCategoryCS))
-	C.free(unsafe.Pointer(tpNameCS))
-
+	if err != nil {
+		return err
+	}
 	if res < 0 {
 		return fmt.Errorf("failed to attach BPF tracepoint: %v", err)
 	}
+
 	bpf.tracepoints[name] = int(res)
 	return nil
 }
@@ -318,14 +366,16 @@ func (bpf *Module) AttachRawTracepoint(name string, fd int) error {
 	}
 
 	tpNameCS := C.CString(name)
+	defer C.free(unsafe.Pointer(tpNameCS))
 
 	res, err := C.bpf_attach_raw_tracepoint(C.int(fd), tpNameCS)
-
-	C.free(unsafe.Pointer(tpNameCS))
-
+	if err != nil {
+		return err
+	}
 	if res < 0 {
 		return fmt.Errorf("failed to attach BPF tracepoint: %v", err)
 	}
+
 	bpf.rawTracepoints[name] = int(res)
 	return nil
 }
@@ -495,9 +545,11 @@ func (bpf *Module) TableIter() <-chan map[string]interface{} {
 
 func (bpf *Module) attachXDP(devName string, fd int, flags uint32) error {
 	devNameCS := C.CString(devName)
-	res, err := C.bpf_attach_xdp(devNameCS, C.int(fd), C.uint32_t(flags))
 	defer C.free(unsafe.Pointer(devNameCS))
-
+	res, err := C.bpf_attach_xdp(devNameCS, C.int(fd), C.uint32_t(flags))
+	if err != nil {
+		return err
+	}
 	if res != 0 || err != nil {
 		return fmt.Errorf("failed to attach BPF xdp to device %v: %v", devName, err)
 	}

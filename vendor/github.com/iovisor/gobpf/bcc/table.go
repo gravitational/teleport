@@ -22,12 +22,17 @@ import (
 	"unsafe"
 )
 
-/*
-#cgo CFLAGS: -I/usr/include/bcc/compat
-#cgo LDFLAGS: -lbcc
-#include <bcc/bcc_common.h>
-#include <bcc/libbpf.h>
-*/
+// #cgo CFLAGS: -I/usr/include/bcc/compat
+// #cgo LDFLAGS: -ldl
+//
+// #include <bcc/bcc_common.h>
+// #include <bcc/libbpf.h>
+//
+// extern int bpf_table_key_snprintf(void *, size_t, char *, size_t, const void *);
+// extern int bpf_table_key_sscanf(void *, size_t, const char *, void *);
+// extern int bpf_table_leaf_snprintf(void *, size_t, char *, size_t, const void *);
+// extern int bpf_table_leaf_sscanf(void *, size_t, const char *, void *);
+// extern int bpf_delete_elem(int, void *);
 import "C"
 
 var errIterationFailed = errors.New("table.Iter: leaf for next key not found")
