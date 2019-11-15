@@ -27,7 +27,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"fmt"
 	"net"
 	"strconv"
 	"sync"
