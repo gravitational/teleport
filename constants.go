@@ -206,6 +206,12 @@ const (
 	// used to broadcast events to subscribers.
 	ComponentBuffer = "buffer"
 
+	// ComponentBPF is the eBPF packagae.
+	ComponentBPF = "bpf"
+
+	// ComponentCgroup is the cgroup package.
+	ComponentCgroup = "cgroups"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -558,6 +564,28 @@ const (
 
 	// OpenBrowserWindows is the command used to open a web browser on Windows.
 	OpenBrowserWindows = "rundll32.exe"
+)
+
+const (
+	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
+	// recording feature.
+	EnhancedRecordingMinKernel = "4.18.0"
+
+	// EnhancedRecordingCommand is a role option that implies command events are
+	// captured.
+	EnhancedRecordingCommand = "command"
+
+	// EnhancedRecordingDisk is a role option that implies disk events are captured.
+	EnhancedRecordingDisk = "disk"
+
+	// EnhancedRecordingNetwork is a role option that implies network events
+	// are captured.
+	EnhancedRecordingNetwork = "network"
+)
+
+const (
+	// ExecSubCommand is the sub-command Teleport uses to re-exec itself.
+	ExecSubCommand = "exec"
 )
 
 // RSAKeySize is the size of the RSA key.

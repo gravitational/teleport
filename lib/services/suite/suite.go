@@ -555,6 +555,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 				MaxSessionTTL:     services.Duration(time.Hour),
 				PortForwarding:    services.NewBoolOption(true),
 				CertificateFormat: teleport.CertificateFormatStandard,
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: services.RoleConditions{
 				Logins:     []string{"root", "bob"},

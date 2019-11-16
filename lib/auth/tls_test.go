@@ -1328,8 +1328,7 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 	user, err := services.NewUser("bob")
 	c.Assert(err, check.IsNil)
 
-	role := services.NewImplicitRole()
-	role.SetName(user.GetName())
+	role := services.RoleForUser(user)
 	role.SetLogins(services.Allow, []string{user.GetName()})
 	err = s.server.Auth().UpsertRole(role)
 	c.Assert(err, check.IsNil)

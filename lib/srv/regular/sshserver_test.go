@@ -36,12 +36,14 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -80,6 +82,18 @@ var wildcardAllow = services.Labels{
 
 var _ = fmt.Printf
 var _ = Suite(&SrvSuite{})
+
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise it will run tests as normal.
+func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
+		srv.RunCommand()
+		return
+	}
+
+	code := m.Run()
+	os.Exit(code)
+}
 
 func (s *SrvSuite) SetUpSuite(c *C) {
 	var err error
@@ -158,6 +172,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 					Command: []string{"expr", "1", "+", "3"}},
 			},
 		),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -586,6 +601,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -659,6 +675,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetUUID(bobAddr),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(err, IsNil)
@@ -745,6 +762,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -846,6 +864,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -956,6 +975,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)
