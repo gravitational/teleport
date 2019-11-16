@@ -151,18 +151,18 @@ var (
 		Code: AuthAttemptFailureCode,
 	}
 	// SessionCommand is emitted upon execution of a command when using enhanced
-	// auditing.
+	// session recording.
 	SessionCommand = Event{
 		Name: SessionCommandEvent,
 		Code: SessionCommandCode,
 	}
-	// SessionDisk is emitted upon open of a file when using enhanced auditing.
+	// SessionDisk is emitted upon open of a file when using enhanced session recording.
 	SessionDisk = Event{
 		Name: SessionDiskEvent,
 		Code: SessionDiskCode,
 	}
 	// SessionNetwork is emitted when a network requests is is issued when
-	// using enhanced auditing.
+	// using enhanced session recording.
 	SessionNetwork = Event{
 		Name: SessionNetworkEvent,
 		Code: SessionNetworkCode,

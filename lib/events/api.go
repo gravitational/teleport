@@ -76,13 +76,36 @@ const (
 
 	// SessionEndEvent indicates that a session has ended
 	SessionEndEvent = "session.end"
+
 	// SessionUploadEvent indicates that session has been uploaded to the external storage
 	SessionUploadEvent = "session.upload"
+
 	// URL is used for a session upload URL
 	URL = "url"
 
-	SessionEventID  = "sid"
+	// SessionEventID is a unique UUID of the session.
+	SessionEventID = "sid"
+
+	// SessionServerID is the UUID of the server the session occurred on.
 	SessionServerID = "server_id"
+
+	// SessionServerHostname is the hostname of the server the session occurred on.
+	SessionServerHostname = "server_hostname"
+
+	// SessionEnhancedRecording is used to indicate if the recording was an
+	// enhanced recording or not.
+	SessionEnhancedRecording = "enhanced_recording"
+
+	// SessionInteractive is used to indicate if the session was interactive
+	// (has PTY attached) or not (exec session).
+	SessionInteractive = "interactive"
+
+	// SessionParticipants is a list of participants in the session.
+	SessionParticipants = "participants"
+
+	// SessionServerLabels are the labels (static and dynamic) of the server the
+	// session occurred on.
+	SessionServerLabels = "server_labels"
 
 	// SessionByteOffset is the number of bytes written to session stream since
 	// the beginning

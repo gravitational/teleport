@@ -25,7 +25,7 @@ import (
 type BPF interface {
 	// OpenSession will start monitoring all events within a session and
 	// emitting them to the Audit Log.
-	OpenSession(ctx *SessionContext) error
+	OpenSession(ctx *SessionContext) (uint64, error)
 
 	// CloseSession will stop monitoring events for a particular session.
 	CloseSession(ctx *SessionContext) error
@@ -112,8 +112,8 @@ func (s *NOP) Close() error {
 }
 
 // OpenSession will open a NOP session. Note this function does nothing.
-func (s *NOP) OpenSession(ctx *SessionContext) error {
-	return nil
+func (s *NOP) OpenSession(ctx *SessionContext) (uint64, error) {
+	return 0, nil
 }
 
 // OpenSession will open a NOP session. Note this function does nothing.

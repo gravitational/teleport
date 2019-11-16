@@ -299,13 +299,17 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		// no more people left? Need to end the session!
 		s.removeSession(sess)
 
-		// send an event indicating that this session has ended
-		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
-			events.SessionEventID:  string(sess.id),
-			events.SessionServerID: party.ctx.srv.HostUUID(),
-			events.EventUser:       party.user,
-			events.EventNamespace:  s.srv.GetNamespace(),
-		})
+		// Emit a session.end event for this (interactive) session.
+		eventFields := events.EventFields{
+			events.SessionEventID:           string(sess.id),
+			events.SessionServerID:          party.ctx.srv.HostUUID(),
+			events.EventUser:                party.user,
+			events.EventNamespace:           s.srv.GetNamespace(),
+			events.SessionInteractive:       true,
+			events.SessionEnhancedRecording: sess.hasEnhancedRecording,
+			events.SessionParticipants:      sess.exportParticipants(),
+		}
+		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
 
 		// close recorder to free up associated resources
 		// and flush data
@@ -442,8 +446,14 @@ type session struct {
 	// this writer is used to broadcast terminal I/O to different clients
 	writer *multiWriter
 
-	// parties are connected lients/users
+	// parties is the set of current connected clients/users. This map may grow
+	// and shrink as members join and leave the session.
 	parties map[rsession.ID]*party
+
+	// participants is the set of users that have joined this session. Users are
+	// never removed from this map as it's used to report the full list of
+	// participants at the end of a session.
+	participants map[rsession.ID]*party
 
 	term Terminal
 
@@ -467,6 +477,10 @@ type session struct {
 	closeOnce sync.Once
 
 	recorder events.SessionRecorder
+
+	// hasEnhancedRecording returns true if this session has enhanced session
+	// recording events associated.
+	hasEnhancedRecording bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -650,10 +664,15 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		User:      ctx.Identity.TeleportUser,
 		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
 	}
-	err = ctx.srv.GetBPF().OpenSession(sessionContext)
+	cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
-		ctx.Errorf("Failed to open enhanced auditing session: %v: %v.", s.id, err)
+		ctx.Errorf("Failed to open enhanced recording (interactive) session: %v: %v.", s.id, err)
 		return trace.Wrap(err)
+	}
+
+	// If a cgroup ID was assigned then enhanced session recording was enabled.
+	if cgroupID > 0 {
+		s.hasEnhancedRecording = true
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -661,15 +680,17 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 
 	params := s.term.GetTerminalParams()
 
-	// Emit "new session created" event.
+	// Emit "new session created" event for the interactive session.
 	eventFields := events.EventFields{
-		events.EventNamespace:  ctx.srv.GetNamespace(),
-		events.SessionEventID:  string(s.id),
-		events.SessionServerID: ctx.srv.HostUUID(),
-		events.EventLogin:      ctx.Identity.Login,
-		events.EventUser:       ctx.Identity.TeleportUser,
-		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
-		events.TerminalSize:    params.Serialize(),
+		events.EventNamespace:        ctx.srv.GetNamespace(),
+		events.SessionEventID:        string(s.id),
+		events.SessionServerID:       ctx.srv.HostUUID(),
+		events.EventLogin:            ctx.Identity.Login,
+		events.EventUser:             ctx.Identity.TeleportUser,
+		events.RemoteAddr:            ctx.Conn.RemoteAddr().String(),
+		events.TerminalSize:          params.Serialize(),
+		events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
+		events.SessionServerLabels:   ctx.srv.GetInfo().GetAllLabels(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -721,7 +742,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		// or running in a recording proxy, this is simply a NOP.
 		err = ctx.srv.GetBPF().CloseSession(sessionContext)
 		if err != nil {
-			ctx.Errorf("Failed to close enhanced auditing session: %v: %v.", s.id, err)
+			ctx.Errorf("Failed to close enhanced recording (interactive) session: %v: %v.", s.id, err)
 		}
 
 		if result != nil {
@@ -767,14 +788,16 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 
-	// Emit a session.start event.
+	// Emit a session.start event for the exec session.
 	eventFields := events.EventFields{
-		events.EventNamespace:  ctx.srv.GetNamespace(),
-		events.SessionEventID:  string(s.id),
-		events.SessionServerID: ctx.srv.HostUUID(),
-		events.EventLogin:      ctx.Identity.Login,
-		events.EventUser:       ctx.Identity.TeleportUser,
-		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
+		events.EventNamespace:        ctx.srv.GetNamespace(),
+		events.SessionEventID:        string(s.id),
+		events.SessionServerID:       ctx.srv.HostUUID(),
+		events.EventLogin:            ctx.Identity.Login,
+		events.EventUser:             ctx.Identity.TeleportUser,
+		events.RemoteAddr:            ctx.Conn.RemoteAddr().String(),
+		events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
+		events.SessionServerLabels:   ctx.srv.GetInfo().GetAllLabels(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -810,10 +833,15 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		User:      ctx.Identity.TeleportUser,
 		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
 	}
-	err = ctx.srv.GetBPF().OpenSession(sessionContext)
+	cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
-		ctx.Errorf("Failed to open enhanced auditing (exec) session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
+		ctx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
 		return trace.Wrap(err)
+	}
+
+	// If a cgroup ID was assigned then enhanced session recording was enabled.
+	if cgroupID > 0 {
+		s.hasEnhancedRecording = true
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -830,17 +858,22 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		// or running in a recording proxy, this is simply a NOP.
 		err = ctx.srv.GetBPF().CloseSession(sessionContext)
 		if err != nil {
-			ctx.Errorf("Failed to close enhanced auditing (exec) session: %v: %v.", s.id, err)
+			ctx.Errorf("Failed to close enhanced recording (exec) session: %v: %v.", s.id, err)
 		}
 
 		// Remove the session from the in-memory map.
 		s.registry.removeSession(s)
 
-		// Emit a session.end event.
+		// Emit a session.end event for this (exec) session.
 		eventFields := events.EventFields{
-			events.SessionEventID:  string(s.id),
-			events.SessionServerID: ctx.srv.HostUUID(),
-			events.EventNamespace:  ctx.srv.GetNamespace(),
+			events.SessionEventID:           string(s.id),
+			events.SessionServerID:          ctx.srv.HostUUID(),
+			events.EventNamespace:           ctx.srv.GetNamespace(),
+			events.SessionInteractive:       false,
+			events.SessionEnhancedRecording: s.hasEnhancedRecording,
+			events.SessionParticipants: []string{
+				ctx.Identity.TeleportUser,
+			},
 		}
 		s.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
 
@@ -935,6 +968,19 @@ func (s *session) exportPartyMembers() []rsession.Party {
 	return partyList
 }
 
+// exportParticipants returns a list of all members that joined the party.
+func (s *session) exportParticipants() []string {
+	s.Lock()
+	defer s.Unlock()
+
+	var participants []string
+	for _, p := range s.participants {
+		participants = append(participants, p.user)
+	}
+
+	return participants
+}
+
 // heartbeat will loop as long as the session is not closed and mark it as
 // active and update the list of party members. If the session are recorded at
 // the proxy, then this function does nothing as it's counterpart
@@ -987,6 +1033,7 @@ func (s *session) addPartyMember(p *party) {
 	defer s.Unlock()
 
 	s.parties[p.id] = p
+	s.participants[p.id] = p
 }
 
 // addParty is called when a new party joins the session.

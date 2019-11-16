@@ -164,15 +164,15 @@ func (s *Service) Close() error {
 
 // OpenSession will place a process within a cgroup and being monitoring all
 // events from that cgroup and emitting the results to the audit log.
-func (s *Service) OpenSession(ctx *SessionContext) error {
+func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 	err := s.cgroup.Create(ctx.SessionID)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
 	cgroupID, err := s.cgroup.ID(ctx.SessionID)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
 	// Start watching for any events that come from this cgroup.
@@ -181,10 +181,10 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 	// Place requested PID into cgroup.
 	err = s.cgroup.Place(ctx.SessionID, ctx.PID)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
-	return nil
+	return cgroupID, nil
 }
 
 // CloseSession will stop monitoring events from a particular cgroup and

@@ -117,7 +117,7 @@ type Server interface {
 	// using reverse tunnel.
 	UseTunnel() bool
 
-	// GetBPF returns the BPF service used for enhanced auditing.
+	// GetBPF returns the BPF service used for enhanced session recording.
 	GetBPF() bpf.BPF
 }
 

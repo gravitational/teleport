@@ -243,10 +243,11 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 
 		// Limit the total number of connections to the Auth Server. Some hosts allow a low
 		// number of connections per process (ulimit) to a host. This is a problem for
-		// enhanced auditing which emits so many events to the Audit Log (using the
-		// Auth Client) that the connection pool often does not have a free
-		// connection to return, so just opens a new one. This quickly leads to
-		// hitting the OS limit and the client returning out of file descriptors error.
+		// enhanced session recording auditing which emits so many events to the
+		// Audit Log (using the Auth Client) that the connection pool often does not
+		// have a free connection to return, so just opens a new one. This quickly
+		// leads to hitting the OS limit and the client returning out of file
+		// descriptors error.
 		MaxConnsPerHost: defaults.HTTPMaxConnsPerHost,
 
 		// IdleConnTimeout defines the maximum amount of time before idle connections

@@ -150,7 +150,7 @@ type Server struct {
 	// configuration.
 	fips bool
 
-	// ebpf is the service used for enhanced auditing.
+	// ebpf is the service used for enhanced session recording.
 	ebpf bpf.BPF
 }
 
@@ -197,7 +197,7 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// GetBPF returns the BPF service used by enhanced auditing.
+// GetBPF returns the BPF service used by enhanced session recording.
 func (s *Server) GetBPF() bpf.BPF {
 	return s.ebpf
 }

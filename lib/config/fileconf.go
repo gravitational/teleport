@@ -721,7 +721,7 @@ func (p *PAM) Parse() *pam.Config {
 
 // BPF is configuration for BPF-based auditing.
 type BPF struct {
-	// Enabled enables or disables enhanced auditing for this node.
+	// Enabled enables or disables enhanced session recording for this node.
 	Enabled string `yaml:"enabled"`
 
 	// CommandBufferSize is the size of the perf buffer for command events.
@@ -737,7 +737,7 @@ type BPF struct {
 	CgroupPath string `yaml:"cgroup_path"`
 }
 
-// Parse will parse the enhanced auditing configuration.
+// Parse will parse the enhanced session recording configuration.
 func (b *BPF) Parse() *bpf.Config {
 	enabled, _ := utils.ParseBool(b.Enabled)
 	return &bpf.Config{

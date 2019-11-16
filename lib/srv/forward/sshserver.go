@@ -367,9 +367,9 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// GetBPF returns the BPF service used by enhanced auditing. BPF for the
-// forwarding server makes no sense (it has to run on the actual node), so
-// return a NOP implementation.
+// GetBPF returns the BPF service used by enhanced session recording. BPF
+// for the forwarding server makes no sense (it has to run on the actual
+// node), so return a NOP implementation.
 func (s Server) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
 }

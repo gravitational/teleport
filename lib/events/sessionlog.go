@@ -245,7 +245,7 @@ func (sl *DiskSessionLogger) finalize() error {
 }
 
 // eventsFileName consists of session id and the first global event index
-// recorded. Optionally for enhanced auditing events, the event type.
+// recorded. Optionally for enhanced session recording events, the event type.
 func eventsFileName(dataDir string, sessionID session.ID, eventType string, eventIndex int64) string {
 	if eventType != "" {
 		return filepath.Join(dataDir, fmt.Sprintf("%v-%v.%v-%v", sessionID.String(), eventIndex, eventType, eventsSuffix))
@@ -434,7 +434,7 @@ func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (
 			return n, trace.Wrap(err)
 		}
 		return n, nil
-	// Enhanced auditing events all go to their own events files.
+	// Enhanced session recording events all go to their own events files.
 	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
 		return sl.writeEnhancedChunk(sessionID, chunk)
 	// All other events get put into the general events file. These are events like
