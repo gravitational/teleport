@@ -27,9 +27,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -73,7 +73,9 @@ type SessionRegistry struct {
 	// log holds the structured logger
 	log *logrus.Entry
 
-	// sessions holds a map between session ID and the session object.
+	// sessions holds a map between session ID and the session object. Used to
+	// find active sessions as well as close all sessions when the registry
+	// is closing.
 	sessions map[rsession.ID]*session
 
 	// srv refers to the upon which this session registry is created.
@@ -84,6 +86,7 @@ func NewSessionRegistry(srv Server) (*SessionRegistry, error) {
 	if srv.GetSessionServer() == nil {
 		return nil, trace.BadParameter("session server is required")
 	}
+
 	return &SessionRegistry{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, srv.Component()),
@@ -97,6 +100,17 @@ func (s *SessionRegistry) addSession(sess *session) {
 	s.Lock()
 	defer s.Unlock()
 	s.sessions[sess.id] = sess
+}
+
+func (s *SessionRegistry) removeSession(sess *session) {
+	s.Lock()
+	defer s.Unlock()
+	delete(s.sessions, sess.id)
+}
+
+func (s *SessionRegistry) findSession(id rsession.ID) (*session, bool) {
+	sess, found := s.sessions[id]
+	return sess, found
 }
 
 func (s *SessionRegistry) Close() {
@@ -178,12 +192,45 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 	}
 	ctx.session = sess
 	s.addSession(sess)
-	ctx.Infof("Creating session %v.", sid)
+	ctx.Infof("Creating interactive session %v.", sid)
 
-	if err := sess.start(ch, ctx); err != nil {
+	// Start an interactive session (TTY attached). Close the session if an error
+	// occurs, otherwise it will be closed by the callee.
+	if err := sess.startInteractive(ch, ctx); err != nil {
 		sess.Close()
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// OpenExecSession opens an non-interactive exec session.
+func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+	// Create a new session ID. These sessions can not be joined so no point in
+	// looking for an exisiting one.
+	sessionID := rsession.NewID()
+
+	// This logic allows concurrent request to create a new session
+	// to fail, what is ok because we should never have this condition.
+	sess, err := newSession(sessionID, s, ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ctx.Infof("Creating non-interactive exec session %v.", s)
+
+	// Parse the exec request and store it in the context.
+	_, err = parseExecRequest(req, ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start a non-interactive session (TTY attached). Close the session if an error
+	// occurs, otherwise it will be closed by the callee.
+	err = sess.startExec(channel, ctx)
+	defer sess.Close()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -250,17 +297,19 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		s.log.Infof("Session %v will be garbage collected.", sess.id)
 
 		// no more people left? Need to end the session!
-		s.Lock()
-		delete(s.sessions, sess.id)
-		s.Unlock()
+		s.removeSession(sess)
 
-		// send an event indicating that this session has ended
-		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
-			events.SessionEventID:  string(sess.id),
-			events.SessionServerID: party.ctx.srv.HostUUID(),
-			events.EventUser:       party.user,
-			events.EventNamespace:  s.srv.GetNamespace(),
-		})
+		// Emit a session.end event for this (interactive) session.
+		eventFields := events.EventFields{
+			events.SessionEventID:           string(sess.id),
+			events.SessionServerID:          party.ctx.srv.HostUUID(),
+			events.EventUser:                party.user,
+			events.EventNamespace:           s.srv.GetNamespace(),
+			events.SessionInteractive:       true,
+			events.SessionEnhancedRecording: sess.hasEnhancedRecording,
+			events.SessionParticipants:      sess.exportParticipants(),
+		}
+		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
 
 		// close recorder to free up associated resources
 		// and flush data
@@ -380,11 +429,6 @@ func (s *SessionRegistry) broadcastResult(sid rsession.ID, r ExecResult) error {
 	return nil
 }
 
-func (s *SessionRegistry) findSession(id rsession.ID) (*session, bool) {
-	sess, found := s.sessions[id]
-	return sess, found
-}
-
 // session struct describes an active (in progress) SSH session. These sessions
 // are managed by 'SessionRegistry' containers which are attached to SSH servers.
 type session struct {
@@ -402,8 +446,14 @@ type session struct {
 	// this writer is used to broadcast terminal I/O to different clients
 	writer *multiWriter
 
-	// parties are connected lients/users
+	// parties is the set of current connected clients/users. This map may grow
+	// and shrink as members join and leave the session.
 	parties map[rsession.ID]*party
+
+	// participants is the set of users that have joined this session. Users are
+	// never removed from this map as it's used to report the full list of
+	// participants at the end of a session.
+	participants map[rsession.ID]*party
 
 	term Terminal
 
@@ -427,6 +477,10 @@ type session struct {
 	closeOnce sync.Once
 
 	recorder events.SessionRecorder
+
+	// hasEnhancedRecording returns true if this session has enhanced session
+	// recording events associated.
+	hasEnhancedRecording bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -484,24 +538,32 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
 		}),
-		id:        id,
-		registry:  r,
-		parties:   make(map[rsession.ID]*party),
-		writer:    newMultiWriter(),
-		login:     ctx.Identity.Login,
-		closeC:    make(chan bool),
-		lingerTTL: defaults.SessionIdlePeriod,
+		id:           id,
+		registry:     r,
+		parties:      make(map[rsession.ID]*party),
+		participants: make(map[rsession.ID]*party),
+		writer:       newMultiWriter(),
+		login:        ctx.Identity.Login,
+		closeC:       make(chan bool),
+		lingerTTL:    defaults.SessionIdlePeriod,
 	}
 	return sess, nil
 }
 
-// isLingering returns true if every party has left this session. Occurs
-// under a lock.
-func (s *session) isLingering() bool {
-	s.Lock()
-	defer s.Unlock()
+// ID returns a string representation of the session ID.
+func (s *session) ID() string {
+	return s.id.String()
+}
 
-	return len(s.parties) == 0
+// PID returns the PID of the Teleport process under which the shell is running.
+func (s *session) PID() int {
+	return s.term.PID()
+}
+
+// Recorder returns a events.SessionRecorder which can be used to emit events
+// to a session as well as the audit log.
+func (s *session) Recorder() events.SessionRecorder {
+	return s.recorder
 }
 
 // Close ends the active session forcing all clients to disconnect and freeing all resources
@@ -533,19 +595,24 @@ func (s *session) Close() error {
 	return nil
 }
 
-func isDiscardAuditLog(alog events.IAuditLog) bool {
-	_, ok := alog.(*events.DiscardAuditLog)
-	return ok
+// isLingering returns true if every party has left this session. Occurs
+// under a lock.
+func (s *session) isLingering() bool {
+	s.Lock()
+	defer s.Unlock()
+
+	return len(s.parties) == 0
 }
 
-// start starts a new interactive process (or a shell) in the current session
-func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
+// startInteractive starts a new interactive process (or a shell) in the
+// current session.
+func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	var err error
 
 	// create a new "party" (connected client)
 	p := newParty(s, ch, ctx)
 
-	// get the audit log from the server and create a session recorder. this will
+	// Get the audit log from the server and create a session recorder. this will
 	// be a discard audit log if the proxy is in recording mode and a teleport
 	// node so we don't create double recordings.
 	auditLog := s.registry.srv.GetAuditLog()
@@ -565,30 +632,6 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 	s.writer.addWriter("session-recorder", s.recorder, true)
-
-	// If this code is running on a Teleport node and PAM is enabled, then open a
-	// PAM context.
-	var pamContext *pam.PAM
-	if ctx.srv.Component() == teleport.ComponentNode {
-		conf, err := s.registry.srv.GetPAM()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if conf.Enabled == true {
-			pamContext, err = pam.Open(&pam.Config{
-				ServiceName: conf.ServiceName,
-				Username:    ctx.Identity.Login,
-				Stdin:       ch,
-				Stderr:      s.writer,
-				Stdout:      s.writer,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			ctx.Debugf("Opening PAM context for session %v.", s.id)
-		}
-	}
 
 	// allocate a terminal or take the one previously allocated via a
 	// seaprate "allocate TTY" SSH request
@@ -610,17 +653,45 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 
+	// Open a BPF recording session. If BPF was not configured, not available,
+	// or running in a recording proxy, OpenSession is a NOP.
+	sessionContext := &bpf.SessionContext{
+		PID:       s.term.PID(),
+		AuditLog:  s.recorder.GetAuditLog(),
+		Namespace: ctx.srv.GetNamespace(),
+		SessionID: s.id.String(),
+		ServerID:  ctx.srv.HostUUID(),
+		Login:     ctx.Identity.Login,
+		User:      ctx.Identity.TeleportUser,
+		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
+	}
+	cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext)
+	if err != nil {
+		ctx.Errorf("Failed to open enhanced recording (interactive) session: %v: %v.", s.id, err)
+		return trace.Wrap(err)
+	}
+
+	// If a cgroup ID was assigned then enhanced session recording was enabled.
+	if cgroupID > 0 {
+		s.hasEnhancedRecording = true
+	}
+
+	// Process has been placed in a cgroup, continue execution.
+	s.term.Continue()
+
 	params := s.term.GetTerminalParams()
 
-	// Emit "new session created" event.
+	// Emit "new session created" event for the interactive session.
 	eventFields := events.EventFields{
-		events.EventNamespace:  ctx.srv.GetNamespace(),
-		events.SessionEventID:  string(s.id),
-		events.SessionServerID: ctx.srv.HostUUID(),
-		events.EventLogin:      ctx.Identity.Login,
-		events.EventUser:       ctx.Identity.TeleportUser,
-		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
-		events.TerminalSize:    params.Serialize(),
+		events.EventNamespace:        ctx.srv.GetNamespace(),
+		events.SessionEventID:        string(s.id),
+		events.SessionServerID:       ctx.srv.HostUUID(),
+		events.EventLogin:            ctx.Identity.Login,
+		events.EventUser:             ctx.Identity.TeleportUser,
+		events.RemoteAddr:            ctx.Conn.RemoteAddr().String(),
+		events.TerminalSize:          params.Serialize(),
+		events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
+		events.SessionServerLabels:   ctx.srv.GetInfo().GetAllLabels(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -668,22 +739,11 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		case <-doneCh:
 		}
 
-		// If this code is running on a Teleport node and PAM is enabled, close the context.
-		if ctx.srv.Component() == teleport.ComponentNode {
-			conf, err := s.registry.srv.GetPAM()
-			if err != nil {
-				ctx.Errorf("Unable to get PAM configuration from server: %v", err)
-				return
-			}
-
-			if conf.Enabled == true {
-				err = pamContext.Close()
-				if err != nil {
-					ctx.Errorf("Unable to close PAM context for session: %v: %v", s.id, err)
-					return
-				}
-				ctx.Debugf("Closing PAM context for session: %v.", s.id)
-			}
+		// Close the BPF recording session. If BPF was not configured, not available,
+		// or running in a recording proxy, this is simply a NOP.
+		err = ctx.srv.GetBPF().CloseSession(sessionContext)
+		if err != nil {
+			ctx.Errorf("Failed to close enhanced recording (interactive) session: %v: %v.", s.id, err)
 		}
 
 		if result != nil {
@@ -703,6 +763,141 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		<-s.closeC
 		s.term.Kill()
 	}()
+	return nil
+}
+
+func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
+	var err error
+
+	// Get the audit log from the server and create a session recorder. this will
+	// be a discard audit log if the proxy is in recording mode and a teleport
+	// node so we don't create double recordings.
+	auditLog := s.registry.srv.GetAuditLog()
+	if auditLog == nil || isDiscardAuditLog(auditLog) {
+		s.recorder = &events.DiscardRecorder{}
+	} else {
+		s.recorder, err = events.NewForwardRecorder(events.ForwardRecorderConfig{
+			DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
+			SessionID:      s.id,
+			Namespace:      ctx.srv.GetNamespace(),
+			RecordSessions: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
+			Component:      teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			ForwardTo:      auditLog,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Emit a session.start event for the exec session.
+	eventFields := events.EventFields{
+		events.EventNamespace:        ctx.srv.GetNamespace(),
+		events.SessionEventID:        string(s.id),
+		events.SessionServerID:       ctx.srv.HostUUID(),
+		events.EventLogin:            ctx.Identity.Login,
+		events.EventUser:             ctx.Identity.TeleportUser,
+		events.RemoteAddr:            ctx.Conn.RemoteAddr().String(),
+		events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
+		events.SessionServerLabels:   ctx.srv.GetInfo().GetAllLabels(),
+	}
+	// Local address only makes sense for non-tunnel nodes.
+	if !ctx.srv.UseTunnel() {
+		eventFields[events.LocalAddr] = ctx.Conn.LocalAddr().String()
+	}
+	s.recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, eventFields)
+
+	// Start execution. If the program failed to start, send that result back.
+	// Note this is a partial start. Teleport will have re-exec'ed itself and
+	// wait until it's been placed in a cgroup and told to continue.
+	result, err := ctx.ExecRequest.Start(channel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if result != nil {
+		ctx.Debugf("Exec request (%v) result: %v.", ctx.ExecRequest, result)
+		ctx.SendExecResult(*result)
+	}
+
+	// Open a BPF recording session. If BPF was not configured, not available,
+	// or running in a recording proxy, OpenSession is a NOP.
+	lexec, ok := ctx.ExecRequest.(*localExec)
+	if !ok {
+		return trace.BadParameter("command is of invalid type %T", ctx.ExecRequest)
+	}
+	sessionContext := &bpf.SessionContext{
+		PID:       lexec.Cmd.Process.Pid,
+		AuditLog:  s.recorder.GetAuditLog(),
+		Namespace: ctx.srv.GetNamespace(),
+		SessionID: string(s.id),
+		ServerID:  ctx.srv.HostUUID(),
+		Login:     ctx.Identity.Login,
+		User:      ctx.Identity.TeleportUser,
+		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
+	}
+	cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext)
+	if err != nil {
+		ctx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
+		return trace.Wrap(err)
+	}
+
+	// If a cgroup ID was assigned then enhanced session recording was enabled.
+	if cgroupID > 0 {
+		s.hasEnhancedRecording = true
+	}
+
+	// Process has been placed in a cgroup, continue execution.
+	ctx.ExecRequest.Continue()
+
+	// Process is running, wait for it to stop.
+	go func() {
+		result = ctx.ExecRequest.Wait()
+		if result != nil {
+			ctx.SendExecResult(*result)
+		}
+
+		// Close the BPF recording session. If BPF was not configured, not available,
+		// or running in a recording proxy, this is simply a NOP.
+		err = ctx.srv.GetBPF().CloseSession(sessionContext)
+		if err != nil {
+			ctx.Errorf("Failed to close enhanced recording (exec) session: %v: %v.", s.id, err)
+		}
+
+		// Remove the session from the in-memory map.
+		s.registry.removeSession(s)
+
+		// Emit a session.end event for this (exec) session.
+		eventFields := events.EventFields{
+			events.SessionEventID:           string(s.id),
+			events.SessionServerID:          ctx.srv.HostUUID(),
+			events.EventNamespace:           ctx.srv.GetNamespace(),
+			events.SessionInteractive:       false,
+			events.SessionEnhancedRecording: s.hasEnhancedRecording,
+			events.SessionParticipants: []string{
+				ctx.Identity.TeleportUser,
+			},
+		}
+		s.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
+
+		// Close recorder to free up associated resources and flush data.
+		s.recorder.Close()
+
+		// Close the session.
+		err = s.Close()
+		if err != nil {
+			ctx.Errorf("Failed to close session %v: %v.", s.id, err)
+		}
+
+		// Remove the session from the backend.
+		if ctx.srv.GetSessionServer() != nil {
+			err := ctx.srv.GetSessionServer().DeleteSession(ctx.srv.GetNamespace(), s.id)
+			if err != nil {
+				ctx.Errorf("Failed to remove active session: %v: %v. "+
+					"Access to backend may be degraded, check connectivity to backend.",
+					s.id, err)
+			}
+		}
+	}()
+
 	return nil
 }
 
@@ -774,6 +969,19 @@ func (s *session) exportPartyMembers() []rsession.Party {
 	return partyList
 }
 
+// exportParticipants returns a list of all members that joined the party.
+func (s *session) exportParticipants() []string {
+	s.Lock()
+	defer s.Unlock()
+
+	var participants []string
+	for _, p := range s.participants {
+		participants = append(participants, p.user)
+	}
+
+	return participants
+}
+
 // heartbeat will loop as long as the session is not closed and mark it as
 // active and update the list of party members. If the session are recorded at
 // the proxy, then this function does nothing as it's counterpart
@@ -826,6 +1034,7 @@ func (s *session) addPartyMember(p *party) {
 	defer s.Unlock()
 
 	s.parties[p.id] = p
+	s.participants[p.id] = p
 }
 
 // addParty is called when a new party joins the session.
@@ -1026,4 +1235,9 @@ func (p *party) Close() (err error) {
 		close(p.termSizeC)
 	})
 	return err
+}
+
+func isDiscardAuditLog(alog events.IAuditLog) bool {
+	_, ok := alog.(*events.DiscardAuditLog)
+	return ok
 }

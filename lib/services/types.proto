@@ -422,6 +422,9 @@ message RoleOptions  {
 
 	// DisconnectExpiredCert sets disconnect clients on expired certificates.
     bool DisconnectExpiredCert = 6 [(gogoproto.nullable) = true, (gogoproto.jsontag) = "disconnect_expired_cert,omitempty", (gogoproto.casttype) = "Bool"];
+
+    // BPF defines what events to record for the BPF-based session recorder.
+    repeated string BPF = 7 [(gogoproto.jsontag) = "enhanced_recording"];
 }
 
 

@@ -150,6 +150,23 @@ var (
 		Name: AuthAttemptEvent,
 		Code: AuthAttemptFailureCode,
 	}
+	// SessionCommand is emitted upon execution of a command when using enhanced
+	// session recording.
+	SessionCommand = Event{
+		Name: SessionCommandEvent,
+		Code: SessionCommandCode,
+	}
+	// SessionDisk is emitted upon open of a file when using enhanced session recording.
+	SessionDisk = Event{
+		Name: SessionDiskEvent,
+		Code: SessionDiskCode,
+	}
+	// SessionNetwork is emitted when a network requests is is issued when
+	// using enhanced session recording.
+	SessionNetwork = Event{
+		Name: SessionNetworkEvent,
+		Code: SessionNetworkCode,
+	}
 )
 
 var (
@@ -203,4 +220,10 @@ var (
 	ClientDisconnectCode = "T3006I"
 	// AuthAttemptFailureCode is the auth attempt failure event code.
 	AuthAttemptFailureCode = "T3007W"
+	// SessionCommandCode is a session command code.
+	SessionCommandCode = "T4000I"
+	// SessionDiskCode is a session disk code.
+	SessionDiskCode = "T4001I"
+	// SessionNetworkCode is a session network code.
+	SessionNetworkCode = "T4002I"
 )

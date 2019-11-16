@@ -76,13 +76,36 @@ const (
 
 	// SessionEndEvent indicates that a session has ended
 	SessionEndEvent = "session.end"
+
 	// SessionUploadEvent indicates that session has been uploaded to the external storage
 	SessionUploadEvent = "session.upload"
+
 	// URL is used for a session upload URL
 	URL = "url"
 
-	SessionEventID  = "sid"
+	// SessionEventID is a unique UUID of the session.
+	SessionEventID = "sid"
+
+	// SessionServerID is the UUID of the server the session occurred on.
 	SessionServerID = "server_id"
+
+	// SessionServerHostname is the hostname of the server the session occurred on.
+	SessionServerHostname = "server_hostname"
+
+	// SessionEnhancedRecording is used to indicate if the recording was an
+	// enhanced recording or not.
+	SessionEnhancedRecording = "enhanced_recording"
+
+	// SessionInteractive is used to indicate if the session was interactive
+	// (has PTY attached) or not (exec session).
+	SessionInteractive = "interactive"
+
+	// SessionParticipants is a list of participants in the session.
+	SessionParticipants = "participants"
+
+	// SessionServerLabels are the labels (static and dynamic) of the server the
+	// session occurred on.
+	SessionServerLabels = "server_labels"
 
 	// SessionByteOffset is the number of bytes written to session stream since
 	// the beginning
@@ -184,6 +207,53 @@ const (
 	// to indicate one of the last session events, used to report
 	// data transfer
 	SessionDataIndex = math.MaxInt32 - 1
+
+	// SessionCommandEvent is emitted when an executable is run within a session.
+	SessionCommandEvent = "session.command"
+
+	// SessionDiskEvent is emitted when a file is opened within an session.
+	SessionDiskEvent = "session.disk"
+
+	// SessionNetworkEvent is emitted when a network connection is initated with a
+	// session.
+	SessionNetworkEvent = "session.network"
+
+	// PID is the ID of the process.
+	PID = "pid"
+
+	// PPID is the PID of the parent process.
+	PPID = "ppid"
+
+	// CgroupID is the internal cgroupv2 ID of the event.
+	CgroupID = "cgroup_id"
+
+	// Program is name of the executable.
+	Program = "program"
+
+	// Path is the full path to the executable.
+	Path = "path"
+
+	// Argv is the list of arguments to the program. Note, the first element does
+	// not contain the name of the process.
+	Argv = "argv"
+
+	// ReturnCode is the return code of execve.
+	ReturnCode = "return_code"
+
+	// Flags are the flags passed to open.
+	Flags = "flags"
+
+	// SrcAddr is the source IP address of the connection.
+	SrcAddr = "src_addr"
+
+	// DstAddr is the destination IP address of the connection.
+	DstAddr = "dst_addr"
+
+	// DstPort is the destination port of the connection.
+	DstPort = "dst_port"
+
+	// TCPVersion is the version of TCP (4 or 6).
+	TCPVersion = "version"
 )
 
 const (

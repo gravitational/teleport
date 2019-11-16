@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
@@ -115,6 +116,9 @@ type Server interface {
 	// UseTunnel used to determine if this node has connected to this cluster
 	// using reverse tunnel.
 	UseTunnel() bool
+
+	// GetBPF returns the BPF service used for enhanced session recording.
+	GetBPF() bpf.BPF
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -250,6 +254,11 @@ type ServerContext struct {
 
 	// cancel is called whenever server context is closed
 	cancel context.CancelFunc
+
+	// termAllocated is used to track if a terminal has been allocated. This has
+	// to be tracked because the terminal is set to nil after it's "taken" in the
+	// session.
+	termAllocated bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and

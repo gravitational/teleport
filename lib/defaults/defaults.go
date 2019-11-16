@@ -91,6 +91,9 @@ const (
 	// HTTPMaxIdleConnsPerHost is the max idle connections per-host.
 	HTTPMaxIdleConnsPerHost = 1000
 
+	// HTTPMaxConnsPerHost is the maximum number of connections per-host.
+	HTTPMaxConnsPerHost = 250
+
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
 
@@ -379,6 +382,24 @@ const (
 	// RoleAuthService is authentication and authorization service,
 	// the only stateful role in the system
 	RoleAuthService = "auth"
+)
+
+const (
+	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
+	// Must be power of 2.
+	PerfBufferPageCount = 8
+
+	// OpenPerfBufferPageCount is the page count for the perf buffer. Open
+	// events generate many events so this buffer needs to be extra large.
+	// Must be power of 2.
+	OpenPerfBufferPageCount = 128
+
+	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
+	CgroupPath = "/cgroup2"
+
+	// ArgsCacheSize is the number of args events to store before dropping args
+	// events.
+	ArgsCacheSize = 1024
 )
 
 var (

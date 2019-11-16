@@ -102,6 +102,17 @@ func NewDiskSessionLogger(cfg DiskSessionLoggerConfig) (*DiskSessionLogger, erro
 		indexFile:      indexFile,
 		lastEventIndex: -1,
 		lastChunkIndex: -1,
+
+		enhancedIndexes: map[string]int64{
+			SessionCommandEvent: -1,
+			SessionDiskEvent:    -1,
+			SessionNetworkEvent: -1,
+		},
+		enhancedFiles: map[string]*gzipWriter{
+			SessionCommandEvent: nil,
+			SessionDiskEvent:    nil,
+			SessionNetworkEvent: nil,
+		},
 	}
 	return sessionLogger, nil
 }
@@ -125,6 +136,9 @@ type DiskSessionLogger struct {
 
 	lastEventIndex int64
 	lastChunkIndex int64
+
+	enhancedIndexes map[string]int64
+	enhancedFiles   map[string]*gzipWriter
 }
 
 // LogEvent logs an event associated with this session
@@ -170,15 +184,25 @@ func (sl *DiskSessionLogger) Finalize() error {
 // flush is used to flush gzip frames to file, otherwise
 // some attempts to read the file could fail
 func (sl *DiskSessionLogger) flush() error {
-	var err, err2 error
+	var err error
+	var errs []error
 
 	if sl.RecordSessions && sl.chunksFile != nil {
 		err = sl.chunksFile.Flush()
+		errs = append(errs, err)
 	}
 	if sl.eventsFile != nil {
-		err2 = sl.eventsFile.Flush()
+		err = sl.eventsFile.Flush()
+		errs = append(errs, err)
 	}
-	return trace.NewAggregate(err, err2)
+	for _, eventsFile := range sl.enhancedFiles {
+		if eventsFile != nil {
+			err = eventsFile.Flush()
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 func (sl *DiskSessionLogger) finalize() error {
@@ -201,6 +225,15 @@ func (sl *DiskSessionLogger) finalize() error {
 		}
 	}
 
+	for _, eventsFile := range sl.enhancedFiles {
+		if eventsFile != nil {
+			err := eventsFile.Close()
+			if err != nil {
+				log.Warningf("Failed closing enhanced events file: %v.", err)
+			}
+		}
+	}
+
 	// create a sentinel to signal completion
 	signalFile := filepath.Join(sl.sessionDir, fmt.Sprintf("%v.completed", sl.SessionID.String()))
 	err := ioutil.WriteFile(signalFile, []byte("completed"), 0640)
@@ -211,8 +244,12 @@ func (sl *DiskSessionLogger) finalize() error {
 	return nil
 }
 
-// eventsFileName consists of session id and the first global event index recorded there
-func eventsFileName(dataDir string, sessionID session.ID, eventIndex int64) string {
+// eventsFileName consists of session id and the first global event index
+// recorded. Optionally for enhanced session recording events, the event type.
+func eventsFileName(dataDir string, sessionID session.ID, eventType string, eventIndex int64) string {
+	if eventType != "" {
+		return filepath.Join(dataDir, fmt.Sprintf("%v-%v.%v-%v", sessionID.String(), eventIndex, eventType, eventsSuffix))
+	}
 	return filepath.Join(dataDir, fmt.Sprintf("%v-%v.%v", sessionID.String(), eventIndex, eventsSuffix))
 }
 
@@ -228,7 +265,7 @@ func (sl *DiskSessionLogger) openEventsFile(eventIndex int64) error {
 			sl.Warningf("Failed to close file: %v", trace.DebugReport(err))
 		}
 	}
-	eventsFileName := eventsFileName(sl.sessionDir, sl.SessionID, eventIndex)
+	eventsFileName := eventsFileName(sl.sessionDir, sl.SessionID, "", eventIndex)
 
 	// update the index file to write down that new events file has been created
 	data, err := json.Marshal(indexEntry{
@@ -263,7 +300,7 @@ func (sl *DiskSessionLogger) openChunksFile(offset int64) error {
 	}
 	chunksFileName := chunksFileName(sl.sessionDir, sl.SessionID, offset)
 
-	// udpate the index file to write down that new chunks file has been created
+	// Update the index file to write down that new chunks file has been created.
 	data, err := json.Marshal(indexEntry{
 		FileName: filepath.Base(chunksFileName),
 		Type:     fileTypeChunks,
@@ -287,6 +324,56 @@ func (sl *DiskSessionLogger) openChunksFile(offset int64) error {
 	return nil
 }
 
+func (sl *DiskSessionLogger) openEnhancedFile(eventType string, eventIndex int64) error {
+	eventsFile, ok := sl.enhancedFiles[eventType]
+	if !ok {
+		return trace.BadParameter("unknown event type: %v", eventType)
+	}
+
+	// If an events file is currently open, close it.
+	if eventsFile != nil {
+		err := eventsFile.Close()
+		if err != nil {
+			sl.Warningf("Failed to close file: %v.", trace.DebugReport(err))
+		}
+	}
+
+	// Create a new events file.
+	eventsFileName := eventsFileName(sl.sessionDir, sl.SessionID, eventType, eventIndex)
+
+	// If the event is an enhanced event overwrite with the type of enhanced event.
+	var indexType string
+	switch eventType {
+	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+		indexType = eventType
+	default:
+		indexType = fileTypeEvents
+	}
+
+	// Update the index file to write down that new events file has been created.
+	data, err := json.Marshal(indexEntry{
+		FileName: filepath.Base(eventsFileName),
+		Type:     indexType,
+		Index:    eventIndex,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = fmt.Fprintf(sl.indexFile, "%v\n", string(data))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Open and store new file for writing events.
+	file, err := os.OpenFile(eventsFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sl.enhancedFiles[eventType] = newGzipWriter(file)
+
+	return nil
+}
+
 // PostSessionSlice takes series of events associated with the session
 // and writes them to events files and data file for future replays
 func (sl *DiskSessionLogger) PostSessionSlice(slice SessionSlice) error {
@@ -300,6 +387,19 @@ func (sl *DiskSessionLogger) PostSessionSlice(slice SessionSlice) error {
 		}
 	}
 	return sl.flush()
+}
+
+// PrintEventFromChunk returns a print event converted from session chunk.
+func PrintEventFromChunk(chunk *SessionChunk) printEvent {
+	return printEvent{
+		Start:             time.Unix(0, chunk.Time).In(time.UTC).Round(time.Millisecond),
+		Type:              SessionPrintEvent,
+		Bytes:             int64(len(chunk.Data)),
+		DelayMilliseconds: chunk.Delay,
+		Offset:            chunk.Offset,
+		EventIndex:        chunk.EventIndex,
+		ChunkIndex:        chunk.ChunkIndex,
+	}
 }
 
 // EventFromChunk returns event converted from session chunk
@@ -320,57 +420,136 @@ func EventFromChunk(sessionID string, chunk *SessionChunk) (EventFields, error) 
 	return fields, nil
 }
 
-func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (written int, err error) {
+func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (int, error) {
+	switch chunk.EventType {
+	// Timing events for TTY playback go to both a chunks file (the raw bytes) as
+	// well as well as the events file (structured events).
+	case SessionPrintEvent:
+		n, err := sl.writeEventChunk(sessionID, chunk)
+		if err != nil {
+			return n, trace.Wrap(err)
+		}
+		n, err = sl.writePrintChunk(sessionID, chunk)
+		if err != nil {
+			return n, trace.Wrap(err)
+		}
+		return n, nil
+	// Enhanced session recording events all go to their own events files.
+	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+		return sl.writeEnhancedChunk(sessionID, chunk)
+	// All other events get put into the general events file. These are events like
+	// session.join, session.end, etc.
+	default:
+		return sl.writeEventChunk(sessionID, chunk)
+	}
+}
 
-	// this section enforces the following invariant:
-	// a single events file only contains successive events
+func (sl *DiskSessionLogger) writeEventChunk(sessionID string, chunk *SessionChunk) (int, error) {
+	var bytes []byte
+	var err error
+
+	// This section enforces the following invariant: a single events file only
+	// contains successive events. If means if an event arrives that is older or
+	// newer than the next expected event, a new file for that chunk is created.
 	if sl.lastEventIndex == -1 || chunk.EventIndex-1 != sl.lastEventIndex {
 		if err := sl.openEventsFile(chunk.EventIndex); err != nil {
 			return -1, trace.Wrap(err)
 		}
 	}
+
+	// Update index for the last event that was processed.
 	sl.lastEventIndex = chunk.EventIndex
-	eventStart := time.Unix(0, chunk.Time).In(time.UTC).Round(time.Millisecond)
-	if chunk.EventType != SessionPrintEvent {
+
+	// Marshal event. Note that print events are marshalled somewhat differently
+	// than all other events.
+	switch chunk.EventType {
+	case SessionPrintEvent:
+		bytes, err = json.Marshal(PrintEventFromChunk(chunk))
+		if err != nil {
+			return -1, trace.Wrap(err)
+		}
+	default:
+		// Convert to a marshallable event.
 		fields, err := EventFromChunk(sessionID, chunk)
 		if err != nil {
 			return -1, trace.Wrap(err)
 		}
-		data, err := json.Marshal(fields)
+		bytes, err = json.Marshal(fields)
 		if err != nil {
 			return -1, trace.Wrap(err)
 		}
-		return sl.eventsFile.Write(append(data, '\n'))
 	}
+
+	n, err := sl.eventsFile.Write(append(bytes, '\n'))
+	if err != nil {
+		return -1, trace.Wrap(err)
+	}
+	return n, nil
+}
+
+func (sl *DiskSessionLogger) writePrintChunk(sessionID string, chunk *SessionChunk) (int, error) {
+	// If the TTY is not being recorded, return right away.
 	if !sl.RecordSessions {
 		return len(chunk.Data), nil
 	}
-	// this section enforces the following invariant:
-	// a single chunks file only contains successive chunks
+
+	// This section enforces the following invariant: a single events file only
+	// contains successive events. If means if an event arrives that is older or
+	// newer than the next expected event, a new file for that chunk is created.
 	if sl.lastChunkIndex == -1 || chunk.ChunkIndex-1 != sl.lastChunkIndex {
 		if err := sl.openChunksFile(chunk.Offset); err != nil {
 			return -1, trace.Wrap(err)
 		}
 	}
+
+	// Update index for the last chunk that was processed.
 	sl.lastChunkIndex = chunk.ChunkIndex
-	event := printEvent{
-		Start:             eventStart,
-		Type:              SessionPrintEvent,
-		Bytes:             int64(len(chunk.Data)),
-		DelayMilliseconds: chunk.Delay,
-		Offset:            chunk.Offset,
-		EventIndex:        chunk.EventIndex,
-		ChunkIndex:        chunk.ChunkIndex,
-	}
-	bytes, err := json.Marshal(event)
-	if err != nil {
-		return -1, trace.Wrap(err)
-	}
-	_, err = sl.eventsFile.Write(append(bytes, '\n'))
-	if err != nil {
-		return -1, trace.Wrap(err)
-	}
+
 	return sl.chunksFile.Write(chunk.Data)
+}
+
+func (sl *DiskSessionLogger) writeEnhancedChunk(sessionID string, chunk *SessionChunk) (int, error) {
+	var bytes []byte
+	var err error
+
+	// Extract last index of particular event (command, disk, network).
+	lastIndex, ok := sl.enhancedIndexes[chunk.EventType]
+	if !ok {
+		return -1, trace.BadParameter("unknown event type: %v", chunk.EventType)
+	}
+
+	// This section enforces the following invariant: a single events file only
+	// contains successive events. If means if an event arrives that is older or
+	// newer than the next expected event, a new file for that chunk is created.
+	if lastIndex == -1 || chunk.EventIndex-1 != lastIndex {
+		if err := sl.openEnhancedFile(chunk.EventType, chunk.EventIndex); err != nil {
+			return -1, trace.Wrap(err)
+		}
+	}
+
+	// Update index for the last event that was processed.
+	sl.enhancedIndexes[chunk.EventType] = chunk.EventIndex
+
+	// Convert to a marshallable event.
+	fields, err := EventFromChunk(sessionID, chunk)
+	if err != nil {
+		return -1, trace.Wrap(err)
+	}
+	bytes, err = json.Marshal(fields)
+	if err != nil {
+		return -1, trace.Wrap(err)
+	}
+
+	// Write event to appropriate file.
+	eventsFile, ok := sl.enhancedFiles[chunk.EventType]
+	if !ok {
+		return -1, trace.BadParameter("unknown event type: %v", chunk.EventType)
+	}
+	n, err := eventsFile.Write(append(bytes, '\n'))
+	if err != nil {
+		return -1, trace.Wrap(err)
+	}
+	return n, nil
 }
 
 func diff(before, after time.Time) int64 {
