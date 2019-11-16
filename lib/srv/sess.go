@@ -538,13 +538,14 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
 		}),
-		id:        id,
-		registry:  r,
-		parties:   make(map[rsession.ID]*party),
-		writer:    newMultiWriter(),
-		login:     ctx.Identity.Login,
-		closeC:    make(chan bool),
-		lingerTTL: defaults.SessionIdlePeriod,
+		id:           id,
+		registry:     r,
+		parties:      make(map[rsession.ID]*party),
+		participants: make(map[rsession.ID]*party),
+		writer:       newMultiWriter(),
+		login:        ctx.Identity.Login,
+		closeC:       make(chan bool),
+		lingerTTL:    defaults.SessionIdlePeriod,
 	}
 	return sess, nil
 }
