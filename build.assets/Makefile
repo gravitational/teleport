@@ -7,7 +7,8 @@ DOCSDIR=/teleport
 
 HOSTNAME=buildbox
 SRCDIR=/gopath/src/github.com/gravitational/teleport
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -v "$$(pwd)/bcc:/usr/include/bcc" -w $(SRCDIR) -h $(HOSTNAME)
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
+BCCFLAGS := -v "$$(pwd)/bcc:/usr/include/bcc"
 ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
@@ -33,7 +34,7 @@ export
 #
 .PHONY:build
 build: bbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BBOX) \
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BBOX) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' release
 
 #
@@ -41,7 +42,7 @@ build: bbox
 #
 .PHONY:build-binaries
 build-binaries: bbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BBOX) \
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BBOX) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all
 
 #
@@ -166,7 +167,7 @@ run-docs: docsbox
 #
 .PHONY:enter
 enter: bbox
-	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BBOX) /bin/bash
 
 #
@@ -174,7 +175,7 @@ enter: bbox
 #
 .PHONY:release
 release: bbox
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
 #
@@ -184,7 +185,7 @@ release: bbox
 .PHONY:release-fips
 release-fips: bbox-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXFIPS) \
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BBOXFIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
 
 #

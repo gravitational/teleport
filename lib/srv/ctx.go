@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
@@ -115,6 +117,9 @@ type Server interface {
 	// UseTunnel used to determine if this node has connected to this cluster
 	// using reverse tunnel.
 	UseTunnel() bool
+
+	// GetBPF returns the BPF service used for enhanced session recording.
+	GetBPF() bpf.BPF
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -250,6 +255,24 @@ type ServerContext struct {
 
 	// cancel is called whenever server context is closed
 	cancel context.CancelFunc
+
+	// termAllocated is used to track if a terminal has been allocated. This has
+	// to be tracked because the terminal is set to nil after it's "taken" in the
+	// session. Terminals can be allocated for both "exec" or "session" requests.
+	termAllocated bool
+
+	// request is the request that was issued by the client
+	request *ssh.Request
+
+	// cmd{r,w} are used to send the command from the parent process to the
+	// child process.
+	cmdr *os.File
+	cmdw *os.File
+
+	// cont{r,w} is used to send the continue signal from the parent process
+	// to the child process.
+	contr *os.File
+	contw *os.File
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -320,6 +343,23 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 		}
 		go mon.Start()
 	}
+
+	// Create pipe used to send command to child process.
+	ctx.cmdr, ctx.cmdw, err = os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx.AddCloser(ctx.cmdr)
+	ctx.AddCloser(ctx.cmdw)
+
+	// Create pipe used to signal continue to child process.
+	ctx.contr, ctx.contw, err = os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx.AddCloser(ctx.contr)
+	ctx.AddCloser(ctx.contw)
+
 	return ctx, nil
 }
 

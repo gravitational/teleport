@@ -86,6 +86,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	return &Forwarder{
 		ForwarderConfig: cfg,
 		sessionLogger:   diskLogger,
+		enhancedIndexes: map[string]int64{
+			SessionCommandEvent: 0,
+			SessionDiskEvent:    0,
+			SessionNetworkEvent: 0,
+		},
 	}, nil
 }
 
@@ -93,9 +98,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 // to the auth server, and writes the session playback to disk
 type Forwarder struct {
 	ForwarderConfig
-	sessionLogger *DiskSessionLogger
-	lastChunk     *SessionChunk
-	eventIndex    int64
+	sessionLogger   *DiskSessionLogger
+	lastChunk       *SessionChunk
+	eventIndex      int64
+	enhancedIndexes map[string]int64
 	sync.Mutex
 	isClosed bool
 }
@@ -150,6 +156,7 @@ func (l *Forwarder) PostSessionSlice(slice SessionSlice) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// no chunks to post (all chunks are print events)
 	if len(chunksWithoutPrintEvents) == 0 {
 		return nil
@@ -168,17 +175,24 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 		return nil, trace.BadParameter("write on closed forwarder")
 	}
 
-	// setup chunk indexes
+	// Setup chunk indexes.
 	var chunks []*SessionChunk
 	for _, chunk := range slice.Chunks {
-		chunk.EventIndex = l.eventIndex
-		l.eventIndex += 1
+
 		switch chunk.EventType {
 		case "":
 			return nil, trace.BadParameter("missing event type")
+		case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+			chunk.EventIndex = l.enhancedIndexes[chunk.EventType]
+			l.enhancedIndexes[chunk.EventType] += 1
+
+			chunks = append(chunks, chunk)
 		case SessionPrintEvent:
-			// filter out chunks with session print events,
-			// as this logger forwards only audit events to the auth server
+			chunk.EventIndex = l.eventIndex
+			l.eventIndex += 1
+
+			// Filter out chunks with session print events, as this logger forwards
+			// only audit events to the auth server.
 			if l.lastChunk != nil {
 				chunk.Offset = l.lastChunk.Offset + int64(len(l.lastChunk.Data))
 				chunk.Delay = diff(time.Unix(0, l.lastChunk.Time), time.Unix(0, chunk.Time)) + l.lastChunk.Delay
@@ -186,6 +200,9 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 			}
 			l.lastChunk = chunk
 		default:
+			chunk.EventIndex = l.eventIndex
+			l.eventIndex += 1
+
 			chunks = append(chunks, chunk)
 		}
 	}
