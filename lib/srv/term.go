@@ -17,6 +17,8 @@ limitations under the License.
 package srv
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -58,6 +60,10 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
+	// Continue will resume execution of the process after it completes its
+	// pre-processing routine (placed in a cgroup).
+	Continue()
+
 	// Kill will force kill the terminal.
 	Kill() error
 
@@ -66,6 +72,9 @@ type Terminal interface {
 
 	// TTY returns the TTY backing the terminal.
 	TTY() *os.File
+
+	// PID returns the PID of the Teleport process that was re-execed.
+	PID() int
 
 	// Close will free resources associated with the terminal.
 	Close() error
@@ -120,8 +129,14 @@ type terminal struct {
 	pty *os.File
 	tty *os.File
 
+	pid int
+
 	termType string
 	params   rsession.TerminalParams
+
+	// contw is one end of a pipe that is used to signal to the child process
+	// that it has been placed in a cgroup and it can continue.
+	contw *os.File
 }
 
 // NewLocalTerminal creates and returns a local PTY.
@@ -162,22 +177,66 @@ func (t *terminal) AddParty(delta int) {
 func (t *terminal) Run() error {
 	defer t.closeTTY()
 
-	cmd, err := prepareInteractiveCommand(t.ctx)
+	// Create and marshal command to execute.
+	cmdmsg, err := prepareCommand(t.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.cmd = cmd
-
-	cmd.Stdout = t.tty
-	cmd.Stdin = t.tty
-	cmd.Stderr = t.tty
-	cmd.SysProcAttr.Setctty = true
-	cmd.SysProcAttr.Setsid = true
-
-	err = cmd.Start()
+	cmdbytes, err := json.Marshal(cmdmsg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Create a pipe used to signal to the process it's safe to continue.
+	// Used to make the process wait until it's been placed in a cgroup by the
+	// parent process.
+	contr, contw, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	t.contw = contw
+
+	// Create pipe and write bytes to pipe. The child process will read the
+	// command to execute from this pipe.
+	cmdr, cmdw, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = io.Copy(cmdw, bytes.NewReader(cmdbytes))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = cmdw.Close()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Re-execute Teleport and pass along the allocated PTY as well as the
+	// command reader from where Teleport will know how to re-spawn itself.
+	teleportPath, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	t.cmd = &exec.Cmd{
+		Path: teleportPath,
+		Args: []string{teleportPath, "exec"},
+		Dir:  cmdmsg.Dir,
+		ExtraFiles: []*os.File{
+			cmdr,
+			contr,
+			t.pty,
+			t.tty,
+		},
+	}
+
+	// Start the process.
+	err = t.cmd.Start()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Save off the PID of the Teleport process under which the shell is executing.
+	t.pid = t.cmd.Process.Pid
 
 	return nil
 }
@@ -204,6 +263,12 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
+// Continue will resume execution of the process after it completes its
+// pre-processing routine (placed in a cgroup).
+func (t *terminal) Continue() {
+	t.contw.Close()
+}
+
 // Kill will force kill the terminal.
 func (t *terminal) Kill() error {
 	if t.cmd.Process != nil {
@@ -225,6 +290,11 @@ func (t *terminal) PTY() io.ReadWriter {
 // TTY returns the TTY backing the terminal.
 func (t *terminal) TTY() *os.File {
 	return t.tty
+}
+
+// PID returns the PID of the Teleport process that was re-execed.
+func (t *terminal) PID() int {
+	return t.pid
 }
 
 // Close will free resources associated with the terminal.
@@ -492,6 +562,11 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
+// Continue does nothing for remote command execution.
+func (r *remoteTerminal) Continue() {
+	return
+}
+
 func (t *remoteTerminal) Kill() error {
 	err := t.session.Signal(ssh.SIGKILL)
 	if err != nil {
@@ -507,6 +582,12 @@ func (t *remoteTerminal) PTY() io.ReadWriter {
 
 func (t *remoteTerminal) TTY() *os.File {
 	return nil
+}
+
+// PID returns the PID of the Teleport process that was re-execed. Always
+// returns 0 for remote terminals.
+func (t *remoteTerminal) PID() int {
+	return 0
 }
 
 func (t *remoteTerminal) Close() error {

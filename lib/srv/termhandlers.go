@@ -18,10 +18,7 @@ package srv
 
 import (
 	"golang.org/x/crypto/ssh"
-	"io/ioutil"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/pam"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
@@ -37,82 +34,12 @@ type TermHandlers struct {
 // without a TTY. Result of execution is propagated back on the ExecResult
 // channel of the context.
 func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
-	execRequest, err := parseExecRequest(req, ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// a terminal has been previously allocate for this command.
-	// run this inside an interactive session
+	// If a terminal was previously allocated for this command, run command in
+	// an interactive session. Otherwise run it in an exec session.
 	if ctx.GetTerm() != nil {
 		return t.SessionRegistry.OpenSession(ch, req, ctx)
 	}
-
-	// If this code is running on a Teleport node and PAM is enabled, then open a
-	// PAM context.
-	var pamContext *pam.PAM
-	if ctx.srv.Component() == teleport.ComponentNode {
-		conf, err := t.SessionRegistry.srv.GetPAM()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if conf.Enabled == true {
-			// Note, stdout/stderr is discarded here, otherwise MOTD would be printed to
-			// the users screen during exec requests.
-			pamContext, err = pam.Open(&pam.Config{
-				ServiceName: conf.ServiceName,
-				Username:    ctx.Identity.Login,
-				Stdin:       ch,
-				Stderr:      ioutil.Discard,
-				Stdout:      ioutil.Discard,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			ctx.Debugf("Opening PAM context for exec request %q.", execRequest.GetCommand())
-		}
-	}
-
-	// otherwise, regular execution
-	result, err := execRequest.Start(ch)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// if the program failed to start, we should send that result back
-	if result != nil {
-		ctx.Debugf("Exec request (%v) result: %v", execRequest, result)
-		ctx.SendExecResult(*result)
-	}
-
-	// in case if result is nil and no error, this means that program is
-	// running in the background
-	go func() {
-		result = execRequest.Wait()
-		if result != nil {
-			ctx.SendExecResult(*result)
-		}
-
-		// If this code is running on a Teleport node and PAM is enabled, close the context.
-		if ctx.srv.Component() == teleport.ComponentNode {
-			conf, err := t.SessionRegistry.srv.GetPAM()
-			if err != nil {
-				ctx.Errorf("Unable to get PAM configuration from server: %v", err)
-				return
-			}
-
-			if conf.Enabled == true {
-				err = pamContext.Close()
-				if err != nil {
-					ctx.Errorf("Unable to close PAM context for exec request: %q: %v", execRequest.GetCommand(), err)
-					return
-				}
-				ctx.Debugf("Closing PAM context for exec request: %q.", execRequest.GetCommand())
-			}
-		}
-	}()
-
-	return nil
+	return t.SessionRegistry.OpenExecSession(ch, req, ctx)
 }
 
 // HandlePTYReq handles requests of type "pty-req" which allocate a TTY for
@@ -145,6 +72,7 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 			return trace.Wrap(err)
 		}
 		ctx.SetTerm(term)
+		ctx.termAllocated = true
 	}
 	term.SetWinSize(*params)
 	term.SetTermType(ptyRequest.Env)
@@ -163,12 +91,11 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 func (t *TermHandlers) HandleShell(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
 	var err error
 
-	// creating an empty exec request implies a interactive shell was requested
+	// Creating an empty exec request implies a interactive shell was requested.
 	ctx.ExecRequest, err = NewExecRequest(ctx, "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	if err := t.SessionRegistry.OpenSession(ch, req, ctx); err != nil {
 		return trace.Wrap(err)
 	}
