@@ -555,6 +555,11 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 				MaxSessionTTL:     services.Duration(time.Hour),
 				PortForwarding:    services.NewBoolOption(true),
 				CertificateFormat: teleport.CertificateFormatStandard,
+				BPF: []string{
+					teleport.EnhancedRecordingCommand,
+					teleport.EnhancedRecordingDisk,
+					teleport.EnhancedRecordingNetwork,
+				},
 			},
 			Allow: services.RoleConditions{
 				Logins:     []string{"root", "bob"},

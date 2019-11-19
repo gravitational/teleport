@@ -237,6 +237,8 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Printf("--> %v.\n", teleportPath)
+
 	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
 	// is appended if Teleport is running in debug mode.
 	args := []string{teleportPath, "exec"}
@@ -461,7 +463,7 @@ func prepareCommand(ctx *ServerContext) (*execCommand, error) {
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(ctx.Identity.Login)
 	if err != nil {
-		log.Debug("Failed to get login shell for %v: %v. Using default: %v.",
+		log.Debugf("Failed to get login shell for %v: %v. Using default: %v.",
 			ctx.Identity.Login, err, shell.DefaultShell)
 	}
 	if ctx.IsTestStub {

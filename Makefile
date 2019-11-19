@@ -195,7 +195,7 @@ run-docs:
 .PHONY: test
 test: FLAGS ?=
 test: $(VERSRC)
-	go test ./tool/tsh/... \
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./tool/tsh/... \
 			   ./lib/... \
 			   ./tool/teleport... $(FLAGS) $(ADDFLAGS)
 	go vet ./tool/... ./lib/...

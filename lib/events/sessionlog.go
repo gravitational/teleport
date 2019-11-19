@@ -425,6 +425,11 @@ func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (
 	// Timing events for TTY playback go to both a chunks file (the raw bytes) as
 	// well as well as the events file (structured events).
 	case SessionPrintEvent:
+		// If the session are not being recorded, don't capture any print events.
+		if !sl.RecordSessions {
+			return len(chunk.Data), nil
+		}
+
 		n, err := sl.writeEventChunk(sessionID, chunk)
 		if err != nil {
 			return n, trace.Wrap(err)
@@ -488,11 +493,6 @@ func (sl *DiskSessionLogger) writeEventChunk(sessionID string, chunk *SessionChu
 }
 
 func (sl *DiskSessionLogger) writePrintChunk(sessionID string, chunk *SessionChunk) (int, error) {
-	// If the TTY is not being recorded, return right away.
-	if !sl.RecordSessions {
-		return len(chunk.Data), nil
-	}
-
 	// This section enforces the following invariant: a single events file only
 	// contains successive events. If means if an event arrives that is older or
 	// newer than the next expected event, a new file for that chunk is created.

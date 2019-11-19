@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
@@ -129,15 +130,15 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
 		"SSH_TELEPORT_HOST_UUID=00000000-0000-0000-0000-000000000000",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
-		"TERM=xterm",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
 		fmt.Sprintf("SSH_TTY=%v", s.ctx.session.term.TTY().Name()),
 		"SSH_SESSION_ID=xxx",
+		"TERM=xterm",
 	}
 
-	// empty command (simple shell)
-	cmd, err := prepareInteractiveCommand(s.ctx)
+	// Empty command (simple shell).
+	cmd, err := prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -145,7 +146,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 
-	// non-empty command (exec a prog)
+	// Non-empty command (exec a prog).
 	s.ctx.IsTestStub = true
 	s.ctx.ExecRequest.SetCommand("ls -lh /etc")
 	cmd, err = prepareCommand(s.ctx)
@@ -156,7 +157,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 
-	// command without args
+	// Command without args.
 	s.ctx.ExecRequest.SetCommand("top")
 	cmd, err = prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
@@ -259,6 +260,12 @@ func (f *fakeTerminal) Wait() (*ExecResult, error) {
 	return nil, nil
 }
 
+// Continue will resume execution of the process after it completes its
+// pre-processing routine (placed in a cgroup).
+func (f *fakeTerminal) Continue() {
+	return
+}
+
 // Kill will force kill the terminal.
 func (f *fakeTerminal) Kill() error {
 	return nil
@@ -272,6 +279,11 @@ func (f *fakeTerminal) PTY() io.ReadWriter {
 // TTY returns the TTY backing the terminal.
 func (f *fakeTerminal) TTY() *os.File {
 	return f.f
+}
+
+// PID returns the PID of the Teleport process that was re-execed.
+func (f *fakeTerminal) PID() int {
+	return 1
 }
 
 // Close will free resources associated with the terminal.
@@ -373,6 +385,10 @@ func (f *fakeServer) GetInfo() services.Server {
 
 func (f *fakeServer) UseTunnel() bool {
 	return false
+}
+
+func (f *fakeServer) GetBPF() bpf.BPF {
+	return &bpf.NOP{}
 }
 
 // fakeLog is used in tests to obtain the last event emit to the Audit Log.

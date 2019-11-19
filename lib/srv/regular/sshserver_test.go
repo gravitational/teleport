@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
@@ -158,6 +159,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 					Command: []string{"expr", "1", "+", "3"}},
 			},
 		),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -586,6 +588,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -659,6 +662,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetUUID(bobAddr),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(err, IsNil)
@@ -745,6 +749,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -846,6 +851,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -956,6 +962,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)

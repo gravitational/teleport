@@ -94,94 +94,95 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 			role:  RoleV3{},
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
+
 		{
 			name: "validation error, missing resources",
 			in: `{
-		      "kind": "role",
-		      "version": "v3",
-		      "metadata": {"name": "name1"},
-		      "spec": {
-                 "allow": {
-                   "node_labels": {"a": "b"},
-                   "namespaces": ["default"],
-                   "rules": [
-                     {
-                       "verbs": ["read", "list"]
-                     }
-                   ]
-                 }
-		      }
-		    }`,
+							   		      "kind": "role",
+							   		      "version": "v3",
+							   		      "metadata": {"name": "name1"},
+							   		      "spec": {
+							                    "allow": {
+							                      "node_labels": {"a": "b"},
+							                      "namespaces": ["default"],
+							                      "rules": [
+							                        {
+							                          "verbs": ["read", "list"]
+							                        }
+							                      ]
+							                    }
+							   		      }
+							   		    }`,
 			error:        trace.BadParameter(""),
 			matchMessage: ".*missing resources.*",
 		},
 		{
 			name: "validation error, missing verbs",
 			in: `{
-		      "kind": "role",
-		      "version": "v3",
-		      "metadata": {"name": "name1"},
-		      "spec": {
-                 "allow": {
-                   "node_labels": {"a": "b"},
-                   "namespaces": ["default"],
-                   "rules": [
-                     {
-                       "resources": ["role"]
-                     }
-                   ]
-                 }
-		      }
-		    }`,
+							   		      "kind": "role",
+							   		      "version": "v3",
+							   		      "metadata": {"name": "name1"},
+							   		      "spec": {
+							                    "allow": {
+							                      "node_labels": {"a": "b"},
+							                      "namespaces": ["default"],
+							                      "rules": [
+							                        {
+							                          "resources": ["role"]
+							                        }
+							                      ]
+							                    }
+							   		      }
+							   		    }`,
 			error:        trace.BadParameter(""),
 			matchMessage: ".*missing verbs.*",
 		},
 		{
 			name: "validation error, unsupported function in where",
 			in: `{
-		      "kind": "role",
-		      "version": "v3",
-		      "metadata": {"name": "name1"},
-		      "spec": {
-                 "allow": {
-                   "node_labels": {"a": "b"},
-                   "namespaces": ["default"],
-                   "rules": [
-                     {
-                       "resources": ["role"],
-                       "verbs": ["read", "list"],
-                       "where": "containz(user.spec.traits[\"groups\"], \"prod\")"
-                     }
-                   ]
-                 }
-		      }
-		    }`,
+							   		      "kind": "role",
+							   		      "version": "v3",
+							   		      "metadata": {"name": "name1"},
+							   		      "spec": {
+							                    "allow": {
+							                      "node_labels": {"a": "b"},
+							                      "namespaces": ["default"],
+							                      "rules": [
+							                        {
+							                          "resources": ["role"],
+							                          "verbs": ["read", "list"],
+							                          "where": "containz(user.spec.traits[\"groups\"], \"prod\")"
+							                        }
+							                      ]
+							                    }
+							   		      }
+							   		    }`,
 			error:        trace.BadParameter(""),
 			matchMessage: ".*unsupported function: containz.*",
 		},
 		{
 			name: "validation error, unsupported function in actions",
 			in: `{
-		      "kind": "role",
-		      "version": "v3",
-		      "metadata": {"name": "name1"},
-		      "spec": {
-                 "allow": {
-                   "node_labels": {"a": "b"},
-                   "namespaces": ["default"],
-                   "rules": [
-                     {
-                       "resources": ["role"],
-                       "verbs": ["read", "list"],
-                       "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-                       "actions": [
-                          "zzz(\"info\", \"log entry\")"
-                       ]
-                     }
-                   ]
-                 }
-		      }
-		    }`,
+							   		      "kind": "role",
+							   		      "version": "v3",
+							   		      "metadata": {"name": "name1"},
+							   		      "spec": {
+							                    "allow": {
+							                      "node_labels": {"a": "b"},
+							                      "namespaces": ["default"],
+							                      "rules": [
+							                        {
+							                          "resources": ["role"],
+							                          "verbs": ["read", "list"],
+							                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+							                          "actions": [
+							                             "zzz(\"info\", \"log entry\")"
+							                          ]
+							                        }
+							                      ]
+							                    }
+							   		      }
+							   		    }`,
 			error:        trace.BadParameter(""),
 			matchMessage: ".*unsupported function: zzz.*",
 		},
@@ -200,6 +201,11 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						CertificateFormat: teleport.CertificateFormatStandard,
 						MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 						PortForwarding:    NewBoolOption(true),
+						BPF: []string{
+							teleport.EnhancedRecordingCommand,
+							teleport.EnhancedRecordingDisk,
+							teleport.EnhancedRecordingNetwork,
+						},
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{Wildcard: []string{Wildcard}},
@@ -215,36 +221,37 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		{
 			name: "full valid role",
 			in: `{
-		      "kind": "role",
-		      "version": "v3",
-		      "metadata": {"name": "name1", "labels": {"a-b": "c"}},
-		      "spec": {
-                 "options": {
-                   "cert_format": "standard",
-                   "max_session_ttl": "20h",
-                   "port_forwarding": true,
-                   "client_idle_timeout": "17m",
-                   "disconnect_expired_cert": "yes"
-                 },
-                 "allow": {
-                   "node_labels": {"a": "b", "c-d": "e"},
-                   "namespaces": ["default"],
-                   "rules": [
-                     {
-                       "resources": ["role"],
-                       "verbs": ["read", "list"],
-                       "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-                       "actions": [
-                          "log(\"info\", \"log entry\")"
-                       ]
-                     }
-                   ]
-                 },
-                 "deny": {
-                   "logins": ["c"]
-                 }
-		      }
-		    }`,
+					   		      "kind": "role",
+					   		      "version": "v3",
+					   		      "metadata": {"name": "name1", "labels": {"a-b": "c"}},
+					   		      "spec": {
+					                    "options": {
+					                      "cert_format": "standard",
+					                      "max_session_ttl": "20h",
+					                      "port_forwarding": true,
+					                      "client_idle_timeout": "17m",
+					                      "disconnect_expired_cert": "yes",
+			                              "enhanced_recording": ["command", "disk", "network"]
+					                    },
+					                    "allow": {
+					                      "node_labels": {"a": "b", "c-d": "e"},
+					                      "namespaces": ["default"],
+					                      "rules": [
+					                        {
+					                          "resources": ["role"],
+					                          "verbs": ["read", "list"],
+					                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+					                          "actions": [
+					                             "log(\"info\", \"log entry\")"
+					                          ]
+					                        }
+					                      ]
+					                    },
+					                    "deny": {
+					                      "logins": ["c"]
+					                    }
+					   		      }
+					   		    }`,
 			role: RoleV3{
 				Kind:    KindRole,
 				Version: V3,
@@ -260,6 +267,11 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						PortForwarding:        NewBoolOption(true),
 						ClientIdleTimeout:     NewDuration(17 * time.Minute),
 						DisconnectExpiredCert: NewBool(true),
+						BPF: []string{
+							teleport.EnhancedRecordingCommand,
+							teleport.EnhancedRecordingDisk,
+							teleport.EnhancedRecordingNetwork,
+						},
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -286,37 +298,38 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		{
 			name: "alternative options form",
 			in: `{
-		      "kind": "role",
-		      "version": "v3",
-		      "metadata": {"name": "name1"},
-		      "spec": {
-                 "options": {
-                   "cert_format": "standard",
-                   "max_session_ttl": "20h",
-                   "port_forwarding": "yes",
-                   "forward_agent": "yes",
-                   "client_idle_timeout": "never",
-                   "disconnect_expired_cert": "no"
-                 },
-                 "allow": {
-                   "node_labels": {"a": "b"},
-                   "namespaces": ["default"],
-                   "rules": [
-                     {
-                       "resources": ["role"],
-                       "verbs": ["read", "list"],
-                       "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-                       "actions": [
-                          "log(\"info\", \"log entry\")"
-                       ]
-                     }
-                   ]
-                 },
-                 "deny": {
-                   "logins": ["c"]
-                 }
-		      }
-		    }`,
+		   		      "kind": "role",
+		   		      "version": "v3",
+		   		      "metadata": {"name": "name1"},
+		   		      "spec": {
+		                    "options": {
+		                      "cert_format": "standard",
+		                      "max_session_ttl": "20h",
+		                      "port_forwarding": "yes",
+		                      "forward_agent": "yes",
+		                      "client_idle_timeout": "never",
+		                      "disconnect_expired_cert": "no",
+		                      "enhanced_recording": ["command", "disk", "network"]
+		                    },
+		                    "allow": {
+		                      "node_labels": {"a": "b"},
+		                      "namespaces": ["default"],
+		                      "rules": [
+		                        {
+		                          "resources": ["role"],
+		                          "verbs": ["read", "list"],
+		                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+		                          "actions": [
+		                             "log(\"info\", \"log entry\")"
+		                          ]
+		                        }
+		                      ]
+		                    },
+		                    "deny": {
+		                      "logins": ["c"]
+		                    }
+		   		      }
+		   		    }`,
 			role: RoleV3{
 				Kind:    KindRole,
 				Version: V3,
@@ -332,6 +345,11 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						PortForwarding:        NewBoolOption(true),
 						ClientIdleTimeout:     NewDuration(0),
 						DisconnectExpiredCert: NewBool(false),
+						BPF: []string{
+							teleport.EnhancedRecordingCommand,
+							teleport.EnhancedRecordingDisk,
+							teleport.EnhancedRecordingNetwork,
+						},
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{"a": []string{"b"}},
@@ -358,26 +376,27 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		{
 			name: "non-scalar and scalar values of labels",
 			in: `{
-		      "kind": "role",
-		      "version": "v3",
-		      "metadata": {"name": "name1"},
-		      "spec": {
-                 "options": {
-                   "cert_format": "standard",
-                   "max_session_ttl": "20h",
-                   "port_forwarding": "yes",
-                   "forward_agent": "yes",
-                   "client_idle_timeout": "never",
-                   "disconnect_expired_cert": "no"
-                 },
-                 "allow": {
-                   "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
-                 },
-                 "deny": {
-                   "logins": ["c"]
-                 }
-		      }
-		    }`,
+		   		      "kind": "role",
+		   		      "version": "v3",
+		   		      "metadata": {"name": "name1"},
+		   		      "spec": {
+		                    "options": {
+		                      "cert_format": "standard",
+		                      "max_session_ttl": "20h",
+		                      "port_forwarding": "yes",
+		                      "forward_agent": "yes",
+		                      "client_idle_timeout": "never",
+		                      "disconnect_expired_cert": "no",
+		                      "enhanced_recording": ["command", "disk", "network"]
+		                    },
+		                    "allow": {
+		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
+		                    },
+		                    "deny": {
+		                      "logins": ["c"]
+		                    }
+		   		      }
+		   		    }`,
 			role: RoleV3{
 				Kind:    KindRole,
 				Version: V3,
@@ -393,6 +412,11 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						PortForwarding:        NewBoolOption(true),
 						ClientIdleTimeout:     NewDuration(0),
 						DisconnectExpiredCert: NewBool(false),
+						BPF: []string{
+							teleport.EnhancedRecordingCommand,
+							teleport.EnhancedRecordingDisk,
+							teleport.EnhancedRecordingNetwork,
+						},
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{

@@ -434,6 +434,12 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	err = migrateRoleOptions(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -916,6 +922,31 @@ func migrateRemoteClusters(asrv *AuthServer) error {
 		}
 		log.Infof("Migrations: added remote cluster resource for cert authority %q.", certAuthority.GetName())
 	}
+
+	return nil
+}
+
+// DELETE IN: 4.3.0.
+// migrateRoleOptions adds the "enhanced_recording" option to all roles.
+func migrateRoleOptions(asrv *AuthServer) error {
+	/*
+		roles, err := asrv.GetRoles()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, role := range roles {
+			options := role.GetOptions()
+
+			// TODO: If options is nil, then set options. Note that we need to
+			// differentiate between nil and length 0.
+
+			role.SetOptions(options)
+			err := asrv.UpsertRole(role)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	*/
 
 	return nil
 }

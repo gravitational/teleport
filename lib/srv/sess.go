@@ -192,7 +192,7 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 	}
 	ctx.session = sess
 	s.addSession(sess)
-	ctx.Infof("Creating interactive session %v.", sid)
+	ctx.Infof("Creating (interactive) session %v.", sid)
 
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
@@ -215,7 +215,7 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.Infof("Creating non-interactive exec session %v.", s)
+	ctx.Infof("Creating (exec) session %v.", sessionID)
 
 	// Parse the exec request and store it in the context.
 	_, err = parseExecRequest(req, ctx)
