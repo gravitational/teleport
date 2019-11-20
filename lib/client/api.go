@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/client/extensions"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -244,6 +245,16 @@ type Config struct {
 
 	// BindAddr is an optional host:port to bind to for SSO redirect flows
 	BindAddr string
+
+	// ServerFeatures lists additional features supported by the server.
+	//
+	// This field is populated based on the settings received from the server
+	// as a part of the ping response.
+	ServerFeatures []string
+
+	// Configurators configure additional services that may be optionally
+	// supported by a server such as Docker registry or Helm repository.
+	Configurators map[string]extensions.Configurator
 }
 
 // CachePolicy defines cache policy for local clients
@@ -768,6 +779,13 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 		if tc.HostKeyCallback == nil {
 			tc.HostKeyCallback = tc.localAgent.CheckHostSignature
+		}
+	}
+
+	if len(tc.Configurators) == 0 {
+		tc.Configurators = map[string]extensions.Configurator{
+			FeatureDocker: extensions.NewDockerConfigurator(),
+			FeatureHelm:   extensions.NewHelmConfigurator(),
 		}
 	}
 
@@ -1657,6 +1675,30 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	return key, nil
 }
 
+// ConfigureFeatures configures additional features provided by the server.
+func (tc *TeleportClient) ConfigureFeatures() error {
+	if len(tc.ServerFeatures) == 0 {
+		return nil // Nothing to do.
+	}
+	log.Infof("Server supports additional features: %v.", tc.ServerFeatures)
+	profile, err := CurrentProfile(tc.KeysDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	config := profile.ToConfig(tc.KeysDir)
+	for _, feature := range tc.ServerFeatures {
+		configurator, ok := tc.Configurators[feature]
+		if !ok {
+			log.Debugf("No configurator for %q.", feature)
+		} else {
+			if err := configurator.Configure(config); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
 // GetTrustedCA returns a list of host certificate authorities
 // trusted by the cluster client is authenticated with.
 func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]services.CertAuthority, error) {
@@ -1763,6 +1805,13 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 				proxySettings.SSH.ListenAddr)
 		}
 		tc.SSHProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
+	}
+
+	// If the server indicated that it provides additional services such as
+	// Docker registry or Helm chart repository, set appropriate settings
+	// so they can be configured upon login.
+	if len(proxySettings.Features) != 0 {
+		tc.ServerFeatures = proxySettings.Features
 	}
 
 	return nil

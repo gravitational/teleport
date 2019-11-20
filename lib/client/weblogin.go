@@ -350,7 +350,17 @@ type ProxySettings struct {
 	Kube KubeProxySettings `json:"kube"`
 	// SSH is SSH specific proxy settings
 	SSH SSHProxySettings `json:"ssh"`
+	// Features is a list of additional features proxy supports such as
+	// Docker registry or Helm chart repository.
+	Features []string `json:"features,omitempty"`
 }
+
+const (
+	// FeatureDocker indicates that server provides Docker registry.
+	FeatureDocker = "docker"
+	// FeatureHelm indicates that server provides Helm repository.
+	FeatureHelm = "helm"
+)
 
 // KubeProxySettings is kubernetes proxy settings
 type KubeProxySettings struct {
