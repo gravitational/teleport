@@ -1,3 +1,19 @@
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package client
 
 import (
@@ -7,8 +23,9 @@ import (
 	"os/user"
 	"path/filepath"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/client/extensions"
 
+	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v2"
 )
 
@@ -82,6 +99,25 @@ func (c *ClientProfile) Name() string {
 	return addr
 }
 
+// TLSCertificatePath returns full path to the profile's TLS certificate.
+func (c *ClientProfile) TLSCertificatePath(profileDir string) string {
+	return filepath.Join(FullProfilePath(profileDir), sessionKeyDir, c.Name(), c.Username+fileExtTLSCert)
+}
+
+// KeyPath returns full path to the profile's private key.
+func (c *ClientProfile) KeyPath(profileDir string) string {
+	return filepath.Join(FullProfilePath(profileDir), sessionKeyDir, c.Name(), c.Username)
+}
+
+// ToConfig makes config suitable for use with configurators.
+func (c *ClientProfile) ToConfig(profileDir string) extensions.Config {
+	return extensions.Config{
+		ProxyAddress:    c.WebProxyAddr,
+		CertificatePath: c.TLSCertificatePath(profileDir),
+		KeyPath:         c.KeyPath(profileDir),
+	}
+}
+
 // FullProfilePath returns the full path to the user profile directory.
 // If the parameter is empty, it returns expanded "~/.tsh", otherwise
 // returns its unmodified parameter
@@ -96,7 +132,6 @@ func FullProfilePath(pDir string) string {
 		home = u.HomeDir
 	}
 	return filepath.Join(home, ProfileDir)
-
 }
 
 // If there's a current profile symlink, remove it
@@ -128,6 +163,16 @@ func ProfileFromFile(filePath string) (*ClientProfile, error) {
 		return nil, trace.Wrap(err)
 	}
 	return cp, nil
+}
+
+// CurrentProfile returns the currently active client profile.
+func CurrentProfile(profileDir string) (*ClientProfile, error) {
+	currentProfilePath := filepath.Join(FullProfilePath(profileDir), CurrentProfileSymlink)
+	currentProfile, err := ProfileFromFile(currentProfilePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return currentProfile, nil
 }
 
 // SaveTo saves the profile into a given filename, optionally overwriting it.
