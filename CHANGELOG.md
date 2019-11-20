@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.2.14
+
+This release of Teleport contains a bug fix and a feature.
+
+* Restore `CreateWebSession` method used by some integrations. [#3076](https://github.com/gravitational/teleport/pull/3076)
+* Add Docker registry and Helm repository support to `tsh login`. [#3045](https://github.com/gravitational/teleport/pull/3045)
+
 ## 3.2.13
 
 This release of Teleport contains a bug fix.
