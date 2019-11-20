@@ -169,7 +169,7 @@ See https://docs.docker.com/engine/security/certificates/ for details.
 
 If you'd like to configure your local Docker client, please create the following directory and make sure tsh has write permissions for it, for example:
 
-  mkdir -p /etc/docker/certs.d/%[1]v && chown -R %[2]v /etc/docker/certs.d/%[1]v
+  sudo mkdir -p /etc/docker/certs.d/%[1]v && sudo chown -R %[2]v /etc/docker/certs.d/%[1]v
 
 And then execute the tsh login command again.
 
