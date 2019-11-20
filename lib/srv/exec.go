@@ -232,28 +232,37 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 
 	// Re-execute Teleport and pass along the allocated PTY as well as the
 	// command reader from where Teleport will know how to re-spawn itself.
-	teleportPath, err := os.Executable()
+	executable, err := os.Executable()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Printf("--> %v.\n", teleportPath)
-
 	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
 	// is appended if Teleport is running in debug mode.
-	args := []string{teleportPath, "exec"}
-	if log.GetLevel() == log.DebugLevel {
-		args = append(args, "-d")
+	args := []string{executable}
+	if strings.HasSuffix(executable, ".test") {
+		args = append(args, "-test.run=TestHelperProcess")
+	} else {
+		args = append(args, "exec")
+		if log.GetLevel() == log.DebugLevel {
+			args = append(args, "-d")
+		}
 	}
 
 	e.Cmd = &exec.Cmd{
-		Path: teleportPath,
+		Path: executable,
 		Args: args,
 		Dir:  cmdmsg.Dir,
 		ExtraFiles: []*os.File{
 			cmdr,
 			contr,
 		},
+	}
+
+	// Pass in environment variable that will be used by the helper function to
+	// know to re-exec Teleport.
+	if strings.HasSuffix(executable, ".test") {
+		e.Cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	}
 
 	// Connect stdout and stderr to the channel so the user can interact with

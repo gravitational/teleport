@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -1183,4 +1184,21 @@ func removeNL(v string) string {
 	v = strings.Replace(v, "\r", "", -1)
 	v = strings.Replace(v, "\n", "", -1)
 	return v
+}
+
+// TestHelperProcess is used to re-exec Teleport in tests. Unfortunately it
+// needs to reside in all packages that re-exec Teleport.
+func TestHelperProcess(t *testing.T) {
+	// On execute this test when called from another test which will set this
+	// environment variable.
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	// Re-exec Teleport.
+	exitCode, err := srv.RunCommand()
+	if err != nil {
+		fmt.Printf("Failed to run command: %v.\n", err)
+	}
+	os.Exit(exitCode)
 }
