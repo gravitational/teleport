@@ -94,7 +94,7 @@ each component, and interactively develop and test components.
 
 To start a storybook:
 ```
-$ yarn start storybook
+$ yarn run storybook
 ```
 
 This command will open a new browser window with storybook in it. There
