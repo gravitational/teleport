@@ -19,7 +19,6 @@ package srv
 import (
 	"context"
 	"fmt"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,7 +39,7 @@ var _ = check.Suite(&HeartbeatSuite{})
 var _ = fmt.Printf
 
 func (s *HeartbeatSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 // TestHeartbeatAnnounce tests announce cycles used for proxies and auth servers

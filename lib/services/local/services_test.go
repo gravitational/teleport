@@ -43,7 +43,7 @@ var _ = fmt.Printf
 var _ = check.Suite(&ServicesSuite{})
 
 func (s *ServicesSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *ServicesSuite) SetUpTest(c *check.C) {

@@ -34,7 +34,6 @@ import (
 
 	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
-	"testing"
 )
 
 type AuthInitSuite struct {
@@ -45,7 +44,7 @@ var _ = Suite(&AuthInitSuite{})
 var _ = fmt.Printf
 
 func (s *AuthInitSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *AuthInitSuite) TearDownSuite(c *C) {

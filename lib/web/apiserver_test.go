@@ -108,7 +108,7 @@ var _ = Suite(&WebSuite{
 func (s *WebSuite) SetUpSuite(c *C) {
 	var err error
 	os.Unsetenv(teleport.DebugEnvVar)
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 
 	// configure tests to use static assets from web/dist:
 	debugAssetsPath = "../../web/dist"

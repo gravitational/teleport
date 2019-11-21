@@ -18,7 +18,6 @@ package lite
 
 import (
 	"context"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -36,7 +35,7 @@ type LiteMemSuite struct {
 var _ = check.Suite(&LiteMemSuite{})
 
 func (s *LiteMemSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 	newBackend := func() (backend.Backend, error) {
 		return New(context.Background(), map[string]interface{}{
 			"memory":             true,

@@ -86,7 +86,7 @@ var _ = Suite(&SrvSuite{})
 func (s *SrvSuite) SetUpSuite(c *C) {
 	var err error
 
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 
 	s.freePorts, err = utils.GetFreeTCPPorts(100)
 	c.Assert(err, IsNil)

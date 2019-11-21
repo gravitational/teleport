@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"testing"
 	"time"
 
 	"strconv"
@@ -41,7 +40,7 @@ var _ = fmt.Printf
 var _ = check.Suite(&ServiceTestSuite{})
 
 func (s *ServiceTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {

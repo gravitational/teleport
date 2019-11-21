@@ -41,7 +41,7 @@ type FirestoreSuite struct {
 var _ = check.Suite(&FirestoreSuite{})
 
 func (s *FirestoreSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 	var err error
 
 	newBackend := func() (backend.Backend, error) {

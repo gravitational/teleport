@@ -26,7 +26,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -60,7 +59,7 @@ var _ = check.Suite(&ExecSuite{})
 var _ = fmt.Printf
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 
 	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
