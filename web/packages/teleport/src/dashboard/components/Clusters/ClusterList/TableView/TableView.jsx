@@ -25,6 +25,8 @@ import {
   SortTypes,
 } from 'design/DataTable';
 import { ButtonSecondary, Text } from 'design';
+import { NavLink } from 'shared/components/Router';
+
 import Status from './../ClusterStatus';
 
 function TableView({ clusters, pageSize = 500 }) {
@@ -138,9 +140,8 @@ function ActionCell({ rowIndex, data }) {
   return (
     <Cell align="right">
       <ButtonSecondary
-        as="a"
-        target="_blank"
-        href={url}
+        as={NavLink}
+        to={url}
         size="small"
         width="90px"
         children="view"

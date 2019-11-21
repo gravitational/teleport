@@ -15,19 +15,23 @@ limitations under the License.
 */
 
 import { createBrowserHistory } from 'history';
-import { matchPath } from "react-router";
+import { matchPath } from 'react-router';
 import cfg from 'teleport/config';
 
 let _inst = null;
 
 const history = {
-
-  original(){
+  original() {
     return _inst;
   },
 
-  init(history){
+  init(history) {
     _inst = history || createBrowserHistory();
+  },
+
+  replace(route) {
+    route = this.ensureKnownRoute(route);
+    _inst.replace(route);
   },
 
   push(route, withRefresh = false) {
@@ -35,7 +39,7 @@ const history = {
     if (withRefresh) {
       this._pageRefresh(route);
     } else {
-      _inst.push(route)
+      _inst.push(route);
     }
   },
 
@@ -55,7 +59,7 @@ const history = {
     this._pageRefresh(url);
   },
 
-  createRedirect(location /* location || string */ ) {
+  createRedirect(location /* location || string */) {
     let route = _inst.createHref(location);
     let knownRoute = this.ensureKnownRoute(route);
     return this.ensureBaseUrl(knownRoute);
@@ -91,7 +95,7 @@ const history = {
     route = route || '';
     let routes = this.getRoutes();
     if (route.indexOf(cfg.baseUrl) === 0) {
-      route = route.replace(cfg.baseUrl, '')
+      route = route.replace(cfg.baseUrl, '');
     }
 
     return routes.some(match(route));
@@ -99,17 +103,17 @@ const history = {
 
   _pageRefresh(route) {
     window.location.href = this.ensureBaseUrl(route);
-  }
-}
+  },
+};
 
 const withBaseUrl = url => cfg.baseUrl + url;
 
 const match = url => route => {
   return matchPath(url, {
     path: route,
-    exact: true
-  })
-}
+    exact: true,
+  });
+};
 
 export default history;
 
@@ -118,10 +122,10 @@ export function getUrlParameter(name, path) {
   const query = path.substring(1);
   const vars = query.split('&');
   for (var i = 0; i < vars.length; i++) {
-      var pair = vars[i].split('=');
-      if (decodeURIComponent(pair[0]) == name) {
-          return decodeURIComponent(pair[1]);
-      }
+    var pair = vars[i].split('=');
+    if (decodeURIComponent(pair[0]) == name) {
+      return decodeURIComponent(pair[1]);
+    }
   }
 
   return '';

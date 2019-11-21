@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components'
+import styled from 'styled-components';
 import Icon from '../Icon';
-import { space } from 'design/system';
+import { space, color } from 'design/system';
 
 const sizeMap = {
   0: {
@@ -34,32 +34,34 @@ const sizeMap = {
     fontSize: '24px',
     height: '48px',
     width: '48px',
-  }
-}
+  },
+};
 
-const defaultSize = sizeMap[1]
+const defaultSize = sizeMap[1];
 
 const size = props => {
   return sizeMap[props.size] || defaultSize;
-}
+};
 
 const fromProps = props => {
   const { theme } = props;
   return {
     '&:disabled': {
-      color: theme.colors.action.disabled
+      color: theme.colors.action.disabled,
     },
     '&:hover, &:focus': {
       background: theme.colors.action.hover,
-    }
-  }
-}
+    },
+  };
+};
 
-const ButtonIcon = ({children, setRef, ...rest}) => {
+const ButtonIcon = ({ children, setRef, ...rest }) => {
   return (
-    <StyledButtonIcon ref={setRef} {...rest}>{children}</StyledButtonIcon>
-  )
-}
+    <StyledButtonIcon ref={setRef} {...rest}>
+      {children}
+    </StyledButtonIcon>
+  );
+};
 
 const StyledButtonIcon = styled.button`
   align-items: center;
@@ -82,11 +84,12 @@ const StyledButtonIcon = styled.button`
   }
 
   &:disabled {
-    color: ${({ theme }) => theme.colors.action.disabled };
+    color: ${({ theme }) => theme.colors.action.disabled};
   }
 
   ${fromProps}
   ${size}
   ${space}
-`
+  ${color}
+`;
 export default ButtonIcon;

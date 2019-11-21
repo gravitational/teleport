@@ -17,38 +17,54 @@ limitations under the License.
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { Terminal } from './Terminal';
-import { StoreSession, StoreScp } from './../../stores';
+import TerminalStore from './storeTerminal';
 
 const defaultProps = {
-  storeSession: new StoreSession(),
-  storeScp: new StoreScp(),
+  terminal: new TerminalStore(),
   onClose: () => null,
   onOpenPlayer: () => null,
   clusterId: '233',
   sid: '234',
 };
 
-storiesOf('TeleportConsole/Terminal', module)
+storiesOf('TeleportConsole/TabTerminal', module)
   .add('Loading', () => {
-    const storeSession = new StoreSession();
-    storeSession.setStatus({ isLoading: true });
+    const terminal = new TerminalStore();
+    terminal.state.status = `loading`;
 
     const props = {
       ...defaultProps,
-      storeSession,
+      terminal,
     };
 
     return <Terminal {...props} />;
   })
   .add('Error', () => {
-    const storeSession = new StoreSession();
-    storeSession.setStatus({
-      isError: true,
-      errorText: 'system error with long text',
-    });
+    const terminal = new TerminalStore();
+    terminal.state = {
+      ...terminal.state,
+      status: 'error',
+      statusText: 'system error',
+    };
+
     const props = {
       ...defaultProps,
-      storeSession,
+      terminal,
+    };
+
+    return <Terminal {...props} />;
+  })
+  .add('NotFoundSession', () => {
+    const terminal = new TerminalStore();
+    terminal.state = {
+      ...terminal.state,
+      status: 'notfound',
+      statusText: 'system error',
+    };
+
+    const props = {
+      ...defaultProps,
+      terminal,
     };
 
     return <Terminal {...props} />;

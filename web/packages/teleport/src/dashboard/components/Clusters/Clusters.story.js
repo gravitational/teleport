@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 import React from 'react';
+import { Router } from 'react-router';
+import { createMemoryHistory } from 'history';
 import { storiesOf } from '@storybook/react';
 import { Clusters } from './Clusters';
 import * as fixtures from './fixtures';
@@ -25,5 +27,11 @@ storiesOf('TeleportDashboard/Clusters', module).add('Clusters', () => {
     onRefresh: () => Promise.resolve([]),
   };
 
-  return <Clusters {...props} />;
+  const history = createMemoryHistory({});
+
+  return (
+    <Router history={history}>
+      <Clusters {...props} />
+    </Router>
+  );
 });

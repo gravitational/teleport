@@ -16,14 +16,15 @@ limitations under the License.
 import { hot } from 'react-hot-loader/root';
 import React from 'react';
 import ThemeProvider from 'design/ThemeProvider';
+import { Router, Route, Switch } from 'shared/components/Router';
 import { Invite, PasswordReset } from 'teleport/components/Invite';
 import CatchError from 'teleport/components/CatchError';
 import Login, { LoginSuccess, LoginFailed } from 'teleport/components/Login';
-import { Router, Route, Switch } from 'teleport/components/Router';
 import Console from 'teleport/console';
 import Authenticated from 'teleport/components/Authenticated';
 import Offline from 'teleport/components/Offline';
 import Dashboard from 'teleport/dashboard';
+import SessionAudit from 'teleport/recordings';
 import cfg from 'teleport/config';
 
 const Teleport = ({ history, children }) => (
@@ -58,6 +59,10 @@ const Teleport = ({ history, children }) => (
               <Authenticated>
                 <Switch>
                   <Route path={cfg.routes.console} component={Console} />
+                  <Route
+                    path={cfg.routes.sessionAudit}
+                    component={SessionAudit}
+                  />
                   <Route path={cfg.routes.clusterOffline} component={Offline} />
                   {children}
                   <Route path={cfg.routes.app} component={Dashboard} />

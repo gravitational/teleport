@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
+import React from 'react';
 import ReactSelect from 'react-select';
 import styled from 'styled-components';
 
-export default function Select({hasError, ...props}){
+export default function Select({ hasError, ...props }) {
   return (
     <StyledSelect hasError={hasError}>
       <ReactSelect
@@ -29,46 +29,46 @@ export default function Select({hasError, ...props}){
         {...props}
       />
     </StyledSelect>
-  )
+  );
 }
 
 const StyledSelect = styled.div`
   .react-select__control,
   .react-select__control--is-focused {
     min-height: 40px;
-    ${ ({ hasError, theme}) => {
-      if(hasError){
+    ${({ hasError, theme }) => {
+      if (hasError) {
         return {
           borderRadius: 'inherit !important',
           borderWidth: '2px !important',
           border: `2px solid ${theme.colors.error.main}  !important`,
-        }
+        };
       }
     }}
   }
 
   .react-select-container {
-    box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.24);
     box-sizing: border-box;
     border: none;
     display: block;
     font-size: 16px;
     outline: none;
     width: 100%;
-    color: rgba(0,0,0,0.87);
-    background-color: #FFFFFF;
+    color: rgba(0, 0, 0, 0.87);
+    background-color: #ffffff;
     margin-bottom: 0px;
     border-radius: 4px;
   }
 
-  .react-select__menu{
+  .react-select__menu {
     margin-top: 0px;
   }
 
   react-select__menu-list {
   }
 
-  .react-select__indicator-separator{
+  .react-select__indicator-separator {
     display: none;
   }
 
@@ -87,9 +87,9 @@ const StyledSelect = styled.div`
     box-shadow: none;
   }
 
-  .react-select__option--is-selected{
+  .react-select__option--is-selected {
     //background-color: white;
     background-color: #cfd8dc;
     color: inherit;
   }
- `
+`;

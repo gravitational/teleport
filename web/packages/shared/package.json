@@ -10,7 +10,7 @@
     "directory": "packages/shared"
   },
   "dependencies": {
-    "brace": "0.8.0",
+    "ace-builds": "1.4.6",
     "create-react-class": "^15.6.3",
     "cross-env": "5.0.5",
     "lodash": "^4.17.15",
@@ -18,8 +18,8 @@
     "react": "^16.8.4",
     "react-day-picker": "^7.3.0",
     "react-dom": "^16.8.4",
-    "react-router": "4.3.1",
-    "react-router-dom": "4.3.1",
+    "react-router": "5.1.1",
+    "react-router-dom": "5.1.1",
     "react-select": "^2.1.2",
     "u2f-api-polyfill": "^0.4.3",
     "whatwg-fetch": "^3.0.0",

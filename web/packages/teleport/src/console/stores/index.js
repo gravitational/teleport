@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import StoreSession from './storeSession';
-import StoreScp, { makeFile } from './storeScp';
-
-export { StoreSession, StoreScp, makeFile };
+import StoreDocs from './storeDocs';
+import StoreDialogs from './storeDialogs';
+import StoreParties from './storeParties';
+export { StoreDialogs, StoreParties, StoreDocs };

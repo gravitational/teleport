@@ -29,7 +29,6 @@ class FeatureAudit extends FeatureBase {
     return {
       title: 'Audit',
       path: cfg.routes.clusterAudit,
-      exact: true,
       component: this.Component,
     };
   }
@@ -43,15 +42,8 @@ class FeatureAudit extends FeatureBase {
     context.storeNav.addSideItem({
       title: 'Audit Log',
       Icon: Icons.ListBullet,
-      exact: true,
       to: cfg.getAuditRoute(),
     });
-
-    this.setProcessing();
-    return context.storeEvents
-      .fetchLatest()
-      .then(this.setReady.bind(this))
-      .catch(this.setFailed.bind(this));
   }
 }
 

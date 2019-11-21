@@ -16,7 +16,7 @@ limitations under the License.
 
 import ReactDOM from 'react-dom';
 import React from 'react';
-import { Route } from 'teleport/components/Router';
+import { Route } from 'shared/components/Router';
 import history from 'teleport/services/history';
 import Root from './index';
 import CommunityCluster from './cluster';
@@ -29,7 +29,7 @@ cfg.init(window.GRV_CONFIG);
 history.init();
 
 ReactDOM.render(
-  <Root history={history.original()} cfg={cfg}>
+  <Root history={history.original()}>
     <Route path={cfg.routes.cluster} component={CommunityCluster} />
   </Root>,
   document.getElementById('app')

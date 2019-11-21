@@ -16,12 +16,13 @@ limitations under the License.
 
 import React from 'react';
 import moment from 'moment';
+import styled from 'styled-components';
 import 'react-day-picker/lib/style.css';
-import { ButtonSecondary } from 'design';
-import * as Icons from 'design/Icon';
+import { Box, ButtonOutlined } from 'design';
+import Icon, { CarrotDown } from 'design/Icon';
 import Menu, { MenuItem } from 'design/Menu';
 import Dialog from 'design/DialogConfirmation';
-import { displayDate } from 'teleport/lib/dateUtils';
+import { displayDate } from 'shared/services/loc';
 import CustomRange from './Custom';
 
 export default function DataRange(props) {
@@ -63,16 +64,17 @@ export default function DataRange(props) {
 
   return (
     <>
-      <ButtonSecondary
-        width="240px"
+      <DropDownButton
+        size="small"
+        width="180px"
         disabled={disabled}
         ml={ml}
         setRef={anchorEl}
         onClick={onOpenMenu}
       >
-        {btnText}
-        <Icons.CarrotDown ml="3" fontSize="3" color="text.onDark" />
-      </ButtonSecondary>
+        <Box mr="2">{btnText}</Box>
+        <CarrotDown position="absolute" fontSize="3" color="text.onDark" />
+      </DropDownButton>
       <Menu
         anchorEl={anchorEl.current}
         open={isMenuOpen}
@@ -102,7 +104,7 @@ function renderOptions(options, onClick) {
 }
 
 const menuListCss = () => `
-  width: 240px;
+  width: 200px;
 `;
 
 export function getRangeOptions() {
@@ -134,3 +136,12 @@ export function getRangeOptions() {
     },
   ];
 }
+
+const DropDownButton = styled(ButtonOutlined)`
+  position: relative;
+  ${Icon} {
+    position: absolute;
+    right: 16px;
+    top: 6px;
+  }
+`;

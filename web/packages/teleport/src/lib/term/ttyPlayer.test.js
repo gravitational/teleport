@@ -15,7 +15,8 @@ limitations under the License.
 */
 import '@gravitational/shared/libs/polyfillFinally';
 import api from 'teleport/services/api';
-import { EventProvider, TtyPlayer, MAX_SIZE, Buffer } from './ttyPlayer';
+import TtyPlayer, { Buffer } from './ttyPlayer';
+import EventProvider, { MAX_SIZE } from './ttyPlayerEventProvider';
 import { TermEventEnum } from 'teleport/lib/term/enums';
 import sample from './fixtures/streamData';
 

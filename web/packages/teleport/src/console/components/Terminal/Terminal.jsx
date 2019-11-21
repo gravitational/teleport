@@ -18,145 +18,62 @@ import React from 'react';
 import { withState } from 'shared/hooks';
 import { Indicator, Flex, Text, Box, ButtonSecondary } from 'design';
 import * as Icons from 'design/Icon';
+import * as Alerts from 'design/Alert';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
-import AjaxPoller from 'teleport/components/AjaxPoller';
-import FileTransferDialog from './FileTransfer';
 import Xterm from './Xterm/Xterm';
-import ActionBar from './ActionBar/ActionBar';
-import { useStoreSession, useStoreScp } from '../../console';
+import { useStore } from 'shared/libs/stores';
+import TerminalStore from './storeTerminal';
 
-const POLL_INTERVAL = 3000; // every 3 sec
+export function Terminal(props) {
+  const {
+    terminal,
+    onReplay,
+    onSessionStart,
+    onSessionEnd,
+    onDisconnect,
+  } = props;
+  const termRef = React.useRef();
 
-export class Terminal extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      connected: false,
-    };
-  }
-
-  componentDidMount() {
-    const { sid, storeSession, clusterId } = this.props;
-    const { isNew } = storeSession.state;
-    if (!isNew) {
-      storeSession.joinSession(clusterId, sid);
-    }
-  }
-
-  replay = () => {
-    const { clusterId, sid } = this.props;
-    this.props.onOpenPlayer(clusterId, sid);
-  };
-
-  onCloseFileTransfer = () => {
-    this.props.storeScp.close();
-    if (this.termRef) {
-      this.termRef.focus();
-    }
-  };
-
-  onRefresh = () => {
-    return this.props.storeSession.fetchParticipants();
-  };
-
-  onOpenUploadDialog = () => {
-    const params = this.getScpDialogParams();
-    this.props.storeScp.openUpload(params);
-  };
-
-  onOpenDownloadDialog = () => {
-    const params = this.getScpDialogParams();
-    this.props.storeScp.openDownload(params);
-  };
-
-  onDisconnect = () => {
-    this.setState({ connected: false });
-  };
-
-  onClose = () => {
-    this.props.onClose(this.props.clusterId);
-  };
-
-  onSessionStart = () => {
-    this.setState({
-      connected: true,
-    });
-  };
-
-  getScpDialogParams() {
-    const { clusterId, serverId, login } = this.props.storeSession.state;
-    return {
-      clusterId,
-      serverId,
-      login,
-    };
-  }
-
-  renderXterm(storeSession) {
-    const { status } = storeSession.state;
-    const title = storeSession.getServerLabel();
-
-    if (status.isLoading) {
-      return (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      );
-    }
-
-    if (status.isError) {
-      return <SidNotFoundError onReplay={this.replay} />;
-    }
-
-    if (status.isReady) {
-      const termConfig = storeSession.getTtyConfig();
-      const { connected } = this.state;
-      return (
-        <>
-          <Xterm
-            ref={e => (this.termRef = e)}
-            title={title}
-            onSessionEnd={this.onDisconnect}
-            onSessionStart={this.onSessionStart}
-            termConfig={termConfig}
-          />
-          {connected && (
-            <AjaxPoller time={POLL_INTERVAL} onFetch={this.onRefresh} />
-          )}
-        </>
-      );
-    }
-
-    return null;
-  }
-
-  render() {
-    const { storeSession, storeScp } = this.props;
-    const title = storeSession.getServerLabel();
-    const isFileTransferDialogOpen = storeScp.state.isOpen;
-    const $xterm = this.renderXterm(storeSession);
-
+  if (terminal.isLoading()) {
     return (
-      <>
-        <FileTransferDialog store={storeScp} />
-        <Flex flexDirection="column" height="100%" width="100%">
-          <Box px={2}>
-            <ActionBar
-              onOpenUploadDialog={this.onOpenUploadDialog}
-              onOpenDownloadDialog={this.onOpenDownloadDialog}
-              isFileTransferDialogOpen={isFileTransferDialogOpen}
-              title={title}
-              onClose={this.onClose}
-            />
-          </Box>
-          <Box px={2} height="100%" width="100%" style={{ overflow: 'auto' }}>
-            {$xterm}
-          </Box>
-        </Flex>
-      </>
+      <Box textAlign="center" m={10}>
+        <Indicator />
+      </Box>
     );
   }
+
+  if (terminal.isError()) {
+    return (
+      <Alerts.Danger m={10} as={Flex} alignSelf="baseline" flex="1">
+        Connection error: {terminal.state.statusText}
+      </Alerts.Danger>
+    );
+  }
+
+  if (terminal.isNotFound()) {
+    return <SidNotFoundError onReplay={onReplay} />;
+  }
+
+  const termConfig = terminal.getTtyConfig();
+
+  return (
+    <Flex
+      flexDirection="column"
+      height="100%"
+      width="100%"
+      px="2"
+      style={{ overflow: 'auto' }}
+    >
+      <Xterm
+        ref={termRef}
+        onDisconnect={onDisconnect}
+        onSessionEnd={onSessionEnd}
+        onSessionStart={onSessionStart}
+        termConfig={termConfig}
+      />
+    </Flex>
+  );
 }
 
 const SidNotFoundError = ({ onReplay }) => (
@@ -170,25 +87,44 @@ const SidNotFoundError = ({ onReplay }) => (
   </Box>
 );
 
-export default withState(({ match }) => {
-  const { clusterId, sid } = match.params;
-  const storeSession = useStoreSession();
-  const storeScp = useStoreScp();
+export default withState(props => {
+  const { sid, clusterId, serverId, login } = props;
+  const terminal = React.useMemo(() => {
+    const store = new TerminalStore();
+    store.init({
+      sid,
+      clusterId,
+      serverId,
+      login,
+    });
+
+    return store;
+  }, []);
+
+  useStore(terminal);
+
+  function onDisconnect() {
+    props.onDisconnect(false);
+  }
+
+  function onSessionStart() {
+    props.onConnect(terminal.state.session);
+  }
+
+  function onSessionEnd() {
+    onDisconnect(true);
+  }
+
+  function onOpenPlayer() {
+    const routeUrl = cfg.getSessionAuditRoute({ clusterId, sid });
+    history.push(routeUrl);
+  }
+
   return {
-    storeSession,
-    storeScp,
-    onClose: closeWindow,
-    onOpenPlayer: openPlayer,
-    clusterId,
-    sid,
+    terminal,
+    onReplay: onOpenPlayer,
+    onDisconnect,
+    onSessionStart,
+    onSessionEnd,
   };
 })(Terminal);
-
-function closeWindow() {
-  window.close();
-}
-
-function openPlayer(clusterId, sid) {
-  const routeUrl = cfg.getConsolePlayerRoute({ clusterId, sid });
-  history.push(routeUrl);
-}

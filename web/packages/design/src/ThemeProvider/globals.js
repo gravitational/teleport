@@ -54,6 +54,10 @@ const GlobalStyle = createGlobalStyle`
       ::-webkit-scrollbar-thumb {
         background: #757575;
       }
+
+      ::-webkit-scrollbar-corner {
+        background: rgba(0,0,0,0.5);
+      }
     `;
   }}
 `;

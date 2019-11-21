@@ -24,6 +24,14 @@ export default class StoreClusters extends Store {
     return this.state;
   }
 
+  getClusterOptions() {
+    return this.state.map(cluster => ({
+      value: cluster.clusterId,
+      url: cluster.url,
+      label: cluster.clusterId,
+    }));
+  }
+
   fetchClusters() {
     return service.fetchClusters().then(clusters => {
       this.setState(clusters);

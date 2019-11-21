@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Cell } from 'design/DataTable';
-import { displayDateTime } from 'teleport/lib/dateUtils';
+import { displayDateTime } from 'shared/services/loc';
 
 export default function CreatedCell({ rowIndex, data }) {
   const { created } = data[rowIndex];

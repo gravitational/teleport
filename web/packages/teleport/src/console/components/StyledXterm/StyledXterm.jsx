@@ -17,7 +17,7 @@ limitations under the License.
 import styled from 'styled-components';
 import { Box } from 'design';
 import 'xterm/dist/xterm.css';
-import { colors } from './../colors';
+import { colors } from 'teleport/console/components/colors';
 
 const StyledXterm = styled(Box)`
   height: 100%;
@@ -26,7 +26,6 @@ const StyledXterm = styled(Box)`
   line-height: normal;
   overflow: auto;
   background-color: ${colors.bgTerminal};
-
   .terminal {
     font-family: ${props => props.theme.fonts.mono};
     border: none;
@@ -34,14 +33,12 @@ const StyledXterm = styled(Box)`
     line-height: normal;
     position: relative;
   }
-
   .terminal .xterm-viewport {
-    background-color:${colors.bgTerminal};
+    background-color: ${colors.bgTerminal};
     overflow-y: hidden;
   }
-
   .terminal * {
-    font-weight: normal!important;
+    font-weight: normal !important;
   }
 `;
 

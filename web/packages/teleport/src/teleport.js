@@ -15,13 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import {
-  StoreEvents,
-  StoreNav,
-  StoreNodes,
-  StoreUser,
-  StoreClusters,
-} from './stores';
+import { StoreNav, StoreNodes, StoreUser, StoreClusters } from './stores';
 import { Activator } from 'shared/libs/featureBase';
 import { useStore } from 'shared/libs/stores';
 import cfg from 'teleport/config';
@@ -29,7 +23,6 @@ import StoreSessions from './stores/storeSessions';
 
 class Teleport {
   storeNodes = null;
-  storeEvents = null;
   storeClusters = null;
   storeNav = null;
   storeUser = null;
@@ -42,7 +35,10 @@ class Teleport {
   init({ features, clusterId }) {
     cfg.setClusterId(clusterId);
     this.initStores();
-    return this.storeUser.fetchUser().then(() => {
+    const fetchClustersPromise = this.storeClusters.fetchClusters();
+    const fetchUsersPromise = this.storeUser.fetchUser();
+
+    return Promise.all([fetchClustersPromise, fetchUsersPromise]).then(() => {
       const activator = new Activator(features);
       activator.onload({
         context: this,
@@ -72,7 +68,6 @@ class Teleport {
 
   initStores() {
     this.storeNodes = new StoreNodes();
-    this.storeEvents = new StoreEvents();
     this.storeClusters = new StoreClusters();
     this.storeNav = new StoreNav();
     this.storeUser = new StoreUser();
@@ -102,11 +97,6 @@ export function useStoreNav() {
 export function useStoreUser() {
   const context = React.useContext(TeleportContext);
   return useStore(context.storeUser);
-}
-
-export function useStoreEvents() {
-  const context = React.useContext(TeleportContext);
-  return useStore(context.storeEvents);
 }
 
 export function useStoreNodes() {

@@ -18,7 +18,6 @@ import moment from 'moment';
 import { map } from 'lodash';
 
 export default function makeSession(json) {
-  const active = json.active;
   const clusterId = json.siteId;
   const created = new Date(json.created);
   const duration = moment(new Date()).diff(created);
@@ -28,20 +27,21 @@ export default function makeSession(json) {
   const parties = map(json.parties, makeParticipant);
   const serverId = json.server_id;
   const sid = json.id;
+  const hostname = serverId;
   return {
     sid,
     namespace,
     login,
-    active,
     created,
     durationText,
     serverId,
+    hostname,
     clusterId,
     parties,
   };
 }
 
-function makeParticipant(json) {
+export function makeParticipant(json) {
   const remoteAddr = json.remote_addr || '';
   return {
     user: json.user,

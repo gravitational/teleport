@@ -41,7 +41,24 @@ storiesOf('Teleport', module).add('SideNav', () => {
   );
 });
 
+const clusterOptions = [
+  { value: 'Kawupic', label: 'Kawupic' },
+  { value: 'Ajiromil', label: 'Ajiromil' },
+  { value: 'Wedolarav', label: 'Wedolarav' },
+  { value: 'Urijorun', label: 'Urijorun' },
+  { value: 'Irosutno', label: 'Irosutno' },
+  { value: 'Wecdivrof', label: 'Wecdivrof' },
+  { value: 'Nesbokti', label: 'Nesbokti' },
+  { value: 'Nezfifku', label: 'Nezfifku' },
+  { value: 'Cebfabca', label: 'Cebfabca' },
+  { value: 'Cidbudud', label: 'Cidbudud' },
+  { value: 'Jeakalu', label: 'Jeakalu' },
+  { value: 'Luwcohba', label: 'Luwcohba' },
+];
+
 const defaultProps = {
+  clusterOptions,
+  clusterName: 'Wecdivrof',
   items: [
     {
       title: 'Apartment',

@@ -14,19 +14,65 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { withState } from 'shared/hooks';
-import Console from './components';
-import { useConsole } from './console';
+import React from 'react';
+import { useRouteMatch, useParams, useLocation } from 'react-router';
+import cfg from 'teleport/config';
+import session from 'teleport/services/session';
+import history from 'teleport/services/history';
+import useConsoleContext from './useConsoleContext';
+import Console from './components/Console';
 
-export default withState(props => {
-  const { clusterId } = props.match.params;
-  const console = useConsole();
+export default function Container() {
+  const createSessionRequest = useRouteMatch(cfg.routes.consoleConnect);
+  const joinSessionRequest = useRouteMatch(cfg.routes.consoleSession);
+  const homeRequest = useLocation();
+  const { clusterId } = useParams();
+  const consoleContext = useConsoleContext();
 
-  function onInit() {
-    return console.init(clusterId);
+  React.useState(() => {
+    consoleContext.init({ clusterId });
+  });
+
+  // find the document which matches current URL
+  const doc = consoleContext.makeActiveByUrl(homeRequest.pathname);
+
+  React.useEffect(() => {
+    if (doc) {
+      return;
+    }
+
+    function newTab({ serverId, login, sid }) {
+      const { url } = consoleContext.addTerminalTab({ login, serverId, sid });
+      history.push(url);
+    }
+
+    if (createSessionRequest) {
+      newTab(createSessionRequest.params);
+    }
+
+    if (joinSessionRequest) {
+      newTab(joinSessionRequest.params);
+    }
+  }, [homeRequest.pathname]);
+
+  function onSelectTab({ url }) {
+    history.push(url);
   }
 
-  return {
-    onInit,
-  };
-})(Console);
+  function onCloseTab({ id }) {
+    const nextDoc = consoleContext.closeTab(id);
+    nextDoc && history.push(nextDoc.url);
+  }
+
+  function onLogout() {
+    session.logout();
+  }
+
+  return (
+    <Console
+      onLogout={onLogout}
+      onCloseTab={onCloseTab}
+      onSelect={onSelectTab}
+    />
+  );
+}

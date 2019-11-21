@@ -20,42 +20,40 @@ const CSS = 'color: blue';
  * logger is a simple logger used by store to log changes
  */
 const logger = {
-
-  init(cfg){
+  init(cfg) {
     logger.info = cfg.info;
     logger.error = cfg.error;
     logger.logState = cfg.logState;
   },
 
-  info(/*message*/) { },
+  info(/*message*/) {},
 
-  logState(/*name, state*/) { },
+  logState(/*name, state*/) {},
 
-  error(/*err, desc */){ }
-}
+  error(/*err, desc */) {},
+};
 
 // devCfg is a logger configuration used in dev environments
 const devCfg = {
-
-  info(message){
-    window.console.log(message);
+  info(...args) {
+    window.console.log(...args);
   },
 
-  logState(name, state) {
-    window.console.log(`%cUpdated ${name} `, CSS, state);
+  logState(name, state, ...rest) {
+    window.console.log(`%cUpdated ${name} `, CSS, state, ...rest);
   },
 
-  error(err, desc){
-    if(desc){
+  error(err, desc) {
+    if (desc) {
       window.console.error(`${desc}`, err);
-    }else{
-      window.console.error(err)
+    } else {
+      window.console.error(err);
     }
-  }
-}
+  },
+};
 
 // init logger with the right config
-if(process.env.NODE_ENV === 'development'){
+if (process.env.NODE_ENV === 'development') {
   logger.init(devCfg);
 }
 

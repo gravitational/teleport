@@ -22,8 +22,7 @@ import './../assets/icomoon/style.css';
 const Icon = styled.span`
   display: inline-block;
   transition: color .3s;
-  ${space} ${width} ${color} ${fontSize}
-`;
+  ${space} ${width} ${color} ${fontSize} `;
 
 Icon.displayName = `Icon`;
 Icon.defaultProps = {
@@ -55,7 +54,6 @@ export const ArrowsVertical = makeFontIcon(
 export const ArrowUp = makeFontIcon('ArrowUp', 'icon-chevron-up');
 export const BitBucket = makeFontIcon('Bitbucket', 'icon-bitbucket');
 export const Bubble = makeFontIcon('Bubble', 'icon-bubble');
-export const Calendar = makeFontIcon('Calendar', 'icon-calendar-empty');
 export const Camera = makeFontIcon('Camera', 'icon-camera');
 export const CardView = makeFontIcon('CardView', 'icon-th-large');
 export const CardViewSmall = makeFontIcon('CardViewSmall', 'icon-th');
@@ -163,7 +161,6 @@ export const ListView = makeFontIcon('ListView', 'icon-th-list');
 export const LocalPlay = makeFontIcon('LocalPlay', 'icon-local_play');
 export const Lock = makeFontIcon('Lock', 'icon-lock');
 export const Magnifier = makeFontIcon('Magnifier', 'icon-magnifier');
-export const MapMarker = makeFontIcon('MapMarker', 'icon-map-marker');
 export const MasterCard = makeFontIcon('MasterCard', 'icon-cc-mastercard');
 export const Memory = makeFontIcon('Memory', 'icon-memory');
 export const MoreHoriz = makeFontIcon('MoreHoriz', 'icon-more_horiz');
@@ -179,7 +176,6 @@ export const Paypal = makeFontIcon('Paypal', 'icon-cc-paypal');
 export const Pencil = makeFontIcon('Pencil', 'icon-pencil');
 export const Person = makeFontIcon('Person', 'icon-person');
 export const PersonAdd = makeFontIcon('PersonAdd', 'icon-person_add');
-export const Phone = makeFontIcon('Phone', 'icon-telephone');
 export const PhonelinkErase = makeFontIcon(
   'PhonelinkErase',
   'icon-phonelink_erase'
@@ -190,7 +186,6 @@ export const PhonelinkSetup = makeFontIcon(
 );
 export const Planet = makeFontIcon('Planet', 'icon-planet');
 export const Play = makeFontIcon('Play', 'icon-play');
-export const Power = makeFontIcon('Power', 'icon-power');
 export const Profile = makeFontIcon('Profile', 'icon-profile');
 export const Restore = makeFontIcon('Restore', 'icon-restore');
 export const Server = makeFontIcon('Server', 'icon-server');
@@ -205,7 +200,6 @@ export const SettingsOverscan = makeFontIcon(
 export const Shart = makeFontIcon('Shart', 'icon-chart-bars');
 export const ShieldCheck = makeFontIcon('ShieldCheck', 'icon-shield-check');
 export const Shrink = makeFontIcon('Shrink', 'icon-shrink');
-export const Signal = makeFontIcon('Signal', 'icon-signal');
 export const SmallArrowDown = makeFontIcon(
   'SmallArrowDown',
   'icon-arrow_drop_down'
@@ -214,7 +208,6 @@ export const SmallArrowUp = makeFontIcon(
   'SmallArrowDown',
   'icon-arrow_drop_up'
 );
-export const SmartPhone = makeFontIcon('SmartPhone', 'icon-smartphone-embed');
 export const Sort = makeFontIcon('Sort', 'icon-chevrons-expand-vertical');
 export const SortAsc = makeFontIcon('SortAsc', 'icon-chevron-up');
 export const SortDesc = makeFontIcon('SortDesc', 'icon-chevron-down');
@@ -237,8 +230,8 @@ export const VolumeUp = makeFontIcon('VolumeUp', 'icon-volume-high');
 export const VpnKey = makeFontIcon('VpnKey', 'icon-vpn_key');
 export const Warning = makeFontIcon('Warning', 'icon-warning');
 export const Wifi = makeFontIcon('Wifi', 'icon-wifi');
-export const Window = makeFontIcon('Window', 'icon-window');
 export const Windows = makeFontIcon('Windows', 'icon-windows');
 export const Youtube = makeFontIcon('Youtube', 'icon-youtube');
+export const Add = makeFontIcon('Add', 'icon-add');
 
 export default Icon;

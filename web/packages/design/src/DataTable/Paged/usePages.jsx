@@ -16,25 +16,25 @@ limitations under the License.
 
 import React from 'react';
 
-export default function usePages({ pageSize = 7, data }){
-  const [ startFrom, setFrom ] = React.useState(0);
+export default function usePages({ pageSize = 7, data = [] }) {
+  const [startFrom, setFrom] = React.useState(0);
 
   // set current page to 0 when data source length changes
   React.useEffect(() => {
     setFrom(0);
   }, [data.length]);
 
-  function onPrev(){
+  function onPrev() {
     let prevPage = startFrom - pageSize;
-    if(prevPage < 0){
+    if (prevPage < 0) {
       prevPage = 0;
     }
     setFrom(prevPage);
   }
 
-  function onNext(){
+  function onNext() {
     let nextPage = startFrom + pageSize;
-    if(nextPage < data.length){
+    if (nextPage < data.length) {
       nextPage = startFrom + pageSize;
       setFrom(nextPage);
     }
@@ -45,9 +45,9 @@ export default function usePages({ pageSize = 7, data }){
   let endAt = 0;
   let pagedData = data;
 
-  if (data.length > 0){
+  if (data.length > 0) {
     endAt = startFrom + (pageSize > data.length ? data.length : pageSize);
-    if(endAt > data.length){
+    if (endAt > data.length) {
       endAt = data.length;
     }
 
@@ -62,6 +62,6 @@ export default function usePages({ pageSize = 7, data }){
     data: pagedData,
     hasPages: totalRows > pageSize,
     onNext,
-    onPrev
-  }
+    onPrev,
+  };
 }

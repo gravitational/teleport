@@ -16,14 +16,13 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Redirect, Switch, Route } from 'teleport/components/Router';
+import { Redirect, Switch, Route } from 'shared/components/Router';
 import { Indicator } from 'design';
 import { Failed } from 'design/CardError';
 import { useAttempt } from 'shared/hooks';
 import cfg from 'teleport/config';
 import SideNav from './SideNav';
-import TopBar from './TopBar';
-import * as Layout from './Layout';
+import TopBar from 'teleport/components/TopBar';
 
 export default function Cluster(props) {
   const { onInit, features } = props;
@@ -64,10 +63,10 @@ export default function Cluster(props) {
   });
 
   return (
-    <Layout.AppVerticalSplit>
-      <SideNav />
-      <Layout.AppHorizontalSplit>
-        <TopBar pl="6" />
+    <HorizontalSplit>
+      <TopBar />
+      <VerticalSplit>
+        <SideNav />
         <Switch>
           <Redirect
             exact
@@ -76,12 +75,27 @@ export default function Cluster(props) {
           />
           {$features}
         </Switch>
-      </Layout.AppHorizontalSplit>
-    </Layout.AppVerticalSplit>
+      </VerticalSplit>
+    </HorizontalSplit>
   );
 }
 
-const StyledIndicator = styled(Layout.AppVerticalSplit)`
+const VerticalSplit = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex: 1;
+`;
+
+const HorizontalSplit = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+`;
+
+const StyledIndicator = styled(HorizontalSplit)`
   align-items: center;
   justify-content: center;
 `;

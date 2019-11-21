@@ -19,7 +19,7 @@ import { NavLink } from 'react-router-dom';
 import { withState } from 'shared/hooks';
 import { MenuItemIcon, MenuItem } from 'design/Menu/';
 import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
-import { Flex, ButtonPrimary, TopNav } from 'design';
+import { Flex, ButtonOutlined, ButtonPrimary, TopNav, Text } from 'design';
 import session from 'teleport/services/session';
 import { useStoreUser, useStoreNav } from 'teleport/teleport';
 
@@ -64,6 +64,14 @@ export class TopBar extends React.Component {
 
     return (
       <TopNav pl={pl} height="72px" bg="transparent">
+        <Flex alignItems="center">
+          <Text mr="4" typography="body2" color="text.primary">
+            https://localhost/web
+          </Text>
+          <ButtonOutlined width="120px" size="small">
+            View Info
+          </ButtonOutlined>
+        </Flex>
         <Flex ml="auto" height="100%">
           <TopNavUserMenu
             menuListCss={menuListCss}
@@ -100,16 +108,3 @@ function mapState() {
 }
 
 export default withState(mapState)(TopBar);
-
-{
-  /* <Box width="200px">
-          <Select
-            isSimpleValue={true}
-            isSearchable={true}
-            value={value}
-            onChange={onChange}
-            options={options}
-            placeholder="Selector cluster"
-          />
-        </Box> */
-}

@@ -20,10 +20,6 @@ import { merge } from 'lodash';
 const cfg = {
   baseUrl: window.location.origin,
 
-  dateTimeFormat: 'YYYY-MM-DD HH:mm:ss',
-
-  dateFormat: 'YYYY-MM-DD',
-
   auth: {},
 
   canJoinSessions: true,
@@ -32,19 +28,28 @@ const cfg = {
 
   proxyClusterName: '',
 
+  loc: {
+    dateTimeFormat: 'YYYY-MM-DD HH:mm:ss',
+    dateFormat: 'YYYY-MM-DD',
+  },
+
   routes: {
     app: '/web',
     account: '/web/account',
     cluster: '/web/cluster/:clusterId',
     clusterAccount: '/web/cluster/:clusterId/account',
     clusterAudit: '/web/cluster/:clusterId/audit',
+    clusterAuditEvents: '/web/cluster/:clusterId/audit/events',
+    clusterAuditSessions: '/web/cluster/:clusterId/audit/sessions',
     clusterNodes: '/web/cluster/:clusterId/nodes',
     clusterSessions: '/web/cluster/:clusterId/sessions',
     clusterOffline: '/web/cluster/:siteId/offline',
     console: '/web/cluster/:clusterId/console',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
-    consolePlayer: '/web/cluster/:clusterId/console/player/:sid',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
+    sessionAudit: '/web/cluster/:clusterId/session/:sid',
+    sessionAuditPlayer: '/web/cluster/:clusterId/session/:sid/player',
+    sessionAuditCmds: '/web/cluster/:clusterId/session/:sid/commands',
     error: '/web/msg/error/:type?',
     login: '/web/login',
     loginFailed: '/web/msg/error/login_failed',
@@ -137,6 +142,16 @@ const cfg = {
     });
   },
 
+  getAuditEventsRoute(clusterId) {
+    clusterId = clusterId || cfg.clusterName;
+    return generatePath(cfg.routes.clusterAuditEvents, { clusterId });
+  },
+
+  getAuditSessionsRoute(clusterId) {
+    clusterId = clusterId || cfg.clusterName;
+    return generatePath(cfg.routes.clusterAuditSessions, { clusterId });
+  },
+
   getInviteUrl(token) {
     return generatePath(cfg.api.invitePath, { token });
   },
@@ -146,14 +161,29 @@ const cfg = {
     return generatePath(cfg.routes.cluster, { clusterId });
   },
 
+  getConsoleRoute(clusterId) {
+    clusterId = clusterId || cfg.clusterName;
+    return generatePath(cfg.routes.console, { clusterId });
+  },
+
   getConsoleSessionRoute({ clusterId, sid }) {
     clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.consoleSession, { clusterId, sid });
   },
 
-  getConsolePlayerRoute({ clusterId, sid }) {
+  getSessionAuditRoute({ clusterId, sid }) {
     clusterId = clusterId || cfg.clusterName;
-    return generatePath(cfg.routes.consolePlayer, { clusterId, sid });
+    return generatePath(cfg.routes.sessionAudit, { clusterId, sid });
+  },
+
+  getSessionAuditPlayerRoute({ clusterId, sid }) {
+    clusterId = clusterId || cfg.clusterName;
+    return generatePath(cfg.routes.sessionAuditPlayer, { clusterId, sid });
+  },
+
+  getSessionAuditCmdsRoute({ clusterId, sid }) {
+    clusterId = clusterId || cfg.clusterName;
+    return generatePath(cfg.routes.sessionAuditCmds, { clusterId, sid });
   },
 
   getUserUrl(clusterId) {
@@ -173,11 +203,6 @@ const cfg = {
 
   getU2fCreateUserChallengeUrl(inviteToken) {
     return generatePath(cfg.api.u2fCreateUserChallengePath, { inviteToken });
-  },
-
-  getClusterSessionsUrl(clusterId) {
-    clusterId = clusterId || cfg.clusterName;
-    return generatePath(cfg.api.se, { clusterId });
   },
 
   getScpUrl({ clusterId, serverId, login, location, filename }) {

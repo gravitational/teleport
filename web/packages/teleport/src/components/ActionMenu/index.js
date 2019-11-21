@@ -15,8 +15,6 @@ limitations under the License.
 */
 
 import ActionMenu from './ActionMenu';
-import { MenuItem } from 'design/Menu';
+import { MenuItem, MenuItemIcon } from 'design/Menu';
 export default ActionMenu;
-export {
-  MenuItem
-}
+export { MenuItem, MenuItemIcon };

@@ -15,16 +15,21 @@ limitations under the License.
 */
 
 import React from 'react';
-import { NavLink, Link } from 'react-router-dom';
-import styled from 'styled-components';
+import { NavLink } from 'react-router-dom';
 import { withState } from 'shared/hooks';
-import { Image, SideNav, SideNavItem } from 'design';
+import { SideNav, SideNavItem } from 'design';
 import SideNavItemIcon from 'design/SideNav/SideNavItemIcon';
-import teleportLogoSvg from 'design/assets/images/teleport-logo.svg';
-import { useStoreUser, useStoreNav } from 'teleport/teleport';
+import { useStoreClusters, useStoreUser, useStoreNav } from 'teleport/teleport';
+import history from 'teleport/services/history';
 import cfg from 'teleport/config';
+import SelectCluster from './SelectCluster';
 
-export function ClusterSideNav({ items, version, homeUrl }) {
+export function ClusterSideNav({
+  items,
+  clusterName,
+  clusterOptions,
+  onChangeCluster,
+}) {
   const $items = items.map((item, index) => (
     <SideNavItem key={index} as={NavLink} exact={item.exact} to={item.to}>
       <SideNavItemIcon as={item.Icon} />
@@ -32,12 +37,19 @@ export function ClusterSideNav({ items, version, homeUrl }) {
     </SideNavItem>
   ));
 
+  const selectedCluster = {
+    value: clusterName,
+    label: clusterName,
+  };
   return (
     <SideNav>
-      <StyledLogoItem py="2" pl="5" as={Link} to={homeUrl}>
-        <Image src={teleportLogoSvg} maxHeight="40px" maxWidth="120px" mr="3" />
-        <span title={version}>{version}</span>
-      </StyledLogoItem>
+      <SelectCluster
+        py="2"
+        px="3"
+        value={selectedCluster}
+        options={clusterOptions}
+        onChange={onChangeCluster}
+      />
       <div
         style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}
       >
@@ -47,25 +59,21 @@ export function ClusterSideNav({ items, version, homeUrl }) {
   );
 }
 
-const StyledLogoItem = styled(SideNavItem)`
-  &:active {
-    border-left-color: transparent;
-    color: ${({ theme }) => theme.colors.text.primary};
-  }
-
-  > span {
-    line-height: 1.4;
-    text-overflow: ellipsis;
-    overflow: hidden;
-  }
-`;
-
 export default withState(() => {
+  const clusterOptions = useStoreClusters().getClusterOptions();
   const items = useStoreNav().getSideItems();
   const { version } = useStoreUser().state;
+
+  function onChangeCluster({ url }) {
+    history.push(url);
+  }
+
   return {
+    clusterOptions,
     version,
     items,
+    clusterName: cfg.clusterName,
     homeUrl: cfg.getClusterRoute(),
+    onChangeCluster,
   };
 })(ClusterSideNav);

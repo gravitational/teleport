@@ -17,9 +17,45 @@ limitations under the License.
 import { map } from 'lodash';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import makeSession from './makeSession';
+import makeSession, { makeParticipant } from './makeSession';
 
 const service = {
+  create({ serverId, clusterId, login }) {
+    const request = {
+      session: {
+        login,
+      },
+    };
+
+    return api
+      .post(cfg.getTerminalSessionUrl(clusterId), request)
+      .then(response => {
+        const session = makeSession(response.session);
+        return {
+          ...session,
+          hostname: serverId,
+          serverId,
+          clusterId,
+        };
+      });
+  },
+
+  fetchSession({ clusterId, sid }) {
+    return Promise.all([
+      api.get(cfg.getTerminalSessionUrl({ sid })),
+      api.get(cfg.getClusterNodesUrl(clusterId)),
+    ]).then(response => {
+      const [sessionJson, serversJson] = response;
+      const server = serversJson.items.find(
+        s => s.id === sessionJson.server_id
+      );
+      const session = makeSession(sessionJson);
+      session.hostname = server.hostname;
+      session.clusterId = clusterId;
+      return session;
+    });
+  },
+
   fetchSessions() {
     return api.get(cfg.getTerminalSessionUrl()).then(response => {
       if (response && response.sessions) {
@@ -29,6 +65,33 @@ const service = {
       return [];
     });
   },
+
+  fetchParticipants({ clusterId }) {
+    // Because given session might not be available right away,
+    // we query for all active session to find this session participants.
+    // This is to avoid 404 errors.
+    return api.get(cfg.getTerminalSessionUrl(clusterId)).then(json => {
+      if (!json && !json.sessions) {
+        return [];
+      }
+
+      const parties = {};
+      json.sessions.forEach(s => {
+        parties[s.id] = map(s.parties, makeParticipant);
+      });
+
+      return parties;
+    });
+  },
+};
+
+export const SessionStateEnum = {
+  CONNECTED: 'connected',
+  DISCONNECTED: 'disconnected',
+  LOADING: 'loading',
+  JOINING: 'joining',
+  NOT_FOUND: 'notfound',
+  ERROR: 'error',
 };
 
 export default service;

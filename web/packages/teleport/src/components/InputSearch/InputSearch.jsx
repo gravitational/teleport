@@ -18,10 +18,9 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import { debounce } from 'lodash';
 import styled from 'styled-components';
-import { space, color } from 'design/system';
+import { height, space, color } from 'design/system';
 
 class InputSearch extends React.Component {
-
   constructor(props) {
     super(props);
     this.debouncedNotify = debounce(() => {
@@ -38,16 +37,16 @@ class InputSearch extends React.Component {
 
   onBlur = () => {
     this.setState({ isFocused: false });
-  }
+  };
 
   onFocus = () => {
     this.setState({ isFocused: true });
-  }
+  };
 
   onChange = e => {
     this.setState({ value: e.target.value });
     this.debouncedNotify();
-  }
+  };
 
   componentDidMount() {
     // set cursor
@@ -62,20 +61,23 @@ class InputSearch extends React.Component {
   render() {
     const { autoFocus = false, ...rest } = this.props;
     return (
-      <Input placeholder="SEARCH..."
+      <Input
         px="3"
+        placeholder="SEARCH..."
         bg="primary.dark"
         color="text.primary"
         {...rest}
         autoFocus={autoFocus}
         value={this.state.value}
-        onChange={this.onChange} onFocus={this.onFocus} onBlur={this.onBlur} />
+        onChange={this.onChange}
+        onFocus={this.onFocus}
+        onBlur={this.onBlur}
+      />
     );
   }
 }
 
-
-function fromTheme(props){
+function fromTheme(props) {
   return {
     '&:focus, &:active': {
       background: props.theme.colors.light,
@@ -85,8 +87,8 @@ function fromTheme(props){
     '&::placeholder': {
       color: props.theme.colors.subtle,
       fontSize: props.theme.fontSizes[1],
-    }
-  }
+    },
+  };
 }
 
 const Input = styled.input`
@@ -99,6 +101,7 @@ const Input = styled.input`
   ${fromTheme}
   ${space}
   ${color}
-`
+  ${height}
+`;
 
 export default InputSearch;

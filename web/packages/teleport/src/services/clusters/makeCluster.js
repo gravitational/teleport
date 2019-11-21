@@ -15,7 +15,7 @@ limitations under the License.
 */
 import { at } from 'lodash';
 import cfg from 'teleport/config';
-import { displayDateTime } from 'teleport/lib/dateUtils';
+import { displayDateTime } from 'shared/services/loc';
 
 export default function makeCluster(json) {
   const [clusterId, connected, status] = at(json, [

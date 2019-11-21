@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import PagedTable from './Paged';
+import PagedTable, { StyledPanel } from './Paged';
 import Pager from './Pager';
 import usePages from './usePages';
 
 export default PagedTable;
-export { usePages, Pager };
+export { usePages, Pager, StyledPanel };

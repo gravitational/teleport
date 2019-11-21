@@ -15,125 +15,51 @@ limitations under the License.
 */
 
 import React from 'react';
-import moment from 'moment';
-import { useAttempt, withState } from 'shared/hooks';
-import { Danger } from 'design/Alert';
-import AjaxPoller from 'teleport/components/AjaxPoller';
+import { Redirect, Switch, Route } from 'shared/components/Router';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import InputSearch from 'teleport/components/InputSearch';
-import { useStoreEvents } from 'teleport/teleport';
+import Tabs, { TabItem } from './Tabs';
+import AuditSessions from './AuditSessions';
+import AuditEvents from './AuditEvents';
 import RangePicker, { getRangeOptions } from './RangePicker';
-import EventList from './EventList';
+import cfg from 'teleport/config';
 
-const POLL_INTERVAL = 5000; // every 5 sec
-
-export class Audit extends React.Component {
-  onRangeChange = range => {
-    this.props.onRangeChange(range);
-    this.props.onFetch(range);
-  };
-
-  componentDidMount() {
-    this.props.onFetch(this.props.range);
-  }
-
-  render() {
-    const {
-      events,
-      maxLimit,
-      overflow,
-      attempt,
-      searchValue,
-      range,
-      rangeOptions,
-      onFetchLatest,
-      onSearchChange,
-    } = this.props;
-    const { from, to } = range;
-    const { isFailed, message } = attempt;
-
-    const filtered = events.filter(item =>
-      moment(item.time).isBetween(from, to)
-    );
-
-    return (
-      <FeatureBox>
-        <FeatureHeader alignItems="center">
-          <FeatureHeaderTitle mr="5">Audit Log</FeatureHeaderTitle>
-          <InputSearch
-            bg="primary.light"
-            mr="3"
-            autoFocus
-            onChange={onSearchChange}
-          />
-          <RangePicker
-            ml="auto"
-            value={range}
-            options={rangeOptions}
-            onChange={this.onRangeChange}
-          />
-        </FeatureHeader>
-        {overflow && (
-          <Danger>
-            Number of events retrieved for specified date range was exceeded the
-            maximum limit of {maxLimit}
-          </Danger>
-        )}
-        {isFailed && <Danger> {message} </Danger>}
-        <EventList search={searchValue} events={filtered} />
-        <AjaxPoller
-          immediately={false}
-          time={POLL_INTERVAL}
-          onFetch={onFetchLatest}
-        />
-      </FeatureBox>
-    );
-  }
-}
-
-function mapState() {
-  const store = useStoreEvents();
+export default function Audit() {
   const rangeOptions = React.useMemo(() => getRangeOptions(), []);
-  const [attempt, attemptActions] = useAttempt();
-  const [searchValue, setSearchValue] = React.useState('');
-  const [range, setRange] = React.useState(rangeOptions[0]);
+  const [range, handleOnRange] = React.useState(rangeOptions[0]);
+  const auditRoute = cfg.getAuditRoute();
+  const eventsRoute = cfg.getAuditEventsRoute();
+  const sessionsRoute = cfg.getAuditSessionsRoute();
 
-  function onFetch({ from, to }) {
-    attemptActions.do(() => {
-      return store.fetchEvents({ start: from, end: to });
-    });
-  }
-
-  function onFetchLatest() {
-    return store.fetchLatest();
-  }
-
-  function onRangeChange(range) {
-    setRange(range);
-  }
-
-  const events = store.getEvents();
-  const { overflow } = store.state;
-  const maxLimit = store.getMaxLimit();
-
-  return {
-    events,
-    overflow,
-    searchValue,
-    range,
-    rangeOptions,
-    attempt,
-    attemptActions,
-    onFetch,
-    onRangeChange,
-    onSearchChange: setSearchValue,
-    onFetchLatest,
-    maxLimit,
-  };
+  return (
+    <FeatureBox>
+      <FeatureHeader alignItems="center">
+        <FeatureHeaderTitle mr="8">Audit Log</FeatureHeaderTitle>
+        <Tabs>
+          <TabItem to={eventsRoute} title="Events" />
+          <TabItem to={sessionsRoute} title="Sessions" />
+        </Tabs>
+        <RangePicker
+          ml="auto"
+          value={range}
+          options={rangeOptions}
+          onChange={handleOnRange}
+        />
+      </FeatureHeader>
+      <Switch>
+        <Route title="System Events" path={eventsRoute}>
+          <AuditEvents range={range} />
+        </Route>
+        <Route
+          title="Sessions"
+          path={sessionsRoute}
+          component={AuditSessions}
+        />
+        <Redirect exact from={auditRoute} to={eventsRoute} />
+      </Switch>
+    </FeatureBox>
+  );
 }
-
-export default withState(mapState)(Audit);

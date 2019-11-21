@@ -24,8 +24,6 @@ const logger = Logger.create('validation');
 export default class Validator {
   valid = true;
 
-  values = {};
-
   constructor() {
     // store subscribers
     this._subs = [];
@@ -49,9 +47,6 @@ export default class Validator {
     let isValid = false;
     if (isObject(result)) {
       isValid = result.valid;
-      if (result.name) {
-        this.results.values[name] = result;
-      }
     } else {
       logger.error(`rule should return a valid object`);
     }
@@ -61,7 +56,6 @@ export default class Validator {
 
   reset() {
     this.valid = true;
-    this.values = {};
     this.validating = false;
   }
 
@@ -86,9 +80,15 @@ export function Validation(props) {
   const [validator] = React.useState(() => new Validator());
   // handle render functions
   const children =
-    typeof props.children === 'function' ? props.children({ validator }) : props.children;
+    typeof props.children === 'function'
+      ? props.children({ validator })
+      : props.children;
 
-  return <ValidationContext.Provider value={validator}>{children}</ValidationContext.Provider>;
+  return (
+    <ValidationContext.Provider value={validator}>
+      {children}
+    </ValidationContext.Provider>
+  );
 }
 
 export function useValidation() {

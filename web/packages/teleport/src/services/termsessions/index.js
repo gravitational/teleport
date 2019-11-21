@@ -14,5 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import service from './sessions';
+import service, { SessionStateEnum } from './sessions';
 export default service;
+export { SessionStateEnum };

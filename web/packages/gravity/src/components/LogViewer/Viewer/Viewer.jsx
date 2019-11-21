@@ -15,14 +15,13 @@ limitations under the License.
 */
 
 import React from 'react';
-import ace from 'brace';
-import 'brace/mode/text';
-import 'brace/theme/ambiance';
-import 'brace/ext/searchbox';
+import ace from 'ace-builds/src-noconflict/ace';
+import 'ace-builds/src-noconflict/mode-text';
+import 'ace-builds/src-noconflict/theme-ambiance';
+import 'ace-builds/src-noconflict/ext-searchbox';
 
 export default class Viewer extends React.Component {
-
-  shouldComponentUpdate(){
+  shouldComponentUpdate() {
     return false;
   }
 
@@ -33,25 +32,25 @@ export default class Viewer extends React.Component {
     this.editor.renderer.setShowPrintMargin(false);
     this.editor.setWrapBehavioursEnabled(false);
     this.editor.setHighlightActiveLine(false);
-    this.editor.setTheme("ace/theme/ambiance");
+    this.editor.setTheme('ace/theme/ambiance');
     this.editor.setSession(this.session);
     this.editor.setShowInvisibles(false);
     this.editor.setReadOnly(true);
 
     this.editor.on('focus', () => {
-      if(this.props.onFocus){
+      if (this.props.onFocus) {
         this.props.onFocus();
       }
-    })
+    });
 
     this.editor.renderer.once('afterRender', () => {
       this.scrollToLastRow();
     });
 
     /*
-    * Automatically scrolling cursor into view after selection change this will be
-    * disabled in the next version set editor.$blockScrolling = Infinity to disable this message
-    */
+     * Automatically scrolling cursor into view after selection change this will be
+     * disabled in the next version set editor.$blockScrolling = Infinity to disable this message
+     */
     this.editor.$blockScrolling = Infinity;
   }
 
@@ -61,20 +60,25 @@ export default class Viewer extends React.Component {
     this.session = null;
   }
 
-  clear(){
+  clear() {
     this.session = this._createSession();
     this.editor.setSession(this.session);
   }
 
-  insert(text){
+  insert(text) {
     let session = this.editor.getSession();
     // check if user changed the scroll bar position
-    let isLastRowVisible = Math.abs(session.getScreenLength() - this.editor.getLastVisibleRow()) <= 1;
+    let isLastRowVisible =
+      Math.abs(session.getScreenLength() - this.editor.getLastVisibleRow()) <=
+      1;
 
-
-    session.insert( {
-      row: session.getLength(),
-      column: 0 }, text);
+    session.insert(
+      {
+        row: session.getLength(),
+        column: 0,
+      },
+      text
+    );
 
     if (this.props.autoScroll && isLastRowVisible) {
       this.scrollToLastRow();
@@ -86,23 +90,21 @@ export default class Viewer extends React.Component {
     this.editor.renderer.scrollCursorIntoView();
   }
 
-  render(){
-    return (
-      <div ref={ e => this.aceViewerRef = e } style={editorStyle}/>
-    )
+  render() {
+    return <div ref={e => (this.aceViewerRef = e)} style={editorStyle} />;
   }
 
   _createSession() {
     let session = new ace.EditSession('');
-    session.setUseWrapMode(false)
+    session.setUseWrapMode(false);
     return session;
   }
 }
 
-const editorStyle =  {
+const editorStyle = {
   position: 'absolute',
   top: '0px',
   right: '0px',
   bottom: '0px',
-  left: '0px'
+  left: '0px',
 };

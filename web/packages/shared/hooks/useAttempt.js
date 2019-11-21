@@ -14,12 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState } from 'react';
+import React from 'react';
 import Logger from 'shared/libs/logger';
-
 const logger = Logger.create('shared/hooks/useState');
 
-const defaultAttempt = {
+const defaultState = {
   isProcessing: false,
   isFailed: false,
   isSuccess: false,
@@ -27,43 +26,51 @@ const defaultAttempt = {
 };
 
 export default function useAttempt(initialState) {
-  initialState = initialState || defaultAttempt;
-  const [attempt, change] = useState(initialState);
-
-  const actions = {
-    do(fn) {
-      try {
-        this.start();
-        return fn()
-          .then(() => {
-            this.stop();
-          })
-          .catch(err => {
-            this.error(err);
-            throw err;
-          });
-      } catch (err) {
-        this.error(err);
-      }
-    },
-
-    stop(message) {
-      change({ ...defaultAttempt, isSuccess: true, message });
-    },
-
-    start() {
-      change({ ...defaultAttempt, isProcessing: true });
-    },
-
-    clear() {
-      change({ ...defaultAttempt });
-    },
-
-    error(err) {
-      logger.error('attempt', err);
-      change({ ...defaultAttempt, isFailed: true, message: err.message });
-    },
-  };
-
+  initialState = initialState || defaultState;
+  const [attempt, setState] = React.useState(initialState);
+  const actions = React.useMemo(() => makeActions(setState), [setState]);
   return [attempt, actions];
+}
+
+function makeActions(setState) {
+  function stop(message) {
+    setState({ ...defaultState, isSuccess: true, message });
+  }
+
+  function start() {
+    setState({ ...defaultState, isProcessing: true });
+  }
+
+  function clear() {
+    setState({ ...defaultState });
+  }
+
+  function error(err) {
+    logger.error('attempt', err);
+    setState({ ...defaultState, isFailed: true, message: err.message });
+  }
+
+  function run(fn) {
+    try {
+      start();
+      return fn()
+        .then(() => {
+          stop();
+        })
+        .catch(err => {
+          error(err);
+          throw err;
+        });
+    } catch (err) {
+      error(err);
+    }
+  }
+
+  return {
+    do: run,
+    stop,
+    start,
+    clear,
+    error,
+  };
 }

@@ -23,21 +23,21 @@ const StyledTextEditor = styled.div`
   display: flex;
   position: relative;
   border: none;
-  background: ${props => props.theme.colors.bgTerminal };
+  background: ${props => props.theme.colors.bgTerminal};
 
   .ace-monokai {
-    background: ${props => props.theme.colors.bgTerminal };
+    background: ${props => props.theme.colors.bgTerminal};
   }
 
-  .ace-monokai .ace_marker-layer .ace_active-line {
-    color: #FFF;
-    background: #000;
-  }
+  //.ace-monokai .ace_marker-layer .ace_active-line {
+  //  color: #FFF;
+  //  background: #000;
+  //}
 
   .ace-monokai .ace_gutter,
   .ace-monokai .ace_gutter-cell {
-    color: rgba(255, 255, 255, .56);
-    background: ${props => props.theme.colors.bgTerminal };
+    color: rgba(255, 255, 255, 0.56);
+    background: ${props => props.theme.colors.bgTerminal};
   }
 
   > .ace_editor {
@@ -47,6 +47,6 @@ const StyledTextEditor = styled.div`
     bottom: 0px;
     left: 0px;
   }
-`
+`;
 
 export default StyledTextEditor;

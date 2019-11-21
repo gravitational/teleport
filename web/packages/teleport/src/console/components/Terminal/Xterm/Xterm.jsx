@@ -27,17 +27,22 @@ export default class XTerm extends React.Component {
   };
 
   componentDidMount() {
-    const { onSessionEnd, onSessionStart, termConfig, title } = this.props;
+    const {
+      onSessionEnd,
+      onSessionStart,
+      onDisconnect,
+      termConfig,
+    } = this.props;
     const addressResolver = new TtyAddressResolver(termConfig);
     this.terminal = new XTermCtrl({
       el: this.containerRef,
       addressResolver,
     });
 
-    this.terminal.open();
     this.terminal.tty.on(TermEventEnum.CLOSE, onSessionEnd);
+    this.terminal.tty.on(TermEventEnum.CONN_CLOSE, onDisconnect);
     this.terminal.tty.on('open', onSessionStart);
-    document.title = title;
+    this.terminal.open();
   }
 
   componentWillUnmount() {

@@ -19,7 +19,7 @@ import styled from 'styled-components';
 import { Indicator } from 'design';
 import { Failed } from 'design/CardError';
 import { useAttempt } from 'shared/hooks';
-import { Switch, Route } from 'teleport/components/Router';
+import { Switch, Route } from 'shared/components/Router';
 import * as Layout from 'teleport/components/Layout';
 import TopBar from './TopBar';
 

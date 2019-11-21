@@ -26,7 +26,7 @@ export default class Store {
   // adds a callback to the list of subscribers
   subscribe(cb) {
     const storeName = this.constructor.name;
-    logger.info(`subscribe to store ${storeName}`);
+    logger.info(`subscribe to store ${storeName}`, this.state);
     this._subs.push(cb);
   }
 
@@ -44,7 +44,7 @@ export default class Store {
   // it changes the store state and notifies subscribers.
   setState(nextState) {
     this.state = mergeStates(nextState, this.state);
-    logger.logState(this.constructor.name, this.state);
+    logger.logState(this.constructor.name, this.state, 'with', nextState);
 
     this._subs.forEach(cb => {
       try {

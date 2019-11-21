@@ -35,7 +35,7 @@ export default function ClusterTile({ cluster, ...styles }) {
       return;
     }
 
-    window.open(history.ensureBaseUrl(url), '_blank');
+    history.push(url);
   }
 
   const statusText = `STATUS: ${status}`.toUpperCase();
