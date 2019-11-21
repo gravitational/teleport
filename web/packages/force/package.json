@@ -1,0 +1,27 @@
+{
+  "name": "@gravitational/force",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "g-start",
+    "build": "tsc && (rm -rf ./dist; mkdir ./dist; g-build --progress --bail)",
+    "test": "npx jest",
+    "tdd": "jest . --watch",
+    "type-check": "tsc",
+    "type-watch": "tsc --watch"
+  },
+  "author": "",
+  "license": "Apache-2.0",
+  "repository": {
+    "type" : "git",
+    "url" : "https://github.com/gravitational/webapps/webapps.git"
+  },
+  "dependencies": {
+    "@gravitational/shared": "1.0.0",
+    "@gravitational/design": "1.0.0"
+  },
+  "devDependencies": {
+    "@gravitational/build": "^1.0.0"
+  }
+}
