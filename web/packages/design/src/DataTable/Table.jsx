@@ -20,85 +20,79 @@ import { StyledTable, StyledEmptyIndicator } from './StyledTable';
 import * as Icons from './../Icon/Icon';
 
 /**
-* Sort indicator used by SortHeaderCell
-*/
+ * Sort indicator used by SortHeaderCell
+ */
 const SortTypes = {
   ASC: 'ASC',
-  DESC: 'DESC'
+  DESC: 'DESC',
 };
 
 class Table extends React.Component {
-
   renderHeader(children) {
     const { data } = this.props;
-    const cells = children.map((item, index)=>{
-      return this.renderCell(
-        item.props.header,
-        {
-          index,
-          key: index,
-          isHeader: true,
-          data,
-          ...item.props
-        });
-    })
+    const cells = children.map((item, index) => {
+      return this.renderCell(item.props.header, {
+        index,
+        key: index,
+        isHeader: true,
+        data,
+        ...item.props,
+      });
+    });
 
     return (
       <thead>
         <tr>{cells}</tr>
       </thead>
-    )
+    );
   }
 
   renderBody(children) {
     const { data } = this.props;
     const rows = [];
-    for (let i = 0; i < data.length; i++){
-      let cells = children.map((item, index)=>{
-        return this.renderCell(
-          item.props.cell,
-          {
-            rowIndex: i,
-            key: index,
-            isHeader: false,
-            data,
-            ...item.props
-          }
-        );
-      })
+    for (let i = 0; i < data.length; i++) {
+      let cells = children.map((item, index) => {
+        return this.renderCell(item.props.cell, {
+          rowIndex: i,
+          key: index,
+          isHeader: false,
+          data,
+          ...item.props,
+        });
+      });
 
       rows.push(<tr key={i}>{cells}</tr>);
     }
 
-    if(rows.length) {
+    if (rows.length) {
       return <tbody>{rows}</tbody>;
     }
 
     return (
       <tbody>
         <tr>
-          <td align="center" colSpan={children ? children.length:0}>
-          <Text typography="paragraph" m="6" color="text.primary">
-            NO DATA AVAILABLE
-          </Text>
+          <td align="center" colSpan={children ? children.length : 0}>
+            <Text typography="paragraph" m="6" color="text.primary">
+              NO DATA AVAILABLE
+            </Text>
           </td>
         </tr>
       </tbody>
     );
   }
 
-  renderCell(cell, cellProps){
+  renderCell(cell, cellProps) {
     if (React.isValidElement(cell)) {
-       return React.cloneElement(cell, cellProps);
+      return React.cloneElement(cell, cellProps);
     }
 
     return null;
   }
 
   render() {
-    /* eslint-disable no-unused-vars */
+    /* eslint-disable @typescript-eslint/no-unused-vars */
     const { data, children, ...rest } = this.props;
-    /* eslint-enable no-unused-vars */
+    /* eslint-enable @typescript-eslint/no-unused-vars */
 
     const columns = [];
     React.Children.forEach(children, child => {
@@ -106,7 +100,7 @@ class Table extends React.Component {
         return;
       }
 
-      if(!child.props._isColumn){
+      if (!child.props._isColumn) {
         throw 'Should be Column';
       }
 
@@ -122,12 +116,12 @@ class Table extends React.Component {
   }
 }
 
-const SortIndicator = ({sortDir})=>{
-  if(sortDir === SortTypes.DESC){
+const SortIndicator = ({ sortDir }) => {
+  if (sortDir === SortTypes.DESC) {
     return <Icons.SortDesc />;
   }
 
-  if( sortDir === SortTypes.ASC){
+  if (sortDir === SortTypes.ASC) {
     return <Icons.SortAsc />;
   }
 
@@ -136,31 +130,32 @@ const SortIndicator = ({sortDir})=>{
 
 class Column extends React.Component {
   static defaultProps = {
-    _isColumn: true
+    _isColumn: true,
   };
 
   render() {
-    throw new Error("Component Column should never render");
+    throw new Error('Component Column should never render');
   }
 }
 
 const Cell = props => {
   const { isHeader, children, align, style, className } = props;
   const childProps = {
-    children, align, style, className
-  }
+    children,
+    align,
+    style,
+    className,
+  };
 
-  if(isHeader) {
+  if (isHeader) {
     return <th {...childProps} />;
   }
 
   return <td {...childProps} />;
-}
+};
 
-const TextCell = ({rowIndex, data, columnKey, ...props}) => (
-  <Cell {...props}>
-    {data[rowIndex][columnKey]}
-  </Cell>
+const TextCell = ({ rowIndex, data, columnKey, ...props }) => (
+  <Cell {...props}>{data[rowIndex][columnKey]}</Cell>
 );
 
 class SortHeaderCell extends React.Component {
@@ -174,38 +169,40 @@ class SortHeaderCell extends React.Component {
 
     // default
     let newDir = SortTypes.DESC;
-    if(sortDir){
+    if (sortDir) {
       newDir = sortDir === SortTypes.DESC ? SortTypes.ASC : SortTypes.DESC;
     }
 
     this.props.onSortChange(columnKey, newDir);
-  }
+  };
 
   render() {
     const { sortDir, title, ...props } = this.props;
     return (
       <Cell {...props}>
         <a onClick={this.onSortChange}>{title}</a>
-        <SortIndicator sortDir={sortDir}/>
+        <SortIndicator sortDir={sortDir} />
       </Cell>
     );
   }
 }
 
 class EmptyIndicator extends React.Component {
-
   render() {
-    const {children, title} = this.props;
-    const noResults = title || "No Results Found";
+    const { children, title } = this.props;
+    const noResults = title || 'No Results Found';
     return (
       <StyledEmptyIndicator>
-        <Text typography="h1" color="text.primary">{noResults}</Text>
-        <Text typography="paragraph" mt="3" color="text.primary">{children}</Text>
+        <Text typography="h1" color="text.primary">
+          {noResults}
+        </Text>
+        <Text typography="paragraph" mt="3" color="text.primary">
+          {children}
+        </Text>
       </StyledEmptyIndicator>
     );
   }
 }
-
 
 export {
   Column,
@@ -215,5 +212,5 @@ export {
   SortHeaderCell,
   SortIndicator,
   SortTypes,
-  EmptyIndicator
+  EmptyIndicator,
 };

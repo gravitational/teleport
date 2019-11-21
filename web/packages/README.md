@@ -1,6 +1,6 @@
 # Packages
 
-This directory contains Gravitational npm packages. A package can be
+This directory contains Gravitational Web UI packages. A package can be
 a stand-alone web application or library referenced by other packages.
 
 ## Description
@@ -13,25 +13,31 @@ a stand-alone web application or library referenced by other packages.
 |`design`| Gravitational Design-System  |
 |`shared`| Shared code |
 
-## Adding a new package
+## Working with the packages
+The packages are managed by yarn via yarn workspaces.
 
-If you want to add a new project or package into this directory,
-please read this article about
-[yarn workspaces](https://yarnpkg.com/blog/2017/08/02/introducing-workspaces/)
+To learn more about workspaces, check these links:
 
-## Building
+- [Workspaces in Yarn](https://yarnpkg.com/blog/2017/08/02/introducing-workspaces)
+- [Workspaces](https://yarnpkg.com/en/docs/workspaces)
 
-You can run build scripts from this repository root folder
+##### `yarn workspace <workspace_name> <command>` <a class="toc" id="toc-yarn-workspace" href="#toc-yarn-workspace"></a>
 
+This will run the chosen Yarn command in the selected workspace.
+
+Example:
+
+```sh
+yarn workspace awesome-package add react react-dom --dev
 ```
-$ cd webapps/
-$ yarn workspace @gravitational/your_package_name run build
+
+This will add `react` and `react-dom` as `devDependencies` in your `packages/awesome-package/package.json`.
+
+If you want to remove a package:
+
+```sh
+yarn workspace web-project remove some-package
 ```
 
-or if you are working directly on the package, you can run it inside the
-package folder
+The example above would remove `some-package` from `packages/web-project/package.json`.
 
-```
-$ cd webapps/packages/mypackage
-$ yarn run build
-```

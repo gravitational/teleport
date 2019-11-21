@@ -74,7 +74,7 @@ module.exports = function createConfig() {
        * For ex: require('./../../../config') can be replaced with require('app/config')
        **/
       modules: ['node_modules', 'src'],
-      extensions: ['.js', '.jsx'],
+      extensions: ['.ts', '.tsx', '.js', '.jsx'],
     },
 
     noParse: function(content) {
@@ -123,7 +123,7 @@ module.exports = function createConfig() {
         }
 
         return {
-          test: /\.(js|jsx)$/,
+          test: /\.(ts|tsx|js|jsx)$/,
           exclude: /(node_modules)|(assets)/,
           use: [
             {

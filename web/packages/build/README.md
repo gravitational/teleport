@@ -34,7 +34,7 @@ webpack entry point for Gravitational web applications.
 Then you can run
 
 ```
-$ yarn gravity-build
+$ yarn g-build
 ```
 
 ## Custom webpack config
@@ -56,7 +56,7 @@ module.exports = defaultCfg;
 Then you can use `--config` parameter.
 
 ```
-$ yarn gravity-build --config webpack.config.js
+$ yarn g-build --config webpack.config.js
 ```
 
 ## Aliases

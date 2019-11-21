@@ -29,7 +29,7 @@ const ThemeDecorator = storyFn => (
 
 addDecorator(ThemeDecorator);
 
-const reqs = require.context('./../packages/', true, /\.story.js$/);
+const reqs = require.context('./../packages/', true, /\.story.(js|tsx)$/);
 const loadStories = () => {
   reqs.keys().forEach(reqs);
 };

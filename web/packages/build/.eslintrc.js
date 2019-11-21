@@ -1,8 +1,24 @@
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 const path = require('path');
 const createConfig = require('./webpack/webpack.base');
 
 module.exports = {
-  parser: 'babel-eslint',
+  parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 6,
     sourceType: 'module',
@@ -23,12 +39,21 @@ module.exports = {
   },
   extends: [
     'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
     'plugin:import/errors',
     'plugin:import/warnings',
   ],
   plugins: ['react', 'babel', 'import'],
 
   rules: {
+    // <TODO> Enable these rules after fixing all existing issues
+    '@typescript-eslint/no-use-before-define': 0,
+    '@typescript-eslint/indent': 0,
+    '@typescript/no-use-before-define': 0,
+    '@typescript-eslint/no-var-requires': 0,
+    '@typescript-eslint/camelcase': 0,
+    '@typescript-eslint/class-name-casing': 0,
+    // </TODO>
     'comma-dangle': 0,
     'no-mixed-spaces-and-tabs': 0,
     'no-alert': 0,
@@ -38,7 +63,7 @@ module.exports = {
     'import/no-unresolved': 2,
     'no-underscore-dangle': 0,
     'no-case-declarations': 0,
-    'strict': 0,
+    strict: 0,
     'no-console': 1,
     'no-trailing-spaces': 2,
     'react/display-name': 0,
@@ -59,10 +84,10 @@ module.exports = {
     'react/sort-comp': 0,
     'react/jsx-wrap-multilines': 1,
   },
-   settings: {
+  settings: {
     'import/resolver': {
       webpack: {
-        config: createConfig()
+        config: createConfig(),
       },
     },
   },

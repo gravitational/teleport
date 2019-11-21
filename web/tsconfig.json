@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "jsx": "preserve",
+    // Base directory to resolve non-relative module names (project root)
+    "baseUrl": ".",
+    // List of path mapping entries for module names to locations relative to the baseUrl.
+    "paths": {
+      "shared/*": ["packages/shared/*"],
+      "design/*": ["packages/design/src/*"],
+      "design": ["packages/design/src/"],
+      "teleport/*": ["packages/teleport/src/*"],
+      "gravity/*": ["packages/gravity/src/*"],
+      "e-gravity/*": ["packages/e/gravity/src/*"],
+      "e-teleport/*": ["packages/e/teleport/src/*"],
+      "e-shared/*": ["packages/e/shared/src/*"]
+    },
+    // Process & infer types from .js files.
+    "allowJs": true,
+    // Disable source maps
+    "sourceMap": false,
+    // Only do type-checking, leave trasformation to Babel.
+    "noEmit": true,
+    // Target ES6
+    "target": "ESNext",
+    // Require format
+    "module": "commonjs",
+    // Import non-ES modules as default imports.
+    "esModuleInterop": true
+  },
+  "include": [
+    "packages/"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
