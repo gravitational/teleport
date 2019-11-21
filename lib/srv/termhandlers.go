@@ -34,6 +34,12 @@ type TermHandlers struct {
 // without a TTY. Result of execution is propagated back on the ExecResult
 // channel of the context.
 func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+	// Parse the exec request and store it in the context.
+	_, err := parseExecRequest(req, ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// If a terminal was previously allocated for this command, run command in
 	// an interactive session. Otherwise run it in an exec session.
 	if ctx.GetTerm() != nil {

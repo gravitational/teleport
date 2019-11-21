@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -97,7 +98,10 @@ func (s *IntSuite) SetUpTest(c *check.C) {
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	var err error
-	utils.InitLoggerForTests(testing.Verbose())
+
+	//utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
+
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
@@ -3933,4 +3937,21 @@ func hasPAMPolicy() bool {
 	}
 
 	return true
+}
+
+// TestHelperProcess is used to re-exec Teleport in tests. Unfortunately it
+// needs to reside in all packages that re-exec Teleport.
+func TestHelperProcess(t *testing.T) {
+	// On execute this test when called from another test which will set this
+	// environment variable.
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	// Re-exec Teleport.
+	exitCode, err := srv.RunCommand()
+	if err != nil {
+		fmt.Printf("Failed to run command: %v.\n", err)
+	}
+	os.Exit(exitCode)
 }

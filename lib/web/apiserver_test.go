@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -57,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -171,6 +173,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetSessionServer(nodeClient),
 		regular.SetAuditLog(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -217,6 +220,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetAuditLog(s.proxyClient),
 		regular.SetNamespace(defaults.Namespace),
+		regular.SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 
@@ -1799,4 +1803,21 @@ func newTerminalHandler() TerminalHandler {
 		encoder: unicode.UTF8.NewEncoder(),
 		decoder: unicode.UTF8.NewDecoder(),
 	}
+}
+
+// TestHelperProcess is used to re-exec Teleport in tests. Unfortunately it
+// needs to reside in all packages that re-exec Teleport.
+func TestHelperProcess(t *testing.T) {
+	// On execute this test when called from another test which will set this
+	// environment variable.
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	// Re-exec Teleport.
+	exitCode, err := srv.RunCommand()
+	if err != nil {
+		fmt.Printf("Failed to run command: %v.\n", err)
+	}
+	os.Exit(exitCode)
 }

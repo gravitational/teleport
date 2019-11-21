@@ -125,6 +125,9 @@ type Exec interface {
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
+
+	// PID returns the PID of the Teleport process that was re-execed.
+	PID() int
 }
 
 // NewExecRequest creates a new local or remote Exec.
@@ -328,6 +331,11 @@ func (e *localExec) Wait() *ExecResult {
 // pre-processing routine (placed in a cgroup).
 func (e *localExec) Continue() {
 	e.contw.Close()
+}
+
+// PID returns the PID of the Teleport process that was re-execed.
+func (e *localExec) PID() int {
+	return e.Cmd.Process.Pid
 }
 
 func (e *localExec) String() string {
@@ -711,6 +719,11 @@ func (r *remoteExec) Wait() *ExecResult {
 // Continue does nothing for remote command execution.
 func (r *remoteExec) Continue() {
 	return
+}
+
+// PID returns an invalid PID for remotExec.
+func (r *remoteExec) PID() int {
+	return 0
 }
 
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {

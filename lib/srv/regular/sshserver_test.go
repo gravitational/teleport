@@ -280,6 +280,7 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 		output, _ = ioutil.ReadFile(tmpFile.Name())
 	}
 	socketPath := strings.TrimSpace(string(output))
+	fmt.Printf("--> socketPath: %v.\n", socketPath)
 
 	// try dialing the ssh agent socket:
 	file, err := net.Dial("unix", socketPath)

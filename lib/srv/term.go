@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"os/user"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -213,13 +214,26 @@ func (t *terminal) Run() error {
 
 	// Re-execute Teleport and pass along the allocated PTY as well as the
 	// command reader from where Teleport will know how to re-spawn itself.
-	teleportPath, err := os.Executable()
+	executable, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
+	// is appended if Teleport is running in debug mode.
+	args := []string{executable}
+	if strings.HasSuffix(executable, ".test") {
+		args = append(args, "-test.run=TestHelperProcess")
+	} else {
+		args = append(args, "exec")
+		if log.GetLevel() == log.DebugLevel {
+			args = append(args, "-d")
+		}
+	}
+
 	t.cmd = &exec.Cmd{
-		Path: teleportPath,
-		Args: []string{teleportPath, "exec"},
+		Path: executable,
+		Args: args,
 		Dir:  cmdmsg.Dir,
 		ExtraFiles: []*os.File{
 			cmdr,
@@ -227,6 +241,12 @@ func (t *terminal) Run() error {
 			t.pty,
 			t.tty,
 		},
+	}
+
+	// Pass in environment variable that will be used by the helper function to
+	// know to re-exec Teleport.
+	if strings.HasSuffix(executable, ".test") {
+		t.cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	}
 
 	// Start the process.

@@ -217,12 +217,6 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 	}
 	ctx.Infof("Creating (exec) session %v.", sessionID)
 
-	// Parse the exec request and store it in the context.
-	_, err = parseExecRequest(req, ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
 	err = sess.startExec(channel, ctx)
@@ -820,12 +814,8 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
-	lexec, ok := ctx.ExecRequest.(*localExec)
-	if !ok {
-		return trace.BadParameter("command is of invalid type %T", ctx.ExecRequest)
-	}
 	sessionContext := &bpf.SessionContext{
-		PID:       lexec.Cmd.Process.Pid,
+		PID:       ctx.ExecRequest.PID(),
 		AuditLog:  s.recorder.GetAuditLog(),
 		Namespace: ctx.srv.GetNamespace(),
 		SessionID: string(s.id),
