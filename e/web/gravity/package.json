@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "gravity-start",
-    "build": "rm -rf ./dist; mkdir ./dist; gravity-build --progress --bail",
+    "start": "g-start",
+    "build": "rm -rf ./dist; mkdir ./dist; g-build --progress --bail",
     "test": "jest",
     "tdd": "jest . --watch"
   },
