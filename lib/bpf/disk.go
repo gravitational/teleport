@@ -66,7 +66,7 @@ type rawOpenEvent struct {
 	Flags int32
 }
 
-// exec runs a BPF program (opensnoop) that hooks execve.
+// open runs a BPF program (opensnoop) that hooks openat.
 type open struct {
 	closeContext context.Context
 

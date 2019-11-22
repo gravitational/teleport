@@ -48,6 +48,7 @@ func (s *Suite) TearDownTest(c *check.C)  {}
 // TestCreate tests creating and removing cgroups as well as shutting down
 // the service and unmounting the cgroup hierarchy.
 func (s *Suite) TestCreate(c *check.C) {
+	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
 		c.Skip("Tests for package cgroup can only be run as root.")
 	}
@@ -55,8 +56,6 @@ func (s *Suite) TestCreate(c *check.C) {
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
 	dir, err := ioutil.TempDir("", "cgroup-test")
 	c.Assert(err, check.IsNil)
-	if err != nil {
-	}
 	defer os.RemoveAll(dir)
 
 	// Start cgroup service.
@@ -101,6 +100,7 @@ func (s *Suite) TestCreate(c *check.C) {
 // TestCleanup tests the ability for Teleport to remove and cleanup all
 // cgroups which is performed upon startup.
 func (s *Suite) TestCleanup(c *check.C) {
+	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
 		c.Skip("Tests for package cgroup can only be run as root.")
 	}
