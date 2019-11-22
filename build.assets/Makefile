@@ -17,11 +17,10 @@ OS ?= linux
 ARCH ?= amd64
 RUNTIME ?= go1.13.2
 
-BBOX=teleport-buildbox:latest
-BBOXFIPS=teleport-buildbox-fips:latest
-REGISTRYROOT=quay.io/gravitational
-BBOXCENTOS6=$(REGISTRYROOT)/teleport-buildbox-centos6:$(RUNTIME)
-BBOXCENTOS6FIPS=$(REGISTRYROOT)/teleport-buildbox-centos6-fips:$(RUNTIME)
+BBOX=teleport-buildbox:$(RUNTIME)
+BBOXFIPS=teleport-buildbox-fips:$(RUNTIME)
+BBOXCENTOS6=teleport-buildbox-centos6:$(RUNTIME)
+BBOXCENTOS6FIPS=teleport-buildbox-centos6-fips:$(RUNTIME)
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
