@@ -178,7 +178,8 @@ EOF
         CERTBOT_DONE=false
         while [[ "${CERTBOT_DONE}" != "true" ]] && [[ "${RETRIES}" > 0 ]]; do
             cloudflareagent_log "Attempts remaining: ${RETRIES}"
-            certbot certonly -n --agree-tos --email ${LETSENCRYPT_EMAIL} --dns-cloudflare --dns-cloudflare-credentials /tmp/cloudflare-credentials-certbot.ini -d ${DOMAIN_TO_REGISTER}
+            # don't exit on error for this command
+            certbot certonly -n --agree-tos --email ${LETSENCRYPT_EMAIL} --dns-cloudflare --dns-cloudflare-credentials /tmp/cloudflare-credentials-certbot.ini -d ${DOMAIN_TO_REGISTER} || true
             if [ $? -ne 0 ]; then
                 cloudflareagent_log "Attempt failed"
                 ((RETRIES--))
