@@ -15,11 +15,21 @@ limitations under the License.
 */
 
 import React from 'react';
-import { configure } from '@storybook/react';
+import { configure, addParameters } from '@storybook/react';
 import { addDecorator } from '@storybook/react';
 import theme from './../packages/design/src/theme';
 import ThemeProvider from './../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
+
+const reqs = require.context('./../packages/', true, /\.story.(js|tsx)$/);
+
+function storySort(moduleA, moduleB) {
+  return moduleA[1].id.localeCompare(moduleB[1].id);
+}
+
+function loadStories() {
+  reqs.keys().forEach(reqs);
+}
 
 const ThemeDecorator = storyFn => (
   <ThemeProvider theme={theme}>
@@ -28,10 +38,13 @@ const ThemeDecorator = storyFn => (
 );
 
 addDecorator(ThemeDecorator);
-
-const reqs = require.context('./../packages/', true, /\.story.(js|tsx)$/);
-const loadStories = () => {
-  reqs.keys().forEach(reqs);
-};
+addParameters({
+  options: {
+    showPanel: false,
+    showNav: true,
+    isToolshown: true,
+    storySort,
+  },
+});
 
 configure(loadStories, module);
