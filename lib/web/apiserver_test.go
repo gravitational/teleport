@@ -105,6 +105,24 @@ var _ = Suite(&WebSuite{
 	clock: clockwork.NewFakeClock(),
 })
 
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise it will run tests as normal.
+func TestMain(m *testing.M) {
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe.
+	if len(os.Args) == 2 && os.Args[1] == "exec" {
+		code, err := srv.RunCommand()
+		if err != nil {
+			fmt.Printf("Failed to run command: %v.\n", err)
+		}
+		os.Exit(code)
+	}
+
+	// Otherwise run tests as normal.
+	code := m.Run()
+	os.Exit(code)
+}
+
 func (s *WebSuite) SetUpSuite(c *C) {
 	var err error
 	os.Unsetenv(teleport.DebugEnvVar)
@@ -1803,21 +1821,4 @@ func newTerminalHandler() TerminalHandler {
 		encoder: unicode.UTF8.NewEncoder(),
 		decoder: unicode.UTF8.NewDecoder(),
 	}
-}
-
-// TestHelperProcess is used to re-exec Teleport in tests. Unfortunately it
-// needs to reside in all packages that re-exec Teleport.
-func TestHelperProcess(t *testing.T) {
-	// On execute this test when called from another test which will set this
-	// environment variable.
-	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
-		return
-	}
-
-	// Re-exec Teleport.
-	exitCode, err := srv.RunCommand()
-	if err != nil {
-		fmt.Printf("Failed to run command: %v.\n", err)
-	}
-	os.Exit(exitCode)
 }

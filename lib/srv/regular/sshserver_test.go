@@ -83,6 +83,21 @@ var wildcardAllow = services.Labels{
 var _ = fmt.Printf
 var _ = Suite(&SrvSuite{})
 
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise it will run tests as normal.
+func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
+		code, err := srv.RunCommand()
+		if err != nil {
+			fmt.Printf("Failed to run command: %v.\n", err)
+		}
+		os.Exit(code)
+	}
+
+	code := m.Run()
+	os.Exit(code)
+}
+
 func (s *SrvSuite) SetUpSuite(c *C) {
 	var err error
 
@@ -280,7 +295,6 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 		output, _ = ioutil.ReadFile(tmpFile.Name())
 	}
 	socketPath := strings.TrimSpace(string(output))
-	fmt.Printf("--> socketPath: %v.\n", socketPath)
 
 	// try dialing the ssh agent socket:
 	file, err := net.Dial("unix", socketPath)
@@ -1185,21 +1199,4 @@ func removeNL(v string) string {
 	v = strings.Replace(v, "\r", "", -1)
 	v = strings.Replace(v, "\n", "", -1)
 	return v
-}
-
-// TestHelperProcess is used to re-exec Teleport in tests. Unfortunately it
-// needs to reside in all packages that re-exec Teleport.
-func TestHelperProcess(t *testing.T) {
-	// On execute this test when called from another test which will set this
-	// environment variable.
-	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
-		return
-	}
-
-	// Re-exec Teleport.
-	exitCode, err := srv.RunCommand()
-	if err != nil {
-		fmt.Printf("Failed to run command: %v.\n", err)
-	}
-	os.Exit(exitCode)
 }

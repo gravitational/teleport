@@ -22,10 +22,12 @@ import (
 	"io"
 	"net"
 	"os"
+	os_exec "os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
 	"strconv"
+	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -53,10 +55,29 @@ type ExecSuite struct {
 	ctx        *ServerContext
 	localAddr  net.Addr
 	remoteAddr net.Addr
+	a          *auth.AuthServer
 }
 
 var _ = check.Suite(&ExecSuite{})
 var _ = fmt.Printf
+
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise it will run tests as normal.
+func TestMain(m *testing.M) {
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe.
+	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
+		code, err := RunCommand()
+		if err != nil {
+			fmt.Printf("Failed to run command: %v.\n", err)
+		}
+		os.Exit(code)
+	}
+
+	// Otherwise run tests as normal.
+	code := m.Run()
+	os.Exit(code)
+}
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
@@ -70,20 +91,20 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(err, check.IsNil)
-	a, err := auth.NewAuthServer(&auth.InitConfig{
+	s.a, err = auth.NewAuthServer(&auth.InitConfig{
 		Backend:     bk,
 		Authority:   authority.New(),
 		ClusterName: clusterName,
 	})
 	c.Assert(err, check.IsNil)
-	a.SetClusterName(clusterName)
+	s.a.SetClusterName(clusterName)
 
 	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionTokenV1{},
 	})
 	c.Assert(err, check.IsNil)
-	err = a.SetStaticTokens(staticTokens)
+	err = s.a.SetStaticTokens(staticTokens)
 	c.Assert(err, check.IsNil)
 
 	dir := c.MkDir()
@@ -94,7 +115,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx = &ServerContext{
 		IsTestStub: true,
 		srv: &fakeServer{
-			accessPoint: a,
+			accessPoint: s.a,
 			auditLog:    &fakeLog{},
 			id:          "00000000-0000-0000-0000-000000000000",
 		},
@@ -214,7 +235,67 @@ func (s *ExecSuite) TestEmitExecAuditEvent(c *check.C) {
 	}
 }
 
-// implementation of ssh.Conn interface
+// TestContinue tests if the process hangs if a continue signal is not sent
+// and makes sure the process continues once it has been sent.
+func (s *ExecSuite) TestContinue(c *check.C) {
+	lsPath, err := os_exec.LookPath("ls")
+	c.Assert(err, check.IsNil)
+
+	// Create a fake context that will be used to configure a command that will
+	// re-exec "ls".
+	ctx := &ServerContext{
+		IsTestStub: true,
+		srv: &fakeServer{
+			accessPoint: s.a,
+			auditLog:    &fakeLog{},
+			id:          "00000000-0000-0000-0000-000000000000",
+		},
+	}
+	ctx.Identity.Login = s.usr.Username
+	ctx.Identity.TeleportUser = "galt"
+	ctx.Conn = &ssh.ServerConn{Conn: s}
+	ctx.ExecRequest = &localExec{
+		Ctx:     ctx,
+		Command: lsPath,
+	}
+
+	// Create an exec.Cmd to execute through Teleport.
+	cmd, cont, err := configureCommand(ctx)
+	c.Assert(err, check.IsNil)
+
+	// Create a context that will be used to signal that execution is complete.
+	doneContext, doneCancel := context.WithCancel(context.Background())
+
+	// Re-execute Teleport and run "ls". Signal over the context when execution
+	// is complete.
+	go func() {
+		cmd.Run()
+		doneCancel()
+	}()
+
+	// Wait for the process. Since the continue pipe has not been closed, the
+	// process should not have exited yet.
+	select {
+	case <-doneContext.Done():
+		c.Fatalf("Process exited before continue.")
+	case <-time.After(5 * time.Second):
+	}
+
+	// Close the continue pipe to signal to Teleport to now execute the
+	// requested program.
+	err = cont.Close()
+	c.Assert(err, check.IsNil)
+
+	// Program should have executed now. If the complete signal has not come
+	// over the context, something failed.
+	select {
+	case <-time.After(5 * time.Second):
+		c.Fatalf("Timed out waiting for process to finish.")
+	case <-doneContext.Done():
+	}
+}
+
+// Implementation of ssh.Conn interface.
 func (s *ExecSuite) User() string                                           { return s.usr.Username }
 func (s *ExecSuite) SessionID() []byte                                      { return []byte{1, 2, 3} }
 func (s *ExecSuite) ClientVersion() []byte                                  { return []byte{1} }

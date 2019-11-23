@@ -233,9 +233,9 @@ func (s *Service) loop() {
 
 // emitCommandEvent will parse and emit command events to the Audit Log.
 func (s *Service) emitCommandEvent(eventBytes []byte) {
+	// Unmarshal raw event bytes.
 	var event rawExecEvent
-
-	err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
+	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		log.Debugf("Failed to read binary data: %v.", err)
 		return
@@ -309,9 +309,9 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 
 // emitDiskEvent will parse and emit disk events to the Audit Log.
 func (s *Service) emitDiskEvent(eventBytes []byte) {
+	// Unmarshal raw event bytes.
 	var event rawOpenEvent
-
-	err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
+	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		log.Debugf("Failed to read binary data: %v.", err)
 		return
@@ -359,9 +359,9 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 
 // emit4NetworkEvent will parse and emit IPv4 events to the Audit Log.
 func (s *Service) emit4NetworkEvent(eventBytes []byte) {
+	// Unmarshal raw event bytes.
 	var event rawConn4Event
-
-	err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
+	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		log.Debugf("Failed to read binary data: %v.", err)
 		return
@@ -413,9 +413,9 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 
 // emit6NetworkEvent will parse and emit IPv6 events to the Audit Log.
 func (s *Service) emit6NetworkEvent(eventBytes []byte) {
+	// Unmarshal raw event bytes.
 	var event rawConn6Event
-
-	err := binary.Read(bytes.NewBuffer(eventBytes), bcc.GetHostByteOrder(), &event)
+	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		log.Debugf("Failed to read binary data: %v.", err)
 		return
@@ -487,6 +487,18 @@ func (s *Service) removeWatch(cgroupID uint64) {
 	defer s.watchMu.Unlock()
 
 	delete(s.watch, cgroupID)
+}
+
+func unmarshalEvent(data []byte, v interface{}) error {
+	err := binary.Read(bytes.NewBuffer(data), bcc.GetHostByteOrder(), v)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func convertString(s unsafe.Pointer) string {
+	return C.GoString((*C.char)(s))
 }
 
 // isHostCompatible checks that BPF programs can run on this host.

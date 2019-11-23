@@ -17,14 +17,11 @@ limitations under the License.
 package srv
 
 import (
-	"bytes"
-	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
 	"os/user"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -176,78 +173,18 @@ func (t *terminal) AddParty(delta int) {
 
 // Run will run the terminal.
 func (t *terminal) Run() error {
+	var err error
 	defer t.closeTTY()
 
-	// Create and marshal command to execute.
-	cmdmsg, err := prepareCommand(t.ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cmdbytes, err := json.Marshal(cmdmsg)
+	// Create the command that will actually execute.
+	t.cmd, t.contw, err = configureCommand(t.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Create a pipe used to signal to the process it's safe to continue.
-	// Used to make the process wait until it's been placed in a cgroup by the
-	// parent process.
-	contr, contw, err := os.Pipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	t.contw = contw
-
-	// Create pipe and write bytes to pipe. The child process will read the
-	// command to execute from this pipe.
-	cmdr, cmdw, err := os.Pipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = io.Copy(cmdw, bytes.NewReader(cmdbytes))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = cmdw.Close()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Re-execute Teleport and pass along the allocated PTY as well as the
-	// command reader from where Teleport will know how to re-spawn itself.
-	executable, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
-	// is appended if Teleport is running in debug mode.
-	args := []string{executable}
-	if strings.HasSuffix(executable, ".test") {
-		args = append(args, "-test.run=TestHelperProcess")
-	} else {
-		args = append(args, "exec")
-		if log.GetLevel() == log.DebugLevel {
-			args = append(args, "-d")
-		}
-	}
-
-	t.cmd = &exec.Cmd{
-		Path: executable,
-		Args: args,
-		Dir:  cmdmsg.Dir,
-		ExtraFiles: []*os.File{
-			cmdr,
-			contr,
-			t.pty,
-			t.tty,
-		},
-	}
-
-	// Pass in environment variable that will be used by the helper function to
-	// know to re-exec Teleport.
-	if strings.HasSuffix(executable, ".test") {
-		t.cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
-	}
+	// Pass PTY and TTY to child as well since a terminal is attached.
+	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, t.pty)
+	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, t.tty)
 
 	// Start the process.
 	err = t.cmd.Start()

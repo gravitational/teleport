@@ -576,5 +576,10 @@ const (
 	EnhancedRecordingNetwork = "network"
 )
 
+const (
+	// ExecSubCommand is the sub-command Teleport uses to re-exec itself.
+	ExecSubCommand = "exec"
+)
+
 // RSAKeySize is the size of the RSA key.
 const RSAKeySize = 2048

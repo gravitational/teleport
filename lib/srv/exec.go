@@ -19,6 +19,7 @@ package srv
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -199,73 +201,10 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create and marshal command to execute.
-	cmdmsg, err := prepareCommand(e.Ctx)
+	// Create the command that will actually execute.
+	e.Cmd, e.contw, err = configureCommand(e.Ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	cmdbytes, err := json.Marshal(cmdmsg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create a pipe used to signal to the process it's safe to continue.
-	// Used to make the process wait until it's been placed in a cgroup by the
-	// parent process.
-	contr, contw, err := os.Pipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	e.contw = contw
-
-	// Create pipe and write bytes to pipe. The child process will read the
-	// command to execute from this pipe.
-	cmdr, cmdw, err := os.Pipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = io.Copy(cmdw, bytes.NewReader(cmdbytes))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = cmdw.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Re-execute Teleport and pass along the allocated PTY as well as the
-	// command reader from where Teleport will know how to re-spawn itself.
-	executable, err := os.Executable()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
-	// is appended if Teleport is running in debug mode.
-	args := []string{executable}
-	if strings.HasSuffix(executable, ".test") {
-		args = append(args, "-test.run=TestHelperProcess")
-	} else {
-		args = append(args, "exec")
-		if log.GetLevel() == log.DebugLevel {
-			args = append(args, "-d")
-		}
-	}
-
-	e.Cmd = &exec.Cmd{
-		Path: executable,
-		Args: args,
-		Dir:  cmdmsg.Dir,
-		ExtraFiles: []*os.File{
-			cmdr,
-			contr,
-		},
-	}
-
-	// Pass in environment variable that will be used by the helper function to
-	// know to re-exec Teleport.
-	if strings.HasSuffix(executable, ".test") {
-		e.Cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	}
 
 	// Connect stdout and stderr to the channel so the user can interact with
@@ -409,10 +348,12 @@ func RunCommand() (int, error) {
 		}
 	}
 
-	// Reading from the continue file descriptor will block until it's closed. It
-	// won't be closed until the parent has placed it in a cgroup.
-	var r bytes.Buffer
-	r.ReadFrom(contfd)
+	// Wait until the continue signal is received from Teleport signaling that
+	// the child process has been placed in a cgroup.
+	err = waitForContinue(contfd)
+	if err != nil {
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
 
 	// If PAM is enabled, open a PAM context.
 	var pamContext *pam.PAM
@@ -653,6 +594,94 @@ func prepareCommand(ctx *ServerContext) (*execCommand, error) {
 	}
 
 	return &c, nil
+}
+
+// configureCommand creates a command fully configured to execute.
+func configureCommand(ctx *ServerContext) (*exec.Cmd, *os.File, error) {
+	// Create and marshal command to execute.
+	cmdmsg, err := prepareCommand(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	cmdbytes, err := json.Marshal(cmdmsg)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Create a pipe used to signal to the process it's safe to continue.
+	// Used to make the process wait until it's been placed in a cgroup by the
+	// parent process.
+	contr, contw, err := os.Pipe()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Create pipe and write bytes to pipe. The child process will read the
+	// command to execute from this pipe.
+	cmdr, cmdw, err := os.Pipe()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	_, err = io.Copy(cmdw, bytes.NewReader(cmdbytes))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	err = cmdw.Close()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Re-execute Teleport and pass along the allocated PTY as well as the
+	// command reader from where Teleport will know how to re-spawn itself.
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
+	// is appended if Teleport is running in debug mode.
+	args := []string{executable, teleport.ExecSubCommand}
+	if log.GetLevel() == log.DebugLevel {
+		args = append(args, "-d")
+	}
+
+	// Return the fully configured command ready to execute.
+	return &exec.Cmd{
+		Path: executable,
+		Args: args,
+		Dir:  cmdmsg.Dir,
+		ExtraFiles: []*os.File{
+			cmdr,
+			contr,
+		},
+	}, contw, nil
+}
+
+// waitForContinue will wait 10 seconds for the continue signal, if not
+// received, it will stop waiting and exit.
+func waitForContinue(contfd *os.File) error {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		// Reading from the continue file descriptor will block until it's closed. It
+		// won't be closed until the parent has placed it in a cgroup.
+		var r bytes.Buffer
+		r.ReadFrom(contfd)
+
+		// Continue signal has been processed, signal to continue execution.
+		cancel()
+	}()
+
+	// Wait for 10 seconds and then timeout if no continue signal has been sent.
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+
+	select {
+	case <-timeout.C:
+		return trace.BadParameter("timed out waiting for continue signal")
+	case <-ctx.Done():
+	}
+	return nil
 }
 
 // remoteExec is used to run an "exec" SSH request and return the result.
