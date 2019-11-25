@@ -254,7 +254,7 @@ USE_ACM="true"
 TELEPORT_DOMAIN_NAME="teleport.acmeinc.com"
 TELEPORT_EXTERNAL_HOSTNAME="teleport.acmeinc.com"
 TELEPORT_EXTERNAL_PORT="443"
-TELEPORT_PROXY_SERVER_LB="test-nlb.acmeinc.com:3023"
+TELEPORT_AUTH_SERVER_LB="teleport-nlb.acmeinc.com"
 EOF
 ```
 
@@ -287,7 +287,7 @@ assuming it's set when the server starts.
     - Target group will point to your instance - point to `3025/tcp`
     - Create a DNS record for `teleport-nlb.acmeinc.com`
     - Point this to the public A record of the NLB as provided by Amazon
-    - Make sure that your DNS record is also reflected in `TELEPORT_PROXY_SERVER_LB` in the user data
+    - Make sure that your DNS record is also reflected in `TELEPORT_AUTH_SERVER_LB` in the user data
     - Launch the instance (you can also use an already-running instance if you
     follow the instructions at the bottom of this section)
 
