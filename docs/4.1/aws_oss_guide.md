@@ -254,7 +254,7 @@ USE_ACM="true"
 TELEPORT_DOMAIN_NAME="teleport.acmeinc.com"
 TELEPORT_EXTERNAL_HOSTNAME="teleport.acmeinc.com"
 TELEPORT_EXTERNAL_PORT="443"
-TELEPORT_PROXY_SERVER_LB="test-nlb.acmeinc.com:3025"
+TELEPORT_PROXY_SERVER_LB="test-nlb.acmeinc.com:3023"
 EOF
 ```
 
