@@ -1,9 +1,6 @@
 #
 # This Makefile is used for producing official Teleport releases
 #
-BBOX=teleport-buildbox:latest
-BBOXFIPS=teleport-buildbox-fips:latest
-
 DOCSBOX=teleport-docsbox:latest
 DOCSHOST=teleport-docs
 DOCSDIR=/teleport
@@ -19,6 +16,11 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 RUNTIME ?= go1.13.2
+
+BBOX=teleport-buildbox:$(RUNTIME)
+BBOXFIPS=teleport-buildbox-fips:$(RUNTIME)
+BBOXCENTOS6=teleport-buildbox-centos6:$(RUNTIME)
+BBOXCENTOS6FIPS=teleport-buildbox-centos6-fips:$(RUNTIME)
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -64,6 +66,28 @@ bbox-fips:
 		--build-arg GID=$$(id -g) \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--tag $(BBOXFIPS) -f Dockerfile-fips .
+
+#
+# Builds a Docker container for CentOS 6 builds 
+#
+.PHONY:bbox-centos6
+bbox-centos6:
+	docker build \
+		--build-arg UID=$$(id -u) \
+		--build-arg GID=$$(id -g) \
+		--build-arg RUNTIME=$(RUNTIME) \
+		--tag $(BBOXCENTOS6) -f Dockerfile-centos6 .
+
+#
+# Builds a Docker buildbox for CentOS 6 FIPS builds
+#
+.PHONY:bbox-centos6-fips
+bbox-centos6-fips:
+	docker build \
+		--build-arg UID=$$(id -u) \
+		--build-arg GID=$$(id -g) \
+		--build-arg RUNTIME=$(RUNTIME) \
+		--tag $(BBOXCENTOS6FIPS) -f Dockerfile-centos6-fips .
 
 #
 # Builds a Docker container for building mkdocs documentation
@@ -161,7 +185,24 @@ release: bbox
 release-fips: bbox-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXFIPS) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)-fips
+		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
+
+#
+# Create a Teleport package for CentOS 6 using the build container.
+#
+.PHONY:release-centos6
+release-centos6: bbox-centos6
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXCENTOS6) \
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
+
+#
+# Create a Teleport FIPS package using the build container.
+# This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
+#
+.PHONY:release-centos6-fips
+release-centos6-fips: bbox-centos6-fips
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXCENTOS6FIPS) \
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes
 
 #
 # Create a Windows Teleport package using the build container.
