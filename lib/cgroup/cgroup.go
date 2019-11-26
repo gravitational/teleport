@@ -25,6 +25,7 @@ import "C"
 
 import (
 	"bufio"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -65,6 +66,10 @@ func (c *Config) CheckAndSetDefaults() error {
 // Service manages cgroup orchestration.
 type Service struct {
 	*Config
+
+	// teleportRoot is the root cgroup that holds all Teleport sessions. Used
+	// to remove all cgroups upon shutdown.
+	teleportRoot string
 }
 
 // New creates a new cgroup service.
@@ -75,7 +80,8 @@ func New(config *Config) (*Service, error) {
 	}
 
 	s := &Service{
-		Config: config,
+		Config:       config,
+		teleportRoot: path.Join(config.MountPath, teleportRoot, uuid.New()),
 	}
 
 	// Mount the cgroup2 filesystem.
@@ -84,19 +90,19 @@ func New(config *Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Cleanup the Teleport cgroup2 hierarchy. This is called upon restart of
-	// Teleport, so all existing sessions should be done.
-	err = s.cleanupHierarchy()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	log.Debugf("Teleport session hierarchy mounted at: %v.", s.teleportRoot)
 
 	return s, nil
 }
 
 // Close will unmount the cgroup filesystem.
 func (s *Service) Close() error {
-	err := s.unmount()
+	err := s.cleanupHierarchy()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.unmount()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -105,7 +111,7 @@ func (s *Service) Close() error {
 
 // Create will create a cgroup for a given session.
 func (s *Service) Create(sessionID string) error {
-	err := os.Mkdir(path.Join(s.MountPath, teleportRoot, sessionID), fileMode)
+	err := os.Mkdir(path.Join(s.teleportRoot, sessionID), fileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -116,7 +122,7 @@ func (s *Service) Create(sessionID string) error {
 // moved to the root controller.
 func (s *Service) Remove(sessionID string) error {
 	// Read in all PIDs for the cgroup.
-	pids, err := readPids(path.Join(s.MountPath, teleportRoot, sessionID, cgroupProcs))
+	pids, err := readPids(path.Join(s.teleportRoot, sessionID, cgroupProcs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -129,7 +135,7 @@ func (s *Service) Remove(sessionID string) error {
 	}
 
 	// The rmdir syscall is used to remove a cgroup.
-	err = unix.Rmdir(path.Join(s.MountPath, teleportRoot, sessionID))
+	err = unix.Rmdir(path.Join(s.teleportRoot, sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -142,7 +148,7 @@ func (s *Service) Remove(sessionID string) error {
 // Place  place a process in the cgroup for that session.
 func (s *Service) Place(sessionID string, pid int) error {
 	// Open cgroup.procs file for the cgroup.
-	filepath := path.Join(s.MountPath, teleportRoot, sessionID, cgroupProcs)
+	filepath := path.Join(s.teleportRoot, sessionID, cgroupProcs)
 	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY, fileMode)
 	if err != nil {
 		return trace.Wrap(err)
@@ -203,7 +209,7 @@ func (s *Service) cleanupHierarchy() error {
 	var sessions []string
 
 	// Recursively look within the Teleport hierarchy for cgroups for session.
-	err := filepath.Walk(path.Join(s.MountPath, teleportRoot), func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(path.Join(s.teleportRoot), func(path string, info os.FileInfo, err error) error {
 		// Only pick up cgroup.procs files.
 		if !pattern.MatchString(path) {
 			return nil
@@ -249,8 +255,13 @@ func (s *Service) mount() error {
 
 	// Check if the Teleport root cgroup exists, if it does the cgroup filesystem
 	// is already mounted, return right away.
-	_, err = os.Stat(path.Join(s.MountPath, teleportRoot))
-	if err == nil {
+	files, err := ioutil.ReadDir(s.MountPath)
+	if err == nil && len(files) > 0 {
+		// Create cgroup that will hold Teleport sessions.
+		err = os.MkdirAll(s.teleportRoot, fileMode)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		return nil
 	}
 
@@ -293,7 +304,7 @@ func (s *Service) mount() error {
 	log.Debugf("Mounted cgroup filesystem to %v.", s.MountPath)
 
 	// Create cgroup that will hold Teleport sessions.
-	err = os.MkdirAll(path.Join(s.MountPath, teleportRoot), fileMode)
+	err = os.MkdirAll(s.teleportRoot, fileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -315,7 +326,7 @@ func (s *Service) unmount() error {
 
 // ID returns the cgroup ID for the given session.
 func (s *Service) ID(sessionID string) (uint64, error) {
-	path := path.Join(s.MountPath, teleportRoot, sessionID)
+	path := path.Join(s.teleportRoot, sessionID)
 
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
@@ -339,7 +350,7 @@ const (
 	// cgroup filesystem.
 	fileMode = 0555
 
-	// teleportRoot is the name of the root cgroup that holds all other
+	// teleportRoot is the prefix of the root cgroup that holds all other
 	// Teleport cgroups.
 	teleportRoot = "teleport"
 

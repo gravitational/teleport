@@ -70,7 +70,7 @@ func (s *Suite) TestCreate(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Make sure that it exists.
-	cgroupPath := path.Join(dir, teleportRoot, sessionID)
+	cgroupPath := path.Join(service.teleportRoot, sessionID)
 	_, err = os.Stat(cgroupPath)
 	if os.IsNotExist(err) {
 		c.Fatalf("Could not find cgroup file %v: %v.", cgroupPath, err)
@@ -129,7 +129,7 @@ func (s *Suite) TestCleanup(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Make sure the cgroup no longer exists.
-	cgroupPath := path.Join(dir, teleportRoot, sessionID)
+	cgroupPath := path.Join(service.teleportRoot, sessionID)
 	_, err = os.Stat(cgroupPath)
 	if os.IsNotExist(err) {
 		c.Fatalf("Could not find cgroup file %v: %v.", cgroupPath, err)
