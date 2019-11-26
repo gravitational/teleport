@@ -845,6 +845,10 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			ctx.SendExecResult(*result)
 		}
 
+		// Wait a little bit to let all events filter through before closing the
+		// BPF session so everything can be recorded.
+		time.Sleep(2 * time.Second)
+
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.
 		err = ctx.srv.GetBPF().CloseSession(sessionContext)

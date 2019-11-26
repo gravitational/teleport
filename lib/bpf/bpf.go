@@ -301,6 +301,9 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		}
 		ctx.AuditLog.EmitAuditEvent(events.SessionCommand, eventFields)
 
+		// Now that the event has been processed, remove from cache.
+		s.argsCache.Remove(strconv.FormatUint(event.PID, 10))
+
 		//// Remove, only for debugging.
 		//fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Program=%v Path=%v Args=%v ReturnCode=%v.\n",
 		//	event.CgroupID, event.PID, event.PPID, command, argv[0], argv[1:], event.ReturnCode)

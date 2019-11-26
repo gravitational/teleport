@@ -144,10 +144,12 @@ func (s *Suite) TestObfuscate(c *check.C) {
 	// BPF programs.
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
+		return
 	}
 	err := isHostCompatible()
 	if err != nil {
 		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
+		return
 	}
 
 	// Find the programs needed to run these tests on the host.
