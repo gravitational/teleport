@@ -30,7 +30,6 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9
 # 3) Erase Go bootstrap runtime and create build directories
 # 4) Print compiled Go version
 ARG RUNTIME
-#RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://go-boringcrypto.storage.googleapis.com/${GO_BOOTSTRAP_RUNTIME}b4.linux-amd64.tar.gz | tar xz && \
 RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/${GO_BOOTSTRAP_RUNTIME}.linux-amd64.tar.gz | tar xz && \
     mkdir -p /opt && cd /opt && curl https://go-boringcrypto.storage.googleapis.com/${RUNTIME}b4.src.tar.gz | tar xz && \
     cd /opt/go/src && GOROOT_BOOTSTRAP=/go-bootstrap/go ./make.bash && \
