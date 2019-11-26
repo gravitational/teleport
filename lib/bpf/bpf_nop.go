@@ -18,10 +18,6 @@ limitations under the License.
 
 package bpf
 
-import (
-	"github.com/gravitational/teleport/lib/events"
-)
-
 // Service is used on non-Linux systems as a NOP service that allows the
 // caller to open and close sessions that do nothing on systems that don't
 // support eBPF.

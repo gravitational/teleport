@@ -55,7 +55,7 @@ type SessionContext struct {
 	User string
 
 	// PID is the process ID of Teleport when it re-executes itself. This is
-	// used by Telepor to find itself by cgroup.
+	// used by Teleport to find itself by cgroup.
 	PID int
 
 	// AuditLog is used to store events for a particular sessionl

@@ -564,6 +564,10 @@ const (
 )
 
 const (
+	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
+	// recording feature.
+	EnhancedRecordingMinKernel = "4.18.0"
+
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
 	EnhancedRecordingCommand = "command"

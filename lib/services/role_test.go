@@ -201,11 +201,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						CertificateFormat: teleport.CertificateFormatStandard,
 						MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 						PortForwarding:    NewBoolOption(true),
-						BPF: []string{
-							teleport.EnhancedRecordingCommand,
-							teleport.EnhancedRecordingDisk,
-							teleport.EnhancedRecordingNetwork,
-						},
+						BPF:               defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{Wildcard: []string{Wildcard}},
@@ -267,11 +263,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						PortForwarding:        NewBoolOption(true),
 						ClientIdleTimeout:     NewDuration(17 * time.Minute),
 						DisconnectExpiredCert: NewBool(true),
-						BPF: []string{
-							teleport.EnhancedRecordingCommand,
-							teleport.EnhancedRecordingDisk,
-							teleport.EnhancedRecordingNetwork,
-						},
+						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -345,11 +337,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						PortForwarding:        NewBoolOption(true),
 						ClientIdleTimeout:     NewDuration(0),
 						DisconnectExpiredCert: NewBool(false),
-						BPF: []string{
-							teleport.EnhancedRecordingCommand,
-							teleport.EnhancedRecordingDisk,
-							teleport.EnhancedRecordingNetwork,
-						},
+						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{"a": []string{"b"}},
@@ -412,11 +400,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						PortForwarding:        NewBoolOption(true),
 						ClientIdleTimeout:     NewDuration(0),
 						DisconnectExpiredCert: NewBool(false),
-						BPF: []string{
-							teleport.EnhancedRecordingCommand,
-							teleport.EnhancedRecordingDisk,
-							teleport.EnhancedRecordingNetwork,
-						},
+						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{

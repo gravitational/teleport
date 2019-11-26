@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -4227,7 +4228,11 @@ func canTestBPF() error {
 	if os.Geteuid() != 0 {
 		return trace.BadParameter("not root")
 	}
-	return nil
 
-	// TODO: Add in isHostCompatible.
+	err := bpf.IsHostCompatible()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

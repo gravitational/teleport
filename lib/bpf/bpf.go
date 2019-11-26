@@ -91,7 +91,7 @@ func New(config *Config) (BPF, error) {
 	}
 
 	// Check if the host can run BPF programs.
-	err = isHostCompatible()
+	err = IsHostCompatible()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -282,9 +282,6 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		}
 		argv := args.([]string)
 
-		// Convert C string that holds the command name into a Go string.
-		command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
 		// Emit "command" event.
 		eventFields := events.EventFields{
 			// Common fields.
@@ -293,11 +290,11 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			events.SessionServerID: ctx.ServerID,
 			events.EventLogin:      ctx.Login,
 			events.EventUser:       ctx.User,
-			// Exec fields.
+			// Command fields.
 			events.PID:        event.PPID,
 			events.PPID:       event.PID,
 			events.CgroupID:   event.CgroupID,
-			events.Program:    command,
+			events.Program:    convertString(unsafe.Pointer(&event.Command)),
 			events.Path:       argv[0],
 			events.Argv:       argv[1:],
 			events.ReturnCode: event.ReturnCode,
@@ -306,10 +303,6 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 
 		// Now that the event has been processed, remove from cache.
 		s.argsCache.Remove(strconv.FormatUint(event.PID, 10))
-
-		//// Remove, only for debugging.
-		//fmt.Printf("--> Event=exec CgroupID=%v PID=%v PPID=%v Program=%v Path=%v Args=%v ReturnCode=%v.\n",
-		//	event.CgroupID, event.PID, event.PPID, command, argv[0], argv[1:], event.ReturnCode)
 	}
 }
 
@@ -335,12 +328,6 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		return
 	}
 
-	// Convert C string that holds the command name into a Go string.
-	command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
-	// Convert C string that holds the path into a Go string.
-	path := C.GoString((*C.char)(unsafe.Pointer(&event.Path)))
-
 	eventFields := events.EventFields{
 		// Common fields.
 		events.EventNamespace:  ctx.Namespace,
@@ -348,19 +335,15 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		events.SessionServerID: ctx.ServerID,
 		events.EventLogin:      ctx.Login,
 		events.EventUser:       ctx.User,
-		// Open fields.
+		// Disk fields.
 		events.PID:        event.PID,
 		events.CgroupID:   event.CgroupID,
-		events.Program:    command,
-		events.Path:       path,
+		events.Program:    convertString(unsafe.Pointer(&event.Command)),
+		events.Path:       convertString(unsafe.Pointer(&event.Path)),
 		events.Flags:      event.Flags,
 		events.ReturnCode: event.ReturnCode,
 	}
 	ctx.AuditLog.EmitAuditEvent(events.SessionDisk, eventFields)
-
-	//// Remove, only for debugging.
-	//fmt.Printf("Event=open CgroupID=%v PID=%v Command=%v ReturnCode=%v Flags=%#o Path=%v.\n",
-	//	event.CgroupID, event.PID, command, event.ReturnCode, event.Flags, path)
 }
 
 // emit4NetworkEvent will parse and emit IPv4 events to the Audit Log.
@@ -395,9 +378,6 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	binary.LittleEndian.PutUint32(dst, uint32(event.DstAddr))
 	dstAddr := net.IP(dst)
 
-	// Convert C string that holds the command name into a Go string.
-	command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
 	eventFields := events.EventFields{
 		// Common fields.
 		events.EventNamespace:  ctx.Namespace,
@@ -405,10 +385,10 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		events.SessionServerID: ctx.ServerID,
 		events.EventLogin:      ctx.Login,
 		events.EventUser:       ctx.User,
-		// Connect fields.
+		// Network fields.
 		events.PID:        event.PID,
 		events.CgroupID:   event.CgroupID,
-		events.Program:    command,
+		events.Program:    convertString(unsafe.Pointer(&event.Command)),
 		events.SrcAddr:    srcAddr,
 		events.DstAddr:    dstAddr,
 		events.DstPort:    event.DstPort,
@@ -455,9 +435,6 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	binary.LittleEndian.PutUint32(dst[12:], event.DstAddr[3])
 	dstAddr := net.IP(dst)
 
-	// Convert C string that holds the command name into a Go string.
-	command := C.GoString((*C.char)(unsafe.Pointer(&event.Command)))
-
 	eventFields := events.EventFields{
 		// Common fields.
 		events.EventNamespace:  ctx.Namespace,
@@ -468,17 +445,13 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		// Connect fields.
 		events.PID:        event.PID,
 		events.CgroupID:   event.CgroupID,
-		events.Program:    command,
+		events.Program:    convertString(unsafe.Pointer(&event.Command)),
 		events.SrcAddr:    srcAddr,
 		events.DstAddr:    dstAddr,
 		events.DstPort:    event.DstPort,
 		events.TCPVersion: 6,
 	}
 	ctx.AuditLog.EmitAuditEvent(events.SessionNetwork, eventFields)
-
-	//// Remove, only for debugging.
-	//fmt.Printf("--> Event=conn6 CgroupID=%v PID=%v Command=%v Src=%v Dst=%v:%v.\n",
-	//	event.CgroupID, event.PID, command, srcAddr, dstAddr, event.DstPort)
 }
 
 func (s *Service) addWatch(cgroupID uint64, ctx *SessionContext) {
@@ -495,6 +468,7 @@ func (s *Service) removeWatch(cgroupID uint64) {
 	delete(s.watch, cgroupID)
 }
 
+// unmarshalEvent will unmarshal the perf event.
 func unmarshalEvent(data []byte, v interface{}) error {
 	err := binary.Read(bytes.NewBuffer(data), bcc.GetHostByteOrder(), v)
 	if err != nil {
@@ -503,16 +477,17 @@ func unmarshalEvent(data []byte, v interface{}) error {
 	return nil
 }
 
+// convertString converts a C string to a Go string.
 func convertString(s unsafe.Pointer) string {
 	return C.GoString((*C.char)(s))
 }
 
-// isHostCompatible checks that BPF programs can run on this host.
-func isHostCompatible() error {
+// IsHostCompatible checks that BPF programs can run on this host.
+func IsHostCompatible() error {
 	// To find the cgroup ID of a program, bpf_get_current_cgroup_id is needed
 	// which was introduced in 4.18.
 	// https://github.com/torvalds/linux/commit/bf6fa2c893c5237b48569a13fa3c673041430b6c
-	minKernel := semver.New("4.18.0")
+	minKernel := semver.New(teleport.EnhancedRecordingMinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
 		return trace.Wrap(err)

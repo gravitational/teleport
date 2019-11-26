@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -401,6 +402,14 @@ const (
 	// events.
 	ArgsCacheSize = 1024
 )
+
+// EnhancedEvents returns the default list of enhanced events.
+func EnhancedEvents() []string {
+	return []string{
+		teleport.EnhancedRecordingCommand,
+		teleport.EnhancedRecordingNetwork,
+	}
+}
 
 var (
 	// ConfigFilePath is default path to teleport config file

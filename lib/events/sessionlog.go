@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -268,7 +269,7 @@ func (sl *DiskSessionLogger) openEventsFile(eventIndex int64) error {
 	eventsFileName := eventsFileName(sl.sessionDir, sl.SessionID, "", eventIndex)
 
 	// update the index file to write down that new events file has been created
-	data, err := json.Marshal(indexEntry{
+	data, err := utils.FastMarshal(indexEntry{
 		FileName: filepath.Base(eventsFileName),
 		Type:     fileTypeEvents,
 		Index:    eventIndex,
@@ -301,7 +302,7 @@ func (sl *DiskSessionLogger) openChunksFile(offset int64) error {
 	chunksFileName := chunksFileName(sl.sessionDir, sl.SessionID, offset)
 
 	// Update the index file to write down that new chunks file has been created.
-	data, err := json.Marshal(indexEntry{
+	data, err := utils.FastMarshal(indexEntry{
 		FileName: filepath.Base(chunksFileName),
 		Type:     fileTypeChunks,
 		Offset:   offset,
@@ -351,7 +352,7 @@ func (sl *DiskSessionLogger) openEnhancedFile(eventType string, eventIndex int64
 	}
 
 	// Update the index file to write down that new events file has been created.
-	data, err := json.Marshal(indexEntry{
+	data, err := utils.FastMarshal(indexEntry{
 		FileName: filepath.Base(eventsFileName),
 		Type:     indexType,
 		Index:    eventIndex,
@@ -469,7 +470,7 @@ func (sl *DiskSessionLogger) writeEventChunk(sessionID string, chunk *SessionChu
 	// than all other events.
 	switch chunk.EventType {
 	case SessionPrintEvent:
-		bytes, err = json.Marshal(PrintEventFromChunk(chunk))
+		bytes, err = utils.FastMarshal(PrintEventFromChunk(chunk))
 		if err != nil {
 			return -1, trace.Wrap(err)
 		}
@@ -479,7 +480,7 @@ func (sl *DiskSessionLogger) writeEventChunk(sessionID string, chunk *SessionChu
 		if err != nil {
 			return -1, trace.Wrap(err)
 		}
-		bytes, err = json.Marshal(fields)
+		bytes, err = utils.FastMarshal(fields)
 		if err != nil {
 			return -1, trace.Wrap(err)
 		}
@@ -535,7 +536,7 @@ func (sl *DiskSessionLogger) writeEnhancedChunk(sessionID string, chunk *Session
 	if err != nil {
 		return -1, trace.Wrap(err)
 	}
-	bytes, err = json.Marshal(fields)
+	bytes, err = utils.FastMarshal(fields)
 	if err != nil {
 		return -1, trace.Wrap(err)
 	}

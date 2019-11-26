@@ -63,7 +63,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
 	}
-	err := isHostCompatible()
+	err := IsHostCompatible()
 	if err != nil {
 		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
@@ -146,7 +146,7 @@ func (s *Suite) TestObfuscate(c *check.C) {
 		c.Skip("Tests for package bpf can only be run as root.")
 		return
 	}
-	err := isHostCompatible()
+	err := IsHostCompatible()
 	if err != nil {
 		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 		return
@@ -236,7 +236,7 @@ func (s *Suite) TestScript(c *check.C) {
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
 	}
-	err := isHostCompatible()
+	err := IsHostCompatible()
 	if err != nil {
 		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
@@ -317,7 +317,7 @@ func (s *Suite) TestPrograms(c *check.C) {
 	}
 
 	// Check that the host is capable of running BPF programs.
-	err := isHostCompatible()
+	err := IsHostCompatible()
 	if err != nil {
 		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
@@ -447,15 +447,6 @@ func executeHTTP(c *check.C, doneContext context.Context, endpoint string) {
 	}
 }
 
-// isRoot returns a boolean if the test is being run as root or not. Tests
-// for this package must be run as root.
-func isRoot() bool {
-	if os.Geteuid() != 0 {
-		return false
-	}
-	return true
-}
-
 // fakeLog is used in tests to obtain events emitted to the Audit Log.
 type fakeLog struct {
 	mu     sync.Mutex
@@ -506,4 +497,13 @@ func (a *fakeLog) WaitForDelivery(context.Context) error {
 
 func (a *fakeLog) Close() error {
 	return trace.NotFound("")
+}
+
+// isRoot returns a boolean if the test is being run as root or not. Tests
+// for this package must be run as root.
+func isRoot() bool {
+	if os.Geteuid() != 0 {
+		return false
+	}
+	return true
 }

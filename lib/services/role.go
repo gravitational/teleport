@@ -101,11 +101,7 @@ func NewAdminRole() Role {
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
-				BPF: []string{
-					teleport.EnhancedRecordingCommand,
-					teleport.EnhancedRecordingDisk,
-					teleport.EnhancedRecordingNetwork,
-				},
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -156,11 +152,7 @@ func RoleForUser(u User) Role {
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
-				BPF: []string{
-					teleport.EnhancedRecordingCommand,
-					teleport.EnhancedRecordingDisk,
-					teleport.EnhancedRecordingNetwork,
-				},
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -599,11 +591,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Options.PortForwarding = NewBoolOption(true)
 	}
 	if len(r.Spec.Options.BPF) == 0 {
-		r.Spec.Options.BPF = []string{
-			teleport.EnhancedRecordingCommand,
-			teleport.EnhancedRecordingDisk,
-			teleport.EnhancedRecordingNetwork,
-		}
+		r.Spec.Options.BPF = defaults.EnhancedEvents()
 	}
 	if r.Spec.Allow.Namespaces == nil {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
@@ -1182,11 +1170,7 @@ func (r *RoleV2) V3() *RoleV3 {
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     r.GetMaxSessionTTL(),
 				PortForwarding:    NewBoolOption(true),
-				BPF: []string{
-					teleport.EnhancedRecordingCommand,
-					teleport.EnhancedRecordingDisk,
-					teleport.EnhancedRecordingNetwork,
-				},
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
 				Logins:     r.GetLogins(),
