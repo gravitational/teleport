@@ -1562,6 +1562,9 @@ func (process *TeleportProcess) initSSH(ebpf bpf.BPF) error {
 			agentPool.Stop()
 		}
 
+		// Close BPF service.
+		warnOnErr(ebpf.Close())
+
 		log.Infof("Exited.")
 	})
 

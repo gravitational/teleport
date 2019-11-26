@@ -156,6 +156,9 @@ func (s *Service) Close() error {
 	s.open.close()
 	s.conn.close()
 
+	// Close cgroup service.
+	s.cgroup.Close()
+
 	// Signal to the loop pulling events off the perf buffer to shutdown.
 	s.closeFunc()
 

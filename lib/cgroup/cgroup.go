@@ -106,6 +106,8 @@ func (s *Service) Close() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	log.Debugf("Cleaned up and unmounted Teleport session hierarchy at: %v.", s.teleportRoot)
 	return nil
 }
 
