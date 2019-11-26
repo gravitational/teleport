@@ -227,7 +227,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					                      "port_forwarding": true,
 					                      "client_idle_timeout": "17m",
 					                      "disconnect_expired_cert": "yes",
-			                              "enhanced_recording": ["command", "disk", "network"]
+			                              "enhanced_recording": ["command", "network"]
 					                    },
 					                    "allow": {
 					                      "node_labels": {"a": "b", "c-d": "e"},
@@ -301,7 +301,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		                      "forward_agent": "yes",
 		                      "client_idle_timeout": "never",
 		                      "disconnect_expired_cert": "no",
-		                      "enhanced_recording": ["command", "disk", "network"]
+		                      "enhanced_recording": ["command", "network"]
 		                    },
 		                    "allow": {
 		                      "node_labels": {"a": "b"},
@@ -375,7 +375,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		                      "forward_agent": "yes",
 		                      "client_idle_timeout": "never",
 		                      "disconnect_expired_cert": "no",
-		                      "enhanced_recording": ["command", "disk", "network"]
+		                      "enhanced_recording": ["command", "network"]
 		                    },
 		                    "allow": {
 		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
