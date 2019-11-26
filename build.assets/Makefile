@@ -191,7 +191,7 @@ release-fips: bbox-fips
 # Create a Teleport package for CentOS 6 using the build container.
 #
 .PHONY:release-centos6
-release-centos6:
+release-centos6: bbox-centos6
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXCENTOS6) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
@@ -200,7 +200,7 @@ release-centos6:
 # This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
 #
 .PHONY:release-centos6-fips
-release-centos6-fips:
+release-centos6-fips: bbox-centos6-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXCENTOS6FIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)-fips
