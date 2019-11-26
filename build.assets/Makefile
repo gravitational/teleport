@@ -185,7 +185,7 @@ release: bbox
 release-fips: bbox-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXFIPS) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)-fips
+		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
 
 #
 # Create a Teleport package for CentOS 6 using the build container.
@@ -203,7 +203,7 @@ release-centos6: bbox-centos6
 release-centos6-fips: bbox-centos6-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXCENTOS6FIPS) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)-fips
+		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
 
 #
 # Create a Windows Teleport package using the build container.
