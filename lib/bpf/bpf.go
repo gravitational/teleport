@@ -18,11 +18,6 @@ limitations under the License.
 
 package bpf
 
-// #cgo LDFLAGS: -ldl
-// #include <dlfcn.h>
-// #include <stdlib.h>
-import "C"
-
 import (
 	"bytes"
 	"context"
@@ -42,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/iovisor/gobpf/bcc"
 )
 
@@ -480,29 +474,4 @@ func unmarshalEvent(data []byte, v interface{}) error {
 // convertString converts a C string to a Go string.
 func convertString(s unsafe.Pointer) string {
 	return C.GoString((*C.char)(s))
-}
-
-// IsHostCompatible checks that BPF programs can run on this host.
-func IsHostCompatible() error {
-	// To find the cgroup ID of a program, bpf_get_current_cgroup_id is needed
-	// which was introduced in 4.18.
-	// https://github.com/torvalds/linux/commit/bf6fa2c893c5237b48569a13fa3c673041430b6c
-	minKernel := semver.New(teleport.EnhancedRecordingMinKernel)
-	version, err := utils.KernelVersion()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if version.LessThan(*minKernel) {
-		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernel)
-	}
-
-	// Check that libbcc is on the system.
-	libraryName := C.CString("libbcc.so.0")
-	defer C.free(unsafe.Pointer(libraryName))
-	handle := C.dlopen(libraryName, C.RTLD_NOW)
-	if handle == nil {
-		return trace.BadParameter("libbcc.so not found")
-	}
-
-	return nil
 }

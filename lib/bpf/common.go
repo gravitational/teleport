@@ -16,9 +16,22 @@ limitations under the License.
 
 package bpf
 
+// #cgo LDFLAGS: -ldl
+// #include <dlfcn.h>
+// #include <stdlib.h>
+import "C"
+
 import (
+	"unsafe"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+
+	"github.com/coreos/go-semver/semver"
 )
 
 // BPF implements an interface to open and close a recording session.
@@ -118,5 +131,30 @@ func (s *NOP) OpenSession(ctx *SessionContext) (uint64, error) {
 
 // OpenSession will open a NOP session. Note this function does nothing.
 func (s *NOP) CloseSession(ctx *SessionContext) error {
+	return nil
+}
+
+// IsHostCompatible checks that BPF programs can run on this host.
+func IsHostCompatible() error {
+	// To find the cgroup ID of a program, bpf_get_current_cgroup_id is needed
+	// which was introduced in 4.18.
+	// https://github.com/torvalds/linux/commit/bf6fa2c893c5237b48569a13fa3c673041430b6c
+	minKernel := semver.New(teleport.EnhancedRecordingMinKernel)
+	version, err := utils.KernelVersion()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if version.LessThan(*minKernel) {
+		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernel)
+	}
+
+	// Check that libbcc is on the system.
+	libraryName := C.CString("libbcc.so.0")
+	defer C.free(unsafe.Pointer(libraryName))
+	handle := C.dlopen(libraryName, C.RTLD_NOW)
+	if handle == nil {
+		return trace.BadParameter("libbcc.so not found")
+	}
+
 	return nil
 }
