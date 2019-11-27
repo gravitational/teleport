@@ -34,6 +34,9 @@ type TermHandlers struct {
 // without a TTY. Result of execution is propagated back on the ExecResult
 // channel of the context.
 func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+	// Save the request within the context.
+	ctx.request = req
+
 	// Parse the exec request and store it in the context.
 	_, err := parseExecRequest(req, ctx)
 	if err != nil {
@@ -96,6 +99,9 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 // shell be created within a TTY.
 func (t *TermHandlers) HandleShell(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
 	var err error
+
+	// Save the request within the context.
+	ctx.request = req
 
 	// Creating an empty exec request implies a interactive shell was requested.
 	ctx.ExecRequest, err = NewExecRequest(ctx, "")

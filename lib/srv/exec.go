@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/shell"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -83,6 +85,9 @@ type execCommand struct {
 
 	// Terminal is if a TTY has been allocated for the session.
 	Terminal bool `json:"term"`
+
+	// RequestType is the type of request: either "exec" or "shell".
+	RequestType string `json:"request_type"`
 
 	// PAM contains metadata needed to launch a PAM context.
 	PAM *pamCommand `json:"pam"`
@@ -306,6 +311,7 @@ func RunCommand() (int, error) {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
+	// Start constructing the the exec.Cmd.
 	cmd := exec.Cmd{
 		Path: c.Path,
 		Args: c.Args,
@@ -316,12 +322,15 @@ func RunCommand() (int, error) {
 		},
 	}
 
+	var tty *os.File
+	var pty *os.File
+
 	// If a terminal was requested, file descriptor 4 and 5 always point to the
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		pty := os.NewFile(uintptr(5), "/proc/self/fd/5")
-		tty := os.NewFile(uintptr(6), "/proc/self/fd/6")
+		pty = os.NewFile(uintptr(5), "/proc/self/fd/5")
+		tty = os.NewFile(uintptr(6), "/proc/self/fd/6")
 		if pty == nil || tty == nil {
 			return teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
@@ -358,12 +367,29 @@ func RunCommand() (int, error) {
 	// If PAM is enabled, open a PAM context.
 	var pamContext *pam.PAM
 	if c.PAM.Enabled {
+		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
+		// discard std{out,err}. If this was not done, things like MOTD would be
+		// printed for "exec" requests.
+		var stdin io.Reader
+		var stdout io.Writer
+		var stderr io.Writer
+		if c.RequestType == sshutils.ShellRequest {
+			stdin = tty
+			stdout = tty
+			stderr = tty
+		} else {
+			stdin = os.Stdin
+			stdout = ioutil.Discard
+			stderr = ioutil.Discard
+		}
+
+		// Open the PAM context.
 		pamContext, err = pam.Open(&pam.Config{
 			ServiceName: c.PAM.ServiceName,
 			Username:    c.PAM.Username,
-			Stdin:       os.Stdin,
-			Stdout:      os.Stdout,
-			Stderr:      os.Stderr,
+			Stdin:       stdin,
+			Stdout:      stdout,
+			Stderr:      stderr,
 		})
 		if err != nil {
 			return teleport.RemoteCommandFailure, trace.Wrap(err)
@@ -427,6 +453,10 @@ func prepareCommand(ctx *ServerContext) (*execCommand, error) {
 	if ctx.IsTestStub {
 		shellPath = "/bin/sh"
 	}
+
+	// Save off the SSH request type. This will be used to control where to
+	// connect std{out,err} based on the request type: "exec" or "shell".
+	c.RequestType = ctx.request.Type
 
 	// If a term was allocated before (this means it was an exec request with an
 	// PTY explicitly allocated) or no command was given (which means an
@@ -645,7 +675,7 @@ func configureCommand(ctx *ServerContext) (*exec.Cmd, *os.File, error) {
 		args = append(args, "-d")
 	}
 
-	// Return the fully configured command ready to execute.
+	// Build the "teleport exec" command.
 	return &exec.Cmd{
 		Path: executable,
 		Args: args,

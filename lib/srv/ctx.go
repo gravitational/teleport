@@ -257,8 +257,11 @@ type ServerContext struct {
 
 	// termAllocated is used to track if a terminal has been allocated. This has
 	// to be tracked because the terminal is set to nil after it's "taken" in the
-	// session.
+	// session. Terminals can be allocated for both "exec" or "session" requests.
 	termAllocated bool
+
+	// request is the request that was issued by the client
+	request *ssh.Request
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
