@@ -1,4 +1,4 @@
-// +build bpf,amd64
+// +build bpf,!386
 
 /*
 Copyright 2019 Gravitational, Inc.
