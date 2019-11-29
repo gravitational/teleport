@@ -7,7 +7,7 @@ DOCSDIR=/teleport
 
 HOSTNAME=buildbox
 SRCDIR=/gopath/src/github.com/gravitational/teleport
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -v "$$(pwd)/bcc:/usr/include/bcc" -w $(SRCDIR) -h $(HOSTNAME)
 ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
