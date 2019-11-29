@@ -1,4 +1,4 @@
-// +build bpf,linux
+// +build bpf
 
 /*
 Copyright 2019 Gravitational, Inc.
@@ -18,6 +18,10 @@ limitations under the License.
 
 package bpf
 
+// #cgo LDFLAGS: -ldl
+// #include <stdlib.h>
+import "C"
+
 import (
 	"bytes"
 	"context"
@@ -32,7 +36,6 @@ import (
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
