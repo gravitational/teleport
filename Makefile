@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.2.0-dev.3
+VERSION=4.2.0-dev.4
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 
@@ -45,7 +45,7 @@ PAM_TAG := pam
 PAM_MESSAGE := "with PAM support"
 endif
 
-# PAM support will only be built into Teleport if headers exist at build time.
+# BPF support will only be built into Teleport if headers exist at build time.
 BPF_MESSAGE := "without BPF support"
 ifneq ("$(wildcard /usr/include/bcc/libbpf.h)","")
 BPF_TAG := bpf
