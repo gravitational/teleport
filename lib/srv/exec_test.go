@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/docker/docker/pkg/term"
@@ -67,11 +68,8 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
-		code, err := RunCommand()
-		if err != nil {
-			fmt.Printf("Failed to run command: %v.\n", err)
-		}
-		os.Exit(code)
+		RunCommand()
+		return
 	}
 
 	// Otherwise run tests as normal.
@@ -125,6 +123,9 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx.Identity.TeleportUser = "galt"
 	s.ctx.Conn = &ssh.ServerConn{Conn: s}
 	s.ctx.ExecRequest = &localExec{Ctx: s.ctx}
+	s.ctx.request = &ssh.Request{
+		Type: sshutils.ExecRequest,
+	}
 
 	term, err := newLocalTerminal(s.ctx)
 	c.Assert(err, check.IsNil)
@@ -238,6 +239,8 @@ func (s *ExecSuite) TestEmitExecAuditEvent(c *check.C) {
 // TestContinue tests if the process hangs if a continue signal is not sent
 // and makes sure the process continues once it has been sent.
 func (s *ExecSuite) TestContinue(c *check.C) {
+	var err error
+
 	lsPath, err := os_exec.LookPath("ls")
 	c.Assert(err, check.IsNil)
 
@@ -258,9 +261,16 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 		Ctx:     ctx,
 		Command: lsPath,
 	}
+	ctx.cmdr, ctx.cmdw, err = os.Pipe()
+	c.Assert(err, check.IsNil)
+	ctx.contr, ctx.contw, err = os.Pipe()
+	c.Assert(err, check.IsNil)
+	ctx.request = &ssh.Request{
+		Type: sshutils.ExecRequest,
+	}
 
 	// Create an exec.Cmd to execute through Teleport.
-	cmd, cont, err := configureCommand(ctx)
+	cmd, err := configureCommand(ctx)
 	c.Assert(err, check.IsNil)
 
 	// Create a context that will be used to signal that execution is complete.
@@ -283,7 +293,7 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 
 	// Close the continue pipe to signal to Teleport to now execute the
 	// requested program.
-	err = cont.Close()
+	err = ctx.contw.Close()
 	c.Assert(err, check.IsNil)
 
 	// Program should have executed now. If the complete signal has not come

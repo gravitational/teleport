@@ -181,10 +181,6 @@ type localExec struct {
 	// sessionContext holds the BPF session context used to lookup and interact
 	// with BPF sessions.
 	sessionContext *bpf.SessionContext
-
-	// contw is one end of a pipe that is used to signal to the child process
-	// that it has been placed in a cgroup and it can continue.
-	contw *os.File
 }
 
 // GetCommand returns the command string.
@@ -207,7 +203,7 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 	}
 
 	// Create the command that will actually execute.
-	e.Cmd, e.contw, err = configureCommand(e.Ctx)
+	e.Cmd, err = configureCommand(e.Ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -274,7 +270,10 @@ func (e *localExec) Wait() *ExecResult {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (e *localExec) Continue() {
-	e.contw.Close()
+	e.Ctx.contw.Close()
+
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	e.Ctx.contw = nil
 }
 
 // PID returns the PID of the Teleport process that was re-execed.
@@ -288,27 +287,32 @@ func (e *localExec) String() string {
 
 // RunCommand reads in the command to run from the parent process (over a
 // pipe) then constructs and runs the command.
-func RunCommand() (int, error) {
+func RunCommand() {
+	// errorWriter is used to return any error message back to the client. By
+	// default it writes to stdout, but if a TTY is allocated, it will write
+	// to it.
+	errorWriter := os.Stdout
+
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(uintptr(3), "/proc/self/fd/3")
 	if cmdfd == nil {
-		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
+		errorAndExit(errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found"))
 	}
 	contfd := os.NewFile(uintptr(4), "/proc/self/fd/4")
 	if cmdfd == nil {
-		return teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
+		errorAndExit(errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found"))
 	}
 
 	// Read in the command payload.
 	var b bytes.Buffer
 	_, err := b.ReadFrom(cmdfd)
 	if err != nil {
-		return teleport.RemoteCommandFailure, trace.Wrap(err)
+		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
 	}
 	var c execCommand
 	err = json.Unmarshal(b.Bytes(), &c)
 	if err != nil {
-		return teleport.RemoteCommandFailure, trace.Wrap(err)
+		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
 	}
 
 	// Start constructing the the exec.Cmd.
@@ -332,7 +336,7 @@ func RunCommand() (int, error) {
 		pty = os.NewFile(uintptr(5), "/proc/self/fd/5")
 		tty = os.NewFile(uintptr(6), "/proc/self/fd/6")
 		if pty == nil || tty == nil {
-			return teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
+			errorAndExit(errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found"))
 		}
 
 		cmd.Stdin = tty
@@ -341,6 +345,8 @@ func RunCommand() (int, error) {
 
 		cmd.SysProcAttr.Setctty = true
 		cmd.SysProcAttr.Ctty = int(tty.Fd())
+
+		errorWriter = tty
 	} else {
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -361,7 +367,7 @@ func RunCommand() (int, error) {
 	// the child process has been placed in a cgroup.
 	err = waitForContinue(contfd)
 	if err != nil {
-		return teleport.RemoteCommandFailure, trace.Wrap(err)
+		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
 	}
 
 	// If PAM is enabled, open a PAM context.
@@ -392,7 +398,7 @@ func RunCommand() (int, error) {
 			Stderr:      stderr,
 		})
 		if err != nil {
-			return teleport.RemoteCommandFailure, trace.Wrap(err)
+			errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
 		}
 		defer pamContext.Close()
 	}
@@ -400,15 +406,12 @@ func RunCommand() (int, error) {
 	// Start the command.
 	err = cmd.Start()
 	if err != nil {
-		return teleport.RemoteCommandFailure, trace.Wrap(err)
+		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
 	}
 
 	// Wait for it to exit.
 	err = cmd.Wait()
-	if err != nil {
-		return exitCode(err), trace.Wrap(err)
-	}
-	return exitCode(err), nil
+	errorAndExit(errorWriter, exitCode(err), err)
 }
 
 func (e *localExec) transformSecureCopy() error {
@@ -627,53 +630,42 @@ func prepareCommand(ctx *ServerContext) (*execCommand, error) {
 }
 
 // configureCommand creates a command fully configured to execute.
-func configureCommand(ctx *ServerContext) (*exec.Cmd, *os.File, error) {
+func configureCommand(ctx *ServerContext) (*exec.Cmd, error) {
+	var err error
+
 	// Create and marshal command to execute.
 	cmdmsg, err := prepareCommand(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	cmdbytes, err := json.Marshal(cmdmsg)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// Create a pipe used to signal to the process it's safe to continue.
-	// Used to make the process wait until it's been placed in a cgroup by the
-	// parent process.
-	contr, contw, err := os.Pipe()
+	// Write command bytes to pipe. The child process will read the command
+	// to execute from this pipe.
+	_, err = io.Copy(ctx.cmdw, bytes.NewReader(cmdbytes))
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	// Create pipe and write bytes to pipe. The child process will read the
-	// command to execute from this pipe.
-	cmdr, cmdw, err := os.Pipe()
+	err = ctx.cmdw.Close()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	_, err = io.Copy(cmdw, bytes.NewReader(cmdbytes))
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	err = cmdw.Close()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	ctx.cmdw = nil
 
 	// Re-execute Teleport and pass along the allocated PTY as well as the
 	// command reader from where Teleport will know how to re-spawn itself.
 	executable, err := os.Executable()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
 	// is appended if Teleport is running in debug mode.
 	args := []string{executable, teleport.ExecSubCommand}
-	if log.GetLevel() == log.DebugLevel {
-		args = append(args, "-d")
-	}
 
 	// Build the "teleport exec" command.
 	return &exec.Cmd{
@@ -681,10 +673,10 @@ func configureCommand(ctx *ServerContext) (*exec.Cmd, *os.File, error) {
 		Args: args,
 		Dir:  cmdmsg.Dir,
 		ExtraFiles: []*os.File{
-			cmdr,
-			contr,
+			ctx.cmdr,
+			ctx.contr,
 		},
-	}, contw, nil
+	}, nil
 }
 
 // waitForContinue will wait 10 seconds for the continue signal, if not
@@ -962,4 +954,14 @@ func exitCode(err error) int {
 		log.Debugf("Unknown error returned when executing command: %T: %v.", err, err)
 		return teleport.RemoteCommandFailure
 	}
+}
+
+// errorAndExit writes the error to the io.Writer (stdout or a TTY) and
+// exits with the given code.
+func errorAndExit(w io.Writer, code int, err error) {
+	s := fmt.Sprintf("Failed to launch shell: %v.\r\n", err)
+	if err != nil {
+		io.Copy(w, bytes.NewBufferString(s))
+	}
+	os.Exit(code)
 }

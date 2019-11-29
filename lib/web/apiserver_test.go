@@ -110,12 +110,9 @@ var _ = Suite(&WebSuite{
 func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if len(os.Args) == 2 && os.Args[1] == "exec" {
-		code, err := srv.RunCommand()
-		if err != nil {
-			fmt.Printf("Failed to run command: %v.\n", err)
-		}
-		os.Exit(code)
+	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
+		srv.RunCommand()
+		return
 	}
 
 	// Otherwise run tests as normal.

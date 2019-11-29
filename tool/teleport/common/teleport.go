@@ -268,13 +268,8 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 
 // onExec will re-execute Teleport.
 func onExec(debug bool) error {
-	exitCode, err := srv.RunCommand()
-	if err != nil && debug {
-		// TODO: Should this go to stdout, or to a channel somewhere?
-		fmt.Printf("Failed to run command: %v.\n", err)
-	}
-	os.Exit(exitCode)
-	return trace.Wrap(err)
+	srv.RunCommand()
+	return nil
 }
 
 type StdReadWriter struct {

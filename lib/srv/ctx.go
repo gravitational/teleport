@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -262,6 +263,16 @@ type ServerContext struct {
 
 	// request is the request that was issued by the client
 	request *ssh.Request
+
+	// cmd{r,w} are used to send the command from the parent process to the
+	// child process.
+	cmdr *os.File
+	cmdw *os.File
+
+	// cont{r,w} is used to send the continue signal from the parent process
+	// to the child process.
+	contr *os.File
+	contw *os.File
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -332,6 +343,23 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 		}
 		go mon.Start()
 	}
+
+	// Create pipe used to send command to child process.
+	ctx.cmdr, ctx.cmdw, err = os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx.AddCloser(ctx.cmdr)
+	ctx.AddCloser(ctx.cmdw)
+
+	// Create pipe used to signal continue to child process.
+	ctx.contr, ctx.contw, err = os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx.AddCloser(ctx.contr)
+	ctx.AddCloser(ctx.contw)
+
 	return ctx, nil
 }
 

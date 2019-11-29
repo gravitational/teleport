@@ -90,12 +90,9 @@ var _ = check.Suite(&IntSuite{})
 func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if len(os.Args) == 2 && os.Args[1] == "exec" {
-		code, err := srv.RunCommand()
-		if err != nil {
-			fmt.Printf("Failed to run command: %v.\n", err)
-		}
-		os.Exit(code)
+	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
+		srv.RunCommand()
+		return
 	}
 
 	// Otherwise run tests as normal.
@@ -2754,14 +2751,12 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		inEnabled     bool
 		inServiceName string
 		outContains   []string
-		outError      bool
 	}{
 		// 0 - No PAM support, session should work but no PAM related output.
 		{
 			inEnabled:     false,
 			inServiceName: "",
 			outContains:   []string{},
-			outError:      false,
 		},
 		// 1 - PAM enabled, module account and session functions return success.
 		{
@@ -2771,21 +2766,18 @@ func (s *IntSuite) TestPAM(c *check.C) {
 				"Account opened successfully.",
 				"Session open successfully.",
 			},
-			outError: false,
 		},
 		// 2 - PAM enabled, module account functions fail.
 		{
 			inEnabled:     true,
 			inServiceName: "teleport-acct-failure",
 			outContains:   []string{},
-			outError:      true,
 		},
 		// 3 - PAM enabled, module session functions fail.
 		{
 			inEnabled:     true,
 			inServiceName: "teleport-session-failure",
 			outContains:   []string{},
-			outError:      true,
 		},
 	}
 
@@ -2827,14 +2819,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 
 			termSession.Type("\aecho hi\n\r\aexit\n\r\a")
 			err = cl.SSH(context.TODO(), []string{}, false)
-
-			// If an error is expected (for example PAM does not allow a session to be
-			// created), this failure needs to be checked here.
-			if tt.outError {
-				c.Assert(err, check.NotNil)
-			} else {
-				c.Assert(err, check.IsNil)
-			}
+			c.Assert(err, check.IsNil)
 
 			cancel()
 		}()
@@ -2847,9 +2832,11 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		}
 
 		// If any output is expected, check to make sure it was output.
-		for _, expectedOutput := range tt.outContains {
-			output := string(termSession.Output(100))
-			c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
+		if len(tt.outContains) > 0 {
+			for _, expectedOutput := range tt.outContains {
+				output := string(termSession.Output(100))
+				c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
+			}
 		}
 	}
 }

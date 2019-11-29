@@ -40,9 +40,7 @@ import "C"
 
 import (
 	"bufio"
-	"fmt"
 	"io"
-	"io/ioutil"
 	"strings"
 	"sync"
 	"syscall"

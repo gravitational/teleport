@@ -131,10 +131,6 @@ type terminal struct {
 
 	termType string
 	params   rsession.TerminalParams
-
-	// contw is one end of a pipe that is used to signal to the child process
-	// that it has been placed in a cgroup and it can continue.
-	contw *os.File
 }
 
 // NewLocalTerminal creates and returns a local PTY.
@@ -177,7 +173,7 @@ func (t *terminal) Run() error {
 	defer t.closeTTY()
 
 	// Create the command that will actually execute.
-	t.cmd, t.contw, err = configureCommand(t.ctx)
+	t.cmd, err = configureCommand(t.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -223,7 +219,7 @@ func (t *terminal) Wait() (*ExecResult, error) {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	t.contw.Close()
+	t.ctx.contw.Close()
 }
 
 // Kill will force kill the terminal.
