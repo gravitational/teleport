@@ -206,7 +206,7 @@ test: $(VERSRC)
 .PHONY: integration
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/...
+	go test -v -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/...
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
