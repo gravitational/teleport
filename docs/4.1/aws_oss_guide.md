@@ -324,9 +324,9 @@ Run "sudo yum update" to apply all updates.
 ```xml
 [ec2-user@ip-172-30-0-111 ~]$ sudo tctl users add teleport-admin ec2-user
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
-https://teleport.acme.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
+https://teleport.acmeinc.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
 
-NOTE: Make sure teleport.acme.com:443 points at a Teleport proxy which users can access.
+NOTE: Make sure teleport.acmeinc.com:443 points at a Teleport proxy which users can access.
 ```
 ![Summary for AWS Load Balancer](img/aws/teleport-admin.png)
 
