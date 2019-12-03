@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -142,15 +143,13 @@ func (f *AccessRequestFilter) Equals(o AccessRequestFilter) bool {
 // DynamicAccess is a service which manages dynamic RBAC.
 type DynamicAccess interface {
 	// CreateAccessRequest stores a new access request.
-	CreateAccessRequest(AccessRequest) error
+	CreateAccessRequest(ctx context.Context, req AccessRequest) error
 	// SetAccessRequestState updates the state of an existing access request.
-	SetAccessRequestState(reqID string, state RequestState) error
-	// GetAccessRequest gets an access request by name (uuid).
-	GetAccessRequest(string) (AccessRequest, error)
+	SetAccessRequestState(ctx context.Context, reqID string, state RequestState) error
 	// GetAccessRequests gets all currently active access requests.
-	GetAccessRequests(AccessRequestFilter) ([]AccessRequest, error)
+	GetAccessRequests(ctx context.Context, filter AccessRequestFilter) ([]AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(string) error
+	DeleteAccessRequest(ctx context.Context, reqID string) error
 }
 
 // AccessRequest is a request for temporarily granted roles
@@ -180,6 +179,20 @@ type AccessRequest interface {
 	CheckAndSetDefaults() error
 	// Equals checks equality between access request values.
 	Equals(AccessRequest) bool
+}
+
+// GetAccessRequest is a helper function assists with loading a specific request by ID.
+func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (AccessRequest, error) {
+	reqs, err := acc.GetAccessRequests(ctx, AccessRequestFilter{
+		ID: reqID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(reqs) < 1 {
+		return nil, trace.NotFound("no access request matching %q", reqID)
+	}
+	return reqs[0], nil
 }
 
 func (s RequestState) IsNone() bool {
