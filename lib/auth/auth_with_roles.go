@@ -787,7 +787,7 @@ func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
 	return a.authServer.DeleteWebSession(user, sid)
 }
 
-func (a *AuthWithRoles) GetAccessRequests(filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (a *AuthWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
 	// An exception is made to allow users to get their own access requests.
 	if filter.User == "" || a.currentUserAction(filter.User) != nil {
 		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList); err != nil {
@@ -797,10 +797,10 @@ func (a *AuthWithRoles) GetAccessRequests(filter services.AccessRequestFilter) (
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetAccessRequests(filter)
+	return a.authServer.GetAccessRequests(ctx, filter)
 }
 
-func (a *AuthWithRoles) CreateAccessRequest(req services.AccessRequest) error {
+func (a *AuthWithRoles) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
 	// An exception is made to allow users to create access *pending* requests for themselves.
 	if !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
 		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbCreate); err != nil {
@@ -811,21 +811,37 @@ func (a *AuthWithRoles) CreateAccessRequest(req services.AccessRequest) error {
 	if req.GetAccessExpiry().Before(a.authServer.GetClock().Now()) || req.GetAccessExpiry().After(a.identity.Expires) {
 		req.SetAccessExpiry(a.identity.Expires)
 	}
-	return a.authServer.CreateAccessRequest(req)
+	return a.authServer.CreateAccessRequest(ctx, req)
 }
 
-func (a *AuthWithRoles) SetAccessRequestState(reqID string, state services.RequestState) error {
+func (a *AuthWithRoles) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
 	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.SetAccessRequestState(reqID, state, a.user.GetName())
+	updateCtx := withUpdateBy(ctx, a.user.GetName())
+	return a.authServer.SetAccessRequestState(updateCtx, reqID, state)
 }
 
-func (a *AuthWithRoles) DeleteAccessRequest(name string) error {
+// withUpdateBy creates a child context with the AccessRequestUpdateBy
+// value set.  Expected by AuthServer.SetAccessRequestState.
+func withUpdateBy(ctx context.Context, user string) context.Context {
+	return context.WithValue(ctx, events.AccessRequestUpdateBy, user)
+}
+
+// getUpdateBy attempts to load the context value AccessRequestUpdateBy.
+func getUpdateBy(ctx context.Context) (string, error) {
+	updateBy, ok := ctx.Value(events.AccessRequestUpdateBy).(string)
+	if !ok || updateBy == "" {
+		return "", trace.BadParameter("missing value %q", events.AccessRequestUpdateBy)
+	}
+	return updateBy, nil
+}
+
+func (a *AuthWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
 	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteAccessRequest(name)
+	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
 func (a *AuthWithRoles) GetUsers(withSecrets bool) ([]services.User, error) {
@@ -958,11 +974,10 @@ func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCer
 		return nil, trace.AccessDenied("this request can be only executed by an admin")
 	}
 
-	// TODO(fspmarshall): Move this logic to AuthServer.
 	if len(req.AccessRequests) > 0 {
 		// add any applicable access request values.
 		for _, reqID := range req.AccessRequests {
-			accessReq, err := a.authServer.GetAccessRequest(reqID)
+			accessReq, err := services.GetAccessRequest(ctx, a.authServer, reqID)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					return nil, trace.AccessDenied("invalid access request %q", reqID)

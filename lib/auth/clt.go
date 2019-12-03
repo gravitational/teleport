@@ -2540,12 +2540,12 @@ func (c *Client) DeleteTrustedCluster(name string) error {
 	return trace.Wrap(err)
 }
 
-func (c *Client) GetAccessRequests(filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (c *Client) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
 	clt, err := c.grpc()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rsp, err := clt.GetAccessRequests(context.TODO(), &filter)
+	rsp, err := clt.GetAccessRequests(ctx, &filter)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2556,7 +2556,7 @@ func (c *Client) GetAccessRequests(filter services.AccessRequestFilter) ([]servi
 	return reqs, nil
 }
 
-func (c *Client) CreateAccessRequest(req services.AccessRequest) error {
+func (c *Client) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
 	r, ok := req.(*services.AccessRequestV3)
 	if !ok {
 		return trace.BadParameter("unexpected access request type %T", req)
@@ -2565,19 +2565,19 @@ func (c *Client) CreateAccessRequest(req services.AccessRequest) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = clt.CreateAccessRequest(context.TODO(), r)
+	_, err = clt.CreateAccessRequest(ctx, r)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
 	return nil
 }
 
-func (c *Client) DeleteAccessRequest(reqID string) error {
+func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	clt, err := c.grpc()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = clt.DeleteAccessRequest(context.TODO(), &proto.RequestID{
+	_, err = clt.DeleteAccessRequest(ctx, &proto.RequestID{
 		ID: reqID,
 	})
 	if err != nil {
@@ -2586,12 +2586,12 @@ func (c *Client) DeleteAccessRequest(reqID string) error {
 	return nil
 }
 
-func (c *Client) SetAccessRequestState(reqID string, state services.RequestState) error {
+func (c *Client) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
 	clt, err := c.grpc()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = clt.SetAccessRequestState(context.TODO(), &proto.RequestStateSetter{
+	_, err = clt.SetAccessRequestState(ctx, &proto.RequestStateSetter{
 		ID:    reqID,
 		State: state,
 	})
@@ -2781,6 +2781,7 @@ type ClientI interface {
 	events.IAuditLog
 	services.Presence
 	services.Access
+	services.DynamicAccess
 	WebService
 	session.Service
 	services.ClusterConfiguration
@@ -2821,12 +2822,4 @@ type ClientI interface {
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if sucessful.
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
-	// GetAccessRequests lists all existing access requests.
-	GetAccessRequests(services.AccessRequestFilter) ([]services.AccessRequest, error)
-	// CreateAccessRequest creates a new access request.
-	CreateAccessRequest(req services.AccessRequest) error
-	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(reqID string) error
-	// SetAccessRequestState updates the state of an existing access request.
-	SetAccessRequestState(reqID string, state services.RequestState) error
 }
