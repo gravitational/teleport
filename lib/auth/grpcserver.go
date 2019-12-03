@@ -195,7 +195,7 @@ func (g *GRPCServer) GetAccessRequests(ctx context.Context, f *services.AccessRe
 	if f != nil {
 		filter = *f
 	}
-	reqs, err := auth.AuthWithRoles.GetAccessRequests(filter)
+	reqs, err := auth.AuthWithRoles.GetAccessRequests(ctx, filter)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -218,7 +218,7 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *services.Acce
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	if err := auth.AuthWithRoles.CreateAccessRequest(req); err != nil {
+	if err := auth.AuthWithRoles.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
@@ -229,7 +229,7 @@ func (g *GRPCServer) DeleteAccessRequest(ctx context.Context, id *proto.RequestI
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	if err := auth.AuthWithRoles.DeleteAccessRequest(id.ID); err != nil {
+	if err := auth.AuthWithRoles.DeleteAccessRequest(ctx, id.ID); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
@@ -240,7 +240,7 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	if err := auth.SetAccessRequestState(req.ID, req.State); err != nil {
+	if err := auth.AuthWithRoles.SetAccessRequestState(ctx, req.ID, req.State); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil

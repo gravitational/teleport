@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -90,7 +91,7 @@ func (c *AccessRequestCommand) TryRun(cmd string, client auth.ClientI) (match bo
 }
 
 func (c *AccessRequestCommand) List(client auth.ClientI) error {
-	reqs, err := client.GetAccessRequests(services.AccessRequestFilter{})
+	reqs, err := client.GetAccessRequests(context.TODO(), services.AccessRequestFilter{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -102,7 +103,7 @@ func (c *AccessRequestCommand) List(client auth.ClientI) error {
 
 func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.SetAccessRequestState(reqID, services.RequestState_APPROVED); err != nil {
+		if err := client.SetAccessRequestState(context.TODO(), reqID, services.RequestState_APPROVED); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -111,7 +112,7 @@ func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 
 func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.SetAccessRequestState(reqID, services.RequestState_DENIED); err != nil {
+		if err := client.SetAccessRequestState(context.TODO(), reqID, services.RequestState_DENIED); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -124,7 +125,7 @@ func (c *AccessRequestCommand) Create(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := client.CreateAccessRequest(req); err != nil {
+	if err := client.CreateAccessRequest(context.TODO(), req); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("%s\n", req.GetName())
@@ -133,7 +134,7 @@ func (c *AccessRequestCommand) Create(client auth.ClientI) error {
 
 func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.DeleteAccessRequest(reqID); err != nil {
+		if err := client.DeleteAccessRequest(context.TODO(), reqID); err != nil {
 			return trace.Wrap(err)
 		}
 	}

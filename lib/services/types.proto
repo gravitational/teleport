@@ -390,9 +390,16 @@ message AccessRequestV3  {
 
 // RequestState represents the state of a request for escalated privilege.
 enum RequestState {
+    // NONE variant exists to allow RequestState to be explicitly omitted
+    // in certain circumstances (e.g. in an AccessRequestFilter).
     NONE = 0;
+    // PENDING variant is the default for newly created requests.
     PENDING = 1;
+    // APPROVED variant indicates that a request has been accepted by
+    // an administrating party.
     APPROVED = 2;
+    // DENIED variant indicates that a request has been rejected by
+    // an administrating party.
     DENIED = 3;
 }
 
