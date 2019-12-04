@@ -6,8 +6,8 @@ site_author: Gravitational Inc
 copyright: Gravitational Inc, 2016-19
 
 # output directory:
-site_dir: ../build/docs/4.1
-docs_dir: "4.1"
+site_dir: ../build/docs/4.2
+docs_dir: "4.2"
 
 theme: readthedocs
 theme_dir: theme
@@ -30,6 +30,8 @@ pages:
         - Admin Manual: admin-guide.md
         - Installation: installation.md
         - FAQ: faq.md
+    - Teleport Features: 
+        - Enhanced Session Recording: features/enhanced_session_recording.md
     - Infrastructure Guides:
         - AWS: aws_oss_guide.md
         - Kubernetes Guide: kubernetes_ssh.md
