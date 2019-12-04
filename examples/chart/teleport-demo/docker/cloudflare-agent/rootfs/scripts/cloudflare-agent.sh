@@ -120,10 +120,11 @@ if [[ "${DEBUG}" == true ]]; then
 fi
 
 # if this is the main cluster, we also create a wildcard record so that kubernetes proxy forwarding from Teleport 3.2 will work
+# (we don't do this any more as of Teleport 4.1)
 WILDCARD_DOMAIN_TO_REGISTER=""
-if [[ "${CLUSTER_TYPE}" == "primary" ]]; then
-    WILDCARD_DOMAIN_TO_REGISTER="*.${DOMAIN_TO_REGISTER}"
-fi
+#if [[ "${CLUSTER_TYPE}" == "primary" ]]; then
+#    WILDCARD_DOMAIN_TO_REGISTER="*.${DOMAIN_TO_REGISTER}"
+#fi
 
 if [[ "${MODE}" == "create" ]]; then
     SERVICE_TYPE=$(kubectl get service ${SERVICE_NAME} -o jsonpath='{.spec.type}')
@@ -157,9 +158,12 @@ if [[ "${MODE}" == "create" ]]; then
 
     # do registration
     process_record create "${DOMAIN_TO_REGISTER}" "${RECORD_CONTENT}"
-    if [[ "${WILDCARD_DOMAIN_TO_REGISTER}" != "" ]]; then
-        process_record create "${WILDCARD_DOMAIN_TO_REGISTER}" "${WILDCARD_RECORD_CONTENT}"
-    fi
+    # we don't register wildcards any more (they're not needed as of Teleport 4,1)
+    #if [[ "${WILDCARD_DOMAIN_TO_REGISTER}" != "" ]]; then
+    #    process_record create "${WILDCARD_DOMAIN_TO_REGISTER}" "${WILDCARD_RECORD_CONTENT}"
+    #fi
+    # wait 10 seconds for DNS propagation
+    sleep 10
 
     # run certbot if TLS is enabled and letsencrypt is enabled
     if [[ "${TLS_ENABLED}" == "true" ]] && [[ "${LETSENCRYPT_ENABLED}" == "true" ]]; then
@@ -170,8 +174,20 @@ dns_cloudflare_email = ${EMAIL}
 dns_cloudflare_api_key = ${API_KEY}
 EOF
         chmod 600 /tmp/cloudflare-credentials-certbot.ini
-        certbot certonly -n --agree-tos --email ${LETSENCRYPT_EMAIL} --dns-cloudflare --dns-cloudflare-credentials /tmp/cloudflare-credentials-certbot.ini -d ${DOMAIN_TO_REGISTER}
-        FIRST_TIME=true
+        RETRIES=5
+        CERTBOT_DONE=false
+        while [[ "${CERTBOT_DONE}" != "true" ]] && [[ "${RETRIES}" > 0 ]]; do
+            cloudflareagent_log "Attempts remaining: ${RETRIES}"
+            # don't exit on error for this command
+            certbot certonly -n --agree-tos --email ${LETSENCRYPT_EMAIL} --dns-cloudflare --dns-cloudflare-credentials /tmp/cloudflare-credentials-certbot.ini -d ${DOMAIN_TO_REGISTER} || true
+            if [ $? -ne 0 ]; then
+                cloudflareagent_log "Attempt failed"
+                ((RETRIES--))
+            else
+                cloudflareagent_log "Attempt successful"
+                CERTBOT_DONE=true
+            fi
+        done
     else
         cloudflareagent_log "TLS/Letsencrypt not enabled, exiting"
         exit 0
@@ -188,7 +204,8 @@ EOF
 elif [[ "${MODE}" == "delete" ]]; then
     # do deletion
     process_record delete "${DOMAIN_TO_REGISTER}"
-    if [[ "${WILDCARD_DOMAIN_TO_REGISTER}" != "" ]]; then
-        process_record delete "${WILDCARD_DOMAIN_TO_REGISTER}"
-    fi
+    # we don't need/add wildcard records as of Teleport 4.1, so they don't need to be deleted
+    #if [[ "${WILDCARD_DOMAIN_TO_REGISTER}" != "" ]]; then
+    #   process_record delete "${WILDCARD_DOMAIN_TO_REGISTER}"
+    #fi
 fi

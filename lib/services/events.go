@@ -48,6 +48,9 @@ type WatchKind struct {
 	Name string
 	// LoadSecrets specifies whether to load secrets
 	LoadSecrets bool
+	// Filter supplies custom event filter parameters that differ by
+	// resource (e.g. "state":"pending" for access requests).
+	Filter map[string]string
 }
 
 // Event represents an event that happened in the backend

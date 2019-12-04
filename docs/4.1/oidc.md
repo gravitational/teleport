@@ -11,7 +11,7 @@ administrators to define policies like:
 
 !!! warning "Version Warning":
     This guide requires a commercial edition of Teleport. The open source
-    edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
+    edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
 
 ## Enable OIDC Authentication
@@ -51,7 +51,7 @@ should be `https://proxy.example.com:3080/v1/webapi/oidc/callback`
 ## OIDC connector configuration
 
 The next step is to add an OIDC connector to Teleport. The connectors are manipulated
-via `tctl` [resource commands](admin-guide#resources). To create a new connector,
+via `tctl` [resource commands](admin-guide.md#resources). To create a new connector,
 create a connector resource file in YAML format, for example `oidc-connector.yaml`.
 
 The file contents are shown below. This connector requests the scope `group`
@@ -99,7 +99,7 @@ $ tctl create oidc-connector.yaml
 ## Create Teleport Roles
 
 The next step is to define Teleport roles. They are created using the same
-`tctl` [resource commands](admin-guide#resources) as we used for the auth
+`tctl` [resource commands](admin-guide.md#resources) as we used for the auth
 connector.
 
 Below are two example roles that are mentioned above, the first is an admin

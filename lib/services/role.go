@@ -86,7 +86,7 @@ func RoleNameForCertAuthority(name string) string {
 }
 
 // NewAdminRole is the default admin role for all local users if another role
-// is not explicitly assigned (Enterprise only).
+// is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
 	role := &RoleV3{
 		Kind:    KindRole,
@@ -101,6 +101,7 @@ func NewAdminRole() Role {
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -151,6 +152,7 @@ func RoleForUser(u User) Role {
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -265,6 +267,11 @@ type Role interface {
 	GetKubeGroups(RoleConditionType) []string
 	// SetKubeGroups sets kubernetes groups for allow or deny condition.
 	SetKubeGroups(RoleConditionType, []string)
+
+	// GetAccessRequestConditions gets allow/deny conditions for access requests.
+	GetAccessRequestConditions(RoleConditionType) AccessRequestConditions
+	// SetAccessRequestConditions sets allow/deny conditions for access requests.
+	SetAccessRequestConditions(RoleConditionType, AccessRequestConditions)
 }
 
 // ApplyTraits applies the passed in traits to any variables within the role
@@ -516,6 +523,27 @@ func (r *RoleV3) SetKubeGroups(rct RoleConditionType, groups []string) {
 	}
 }
 
+// GetAccessRequestConditions gets conditions for access requests.
+func (r *RoleV3) GetAccessRequestConditions(rct RoleConditionType) AccessRequestConditions {
+	cond := r.Spec.Deny.Request
+	if rct == Allow {
+		cond = r.Spec.Allow.Request
+	}
+	if cond == nil {
+		return AccessRequestConditions{}
+	}
+	return *cond
+}
+
+// SetAccessRequestConditions sets allow/deny conditions for access requests.
+func (r *RoleV3) SetAccessRequestConditions(rct RoleConditionType, cond AccessRequestConditions) {
+	if rct == Allow {
+		r.Spec.Allow.Request = &cond
+	} else {
+		r.Spec.Deny.Request = &cond
+	}
+}
+
 // GetNamespaces gets a list of namespaces this role is allowed or denied access to.
 func (r *RoleV3) GetNamespaces(rct RoleConditionType) []string {
 	if rct == Allow {
@@ -578,7 +606,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// make sure we have defaults for all fields
+	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
 		r.Spec.Options.CertificateFormat = teleport.CertificateFormatStandard
 	}
@@ -588,6 +616,9 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	if r.Spec.Options.PortForwarding == nil {
 		r.Spec.Options.PortForwarding = NewBoolOption(true)
 	}
+	if len(r.Spec.Options.BPF) == 0 {
+		r.Spec.Options.BPF = defaults.EnhancedEvents()
+	}
 	if r.Spec.Allow.Namespaces == nil {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
@@ -596,6 +627,16 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	}
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
+	}
+
+	// Validate that enhanced recording options are all valid.
+	for _, opt := range r.Spec.Options.BPF {
+		if opt == teleport.EnhancedRecordingCommand ||
+			opt == teleport.EnhancedRecordingDisk ||
+			opt == teleport.EnhancedRecordingNetwork {
+			continue
+		}
+		return trace.BadParameter("found invalid option in session_recording: %v", opt)
 	}
 
 	// if we find {{ or }} but the syntax is invalid, the role is invalid
@@ -654,7 +695,8 @@ func (o RoleOptions) Equals(other RoleOptions) bool {
 		BoolDefaultTrue(o.PortForwarding) == BoolDefaultTrue(other.PortForwarding) &&
 		o.CertificateFormat == other.CertificateFormat &&
 		o.ClientIdleTimeout.Value() == other.ClientIdleTimeout.Value() &&
-		o.DisconnectExpiredCert.Value() == other.DisconnectExpiredCert.Value())
+		o.DisconnectExpiredCert.Value() == other.DisconnectExpiredCert.Value() &&
+		utils.StringSlicesEqual(o.BPF, other.BPF))
 }
 
 // Equals returns true if the role conditions (logins, namespaces, labels,
@@ -1154,6 +1196,7 @@ func (r *RoleV2) V3() *RoleV3 {
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     r.GetMaxSessionTTL(),
 				PortForwarding:    NewBoolOption(true),
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
 				Logins:     r.GetLogins(),
@@ -1269,6 +1312,10 @@ type AccessChecker interface {
 	// CertificateFormat returns the most permissive certificate format in a
 	// RoleSet.
 	CertificateFormat() string
+
+	// EnhancedRecordingSet returns a set of events that will be recorded
+	// for enhanced session recording.
+	EnhancedRecordingSet() map[string]bool
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1737,6 +1784,21 @@ func (set RoleSet) CertificateFormat() string {
 	return formats[0]
 }
 
+// EnhancedRecordingSet returns the set of enhanced session recording
+// events to capture for thi role set.
+func (set RoleSet) EnhancedRecordingSet() map[string]bool {
+	m := make(map[string]bool)
+
+	// Loop over all roles and create a set of all options.
+	for _, role := range set {
+		for _, opt := range role.GetOptions().BPF {
+			m[opt] = true
+		}
+	}
+
+	return m
+}
+
 // certificatePriority returns the priority of the certificate format. The
 // most permissive has lowest value.
 func certificatePriority(s string) int {
@@ -2167,7 +2229,11 @@ const RoleSpecV3SchemaTemplate = `{
         "port_forwarding": { "type": ["boolean", "string"] },
         "cert_format": { "type": "string" },
         "client_idle_timeout": { "type": "string" },
-        "disconnect_expired_cert": { "type": ["boolean", "string"] }
+        "disconnect_expired_cert": { "type": ["boolean", "string"] },
+        "enhanced_recording": { 
+          "type": "array",
+          "items": { "type": "string" }
+        }
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },
@@ -2198,6 +2264,16 @@ const RoleSpecV3SchemaDefinitions = `
         "type": "array",
         "items": { "type": "string" }
       },
+	  "request": {
+	    "type": "object",
+		"additionalProperties": false,
+		"properties": {
+		  "roles": {
+		    "type": "array",
+			"items": { "type": "string" }
+		  }
+		}
+	  },
       "rules": {
         "type": "array",
         "items": {

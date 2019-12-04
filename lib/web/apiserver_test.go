@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -57,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -102,6 +104,21 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{
 	clock: clockwork.NewFakeClock(),
 })
+
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise it will run tests as normal.
+func TestMain(m *testing.M) {
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe.
+	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
+		srv.RunCommand()
+		return
+	}
+
+	// Otherwise run tests as normal.
+	code := m.Run()
+	os.Exit(code)
+}
 
 func (s *WebSuite) SetUpSuite(c *C) {
 	var err error
@@ -171,6 +188,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetSessionServer(nodeClient),
 		regular.SetAuditLog(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -217,6 +235,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetAuditLog(s.proxyClient),
 		regular.SetNamespace(defaults.Namespace),
+		regular.SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
 

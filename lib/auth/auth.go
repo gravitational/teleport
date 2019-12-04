@@ -77,6 +77,9 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if cfg.Access == nil {
 		cfg.Access = local.NewAccessService(cfg.Backend)
 	}
+	if cfg.DynamicAccess == nil {
+		cfg.DynamicAccess = local.NewDynamicAccessService(cfg.Backend)
+	}
 	if cfg.ClusterConfiguration == nil {
 		cfg.ClusterConfiguration = local.NewClusterConfigurationService(cfg.Backend)
 	}
@@ -111,6 +114,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 			Provisioner:          cfg.Provisioner,
 			Identity:             cfg.Identity,
 			Access:               cfg.Access,
+			DynamicAccess:        cfg.DynamicAccess,
 			ClusterConfiguration: cfg.ClusterConfiguration,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
@@ -132,6 +136,7 @@ type AuthServices struct {
 	services.Provisioner
 	services.Identity
 	services.Access
+	services.DynamicAccess
 	services.ClusterConfiguration
 	services.Events
 	events.IAuditLog
@@ -408,6 +413,9 @@ type certRequest struct {
 	routeToCluster string
 	// traits hold claim data used to populate a role at runtime.
 	traits wrappers.Traits
+	// activeRequests tracks privilege escalation requests applied
+	// during the construction of the certificate.
+	activeRequests services.RequestIDs
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -509,6 +517,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		PermitAgentForwarding: req.checker.CanForwardAgents(),
 		RouteToCluster:        req.routeToCluster,
 		Traits:                req.traits,
+		ActiveRequests:        req.activeRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1348,6 +1357,77 @@ func (a *AuthServer) DeleteRole(name string) error {
 		}
 	}
 	return a.Access.DeleteRole(name)
+}
+
+func (a *AuthServer) CreateAccessRequest(req services.AccessRequest) error {
+	if err := services.ValidateAccessRequest(a, req); err != nil {
+		return trace.Wrap(err)
+	}
+	ttl, err := a.calculateMaxAccessTTL(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	now := a.clock.Now().UTC()
+	req.SetCreationTime(now)
+	exp := now.Add(ttl)
+	// Set acccess expiry if an allowable default was not provided.
+	if req.GetAccessExpiry().Before(now) || req.GetAccessExpiry().After(exp) {
+		req.SetAccessExpiry(exp)
+	}
+	// By default, resource expiry should match access expiry.
+	req.SetExpiry(req.GetAccessExpiry())
+	// If the access-request is in a pending state, then the expiry of the underlying resource
+	// is capped to to PendingAccessDuration in order to limit orphaned access requests.
+	if req.GetState().IsPending() {
+		pexp := now.Add(defaults.PendingAccessDuration)
+		if pexp.Before(req.Expiry()) {
+			req.SetExpiry(pexp)
+		}
+	}
+	if err := a.DynamicAccess.CreateAccessRequest(req); err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.EmitAuditEvent(events.AccessRequestCreated, events.EventFields{
+		events.AccessRequestID:    req.GetName(),
+		events.EventUser:          req.GetUser(),
+		events.UserRoles:          req.GetRoles(),
+		events.AccessRequestState: req.GetState().String(),
+	})
+	return trace.Wrap(err)
+}
+
+func (a *AuthServer) SetAccessRequestState(reqID string, state services.RequestState, updatedBy ...string) error {
+	if err := a.DynamicAccess.SetAccessRequestState(reqID, state); err != nil {
+		return trace.Wrap(err)
+	}
+	u := "unknown"
+	if len(updatedBy) == 1 {
+		u = updatedBy[0]
+	}
+	err := a.EmitAuditEvent(events.AccessRequestUpdated, events.EventFields{
+		events.AccessRequestID:       reqID,
+		events.AccessRequestState:    state.String(),
+		events.AccessRequestUpdateBy: u,
+	})
+	return trace.Wrap(err)
+}
+
+// calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
+// based on the MaxSessionTTLs of the roles being requested (a access request's life cannot
+// exceed the smallest allowable MaxSessionTTL value of the roles that it requests).
+func (a *AuthServer) calculateMaxAccessTTL(req services.AccessRequest) (time.Duration, error) {
+	minTTL := defaults.MaxAccessDuration
+	for _, roleName := range req.GetRoles() {
+		role, err := a.GetRole(roleName)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		roleTTL := time.Duration(role.GetOptions().MaxSessionTTL)
+		if roleTTL > 0 && roleTTL < minTTL {
+			minTTL = roleTTL
+		}
+	}
+	return minTTL, nil
 }
 
 // NewKeepAliver returns a new instance of keep aliver

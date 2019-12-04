@@ -2,7 +2,9 @@
 
 This guide is for those looking for a deeper understanding of Teleport. If you
 are looking for hands-on instructions on how to set up Teleport for your team,
-check out the [Admin Guide](../admin-guide)
+check out the [Admin Guide](../admin-guide.md)
+
+**Table of Contents**
 
 [TOC]
 
@@ -16,10 +18,10 @@ Teleport was designed in accordance with the following principles:
 
 * **Open Standards**: There is no security through obscurity. Teleport is fully
   compatible with existing and open standards and other software, including
-  [OpenSSH](../admin-guide/#using-teleport-with-openssh).
+  [OpenSSH](../admin-guide.md#using-teleport-with-openssh).
 
 * **Cluster-Oriented Design**: Teleport is built for managing clusters, not
-  individual servers. In practice this means that hosts and [Users](./user-manual)
+  individual servers. In practice this means that hosts and [Users](../user-manual.md)
   have cluster memberships. Identity management and authorization happen on a
   cluster level.
 
@@ -41,39 +43,37 @@ Here are definitions of the key concepts you will use in teleport.
 | User             | A user represents someone (a person) or something (a machine) who can perform a set of operations on a node.
 | Cluster          | A cluster is a group of nodes that work together and can be considered a single system. Cluster nodes can create connections to each other, often over a private network. Cluster nodes often require TLS authentication to ensure that communication between nodes remains secure and comes from a trusted source.
 | Certificate Authority (CA) | A Certificate Authority issues SSL certificates in the form of public/private keypairs.
-| [Teleport Node](./nodes)    | A Teleport Node is a regular node that is running the Teleport Node service. Teleport Nodes can be accessed by authorized Teleport Users. A Teleport Node is always considered a member of a Teleport Cluster, even if it's a single-node cluster.
-| [Teleport User](./users)    | A Teleport User represents a someone who needs access to a Teleport Cluster. Users have stored usernames and passwords, and are mapped to OS users on each node. User data is stored locally or in an external store.
-| Teleport Cluster | A Teleport Cluster is comprised of one or more nodes, each of which hold public keys signed by the same [Auth Server CA](./auth). The CA cryptographically signs the public key of a node, establishing cluster membership.
-| [Teleport CA](./auth) | Teleport operates two internal CAs as a function of the Auth service. One is used to sign User public keys and the other signs Node public keys. Each certificate is used to prove identity, cluster membership and manage access.
+| [Teleport Node](teleport_nodes.md)    | A Teleport Node is a regular node that is running the Teleport Node service. Teleport Nodes can be accessed by authorized Teleport Users. A Teleport Node is always considered a member of a Teleport Cluster, even if it's a single-node cluster.
+| [Teleport User](teleport_users.md)    | A Teleport User represents a someone who needs access to a Teleport Cluster. Users have stored usernames and passwords, and are mapped to OS users on each node. User data is stored locally or in an external store.
+| Teleport Cluster | A Teleport Cluster is comprised of one or more nodes, each of which hold public keys signed by the same [Auth Server CA](teleport_auth.md). The CA cryptographically signs the public key of a node, establishing cluster membership.
+| [Teleport CA](teleport_auth.md) | Teleport operates two internal CAs as a function of the Auth service. One is used to sign User public keys and the other signs Node public keys. Each certificate is used to prove identity, cluster membership and manage access.
 
 ## Teleport Services
 
-Teleport uses three services which work together: [Nodes](./nodes),
-[Auth](./auth), and [Proxy](./proxy).
+Teleport uses three services which work together: [Nodes](teleport_nodes.md),
+[Auth](teleport_auth.md), and [Proxy](teleport_proxy.md).
 
-[**Teleport Nodes**](./nodes) are servers which can be accessed remotely with
+[**Teleport Nodes**](teleport_nodes.md) are servers which can be accessed remotely with
 SSH. The Teleport Node service runs on a machine and is similar to the `sshd`
 daemon you may be familiar with. Users can log in to a Teleport Node with all
 of the following clients:
 
-* [OpenSSH: `ssh` ](../admin-guide/#using-teleport-with-openssh)
-* [Teleport CLI client: `tsh ssh` ](../cli-docs/#tsh-ssh)
-* [Teleport Proxy UI](./proxy/#web-to-ssh-proxy) accessed via a web browser.
+* [OpenSSH: `ssh` ](../admin-guide.md#using-teleport-with-openssh)
+* [Teleport CLI client: `tsh ssh` ](../cli-docs.md#tsh-ssh)
+* [Teleport Proxy UI](teleport_proxy.md#web-to-ssh-proxy) accessed via a web browser.
 
-[**Teleport Auth**](./auth) authenticates Users and Nodes, authorizes User
+[**Teleport Auth**](teleport_auth.md) authenticates Users and Nodes, authorizes User
 access to Nodes, and acts as a CA by signing certificates issued to Users and
 Nodes.
 
-[**Teleport Proxy**](./proxy) forwards User credentials to the [Auth
-Service](../auth), creates connections to a requested Node after successful
-authentication, and serves a [Web UI](./proxy/#web-to-ssh-proxy).
+[**Teleport Proxy**](teleport_proxy.md) forwards User credentials to the [Auth
+Service](teleport_auth.md), creates connections to a requested Node after successful
+authentication, and serves a [Web UI](teleport_proxy.md#web-to-ssh-proxy).
 
 ## Basic Architecture Overview
 
 The numbers correspond to the steps needed to connect a client to a node. These
-steps are explained below the diagram. Read the
-[Architecture Walkthrough](./architecture/#architecture-walkthrough)
-for a detailed view into these connections steps.
+steps are explained below the diagram.
 
 !!! warning "Caution"
     The teleport daemon calls services "roles" in the CLI
@@ -149,7 +149,7 @@ proper HTTPS certificate on a proxy.
 If the credentials are correct, the auth server generates and signs a new
 certificate and returns it to a client via the proxy. The client stores this key
 and will use it for subsequent logins. The key will automatically expire after
-12 hours by default. This TTL can be [configured](../cli-docs/#tctl-users-add)
+12 hours by default. This TTL can be [configured](../cli-docs.md#tctl-users-add)
 to another value by the cluster administrator.
 
 ### 3: Lookup Node
@@ -170,7 +170,7 @@ sending the session history to the auth server to be stored.
 
 !!! note "Note":
     Teleport may also be configured to have the session recording
-    occur on the proxy, see [Audit Log](admin-guide/#audit-log) for more
+    occur on the proxy, see [Audit Log](../admin-guide.md#audit-log) for more
     information.
 
 ### 4: Authenticate Node Certificate
@@ -189,7 +189,7 @@ API which provides access to information about nodes and users in the cluster.
 ![User Granted Node Access](../img/user_node_access.svg)
 
 The node requests the Auth Server to provide a list of [OS users (user
-mappings)](admin-guide/#adding-and-deleting-users) for the connecting client, to make sure the client is
+mappings)](../admin-guide.md#adding-and-deleting-users) for the connecting client, to make sure the client is
 authorized to use the requested OS login.
 
 Finally the client is authorized to create an SSH connection to a node.
@@ -218,7 +218,7 @@ When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for
 12 hours by default, unless you specify another interval via `--ttl` flag
 (capped by the server-side configuration).
 
-You can learn more about `tsh` in the [User Manual](../user-manual/).
+You can learn more about `tsh` in the [User Manual](../user-manual.md).
 
 ### TCTL
 
@@ -229,18 +229,18 @@ nodes and users in the cluster.
 `tctl` is also a tool which can be used to modify the dynamic configuration of
 the cluster, like creating new user roles or connecting trusted clusters.
 
-You can learn more about `tctl` in the [Admin Manual](../admin_guide).
+You can learn more about `tctl` in the [Admin Manual](../admin-guide.md).
 
 
 ## Next Steps
 
-* If you haven't already, read the [Quickstart Guide](../quickstart) to run a
+* If you haven't already, read the [Quickstart Guide](../quickstart.md) to run a
 minimal setup of Teleport yourself.
-* Set up Teleport for your team with the [Admin Guide](../admin-guide)
+* Set up Teleport for your team with the [Admin Guide](../admin-guide.md)
 
 Read the rest of the Architecture Guides:
 
-* [Teleport Users](./teleport_users)
-* [Teleport Nodes](./teleport_nodes)
-* [Teleport Auth](./teleport_auth)
-* [Teleport Proxy](./teleport_proxy)
+* [Teleport Users](teleport_users.md)
+* [Teleport Nodes](teleport_nodes.md)
+* [Teleport Auth](teleport_auth.md)
+* [Teleport Proxy](teleport_proxy.md)

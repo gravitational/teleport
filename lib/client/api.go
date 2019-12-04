@@ -297,6 +297,10 @@ type ProfileStatus struct {
 
 	// Traits hold claim data used to populate a role at runtime.
 	Traits wrappers.Traits
+
+	// ActiveRequests tracks the privilege escalation requests applied
+	// during certificate construction.
+	ActiveRequests services.RequestIDs
 }
 
 // IsExpired returns true if profile is not expired yet
@@ -397,13 +401,22 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		}
 	}
 
+	var activeRequests services.RequestIDs
+	rawRequests, ok := cert.Extensions[teleport.CertExtensionTeleportActiveRequests]
+	if ok {
+		if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
 	for ext, _ := range cert.Extensions {
 		if ext == teleport.CertExtensionTeleportRoles ||
 			ext == teleport.CertExtensionTeleportTraits ||
-			ext == teleport.CertExtensionTeleportRouteToCluster {
+			ext == teleport.CertExtensionTeleportRouteToCluster ||
+			ext == teleport.CertExtensionTeleportActiveRequests {
 			continue
 		}
 		extensions = append(extensions, ext)
@@ -426,13 +439,14 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 			Scheme: "https",
 			Host:   profile.WebProxyAddr,
 		},
-		Username:   profile.Username,
-		Logins:     cert.ValidPrincipals,
-		ValidUntil: validUntil,
-		Extensions: extensions,
-		Roles:      roles,
-		Cluster:    clusterName,
-		Traits:     traits,
+		Username:       profile.Username,
+		Logins:         cert.ValidPrincipals,
+		ValidUntil:     validUntil,
+		Extensions:     extensions,
+		Roles:          roles,
+		Cluster:        clusterName,
+		Traits:         traits,
+		ActiveRequests: activeRequests,
 	}, nil
 }
 
@@ -873,6 +887,38 @@ func (tc *TeleportClient) GenerateCertsForCluster(ctx context.Context, routeToCl
 		return trace.Wrap(err)
 	}
 	return proxyClient.GenerateCertsForCluster(ctx, routeToCluster)
+}
+
+func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return proxyClient.ReissueUserCerts(ctx, params)
+}
+
+func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return proxyClient.CreateAccessRequest(ctx, req)
+}
+
+func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return proxyClient.GetAccessRequests(ctx, filter)
+}
+
+func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return proxyClient.NewWatcher(ctx, watch)
 }
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,

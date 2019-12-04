@@ -632,6 +632,9 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.SSH.PublicAddrs = addrs
 	}
+	if fc.SSH.BPF != nil {
+		cfg.SSH.BPF = fc.SSH.BPF.Parse()
+	}
 
 	return nil
 }

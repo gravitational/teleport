@@ -7,11 +7,11 @@ a deep dive into how to setup and run Teleport in production.
 We have split this guide into:
 
 - [Teleport on AWS FAQ](#teleport-on-aws-faq)
-- [Setting up Teleport OSS on AWS](#setting-up-teleport-oss-on-aws)
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips-tricks)
 
 ### Teleport on AWS FAQ
+
 **Why would you want to use Teleport with AWS?**
 
 At some point you'll want to log into the system using SSH
@@ -39,7 +39,7 @@ for the below.
 - Fargate
 - AWS ECS
 
-## Teleports Introduction
+## Teleport Introduction
 
 This guide will cover how to setup, configure and run Teleport on [AWS](https://aws.amazon.com/).
 
@@ -180,68 +180,8 @@ An example policy is shown below:
 !!! note "Note":
     `eu-west-1:123456789012:table/prod.teleport.auth` will need to be replaced with your DynamoDB instance.
 
-#### IAM for Amazon S3
+### ACM 
 
-In order to grant an IAM user in your AWS account access to one of your buckets, `example.s3.bucket` you will need to grant the following permissions: `s3:ListBucket`, `s3:ListBucketVersions`, `s3:PutObject`, `s3:GetObject`, `s3:GetObjectVersion`
-
-An example policy is shown below:
-
-```
-{
-   "Version": "2012-10-17",
-   "Statement": [
-     {
-       "Effect": "Allow",
-       "Action": [
-         "s3:ListBucket",
-         "s3:ListBucketVersions"
-        ],
-       "Resource": ["arn:aws:s3:::example.s3.bucket"]
-     },
-     {
-       "Effect": "Allow",
-       "Action": [
-         "s3:PutObject",
-         "s3:GetObject",
-         "s3:GetObjectVersion"
-       ],
-       "Resource": ["arn:aws:s3:::example.s3.bucket/*"]
-     }
-   ]
- }
-```
-!!! note "Note":
-    `example.s3.bucket` will need to be replaced with your bucket name.
-
-#### IAM for DynamoDB
-
-In order to grant an IAM user access to DynamoDB make sure that the IAM role assigned to Teleport is configured with proper permissions.
-
-An example policy is shown below:
-
-```
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AllAPIActionsOnTeleportAuth",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
-        },
-        {
-            "Sid": "AllAPIActionsOnTeleportStreams",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth/stream/*"
-        }
-    ]
-}
-```
-!!! note "Note":
-    `eu-west-1:123456789012:table/prod.teleport.auth` will need to be replaced with your DynamoDB instance.
-
-### ACM
 With AWS Certificate Manager, you can quickly request SSL/TLS certificates.
 
 - TLS Cert: Used to provide SSL for the proxy.
@@ -314,7 +254,7 @@ USE_ACM="true"
 TELEPORT_DOMAIN_NAME="teleport.acmeinc.com"
 TELEPORT_EXTERNAL_HOSTNAME="teleport.acmeinc.com"
 TELEPORT_EXTERNAL_PORT="443"
-TELEPORT_PROXY_SERVER_LB="test-nlb.acmeinc.com:3025"
+TELEPORT_AUTH_SERVER_LB="teleport-nlb.acmeinc.com"
 EOF
 ```
 
@@ -347,7 +287,7 @@ assuming it's set when the server starts.
     - Target group will point to your instance - point to `3025/tcp`
     - Create a DNS record for `teleport-nlb.acmeinc.com`
     - Point this to the public A record of the NLB as provided by Amazon
-    - Make sure that your DNS record is also reflected in `TELEPORT_PROXY_SERVER_LB` in the user data
+    - Make sure that your DNS record is also reflected in `TELEPORT_AUTH_SERVER_LB` in the user data
     - Launch the instance (you can also use an already-running instance if you
     follow the instructions at the bottom of this section)
 
@@ -384,9 +324,9 @@ Run "sudo yum update" to apply all updates.
 ```xml
 [ec2-user@ip-172-30-0-111 ~]$ sudo tctl users add teleport-admin ec2-user
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
-https://teleport.acme.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
+https://teleport.acmeinc.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
 
-NOTE: Make sure teleport.acme.com:443 points at a Teleport proxy which users can access.
+NOTE: Make sure teleport.acmeinc.com:443 points at a Teleport proxy which users can access.
 ```
 ![Summary for AWS Load Balancer](img/aws/teleport-admin.png)
 

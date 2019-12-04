@@ -85,6 +85,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 			Name:        kind.Name,
 			Kind:        kind.Kind,
 			LoadSecrets: kind.LoadSecrets,
+			Filter:      kind.Filter,
 		})
 	}
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
@@ -183,6 +184,66 @@ func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthServi
 		}
 	}
 	return nil
+}
+
+func (g *GRPCServer) GetAccessRequests(ctx context.Context, f *services.AccessRequestFilter) (*proto.AccessRequests, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	var filter services.AccessRequestFilter
+	if f != nil {
+		filter = *f
+	}
+	reqs, err := auth.AuthWithRoles.GetAccessRequests(filter)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	collector := make([]*services.AccessRequestV3, 0, len(reqs))
+	for _, req := range reqs {
+		r, ok := req.(*services.AccessRequestV3)
+		if !ok {
+			err = trace.BadParameter("unexpected access request type %T", req)
+			return nil, trail.ToGRPC(err)
+		}
+		collector = append(collector, r)
+	}
+	return &proto.AccessRequests{
+		AccessRequests: collector,
+	}, nil
+}
+
+func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *services.AccessRequestV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.AuthWithRoles.CreateAccessRequest(req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) DeleteAccessRequest(ctx context.Context, id *proto.RequestID) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.AuthWithRoles.DeleteAccessRequest(id.ID); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.RequestStateSetter) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.SetAccessRequestState(req.ID, req.State); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 type grpcContext struct {
@@ -305,6 +366,10 @@ func eventToGRPC(in services.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_TunnelConnection{
 			TunnelConnection: r,
 		}
+	case *services.AccessRequestV3:
+		out.Resource = &proto.Event_AccessRequest{
+			AccessRequest: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -369,6 +434,9 @@ func eventFromGRPC(in proto.Event) (*services.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetTunnelConnection(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetAccessRequest(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

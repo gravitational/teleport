@@ -1,5 +1,7 @@
 ## The Proxy Service
 
+**Table of Contents**
+
 [TOC]
 
 The proxy is a stateless service which performs three main functions in a
@@ -7,7 +9,7 @@ Teleport cluster:
 
 1. It serves as an authentication gateway. It asks for credentials from
    connecting clients and forwards them to the Auth server via [Auth
-   API](./auth/#auth-api).
+   API](teleport_auth.md#auth-api).
 
 2. It looks up the IP address for a requested Node and then proxies a connection
    from client to Node.
@@ -52,14 +54,14 @@ Authority (CA)](./auth/#authentication-in-teleport).:
 
 ![Teleport Proxy SSH](../img/proxy-ssh-1.svg)
 
-1. A [`tsh` client](../cli-docs/#tsh) generates an OpenSSH keypair. It forwards
+1. A [`tsh` client](../cli-docs.md#tsh) generates an OpenSSH keypair. It forwards
    the generated public key, username, password and second factor token to the
    proxy.
 2. The Proxy Server forwards request to the Auth Server.
 3. If Auth Server accepts credentials, it generates a new certificate signed by
    its user CA and sends it back to the Proxy Server. The certificate has a TTL
    which defaults to 24 hours, but can be configured in
-   [`tctl`](../cli-docs/#tctl).
+   [`tctl`](../cli-docs.md#tctl).
 4. The Proxy Server returns the user certificate to the client and client stores
    it in `~/.tsh/keys`. The certificate is also added to the local SSH agent if
    one is running.
@@ -91,9 +93,42 @@ client `ssh` or using `tsh`:
     
     Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1.
 
+## Recording Proxy Mode
+
+In this mode, the proxy terminates (decrypts) the SSH connection using the
+certificate supplied by the client via SSH agent forwarding and then establishes
+its own SSH connection to the final destination server, effectively becoming an
+authorized "man in the middle". This allows the proxy server to forward SSH
+session data to the auth server to be recorded, as shown below:
+
+The recording proxy mode, although _less secure_, was added to allow Teleport
+users to enable session recording for OpenSSH's servers running `sshd`, which is
+helpful when gradually transitioning large server fleets to Teleport.
+
+We consider the "recording proxy mode" to be less secure for two reasons:
+
+1. It grants additional privileges to the Teleport proxy. In the default mode,
+   the proxy stores no secrets and cannot "see" the decrypted data. This makes a
+   proxy less critical to the security of the overall cluster. But if an
+   attacker gains physical access to a proxy node running in the "recording"
+   mode, they will be able to see the decrypted traffic and client keys stored
+   in proxy's process memory.
+2. Recording proxy mode requires the SSH agent forwarding. Agent forwarding is
+   required because without it, a proxy will not be able to establish the 2nd
+   connection to the destination node.
+
+However, there are advantages of proxy-based session recording too. When
+sessions are recorded at the nodes, a root user can add iptables rules to
+prevent sessions logs from reaching the Auth Server. With sessions recorded at
+the proxy, users with root privileges on nodes have no way of disabling the
+audit.
+
+See the [admin guide](../admin-guide.md#recorded-sessions) to learn how to turn on
+the recording proxy mode.
+
 ## More Concepts
 
-* [Architecture Overview](./teleport_architecture_overview)
-* [Teleport Users](./teleport_users)
-* [Teleport Auth](./teleport_auth)
-* [Teleport Proxy](./teleport_proxy)
+* [Architecture Overview](teleport_architecture_overview.md)
+* [Teleport Users](teleport_users.md)
+* [Teleport Auth](teleport_auth.md)
+* [Teleport Proxy](teleport_proxy.md)

@@ -2,6 +2,8 @@
 
 <!--TODO: This doc is incomplete, pending addition of Enterprise topics-->
 
+**Table of Contents**
+
 [TOC]
 
 ## Types of Users
@@ -19,7 +21,7 @@ to "nginx". Teleport does not have knowledge of the OS Users so it expects both
 
 For enterprise edition users, these can be stored in an external identity
 sources such as OKTA, Active Directory, OneLogin, G Suite, or OIDC. Read the
-[Enterprise Guide](../enterprise) to learn more.
+[Enterprise Guide](../enterprise/index.md) to learn more.
 
 Teleport supports two types of user accounts: **Local Users** and
 **External Users**.
@@ -42,7 +44,7 @@ where the auth server is running, i.e. `teleport` was started with
 `--roles=auth` .
 
 A cluster administrator must create account entries for every Teleport user with
-[ `tctl users add` ](../cli-docs). Every Teleport User must be associated with a
+[ `tctl users add` ](../cli-docs.md). Every Teleport User must be associated with a
 list of one or more machine-level OS usernames.it can authenticate as during a
 login. This list is called "user mappings".
 
@@ -69,7 +71,7 @@ connector and it is enforced by default.
 !!! info "2FA Support"
     2FA is not supported with SSO providers such as Github or OKTA. To learn
     more about SSO configuration check out the [SSO section of the Enterprise
-    Guide](../enterprise/#sso)
+    Guide](../enterprise/index.md#sso)
 
  There are two types of 2FA supported:
 
@@ -92,18 +94,18 @@ OpenID/OAuth2 or SAML endpoint.
 !!! tip "Version Warning":
     External user storage is only supported in Teleport
     Enterprise. Please take a look at the [Teleport
-    Enterprise](../enterprise/) chapter for more information.
+    Enterprise](../enterprise/index.md) chapter for more information.
 
 #### Multiple Identity Sources
 
 It is possible to have multiple identity sources configured for a Teleport
 cluster. In this case, an identity source (called a "connector") will have to be
-passed to [ `tsh --auth=connector_name login` ](../cli-docs/#tsh-login).
+passed to [ `tsh --auth=connector_name login` ](../cli-docs.md#tsh-login).
 
 <!--TODO: Production Configuration-->
 
 The local users connector can be specified via [`tsh --auth=local
-login`](../cli-docs/#tsh-login).
+login`](../cli-docs.md#tsh-login).
 
 ## User Roles
 
@@ -116,7 +118,7 @@ subset of nodes in a cluster.
 
 ## More Concepts
 
-* [Architecture Overview](./teleport_architecture_overview)
-* [Teleport Auth](./teleport_auth)
-* [Teleport Nodes](./teleport_nodes)
-* [Teleport Proxy](./teleport_proxy)
+* [Architecture Overview](teleport_architecture_overview.md)
+* [Teleport Auth](teleport_auth.md)
+* [Teleport Nodes](teleport_nodes.md)
+* [Teleport Proxy](teleport_proxy.md)

@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
@@ -150,6 +151,11 @@ var (
 		"keep_alive_interval":     false,
 		"keep_alive_count_max":    false,
 		"local_auth":              false,
+		"enhanced_recording":      false,
+		"command_buffer_size":     false,
+		"disk_buffer_size":        false,
+		"network_buffer_size":     false,
+		"cgroup_path":             false,
 	}
 )
 
@@ -679,6 +685,9 @@ type SSH struct {
 	PAM                   *PAM              `yaml:"pam,omitempty"`
 	// PublicAddr sets SSH host principals for SSH service
 	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+
+	// BPF is used to configure BPF-based auditing for this node.
+	BPF *BPF `yaml:"enhanced_recording,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -707,6 +716,36 @@ func (p *PAM) Parse() *pam.Config {
 	return &pam.Config{
 		Enabled:     enabled,
 		ServiceName: serviceName,
+	}
+}
+
+// BPF is configuration for BPF-based auditing.
+type BPF struct {
+	// Enabled enables or disables enhanced session recording for this node.
+	Enabled string `yaml:"enabled"`
+
+	// CommandBufferSize is the size of the perf buffer for command events.
+	CommandBufferSize int `yaml:"command_buffer_size"`
+
+	// DiskBufferSize is the size of the perf buffer for disk events.
+	DiskBufferSize int `yaml:"disk_buffer_size"`
+
+	// NetworkBufferSize is the size of the perf buffer for network events.
+	NetworkBufferSize int `yaml:"network_buffer_size"`
+
+	// CgroupPath controls where cgroupv2 hierarchy is mounted.
+	CgroupPath string `yaml:"cgroup_path"`
+}
+
+// Parse will parse the enhanced session recording configuration.
+func (b *BPF) Parse() *bpf.Config {
+	enabled, _ := utils.ParseBool(b.Enabled)
+	return &bpf.Config{
+		Enabled:           enabled,
+		CommandBufferSize: b.CommandBufferSize,
+		DiskBufferSize:    b.DiskBufferSize,
+		NetworkBufferSize: b.NetworkBufferSize,
+		CgroupPath:        b.CgroupPath,
 	}
 }
 

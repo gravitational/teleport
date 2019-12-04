@@ -86,6 +86,12 @@ type OIDCConnector interface {
 	SetClaimsToRoles([]ClaimMapping)
 	// SetDisplay sets friendly name for this provider.
 	SetDisplay(string)
+	// GetGoogleServiceAccountURI returns path to google service account URI
+	GetGoogleServiceAccountURI() string
+	// GetGoogleAdminEmail returns a google admin user email
+	// https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority
+	// "Note: Although you can use service accounts in applications that run from a G Suite domain, service accounts are not members of your G Suite account and aren’t subject to domain policies set by G Suite administrators. For example, a policy set in the G Suite admin console to restrict the ability of G Suite end users to share documents outside of the domain would not apply to service accounts."
+	GetGoogleAdminEmail() string
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV2.
@@ -231,6 +237,16 @@ type OIDCConnectorV2 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains connector specification
 	Spec OIDCConnectorSpecV2 `json:"spec"`
+}
+
+// GetGoogleServiceAccountFile returns an optional path to google service account file
+func (o *OIDCConnectorV2) GetGoogleServiceAccountURI() string {
+	return o.Spec.GoogleServiceAccountURI
+}
+
+// GetGoogleAdminEmail returns a google admin user email
+func (o *OIDCConnectorV2) GetGoogleAdminEmail() string {
+	return o.Spec.GoogleAdminEmail
 }
 
 // GetVersion returns resource version
@@ -525,6 +541,19 @@ func (o *OIDCConnectorV2) Check() error {
 		}
 	}
 
+	if o.Spec.GoogleServiceAccountURI != "" {
+		uri, err := utils.ParseSessionsURI(o.Spec.GoogleServiceAccountURI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if uri.Scheme != teleport.SchemeFile {
+			return trace.BadParameter("only %v:// scheme is supported for google_service_account_uri", teleport.SchemeFile)
+		}
+		if o.Spec.GoogleAdminEmail == "" {
+			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
+		}
+	}
+
 	return nil
 }
 
@@ -581,6 +610,10 @@ type OIDCConnectorSpecV2 struct {
 	Scope []string `json:"scope,omitempty"`
 	// ClaimsToRoles specifies dynamic mapping from claims to roles
 	ClaimsToRoles []ClaimMapping `json:"claims_to_roles,omitempty"`
+	// GoogleServiceAccountURI is a path to google service account uri
+	GoogleServiceAccountURI string `json:"google_service_account_uri,omitempty"`
+	// GoogleAdminEmail is email of google admin to impersonate
+	GoogleAdminEmail string `json:"google_admin_email,omitempty"`
 }
 
 // OIDCConnectorSpecV2Schema is a JSON Schema for OIDC Connector
@@ -596,6 +629,8 @@ var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
     "acr_values": {"type": "string"},
     "provider": {"type": "string"},
     "display": {"type": "string"},
+    "google_service_account_uri": {"type": "string"},
+    "google_admin_email": {"type": "string"},
     "scope": {
       "type": "array",
       "items": {
