@@ -17,6 +17,11 @@ ability for users to disable terminal echo. This is frequently used when request
 Furthermore, due to their unstructured nature, session recordings are difficult to 
 ingest and perform monitoring/alerting on.
 
+!!! Note:
+
+    Enhanced Session Recording requires all parts of the Teleport system to be running
+    4.2+. 
+
 # Requirements:
 
 ## 1. Check / Patch Kernel.
