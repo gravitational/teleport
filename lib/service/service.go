@@ -47,14 +47,18 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/events/firestoreevents"
+	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -501,7 +505,10 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
-	// before we do anything reset the SIGINT handler back to the default
+	var err error
+	var ebpf bpf.BPF
+
+	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
@@ -517,8 +524,18 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err, "configuration error")
 	}
 
+	// If this is a Teleport node and BPF is enabled, start BPF programs early
+	// in the startup process. This allows Teleport to fail right away if
+	// BPF-based auditing is configured but can not start for whatever reason.
+	if cfg.SSH.Enabled {
+		ebpf, err = bpf.New(cfg.SSH.BPF)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// create the data directory if it's missing
-	_, err := os.Stat(cfg.DataDir)
+	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
 		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
 		if err != nil {
@@ -647,7 +664,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.SSH.Enabled {
-		if err := process.initSSH(); err != nil {
+		if err := process.initSSH(ebpf); err != nil {
 			return nil, err
 		}
 		serviceStarted = true
@@ -1369,7 +1386,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 }
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
-func (process *TeleportProcess) initSSH() error {
+func (process *TeleportProcess) initSSH(ebpf bpf.BPF) error {
 	process.registerWithAuthServer(teleport.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
@@ -1461,6 +1478,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetRotationGetter(process.getRotation),
 			regular.SetUseTunnel(conn.UseTunnel()),
 			regular.SetFIPS(cfg.FIPS),
+			regular.SetBPF(ebpf),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1547,6 +1565,9 @@ func (process *TeleportProcess) initSSH() error {
 		if conn.UseTunnel() {
 			agentPool.Stop()
 		}
+
+		// Close BPF service.
+		warnOnErr(ebpf.Close())
 
 		log.Infof("Exited.")
 	})

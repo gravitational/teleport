@@ -254,7 +254,7 @@ USE_ACM="true"
 TELEPORT_DOMAIN_NAME="teleport.acmeinc.com"
 TELEPORT_EXTERNAL_HOSTNAME="teleport.acmeinc.com"
 TELEPORT_EXTERNAL_PORT="443"
-TELEPORT_PROXY_SERVER_LB="test-nlb.acmeinc.com:3025"
+TELEPORT_AUTH_SERVER_LB="teleport-nlb.acmeinc.com"
 EOF
 ```
 
@@ -287,7 +287,7 @@ assuming it's set when the server starts.
     - Target group will point to your instance - point to `3025/tcp`
     - Create a DNS record for `teleport-nlb.acmeinc.com`
     - Point this to the public A record of the NLB as provided by Amazon
-    - Make sure that your DNS record is also reflected in `TELEPORT_PROXY_SERVER_LB` in the user data
+    - Make sure that your DNS record is also reflected in `TELEPORT_AUTH_SERVER_LB` in the user data
     - Launch the instance (you can also use an already-running instance if you
     follow the instructions at the bottom of this section)
 
@@ -324,9 +324,9 @@ Run "sudo yum update" to apply all updates.
 ```xml
 [ec2-user@ip-172-30-0-111 ~]$ sudo tctl users add teleport-admin ec2-user
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
-https://teleport.acme.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
+https://teleport.acmeinc.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
 
-NOTE: Make sure teleport.acme.com:443 points at a Teleport proxy which users can access.
+NOTE: Make sure teleport.acmeinc.com:443 points at a Teleport proxy which users can access.
 ```
 ![Summary for AWS Load Balancer](img/aws/teleport-admin.png)
 

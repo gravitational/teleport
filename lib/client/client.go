@@ -166,6 +166,104 @@ func (proxy *ProxyClient) GenerateCertsForCluster(ctx context.Context, routeToCl
 	return trace.Wrap(err)
 }
 
+// ReissueParams encodes optional paramters for
+// user certificate reissue.
+type ReissueParams struct {
+	RouteToCluster string
+	AccessRequests []string
+}
+
+// ReissueUserCerts generates certificates for the user
+// that have a metadata instructing server to route the requests to the cluster
+func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
+	localAgent := proxy.teleportClient.LocalAgent()
+	key, err := localAgent.GetKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cert, err := key.SSHCert()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tlsCert, err := key.TLSCertificate()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clt, err := proxy.ConnectToCluster(ctx, clusterName, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if params.RouteToCluster != "" {
+		// Before requesting a certificate, check if the requested cluster is valid.
+		_, err = clt.GetCertAuthority(services.CertAuthID{
+			Type:       services.HostCA,
+			DomainName: params.RouteToCluster,
+		}, false)
+		if err != nil {
+			return trace.NotFound("cluster %v not found", params.RouteToCluster)
+		}
+	}
+	req := proto.UserCertsRequest{
+		Username:       cert.KeyId,
+		PublicKey:      key.Pub,
+		Expires:        time.Unix(int64(cert.ValidBefore), 0),
+		RouteToCluster: params.RouteToCluster,
+		AccessRequests: params.AccessRequests,
+	}
+	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
+		req.Format = teleport.CertificateFormatOldSSH
+	}
+
+	certs, err := clt.GenerateUserCerts(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	key.Cert = certs.SSH
+	key.TLSCert = certs.TLS
+
+	// save the cert to the local storage (~/.tsh usually):
+	_, err = localAgent.AddKey(key)
+	return trace.Wrap(err)
+}
+
+// CreateAccessRequest attempts to create a new request for escalated privilege.
+func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return site.CreateAccessRequest(req)
+}
+
+func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	reqs, err := site.GetAccessRequests(filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return reqs, nil
+}
+
+func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	watcher, err := site.NewWatcher(ctx, watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return watcher, nil
+}
+
 // FindServersByLabels returns list of the nodes which have labels exactly matching
 // the given label set.
 //

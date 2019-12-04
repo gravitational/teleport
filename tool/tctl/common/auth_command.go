@@ -70,7 +70,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default) or %q", client.IdentityFormatFile, client.IdentityFormatOpenSSH)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&a.outputFormat))
+	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, or %q", client.IdentityFormatFile, client.IdentityFormatOpenSSH, client.IdentityFormatTLS)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&a.genTTL)
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
 
@@ -348,7 +348,7 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 	key.TLSCert = certs.TLS
 
 	var certAuthorities []services.CertAuthority
-	if a.outputFormat == client.IdentityFormatFile {
+	if a.outputFormat != client.IdentityFormatOpenSSH {
 		certAuthorities, err = clusterApi.GetCertAuthorities(services.HostCA, false)
 		if err != nil {
 			return trace.Wrap(err)

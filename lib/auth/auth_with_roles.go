@@ -452,7 +452,16 @@ func (a *AuthWithRoles) NewWatcher(ctx context.Context, watch services.Watch) (s
 					return nil, trace.Wrap(err)
 				}
 			}
-
+		case services.KindAccessRequest:
+			var filter services.AccessRequestFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if filter.User == "" || a.currentUserAction(filter.User) != nil {
+				if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 		default:
 			return nil, trace.AccessDenied("not authorized to watch %v events", kind.Kind)
 		}
@@ -778,6 +787,47 @@ func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
 	return a.authServer.DeleteWebSession(user, sid)
 }
 
+func (a *AuthWithRoles) GetAccessRequests(filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+	// An exception is made to allow users to get their own access requests.
+	if filter.User == "" || a.currentUserAction(filter.User) != nil {
+		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.GetAccessRequests(filter)
+}
+
+func (a *AuthWithRoles) CreateAccessRequest(req services.AccessRequest) error {
+	// An exception is made to allow users to create access *pending* requests for themselves.
+	if !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
+		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbCreate); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// Ensure that an access request cannot outlive the identity that creates it.
+	if req.GetAccessExpiry().Before(a.authServer.GetClock().Now()) || req.GetAccessExpiry().After(a.identity.Expires) {
+		req.SetAccessExpiry(a.identity.Expires)
+	}
+	return a.authServer.CreateAccessRequest(req)
+}
+
+func (a *AuthWithRoles) SetAccessRequestState(reqID string, state services.RequestState) error {
+	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetAccessRequestState(reqID, state, a.user.GetName())
+}
+
+func (a *AuthWithRoles) DeleteAccessRequest(name string) error {
+	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAccessRequest(name)
+}
+
 func (a *AuthWithRoles) GetUsers(withSecrets bool) ([]services.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
@@ -908,6 +958,44 @@ func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCer
 		return nil, trace.AccessDenied("this request can be only executed by an admin")
 	}
 
+	// TODO(fspmarshall): Move this logic to AuthServer.
+	if len(req.AccessRequests) > 0 {
+		// add any applicable access request values.
+		for _, reqID := range req.AccessRequests {
+			accessReq, err := a.authServer.GetAccessRequest(reqID)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return nil, trace.AccessDenied("invalid access request %q", reqID)
+				}
+				return nil, trace.Wrap(err)
+			}
+			if accessReq.GetUser() != req.Username {
+				return nil, trace.AccessDenied("invalid access request %q", reqID)
+			}
+			if !accessReq.GetState().IsApproved() {
+				if accessReq.GetState().IsDenied() {
+					return nil, trace.AccessDenied("access-request %q has been denied", reqID)
+				}
+				return nil, trace.AccessDenied("access-request %q is awaiting approval", reqID)
+			}
+			if err := services.ValidateAccessRequest(a.authServer, accessReq); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			aexp := accessReq.GetAccessExpiry()
+			if aexp.Before(a.authServer.GetClock().Now()) {
+				return nil, trace.AccessDenied("access-request %q is expired", reqID)
+			}
+			if aexp.Before(req.Expires) {
+				// cannot generate a cert that would outlive the access request
+				req.Expires = aexp
+			}
+			roles = append(roles, accessReq.GetRoles()...)
+		}
+		// nothing prevents an access-request from including roles already posessed by the
+		// user, so we must make sure to trim duplicate roles.
+		roles = utils.Deduplicate(roles)
+	}
+
 	// Extract the user and role set for whom the certificate will be generated.
 	user, err := a.GetUser(req.Username, false)
 	if err != nil {
@@ -929,6 +1017,9 @@ func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCer
 		routeToCluster:  req.RouteToCluster,
 		checker:         checker,
 		traits:          traits,
+		activeRequests: services.RequestIDs{
+			AccessRequests: req.AccessRequests,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -120,6 +120,15 @@ const (
 	// MetricBackendBatchFailedReadRequests measures failed backend batch read requests count
 	MetricBackendBatchFailedReadRequests = "backend_batch_read_requests_failed_total"
 
+	// MetricLostCommandEvents measures the number of command events that were lost
+	MetricLostCommandEvents = "bpf_lost_command_events"
+
+	// MetricLostDiskEvents measures the number of disk events that were lost.
+	MetricLostDiskEvents = "bpf_lost_disk_events"
+
+	// MetricLostNetworkEvents measures the number of network events that were lost.
+	MetricLostNetworkEvents = "bpf_lost_network_events"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 

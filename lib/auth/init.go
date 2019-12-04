@@ -105,6 +105,9 @@ type InitConfig struct {
 	// Access is service controlling access to resources
 	Access services.Access
 
+	// DynamicAccess is a service that manages dynamic RBAC.
+	DynamicAccess services.DynamicAccess
+
 	// Events is an event service
 	Events services.Events
 
@@ -434,6 +437,12 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	err = migrateRoleOptions(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -915,6 +924,33 @@ func migrateRemoteClusters(asrv *AuthServer) error {
 			}
 		}
 		log.Infof("Migrations: added remote cluster resource for cert authority %q.", certAuthority.GetName())
+	}
+
+	return nil
+}
+
+// DELETE IN: 4.3.0.
+// migrateRoleOptions adds the "enhanced_recording" option to all roles.
+func migrateRoleOptions(asrv *AuthServer) error {
+	roles, err := asrv.GetRoles()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, role := range roles {
+		options := role.GetOptions()
+		if options.BPF == nil {
+			fmt.Printf("--> Migrating role %v. Added default enhanced events.", role.GetName())
+			log.Debugf("Migrating role %v. Added default enhanced events.", role.GetName())
+			options.BPF = defaults.EnhancedEvents()
+		} else {
+			continue
+		}
+		role.SetOptions(options)
+		err := asrv.UpsertRole(role)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

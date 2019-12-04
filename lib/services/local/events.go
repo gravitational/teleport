@@ -82,6 +82,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			parser = newTunnelConnectionParser()
 		case services.KindReverseTunnel:
 			parser = newReverseTunnelParser()
+		case services.KindAccessRequest:
+			p, err := newAccessRequestParser(kind.Filter)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			parser = p
 		default:
 			return nil, trace.BadParameter("watcher on object kind %v is not supported", kind)
 		}
@@ -134,6 +140,10 @@ func (w *watcher) parseEvent(e backend.Event) (*services.Event, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			// if resource is nil, then it was well-formed but is being filtered out.
+			if resource == nil {
+				return nil, nil
+			}
 			return &services.Event{Type: e.Type, Resource: resource}, nil
 		}
 	}
@@ -155,6 +165,10 @@ func (w *watcher) forwardEvents() {
 				if !trace.IsNotFound(err) {
 					w.Warning(trace.DebugReport(err))
 				}
+				continue
+			}
+			// event is being filtered out
+			if converted == nil {
 				continue
 			}
 			select {
@@ -480,6 +494,56 @@ func (p *roleParser) parse(event backend.Event) (services.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessRequestParser(m map[string]string) (*accessRequestParser, error) {
+	var filter services.AccessRequestFilter
+	if err := filter.FromMap(m); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &accessRequestParser{
+		filter:      filter,
+		matchPrefix: backend.Key(accessRequestsPrefix),
+		matchSuffix: backend.Key(paramsPrefix),
+	}, nil
+}
+
+type accessRequestParser struct {
+	filter      services.AccessRequestFilter
+	matchPrefix []byte
+	matchSuffix []byte
+}
+
+func (p *accessRequestParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *accessRequestParser) match(key []byte) bool {
+	if !bytes.HasPrefix(key, p.matchPrefix) {
+		return false
+	}
+	if !bytes.HasSuffix(key, p.matchSuffix) {
+		return false
+	}
+	return true
+}
+
+func (p *accessRequestParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindAccessRequest, services.V3, 1)
+	case backend.OpPut:
+		req, err := itemToAccessRequest(event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !p.filter.Match(req) {
+			return nil, nil
+		}
+		return req, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

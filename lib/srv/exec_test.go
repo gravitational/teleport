@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"os"
+	os_exec "os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
@@ -35,10 +36,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/docker/docker/pkg/term"
@@ -53,10 +56,26 @@ type ExecSuite struct {
 	ctx        *ServerContext
 	localAddr  net.Addr
 	remoteAddr net.Addr
+	a          *auth.AuthServer
 }
 
 var _ = check.Suite(&ExecSuite{})
 var _ = fmt.Printf
+
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise it will run tests as normal.
+func TestMain(m *testing.M) {
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe.
+	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
+		RunCommand()
+		return
+	}
+
+	// Otherwise run tests as normal.
+	code := m.Run()
+	os.Exit(code)
+}
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
@@ -70,20 +89,20 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(err, check.IsNil)
-	a, err := auth.NewAuthServer(&auth.InitConfig{
+	s.a, err = auth.NewAuthServer(&auth.InitConfig{
 		Backend:     bk,
 		Authority:   authority.New(),
 		ClusterName: clusterName,
 	})
 	c.Assert(err, check.IsNil)
-	a.SetClusterName(clusterName)
+	s.a.SetClusterName(clusterName)
 
 	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionTokenV1{},
 	})
 	c.Assert(err, check.IsNil)
-	err = a.SetStaticTokens(staticTokens)
+	err = s.a.SetStaticTokens(staticTokens)
 	c.Assert(err, check.IsNil)
 
 	dir := c.MkDir()
@@ -94,7 +113,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx = &ServerContext{
 		IsTestStub: true,
 		srv: &fakeServer{
-			accessPoint: a,
+			accessPoint: s.a,
 			auditLog:    &fakeLog{},
 			id:          "00000000-0000-0000-0000-000000000000",
 		},
@@ -104,6 +123,9 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx.Identity.TeleportUser = "galt"
 	s.ctx.Conn = &ssh.ServerConn{Conn: s}
 	s.ctx.ExecRequest = &localExec{Ctx: s.ctx}
+	s.ctx.request = &ssh.Request{
+		Type: sshutils.ExecRequest,
+	}
 
 	term, err := newLocalTerminal(s.ctx)
 	c.Assert(err, check.IsNil)
@@ -129,15 +151,15 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
 		"SSH_TELEPORT_HOST_UUID=00000000-0000-0000-0000-000000000000",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
-		"TERM=xterm",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
 		fmt.Sprintf("SSH_TTY=%v", s.ctx.session.term.TTY().Name()),
 		"SSH_SESSION_ID=xxx",
+		"TERM=xterm",
 	}
 
-	// empty command (simple shell)
-	cmd, err := prepareInteractiveCommand(s.ctx)
+	// Empty command (simple shell).
+	cmd, err := prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -145,7 +167,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 
-	// non-empty command (exec a prog)
+	// Non-empty command (exec a prog).
 	s.ctx.IsTestStub = true
 	s.ctx.ExecRequest.SetCommand("ls -lh /etc")
 	cmd, err = prepareCommand(s.ctx)
@@ -156,7 +178,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 
-	// command without args
+	// Command without args.
 	s.ctx.ExecRequest.SetCommand("top")
 	cmd, err = prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
@@ -214,7 +236,76 @@ func (s *ExecSuite) TestEmitExecAuditEvent(c *check.C) {
 	}
 }
 
-// implementation of ssh.Conn interface
+// TestContinue tests if the process hangs if a continue signal is not sent
+// and makes sure the process continues once it has been sent.
+func (s *ExecSuite) TestContinue(c *check.C) {
+	var err error
+
+	lsPath, err := os_exec.LookPath("ls")
+	c.Assert(err, check.IsNil)
+
+	// Create a fake context that will be used to configure a command that will
+	// re-exec "ls".
+	ctx := &ServerContext{
+		IsTestStub: true,
+		srv: &fakeServer{
+			accessPoint: s.a,
+			auditLog:    &fakeLog{},
+			id:          "00000000-0000-0000-0000-000000000000",
+		},
+	}
+	ctx.Identity.Login = s.usr.Username
+	ctx.Identity.TeleportUser = "galt"
+	ctx.Conn = &ssh.ServerConn{Conn: s}
+	ctx.ExecRequest = &localExec{
+		Ctx:     ctx,
+		Command: lsPath,
+	}
+	ctx.cmdr, ctx.cmdw, err = os.Pipe()
+	c.Assert(err, check.IsNil)
+	ctx.contr, ctx.contw, err = os.Pipe()
+	c.Assert(err, check.IsNil)
+	ctx.request = &ssh.Request{
+		Type: sshutils.ExecRequest,
+	}
+
+	// Create an exec.Cmd to execute through Teleport.
+	cmd, err := configureCommand(ctx)
+	c.Assert(err, check.IsNil)
+
+	// Create a context that will be used to signal that execution is complete.
+	doneContext, doneCancel := context.WithCancel(context.Background())
+
+	// Re-execute Teleport and run "ls". Signal over the context when execution
+	// is complete.
+	go func() {
+		cmd.Run()
+		doneCancel()
+	}()
+
+	// Wait for the process. Since the continue pipe has not been closed, the
+	// process should not have exited yet.
+	select {
+	case <-doneContext.Done():
+		c.Fatalf("Process exited before continue.")
+	case <-time.After(5 * time.Second):
+	}
+
+	// Close the continue pipe to signal to Teleport to now execute the
+	// requested program.
+	err = ctx.contw.Close()
+	c.Assert(err, check.IsNil)
+
+	// Program should have executed now. If the complete signal has not come
+	// over the context, something failed.
+	select {
+	case <-time.After(5 * time.Second):
+		c.Fatalf("Timed out waiting for process to finish.")
+	case <-doneContext.Done():
+	}
+}
+
+// Implementation of ssh.Conn interface.
 func (s *ExecSuite) User() string                                           { return s.usr.Username }
 func (s *ExecSuite) SessionID() []byte                                      { return []byte{1, 2, 3} }
 func (s *ExecSuite) ClientVersion() []byte                                  { return []byte{1} }
@@ -259,6 +350,12 @@ func (f *fakeTerminal) Wait() (*ExecResult, error) {
 	return nil, nil
 }
 
+// Continue will resume execution of the process after it completes its
+// pre-processing routine (placed in a cgroup).
+func (f *fakeTerminal) Continue() {
+	return
+}
+
 // Kill will force kill the terminal.
 func (f *fakeTerminal) Kill() error {
 	return nil
@@ -272,6 +369,11 @@ func (f *fakeTerminal) PTY() io.ReadWriter {
 // TTY returns the TTY backing the terminal.
 func (f *fakeTerminal) TTY() *os.File {
 	return f.f
+}
+
+// PID returns the PID of the Teleport process that was re-execed.
+func (f *fakeTerminal) PID() int {
+	return 1
 }
 
 // Close will free resources associated with the terminal.
@@ -373,6 +475,10 @@ func (f *fakeServer) GetInfo() services.Server {
 
 func (f *fakeServer) UseTunnel() bool {
 	return false
+}
+
+func (f *fakeServer) GetBPF() bpf.BPF {
+	return &bpf.NOP{}
 }
 
 // fakeLog is used in tests to obtain the last event emit to the Audit Log.
