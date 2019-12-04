@@ -144,9 +144,9 @@ teleport:
     type: firestore
     collection_name: cluster-data
     credentials_path: /var/lib/teleport/gcs_creds
-    project_id: bc-jdurbin
-    audit_events_uri: 'firestore://events?projectID=bc-jdurbin&credentialsPath=/var/lib/teleport/gcs_creds'
-    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds&projectID=bc-jdurbin'
+    project_id: example_Teleport-Project-Name
+    audit_events_uri: 'firestore://events?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds'
+    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds&projectID=example_Teleport-Project-Name'
 auth_service:
   enabled: yes
   listen_addr: 0.0.0.0:3025
@@ -200,4 +200,4 @@ proxy_service:
 
 **4. Add Users**
 
-Follow [adding users](quickstart-enterprise.md#adding-users) or integrate with [G Suite](ssh_gsuite.md) to provide SSO access.
+Follow [adding users](enterprise/quickstart-enterprise.md#adding-users) or integrate with [G Suite](ssh_gsuite.md) to provide SSO access.
