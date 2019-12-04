@@ -246,10 +246,11 @@ teleport:
 
         # Array of locations where the audit log events will be stored. by
         # default they are stored in `/var/lib/teleport/log`
-        audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name', 'stdout://']
+        audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name', 'firestore://', 'stdout://']
 
         # Use this setting to configure teleport to store the recorded sessions in
-        # an AWS S3 bucket. see "Using Amazon S3" chapter for more information.
+        # an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using Amazon S3" 
+        # chapter for more information.
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
     # Cipher algorithms that the server supports. This section only needs to be
@@ -2292,6 +2293,86 @@ teleport:
     ]
 }
 ```
+
+### Using GCP Storage
+
+!!! tip "Tip":
+    Before continuing, please make sure to take a look at the
+    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport
+    Architecture documentation.
+
+
+GCP object storage can only be used as a storage for the recorded sessions. GCP Storage 
+cannot store the audit log or the cluster state. Below is an example of how to
+configure a Teleport auth server to store the recorded sessions in an GCP bucket.
+
+``` yaml
+teleport:
+  storage:
+      # Path to GCP Storage to store the recorded sessions in.
+      audit_sessions_uri: "sgs://Example_TELEPORT_STORAGE/records"
+      credentials_path: /var/lib/teleport/gcs_creds
+```
+
+
+### Using Firestore
+
+!!! tip "Tip":
+    Before continuing, please make sure to take a look at the
+    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport Architecture documentation.
+
+If you are running Teleport on GCP, you can use
+[Firestore](https://cloud.google.com/firestore/) as a storage back-end to achieve
+high availability. Firestore back-end supports two types of Teleport data:
+
+* Cluster state
+* Audit log events
+
+Firestore cannot store the recorded sessions. You are advised to use CGP Storage for
+that as shown above. To configure Teleport to use Firestore:
+
+* Make sure you have AWS access key and a secret key which give you access to
+  Firestore account. If you're using (as recommended) a Service role for this.
+
+* Configure all Teleport Auth servers to use Firestore back-end in the "storage"
+  section of `teleport.yaml` as shown below.
+
+* Deploy several auth servers connected to Firestore storage back-end.
+* Deploy several proxy nodes.
+* Make sure that all Teleport nodes have `auth_servers` configuration setting
+  populated with the auth servers.
+
+``` yaml
+teleport:
+  storage:
+    type: firestore
+    # Project ID https://support.google.com/googleapi/answer/7014113?hl=en
+    project_id: Example_GCP_Project_Name
+
+    # Name of the Firestore table. If it does not exist, Teleport won't start
+    collection_name: Example_TELEPORT_FIRESTORE_TABLE_NAME
+
+    credentials_path: /var/lib/teleport/gcs_creds
+
+    # This setting configures Teleport to send the audit events to three places:
+    # To keep a copy on a local filesystem, in Firestore and to Stdout.
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://events', 'stdout://']
+
+    # This setting configures Teleport to save the recorded sessions in an GCP storage:
+    audit_sessions_uri: gs://Example_TELEPORT_S3_BUCKET/records
+```
+
+* Replace `Example_GCP_Project_Name` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
+  with your own settings.  Teleport will create the table automatically.
+* The AWS authentication setting above can be omitted if the machine itself is
+  running on an EC2 instance with an IAM role.
+
+* Audit log settings above are optional. If specified, Teleport will store the
+  audit log in Firestore and the session recordings **must** be stored in an GCP
+  bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
+  Teleport will default to a local file system for the audit log, i.e.
+`/var/lib/teleport/log` on an auth server.
+
 
 ## Upgrading Teleport
 
