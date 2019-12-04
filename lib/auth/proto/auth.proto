@@ -53,6 +53,8 @@ message Event {
         services.ReverseTunnelV2 ReverseTunnel = 12 [(gogoproto.jsontag) = "reverse_tunnel,omitempty"];
         // TunnelConnection is a resource for tunnel connnections
         services.TunnelConnectionV2 TunnelConnection = 13 [(gogoproto.jsontag) = "tunnel_connection,omitempty"];
+        // AccessRequest is a resource for access requests
+        services.AccessRequestV3 AccessRequest = 14 [(gogoproto.jsontag) = "access_request,omitempty"];
     }
 }
 
@@ -72,6 +74,9 @@ message WatchKind {
     // if specified only the events with a specific resource
     // name will be sent
     string Name = 3  [(gogoproto.jsontag) = "name"];
+    // Filter is an optional mapping of custom filter parameters.
+    // Valid values vary by resource kind.
+    map <string, string> Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
 }
 
 // Set of certificates corresponding to a single public key.
@@ -100,6 +105,9 @@ message UserCertsRequest {
     // so that requests originating with this certificate will be redirected
     // to this cluster
     string RouteToCluster = 5 [(gogoproto.jsontag) = "route_to_cluster,omitempty"];
+    // AccessRequests is an optional list of request IDs indicating requests whose
+    // escalated privileges should be added to the certificate.
+    repeated string AccessRequests = 6 [(gogoproto.jsontag) = "access_requests,omitempty"];
 }
 
 // GetUserRequest specifies paramters for the GetUser method.
@@ -116,6 +124,23 @@ message GetUsersRequest {
     bool WithSecrets = 1 [(gogoproto.jsontag) = "with_secrets"];
 }
 
+// AccessRequests is a collection of AccessRequest values.
+message AccessRequests {
+    repeated services.AccessRequestV3 AccessRequests = 1 [(gogoproto.jsontag) = "access_requests"];
+}
+
+// RequestStateSetter encodes the paramters necessary to update the
+// state of a privilege escalation request.
+message RequestStateSetter {
+    string ID = 1 [(gogoproto.jsontag) = "id"];
+    services.RequestState State = 2 [(gogoproto.jsontag) = "state"];
+}
+
+// RequestID is the unique identifier of an access request.
+message RequestID {
+    string ID = 1 [(gogoproto.jsontag) = "id"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -130,4 +155,12 @@ service AuthService {
     rpc GetUser(GetUserRequest) returns (services.UserV2);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream services.UserV2);
+    // GetAccessRequests gets all pending access requests.
+    rpc GetAccessRequests(services.AccessRequestFilter) returns (AccessRequests);
+    // CreateAccessRequest creates a new access request.
+    rpc CreateAccessRequest(services.AccessRequestV3) returns (google.protobuf.Empty);
+    // DeleteAccessRequest deletes an access request.
+    rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
+    // SetAccessRequestState sets the state of an access request.
+    rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
 }

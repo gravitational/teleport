@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
@@ -364,6 +365,13 @@ func (s *Server) GetPAM() (*pam.Config, error) {
 // using reverse tunnel.
 func (s *Server) UseTunnel() bool {
 	return s.useTunnel
+}
+
+// GetBPF returns the BPF service used by enhanced session recording. BPF
+// for the forwarding server makes no sense (it has to run on the actual
+// node), so return a NOP implementation.
+func (s Server) GetBPF() bpf.BPF {
+	return &bpf.NOP{}
 }
 
 // GetInfo returns a services.Server that represents this server.

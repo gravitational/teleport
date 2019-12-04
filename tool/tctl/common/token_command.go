@@ -186,10 +186,13 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 	if c.format == teleport.Text {
 		tokensView := func() string {
 			table := asciitable.MakeTable([]string{"Token", "Type", "Expiry Time (UTC)"})
+			now := time.Now()
 			for _, t := range tokens {
 				expiry := "never"
 				if t.Expiry().Unix() > 0 {
-					expiry = t.Expiry().Format(time.RFC822)
+					exptime := t.Expiry().Format(time.RFC822)
+					expdur := t.Expiry().Sub(now).Round(time.Second)
+					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 				}
 				table.AddRow([]string{t.GetName(), t.GetRoles().String(), expiry})
 			}
