@@ -35,10 +35,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/lib/backend/firestore"
-	"github.com/gravitational/teleport/lib/events/firestoreevents"
-	"github.com/gravitational/teleport/lib/events/gcssessions"
-
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
