@@ -478,3 +478,9 @@ func unmarshalEvent(data []byte, v interface{}) error {
 func convertString(s unsafe.Pointer) string {
 	return C.GoString((*C.char)(s))
 }
+
+// SystemHasBPF returns true if the binary was build with support for BPF
+// compiled in.
+func SystemHasBPF() bool {
+	return true
+}

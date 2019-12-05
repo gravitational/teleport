@@ -507,6 +507,11 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
+	// Validate the config before accessing it.
+	if err := validateConfig(cfg); err != nil {
+		return nil, trace.Wrap(err, "configuration error")
+	}
+
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
 		if !modules.GetModules().IsBoringBinary() {
@@ -516,14 +521,17 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
-	if err := validateConfig(cfg); err != nil {
-		return nil, trace.Wrap(err, "configuration error")
-	}
-
 	// If this is a Teleport node and BPF is enabled, start BPF programs early
 	// in the startup process. This allows Teleport to fail right away if
 	// BPF-based auditing is configured but can not start for whatever reason.
 	if cfg.SSH.Enabled {
+		// If BPF is enabled in file configuration, but the operating system does
+		// not support enhanced session recording (like macOS), exit right away.
+		if cfg.SSH.BPF.Enabled && !bpf.SystemHasBPF() {
+			return nil, trace.BadParameter("operating system does not support enhanced " +
+			"session recording, check Teleport documentation for more details on "+
+			"supported systems")
+		}
 		ebpf, err = bpf.New(cfg.SSH.BPF)
 		if err != nil {
 			return nil, trace.Wrap(err)
