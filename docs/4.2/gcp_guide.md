@@ -1,8 +1,8 @@
 # Running Teleport on GCP
 
 We've created this guide to give customers a high level overview of how to use Teleport
-on [Google Cloud](https://cloud.google.com/gcp/) (GCP). This guide provides a high level introduction leading to
-a deep dive into how to setup and run Teleport in production.
+on [Google Cloud](https://cloud.google.com/gcp/) (GCP). This guide provides a high level 
+introduction leading to a deep dive into how to setup and run Teleport in production.
 
 We have split this guide into:
 
@@ -12,8 +12,8 @@ We have split this guide into:
 
 ## Teleport on GCP FAQ
 #### Why would you want to use Teleport with GCP?
-As leader in [Beyond Corp](https://cloud.google.com/beyondcorp/), GCP already provides
-some great tools out of the box such as [Cloud Identity - Aware Proxy](https://cloud.google.com/iap/).  
+As leader in [BeyondCorp](https://cloud.google.com/beyondcorp/), GCP already provides
+some great tools out of the box such as [Cloud Identity-Aware Proxy](https://cloud.google.com/iap/).  
 This is an excellent tool to quickly get setup securely with GCP but it can become 
 complicated to integrate into existing workflows and complicated if you want to share 
 tool across clouds. 
@@ -22,13 +22,13 @@ tool across clouds.
 
 You can use Teleport for all the services that you would SSH into. This guide is 
 focused on Google Compute Engine. In the future we'll plan to update on how to use 
-Teleport with Kubernetes engine. 
+Teleport with Google Kubernetes Engine (GKE). 
 
 ## GCP Teleport Introduction
 
 This guide will cover how to setup, configure and run Teleport on GCP.
 
-GCP Services required to run Teleport in HA 
+GCP Services required to run Teleport in HA:
 
  - [Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
  - [Computer Engine: Health Checks](#computer-engine-health-checks)
@@ -37,9 +37,9 @@ GCP Services required to run Teleport in HA
  - [Network Services: Load Balancing](#network-services-load-balancing)
  - [Network Services: Cloud DNS](#network-services-cloud-dns)
  
-Other things needed
+Other things needed:
 
- - [SSL Certificate ](https://cloud.google.com/load-balancing/docs/ssl-certificates)
+ - [SSL Certificate](https://cloud.google.com/load-balancing/docs/ssl-certificates)
 
 Optional:
 
@@ -53,27 +53,33 @@ stores the state of the system and Google Cloud Storage stores the audit logs.
 
 
 ### Compute Engine: VM Instances with Instance Groups
-To run Teleport in a HA configuration we recommend using `n1-standard-2` instances in Production. It's best practice to separate the proxy and authentication server, using Instance groups for the proxy and auth server. 
+To run Teleport in a HA configuration we recommend using `n1-standard-2` instances in 
+Production. It's best practice to separate the proxy and authentication server, using
+Instance groups for the proxy and auth server. 
 
 ### Computer Engine: Health Checks
-GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks), this is helpful when adding new instances to an 
-instance group. 
+GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks),
+this is helpful when adding new instances to an instance group. 
 
-To enable health checks in Teleport start with `teleport start --diag-addr=127.0.0.1:3000` see  [Admin Guide: Troubleshooting](admin-guide.md#troubleshooting) for more information. 
+To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000` 
+see  [Admin Guide: Troubleshooting](admin-guide.md#troubleshooting) for more information. 
 
 ### Storage: Cloud Firestore 
 
-[Cloud Firestore](https://cloud.google.com/firestore/) This storage backend uses Real-time updates to keep individual auth instances in sync and requires Firestore configured in Native mode.
+[Cloud Firestore](https://cloud.google.com/firestore/) This storage backend uses real-time 
+updates to keep individual auth instances in sync and requires Firestore configured 
+in native mode.
 
 Add this storage configuration in teleport section of the config file (by default it's `/etc/teleport.yaml`):
 
-```
+```yaml
 teleport:
   storage:
     type: firestore
     collection_name: cluster-data
     project_id: gcp-proj-with-firestore-enabled
     credentials_path: /var/lib/teleport/firestore_creds
+    audit_events_uri: ['firestore://events_table_name']
 ```
 
 ### Storage: Google Cloud Storage
@@ -85,7 +91,7 @@ key.
 
 When setting up `audit_session_uri` use `gs://` session prefix.
 
-```
+```yaml
 storage:
     ...
     audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds&projectID=bc-jdurbin'
@@ -94,8 +100,8 @@ storage:
 
 ### Network Services: Load Balancing
 
-Load Balancing is required for Proxy and SSH traffic `TCP Load Balancing` as Teleport requires
-custom ports for SSH and Web Traffic.
+Load Balancing is required for Proxy and SSH traffic `TCP Load Balancing` as Teleport 
+requires custom ports for SSH and Web Traffic.
 
 ### Network Services: Cloud DNS
 
@@ -121,17 +127,18 @@ Follow install instructions from our [installation page](installation.md#linux).
  
 We recommend configuring the Teleport in the below steps. 
 
-**1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it using SystemD
+**1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it 
+using systemd
 
 ```yaml
 #
-# Sample Teleport configuration teleport.ymal file for Auth Server
+# Sample Teleport configuration teleport.yaml file for Auth Server
 #
 teleport:
-  nodename: C02WG09CHTDH
+  nodename: teleport-auth-server
   data_dir: /var/lib/teleport
   pid_file: /var/run/teleport.pid
-  auth_token: cluster-join-token
+  auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
   auth_servers:
   - 0.0.0.0:3025
   connection_limits:
@@ -149,10 +156,9 @@ teleport:
     audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds&projectID=example_Teleport-Project-Name'
 auth_service:
   enabled: yes
-  listen_addr: 0.0.0.0:3025
-  client_idle_timeout: 0s
-  disconnect_expired_cert: false
-  keep_alive_count_max: 0
+  auth_service:
+    tokens:
+    - "proxy,node:EXAMPLE-CLUSTER-JOIN-TOKEN"  
 ```
 
 **2. Setup Proxy**
@@ -161,42 +167,37 @@ Save the following configuration file as `/etc/teleport.yaml` on the Proxy Serve
 
 ```yaml
 teleport:
-  auth_token: cluster-join-token
-  # you can also use auth server's IP, i.e. "10.1.1.10:3025"
+  auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
+  # We recommend using a TCP load balancer pointed to the auth servers when 
+  # setting up in HA mode. 
   auth_servers: [ "auth.example.com:3025" ]
-
   # enable ssh service and disable auth and proxy:
 ssh_service:
   enabled: true
-
 auth_service:
   enabled: false
 proxy_service:
   enabled: false
 ```
-
 
 **3. Setup Teleport Nodes**
 
 Save the following configuration file as `/etc/teleport.yaml` on the node:
 
-
 ```yaml
 teleport:
-  auth_token: cluster-join-token
-  # you can also use auth server's IP, i.e. "10.1.1.10:3025"
+  auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
+  # We recommend using a TCP load balancer pointed to the auth servers when 
+  # setting up in HA mode. 
   auth_servers: [ "auth.example.com:3025" ]
-
   # enable ssh service and disable auth and proxy:
 ssh_service:
   enabled: true
-
 auth_service:
   enabled: false
 proxy_service:
   enabled: false
 ```
-
 
 **4. Add Users**
 

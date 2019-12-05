@@ -246,7 +246,7 @@ teleport:
 
         # Array of locations where the audit log events will be stored. by
         # default they are stored in `/var/lib/teleport/log`
-        audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name', 'firestore://', 'stdout://']
+        audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name', 'firestore://events_table_name', 'stdout://']
 
         # Use this setting to configure teleport to store the recorded sessions in
         # an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using Amazon S3" 
@@ -2263,7 +2263,7 @@ teleport:
 
 * Audit log settings above are optional. If specified, Teleport will store the
   audit log in DynamoDB and the session recordings **must** be stored in an S3
-  bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
+  bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file system for the audit log, i.e.
 `/var/lib/teleport/log` on an auth server.
 
@@ -2328,11 +2328,9 @@ high availability. Firestore back-end supports two types of Teleport data:
 * Cluster state
 * Audit log events
 
-Firestore cannot store the recorded sessions. You are advised to use CGP Storage for
+Firestore cannot store the recorded sessions. You are advised to use GCP Storage for
 that as shown above. To configure Teleport to use Firestore:
-
-* Make sure you have AWS access key and a secret key which give you access to
-  Firestore account. If you're using (as recommended) a Service role for this.
+.
 
 * Configure all Teleport Auth servers to use Firestore back-end in the "storage"
   section of `teleport.yaml` as shown below.
@@ -2340,9 +2338,10 @@ that as shown above. To configure Teleport to use Firestore:
 * Deploy several auth servers connected to Firestore storage back-end.
 * Deploy several proxy nodes.
 * Make sure that all Teleport nodes have `auth_servers` configuration setting
-  populated with the auth servers.
+  populated with the auth servers or use a load balancer for the auth servers in 
+  high availability mode. 
 
-``` yaml
+```yaml
 teleport:
   storage:
     type: firestore
@@ -2356,21 +2355,21 @@ teleport:
 
     # This setting configures Teleport to send the audit events to three places:
     # To keep a copy on a local filesystem, in Firestore and to Stdout.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://events', 'stdout://']
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://Example_TELEPORT_FIRESTORE_TABLE_NAME', 'stdout://']
 
-    # This setting configures Teleport to save the recorded sessions in an GCP storage:
+    # This setting configures Teleport to save the recorded sessions in GCP storage:
     audit_sessions_uri: gs://Example_TELEPORT_S3_BUCKET/records
 ```
 
-* Replace `Example_GCP_Project_Name` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
-  with your own settings.  Teleport will create the table automatically.
+* Replace `Example_GCP_Project_Name` and `Example_TELEPORT_FIRESTORE_TABLE_NAME`
+  with your own settings. Teleport will create the table automatically.
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 
 * Audit log settings above are optional. If specified, Teleport will store the
-  audit log in Firestore and the session recordings **must** be stored in an GCP
+  audit log in Firestore and the session recordings **must** be stored in a GCP
   bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
-  Teleport will default to a local file system for the audit log, i.e.
+  Teleport will default to a local file  system for the audit log, i.e.
 `/var/lib/teleport/log` on an auth server.
 
 
