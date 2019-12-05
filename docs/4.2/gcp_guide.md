@@ -77,7 +77,7 @@ teleport:
   storage:
     type: firestore
     collection_name: cluster-data
-    project_id: gcp-proj-with-firestore-enabled
+    project_id: EXAMPLE_gcp-proj-with-firestore-enabled
     credentials_path: /var/lib/teleport/firestore_creds
     audit_events_uri: ['firestore://events_table_name']
 ```
@@ -94,14 +94,14 @@ When setting up `audit_session_uri` use `gs://` session prefix.
 ```yaml
 storage:
     ...
-    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds&projectID=bc-jdurbin'
+    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds&projectID=EXAMPLE_gcp-proj-with-firestore-enabled'
     ...
 ```
 
 ### Network Services: Load Balancing
 
-Load Balancing is required for Proxy and SSH traffic `TCP Load Balancing` as Teleport 
-requires custom ports for SSH and Web Traffic.
+Load Balancing is required for Proxy and SSH traffic. Use `TCP Load Balancing` as 
+Teleport requires custom ports for SSH and Web Traffic.
 
 ### Network Services: Cloud DNS
 
@@ -110,7 +110,7 @@ record is sufficient.
 
 ### Access: Service accounts 
 
-The Authentication server will need to read and write to Firestore for this it'll need to have
+The Authentication server will need to read and write to Firestore.  For this it'll need 
 the correct permission via Server Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
 
 
