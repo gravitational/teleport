@@ -1189,6 +1189,9 @@ func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) {
 	key, _, err := common.LoadIdentity(cf.IdentityFileIn)
+	if err != nil {
+		utils.FatalError(err)
+	}
 
 	// unmarshal certificate bytes into a ssh.PublicKey
 	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
