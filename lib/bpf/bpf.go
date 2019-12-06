@@ -84,6 +84,7 @@ func New(config *Config) (BPF, error) {
 	// If BPF-based auditing is not enabled, don't configure anything return
 	// right away.
 	if !config.Enabled {
+		log.Debugf("Enhanced session recording is not enabled, skipping.")
 		return &NOP{}, nil
 	}
 
@@ -120,6 +121,9 @@ func New(config *Config) (BPF, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	start := time.Now()
+	log.Debugf("Starting enhanced session recording.")
+
 	// Compile and start BPF programs.
 	s.exec, err = startExec(closeContext, config.CommandBufferSize)
 	if err != nil {
@@ -134,8 +138,10 @@ func New(config *Config) (BPF, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Started enhanced auditing with buffer sizes %v %v %v and cgroup mount path: %v.",
-		s.CommandBufferSize, s.DiskBufferSize, s.NetworkBufferSize, s.CgroupPath)
+	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
+		"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
+		s.CommandBufferSize, s.DiskBufferSize, s.NetworkBufferSize, s.CgroupPath,
+		time.Since(start))
 
 	// Start pulling events off the perf buffers and emitting them to the
 	// Audit Log.
