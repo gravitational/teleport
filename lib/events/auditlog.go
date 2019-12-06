@@ -419,12 +419,13 @@ func (l *AuditLog) getAuthServers() ([]string, error) {
 }
 
 type sessionIndex struct {
-	dataDir    string
-	namespace  string
-	sid        session.ID
-	events     []indexEntry
-	chunks     []indexEntry
-	indexFiles []string
+	dataDir        string
+	namespace      string
+	sid            session.ID
+	events         []indexEntry
+	enhancedEvents map[string][]indexEntry
+	chunks         []indexEntry
+	indexFiles     []string
 }
 
 func (idx *sessionIndex) fileNames() []string {
@@ -439,6 +440,13 @@ func (idx *sessionIndex) fileNames() []string {
 		files = append(files, idx.chunksFileName(i))
 	}
 
+	// Enhanced events.
+	for k, v := range idx.enhancedEvents {
+		for i := range v {
+			files = append(files, idx.enhancedFileName(i, k))
+		}
+	}
+
 	return files
 }
 
@@ -449,6 +457,18 @@ func (idx *sessionIndex) sort() {
 	sort.Slice(idx.chunks, func(i, j int) bool {
 		return idx.chunks[i].Offset < idx.chunks[j].Offset
 	})
+
+	// Enhanced events.
+	for k, _ := range idx.enhancedEvents {
+		sort.Slice(idx.enhancedEvents[k], func(i, j int) bool {
+			return idx.enhancedEvents[k][i].Index < idx.enhancedEvents[k][j].Index
+		})
+	}
+}
+
+func (idx *sessionIndex) enhancedFileName(index int, eventType string) string {
+	entry := idx.enhancedEvents[eventType][index]
+	return filepath.Join(idx.dataDir, entry.authServer, SessionLogsDir, idx.namespace, entry.FileName)
 }
 
 func (idx *sessionIndex) eventsFileName(index int) string {
@@ -506,6 +526,11 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 		sid:       sid,
 		dataDir:   dataDir,
 		namespace: namespace,
+		enhancedEvents: map[string][]indexEntry{
+			SessionCommandEvent: []indexEntry{},
+			SessionDiskEvent:    []indexEntry{},
+			SessionNetworkEvent: []indexEntry{},
+		},
 	}
 	for _, authServer := range authServers {
 		indexFileName := filepath.Join(dataDir, authServer, SessionLogsDir, namespace, fmt.Sprintf("%v.index", sid))
@@ -518,12 +543,25 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 			continue
 		}
 		index.indexFiles = append(index.indexFiles, indexFileName)
-		events, chunks, err := readIndexEntries(indexFile, authServer)
+
+		entries, err := readIndexEntries(indexFile, authServer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		index.events = append(index.events, events...)
-		index.chunks = append(index.chunks, chunks...)
+		for _, entry := range entries {
+			switch entry.Type {
+			case fileTypeEvents:
+				index.events = append(index.events, entry)
+			case fileTypeChunks:
+				index.chunks = append(index.chunks, entry)
+			// Enhanced events.
+			case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+				index.enhancedEvents[entry.Type] = append(index.enhancedEvents[entry.Type], entry)
+			default:
+				return nil, trace.BadParameter("found unknown event type: %q", entry.Type)
+			}
+		}
+
 		err = indexFile.Close()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -533,24 +571,20 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 	return &index, nil
 }
 
-func readIndexEntries(file *os.File, authServer string) (events []indexEntry, chunks []indexEntry, err error) {
+func readIndexEntries(file *os.File, authServer string) ([]indexEntry, error) {
+	var entries []indexEntry
+
 	scanner := bufio.NewScanner(file)
 	for lineNo := 0; scanner.Scan(); lineNo++ {
 		var entry indexEntry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		entry.authServer = authServer
-		switch entry.Type {
-		case fileTypeEvents:
-			events = append(events, entry)
-		case fileTypeChunks:
-			chunks = append(chunks, entry)
-		default:
-			return nil, nil, trace.BadParameter("unsupported type: %q", entry.Type)
-		}
+		entries = append(entries, entry)
 	}
-	return
+
+	return entries, nil
 }
 
 // createOrGetDownload creates a new download sync entry for a given session,

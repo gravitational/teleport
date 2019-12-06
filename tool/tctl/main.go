@@ -29,6 +29,7 @@ func main() {
 		&common.ResourceCommand{},
 		&common.StatusCommand{},
 		&common.TopCommand{},
+		&common.AccessRequestCommand{},
 	}
 	common.Run(commands)
 }

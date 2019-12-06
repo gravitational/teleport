@@ -22,9 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/gravitational/teleport/lib/backend/firestore"
-	"github.com/gravitational/teleport/lib/events/firestoreevents"
-	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"io"
 	"io/ioutil"
 	"net"
@@ -46,14 +43,18 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/events/firestoreevents"
+	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -500,7 +501,10 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
-	// before we do anything reset the SIGINT handler back to the default
+	var err error
+	var ebpf bpf.BPF
+
+	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
@@ -516,8 +520,18 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err, "configuration error")
 	}
 
+	// If this is a Teleport node and BPF is enabled, start BPF programs early
+	// in the startup process. This allows Teleport to fail right away if
+	// BPF-based auditing is configured but can not start for whatever reason.
+	if cfg.SSH.Enabled {
+		ebpf, err = bpf.New(cfg.SSH.BPF)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// create the data directory if it's missing
-	_, err := os.Stat(cfg.DataDir)
+	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
 		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
 		if err != nil {
@@ -646,7 +660,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.SSH.Enabled {
-		if err := process.initSSH(); err != nil {
+		if err := process.initSSH(ebpf); err != nil {
 			return nil, err
 		}
 		serviceStarted = true
@@ -1077,7 +1091,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	go mux.Serve()
 	process.RegisterCriticalFunc("auth.tls", func() error {
-		utils.Consolef(cfg.Console, teleport.ComponentAuth, "Auth service is starting on %v.", cfg.Auth.SSHAddr.Addr)
+		utils.Consolef(cfg.Console, teleport.ComponentAuth, "Auth service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Auth.SSHAddr.Addr)
 
 		// since tlsServer.Serve is a blocking call, we emit this even right before
 		// the service has started
@@ -1368,7 +1382,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 }
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
-func (process *TeleportProcess) initSSH() error {
+func (process *TeleportProcess) initSSH(ebpf bpf.BPF) error {
 	process.registerWithAuthServer(teleport.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
@@ -1460,6 +1474,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetRotationGetter(process.getRotation),
 			regular.SetUseTunnel(conn.UseTunnel()),
 			regular.SetFIPS(cfg.FIPS),
+			regular.SetBPF(ebpf),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1481,8 +1496,8 @@ func (process *TeleportProcess) initSSH() error {
 			// clean up unused descriptors passed for proxy, but not used by it
 			warnOnErr(process.closeImportedDescriptors(teleport.ComponentNode))
 
-			log.Infof("Service is starting on %v %v.", cfg.SSH.Addr.Addr, process.Config.CachePolicy)
-			utils.Consolef(cfg.Console, teleport.ComponentNode, "Service is starting on %v.", cfg.SSH.Addr.Addr)
+			log.Infof("Service %s:%s is starting on %v %v.", teleport.Version, teleport.Gitref, cfg.SSH.Addr.Addr, process.Config.CachePolicy)
+			utils.Consolef(cfg.Console, teleport.ComponentNode, "Service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.SSH.Addr.Addr)
 
 			// Start the SSH server. This kicks off updating labels, starting the
 			// heartbeat, and accepting connections.
@@ -1546,6 +1561,9 @@ func (process *TeleportProcess) initSSH() error {
 		if conn.UseTunnel() {
 			agentPool.Stop()
 		}
+
+		// Close BPF service.
+		warnOnErr(ebpf.Close())
 
 		log.Infof("Exited.")
 	})
@@ -2010,8 +2028,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
-			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Reverse tunnel service is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
-			log.Infof("Starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
+			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Reverse tunnel service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+			log.Infof("Starting %s:%s on %v using %v", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
 				log.Error(err)
 				return trace.Wrap(err)
@@ -2079,8 +2097,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ReadHeaderTimeout: defaults.DefaultDialTimeout,
 		}
 		process.RegisterCriticalFunc("proxy.web", func() error {
-			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Web proxy service is starting on %v.", cfg.Proxy.WebAddr.Addr)
-			log.Infof("Web proxy service is starting on %v.", cfg.Proxy.WebAddr.Addr)
+			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.WebAddr.Addr)
+			log.Infof("Web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.WebAddr.Addr)
 			defer webHandler.Close()
 			process.BroadcastEvent(Event{Name: ProxyWebServerReady, Payload: webHandler})
 			if err := webServer.Serve(listeners.web); err != nil && err != http.ErrServerClosed {
@@ -2121,8 +2139,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
-		utils.Consolef(cfg.Console, teleport.ComponentProxy, "SSH proxy service is starting on %v.", cfg.Proxy.SSHAddr.Addr)
-		log.Infof("SSH proxy service is starting on %v", cfg.Proxy.SSHAddr.Addr)
+		utils.Consolef(cfg.Console, teleport.ComponentProxy, "SSH proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr.Addr)
+		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr.Addr)
 		go sshProxy.Serve(listener)
 		// broadcast that the proxy ssh server has started
 		process.BroadcastEvent(Event{Name: ProxySSHReady, Payload: nil})

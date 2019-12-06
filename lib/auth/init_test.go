@@ -315,3 +315,8 @@ func (s *AuthInitSuite) TestClusterName(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
 }
+
+// DELETE IN: 4.3.0
+func (s *AuthInitSuite) TestRoleOptions(c *C) {
+	// TODO: Implement.
+}
