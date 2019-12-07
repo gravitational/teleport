@@ -103,8 +103,7 @@ func TestMain(m *testing.M) {
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	var err error
 
-	//utils.InitLoggerForTests(testing.Verbose())
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
@@ -4014,6 +4013,131 @@ func (s *IntSuite) TestBPFExec(c *check.C) {
 			c.Assert(err, check.NotNil)
 		}
 	}
+}
+
+// TestBPFSessionDifferentiation verifies that the bpf package can
+// differentiate events from two different sessions. This test in turn also
+// verifies the cgroup package.
+func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// Check if BPF tests can be run on this host.
+	err := canTestBPF()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for BPF functionality can not be run: %v.", err))
+		return
+	}
+
+	lsPath, err := exec.LookPath("ls")
+	c.Assert(err, check.IsNil)
+
+	// Create temporary directory where cgroup2 hierarchy will be mounted.
+	dir, err := ioutil.TempDir("", "cgroup-test")
+	c.Assert(err, check.IsNil)
+	defer os.RemoveAll(dir)
+
+	// Create and start a Teleport cluster.
+	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
+		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+			SessionRecording: services.RecordAtNode,
+			LocalAuth:        services.NewBool(true),
+		})
+		c.Assert(err, check.IsNil)
+
+		// Create default config.
+		tconf := service.MakeDefaultConfig()
+
+		// Configure Auth.
+		tconf.Auth.Preference.SetSecondFactor("off")
+		tconf.Auth.Enabled = true
+		tconf.Auth.ClusterConfig = clusterConfig
+
+		// Configure Proxy.
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		// Configure Node. If session are being recorded at the proxy, don't enable
+		// BPF to simulate an OpenSSH node.
+		tconf.SSH.Enabled = true
+		tconf.SSH.BPF.Enabled = true
+		tconf.SSH.BPF.CgroupPath = dir
+		return c, nil, nil, tconf
+	}
+	main := s.newTeleportWithConfig(makeConfig())
+	defer main.Stop(true)
+
+	// Create two client terminals and channel to signal when the clients are
+	// done with the terminals.
+	termA := NewTerminal(250)
+	termB := NewTerminal(250)
+	doneCh := make(chan bool, 2)
+
+	// Open a terminal and type "ls" into both and exit.
+	writeTerm := func(term Terminal) {
+		client, err := main.NewClient(ClientConfig{
+			Login:   s.me.Username,
+			Cluster: Site,
+			Host:    Host,
+			Port:    main.GetPortSSHInt(),
+		})
+		c.Assert(err, check.IsNil)
+
+		// Connect terminal to std{in,out} of client.
+		client.Stdout = &term
+		client.Stdin = &term
+
+		// "Type" a command into the terminal.
+		term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
+		err = client.SSH(context.Background(), []string{}, false)
+		c.Assert(err, check.IsNil)
+
+		// Signal that the client has finished the interactive session.
+		doneCh <- true
+	}
+	writeTerm(termA)
+	writeTerm(termB)
+
+	// Wait 10 seconds for both events to arrive, otherwise timeout.
+	timeout := time.After(10 * time.Second)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-doneCh:
+			if i == 1 {
+				break
+			}
+		case <-timeout:
+			c.Fatalf("Timed out waiting for client to finish interactive session.")
+		}
+	}
+
+	// Try to find two command events from different sessions. Timeout after
+	// 10 seconds.
+	for i := 0; i < 10; i++ {
+		sessionIDs := map[string]bool{}
+
+		eventFields, err := eventsInLog(main.Config.DataDir+"/log/events.log", events.SessionCommandEvent)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		for _, fields := range eventFields {
+			if fields.GetString(events.EventType) == events.SessionCommandEvent &&
+				fields.GetString(events.Path) == lsPath {
+				sessionIDs[fields.GetString(events.SessionEventID)] = true
+			}
+		}
+
+		// If two command events for "ls" from different sessions, return right
+		// away, test was successful.
+		if len(sessionIDs) == 2 {
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+	c.Fatalf("Failed to find command events from two different sessions.")
 }
 
 // findEventInLog polls the event log looking for an event of a particular type.
