@@ -897,6 +897,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	return proxyClient.ReissueUserCerts(ctx, params)
 }
 
+// CreateAccessRequest registers a new access request with the auth server.
 func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
@@ -905,6 +906,7 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.
 	return proxyClient.CreateAccessRequest(ctx, req)
 }
 
+// GetAccessRequests loads all access requests matching the supplied filter.
 func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
@@ -913,6 +915,7 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services
 	return proxyClient.GetAccessRequests(ctx, filter)
 }
 
+// NewWatcher sets up a new event watcher.
 func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
