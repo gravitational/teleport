@@ -95,7 +95,6 @@ func Run(commands []CLICommand) {
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	app.Flag("auth-server",
 		fmt.Sprintf("Address of the auth server [%v]. Can be supplied multiple times", defaults.AuthConnectAddr().Addr)).
-		Default(defaults.AuthConnectAddr().Addr).
 		StringsVar(&ccf.AuthServerAddr)
 	app.Flag("identity", "Path to the identity file exported with 'tctl auth sign'").
 		Short('i').
@@ -226,6 +225,14 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) error {
 	// --auth-server flag(-s)
 	if len(ccf.AuthServerAddr) != 0 {
 		cfg.AuthServers, err = utils.ParseAddrs(ccf.AuthServerAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// If auth server is not provided on the command line or in file
+	// configuration, use the default.
+	if len(cfg.AuthServers) == 0 {
+		cfg.AuthServers, err = utils.ParseAddrs([]string{defaults.AuthConnectAddr().Addr})
 		if err != nil {
 			return trace.Wrap(err)
 		}
