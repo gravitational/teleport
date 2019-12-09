@@ -1,8 +1,0 @@
-[Unit]
-Description=Service rotating teleport tokens
-ConditionPathExists=/etc/teleport.d/role.auth
-
-[Service]
-Type=oneshot
-ExecStartPre=/usr/bin/teleport-lock
-ExecStart=/usr/bin/teleport-ssm-publish-tokens
