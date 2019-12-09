@@ -1,0 +1,1 @@
+Please see https://github.com/gravitational/teleport/tree/master/examples/aws/cloudformation instead.
