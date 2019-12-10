@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.12
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue that caused Teleport not to start with certain OIDC claims. [#3053](https://github.com/gravitational/teleport/issues/3053)
+
+## 4.0.11
+
+This release of Teleport adds support for an older version of Linux.
+
+* Added RHEL/CentOS 6.x builds to the build pipeline. [#3175](https://github.com/gravitational/teleport/pull/3175)
+
 ## 4.0.10
 
 This release of Teleport contains a bug fix.
