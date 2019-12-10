@@ -409,9 +409,13 @@ func RunCommand() {
 		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
 	}
 
-	// Wait for it to exit.
+	// Wait for the command to exit. It doesn't make sense to print an error
+	// message here because the shell has successfully started. If an error
+	// occured during shell execution or the shell exits with an error (like
+	// running exit 2), the shell will print an error if appropriate and return
+	// an exit code.
 	err = cmd.Wait()
-	errorAndExit(errorWriter, exitCode(err), err)
+	os.Exit(exitCode(err))
 }
 
 func (e *localExec) transformSecureCopy() error {
