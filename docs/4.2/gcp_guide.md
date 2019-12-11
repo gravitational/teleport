@@ -78,7 +78,7 @@ teleport:
     type: firestore
     collection_name: cluster-data
     project_id: EXAMPLE_gcp-proj-with-firestore-enabled
-    credentials_path: /var/lib/teleport/firestore_creds
+    credentials_path: /var/lib/teleport/firestore_creds.json
     audit_events_uri: ['firestore://events_table_name']
 ```
 
@@ -94,7 +94,7 @@ When setting up `audit_session_uri` use `gs://` session prefix.
 ```yaml
 storage:
     ...
-    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds&projectID=EXAMPLE_gcp-proj-with-firestore-enabled'
+    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds.json&projectID=EXAMPLE_gcp-proj-with-firestore-enabled'
     ...
 ```
 
