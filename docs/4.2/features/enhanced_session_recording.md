@@ -64,7 +64,7 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 
 ### Amazon Linux 
 We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
-`sudo amazon-linux-extras` install kernel-ng and rebooting your instance. 
+`sudo amazon-linux-extras install kernel-ng` and rebooting your instance. 
 
 ### archlinux 
 |                     | Kernel Version         |
@@ -76,7 +76,12 @@ We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
 Run the following script to download the prerequisites to build BCC tools, building LLVM and Clang targeting BPF byte code, and then building and installing BCC tools.
 
 !!! note
-    We plan have plans to remove this step after we've moved our of our beta.
+
+    We plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
+
+**Example Script to install relevant bcc packages for CentOS**
+Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md#debian---source) on how to install the relevant tooling for other operating systems. 
+
 
 ```sh
 #!/bin/bash
@@ -126,6 +131,7 @@ cd ..
 
 # Install BCC.
 git clone https://github.com/iovisor/bcc.git
+cd bcc && git checkout v0.11.0
 mkdir bcc/build; cd bcc/build
 cmake3 .. -DCMAKE_INSTALL_PREFIX=/usr
 make
@@ -144,7 +150,7 @@ and Nodes.
 Setup the Teleport node with this `etc/teleport.yaml` see our [configuration file setup](../admin-guide/#configuration) for more instructions. 
 
 
-```
+```yaml
 # Example Config to be saved as etc/teleport.yaml
 teleport:
   nodename: graviton-node
@@ -158,22 +164,22 @@ auth_service:
   enabled: no
 ssh_service:
   enabled: yes
-  enhanced_recording:
-  # Enable or disable enhanced auditing for this node. Default value: false.
-    enabled: true
+    enhanced_recording:
+       # Enable or disable enhanced auditing for this node. Default value: false.
+       enabled: true
     
-    # command_buffer_size is optional with a default value of 8 pages. 
-    command_buffer_size: 8
+       # Optional: command_buffer_size is optional with a default value of 8 pages. 
+       command_buffer_size: 8
 
-    # disk_buffer_size is optional with default value of 128 pages.
-    disk_buffer_size: 128
+       # Optional: disk_buffer_size is optional with default value of 128 pages.
+       disk_buffer_size: 128
 
-    # network_buffer_size is optional with default value of 8 pages.
-    network_buffer_size: 8
+       # Optional: network_buffer_size is optional with default value of 8 pages.
+       network_buffer_size: 8
 
-    # Controls where cgroupv2 hierarchy is mounted. Default value: 
-    # /cgroup2.
-    cgroup_path: /cgroup2
+       # Optional: Controls where cgroupv2 hierarchy is mounted. Default value: 
+       # /cgroup2.
+       cgroup_path: /cgroup2
 ```
 
 ## 4. Test by logging into node via Teleport.
