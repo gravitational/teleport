@@ -130,7 +130,7 @@ an infrastructure automation tool such as [Cloud Deployment Manager](https://clo
 
 Follow install instructions from our [installation page](installation.md#linux). 
  
-We recommend configuring the Teleport in the below steps. 
+We recommend configuring Teleport as per the below steps:
 
 **1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it 
 using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service) or use DEB/.RPM packages available from our [Downloads Page](https://gravitational.com/teleport/download/).
