@@ -18,8 +18,11 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
@@ -34,6 +37,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeclient "github.com/gravitational/teleport/lib/kube/client"
@@ -61,6 +66,8 @@ type CLIConf struct {
 	UserHost string
 	// Commands to execute on a remote host
 	RemoteCommand []string
+	// DesiredRoles indicates one or more roles which should be requested.
+	DesiredRoles string
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
 	// Proxy keeps the hostname:port of the SSH proxy to use
@@ -262,6 +269,7 @@ func Run(args []string, underTest bool) {
 	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
 		client.DefaultIdentityFormat,
 		client.IdentityFormatOpenSSH)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
+	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Alias(loginUsageFooter)
 
@@ -411,18 +419,23 @@ func onLogin(cf *CLIConf) {
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
 		// in case if nothing is specified, print current status
-		case cf.Proxy == "" && cf.SiteName == "":
+		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "":
 			printProfiles(cf.Debug, profile, profiles)
 			return
 		// in case if parameters match, print current status
-		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster:
+		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
 			printProfiles(cf.Debug, profile, profiles)
 			return
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
-			if err := tc.GenerateCertsForCluster(cf.Context, cf.SiteName); err != nil {
+			// trigger reissue, preserving any active requests.
+			err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+				AccessRequests: profile.ActiveRequests.AccessRequests,
+				RouteToCluster: cf.SiteName,
+			})
+			if err != nil {
 				utils.FatalError(err)
 			}
 			tc.SaveProfile("", "")
@@ -430,6 +443,12 @@ func onLogin(cf *CLIConf) {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
+			return
+		// proxy is unspecified or the same as the currently provided proxy,
+		// but desired roles are specified, treat this as a privilege escalation
+		// request for the same login session.
+		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "":
+			executeAccessRequest(cf)
 			return
 		// otherwise just passthrough to standard login
 		default:
@@ -477,7 +496,12 @@ func onLogin(cf *CLIConf) {
 	// advertised settings are picked up.
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
-	onStatus(cf)
+	if cf.DesiredRoles != "" {
+		fmt.Println("") // visually separate onRequestExecute output
+		executeAccessRequest(cf)
+	} else {
+		onStatus(cf)
+	}
 }
 
 // setupNoninteractiveClient sets up existing client to use
@@ -663,6 +687,33 @@ func onListNodes(cf *CLIConf) {
 		}
 		fmt.Println(t.AsBuffer().String())
 	}
+}
+
+func executeAccessRequest(cf *CLIConf) {
+	if cf.DesiredRoles == "" {
+		utils.FatalError(trace.BadParameter("one or more roles must be specified"))
+	}
+	roles := strings.Split(cf.DesiredRoles, ",")
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	if cf.Username == "" {
+		cf.Username = tc.Username
+	}
+	req, err := services.NewAccessRequest(cf.Username, roles...)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
+	if err := getRequestApproval(cf, tc, req); err != nil {
+		utils.FatalError(err)
+	}
+	fmt.Fprintf(os.Stderr, "Approval received, getting updated certificates...\n\n")
+	if err := reissueWithRequests(cf, tc, req.GetName()); err != nil {
+		utils.FatalError(err)
+	}
+	onStatus(cf)
 }
 
 // chunkLabels breaks labels into sized chunks. Used to improve readability
@@ -1028,6 +1079,104 @@ func refuseArgs(command string, args []string) {
 	}
 }
 
+// loadIdentity loads the private key + certificate from a file
+// Returns:
+//	 - client key: user's private key+cert
+//   - host auth callback: function to validate the host (may be null)
+//   - error, if somthing happens when reading the identityf file
+//
+// If the "host auth callback" is not returned, user will be prompted to
+// trust the proxy server.
+func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
+	log.Infof("Reading identity file: %v", idFn)
+
+	f, err := os.Open(idFn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer f.Close()
+	ident, err := client.DecodeIdentityFile(f)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to parse identity file")
+	}
+	// did not find the certificate in the file? look in a separate file with
+	// -cert.pub prefix
+	if len(ident.Certs.SSH) == 0 {
+		certFn := idFn + "-cert.pub"
+		log.Infof("Certificate not found in %s. Looking in %s.", idFn, certFn)
+		ident.Certs.SSH, err = ioutil.ReadFile(certFn)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+	// validate both by parsing them:
+	privKey, err := ssh.ParseRawPrivateKey(ident.PrivateKey)
+	if err != nil {
+		return nil, nil, trace.BadParameter("invalid identity: %s. %v", idFn, err)
+	}
+	signer, err := ssh.NewSignerFromKey(privKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	// validate TLS Cert (if present):
+	if len(ident.Certs.TLS) > 0 {
+		_, err := tls.X509KeyPair(ident.Certs.TLS, ident.PrivateKey)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+	// Validate TLS CA certs (if present).
+	var trustedCA []auth.TrustedCerts
+	if len(ident.CACerts.TLS) > 0 {
+		var trustedCerts auth.TrustedCerts
+		pool := x509.NewCertPool()
+		for i, certPEM := range ident.CACerts.TLS {
+			if !pool.AppendCertsFromPEM(certPEM) {
+				return nil, nil, trace.BadParameter("identity file contains invalid TLS CA cert (#%v)", i+1)
+			}
+			trustedCerts.TLSCertificates = append(trustedCerts.TLSCertificates, certPEM)
+		}
+		trustedCA = []auth.TrustedCerts{trustedCerts}
+	}
+	var hostAuthFunc ssh.HostKeyCallback = nil
+	// validate CA (cluster) cert
+	if len(ident.CACerts.SSH) > 0 {
+		var trustedKeys []ssh.PublicKey
+		for _, caCert := range ident.CACerts.SSH {
+			_, _, publicKey, _, _, err := ssh.ParseKnownHosts(caCert)
+			if err != nil {
+				return nil, nil, trace.BadParameter("CA cert parsing error: %v. cert line :%v",
+					err.Error(), string(caCert))
+			}
+			trustedKeys = append(trustedKeys, publicKey)
+		}
+
+		// found CA cert in the indentity file? construct the host key checking function
+		// and return it:
+		hostAuthFunc = func(host string, a net.Addr, hostKey ssh.PublicKey) error {
+			clusterCert, ok := hostKey.(*ssh.Certificate)
+			if ok {
+				hostKey = clusterCert.SignatureKey
+			}
+			for _, trustedKey := range trustedKeys {
+				if sshutils.KeysEqual(trustedKey, hostKey) {
+					return nil
+				}
+			}
+			err = trace.AccessDenied("host %v is untrusted", host)
+			log.Error(err)
+			return err
+		}
+	}
+	return &client.Key{
+		Priv:      ident.PrivateKey,
+		Pub:       signer.PublicKey().Marshal(),
+		Cert:      ident.Certs.SSH,
+		TLSCert:   ident.Certs.TLS,
+		TrustedCA: trustedCA,
+	}, hostAuthFunc, nil
+}
+
 // authFromIdentity returns a standard ssh.Authmethod for a given identity file
 func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 	signer, err := sshutils.NewSigner(k.Priv, k.Cert)
@@ -1040,6 +1189,9 @@ func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) {
 	key, _, err := common.LoadIdentity(cf.IdentityFileIn)
+	if err != nil {
+		utils.FatalError(err)
+	}
 
 	// unmarshal certificate bytes into a ssh.PublicKey
 	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
@@ -1146,4 +1298,81 @@ func host(in string) string {
 		return in
 	}
 	return out
+}
+
+// getRequestApproval registers an access request with the auth server and waits for it to be approved.
+func getRequestApproval(cf *CLIConf, tc *client.TeleportClient, req services.AccessRequest) error {
+	// set up request watcher before submitting the request to the admin server
+	// in order to avoid potential race.
+	filter := services.AccessRequestFilter{
+		User: tc.Username,
+	}
+	watcher, err := tc.NewWatcher(cf.Context, services.Watch{
+		Name: "await-request-approval",
+		Kinds: []services.WatchKind{
+			services.WatchKind{
+				Kind:   services.KindAccessRequest,
+				Filter: filter.IntoMap(),
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+	if err := tc.CreateAccessRequest(cf.Context, req); err != nil {
+		utils.FatalError(err)
+	}
+Loop:
+	for {
+		select {
+		case event := <-watcher.Events():
+			if event.Type != backend.OpPut {
+				continue Loop
+			}
+			r, ok := event.Resource.(*services.AccessRequestV3)
+			if !ok {
+				return trace.Errorf("unexpected resource type %T", event.Resource)
+			}
+			if r.GetName() != req.GetName() || r.GetState().IsPending() {
+				continue Loop
+			}
+			if !r.GetState().IsApproved() {
+				return trace.Errorf("request %s has been set to %s", r.GetName(), r.GetState().String())
+			}
+			return nil
+		case <-watcher.Done():
+			utils.FatalError(watcher.Error())
+		}
+	}
+}
+
+// reissueWithRequests handles a certificate reissue, applying new requests by ID,
+// and saving the updated profile.
+func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...string) error {
+	profile, _, err := client.Status("", cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	params := client.ReissueParams{
+		AccessRequests: reqIDs,
+		RouteToCluster: cf.SiteName,
+	}
+	// if the certificate already had active requests, add them to our inputs parameters.
+	if len(profile.ActiveRequests.AccessRequests) > 0 {
+		params.AccessRequests = append(params.AccessRequests, profile.ActiveRequests.AccessRequests...)
+	}
+	if params.RouteToCluster == "" {
+		params.RouteToCluster = profile.Cluster
+	}
+	if err := tc.ReissueUserCerts(cf.Context, params); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := tc.SaveProfile("", ""); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -83,21 +85,26 @@ func TestIntegrations(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&IntSuite{})
 
-func (s *IntSuite) TearDownSuite(c *check.C) {
-	var err error
-	// restore os.Stdin to its original condition: connected to /dev/null
-	os.Stdin.Close()
-	os.Stdin, err = os.Open("/dev/null")
-	c.Assert(err, check.IsNil)
-}
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise it will run tests as normal.
+func TestMain(m *testing.M) {
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe.
+	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
+		srv.RunCommand()
+		return
+	}
 
-func (s *IntSuite) SetUpTest(c *check.C) {
-	os.RemoveAll(client.FullProfilePath(""))
+	// Otherwise run tests as normal.
+	code := m.Run()
+	os.Exit(code)
 }
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	var err error
+
 	utils.InitLoggerForTests(testing.Verbose())
+
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
@@ -116,6 +123,18 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 		os.Stdin.Close()
 		os.Stdin = stdin
 	}
+}
+
+func (s *IntSuite) TearDownSuite(c *check.C) {
+	var err error
+	// restore os.Stdin to its original condition: connected to /dev/null
+	os.Stdin.Close()
+	os.Stdin, err = os.Open("/dev/null")
+	c.Assert(err, check.IsNil)
+}
+
+func (s *IntSuite) SetUpTest(c *check.C) {
+	os.RemoveAll(client.FullProfilePath(""))
 }
 
 // newTeleport helper returns a created but not started Teleport instance pre-configured
@@ -2731,14 +2750,12 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		inEnabled     bool
 		inServiceName string
 		outContains   []string
-		outError      bool
 	}{
 		// 0 - No PAM support, session should work but no PAM related output.
 		{
 			inEnabled:     false,
 			inServiceName: "",
 			outContains:   []string{},
-			outError:      false,
 		},
 		// 1 - PAM enabled, module account and session functions return success.
 		{
@@ -2748,21 +2765,18 @@ func (s *IntSuite) TestPAM(c *check.C) {
 				"Account opened successfully.",
 				"Session open successfully.",
 			},
-			outError: false,
 		},
 		// 2 - PAM enabled, module account functions fail.
 		{
 			inEnabled:     true,
 			inServiceName: "teleport-acct-failure",
 			outContains:   []string{},
-			outError:      true,
 		},
 		// 3 - PAM enabled, module session functions fail.
 		{
 			inEnabled:     true,
 			inServiceName: "teleport-session-failure",
 			outContains:   []string{},
-			outError:      true,
 		},
 	}
 
@@ -2804,14 +2818,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 
 			termSession.Type("\aecho hi\n\r\aexit\n\r\a")
 			err = cl.SSH(context.TODO(), []string{}, false)
-
-			// If an error is expected (for example PAM does not allow a session to be
-			// created), this failure needs to be checked here.
-			if tt.outError {
-				c.Assert(err, check.NotNil)
-			} else {
-				c.Assert(err, check.IsNil)
-			}
+			c.Assert(err, check.IsNil)
 
 			cancel()
 		}()
@@ -2824,9 +2831,11 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		}
 
 		// If any output is expected, check to make sure it was output.
-		for _, expectedOutput := range tt.outContains {
-			output := string(termSession.Output(100))
-			c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
+		if len(tt.outContains) > 0 {
+			for _, expectedOutput := range tt.outContains {
+				output := string(termSession.Output(100))
+				c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
+			}
 		}
 	}
 }
@@ -3778,22 +3787,415 @@ func (s *IntSuite) TestDataTransfer(c *check.C) {
 	c.Assert(eventFields.GetInt(events.DataTransmitted) > KB, check.Equals, true)
 }
 
-// findEventInLog tries to find an event in the audit log file 10 times.
-func findEventInLog(t *TeleInstance, eventName string) (events.EventFields, error) {
+func (s *IntSuite) TestBPFInteractive(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// Check if BPF tests can be run on this host.
+	err := canTestBPF()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for BPF functionality can not be run: %v.", err))
+		return
+	}
+
+	lsPath, err := exec.LookPath("ls")
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		inSessionRecording string
+		inBPFEnabled       bool
+		outFound           bool
+	}{
+		// For session recorded at the node, enhanced events should be found.
+		{
+			inSessionRecording: services.RecordAtNode,
+			inBPFEnabled:       true,
+			outFound:           true,
+		},
+		// For session recorded at the node, but BPF is turned off, no events
+		// should be found.
+		{
+			inSessionRecording: services.RecordAtNode,
+			inBPFEnabled:       false,
+			outFound:           false,
+		},
+		// For session recorded at the proxy, enhanced events should not be found.
+		// BPF turned off simulates an OpenSSH node.
+		{
+			inSessionRecording: services.RecordAtProxy,
+			inBPFEnabled:       false,
+			outFound:           false,
+		},
+	}
+	for _, tt := range tests {
+		// Create temporary directory where cgroup2 hierarchy will be mounted.
+		dir, err := ioutil.TempDir("", "cgroup-test")
+		c.Assert(err, check.IsNil)
+		defer os.RemoveAll(dir)
+
+		// Create and start a Teleport cluster.
+		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
+			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+				SessionRecording: tt.inSessionRecording,
+				LocalAuth:        services.NewBool(true),
+			})
+			c.Assert(err, check.IsNil)
+
+			// Create default config.
+			tconf := service.MakeDefaultConfig()
+
+			// Configure Auth.
+			tconf.Auth.Preference.SetSecondFactor("off")
+			tconf.Auth.Enabled = true
+			tconf.Auth.ClusterConfig = clusterConfig
+
+			// Configure Proxy.
+			tconf.Proxy.Enabled = true
+			tconf.Proxy.DisableWebService = false
+			tconf.Proxy.DisableWebInterface = true
+
+			// Configure Node. If session are being recorded at the proxy, don't enable
+			// BPF to simulate an OpenSSH node.
+			tconf.SSH.Enabled = true
+			if tt.inBPFEnabled {
+				tconf.SSH.BPF.Enabled = true
+				tconf.SSH.BPF.CgroupPath = dir
+			}
+			return c, nil, nil, tconf
+		}
+		main := s.newTeleportWithConfig(makeConfig())
+		defer main.Stop(true)
+
+		// Create a client terminal and context to signal when the client is done
+		// with the terminal.
+		term := NewTerminal(250)
+		doneContext, doneCancel := context.WithCancel(context.Background())
+
+		func() {
+			client, err := main.NewClient(ClientConfig{
+				Login:   s.me.Username,
+				Cluster: Site,
+				Host:    Host,
+				Port:    main.GetPortSSHInt(),
+			})
+			c.Assert(err, check.IsNil)
+
+			// Connect terminal to std{in,out} of client.
+			client.Stdout = &term
+			client.Stdin = &term
+
+			// "Type" a command into the terminal.
+			term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
+			err = client.SSH(context.TODO(), []string{}, false)
+			c.Assert(err, check.IsNil)
+
+			// Signal that the client has finished the interactive session.
+			doneCancel()
+		}()
+
+		// Wait 10 seconds for the client to finish up the interactive session.
+		select {
+		case <-time.After(10 * time.Second):
+			c.Fatalf("Timed out waiting for client to finish interactive session.")
+		case <-doneContext.Done():
+		}
+
+		// Enhanced events should show up for session recorded at the node but not
+		// at the proxy.
+		if tt.outFound {
+			_, err = findCommandEventInLog(main, events.SessionCommandEvent, lsPath)
+			c.Assert(err, check.IsNil)
+		} else {
+			_, err = findCommandEventInLog(main, events.SessionCommandEvent, lsPath)
+			c.Assert(err, check.NotNil)
+		}
+	}
+}
+
+func (s *IntSuite) TestBPFExec(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// Check if BPF tests can be run on this host.
+	err := canTestBPF()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for BPF functionality can not be run: %v.", err))
+		return
+	}
+
+	lsPath, err := exec.LookPath("ls")
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		inSessionRecording string
+		inBPFEnabled       bool
+		outFound           bool
+	}{
+		// For session recorded at the node, enhanced events should be found.
+		{
+			inSessionRecording: services.RecordAtNode,
+			inBPFEnabled:       true,
+			outFound:           true,
+		},
+		// For session recorded at the node, but BPF is turned off, no events
+		// should be found.
+		{
+			inSessionRecording: services.RecordAtNode,
+			inBPFEnabled:       false,
+			outFound:           false,
+		},
+		// For session recorded at the proxy, enhanced events should not be found.
+		// BPF turned off simulates an OpenSSH node.
+		{
+			inSessionRecording: services.RecordAtProxy,
+			inBPFEnabled:       false,
+			outFound:           false,
+		},
+	}
+	for _, tt := range tests {
+		// Create temporary directory where cgroup2 hierarchy will be mounted.
+		dir, err := ioutil.TempDir("", "cgroup-test")
+		c.Assert(err, check.IsNil)
+		defer os.RemoveAll(dir)
+
+		// Create and start a Teleport cluster.
+		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
+			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+				SessionRecording: tt.inSessionRecording,
+				LocalAuth:        services.NewBool(true),
+			})
+			c.Assert(err, check.IsNil)
+
+			// Create default config.
+			tconf := service.MakeDefaultConfig()
+
+			// Configure Auth.
+			tconf.Auth.Preference.SetSecondFactor("off")
+			tconf.Auth.Enabled = true
+			tconf.Auth.ClusterConfig = clusterConfig
+
+			// Configure Proxy.
+			tconf.Proxy.Enabled = true
+			tconf.Proxy.DisableWebService = false
+			tconf.Proxy.DisableWebInterface = true
+
+			// Configure Node. If session are being recorded at the proxy, don't enable
+			// BPF to simulate an OpenSSH node.
+			tconf.SSH.Enabled = true
+			if tt.inBPFEnabled {
+				tconf.SSH.BPF.Enabled = true
+				tconf.SSH.BPF.CgroupPath = dir
+			}
+			return c, nil, nil, tconf
+		}
+		main := s.newTeleportWithConfig(makeConfig())
+		defer main.Stop(true)
+
+		// Create a client to the above Teleport cluster.
+		clientConfig := ClientConfig{
+			Login:   s.me.Username,
+			Cluster: Site,
+			Host:    Host,
+			Port:    main.GetPortSSHInt(),
+		}
+
+		// Run exec command.
+		_, err = runCommand(main, []string{lsPath}, clientConfig, 1)
+		c.Assert(err, check.IsNil)
+
+		// Enhanced events should show up for session recorded at the node but not
+		// at the proxy.
+		if tt.outFound {
+			_, err = findCommandEventInLog(main, events.SessionCommandEvent, lsPath)
+			c.Assert(err, check.IsNil)
+		} else {
+			_, err = findCommandEventInLog(main, events.SessionCommandEvent, lsPath)
+			c.Assert(err, check.NotNil)
+		}
+	}
+}
+
+// TestBPFSessionDifferentiation verifies that the bpf package can
+// differentiate events from two different sessions. This test in turn also
+// verifies the cgroup package.
+func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// Check if BPF tests can be run on this host.
+	err := canTestBPF()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for BPF functionality can not be run: %v.", err))
+		return
+	}
+
+	lsPath, err := exec.LookPath("ls")
+	c.Assert(err, check.IsNil)
+
+	// Create temporary directory where cgroup2 hierarchy will be mounted.
+	dir, err := ioutil.TempDir("", "cgroup-test")
+	c.Assert(err, check.IsNil)
+	defer os.RemoveAll(dir)
+
+	// Create and start a Teleport cluster.
+	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
+		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+			SessionRecording: services.RecordAtNode,
+			LocalAuth:        services.NewBool(true),
+		})
+		c.Assert(err, check.IsNil)
+
+		// Create default config.
+		tconf := service.MakeDefaultConfig()
+
+		// Configure Auth.
+		tconf.Auth.Preference.SetSecondFactor("off")
+		tconf.Auth.Enabled = true
+		tconf.Auth.ClusterConfig = clusterConfig
+
+		// Configure Proxy.
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		// Configure Node. If session are being recorded at the proxy, don't enable
+		// BPF to simulate an OpenSSH node.
+		tconf.SSH.Enabled = true
+		tconf.SSH.BPF.Enabled = true
+		tconf.SSH.BPF.CgroupPath = dir
+		return c, nil, nil, tconf
+	}
+	main := s.newTeleportWithConfig(makeConfig())
+	defer main.Stop(true)
+
+	// Create two client terminals and channel to signal when the clients are
+	// done with the terminals.
+	termA := NewTerminal(250)
+	termB := NewTerminal(250)
+	doneCh := make(chan bool, 2)
+
+	// Open a terminal and type "ls" into both and exit.
+	writeTerm := func(term Terminal) {
+		client, err := main.NewClient(ClientConfig{
+			Login:   s.me.Username,
+			Cluster: Site,
+			Host:    Host,
+			Port:    main.GetPortSSHInt(),
+		})
+		c.Assert(err, check.IsNil)
+
+		// Connect terminal to std{in,out} of client.
+		client.Stdout = &term
+		client.Stdin = &term
+
+		// "Type" a command into the terminal.
+		term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
+		err = client.SSH(context.Background(), []string{}, false)
+		c.Assert(err, check.IsNil)
+
+		// Signal that the client has finished the interactive session.
+		doneCh <- true
+	}
+	writeTerm(termA)
+	writeTerm(termB)
+
+	// Wait 10 seconds for both events to arrive, otherwise timeout.
+	timeout := time.After(10 * time.Second)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-doneCh:
+			if i == 1 {
+				break
+			}
+		case <-timeout:
+			c.Fatalf("Timed out waiting for client to finish interactive session.")
+		}
+	}
+
+	// Try to find two command events from different sessions. Timeout after
+	// 10 seconds.
 	for i := 0; i < 10; i++ {
-		eventFields, err := eventInLog(t.Config.DataDir+"/log/events.log", eventName)
+		sessionIDs := map[string]bool{}
+
+		eventFields, err := eventsInLog(main.Config.DataDir+"/log/events.log", events.SessionCommandEvent)
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
 		}
 
-		return eventFields, nil
+		for _, fields := range eventFields {
+			if fields.GetString(events.EventType) == events.SessionCommandEvent &&
+				fields.GetString(events.Path) == lsPath {
+				sessionIDs[fields.GetString(events.SessionEventID)] = true
+			}
+		}
+
+		// If two command events for "ls" from different sessions, return right
+		// away, test was successful.
+		if len(sessionIDs) == 2 {
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+	c.Fatalf("Failed to find command events from two different sessions.")
+}
+
+// findEventInLog polls the event log looking for an event of a particular type.
+func findEventInLog(t *TeleInstance, eventName string) (events.EventFields, error) {
+	for i := 0; i < 10; i++ {
+		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", eventName)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		for _, fields := range eventFields {
+			eventType, ok := fields[events.EventType]
+			if !ok {
+				return nil, trace.BadParameter("not found")
+			}
+			if eventType == eventName {
+				return fields, nil
+			}
+		}
+
+		time.Sleep(250 * time.Millisecond)
 	}
 	return nil, trace.NotFound("event not found")
 }
 
-// eventInLog finds event in audit log file.
-func eventInLog(path string, eventName string) (events.EventFields, error) {
+// findCommandEventInLog polls the event log looking for an event of a particular type.
+func findCommandEventInLog(t *TeleInstance, eventName string, programName string) (events.EventFields, error) {
+	for i := 0; i < 10; i++ {
+		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", eventName)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		for _, fields := range eventFields {
+			eventType, ok := fields[events.EventType]
+			if !ok {
+				continue
+			}
+			eventPath, ok := fields[events.Path]
+			if !ok {
+				continue
+			}
+			if eventType == eventName && eventPath == programName {
+				return fields, nil
+			}
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+	return nil, trace.NotFound("event not found")
+}
+
+// eventsInLog returns all events in a log file.
+func eventsInLog(path string, eventName string) ([]events.EventFields, error) {
+	var ret []events.EventFields
+
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3807,17 +4209,13 @@ func eventInLog(path string, eventName string) (events.EventFields, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		eventType, ok := fields[events.EventType]
-		if !ok {
-			return nil, trace.BadParameter("not found")
-		}
-		if eventType == eventName {
-			return fields, nil
-		}
+		ret = append(ret, fields)
 	}
 
-	return nil, trace.NotFound("event not found")
+	if len(ret) == 0 {
+		return nil, trace.NotFound("event not found")
+	}
+	return ret, nil
 }
 
 // runCommand is a shortcut for running SSH command, it creates a client
@@ -3933,4 +4331,19 @@ func hasPAMPolicy() bool {
 	}
 
 	return true
+}
+
+// isRoot returns a boolean if the test is being run as root or not. Tests
+// for this package must be run as root.
+func canTestBPF() error {
+	if os.Geteuid() != 0 {
+		return trace.BadParameter("not root")
+	}
+
+	err := bpf.IsHostCompatible()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

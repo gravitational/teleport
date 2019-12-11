@@ -111,6 +111,9 @@ type UserCertParams struct {
 	RouteToCluster string
 	// Traits hold claim data used to populate a role at runtime.
 	Traits wrappers.Traits
+	// ActiveRequests tracks privilege escalation requests applied during
+	// certificate construction.
+	ActiveRequests RequestIDs
 }
 
 // CertRoles defines certificate roles

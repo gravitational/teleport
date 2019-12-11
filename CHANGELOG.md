@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.6
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue that caused Teleport not to start with certain OIDC claims. [#3053](https://github.com/gravitational/teleport/issues/3053)
+
+## 4.1.5
+
+This release of Teleport adds support for an older version of Linux.
+
+* Added RHEL/CentOS 6.x builds to the build pipeline. [#3175](https://github.com/gravitational/teleport/pull/3175)
+
 ## 4.1.4
 
 This release of Teleport contains a bug fix.
@@ -49,6 +61,18 @@ This is a major Teleport release with a focus on stability and bug fixes.
 * tsh status does not show correct cluster name. [#2671](https://github.com/gravitational/teleport/issues/2671)
 * Teleport truncates MOTD with PAM. [#2477](https://github.com/gravitational/teleport/issues/2477)
 * Miscellaneous fixes around error handling and reporting.
+
+## 4.0.12
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue that caused Teleport not to start with certain OIDC claims. [#3053](https://github.com/gravitational/teleport/issues/3053)
+
+## 4.0.11
+
+This release of Teleport adds support for an older version of Linux.
+
+* Added RHEL/CentOS 6.x builds to the build pipeline. [#3175](https://github.com/gravitational/teleport/pull/3175)
 
 ## 4.0.10
 

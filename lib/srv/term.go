@@ -58,6 +58,10 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
+	// Continue will resume execution of the process after it completes its
+	// pre-processing routine (placed in a cgroup).
+	Continue()
+
 	// Kill will force kill the terminal.
 	Kill() error
 
@@ -66,6 +70,9 @@ type Terminal interface {
 
 	// TTY returns the TTY backing the terminal.
 	TTY() *os.File
+
+	// PID returns the PID of the Teleport process that was re-execed.
+	PID() int
 
 	// Close will free resources associated with the terminal.
 	Close() error
@@ -120,6 +127,8 @@ type terminal struct {
 	pty *os.File
 	tty *os.File
 
+	pid int
+
 	termType string
 	params   rsession.TerminalParams
 }
@@ -160,24 +169,27 @@ func (t *terminal) AddParty(delta int) {
 
 // Run will run the terminal.
 func (t *terminal) Run() error {
+	var err error
 	defer t.closeTTY()
 
-	cmd, err := prepareInteractiveCommand(t.ctx)
+	// Create the command that will actually execute.
+	t.cmd, err = configureCommand(t.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.cmd = cmd
 
-	cmd.Stdout = t.tty
-	cmd.Stdin = t.tty
-	cmd.Stderr = t.tty
-	cmd.SysProcAttr.Setctty = true
-	cmd.SysProcAttr.Setsid = true
+	// Pass PTY and TTY to child as well since a terminal is attached.
+	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, t.pty)
+	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, t.tty)
 
-	err = cmd.Start()
+	// Start the process.
+	err = t.cmd.Start()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Save off the PID of the Teleport process under which the shell is executing.
+	t.pid = t.cmd.Process.Pid
 
 	return nil
 }
@@ -204,6 +216,12 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
+// Continue will resume execution of the process after it completes its
+// pre-processing routine (placed in a cgroup).
+func (t *terminal) Continue() {
+	t.ctx.contw.Close()
+}
+
 // Kill will force kill the terminal.
 func (t *terminal) Kill() error {
 	if t.cmd.Process != nil {
@@ -225,6 +243,11 @@ func (t *terminal) PTY() io.ReadWriter {
 // TTY returns the TTY backing the terminal.
 func (t *terminal) TTY() *os.File {
 	return t.tty
+}
+
+// PID returns the PID of the Teleport process that was re-execed.
+func (t *terminal) PID() int {
+	return t.pid
 }
 
 // Close will free resources associated with the terminal.
@@ -492,6 +515,11 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
+// Continue does nothing for remote command execution.
+func (r *remoteTerminal) Continue() {
+	return
+}
+
 func (t *remoteTerminal) Kill() error {
 	err := t.session.Signal(ssh.SIGKILL)
 	if err != nil {
@@ -507,6 +535,12 @@ func (t *remoteTerminal) PTY() io.ReadWriter {
 
 func (t *remoteTerminal) TTY() *os.File {
 	return nil
+}
+
+// PID returns the PID of the Teleport process that was re-execed. Always
+// returns 0 for remote terminals.
+func (t *remoteTerminal) PID() int {
+	return 0
 }
 
 func (t *remoteTerminal) Close() error {

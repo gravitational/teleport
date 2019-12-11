@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -148,6 +149,9 @@ type Server struct {
 	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	fips bool
+
+	// ebpf is the service used for enhanced session recording.
+	ebpf bpf.BPF
 }
 
 // GetClock returns server clock implementation
@@ -191,6 +195,11 @@ func (s *Server) GetPAM() (*pam.Config, error) {
 // using reverse tunnel.
 func (s *Server) UseTunnel() bool {
 	return s.useTunnel
+}
+
+// GetBPF returns the BPF service used by enhanced session recording.
+func (s *Server) GetBPF() bpf.BPF {
+	return s.ebpf
 }
 
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
@@ -415,6 +424,13 @@ func SetUseTunnel(useTunnel bool) ServerOption {
 func SetFIPS(fips bool) ServerOption {
 	return func(s *Server) error {
 		s.fips = fips
+		return nil
+	}
+}
+
+func SetBPF(ebpf bpf.BPF) ServerOption {
+	return func(s *Server) error {
+		s.ebpf = ebpf
 		return nil
 	}
 }
