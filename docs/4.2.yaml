@@ -30,6 +30,8 @@ pages:
         - Admin Manual: admin-guide.md
         - Installation: installation.md
         - FAQ: faq.md
+    - Teleport Features: 
+        - Enhanced Session Recording: features/enhanced_session_recording.md
     - Infrastructure Guides:
         - AWS: aws_oss_guide.md
         - Kubernetes Guide: kubernetes_ssh.md

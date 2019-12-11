@@ -415,6 +415,26 @@ ssh_service:
     # set to false, can be set true here or as a command line flag.
     permit_user_env: false
 
+    # Enhanced Session Recording was introduced with Teleport 4.2. For more details 
+    # see 
+    enhanced_recording:
+       # Enable or disable enhanced auditing for this node. Default value: 
+       # false.
+       enabled: true
+
+       # command_buffer_size is optional with a default value of 8 pages.
+       command_buffer_size: 8
+
+       # disk_buffer_size is optional with default value of 128 pages.
+       disk_buffer_size: 128
+       
+       # network_buffer_size is optional with default value of 8 pages.
+       network_buffer_size: 8
+
+       # Controls where cgroupv2 hierarchy is mounted. Default value: 
+       # /cgroup2.
+       cgroup_path: /cgroup2
+
     # configures PAM integration. see below for more details.
     pam:
         enabled: no
@@ -1033,6 +1053,8 @@ the audit log:
    replayed later. The recording is done by the nodes themselves, by default,
    but can be configured to be done by the proxy.
 
+3. **Optional: Enhanced Session Recording** 
+
 Refer to the ["Audit Log" chapter in the Teleport
 Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit Log and
 session recording are designed.
@@ -1100,10 +1122,14 @@ The possible event types are:
 | session.end   | An interactive shell session has ended.|
 | session.join  | A new user has joined the existing interactive shell session.|
 | session.leave | A user has left the session.|
+| session.disk  | A list of files opened during the session. *Requires Enhanced Session Recording*. |
+| session.network | A list of network connections made during the session.  *Requires Enhanced Session Recording*. |
+| session.command | A list of commands ran during the session.  *Requires Enhanced Session Recording*. |
 | exec          | Remote command has been executed via SSH, like `tsh ssh root@node ls /` . The following fields will be logged: `{"command": "ls /", "exitCode": 0, "exitError": ""}` |
 | scp           | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
 | resize        | Terminal has been resized.|
 | user.login    | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` .|
+
 
 ### Recorded Sessions
 
