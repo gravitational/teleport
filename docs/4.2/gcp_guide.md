@@ -114,6 +114,11 @@ The Authentication server will need to read and write to Firestore.  For this it
 the correct permission via Server Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
 
 
+![Service Account](img/gcp/gcp-permissions.png)
+
+**Download JSON Service Key**
+![GCP Service Key](img/gcp/gcp-service-key.png)
+
 ## GCP Quickstart
 
 ## 1. Create Resources
@@ -128,7 +133,7 @@ Follow install instructions from our [installation page](installation.md#linux).
 We recommend configuring the Teleport in the below steps. 
 
 **1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it 
-using systemd
+using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service) or use DEB/.RPM packages available from our [Downloads Page](https://gravitational.com/teleport/download/).
 
 ```yaml
 #
@@ -150,10 +155,11 @@ teleport:
   storage:
     type: firestore
     collection_name: cluster-data
-    credentials_path: /var/lib/teleport/gcs_creds
+    # Credentials: Path to google service account file, used for Firestore and Google Storage. 
+    credentials_path: /var/lib/teleport/gcs_creds.json
     project_id: example_Teleport-Project-Name
     audit_events_uri: 'firestore://events?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds'
-    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds&projectID=example_Teleport-Project-Name'
+    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds.json&projectID=example_Teleport-Project-Name'
 auth_service:
   enabled: yes
   auth_service:
