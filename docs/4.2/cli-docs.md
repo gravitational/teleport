@@ -491,7 +491,7 @@ List of open requests **Usage**: `tctl request ls`
 tctl request ls
 Token                                Requestor Metadata       Created At (UTC)    Status  
 ------------------------------------ --------- -------------- ------------------- ------- 
-bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
+request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
 ```
 ## tctl request approve 
 
@@ -504,7 +504,7 @@ Approve a users request. **Usage**: `tctl request approve [token]`
 ### Examples
 
 ``` bsh
-tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9, bc8ca931-fec9-4b15-9a6f-20c13c5641a9
+tctl request approve request-id-1, request-id-2
 ```
 
 ## tctl request deny 
@@ -518,7 +518,7 @@ Denies a users request. **Usage**: `tctl request deny [token]`
 ### Examples
 
 ``` bsh
-tctl request deny bc8ca931-fec9-4b15-9a6f-20c13c5641a9, bc8ca931-fec9-4b15-9a6f-20c13c5641a9
+tctl request deny request-id-1, request-id-2
 ```
 
 ## tctl request rm 
@@ -532,7 +532,7 @@ Delete a users role request. **Usage**: `tctl request rm [token]`
 ### Examples
 
 ``` bsh
-tctl request rm bc8ca931-fec9-4b15-9a6f-20c13c5641a9
+tctl request rm request-id-1
 ```
 
 ## tctl nodes add
