@@ -34,6 +34,7 @@ pages:
         - Enhanced Session Recording: features/enhanced_session_recording.md
     - Infrastructure Guides:
         - AWS: aws_oss_guide.md
+        - GCP: gcp_guide.md
         - Kubernetes Guide: kubernetes_ssh.md
     - Enterprise Guides:
         - Introduction: enterprise/index.md
