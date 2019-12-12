@@ -113,7 +113,7 @@ With Teleport 4.2 we've introduced the ability for users to request additional r
 
 ## Setup
 
-### Contractor Role
+**Contractor Role**
 This role let's the contractor request the role DBA. 
 ```yaml
 kind: role
@@ -129,7 +129,25 @@ spec:
   deny:
     # ...
 ```
-### Admin Role
+
+**DBA Role**
+This role let's the contractor request the role DBA. 
+```yaml
+kind: role
+metadata:
+  name: dba
+spec:
+  options:
+    # ...
+    # Only provides the contractor to use this role for 1hr from time of request.
+    options.max_session_ttl: 1hr
+  allow:
+    # ...
+  deny:
+    # ...
+```
+
+**Admin Role**
 This role let's the admin approve the contractors request. 
 ```yaml
 kind: role
