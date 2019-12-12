@@ -101,12 +101,12 @@ spec:
   allow:
     # logins array defines the OS/UNIX logins a user is allowed to use.
     # a few special variables are supported here (see below)
-    logins: [root, '{{internal.logins}}']
+    logins: [root, "{{internal.logins}}"]
     # if kubernetes integration is enabled, this setting configures which
     # kubernetes groups the users of this role will be assigned to.
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
-    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
+    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]
 
     # list of node labels a user will be allowed to connect to:
     node_labels:
