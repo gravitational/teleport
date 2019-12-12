@@ -504,7 +504,7 @@ Approve a users request. **Usage**: `tctl request approve [token]`
 ### Examples
 
 ``` bsh
-tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9,3iwoxHenTp4zNttjWvn5niL5oGNvCnBormFanU
+tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9, bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 ```
 
 ## tctl request deny 
@@ -518,7 +518,7 @@ Denies a users request. **Usage**: `tctl request deny [token]`
 ### Examples
 
 ``` bsh
-tctl request deny bc8ca931-fec9-4b15-9a6f-20c13c5641a9,3iwoxHenTp4zNttjWvn5niL5oGNvCnBormFanU
+tctl request deny bc8ca931-fec9-4b15-9a6f-20c13c5641a9, bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 ```
 
 ## tctl request rm 
