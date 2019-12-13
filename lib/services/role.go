@@ -127,6 +127,10 @@ func NewImplicitRole() Role {
 		Spec: RoleSpecV3{
 			Options: RoleOptions{
 				MaxSessionTTL: MaxDuration(),
+				// PortForwarding has to be set to false in the default-implicit-role
+				// otherwise all roles will be allowed to forward ports (since we default
+				// to true in the check).
+				PortForwarding: NewBoolOption(false),
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
