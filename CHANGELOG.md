@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.1.13
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue where the port forwarding option in a role was ignored. [#3208](https://github.com/gravitational/teleport/pull/3208)
+
 ## 4.0.12
 
 This release of Teleport contains a bug fix.
