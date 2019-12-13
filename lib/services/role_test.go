@@ -1500,6 +1500,57 @@ func (s *RoleSuite) TestExtractFromLegacy(c *C) {
 	c.Assert(traits, DeepEquals, newTraits)
 }
 
+// TestBoolOptions makes sure that bool options (like agent forwarding and
+// port forwarding) can be disabled in a role.
+func (s *RoleSuite) TestBoolOptions(c *C) {
+	var tests = []struct {
+		inOptions           RoleOptions
+		outCanPortForward   bool
+		outCanForwardAgents bool
+	}{
+		// Setting options explicitly off should remain off.
+		{
+			inOptions: RoleOptions{
+				ForwardAgent:   NewBool(false),
+				PortForwarding: NewBoolOption(false),
+			},
+			outCanPortForward:   false,
+			outCanForwardAgents: false,
+		},
+		// Not setting options should set port forwarding to true (default enabled)
+		// and agent forwarding false (default disabled).
+		{
+			inOptions:           RoleOptions{},
+			outCanPortForward:   true,
+			outCanForwardAgents: false,
+		},
+		// Explicitly enabling should enable them.
+		{
+			inOptions: RoleOptions{
+				ForwardAgent:   NewBool(true),
+				PortForwarding: NewBoolOption(true),
+			},
+			outCanPortForward:   true,
+			outCanForwardAgents: true,
+		},
+	}
+	for _, tt := range tests {
+		set := NewRoleSet(&RoleV3{
+			Kind:    KindRole,
+			Version: V3,
+			Metadata: Metadata{
+				Name:      "role-name",
+				Namespace: defaults.Namespace,
+			},
+			Spec: RoleSpecV3{
+				Options: tt.inOptions,
+			},
+		})
+		c.Assert(set.CanPortForward(), Equals, tt.outCanPortForward)
+		c.Assert(set.CanForwardAgents(), Equals, tt.outCanForwardAgents)
+	}
+}
+
 // BenchmarkCheckAccessToServer tests how long it takes to run
 // CheckAccessToServer across 4,000 nodes for 5 roles each with 5 logins each.
 //
