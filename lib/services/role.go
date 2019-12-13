@@ -692,7 +692,7 @@ func (r *RoleV3) String() string {
 func (o RoleOptions) Equals(other RoleOptions) bool {
 	return (o.ForwardAgent.Value() == other.ForwardAgent.Value() &&
 		o.MaxSessionTTL.Value() == other.MaxSessionTTL.Value() &&
-		BoolDefaultTrue(o.PortForwarding) == BoolDefaultTrue(other.PortForwarding) &&
+		o.PortForwarding.Equals(other.PortForwarding) &&
 		o.CertificateFormat == other.CertificateFormat &&
 		o.ClientIdleTimeout.Value() == other.ClientIdleTimeout.Value() &&
 		o.DisconnectExpiredCert.Value() == other.DisconnectExpiredCert.Value() &&
@@ -1748,7 +1748,8 @@ func (set RoleSet) CanForwardAgents() bool {
 // CanPortForward returns true if a role in the RoleSet allows port forwarding.
 func (set RoleSet) CanPortForward() bool {
 	for _, role := range set {
-		if BoolDefaultTrue(role.GetOptions().PortForwarding) {
+		if role.GetOptions().PortForwarding != nil &&
+			role.GetOptions().PortForwarding.Value == true {
 			return true
 		}
 	}
@@ -1918,6 +1919,17 @@ func NewBool(b bool) Bool {
 func NewBoolOption(b bool) *BoolOption {
 	v := BoolOption{Value: b}
 	return &v
+}
+
+// Equals returns true if both values match.
+func (b *BoolOption) Equals(other *BoolOption) bool {
+	if b == nil && other == nil {
+		return true
+	}
+	if b == nil || other == nil {
+		return false
+	}
+	return b.Value == other.Value
 }
 
 // BoolDefaultTrue returns true if v is not set (pointer is nil)
