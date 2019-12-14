@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.1.7
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue where the port forwarding option in a role was ignored. [#3208](https://github.com/gravitational/teleport/pull/3208)
+
 ## 4.1.6
 
 This release of Teleport contains a bug fix.
@@ -61,6 +67,12 @@ This is a major Teleport release with a focus on stability and bug fixes.
 * tsh status does not show correct cluster name. [#2671](https://github.com/gravitational/teleport/issues/2671)
 * Teleport truncates MOTD with PAM. [#2477](https://github.com/gravitational/teleport/issues/2477)
 * Miscellaneous fixes around error handling and reporting.
+
+## 4.1.13
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue where the port forwarding option in a role was ignored. [#3208](https://github.com/gravitational/teleport/pull/3208)
 
 ## 4.0.12
 
