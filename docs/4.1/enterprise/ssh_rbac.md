@@ -101,12 +101,13 @@ spec:
   allow:
     # logins array defines the OS/UNIX logins a user is allowed to use.
     # a few special variables are supported here (see below)
-    logins: [root, '{{internal.logins}}']
+    logins: [root, "{{internal.logins}}"]
     # if kubernetes integration is enabled, this setting configures which
     # kubernetes groups the users of this role will be assigned to.
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
-    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
+    # replace "trait_name" here with the actual name of the trait as sent by the identity provider
+    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]
 
     # list of node labels a user will be allowed to connect to:
     node_labels:
@@ -138,10 +139,13 @@ spec:
 
 The following variables can be used with `logins` field:
 
-Variable                | Description
-------------------------|--------------------------
-`{{internal.logins}}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
-`{{external.xyz}}`    | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim.
+Variable                  | Description
+--------------------------|--------------------------
+`{{internal.logins}}`     | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
+`{{external.trait_name}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). For SAML, this will be expanded with the "trait_name" assertion value. For OIDC, this will be expanded with the value of the "trait_name" claim.
+
+!!! tip "Internal vs external":
+    `internal.logins` is a special unique value which uses Teleport's own internal database, while `trait_name` in `external.trait_name` is intended to be replaced with the name of an actual SAML assertion or OIDC claim as sent by the identity provider.
 
 Both variables above are there to deliver the same benefit: they allow Teleport
 administrators to define allowed OS logins via the user database, be it the
@@ -162,7 +166,6 @@ Assuming you have the following SAML assertion attribute in your response:
 logins:
    - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
 ```
-
 
 ### Role Options
 
