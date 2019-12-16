@@ -18,38 +18,52 @@ limitations under the License.
 
 #define _GNU_SOURCE
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
-// cgid_file_handle comes from bpftrace, see:
-// https://github.com/iovisor/bpftrace/blob/master/src/resolve_cgroupid.cpp
-struct cgid_file_handle {
-	unsigned int handle_bytes;
-	int handle_type;
-	uint64_t cgid;
-};
-
-// cgroup_id returns the ID of the given cgroup at path.
+// cgroup_id comes from get_cgroup_id in the Linux kernel.
+// https://github.com/torvalds/linux/commit/f269099a7e7a0c6732c4a817d0e99e92216414d9
 uint64_t cgroup_id(char *path)
 {
-    int ret;
-    int mount_id;
-    struct cgid_file_handle *handle;
+	int dirfd, err, flags, mount_id, fhsize;
+	union {
+		unsigned long long cgid;
+		unsigned char raw_bytes[8];
+	} id;
+	struct file_handle *fhp, *fhp2;
+	unsigned long long ret = 0;
 
-    handle = malloc(sizeof(struct cgid_file_handle));
-    if (handle == NULL) {
-        return 0;
-    }
-    handle->handle_bytes = sizeof(uint64_t);
-
-	ret = name_to_handle_at(AT_FDCWD, path, (struct file_handle *)handle, &mount_id, 0);
-    if (ret != 0) {
-        return 0;
+ 	dirfd = AT_FDCWD;
+	flags = 0;
+	fhsize = sizeof(*fhp);
+	fhp = calloc(1, fhsize);
+	if (!fhp) {
+		return 0;
+	}
+	err = name_to_handle_at(dirfd, path, fhp, &mount_id, flags);
+	if (err >= 0 || fhp->handle_bytes != 8) {
+		goto free_mem;
 	}
 
-    free(handle);
+ 	fhsize = sizeof(struct file_handle) + fhp->handle_bytes;
+	fhp2 = realloc(fhp, fhsize);
+	if (!fhp2) {
+		goto free_mem;
+	}
+	err = name_to_handle_at(dirfd, path, fhp2, &mount_id, flags);
+	fhp = fhp2;
+	if (err < 0) {
+		goto free_mem;
+	}
 
-    return handle->cgid;
+ 	memcpy(id.raw_bytes, fhp->f_handle, 8);
+	ret = id.cgid;
+
+ free_mem:
+	free(fhp);
+	return ret;
 }
