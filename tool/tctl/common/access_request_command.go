@@ -84,6 +84,8 @@ func (c *AccessRequestCommand) TryRun(cmd string, client auth.ClientI) (match bo
 		err = c.Deny(client)
 	case c.requestCreate.FullCommand():
 		err = c.Create(client)
+	case c.requestDelete.FullCommand():
+		err = c.Delete(client)
 	default:
 		return false, nil
 	}

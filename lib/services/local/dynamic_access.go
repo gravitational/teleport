@@ -32,11 +32,11 @@ type DynamicAccessService struct {
 }
 
 // NewDynamicAccessService returns new dynamic access service instance
-func NewDynamicAccessService(backend backend.Backend) *AccessService {
-	return &AccessService{Backend: backend}
+func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
+	return &DynamicAccessService{Backend: backend}
 }
 
-func (s *AccessService) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -50,7 +50,7 @@ func (s *AccessService) CreateAccessRequest(ctx context.Context, req services.Ac
 	return nil
 }
 
-func (s *AccessService) SetAccessRequestState(ctx context.Context, name string, state services.RequestState) error {
+func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, name string, state services.RequestState) error {
 	item, err := s.Get(ctx, accessRequestKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -80,7 +80,7 @@ func (s *AccessService) SetAccessRequestState(ctx context.Context, name string, 
 	return nil
 }
 
-func (s *AccessService) GetAccessRequest(ctx context.Context, name string) (services.AccessRequest, error) {
+func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string) (services.AccessRequest, error) {
 	item, err := s.Get(ctx, accessRequestKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -95,7 +95,7 @@ func (s *AccessService) GetAccessRequest(ctx context.Context, name string) (serv
 	return req, nil
 }
 
-func (s *AccessService) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
 	// Filters which specify ID are a special case since they will match exactly zero or one
 	// possible requests.
 	if filter.ID != "" {
@@ -129,12 +129,30 @@ func (s *AccessService) GetAccessRequests(ctx context.Context, filter services.A
 	return requests, nil
 }
 
-func (s *AccessService) DeleteAccessRequest(ctx context.Context, name string) error {
+func (s *DynamicAccessService) DeleteAccessRequest(ctx context.Context, name string) error {
 	err := s.Delete(ctx, accessRequestKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("cannot delete access request %q (not found)", name)
 		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *DynamicAccessService) DeleteAllAccessRequests(ctx context.Context) error {
+	return trace.Wrap(s.DeleteRange(ctx, backend.Key(accessRequestsPrefix), backend.RangeEnd(backend.Key(accessRequestsPrefix))))
+}
+
+func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req services.AccessRequest) error {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	item, err := itemFromAccessRequest(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := s.Put(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
