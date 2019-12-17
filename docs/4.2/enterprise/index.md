@@ -102,3 +102,104 @@ In addition, Teleport checks if the binary was compiled against an approved
 cryptographic module (BoringCrypto) and fails to start if it was not.
 
 See our [Enterprise Guide for more information](ssh_fips.md)
+
+## Approval Workflows 
+
+!!! warning "Warning: Workflows are currently in Alpha"
+    This feature is currently in alpha. 
+    If you have a question please post to our [community](https://community.gravitational.com/), or file bugs on [Github](https://github.com/gravitational/teleport/issues/new). 
+
+With Teleport 4.2 we've introduced the ability for users to request additional roles. The workflow API makes it easy to dynamically approve or deny these requests.
+
+## Setup
+
+**Contractor Role**
+This role let's the contractor request the role DBA. 
+```yaml
+kind: role
+metadata:
+  name: contractor
+spec:
+  options:
+    # ...
+  allow:
+    request:
+      roles: ['dba']
+    # ...
+  deny:
+    # ...
+```
+
+**DBA Role**
+This role let's the contractor request the role DBA. 
+```yaml
+kind: role
+metadata:
+  name: dba
+spec:
+  options:
+    # ...
+    # Only provides the contractor to use this role for 1hr from time of request.
+    options.max_session_ttl: 1hr
+  allow:
+    # ...
+  deny:
+    # ...
+```
+
+**Admin Role**
+This role let's the admin approve the contractors request. 
+```yaml
+kind: role
+metadata:
+  name: admin
+spec:
+  options:
+    # ...
+  allow:
+    # ...
+  deny:
+    # ...
+# list of allow-rules, see
+# https://gravitational.com/teleport/docs/enterprise/ssh_rbac/
+rules:
+    # Access Request is part of Approval Workflows introduced in 4.2
+    # `access_request` should only be given to Teleport Admins. 
+    - resources: [access_request]
+      verbs: [list, read, update, delete]
+```
+
+
+```bash
+$ tsh login teleport-cluster --request-roles=dba
+Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
+```
+
+As a Teleport Administrator. 
+
+
+```bash
+$ tctl request ls
+Token                                Requestor Metadata       Created At (UTC)    Status  
+------------------------------------ --------- -------------- ------------------- ------- 
+bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
+```
+
+```bash
+$ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
+```
+
+Assuming approval, `tsh` will automatically manage a certificate re-issued with the newly requested roles applied. In this case `contractor` will now have have the permission of the
+`dba`. 
+
+!!! warning 
+    
+    Granting a role with administrative abilities could allow a user to **permanently** upgrade their privileges (e.g. if contractor was granted admin for some reason). We recommend only escalating to the next role of least privilege vs jumping directly to "Super Admin" role. 
+    
+     The `deny.request` block can help mitigate the risk of doing this by accident.
+
+### Other features of Approval Workflows.
+ 
+ - Roles can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
+ - Approved requests have no affect on Teleport's behavior outside of allowing additional roles on re-issue. This has the nice effect of making requests "compatible" with older versions of Teleport, since only the issuing Auth Server needs any particular knowledge of the feature. 
+ 

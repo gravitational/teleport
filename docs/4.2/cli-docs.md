@@ -481,6 +481,60 @@ tctl users rm sally,tim
 # Removes users sally and tim
 ```
 
+## tctl request ls
+
+List of open requests **Usage**: `tctl request ls`
+
+### Examples
+
+``` bsh
+tctl request ls
+Token                                Requestor Metadata       Created At (UTC)    Status  
+------------------------------------ --------- -------------- ------------------- ------- 
+request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
+```
+## tctl request approve 
+
+Approve a users request. **Usage**: `tctl request approve [token]`
+
+### Arguments
+
+* `<tokens>` - comma-separated list of Teleport tokens.
+
+### Examples
+
+``` bsh
+tctl request approve request-id-1, request-id-2
+```
+
+## tctl request deny 
+
+Denies a users request. **Usage**: `tctl request deny [token]`
+
+### Arguments
+
+* `<tokens>` - comma-separated list of Teleport tokens.
+
+### Examples
+
+``` bsh
+tctl request deny request-id-1, request-id-2
+```
+
+## tctl request rm 
+
+Delete a users role request. **Usage**: `tctl request rm [token]`
+
+### Arguments
+
+* `<tokens>` - comma-separated list of Teleport tokens.
+
+### Examples
+
+``` bsh
+tctl request rm request-id-1
+```
+
 ## tctl nodes add
 
 Generate a node invitation token
