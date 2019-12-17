@@ -68,9 +68,10 @@ type testPack struct {
 	provisionerS   services.Provisioner
 	clusterConfigS services.ClusterConfiguration
 
-	usersS    services.UsersService
-	accessS   services.Access
-	presenceS services.Presence
+	usersS         services.UsersService
+	accessS        services.Access
+	dynamicAccessS services.DynamicAccess
+	presenceS      services.Presence
 }
 
 func (t *testPack) Close() {
@@ -127,6 +128,7 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 	p.presenceS = local.NewPresenceService(p.backend)
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
+	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
 	return p
 }
 
@@ -143,6 +145,7 @@ func (s *CacheSuite) newPack(c *check.C, setupConfig func(c Config) Config) *tes
 		Trust:         p.trustS,
 		Users:         p.usersS,
 		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
@@ -206,6 +209,7 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 		Trust:         p.trustS,
 		Users:         p.usersS,
 		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
@@ -355,6 +359,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		Trust:         p.trustS,
 		Users:         p.usersS,
 		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
