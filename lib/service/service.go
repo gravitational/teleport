@@ -1314,6 +1314,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Trust:           cfg.services,
 		Users:           cfg.services,
 		Access:          cfg.services,
+		DynamicAccess:   cfg.services,
 		Presence:        cfg.services,
 		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),

@@ -152,6 +152,16 @@ type DynamicAccess interface {
 	DeleteAccessRequest(ctx context.Context, reqID string) error
 }
 
+// DynamicAccessExt is an extended dynamic access interface
+// used to implement some auth server internals.
+type DynamicAccessExt interface {
+	DynamicAccess
+	// UpsertAccessRequest creates or updates an access request.
+	UpsertAccessRequest(ctx context.Context, req AccessRequest) error
+	// DeleteAllAccessRequests deletes all existant access requests.
+	DeleteAllAccessRequests(ctx context.Context) error
+}
+
 // AccessRequest is a request for temporarily granted roles
 type AccessRequest interface {
 	Resource

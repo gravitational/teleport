@@ -1324,20 +1324,32 @@ Loop:
 	for {
 		select {
 		case event := <-watcher.Events():
-			if event.Type != backend.OpPut {
+			switch event.Type {
+			case backend.OpInit:
+				log.Infof("Access-request watcher initialized...")
 				continue Loop
+			case backend.OpPut:
+				r, ok := event.Resource.(*services.AccessRequestV3)
+				if !ok {
+					return trace.BadParameter("unexpected resource type %T", event.Resource)
+				}
+				if r.GetName() != req.GetName() || r.GetState().IsPending() {
+					log.Infof("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
+					continue Loop
+				}
+				if !r.GetState().IsApproved() {
+					return trace.Errorf("request %s has been set to %s", r.GetName(), r.GetState().String())
+				}
+				return nil
+			case backend.OpDelete:
+				if event.Resource.GetName() != req.GetName() {
+					log.Infof("Skipping delete event id=%s", event.Resource.GetName())
+					continue Loop
+				}
+				return trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+			default:
+				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
-			r, ok := event.Resource.(*services.AccessRequestV3)
-			if !ok {
-				return trace.Errorf("unexpected resource type %T", event.Resource)
-			}
-			if r.GetName() != req.GetName() || r.GetState().IsPending() {
-				continue Loop
-			}
-			if !r.GetState().IsApproved() {
-				return trace.Errorf("request %s has been set to %s", r.GetName(), r.GetState().String())
-			}
-			return nil
 		case <-watcher.Done():
 			utils.FatalError(watcher.Error())
 		}
