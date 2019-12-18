@@ -684,6 +684,8 @@ Create an identity file(s) for a given user
 `--host` | none | auth host | Teleport host name
 `-o, --out` | none | filepath | identity output
 `--format` | `file` | `file` or `openssh` |  identity format
+`--identity` | `file` | `file` |  identity format
+`--auth-server` | none | auth host & port | Remote Teleport host name
 `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate
 `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag
 
@@ -709,6 +711,9 @@ error: --user or --host must be specified
 # create a certificate with a TTL of 10 years for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
 $ tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
+# Exports an identity from the Auth Server in preparation for remote 
+# tctl execution.
+$ tctl auth sign --user=admin --out=identity.pem
 ```
 
 
@@ -841,9 +846,14 @@ Report cluster status
 
 ### Examples
 
-```
+```bash
+# Checks status of cluster.
 $ tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
 pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
+# Checks remote auth status using exported identity. 
+$ tctl status \
+                --auth-server=192.168.99.102:3025 \
+                --identity=identity.pem
 ```
 
 ## tctl top
