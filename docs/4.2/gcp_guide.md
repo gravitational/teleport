@@ -32,7 +32,7 @@ GCP Services required to run Teleport in HA:
 
  - [Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
  - [Computer Engine: Health Checks](#computer-engine-health-checks)
- - [Storage: Cloud Firestore](#storage-google-cloud-storage)
+ - [Storage: Cloud Firestore](#storage-cloud-firestore)
  - [Storage: Google Cloud Storage](#storage-google-cloud-storage)
  - [Network Services: Load Balancing](#network-services-load-balancing)
  - [Network Services: Cloud DNS](#network-services-cloud-dns)
