@@ -35,32 +35,37 @@ something like the following.
 $ uname -a
 Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86_64 GNU/Linux
 ```
+### CentOS
+|               | Kernel Version         |
+|---------------|------------------------|
+| 8.0-1905	    |            4.18.0.80 ✅  |
 
+!!! Note
+    At release we've only production tested Enhanced Session recording with CentOS 
+    7 and 8. We welcome feedback for other Operating Systems, and simply require a
+    Linux kernel 4.18 (or above). Please send feedback to [ben@gravitational.com](mailto:ben@gravitational.com)
 
-### Ubuntu 
+### Ubuntu     
 
 |       |                   | Kernel Version        |
 |-------|-------------------|-----------------------|
 | 18.10 | Cosmic Cuttlefish | 4.18 [Patch Kernel](http://www.theubuntumaniac.com/2018/11/update-install-kernel-4191-stable-on.html)  |
-| 19.04 | Disco Dingo       | 5.0 ✅                  |
-| 19.10 | Eoan Ermine       | 5.3 ✅                  |
+| 19.04 | Disco Dingo       | 5.0 ✅ 🚧 Feature in Alpha      |
+| 19.10 | Eoan Ermine       | 5.3 ✅ 🚧 Feature in Alpha      |
 
 ### Debian
 
 |     |                     | Kernel Version            |
 |-----|---------------------|---------------------------|
 | 9   | Debian Stretch      | 4.9.0-6 [Patch Kernel](https://wiki.debian.org/HowToUpgradeKernel) |
-| 10  | Buster              | 4.19 ✅                   |
+| 10  | Buster              | 4.19 ✅ 🚧 Feature in Alpha       |
 
-### CentOS
-|               | Kernel Version         |
-|---------------|------------------------|
-| 8.0-1905	    |            4.18.0.80 ✅  |
+
 
 ### Red Hat 
 |                     | Kernel Version         |
 |---------------------|------------------------|
-| Enterprise Linux 8  |          4.18.0-147 ✅ |
+| Enterprise Linux 8  |          4.18.0-147 ✅ 🚧 Feature in Alpha  |
 
 ### Amazon Linux 
 We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
@@ -69,7 +74,7 @@ We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
 ### archlinux 
 |                     | Kernel Version         |
 |---------------------|------------------------|
-| 2019.12.01          |              5.3.13 ✅ |
+| 2019.12.01          |  5.3.13 ✅🚧 In Alpha  |
 
 ## 2. Install BCC Tools 
 
@@ -183,9 +188,27 @@ ssh_service:
 ```
 
 ## 4. Test by logging into node via Teleport.
-[Add image here]
 
+**Session wih Enhanced Session Recording will be marked as 'true' in the logs.**
 
+```json
+{
+  "code": "T2004I",
+  "ei": 23,
+  "enhanced_recording": true,
+  "event": "session.end",
+  "interactive": true,
+  "namespace": "default",
+  "participants": [
+    "benarent"
+  ],
+  "server_id": "585fc225-5cf9-4e9f-8ff6-1b0fd6885b09",
+  "sid": "ca82b98d-1d30-11ea-8244-cafde5327a6c",
+  "time": "2019-12-12T22:44:46.218Z",
+  "uid": "83e67464-a93a-4c7c-8ce6-5a3d8802c3b2",
+  "user": "benarent"
+}
+```
 
 ## 5. Inspect Logs
 [Show new file structure]
