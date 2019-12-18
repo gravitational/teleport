@@ -74,7 +74,7 @@ We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
 ### archlinux 
 |                     | Kernel Version         |
 |---------------------|------------------------|
-| 2019.12.01          |  5.3.13 ✅🚧 In Alpha  |
+| 2019.12.01          |  5.3.13 ✅🚧 Feature in Alpha  |
 
 ## 2. Install BCC Tools 
 
@@ -152,7 +152,7 @@ echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify 
 Follow our [installation instructions](../installation.md) to install Teleport Auth, Proxy 
 and Nodes. 
 
-Setup the Teleport node with this `etc/teleport.yaml` see our [configuration file setup](../admin-guide/#configuration) for more instructions. 
+Setup the Teleport node with this `etc/teleport.yaml` see our [configuration file setup](../admin-guide.md#configuration) for more instructions. 
 
 
 ```yaml

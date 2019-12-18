@@ -32,7 +32,7 @@ Register Teleport with the external identity provider you will be using and
 obtain your `client_id` and `client_secret`. This information should be
 documented on the identity providers website. Here are a few links:
 
-   * [Auth0 Client Configuration](https://auth0.com/docs/clients)
+   * [Auth0 Client Configuration](https://auth0.com/docs/applications)
    * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
    * [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#_client_registration)
 
