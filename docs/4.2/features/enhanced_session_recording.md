@@ -85,6 +85,7 @@ Run the following script to download the prerequisites to build BCC tools, build
     We plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
 
 **Example Script to install relevant bcc packages for CentOS**
+
 Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md#debian---source) on how to install the relevant tooling for other operating systems. 
 
 
@@ -211,4 +212,4 @@ ssh_service:
 ```
 
 ## 5. Inspect Logs
-[Show new file structure]
+The resulting enhanced session recording will be shown in the logs. 
