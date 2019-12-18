@@ -495,7 +495,7 @@ request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UT
 ```
 ## tctl request approve 
 
-Approve a users request. **Usage**: `tctl request approve [token]`
+Approve a user's request. **Usage**: `tctl request approve [token]`
 
 ### Arguments
 
@@ -509,7 +509,7 @@ tctl request approve request-id-1, request-id-2
 
 ## tctl request deny 
 
-Denies a users request. **Usage**: `tctl request deny [token]`
+Denies a user's request. **Usage**: `tctl request deny [token]`
 
 ### Arguments
 

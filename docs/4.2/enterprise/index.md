@@ -19,7 +19,7 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
 
 ## RBAC
 
-Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to users. An example of an RBAC policy might be:  _"admins can do anything, 
+Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to user's. An example of an RBAC policy might be:  _"admins can do anything, 
 developers must never touch production servers, and interns can only SSH into
 staging servers as guests"_
 
@@ -114,7 +114,8 @@ With Teleport 4.2 we've introduced the ability for users to request additional r
 ## Setup
 
 **Contractor Role**
-This role let's the contractor request the role DBA. 
+This role lets the contractor request the role DBA. 
+
 ```yaml
 kind: role
 metadata:
@@ -131,7 +132,8 @@ spec:
 ```
 
 **DBA Role**
-This role let's the contractor request the role DBA. 
+This role lets the contractor request the role DBA. 
+
 ```yaml
 kind: role
 metadata:
@@ -139,7 +141,7 @@ metadata:
 spec:
   options:
     # ...
-    # Only provides the contractor to use this role for 1hr from time of request.
+    # Only allows the contractor to use this role for 1hr from time of request.
     options.max_session_ttl: 1hr
   allow:
     # ...
@@ -148,7 +150,7 @@ spec:
 ```
 
 **Admin Role**
-This role let's the admin approve the contractors request. 
+This role lets the admin approve the contractors request. 
 ```yaml
 kind: role
 metadata:
@@ -175,7 +177,7 @@ $ tsh login teleport-cluster --request-roles=dba
 Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
 ```
 
-As a Teleport Administrator. 
+As a Teleport Administrator:
 
 
 ```bash
