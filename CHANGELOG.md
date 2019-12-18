@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.2.0
+
+This is a minor Teleport release with a focus on new features and bug fixes.
+
+### Improvements
+
+* Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/features/enhanced_session_recording/). [#2948](https://github.com/gravitational/teleport/issues/2948)
+* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/enterprise/#approval-workflows). [#3006](https://github.com/gravitational/teleport/issues/3006)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/gcp_guide/). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Remote tctl execution is now possible. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/cli-docs/#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
+
+### Fixes
+
+* Fixed issue in socks4 when rendering remote address [#3110](https://github.com/gravitational/teleport/issues/3110)
+
+### Documentation
+
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](https://gravitational.com/teleport/docs/ver/4.2/trustedclusters/).
+* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](https://gravitational.com/teleport/docs/ver/4.2/enterprise/ssh_fips/).
+
 ## 4.1.7
 
 This release of Teleport contains a bug fix.
