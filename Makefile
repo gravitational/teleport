@@ -363,6 +363,15 @@ pkg:
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
+# build tsh client-only .pkg
+.PHONY: pkg-tsh
+pkg-tsh:
+	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	# arch and runtime are currently ignored on OS X
+	# we pass them through for consistency - they will be dropped by the build script
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -a $(ARCH) -t tsh $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
 # build .rpm
 .PHONY: rpm
 rpm:
