@@ -28,3 +28,9 @@ type Service struct {
 func New(config *Config) (BPF, error) {
 	return &NOP{}, nil
 }
+
+// SystemHasBPF returns true if the binary was build with support for BPF
+// compiled in.
+func SystemHasBPF() bool {
+	return false
+}

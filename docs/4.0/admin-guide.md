@@ -277,10 +277,11 @@ teleport:
         max_connections: 1000
         max_users: 250
 
-    # Logging configuration. Possible output values are 'stdout', 'stderr' and
-    # 'syslog'. Possible severity values are INFO, WARN and ERROR (default).
+    # Logging configuration. Possible output values to disk via '/var/lib/teleport/teleport.log',
+    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN 
+    # and ERROR (default).
     log:
-        output: stderr
+        output: /var/lib/teleport/teleport.log
         severity: ERROR
 
     # Configuration for the storage back-end used for the cluster state and the

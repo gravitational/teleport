@@ -24,5 +24,6 @@ type Services interface {
 	Events
 	ClusterConfiguration
 	Access
+	DynamicAccess
 	Presence
 }

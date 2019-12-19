@@ -231,27 +231,29 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	return trace.Wrap(err)
 }
 
-// CreateAccessRequest attempts to create a new request for escalated privilege.
+// CreateAccessRequest registers a new access request with the auth server.
 func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return site.CreateAccessRequest(req)
+	return site.CreateAccessRequest(ctx, req)
 }
 
+// GetAccessRequests loads all access requests matching the spupplied filter.
 func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	reqs, err := site.GetAccessRequests(filter)
+	reqs, err := site.GetAccessRequests(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return reqs, nil
 }
 
+// NewWatcher sets up a new event watcher.
 func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {

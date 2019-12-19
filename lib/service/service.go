@@ -502,10 +502,14 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 // and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	var err error
-	var ebpf bpf.BPF
 
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
+
+	// Validate the config before accessing it.
+	if err := validateConfig(cfg); err != nil {
+		return nil, trace.Wrap(err, "configuration error")
+	}
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -513,20 +517,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
 				"that Enterprise release was downloaded from " +
 				"https://dashboard.gravitational.com")
-		}
-	}
-
-	if err := validateConfig(cfg); err != nil {
-		return nil, trace.Wrap(err, "configuration error")
-	}
-
-	// If this is a Teleport node and BPF is enabled, start BPF programs early
-	// in the startup process. This allows Teleport to fail right away if
-	// BPF-based auditing is configured but can not start for whatever reason.
-	if cfg.SSH.Enabled {
-		ebpf, err = bpf.New(cfg.SSH.BPF)
-		if err != nil {
-			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -660,7 +650,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.SSH.Enabled {
-		if err := process.initSSH(ebpf); err != nil {
+		if err := process.initSSH(); err != nil {
 			return nil, err
 		}
 		serviceStarted = true
@@ -1324,6 +1314,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Trust:           cfg.services,
 		Users:           cfg.services,
 		Access:          cfg.services,
+		DynamicAccess:   cfg.services,
 		Presence:        cfg.services,
 		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
@@ -1382,7 +1373,8 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 }
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
-func (process *TeleportProcess) initSSH(ebpf bpf.BPF) error {
+func (process *TeleportProcess) initSSH() error {
+
 	process.registerWithAuthServer(teleport.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
@@ -1391,9 +1383,10 @@ func (process *TeleportProcess) initSSH(ebpf bpf.BPF) error {
 		trace.Component: teleport.Component(teleport.ComponentNode, process.id),
 	})
 
-	var conn *Connector
-	var s *regular.Server
 	var agentPool *reversetunnel.AgentPool
+	var conn *Connector
+	var ebpf bpf.BPF
+	var s *regular.Server
 
 	process.RegisterCriticalFunc("ssh.node", func() error {
 		var ok bool
@@ -1420,6 +1413,35 @@ func (process *TeleportProcess) initSSH(ebpf bpf.BPF) error {
 		}
 
 		authClient, err := process.newLocalCache(conn.Client, cache.ForNode, []string{teleport.ComponentNode})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If session recording is disabled at the cluster level and the node is
+		// attempting to enabled enhanced session recording, show an error.
+		clusterConfig, err := authClient.GetClusterConfig()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if clusterConfig.GetSessionRecording() == services.RecordOff &&
+			cfg.SSH.BPF.Enabled == true {
+			return trace.BadParameter("session recording is disabled at the cluster " +
+				"level. To enable enhanced session recording, enable session recording at " +
+				"the cluster level, then restart Teleport.")
+		}
+
+		// If BPF is enabled in file configuration, but the operating system does
+		// not support enhanced session recording (like macOS), exit right away.
+		if cfg.SSH.BPF.Enabled && !bpf.SystemHasBPF() {
+			return trace.BadParameter("operating system does not support enhanced " +
+				"session recording, check Teleport documentation for more details on " +
+				"supported operating systems, kernels, and configuration")
+		}
+
+		// Start BPF programs. This is blocking and if the BPF programs fail to
+		// load, the node will not start. If BPF is not enabled, this will simply
+		// return a NOP struct that can be used to discard BPF data.
+		ebpf, err = bpf.New(cfg.SSH.BPF)
 		if err != nil {
 			return trace.Wrap(err)
 		}

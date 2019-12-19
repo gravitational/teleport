@@ -1,0 +1,59 @@
+site_name: Gravitational Teleport
+site_url: https://gravitational.com/teleport/docs
+repo_url: https://github.com/gravitational/teleport
+site_description: SSH and Kubernetes Gateway for Clusters and Teams
+site_author: Gravitational Inc
+copyright: Gravitational Inc, 2016-19
+
+# output directory:
+site_dir: ../build/docs/4.2
+docs_dir: "4.2"
+
+theme: readthedocs
+theme_dir: theme
+markdown_extensions:
+  - markdown_include.include
+  - admonition
+  - def_list
+  - footnotes
+  - toc:
+      marker: '[TOC]'
+extra_css: []
+extra_javascript: []
+extra:
+    version: 4.2
+pages:
+    - Documentation:
+        - Introduction: intro.md
+        - Quick Start Guide: quickstart.md
+        - User Manual: user-manual.md
+        - Admin Manual: admin-guide.md
+        - Installation: installation.md
+        - FAQ: faq.md
+    - Teleport Features: 
+        - Enhanced Session Recording: features/enhanced_session_recording.md
+    - Infrastructure Guides:
+        - AWS: aws_oss_guide.md
+        - GCP: gcp_guide.md
+        - Kubernetes Guide: kubernetes_ssh.md
+    - Enterprise Guides:
+        - Introduction: enterprise/index.md
+        - Quick Start Guide: enterprise/quickstart-enterprise.md
+        - Single sign-on (SSO): enterprise/ssh_sso.md   
+        - FedRAMP & FIPS: enterprise/ssh_fips.md        
+        - RBAC: enterprise/ssh_rbac.md 
+    - SSO Guides:
+        - Active Directory (ADFS): ssh_adfs.md
+        - G Suite: ssh_gsuite.md
+        - OneLogin: ssh_one_login.md
+        - OIDC: oidc.md
+        - Okta: ssh_okta.md
+    - Architecture:
+        - Architecture Overview: architecture/teleport_architecture_overview.md
+        - Teleport Users: architecture/teleport_users.md
+        - Teleport Nodes: architecture/teleport_nodes.md
+        - Teleport Auth: architecture/teleport_auth.md
+        - Teleport Proxy: architecture/teleport_proxy.md
+        - Trusted Clusters: trustedclusters.md
+    - CLI Reference:
+        - CLI Reference: cli-docs.md
