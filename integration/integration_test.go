@@ -64,8 +64,6 @@ import (
 )
 
 const (
-	Loopback = "127.0.0.1"
-	Host     = "localhost"
 	HostID   = "00000000-0000-0000-0000-000000000000"
 	Site     = "local-site"
 
