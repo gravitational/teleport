@@ -55,7 +55,7 @@
     "extract-text-webpack-plugin": "3.0.2",
     "file-loader": "1.1.11",
     "html-webpack-plugin": "3.2.0",
-    "karma": "3.0.0",
+    "karma": "^4.4.1",
     "karma-chrome-launcher": "0.2.3",
     "karma-mocha": "0.2.2",
     "karma-mocha-reporter": "2.2.5",
@@ -72,7 +72,7 @@
     "style-loader": "0.19.1",
     "svg-sprite-loader": "3.9.2",
     "url-loader": "1.1.2",
-    "webpack": "4.19.1",
+    "webpack": "^4.41.4",
     "webpack-bundle-analyzer": "^3.3.2",
     "webpack-cli": "^3.3.1",
     "webpack-dev-server": "^3.3.1"

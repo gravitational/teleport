@@ -5,7 +5,9 @@
       "addr": "0.0.0.0:3022",
       "hostname": "x220",
       "siteId": "siteid123",
-      "tags": [ { "name": "role", "value": "mysql" }]                  
+      "tags": [ { "name": "role", "value": "mysql" }],
+      "tunnel": false
+
     }
   ]
 }

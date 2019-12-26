@@ -14,28 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { reactor, expect, Dfd, spyOn, api } from './../';
-import { fetchNodes } from 'app/flux/nodes/actions';
-import getters from 'app/flux/nodes/getters';
-import { getNodeStore } from 'app/flux/nodes/nodeStore';
-import { setSiteId } from 'app/flux/app/actions';
-import { nodes } from 'app/__tests__/apiData'
+import { reactor, expect, Dfd, spyOn, api } from "./../";
+import { fetchNodes } from "app/flux/nodes/actions";
+import getters from "app/flux/nodes/getters";
+import { getNodeStore } from "app/flux/nodes/nodeStore";
+import { setSiteId } from "app/flux/app/actions";
+import { nodes } from "app/__tests__/apiData";
 
-describe('flux/nodes', () => {
-  const siteid = 'siteid123';
-  const serverId = 'ad2109a6-42ac-44e4-a570-5ce1b470f9b6';
+describe("flux/nodes", () => {
+  const siteid = "siteid123";
+  const serverId = "ad2109a6-42ac-44e4-a570-5ce1b470f9b6";
 
   beforeEach(() => {
     setSiteId(siteid);
-    spyOn(api, 'get');
+    spyOn(api, "get");
   });
 
   afterEach(() => {
-    reactor.reset()
+    reactor.reset();
     expect.restoreSpies();
-  })
+  });
 
-  describe('getters and actions', () => {
+  describe("getters and actions", () => {
     beforeEach(() => {
       api.get.andReturn(Dfd().resolve(nodes));
       fetchNodes();
@@ -45,9 +45,9 @@ describe('flux/nodes', () => {
       expect(reactor.evaluateToJS(getters.siteNodes)).toEqual(nodes.items);
     });
 
-    it('should findServer', () => {
+    it("should findServer", () => {
       const server = getNodeStore().findServer(serverId);
-      expect(server.hostname).toEqual('x220');
+      expect(server.hostname).toEqual("x220");
     });
   });
-})
+});
