@@ -61,9 +61,9 @@ module.exports = function createConfig() {
       alias: {
         jQuery: 'jquery',
         teleport: path.join(__dirname, '/../../teleport/src'),
-        'e-teleport': path.join(__dirname, '/../../e/teleport/src'),
-        'e-shared': path.join(__dirname, '/../../e/shared/src'),
-        'e-gravity': path.join(__dirname, '/../../e/gravity/src'),
+        'e-teleport': path.join(__dirname, '/../../webapps.e/teleport/src'),
+        'e-shared': path.join(__dirname, '/../../webapps.e/shared/src'),
+        'e-gravity': path.join(__dirname, '/../../webapps.e/gravity/src'),
         design: path.join(__dirname, '/../../design/src'),
         shared: path.join(__dirname, '/../../shared'),
         gravity: path.join(__dirname, '/../../gravity/src'),

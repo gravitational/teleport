@@ -13,11 +13,11 @@ teleport:
 
 .PHONY:teleport-e
 teleport-e:
-	$(MAKE) docker-build PACKAGE_PATH=packages/e/teleport NPM_CMD=build-teleport-e
+	$(MAKE) docker-build PACKAGE_PATH=packages/webapps.e/teleport NPM_CMD=build-teleport-e
 
 .PHONY:gravity-e
 gravity-e:
-	$(MAKE) docker-build PACKAGE_PATH=packages/e/gravity NPM_CMD=build-gravity-e
+	$(MAKE) docker-build PACKAGE_PATH=packages/webapps.e/gravity NPM_CMD=build-gravity-e
 
 .PHONY:docker-enter
 docker-enter:

@@ -11,8 +11,8 @@ COPY packages/design/package.json web-apps/packages/design/
 COPY packages/gravity/package.json web-apps/packages/gravity/
 COPY packages/shared/package.json web-apps/packages/shared/
 COPY packages/teleport/package.json web-apps/packages/teleport/
-COPY packages/e/gravity/package.json web-apps/packages/e/gravity/
-COPY packages/e/teleport/package.json web-apps/packages/e/teleport/
+COPY packages/webapps.e/gravity/package.json web-apps/packages/webapps.e/gravity/
+COPY packages/webapps.e/teleport/package.json web-apps/packages/webapps.e/teleport/
 WORKDIR web-apps
 RUN yarn install
 COPY  . .

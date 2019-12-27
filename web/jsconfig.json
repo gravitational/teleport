@@ -9,9 +9,9 @@
         "design": ["packages/design/src/"],
         "teleport/*": ["packages/teleport/src/*"],
         "gravity/*": ["packages/gravity/src/*"],
-        "e-gravity/*": ["packages/e/gravity/src/*"],
-        "e-teleport/*": ["packages/e/teleport/src/*"],
-        "e-shared/*": ["packages/e/shared/src/*"]
+        "e-gravity/*": ["packages/webapps.e/gravity/src/*"],
+        "e-teleport/*": ["packages/webapps.e/teleport/src/*"],
+        "e-shared/*": ["packages/webapps.e/shared/src/*"]
       }
     },
     "include": [
