@@ -243,7 +243,7 @@ tag:
 $(BUILDDIR)/webassets.zip:
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
-	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	cd webapps/packages/teleport/dist ; zip -qr ../../../../$(BUILDDIR)/webassets.zip .
 endif
 
 .PHONY: test-package
@@ -410,3 +410,18 @@ deb:
 update-helm-charts:
 	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport/values.yaml
 	sed -i -E "s/^teleportVersion: [a-z0-9.-]+$$/teleportVersion: $(VERSION)/" examples/chart/teleport-demo/values.yaml
+
+.PHONY: init-submodules
+init-submodules:
+	@if [ ! -d $(shell pwd)/webapps/packages/teleport/ ]; then \
+		echo "init git OSS submodules"; \
+		git submodule update --init webapps; \
+	fi;
+
+.PHONY: init-submodules-e
+init-submodules-e:
+	@if [ ! -d $(shell pwd)/webapps/packages/webapps.e/teleport ] || [ ! -d $(shell pwd)/e/lib/ ]; then \
+		echo "init git enterprise submodules"; \
+		git submodule update --init --recursive webapps; \
+		git submodule update --init e; \
+	fi;
