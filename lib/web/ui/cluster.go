@@ -33,34 +33,20 @@ type Cluster struct {
 	Status string `json:"status"`
 }
 
-// AvailableClusters describes all available clusters
-type AvailableClusters struct {
-	// Current describes current cluster
-	Current Cluster `json:"current"`
-	// Trusted describes trusted clusters
-	Trusted []Cluster `json:"trusted"`
-}
-
-// NewAvailableClusters returns all available clusters
-func NewAvailableClusters(currentClusterName string, remoteClusters []reversetunnel.RemoteSite) *AvailableClusters {
-	out := AvailableClusters{}
+// NewClusters creates a slice of Clusters
+func NewClusters(remoteClusters []reversetunnel.RemoteSite) []Cluster {
+	clusters := []Cluster{}
 	for _, item := range remoteClusters {
-		cluster := Cluster{
+		clusters = append(clusters, Cluster{
 			Name:          item.GetName(),
 			LastConnected: item.GetLastConnected(),
 			Status:        item.GetStatus(),
-		}
-
-		if item.GetName() == currentClusterName {
-			out.Current = cluster
-		} else {
-			out.Trusted = append(out.Trusted, cluster)
-		}
+		})
 	}
 
-	sort.Slice(out.Trusted, func(i, j int) bool {
-		return out.Trusted[i].Name < out.Trusted[j].Name
+	sort.Slice(clusters, func(i, j int) bool {
+		return clusters[i].Name < clusters[j].Name
 	})
 
-	return &out
+	return clusters
 }
