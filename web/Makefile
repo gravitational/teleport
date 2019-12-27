@@ -44,4 +44,4 @@ install:
 
 .PHONY: init-submodules
 init-submodules:
-	git config core.hooksPath $(HOME_DIR)/scripts/githooks/enterpise
+	git submodule update --init --recursive
