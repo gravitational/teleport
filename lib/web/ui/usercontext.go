@@ -106,7 +106,7 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 	}
 }
 
-// NewUserContext constructs user context from roles assigned to user
+// NewUserContext returns user context
 func NewUserContext(user services.User, userRoles services.RoleSet) (*userContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)

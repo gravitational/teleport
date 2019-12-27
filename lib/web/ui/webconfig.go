@@ -39,6 +39,8 @@ type WebConfig struct {
 	Auth WebConfigAuthSettings `json:"auth,omitempty"`
 	// CanJoinSessions disables joining sessions
 	CanJoinSessions bool `json:"canJoinSessions"`
+	// ProxyClusterName is the name of the local cluster
+	ProxyClusterName string `json:"proxyCluster,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider
