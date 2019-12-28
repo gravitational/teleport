@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
@@ -55,6 +56,7 @@ func (s *S3ThirdPartySuite) SetUpSuite(c *check.C) {
 
 	var err error
 	s.HandlerSuite.Handler, err = NewHandler(Config{
+		Credentials:                 credentials.NewStaticCredentials("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
 		Region:                      "us-west-1",
 		Path:                        "/test/",
 		Bucket:                      fmt.Sprintf("teleport-test-%v", uuid.New()),
