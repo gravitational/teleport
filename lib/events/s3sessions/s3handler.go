@@ -32,6 +32,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -55,6 +56,8 @@ type Config struct {
 	DisableServerSideEncryption bool
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
+	// Credentials if supplied are used in tests
+	Credentials *credentials.Credentials
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -111,6 +114,9 @@ func (s *Config) CheckAndSetDefaults() error {
 		}
 		if s.Insecure {
 			sess.Config.DisableSSL = aws.Bool(s.Insecure)
+		}
+		if s.Credentials != nil {
+			sess.Config.Credentials = s.Credentials
 		}
 		s.Session = sess
 	}
