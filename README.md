@@ -57,9 +57,9 @@ and run it under `$USER`, in this case you will not be able to login as someone 
 If you wish to deploy Teleport inside a Docker container:
 
 ```
-# This command will pull the Teleport container image for version 4.0.4
-# Replace 4.0.4 with the version you need:
-$ docker pull quay.io/gravitational/teleport:4.0.4
+# This command will pull the Teleport container image for version 4.2.0
+# Replace 4.2.0 with the version you need:
+$ docker pull quay.io/gravitational/teleport:4.2.0
 ```
 View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
 
@@ -69,7 +69,7 @@ Teleport source code consists of the actual Teleport daemon binary written in Go
 it has a web UI (located in /web directory) written in Javascript. The WebUI is not changed often
 and we keep it checked into Git under `/dist`, so you only need to build Golang:
 
-Make sure you have Golang `v1.12` or newer, then run:
+Make sure you have Golang `v1.13` or newer, then run:
 
 ```bash
 # get the source & build:
@@ -91,7 +91,7 @@ NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need
 at least 1GB of virtual memory to compile Teleport. 512MB instance without swap
 will not work.
 
-NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v2.5.7`) before running `make full`.
+NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v4.2.0`) before running `make full`.
 
 ### Rebuilding Web UI
 
