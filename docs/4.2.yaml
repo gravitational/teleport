@@ -25,10 +25,11 @@ extra:
 pages:
     - Documentation:
         - Introduction: intro.md
+        - Installation: installation.md
         - Quick Start Guide: quickstart.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
-        - Installation: installation.md
+        - Production Guide: production.md
         - FAQ: faq.md
     - Teleport Features: 
         - Enhanced Session Recording: features/enhanced_session_recording.md
