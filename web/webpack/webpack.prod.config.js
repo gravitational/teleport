@@ -14,27 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const webpack = require('webpack');
-const baseCfg = require('./webpack.base');
-const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
+const webpack = require("webpack");
+const baseCfg = require("./webpack.base");
 //const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
 var cfg = {
-
   entry: baseCfg.entry,
   output: baseCfg.output,
   resolve: baseCfg.resolve,
 
-  mode: 'production',
+  mode: "production",
 
   optimization: {
     ...baseCfg.optimization,
-    minimize: true,
-    minimizer: [
-      new UglifyJsPlugin({
-        exclude: 'app',
-     }),
-    ]
+    minimize: true
   },
 
   module: {
@@ -50,12 +43,12 @@ var cfg = {
     ]
   },
 
-  plugins:  [
+  plugins: [
     //new BundleAnalyzerPlugin(),
     new webpack.HashedModuleIdsPlugin(),
     baseCfg.plugins.createIndexHtml(),
     baseCfg.plugins.extractAppCss()
- ]
+  ]
 };
 
 module.exports = cfg;

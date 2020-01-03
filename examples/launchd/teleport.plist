@@ -20,6 +20,8 @@
    <integer>30</integer>
    <key>SuccessfulExit</key>
    <false/>
+   <key>SessionCreate</key>
+   <true/>
 <key>StandardOutPath</key>
 <string>/var/log/teleport-stdout.log</string>
 <key>StandardErrorPath</key>

@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]> <-r go1.9.7|fips> <-s tarball source dir>" 1>&2; exit 1; }
-while getopts ":t:v:p:a:r:s:" o; do
+usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]> <-r go1.9.7|fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
+while getopts ":t:v:p:a:r:s:m:" o; do
     case "${o}" in
         t)
             t=${OPTARG}
@@ -26,6 +26,10 @@ while getopts ":t:v:p:a:r:s:" o; do
         s)
             s=${OPTARG}
             ;;
+        m)
+            m=${OPTARG}
+            if [[ ${m} != "tsh" ]]; then usage; fi
+            ;;
         *)
             usage
             ;;
@@ -42,6 +46,7 @@ TELEPORT_VERSION=${v}
 PACKAGE_TYPE=${p}
 ARCH=${a}
 RUNTIME=${r}
+BUILD_MODE=${m}
 TARBALL_DIRECTORY=/tmp/teleport-tarballs
 DOWNLOAD_IF_NEEDED=true
 if [[ "${s}" != "" ]]; then
@@ -61,6 +66,11 @@ LICENSE="Apache License 2.0"
 VENDOR="Gravitational"
 DESCRIPTION="Gravitational Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
 
+# signing IDs to use for mac (must be pre-loaded into the keychain on the build box)
+DEVELOPER_ID_APPLICATION="Developer ID Application: Gravitational Inc." # used for signing binaries
+DEVELOPER_ID_INSTALLER="Developer ID Installer: Gravitational Inc." # used for signing packages
+
+# download root for packages
 DOWNLOAD_ROOT="https://get.gravitational.com"
 
 # check that curl is installed
@@ -98,17 +108,54 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         echo "Run: xcode-select --install"
         exit 5
     fi
+
+    if [[ "${BUILD_MODE}" == "tsh" ]]; then
+        if [ ! $(command -v codesign) ]; then
+            echo "You need to install codesign"
+            echo "Run: xcode-select --install or sudo xcode-select --reset"
+            exit 6
+        fi
+
+        if [ ! $(command -v productsign) ]; then
+            echo "You need to install productsign"
+            echo "Run: xcode-select --install or sudo xcode-select --reset"
+            exit 7
+        fi
+
+        if [ ! $(command -v gon) ]; then
+            echo "You need to install gon"
+            echo "Install a binary from https://github.com/mitchellh/gon and make sure it's present in the system PATH"
+            exit 8
+        fi
+
+        if [[ "${APPLE_USERNAME}" == "" ]]; then
+            echo "The APPLE_USERNAME environment variable needs to be set to the email address of the Apple user which will submit the notarization request"
+            exit 9
+        fi
+
+        if [[ "${APPLE_PASSWORD}" == "" ]]; then
+            echo "The APPLE_PASSWORD environment variable needs to be set to the password matching the email address of the Apple user which will submit the notarization request"
+            exit 10
+        fi
+    fi
 else
     PLATFORM="linux"
     # if arch isn't set for other package types, throw an error
     if [[ "${ARCH}" == "" ]]; then
         usage
     fi
+    
     # set docker image appropriately
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         DOCKER_IMAGE="cdrx/fpm-debian:8"
     elif [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         DOCKER_IMAGE="cdrx/fpm-centos:7"
+    fi
+
+    # if client-only build is requested for a non-Mac platform, unset it
+    if [[ "${BUILD_MODE}" == "tsh" ]]; then
+        echo "Client-only builds are only offered for Mac"
+        unset BUILD_MODE
     fi
 fi
 
@@ -140,7 +187,6 @@ fi
 if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
-    PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
     TAR_PATH="teleport-ent"
     if [[ "${RUNTIME}" == "go1.9.7" ]]; then
         TYPE_DESCRIPTION="[Enterprise edition, built with Go 1.9.7]"
@@ -152,7 +198,6 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
 else
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
-    PKG_FILENAME="teleport-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
     TAR_PATH="teleport"
     if [[ "${RUNTIME}" == "go1.9.7" ]]; then
         TYPE_DESCRIPTION="[Open source edition, built with Go 1.9.7]"
@@ -165,7 +210,26 @@ fi
 
 # set file list
 if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
-    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
+    # handle mac client-only builds
+    if [[ "${BUILD_MODE}" == "tsh" ]]; then
+        FILE_LIST="${TAR_PATH}/tsh"
+        BUNDLE_ID="com.gravitational.teleport.tsh"
+        SIGN_PKG="true"
+        NOTARIZE_PKG="true"
+        PKG_FILENAME="tsh-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+    else
+        FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
+        BUNDLE_ID="com.gravitational.teleport"
+        # we can't sign/notarize full Teleport packages on Mac yet due to https://github.com/gravitational/teleport/issues/3158
+        # TODO(gus): uncomment/fix this when the teleport binary is fixed
+        SIGN_PKG="false"
+        NOTARIZE_PKG="false"
+        if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
+            PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+        else
+            PKG_FILENAME="teleport-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+        fi
+    fi
 else
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/examples/systemd/teleport.service"
     LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
@@ -181,6 +245,8 @@ fi
 # create a temporary directory and download specified Teleport version
 pushd $(mktemp -d)
 TMPDIR=$(pwd)
+# automatically clean up on exit
+trap "rm -rf ${TMPDIR}" EXIT
 mkdir -p ${TMPDIR}/buildroot
 
 # implement a rudimentary download cache for repeat builds on the same host
@@ -225,17 +291,62 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     # erase any existing versions of the package in the output directory first
     rm -f ${PKG_FILENAME}
 
+    if [[ "${SIGN_PKG}" == "true" ]]; then
+        # run codesign to sign binaries
+        for FILE in ${FILE_LIST}; do
+            codesign -s "${DEVELOPER_ID_APPLICATION}" \
+                -f \
+                -v \
+                --timestamp \
+                --options runtime \
+                ${TMPDIR}/${FILE}
+        done
+    fi
+
     # build the package for OS X
     pkgbuild \
         --root ${TMPDIR}/${TAR_PATH} \
-        --identifier com.gravitational.teleport \
+        --identifier ${BUNDLE_ID} \
         --version ${TELEPORT_VERSION} \
         --install-location /usr/local/bin \
         ${PKG_FILENAME}
 
+    if [[ "${SIGN_PKG}" == "true" ]]; then
+        # mark package as unsigned first
+        mv ${PKG_FILENAME} ${PKG_FILENAME}.unsigned
+
+        # run productsign to sign package
+        productsign \
+            --sign "${DEVELOPER_ID_INSTALLER}" \
+            --timestamp \
+            ${PKG_FILENAME}.unsigned \
+            ${PKG_FILENAME}
+
+        # remove unsigned package after successful signing
+        rm -f ${PKG_FILENAME}.unsigned
+    fi
+
+    # write gon config file
+    if [[ "${NOTARIZE_PKG}" == "true" ]]; then
+        echo "    {
+            \"notarize\": [{
+                \"path\": \"${PKG_FILENAME}\",
+                \"bundle_id\": \"${BUNDLE_ID}\",
+                \"staple\": true
+            }],
+            \"apple_id\": {
+                \"username\": \"${APPLE_USERNAME}\",
+                \"password\": \"${APPLE_PASSWORD}\"
+            }
+        }" > ${TMPDIR}/gon-config.json
+
+        # notarise built package using gon
+        gon ${TMPDIR}/gon-config.json
+    fi
+
     # checksum created packages
-    for FILE in *.${PACKAGE_TYPE}; do
-        shasum -a 256 ${FILE} > ${FILE}.sha256
+    for PACKAGE in *.${PACKAGE_TYPE}; do
+        shasum -a 256 ${PACKAGE} > ${PACKAGE}.sha256
     done
 else
     # erase any existing packages of the same type/version/arch in the output directory first
@@ -270,6 +381,3 @@ else
         sha256sum ${FILE} > ${FILE}.sha256
     done
 fi
-
-# clean up temporary directory
-rm -rf ${TMPDIR}

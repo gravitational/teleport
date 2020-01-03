@@ -62,7 +62,7 @@ teleport:
     type: dynamodb
     region: ${EC2_REGION}
     table_name: ${TELEPORT_DYNAMO_TABLE_NAME}
-    audit_table_name: ${TELEPORT_DYNAMO_EVENTS_TABLE_NAME}
+    audit_events_uri: dynamodb://${TELEPORT_DYNAMO_EVENTS_TABLE_NAME}
     audit_sessions_uri: s3://${TELEPORT_S3_BUCKET}/records
 
 ssh_service:

@@ -17,6 +17,8 @@ limitations under the License.
 package cache
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -108,11 +110,79 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[string]collec
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[watch.Kind] = &tunnelConnection{watch: watch, Cache: c}
+		case services.KindAccessRequest:
+			if c.DynamicAccess == nil {
+				return nil, trace.BadParameter("missing parameter DynamicAccess")
+			}
+			collections[watch.Kind] = &accessRequest{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
 	}
 	return collections, nil
+}
+
+type accessRequest struct {
+	*Cache
+	watch services.WatchKind
+}
+
+// erase erases all data in the collection
+func (r *accessRequest) erase() error {
+	if err := r.dynamicAccessCache.DeleteAllAccessRequests(context.TODO()); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (r *accessRequest) fetch() error {
+	resources, err := r.DynamicAccess.GetAccessRequests(context.TODO(), services.AccessRequestFilter{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := r.erase(); err != nil {
+		return trace.Wrap(err)
+	}
+	for _, resource := range resources {
+		if err := r.dynamicAccessCache.UpsertAccessRequest(context.TODO(), resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (r *accessRequest) processEvent(event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		err := r.dynamicAccessCache.DeleteAccessRequest(context.TODO(), event.Resource.GetName())
+		if err != nil {
+			// resource could be missing in the cache
+			// expired or not created, if the first consumed
+			// event is delete
+			if !trace.IsNotFound(err) {
+				r.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(*services.AccessRequestV3)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		r.setTTL(resource)
+		if err := r.dynamicAccessCache.UpsertAccessRequest(context.TODO(), resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		r.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (r *accessRequest) watchKind() services.WatchKind {
+	return r.watch
 }
 
 type tunnelConnection struct {

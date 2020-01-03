@@ -48,6 +48,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindProxy},
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
+		{Kind: services.KindAccessRequest},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -118,6 +119,7 @@ type Cache struct {
 	provisionerCache   services.Provisioner
 	usersCache         services.UsersService
 	accessCache        services.Access
+	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
 	eventsCache        services.Events
 
@@ -145,6 +147,8 @@ type Config struct {
 	Users services.UsersService
 	// Access is an access service
 	Access services.Access
+	// DynamicAccess is a dynamic access service
+	DynamicAccess services.DynamicAccess
 	// Presence is a presence service
 	Presence services.Presence
 	// Backend is a backend for local cache
@@ -274,6 +278,7 @@ func New(config Config) (*Cache, error) {
 		provisionerCache:   local.NewProvisioningService(wrapper),
 		usersCache:         local.NewIdentityService(wrapper),
 		accessCache:        local.NewAccessService(wrapper),
+		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
 		eventsCache:        local.NewEventsService(config.Backend),
 		Entry: log.WithFields(log.Fields{

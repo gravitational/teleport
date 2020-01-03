@@ -321,8 +321,8 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 
 	// report progress:
 	if cmd.ProgressWriter != nil {
-		statusMessage := fmt.Sprintf("-> %s (%d)\n", fileInfo.GetPath(), fileInfo.GetSize())
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage))
+		statusMessage := fmt.Sprintf("-> %s (%d)", fileInfo.GetPath(), fileInfo.GetSize())
+		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
 
 	_, err = io.WriteString(ch, out)
@@ -459,8 +459,8 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 
 	// report progress:
 	if cmd.ProgressWriter != nil {
-		statusMessage := fmt.Sprintf("<- %s (%d)\n", path, fc.Length)
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage))
+		statusMessage := fmt.Sprintf("<- %s (%d)", path, fc.Length)
+		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
 
 	defer writer.Close()

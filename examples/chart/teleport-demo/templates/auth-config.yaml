@@ -25,6 +25,7 @@ data:
 
     ssh_service:
       enabled: yes
+      public_addr: 127.0.0.1:3022
       {{- if .Values.teleportLabels.auth.static }}
       labels:
       {{- range $key, $value := .Values.teleportLabels.auth.static }}
@@ -160,6 +161,7 @@ data:
 
     ssh_service:
       enabled: yes
+      public_addr: 127.0.0.1:3022
       {{- if $root.Values.teleportLabels.auth.static }}
       labels:
       {{- range $key, $value := $root.Values.teleportLabels.auth.static }}

@@ -1359,7 +1359,7 @@ func (a *AuthServer) DeleteRole(name string) error {
 	return a.Access.DeleteRole(name)
 }
 
-func (a *AuthServer) CreateAccessRequest(req services.AccessRequest) error {
+func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
 	if err := services.ValidateAccessRequest(a, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1384,7 +1384,7 @@ func (a *AuthServer) CreateAccessRequest(req services.AccessRequest) error {
 			req.SetExpiry(pexp)
 		}
 	}
-	if err := a.DynamicAccess.CreateAccessRequest(req); err != nil {
+	if err := a.DynamicAccess.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	err = a.EmitAuditEvent(events.AccessRequestCreated, events.EventFields{
@@ -1396,18 +1396,18 @@ func (a *AuthServer) CreateAccessRequest(req services.AccessRequest) error {
 	return trace.Wrap(err)
 }
 
-func (a *AuthServer) SetAccessRequestState(reqID string, state services.RequestState, updatedBy ...string) error {
-	if err := a.DynamicAccess.SetAccessRequestState(reqID, state); err != nil {
+func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
+	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
 		return trace.Wrap(err)
 	}
-	u := "unknown"
-	if len(updatedBy) == 1 {
-		u = updatedBy[0]
+	updateBy, err := getUpdateBy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	err := a.EmitAuditEvent(events.AccessRequestUpdated, events.EventFields{
+	err = a.EmitAuditEvent(events.AccessRequestUpdated, events.EventFields{
 		events.AccessRequestID:       reqID,
 		events.AccessRequestState:    state.String(),
-		events.AccessRequestUpdateBy: u,
+		events.AccessRequestUpdateBy: updateBy,
 	})
 	return trace.Wrap(err)
 }
