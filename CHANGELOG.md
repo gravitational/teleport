@@ -2,15 +2,13 @@
 
 ## 4.2.1
 
-This release of Teleport contains bug fixes and minor usability improvements:
+This release of Teleport contains bug fixes and minor usability improvements.
 
 * New build command for client-only (tsh) .pkg builds. [#3159](https://github.com/gravitational/teleport/pull/3159)
-
-* Fixed an issue where access-request event system fails when cache is enabled. [#3223](https://github.com/gravitational/teleport/pull/3223)
-
 * Added support for etcd password auth. [#3234](https://github.com/gravitational/teleport/pull/3234)
-
 * Added third-party s3 support. [#3234](https://github.com/gravitational/teleport/pull/3234)
+* Fixed an issue where access-request event system fails when cache is enabled. [#3223](https://github.com/gravitational/teleport/pull/3223)
+* Fixed cgroup resolution so enhanced session recording works on Debian based distributions. [#3215](https://github.com/gravitational/teleport/pull/3215)
 
 ## 4.2.0
 
