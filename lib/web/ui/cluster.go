@@ -20,7 +20,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+
+	"github.com/gravitational/trace"
 )
 
 // Cluster describes a cluster
@@ -31,6 +34,8 @@ type Cluster struct {
 	LastConnected time.Time `json:"last_connected"`
 	// Status is the cluster status
 	Status string `json:"status"`
+	// NodeCount is the number of nodes available on the cluster
+	NodeCount int `json:"node_count,omitempty"`
 }
 
 // AvailableClusters describes all available clusters
@@ -42,15 +47,23 @@ type AvailableClusters struct {
 }
 
 // NewAvailableClusters returns all available clusters
-func NewAvailableClusters(currentClusterName string, remoteClusters []reversetunnel.RemoteSite) *AvailableClusters {
+func NewAvailableClusters(currentClusterName string, remoteClusters []reversetunnel.RemoteSite) (*AvailableClusters, error) {
 	out := AvailableClusters{}
 	for _, item := range remoteClusters {
+		clt, err := item.CachingAccessPoint()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		nodes, err := clt.GetNodes(defaults.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		cluster := Cluster{
 			Name:          item.GetName(),
 			LastConnected: item.GetLastConnected(),
 			Status:        item.GetStatus(),
+			NodeCount:     len(nodes),
 		}
-
 		if item.GetName() == currentClusterName {
 			out.Current = cluster
 		} else {
@@ -62,5 +75,5 @@ func NewAvailableClusters(currentClusterName string, remoteClusters []reversetun
 		return out.Trusted[i].Name < out.Trusted[j].Name
 	})
 
-	return &out
+	return &out, nil
 }

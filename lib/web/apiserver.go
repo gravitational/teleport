@@ -1356,8 +1356,12 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 
-	response := ui.NewAvailableClusters(resource.GetClusterName(),
+	response, err := ui.NewAvailableClusters(resource.GetClusterName(),
 		h.cfg.Proxy.GetSites())
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return response, nil
 }
