@@ -30,13 +30,20 @@ import (
 // #cgo LDFLAGS: -ldl
 //
 // #include <dlfcn.h>
-// #include <bcc/bcc_common.h>
+// #include <stdbool.h>
+//
+// #if __has_include(<bcc/bcc_common.h>)
+//   #include <bcc/bcc_common.h>
+// #else
+//   #include <bcc/bpf_common.h>
+// #endif
 // #include <bcc/libbpf.h>
 //
 // extern char *bcc_library_name();
 // extern int init_symlookup(void *);
-// extern int bcc_prog_load(enum bpf_prog_type, const char *, const struct bpf_insn *, int, const char *, unsigned, int, char *, unsigned);
-// extern int bpf_attach_kprobe(int, enum bpf_probe_attach_type, const char *, const char *, uint64_t, int);
+// extern int _bpf_prog_load(enum bpf_prog_type, const char *, const struct bpf_insn *, int, const char *, unsigned, int, char *, unsigned);
+// extern int _bpf_attach_kprobe(int, enum bpf_probe_attach_type, const char *, const char *, uint64_t, int);
+// extern void *_bpf_module_create_c_from_string(const char *, unsigned, const char *[], int, bool, const char *);
 // extern int bpf_attach_perf_event(int, uint32_t, uint32_t, uint64_t, uint64_t, pid_t, int, int);
 // extern int bpf_attach_raw_tracepoint(int, char *);
 // extern int bpf_attach_tracepoint(int, const char *, const char *);
@@ -48,7 +55,6 @@ import (
 // extern int bpf_detach_uprobe(const char *);
 // extern size_t bpf_function_size(void *, const char *);
 // extern void *bpf_function_start(void *, const char *);
-// extern void *bpf_module_create_c_from_string(const char *, unsigned, const char *[], int, bool, const char *);
 // extern void bpf_module_destroy(void *);
 // extern unsigned bpf_module_kern_version(void *);
 // extern char *bpf_module_license(void *);
@@ -133,7 +139,7 @@ func newModule(code string, cflags []string) *Module {
 	}
 	cs := C.CString(code)
 	defer C.free(unsafe.Pointer(cs))
-	c := C.bpf_module_create_c_from_string(cs, 2, (**C.char)(&cflagsC[0]), C.int(len(cflagsC)), (C.bool)(true), nil)
+	c := C._bpf_module_create_c_from_string(cs, 2, (**C.char)(&cflagsC[0]), C.int(len(cflagsC)), (C.bool)(true), nil)
 	if c == nil {
 		return nil
 	}
@@ -265,7 +271,7 @@ func (bpf *Module) load(name string, progType int, logLevel, logSize uint) (int,
 		logBuf = make([]byte, logSize)
 		logBufP = (*C.char)(unsafe.Pointer(&logBuf[0]))
 	}
-	fd, err := C.bcc_prog_load(uint32(progType), nameCS, start, size, license, version, C.int(logLevel), logBufP, C.uint(len(logBuf)))
+	fd, err := C._bpf_prog_load(uint32(progType), nameCS, start, size, license, version, C.int(logLevel), logBufP, C.uint(len(logBuf)))
 	if fd < 0 {
 		return -1, fmt.Errorf("error loading BPF program: %v", err)
 	}
@@ -285,7 +291,7 @@ func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, 
 	defer C.free(unsafe.Pointer(evNameCS))
 	defer C.free(unsafe.Pointer(fnNameCS))
 
-	res, err := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, (C.uint64_t)(0), C.int(maxActive))
+	res, err := C._bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, (C.uint64_t)(0), C.int(maxActive))
 	if err != nil {
 		return err
 	}
