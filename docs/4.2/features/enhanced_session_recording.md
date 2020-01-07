@@ -84,6 +84,37 @@ Run the following script to download the prerequisites to build BCC tools, build
 
     We plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
 
+### Script to Install BCC Tools on Ubuntu and Debian 
+**Example Script to install relevant bcc packages for Ubuntu and Debian**
+
+```sh
+#!/bin/bash
+
+# Download LLVM and Clang from the Trusty Repos.
+VER=trusty
+echo "deb http://llvm.org/apt/$VER/ llvm-toolchain-$VER-3.7 main
+deb-src http://llvm.org/apt/$VER/ llvm-toolchain-$VER-3.7 main" | \
+  sudo tee /etc/apt/sources.list.d/llvm.list
+wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
+sudo apt-get update
+
+sudo apt-get -y install bison build-essential cmake flex git libedit-dev \
+  libllvm6.0 llvm-6.0-dev libclang-6.0-dev python zlib1g-dev libelf-dev
+
+# Install additional tools.
+sudo apt install arping iperf3 netperf
+
+# Install BCC.
+export MAKEFLAGS="-j16"
+git clone https://github.com/iovisor/bcc.git
+(cd bcc && git checkout v0.11.0)
+mkdir bcc/build; cd bcc/build
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr
+make
+sudo make install
+```
+
+### Script to Install BCC Tools on CentOS 
 **Example Script to install relevant bcc packages for CentOS**
 
 Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md#debian---source) on how to install the relevant tooling for other operating systems. 
