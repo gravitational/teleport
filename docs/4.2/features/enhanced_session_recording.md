@@ -102,7 +102,7 @@ sudo apt-get -y install bison build-essential cmake flex git libedit-dev \
   libllvm6.0 llvm-6.0-dev libclang-6.0-dev python zlib1g-dev libelf-dev
 
 # Install additional tools.
-sudo apt install arping iperf3 netperf
+sudo apt install arping iperf3 netperf git
 
 # Install BCC.
 export MAKEFLAGS="-j16"
