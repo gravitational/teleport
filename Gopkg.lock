@@ -560,15 +560,16 @@
   version = "v0.3.4"
 
 [[projects]]
-  digest = "1:6fdc5ab2b51daaff685258da6a6b6dec3fffcf4207fab3df360e3a2b42d2f1af"
+  digest = "1:de4c308afcff6ffdbfaf7dbdcd5951cfd72f2c48465bf16789b5b8a50e72aa97"
   name = "github.com/iovisor/gobpf"
   packages = [
     "bcc",
     "pkg/cpuonline",
   ]
   pruneopts = "NUT"
-  revision = "0e328af3088341056aa453a95756f94c87492220"
+  revision = "3bb6e7ff1bc74fa4b3053e2dd0948b6228e5f3b1"
   source = "github.com/gravitational/gobpf"
+  version = "v0.0.1"
 
 [[projects]]
   digest = "1:ac6d01547ec4f7f673311b4663909269bfb8249952de3279799289467837c3cc"

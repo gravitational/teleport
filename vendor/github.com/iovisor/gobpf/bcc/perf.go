@@ -26,7 +26,11 @@ import (
 // #cgo CFLAGS: -I/usr/include/bcc/compat
 // #cgo LDFLAGS: -ldl
 //
-// #include <bcc/bcc_common.h>
+// #if __has_include(<bcc/bcc_common.h>)
+//   #include <bcc/bcc_common.h>
+// #else
+//   #include <bcc/bpf_common.h>
+// #endif
 // #include <bcc/libbpf.h>
 // #include <bcc/perf_reader.h>
 //
