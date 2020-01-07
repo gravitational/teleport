@@ -42,9 +42,9 @@ Teleport services listen on several ports. This table shows the default port num
 
 ## Installation
 
-We have a detailed [installation guide](/installation.md) which shows how to
+We have a detailed [installation guide](../installation.md) which shows how to
 install all available binaries or [install from
-source](#../installation.md#installing-from-source). Reference that guide to learn
+source](../installation.md#installing-from-source). Reference that guide to learn
 the best way to install Teleport for your system and the come back here to
 finish your production install.
 
@@ -69,26 +69,7 @@ In production, we recommend starting teleport daemon via an init system like
 `systemd`. If systemd and unit files are new to you check out [this helpful guide](https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files). Here's the recommended Teleport service unit file for systemd.
 
 
-```yaml
-[Unit]
-Description=Teleport SSH Service
-After=network.target
-
-[Service]
-Type=simple
-Restart=on-failure
-# Set the nodes roles with the `--roles`
-# In most production environments you will not
-# want to run all three roles on a single host
-# --roles='proxy,auth,node' is the default value
-# if none is set
-ExecStart=/usr/local/bin/teleport start --roles=auth --config=/etc/teleport.yaml --pid-file=/var/run/teleport.pid
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/teleport.pid
-
-[Install]
-WantedBy=multi-user.target
-```
+<script src="https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service"></script>
 
 There are a couple of important things to notice about this file:
 
