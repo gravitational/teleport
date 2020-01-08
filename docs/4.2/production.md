@@ -69,7 +69,7 @@ In production, we recommend starting teleport daemon via an init system like
 `systemd`. If systemd and unit files are new to you check out [this helpful guide](https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files). Here's the recommended Teleport service unit file for systemd.
 
 
-<script src="https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service"></script>
+Example systemd for [Proxy, Node and Auth Service](https://github.com/gravitational/teleport/tree/master/examples/systemd/production). 
 
 There are a couple of important things to notice about this file:
 
@@ -135,7 +135,27 @@ communication between nodes, clients and web proxy remains secure and comes from
 a trusted source.  
 
 During our [quickstart](quickstart.md) guide we skip over setting up TLS, so you can quickly try Teleport.
-Obtaining a TLS certificate is easy and is free with thank to [Let's Encrypt](https://letsencrypt.org/). If you already have a certificate these should be uploaded to the Teleport Proxy and 
+Obtaining a TLS certificate is easy and is free with thanks to [Let's Encrypt](https://letsencrypt.org/).
+
+If you use [certbot](https://certbot.eff.org/), you get this list of files provided:
+
+```
+README
+cert.pem
+chain.pem
+fullchain.pem
+privkey.pem
+```
+
+The files that are needed for Teleport are these:
+
+```
+https_key_file: /path/to/certs/privkey.pem
+https_cert_file: /path/to/certs/fullchain.pem
+```
+
+
+If you already have a certificate these should be uploaded to the Teleport Proxy and 
 can be set via `https_key_file` and `https_cert_file`.
 
 ```yaml
@@ -162,9 +182,9 @@ managers.
 - [ACM](https://gravitational.com/teleport/docs/aws_oss_guide/#acm) on AWS 
 - [Google-managed SSL certificates](https://cloud.google.com/load-balancing/docs/ssl-certificates) on GCP
 
-When setting up Teleport with a Cloud Provider, it's can be common to Terminate 
-TLS at the load balancer, then use an autosacling group for the proxy nodes. When 
-setting up the proxy nodes start teleport with.
+When setting up Teleport with a Cloud Provider, it can be common to terminate 
+TLS at the load balancer, then use an autoscaling group for the proxy nodes. When 
+setting up the proxy nodes start Teleport with:
 
 `teleport start --insecure --roles=proxy --config=/etc/teleport.yaml`
 
@@ -179,12 +199,12 @@ See [Teleport Proxy HA](admin-guide.md#teleport-proxy-ha) for more info.
 
 Teleport nodes use the HTTPS protocol to offer the join tokens to the auth
 server. In a zero-trust environment, you must assume that an attacker can
-highjack the IP address of the auth server.
+hijack the IP address of the auth server.
 
 To prevent this from happening, you need to supply every new node with an
 additional bit of information about the auth server. This technique is called
 "CA Pinning". It works by asking the auth server to produce a "CA Pin", which
-is a hashed value of it's private key, i.e. it cannot be forged by an attacker.
+is a hashed value of its private key, i.e. it cannot be forged by an attacker.
 
 To get the current CA Pin run this on the auth server:
 
@@ -220,8 +240,8 @@ teleport:
 ```
 
 !!! warning "Warning":
-    If a CA pin not provided, Teleport node will join a cluster but it will
-    print a `WARN` message (warning) into it's standard error output.
+    If a CA pin is not provided, Teleport node will join a cluster but it will
+    print a `WARN` message (warning) into its standard error output.
 
 !!! warning "Warning":
     The CA pin becomes invalid if a Teleport administrator performs the CA
