@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +32,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -45,8 +48,45 @@ type Config struct {
 	Region string
 	// Path is an optional bucket path
 	Path string
+	// Host is an optional third party S3 compatible endpoint
+	Endpoint string
+	// Insecure is an optional switch to opt out of https connections
+	Insecure bool
+	//DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
+	DisableServerSideEncryption bool
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
+	// Credentials if supplied are used in tests
+	Credentials *credentials.Credentials
+}
+
+// SetFromURL sets values on the Config from the supplied URI
+func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
+	region := inRegion
+	if uriRegion := in.Query().Get(teleport.Region); uriRegion != "" {
+		region = uriRegion
+	}
+	if endpoint := in.Query().Get(teleport.Endpoint); endpoint != "" {
+		s.Endpoint = endpoint
+	}
+	if val := in.Query().Get(teleport.Insecure); val != "" {
+		insecure, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter("failed to parse URI %q flag %q - %q, supported values are 'true' or 'false'", in.String(), teleport.Insecure, val)
+		}
+		s.Insecure = insecure
+	}
+	if val := in.Query().Get(teleport.DisableServerSideEncryption); val != "" {
+		disableServerSideEncryption, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter("failed to parse URI %q flag %q - %q, supported values are 'true' or 'false'", in.String(), teleport.DisableServerSideEncryption, val)
+		}
+		s.DisableServerSideEncryption = disableServerSideEncryption
+	}
+	s.Region = region
+	s.Bucket = in.Host
+	s.Path = in.Path
+	return nil
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -63,10 +103,20 @@ func (s *Config) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// override the default environment (region + credentials) with the values
+		// override the default environment (region + Host + credentials) with the values
 		// from the YAML file:
 		if s.Region != "" {
 			sess.Config.Region = aws.String(s.Region)
+		}
+		if s.Endpoint != "" {
+			sess.Config.Endpoint = aws.String(s.Endpoint)
+			sess.Config.S3ForcePathStyle = aws.Bool(true)
+		}
+		if s.Insecure {
+			sess.Config.DisableSSL = aws.Bool(s.Insecure)
+		}
+		if s.Credentials != nil {
+			sess.Config.Credentials = s.Credentials
 		}
 		s.Session = sess
 	}
@@ -271,19 +321,21 @@ func (h *Handler) ensureBucket() error {
 	}
 
 	// Turn on server-side encryption for the bucket.
-	_, err = h.client.PutBucketEncryption(&s3.PutBucketEncryptionInput{
-		Bucket: aws.String(h.Bucket),
-		ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
-			Rules: []*s3.ServerSideEncryptionRule{&s3.ServerSideEncryptionRule{
-				ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
-					SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms),
-				},
-			}},
-		},
-	})
-	err = ConvertS3Error(err, "failed to set versioning state for bucket %q", h.Bucket)
-	if err != nil {
-		return trace.Wrap(err)
+	if !h.DisableServerSideEncryption {
+		_, err = h.client.PutBucketEncryption(&s3.PutBucketEncryptionInput{
+			Bucket: aws.String(h.Bucket),
+			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
+				Rules: []*s3.ServerSideEncryptionRule{&s3.ServerSideEncryptionRule{
+					ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+						SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms),
+					},
+				}},
+			},
+		})
+		err = ConvertS3Error(err, "failed to set versioning state for bucket %q", h.Bucket)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }

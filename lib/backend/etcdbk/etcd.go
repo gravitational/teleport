@@ -25,6 +25,7 @@ import (
 	"encoding/base64"
 	"io/ioutil"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -142,17 +143,30 @@ type EtcdBackend struct {
 
 // Config represents JSON config for etcd backend
 type Config struct {
-	Nodes       []string `json:"peers,omitempty"`
-	Key         string   `json:"prefix,omitempty"`
-	TLSKeyFile  string   `json:"tls_key_file,omitempty"`
-	TLSCertFile string   `json:"tls_cert_file,omitempty"`
-	TLSCAFile   string   `json:"tls_ca_file,omitempty"`
-	Insecure    bool     `json:"insecure,omitempty"`
+	// Nodes is a list of nodes
+	Nodes []string `json:"peers,omitempty"`
+	// Key is an optional prefix for etcd
+	Key string `json:"prefix,omitempty"`
+	// TLSKeyFile is a private key, implies mTLS client authentication
+	TLSKeyFile string `json:"tls_key_file,omitempty"`
+	// TLSCertFile is a client certificate implies mTLS client authentication
+	TLSCertFile string `json:"tls_cert_file,omitempty"`
+	// TLSCAFile is a trusted certificate authority certificate
+	TLSCAFile string `json:"tls_ca_file,omitempty"`
+	// Insecure turns off TLS
+	Insecure bool `json:"insecure,omitempty"`
 	// BufferSize is a default buffer size
 	// used to pull events
 	BufferSize int `json:"buffer_size,omitempty"`
 	// DialTimeout specifies dial timeout
 	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
+	// Username is an optional username for HTTPS basic authentication
+	Username string `json:"username,omitempty"`
+	// Password is initalized from password file, and is not read from the config
+	Password string `json:"-"`
+	// PasswordFile is an optional password file for HTTPS basic authentication,
+	// expects path to a file
+	PasswordFile string `json:"password_file,omitempty"`
 }
 
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
@@ -209,20 +223,14 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 // Validate checks if all the parameters are present/valid
 func (cfg *Config) Validate() error {
 	if len(cfg.Key) == 0 {
-		return trace.BadParameter(`etcd: missing "prefix" setting`)
+		return trace.BadParameter(`etcd: missing "prefix" parameter`)
 	}
 	if len(cfg.Nodes) == 0 {
-		return trace.BadParameter(`etcd: missing "peers" setting`)
+		return trace.BadParameter(`etcd: missing "peers" parameter`)
 	}
 	if cfg.Insecure == false {
-		if cfg.TLSKeyFile == "" {
-			return trace.BadParameter(`etcd: missing "tls_key_file" setting`)
-		}
-		if cfg.TLSCertFile == "" {
-			return trace.BadParameter(`etcd: missing "tls_cert_file" setting`)
-		}
 		if cfg.TLSCAFile == "" {
-			return trace.BadParameter(`etcd: missing "tls_ca_file" setting`)
+			return trace.BadParameter(`etcd: missing "tls_ca_file" parameter`)
 		}
 	}
 	if cfg.BufferSize == 0 {
@@ -230,6 +238,14 @@ func (cfg *Config) Validate() error {
 	}
 	if cfg.DialTimeout == 0 {
 		cfg.DialTimeout = defaults.DefaultDialTimeout
+	}
+	if cfg.PasswordFile != "" {
+		out, err := ioutil.ReadFile(cfg.PasswordFile)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		// trim newlines as passwords in files tend to have newlines
+		cfg.Password = strings.TrimSpace(string(out))
 	}
 	return nil
 }
@@ -251,23 +267,33 @@ func (b *EtcdBackend) CloseWatchers() {
 }
 
 func (b *EtcdBackend) reconnect() error {
-	clientCertPEM, err := ioutil.ReadFile(b.cfg.TLSCertFile)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	clientKeyPEM, err := ioutil.ReadFile(b.cfg.TLSKeyFile)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	caCertPEM, err := ioutil.ReadFile(b.cfg.TLSCAFile)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
 	tlsConfig := utils.TLSConfig(nil)
-	tlsCert, err := tls.X509KeyPair(clientCertPEM, clientKeyPEM)
-	if err != nil {
-		return trace.BadParameter("failed to parse private key: %v", err)
+
+	if b.cfg.TLSCertFile != "" {
+		clientCertPEM, err := ioutil.ReadFile(b.cfg.TLSCertFile)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		clientKeyPEM, err := ioutil.ReadFile(b.cfg.TLSKeyFile)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		tlsCert, err := tls.X509KeyPair(clientCertPEM, clientKeyPEM)
+		if err != nil {
+			return trace.BadParameter("failed to parse private key: %v", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	}
+
+	var caCertPEM []byte
+	if b.cfg.TLSCAFile != "" {
+		var err error
+		caCertPEM, err = ioutil.ReadFile(b.cfg.TLSCAFile)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+	}
+
 	certPool := x509.NewCertPool()
 	parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
 	if err != nil {
@@ -275,7 +301,6 @@ func (b *EtcdBackend) reconnect() error {
 	}
 	certPool.AddCert(parsedCert)
 
-	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
 
@@ -283,6 +308,8 @@ func (b *EtcdBackend) reconnect() error {
 		Endpoints:   b.nodes,
 		TLS:         tlsConfig,
 		DialTimeout: b.cfg.DialTimeout,
+		Username:    b.cfg.Username,
+		Password:    b.cfg.Password,
 	})
 	if err != nil {
 		return trace.Wrap(err)
