@@ -2148,11 +2148,8 @@ proxy is running without problems.
 !!! tip "NOTE":
     As the new auth servers get added to the cluster and the old
     servers get decommissioned, nodes and proxies will refresh the list of
-    available auth servers and store it in their local cache
-
-`/var/lib/teleport/authservers.json` . The values from the cache file will take
-
-    precedence over the configuration file.
+    available auth servers and store it in their local cache `/var/lib/teleport/authservers.json` - 
+    the values from the cache file will take precedence over the configuration file.
 
 We'll cover how to use `etcd` and `DynamoDB` storage back-ends to make Teleport
 highly available below.
