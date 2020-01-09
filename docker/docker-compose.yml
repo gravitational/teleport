@@ -41,7 +41,7 @@ services:
         ipv4_address: 172.10.1.20
 
   #
-  # one-node is a single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
+  # one-sshd is a single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
   #
   one-sshd:
     image: teleport:latest
