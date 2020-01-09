@@ -5,8 +5,8 @@ teleport:
   auth_token: foo
   advertise_ip: 172.10.1.4
   log:
-    output: /var/lib/teleport/teleport.log
-    severity: INFO
+    output: stdout
+    severity: DEBUG
   data_dir: /var/lib/teleport
   storage:
       path: /var/lib/teleport/backend
