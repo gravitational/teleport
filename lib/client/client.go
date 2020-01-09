@@ -72,10 +72,10 @@ type NodeClient struct {
 //
 func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	proxySession, err := proxy.Client.NewSession()
-	defer proxySession.Close()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxySession.Close()
 	stdout := &bytes.Buffer{}
 	reader, err := proxySession.StdoutPipe()
 	if err != nil {
