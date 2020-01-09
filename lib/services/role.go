@@ -1382,7 +1382,6 @@ func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string,
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-
 		log.Warnf("User %v using old style SSH certificate, fetching roles and traits "+
 			"from backend. If the identity provider allows username changes, this can "+
 			"potentially allow an attacker to change the role of the existing user. "+
@@ -1448,7 +1447,7 @@ func isFormatOld(cert *ssh.Certificate) bool {
 	_, hasRoles := cert.Extensions[teleport.CertExtensionTeleportRoles]
 	_, hasTraits := cert.Extensions[teleport.CertExtensionTeleportTraits]
 
-	if hasRoles && hasTraits {
+	if hasRoles || hasTraits {
 		return false
 	}
 	return true
