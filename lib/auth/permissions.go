@@ -451,6 +451,7 @@ func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterCon
 }
 
 func contextForLocalUser(u LocalUser, identity services.UserGetter, access services.Access) (*AuthContext, error) {
+	// User has to be fetched to check if it's a blocked username
 	user, err := identity.GetUser(u.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -463,6 +464,15 @@ func contextForLocalUser(u LocalUser, identity services.UserGetter, access servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Override roles and traits from the local user based on the identity roles
+	// and traits, this is done to prevent potential conflict. Imagine a scenairo
+	// when SSO user has left the company, but local user entry remained with old
+	// privileged roles. New user with the same name has been onboarded and would
+	// have derived the roles from the stale user entry. This code prevents
+	// that by extracting up to date identity traits and roles from the user's
+	// certificate metadata.
+	user.SetRoles(roles)
+	user.SetTraits(traits)
 
 	return &AuthContext{
 		User:    user,

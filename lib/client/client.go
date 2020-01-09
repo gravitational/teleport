@@ -75,7 +75,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	defer proxySession.Close()
 	stdout := &bytes.Buffer{}
 	reader, err := proxySession.StdoutPipe()
 	if err != nil {
