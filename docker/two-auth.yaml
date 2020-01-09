@@ -2,8 +2,8 @@
 teleport:
   nodename: two-auth
   log:
-    output: /var/lib/teleport/teleport.log
-    severity: INFO
+    output: stdout
+    severity: DEBUG
 
   data_dir: /var/lib/teleport
   storage:

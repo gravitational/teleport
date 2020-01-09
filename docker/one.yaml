@@ -3,8 +3,8 @@ teleport:
   nodename: one
   advertise_ip: 172.10.1.1
   log:
-    output: /var/lib/teleport/teleport.log
-    severity: INFO
+    output: stdout
+    severity: DEBUG
 
   data_dir: /var/lib/teleport
   storage:
@@ -30,7 +30,10 @@ ssh_service:
       - name: kernel
         command: [/bin/uname, -r]
         period: 5m
+  public_addr: ['localhost']
 
 proxy_service:
   enabled: yes
+  public_addr: ['localhost:3080']
+
 
