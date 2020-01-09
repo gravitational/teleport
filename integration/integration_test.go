@@ -1427,15 +1427,23 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	main := NewInstance(InstanceConfig{ClusterName: clusterMain, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub, MultiplexProxy: multiplex})
 	aux := NewInstance(InstanceConfig{ClusterName: clusterAux, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
-	// main cluster has a local user and belongs to role "main-devs"
+	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+	devsRole, err := services.NewRole(mainDevs, services.RoleSpecV3{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
 	})
 	c.Assert(err, check.IsNil)
-	main.AddUserWithRole(username, role)
+
+	mainAdmins := "main-admins"
+	adminsRole, err := services.NewRole(mainAdmins, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins: []string{"superuser"},
+		},
+	})
+
+	main.AddUserWithRole(username, devsRole, adminsRole)
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
@@ -1453,22 +1461,24 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	c.Assert(main.CreateEx(makeConfig(false)), check.IsNil)
 	c.Assert(aux.CreateEx(makeConfig(true)), check.IsNil)
 
-	// auxiliary cluster has a role aux-devs
+	// auxiliary cluster has only a role aux-devs
 	// connect aux cluster to main cluster
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+	auxRole, err := services.NewRole(auxDevs, services.RoleSpecV3{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role, backend.Forever)
+	err = aux.Process.GetAuthServer().UpsertRole(auxRole, backend.Forever)
 	c.Assert(err, check.IsNil)
-	trustedClusterToken := "trusted-clsuter-token"
+	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
 	c.Assert(err, check.IsNil)
+	// Note that the mapping omits admins role, this is to cover the scenario
+	// when root cluster and leaf clusters have different role sets
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
@@ -1517,6 +1527,15 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	cmd := []string{"echo", "hello world"}
 	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: clusterAux, Host: "127.0.0.1", Port: sshPort})
 	c.Assert(err, check.IsNil)
+
+	// tell the client to trust aux cluster CAs (from secrets). this is the
+	// equivalent of 'known hosts' in openssh
+	auxCAS := aux.Secrets.GetCAs()
+	for i := range auxCAS {
+		err = tc.AddTrustedCA(auxCAS[i])
+		c.Assert(err, check.IsNil)
+	}
+
 	output := &bytes.Buffer{}
 	tc.Stdout = output
 	c.Assert(err, check.IsNil)
@@ -1532,6 +1551,13 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	}
 	c.Assert(err, check.IsNil)
 	c.Assert(output.String(), check.Equals, "hello world\n")
+
+	// ListNodes expect labels as a value of host
+	tc.Host = ""
+	servers, err := tc.ListNodes(context.TODO())
+	c.Assert(err, check.IsNil)
+	c.Assert(servers, check.HasLen, 2)
+	tc.Host = "127.0.0.1"
 
 	// check that remote cluster has been provisioned
 	remoteClusters, err := main.Process.GetAuthServer().GetRemoteClusters()
