@@ -294,8 +294,8 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			events.EventLogin:      ctx.Login,
 			events.EventUser:       ctx.User,
 			// Command fields.
-			events.PID:        event.PPID,
-			events.PPID:       event.PID,
+			events.PID:        event.PID,
+			events.PPID:       event.PPID,
 			events.CgroupID:   event.CgroupID,
 			events.Program:    convertString(unsafe.Pointer(&event.Command)),
 			events.Path:       argv[0],
