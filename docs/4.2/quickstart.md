@@ -29,7 +29,7 @@ Instead follow the [Admin Guide](admin-guide.md))**
 
 ## Step 1: Install Teleport
 
-This guide installs teleport v4.1.0 on the CLI. Previous versions are documented
+This guide installs teleport v4.2.1 on the CLI. Previous versions are documented
 in [Release History](https://gravitational.com/teleport/releases/). You can
 download pre-built binaries from our
 [Downloads](https://gravitational.com/teleport/download/) page or you can [build
@@ -39,7 +39,7 @@ You can also download `.deb` , `.rpm` , and `.pkg` files from
 [Downloads](https://gravitational.com/teleport/download/)
 
 ``` bash
-$ export version=v4.1.0
+$ export version=v4.2.1
 $ export os=linux # 'darwin' 'linux' or 'windows'
 $ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
 # Automated way to retrieve the checksum, just append .sha256
@@ -129,8 +129,7 @@ open this URL in a web browser to complete the registration process.
 ## Step 4: Register a User
 
 * If the machine where you ran these commands has a web browser installed you
-
-  should be able to open the URL and connect to Teleport Proxy right away.
+should be able to open the URL and connect to Teleport Proxy right away.
 
 * If the are working on a remote machine you may need to access the Teleport
 
