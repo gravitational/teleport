@@ -25,6 +25,8 @@ import "C"
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/binary"
 	"io/ioutil"
 	"os"
 	"path"
@@ -32,7 +34,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
 
@@ -326,20 +327,43 @@ func (s *Service) unmount() error {
 	return nil
 }
 
+type fileHandle struct {
+	CgroupID uint64
+}
+
 // ID returns the cgroup ID for the given session.
 func (s *Service) ID(sessionID string) (uint64, error) {
+	var fh fileHandle
 	path := path.Join(s.teleportRoot, sessionID)
 
-	cpath := C.CString(path)
-	defer C.free(unsafe.Pointer(cpath))
-
-	// Returns the cgroup ID of a given path.
-	cgid := C.cgroup_id(cpath)
-	if cgid == 0 {
-		return 0, trace.BadParameter("cgroup resolution failed")
+	// Call the "name_to_handle_at" syscall directly (unix.NameToHandleAt is a
+	// thin wrapper around the syscall) instead of calling the glibc wrapper.
+	// This has to be done to support older versions of glibc (like the one
+	// CentOS 6 ships with) which don't have the "name_to_handle_at" wrapper.
+	//
+	// Note that unix.NameToHandleAt is slightly more than a thin wrapper, it
+	// calls "name_to_handle_at" in a loop to get the correct size of the
+	// returned "f_handle" value. See the below link for more details.
+	//
+	// https://github.com/torvalds/linux/commit/f269099a7e7a0c6732c4a817d0e99e92216414d9
+	handle, _, err := unix.NameToHandleAt(unix.AT_FDCWD, path, 0)
+	if err != nil {
+		return 0, trace.Wrap(err)
 	}
 
-	return uint64(cgid), nil
+	// Read in bytes of "f_handle" which should be 8 bytes encoded little-endian.
+	//
+	// At the moment, all supported platforms (Linux and either AMD64 or ARM)
+	// are little-endian, so this is not an issue for now. If we ever need to
+	// support a big-endian platform, this file will have to be split into platform
+	// specific versions. See the following thread for more details:
+	// https://groups.google.com/forum/#!topic/golang-nuts/3GEzwKfRRQw.
+	err = binary.Read(bytes.NewBuffer(handle.Bytes()), binary.LittleEndian, &fh)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return fh.CgroupID, nil
 }
 
 var (
