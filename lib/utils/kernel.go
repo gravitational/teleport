@@ -17,8 +17,10 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"io/ioutil"
 	"runtime"
+	"strings"
 
 	"github.com/gravitational/teleport"
 
@@ -39,7 +41,11 @@ func KernelVersion() (*semver.Version, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ver, err := semver.NewVersion(string(buf))
+	// Only keep the major, minor, and patch, throw away everything after "-".
+	parts := bytes.Split(buf, []byte("-"))
+	s := strings.TrimSpace(string(parts[0]))
+
+	ver, err := semver.NewVersion(s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
