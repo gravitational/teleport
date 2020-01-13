@@ -1089,7 +1089,7 @@ The log files use JSON format. They are human-readable but can also be
 programmatically parsed. Each line represents an event and has the following
 format:
 
-``` json
+``` js
 {
     // Event type. See below for the list of all possible event types
     "event": "session.start",
