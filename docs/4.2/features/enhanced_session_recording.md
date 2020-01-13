@@ -25,7 +25,7 @@ ingest and perform monitoring/alerting on.
 # Requirements:
 
 ## 1. Check / Patch Kernel.
-Teleport 4.2 with Enhanced Session Recording requires Linux kernel 4.18 (or above) as 
+Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or above) as 
 well as kernel headers. 
 
 You can check your kernel version using the `uname` command. The output should look 

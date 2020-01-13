@@ -34,9 +34,11 @@ $ sudo mkdir -p /var/lib/teleport
 
 ### Teleport Checksum
 
-Gravitational Teleport provides a checksum from the Downloads page. This can be
+Gravitational Teleport provides a checksum from the 
+[Downloads](https://gravitational.com/teleport/download/) page. This can be
 used to verify the integrity of our binary.
 
+Example using v4.0.8 *(replace v4.0.8 with the version of Teleport you are using)*:
 ![Teleport Checksum](img/teleport-sha.png)
 
 **Checking Checksum on Mac OS**
@@ -2143,8 +2145,9 @@ proxy is running without problems.
 !!! tip "NOTE":
     As the new auth servers get added to the cluster and the old
     servers get decommissioned, nodes and proxies will refresh the list of
-    available auth servers and store it in their local cache `/var/lib/teleport/authservers.json` - 
-    the values from the cache file will take precedence over the configuration file.
+    available auth servers and store it in their local cache 
+    `/var/lib/teleport/authservers.json` - the values from the cache file will take
+    precedence over the configuration file.
 
 We'll cover how to use `etcd` and `DynamoDB` storage back-ends to make Teleport
 highly available below.
@@ -2465,7 +2468,7 @@ When upgrading multiple clusters:
 
 ## Backing Up Teleport
 
-With Teleport 4.1 you can now quickly export a collection of resources from 
+As of version v4.1 you can now quickly export a collection of resources from 
 Teleport. This feature set works best for local and etcd, it's currently experimental
 for AWS/GCP. 
 
@@ -2599,4 +2602,3 @@ If you find a bug, please open an [issue on Github](https://github.com/gravitati
 For commercial support, custom features or to try our commercial edition,
 [Teleport Enterprise](enterprise/index.md), please reach out to us:
 `sales@gravitational.com` .
-

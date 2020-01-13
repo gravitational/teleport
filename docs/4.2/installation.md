@@ -113,7 +113,7 @@ $ which teleport
 
 ### Windows (tsh client only)
 
-As of version v4.2.1 we have `tsh` client binary available for Windows 64-bit
+As of version v3.0.1 we have `tsh` client binary available for Windows 64-bit
 architecture - `teleport` and `tctl` are not supported.
 
 ```sh
