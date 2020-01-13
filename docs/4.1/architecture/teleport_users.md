@@ -45,7 +45,7 @@ where the auth server is running, i.e. `teleport` was started with
 
 A cluster administrator must create account entries for every Teleport user with
 [ `tctl users add` ](../cli-docs.md). Every Teleport User must be associated with a
-list of one or more machine-level OS usernames.it can authenticate as during a
+list of one or more machine-level OS usernames it can authenticate as during a
 login. This list is called "user mappings".
 
 ![User Mappings](../img/user_mappings.svg)
