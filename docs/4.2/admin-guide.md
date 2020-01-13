@@ -1013,10 +1013,11 @@ ssh_service:
   enabled: "yes"
   # Dynamic labels AKA "commands":
   commands:
-
-  + name: arch
-
-    command: ['/path/to/executable', 'flag1', 'flag2']
+  - name: hostname
+    command: [/usr/bin/hostname]
+    period: 1m0s
+  - name: arch
+    command: [/usr/bin/uname, -p]
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s
@@ -1088,7 +1089,7 @@ The log files use JSON format. They are human-readable but can also be
 programmatically parsed. Each line represents an event and has the following
 format:
 
-``` js
+``` json
 {
     // Event type. See below for the list of all possible event types
     "event": "session.start",
