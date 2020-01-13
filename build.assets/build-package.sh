@@ -65,7 +65,7 @@ MAINTAINER="info@gravitational.com"
 LICENSE="Apache-2.0"
 VENDOR="Gravitational"
 DESCRIPTION="Gravitational Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
-URL="https://gravitational.com/teleport/docs"
+DOCS_URL="https://gravitational.com/teleport/docs"
 
 # signing IDs to use for mac (must be pre-loaded into the keychain on the build box)
 DEVELOPER_ID_APPLICATION="Developer ID Application: Gravitational Inc." # used for signing binaries
@@ -191,6 +191,7 @@ fi
 # set variables appropriately depending on type of package being built
 if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
+    URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport-ent"
     if [[ "${RUNTIME}" == "go1.9.7" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition, built with Go 1.9.7]"
@@ -201,6 +202,7 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     fi
 else
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
+    URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport"
     if [[ "${RUNTIME}" == "go1.9.7" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition, built with Go 1.9.7]"
@@ -363,7 +365,7 @@ else
         --name ${TAR_PATH} \
         --version "${TELEPORT_VERSION}" \
         --maintainer "${MAINTAINER}" \
-        --url "${URL}" \
+        --url "${DOCS_URL}" \
         --license "${LICENSE}" \
         --vendor "${VENDOR}" \
         --description "${DESCRIPTION} ${TYPE_DESCRIPTION}" \
