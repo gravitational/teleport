@@ -62,7 +62,7 @@ LINUX_DATA_DIR=/var/lib/teleport
 
 # extra package information for linux
 MAINTAINER="info@gravitational.com"
-LICENSE="Apache License 2.0"
+LICENSE="Apache-2.0"
 VENDOR="Gravitational"
 DESCRIPTION="Gravitational Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
 URL="https://gravitational.com/teleport/docs"
