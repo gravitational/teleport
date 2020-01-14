@@ -86,6 +86,11 @@ func startOpen(closeContext context.Context, pageCount int) (*open, error) {
 		closeContext: closeContext,
 	}
 
+	// If the page count is zero, don't start any BPF module.
+	if pageCount == 0 {
+		return e, nil
+	}
+
 	// Compile the BPF program.
 	e.module = bcc.NewModule(openSource, []string{})
 	if e.module == nil {
