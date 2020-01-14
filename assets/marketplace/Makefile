@@ -25,7 +25,8 @@ INSTANCE_TYPE ?= t2.micro
 # Use comma-separated values without spaces for multiple regions
 # For now, limit AMI to regions with DynamoDB encryption at rest enabled
 # https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html
-DESTINATION_REGIONS ?= us-west-2,us-east-1,us-east-2,eu-west-1
+# https://aws.amazon.com/about-aws/whats-new/2018/04/amazon-dynamodb-encryption-at-rest-now-available-in-additonal-regions/
+DESTINATION_REGIONS ?= us-east-1,us-east-2,us-west-1,us-west-2,ap-south-1,ap-northeast-2,ap-southeast-1,ap-southeast-2,ap-northeast-1,ca-central-1,eu-central-1,eu-west-1,eu-west-2,sa-east-1
 
 # Generate timestamp for builds
 BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
