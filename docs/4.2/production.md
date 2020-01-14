@@ -42,9 +42,9 @@ Teleport services listen on several ports. This table shows the default port num
 
 ## Installation
 
-We have a detailed [installation guide](../installation.md) which shows how to
+We have a detailed [installation guide](installation.md) which shows how to
 install all available binaries or [install from
-source](../installation.md#installing-from-source). Reference that guide to learn
+source](installation.md#installing-from-source). Reference that guide to learn
 the best way to install Teleport for your system and the come back here to
 finish your production install.
 
@@ -76,8 +76,8 @@ There are a couple of important things to notice about this file:
 
 2. The **ExecReload** command allows admins to run `systemctl reload teleport`.
    This will attempt to perform a graceful restart of Teleport _*but it only works if
-   network-based backend storage like [DynamoDB](../configuration/#storage) or
-   [etc 3.3](../configuration/#storage) is configured*_. Graceful Restarts will
+   network-based backend storage like [DynamoDB](admin-guide.md#using-dynamodb) or
+   [etc 3.3](admin-guide.md#using-etcd) is configured*_. Graceful Restarts will
    fork a new process to handle new incoming requests and leave the old daemon
    process running until existing clients disconnect.
 
