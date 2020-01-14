@@ -1565,9 +1565,7 @@ list of available clusters.
     cluster uses a self-signed or invalid HTTPS certificate, you will get an
     error: _"the trusted cluster uses misconfigured HTTP/TLS certificate"_. For
     ease of testing the teleport daemon of "east" can be started with
-
-`--insecure` CLI flag to accept self-signed certificates. Make sure to configure
-
+    `--insecure` CLI flag to accept self-signed certificates. Make sure to configure
     HTTPS properly and remove the insecure flag for production use.
 
 ### Using Trusted Clusters
@@ -1702,10 +1700,9 @@ spec:
     authorization flow.
 
 To obtain client ID and client secret, please follow Github documentation on how
-to [create and register an OAuth
-app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
-Be sure to set the "Authorization callback URL" to the same value as
-`redirect_url` in the resource spec.
+to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
+Be sure to set the "Authorization callback URL" to the same value as `redirect_url` in 
+the resource spec.
 
 Finally, create the connector using [ `tctl` ](cli-docs.md#tctl)
 [resource](#resources) management command:
@@ -1764,7 +1761,7 @@ user sessions using PAM session profiles.
 
 To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
 
-``` yaml
+```yaml
 teleport:
    ssh_service:
       pam:
