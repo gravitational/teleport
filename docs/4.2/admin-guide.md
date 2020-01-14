@@ -1013,10 +1013,11 @@ ssh_service:
   enabled: "yes"
   # Dynamic labels AKA "commands":
   commands:
-
-  + name: arch
-
-    command: ['/path/to/executable', 'flag1', 'flag2']
+  - name: hostname
+    command: [/usr/bin/hostname]
+    period: 1m0s
+  - name: arch
+    command: [/usr/bin/uname, -p]
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s

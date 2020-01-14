@@ -101,6 +101,9 @@ sudo apt-get update
 sudo apt-get -y install bison build-essential cmake flex git libedit-dev \
   libllvm6.0 llvm-6.0-dev libclang-6.0-dev python zlib1g-dev libelf-dev
 
+# Install Linux Kernel Headers
+sudo apt-get install linux-headers-$(uname -r)
+
 # Install additional tools.
 sudo apt install arping iperf3 netperf git
 
@@ -112,6 +115,9 @@ mkdir bcc/build; cd bcc/build
 cmake .. -DCMAKE_INSTALL_PREFIX=/usr
 make
 sudo make install
+
+# Install is done.
+echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
 ```
 
 ### Script to Install BCC Tools on CentOS 
@@ -193,14 +199,15 @@ teleport:
   nodename: graviton-node
   auth_token: exampletoken
   auth_servers:
-  - 127.0.0.1:5000
+  # Replace with IP of Teleport Auth server.
+  - 127.0.0.1:3025
   data_dir: /var/lib/teleport
 proxy_service:
-  enabled: no
+  enabled: false
 auth_service:
-  enabled: no
+  enabled: false
 ssh_service:
-  enabled: yes
+  enabled: true
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value: false.
        enabled: true
@@ -243,4 +250,59 @@ ssh_service:
 ```
 
 ## 5. Inspect Logs
-The resulting enhanced session recording will be shown in the logs. 
+The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/teleport_auth.md#audit-log).
+
+
+```bash
+$ teleport-auth ~:  tree /var/lib/teleport/log
+/var/lib/teleport/log
+├── 1048a649-8f3f-4431-9529-0c53339b65a5
+│   ├── 2020-01-13.00:00:00.log
+│   └── sessions
+│       └── default
+│           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
+│           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
+│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
+│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
+│           └── fad07202-35bb-11ea-83aa-125400432324.index
+├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
+├── playbacks
+│   └── sessions
+│       └── default
+└── upload
+    └── sessions
+        └── default
+```
+
+To quickly check the status of the audit log, you can simply tail the logs with 
+`tail -f /var/lib/teleport/log/events.log`, the resulting capture from Teleport will 
+be a JSON log for each command and network request. 
+
+```json
+{"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
+```
+
+Formatted, the resulting data will look like. 
+```json 
+{ 
+  "argv":[ 
+    "google.com"
+    ],
+  "cgroup_id":4294968064,
+  "code":"T4000I",
+  "ei":5,
+  "event":"session.command",
+  "login":"root",
+  "namespace":"default",
+  "path":"/bin/ping",
+  "pid":2653,
+  "ppid":2660,
+  "program":"ping",
+  "return_code":0,
+  "server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644",
+  "sid":"44c6cea8-362f-11ea-83aa-125400432324",
+  "time":"2020-01-13T18:05:53.919Z",
+  "uid":"734930bb-00e6-4ee6-8798-37f1e9473fac",
+  "user":"benarent"
+}
+```
