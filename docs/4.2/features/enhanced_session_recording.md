@@ -250,8 +250,7 @@ ssh_service:
 ```
 
 ## 5. Inspect Logs
-The resulting enhanced session recording will be shown in [Teleports Audit Log](https://gravitational.com/teleport/docs/architecture/teleport_auth/#audit-log).
-
+The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/teleport_auth.md#audit-log).
 
 
 ```bash
@@ -275,35 +274,35 @@ $ teleport-auth ~:  tree /var/lib/teleport/log
         └── default
 ```
 
-To quickly check the status of the audit log. You can simply tail the logs with 
+To quickly check the status of the audit log, you can simply tail the logs with 
 `tail -f /var/lib/teleport/log/events.log`, the resulting capture from Teleport will 
 be a JSON log for each command and network request. 
 
-```
+```json
 {"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
 ```
 
-Formatted the resulting data will look like. 
+Formatted, the resulting data will look like. 
 ```json 
 { 
-"argv":[ 
-"google.com"
-],
-"cgroup_id":4294968064,
-"code":"T4000I",
-"ei":5,
-"event":"session.command",
-"login":"root",
-"namespace":"default",
-"path":"/bin/ping",
-"pid":2653,
-"ppid":2660,
-"program":"ping",
-"return_code":0,
-"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644",
-"sid":"44c6cea8-362f-11ea-83aa-125400432324",
-"time":"2020-01-13T18:05:53.919Z",
-"uid":"734930bb-00e6-4ee6-8798-37f1e9473fac",
-"user":"benarent"
+  "argv":[ 
+    "google.com"
+    ],
+  "cgroup_id":4294968064,
+  "code":"T4000I",
+  "ei":5,
+  "event":"session.command",
+  "login":"root",
+  "namespace":"default",
+  "path":"/bin/ping",
+  "pid":2653,
+  "ppid":2660,
+  "program":"ping",
+  "return_code":0,
+  "server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644",
+  "sid":"44c6cea8-362f-11ea-83aa-125400432324",
+  "time":"2020-01-13T18:05:53.919Z",
+  "uid":"734930bb-00e6-4ee6-8798-37f1e9473fac",
+  "user":"benarent"
 }
 ```
