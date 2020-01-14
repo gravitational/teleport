@@ -334,6 +334,10 @@ var (
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
 
+	// ProxyTLSReloadIntervalSeconds is interval seconds to reload TLS
+	// certificate for proxy
+	ProxyTLSReloadIntervalSeconds = 300
+
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
 )

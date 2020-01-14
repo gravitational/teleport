@@ -81,6 +81,8 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		BoolVar(&ccf.Debug)
 	start.Flag("insecure-no-tls", "Disable TLS for the web socket").
 		BoolVar(&ccf.DisableTLS)
+	start.Flag("proxy-tls-reload-interval-sec", "Reload interval seconds for proxy server TLS certificate").
+		IntVar(&ccf.ProxyTLSReloadIntervalSeconds)
 	start.Flag("roles",
 		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
 		Short('r').

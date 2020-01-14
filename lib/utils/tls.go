@@ -74,7 +74,7 @@ func CreateTLSConfiguration(certFile, keyFile string, cipherSuites []uint16) (*t
 		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
 	}
 	if _, err := os.Stat(keyFile); err != nil {
-		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
+		return nil, trace.BadParameter("key is not accessible by '%v'", keyFile)
 	}
 
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)

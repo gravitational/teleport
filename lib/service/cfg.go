@@ -313,6 +313,10 @@ type ProxyConfig struct {
 	// list of host principals on the TLS and SSH certificate.
 	SSHPublicAddrs []utils.NetAddr
 
+	// TLSReloadIntervalSeconds is interval seconds to reload TLS
+	// certificate for proxy
+	TLSReloadIntervalSeconds time.Duration
+
 	// TunnelPublicAddrs is a list of the public addresses the proxy advertises
 	// for the tunnel endpoint. The hosts in in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
@@ -482,6 +486,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
+	cfg.Proxy.TLSReloadIntervalSeconds = time.Duration(defaults.ProxyTLSReloadIntervalSeconds) * time.Second
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 
 	// Kubernetes proxy service defaults.

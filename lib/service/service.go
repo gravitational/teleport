@@ -21,6 +21,7 @@ package service
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -80,6 +81,8 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentProcess,
 })
+
+var certificateCache atomic.Value
 
 const (
 	// AuthIdentityEvent is generated when the Auth Servers identity has been
@@ -408,6 +411,30 @@ func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 	if err := srv.Start(); err != nil {
 		return trace.Wrap(err, "startup failed")
 	}
+
+	if !cfg.Proxy.DisableTLS {
+		go func() error {
+			ticker := time.NewTicker(cfg.Proxy.TLSReloadIntervalSeconds)
+			defer ticker.Stop()
+
+			for {
+				err := updateCertificate(cfg.Proxy.TLSCert, cfg.Proxy.TLSKey)
+				if err != nil {
+					if !trace.IsNotFound(err) {
+						ctx.Done()
+					}
+					log.Info("cannot find x509 key file or tls certificate file")
+				}
+
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-ticker.C:
+				}
+			}
+		}()
+	}
+
 	// Wait and reload until called exit.
 	for {
 		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
@@ -2102,10 +2129,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		proxyLimiter.WrapHandle(webHandler)
 		if !process.Config.Proxy.DisableTLS {
 			log.Infof("Using TLS cert %v, key %v", cfg.Proxy.TLSCert, cfg.Proxy.TLSKey)
-			tlsConfig, err := utils.CreateTLSConfiguration(cfg.Proxy.TLSCert, cfg.Proxy.TLSKey, cfg.CipherSuites)
-			if err != nil {
-				return trace.Wrap(err)
+			if _, err := os.Stat(cfg.Proxy.TLSCert); err != nil {
+				return trace.BadParameter("certificate is not accessible by '%v'", cfg.Proxy.TLSCert)
 			}
+			if _, err := os.Stat(cfg.Proxy.TLSKey); err != nil {
+				return trace.BadParameter("key is not accessible by '%v'", cfg.Proxy.TLSKey)
+			}
+			tlsConfig := utils.TLSConfig(cfg.CipherSuites)
+			tlsConfig.GetCertificate = getCertificate
 			listeners.web = tls.NewListener(listeners.web, tlsConfig)
 		}
 		webServer = &http.Server{
@@ -2288,6 +2319,30 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func getCertificate(helloInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	c := certificateCache.Load()
+	if c == nil {
+		return nil, errors.New("certificate is not loaded")
+	}
+	return c.(*tls.Certificate), nil
+}
+
+func updateCertificate(certFile, keyFile string) error {
+	if _, err := os.Stat(certFile); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := os.Stat(keyFile); err != nil {
+		return trace.Wrap(err)
+	}
+
+	c, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return fmt.Errorf("failed to load x509 key pair from (%s, %s): %v", certFile, keyFile, err)
+	}
+	certificateCache.Store(&c)
 	return nil
 }
 

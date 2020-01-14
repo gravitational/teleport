@@ -83,6 +83,9 @@ type CommandLineFlags struct {
 	// --insecure-no-tls flag
 	DisableTLS bool
 
+	// --proxy-tls-reload-interval-sec flag
+	ProxyTLSReloadIntervalSeconds int
+
 	// --labels flag
 	Labels string
 	// --pid-file flag
@@ -914,6 +917,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	// apply --insecure-no-tls flag:
 	if clf.DisableTLS {
 		cfg.Proxy.DisableTLS = clf.DisableTLS
+	}
+
+	// apply --tls-reload-interval-sec flag:
+	if clf.ProxyTLSReloadIntervalSeconds != 0 {
+		cfg.Proxy.TLSReloadIntervalSeconds = time.Duration(clf.ProxyTLSReloadIntervalSeconds) * time.Second
 	}
 
 	// apply --debug flag to config:
