@@ -725,13 +725,13 @@ type BPF struct {
 	Enabled string `yaml:"enabled"`
 
 	// CommandBufferSize is the size of the perf buffer for command events.
-	CommandBufferSize int `yaml:"command_buffer_size"`
+	CommandBufferSize *int `yaml:"command_buffer_size,omitempty"`
 
 	// DiskBufferSize is the size of the perf buffer for disk events.
-	DiskBufferSize int `yaml:"disk_buffer_size"`
+	DiskBufferSize *int `yaml:"disk_buffer_size,omitempty"`
 
 	// NetworkBufferSize is the size of the perf buffer for network events.
-	NetworkBufferSize int `yaml:"network_buffer_size"`
+	NetworkBufferSize *int `yaml:"network_buffer_size,omitempty"`
 
 	// CgroupPath controls where cgroupv2 hierarchy is mounted.
 	CgroupPath string `yaml:"cgroup_path"`
