@@ -118,6 +118,11 @@ func startConn(closeContext context.Context, pageCount int) (*conn, error) {
 		closeContext: closeContext,
 	}
 
+	// If the page count is zero, don't start any BPF module.
+	if pageCount == 0 {
+		return e, nil
+	}
+
 	e.module = bcc.NewModule(connSource, []string{})
 	if e.module == nil {
 		return nil, trace.BadParameter("failed to load libbcc")
