@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.14
+
+This release of Teleport contains a bug fix.
+
+* Fixed a regression in role mapping between trusted clusters. [#3252](https://github.com/gravitational/teleport/issues/3252)
+
 ## 4.1.13
 
 This release of Teleport contains a bug fix.
@@ -109,6 +115,27 @@ Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend 
 ### Notes on compatibility
 
 Teleport has always validated host certificates when a client connects to a server, however prior to Teleport 4.0, Teleport did not validate the host the user requests a connection to is in the list of principals on the certificate. To ensure a seamless upgrade, make sure the hosts you connect to have the appropriate address set in `public_addr` in `teleport.yaml` before upgrading.
+
+## 3.2.15
+
+This release of Teleport contains a bug fix.
+
+* Fixed a regression in role mapping between trusted clusters. [#3252](https://github.com/gravitational/teleport/issues/3252)
+
+## 3.2.14
+
+This release of Teleport contains a bug fix and a feature.
+
+* Restore `CreateWebSession` method used by some integrations. [#3076](https://github.com/gravitational/teleport/pull/3076)
+* Add Docker registry and Helm repository support to `tsh login`. [#3045](https://github.com/gravitational/teleport/pull/3045)
+
+## 3.2.13
+
+This release of Teleport contains a bug fix.
+
+### Description
+
+* Fixed issue with TLS certificate not included in identity exported by `tctl auth sign`. [#3001](https://github.com/gravitational/teleport/pull/3001)
 
 ## 3.2.12
 
