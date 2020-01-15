@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.2.15
+
+This release of Teleport contains a bug fix.
+
+* Fixed a regression in role mapping between trusted clusters. [#3252](https://github.com/gravitational/teleport/issues/3252)
+
 ## 3.2.14
 
 This release of Teleport contains a bug fix and a feature.
