@@ -60,7 +60,7 @@ Authority (CA)](./auth/#authentication-in-teleport).:
 2. The Proxy Server forwards request to the Auth Server.
 3. If Auth Server accepts credentials, it generates a new certificate signed by
    its user CA and sends it back to the Proxy Server. The certificate has a TTL
-   which defaults to 24 hours, but can be configured in
+   which defaults to 12 hours, but can be configured in
    [`tctl`](../cli-docs.md#tctl).
 4. The Proxy Server returns the user certificate to the client and client stores
    it in `~/.tsh/keys`. The certificate is also added to the local SSH agent if
@@ -91,7 +91,7 @@ client `ssh` or using `tsh`:
 
 !!! tip "NOTE": 
     
-    Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1.
+    Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. Also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1.
 
 ## Recording Proxy Mode
 
