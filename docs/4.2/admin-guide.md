@@ -2155,7 +2155,7 @@ highly available below.
 
 ### Using etcd
 
-Teleport can use [etcd](https://coreos.com/etcd/) as a storage backend to
+Teleport can use [etcd](https://etcd.io/) as a storage backend to
 achieve highly available deployments. You must take steps to protect access to
 `etcd` in this configuration because that is where Teleport secrets like keys
 and user records will be stored.
@@ -2164,11 +2164,8 @@ To configure Teleport for using etcd as a storage back-end:
 
 * Make sure you are using **etcd version 3.3** or newer.
 * Install etcd and configure peer and client TLS authentication using the [etcd
-  security guide](https://coreos.com/etcd/docs/latest/security.html).
-
-* Configure all Teleport Auth servers to use etcd in the "storage" section of
-  the config file as shown below.
-
+  security guide](https://etcd.io/docs/v3.4.0/op-guide/security/).
+* Configure all Teleport Auth servers to use etcd in the "storage" section of the config file as shown below.
 * Deploy several auth servers connected to etcd back-end.
 * Deploy several proxy nodes that have `auth_servers` pointed to list of auth
   servers to connect to.
@@ -2184,6 +2181,12 @@ teleport:
      # required path to TLS client certificate and key files to connect to etcd
      tls_cert_file: /var/lib/teleport/etcd-cert.pem
      tls_key_file: /var/lib/teleport/etcd-key.pem
+
+     # optional password based authentication
+     # See https://etcd.io/docs/v3.4.0/op-guide/authentication/ for setting
+     # up a new user
+     username: username
+     password_file: /mnt/secrets/etcd-pass
 
      # optional file with trusted CA authority
      # file to authenticate etcd nodes
