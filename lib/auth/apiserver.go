@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/tstranex/u2f"
 )
 
 type APIConfig struct {
@@ -103,9 +102,11 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
-	srv.GET("/:version/signuptokens/:token", srv.withAuth(srv.getSignupTokenData))
-	srv.POST("/:version/signuptokens/users", srv.withAuth(srv.createUserWithToken))
-	srv.POST("/:version/signuptokens", srv.withAuth(srv.createSignupToken))
+
+	srv.POST("/:version/usertokens", srv.withAuth(srv.createUserToken))
+	srv.POST("/:version/usertokens/password", srv.withRate(srv.withAuth(srv.changePasswordWithToken)))
+	srv.GET("/:version/usertokens/:token", srv.withAuth(srv.getUserToken))
+	srv.GET("/:version/usertokens/:token/secrets", srv.withRate(srv.withAuth(srv.rotateUserTokenSecrets)))
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
@@ -215,7 +216,6 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// U2F
 	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
-	srv.POST("/:version/u2f/users", srv.withAuth(srv.createUserWithU2FToken))
 	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
 	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
 
@@ -1123,6 +1123,53 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	return localCA, nil
 }
 
+func (s *APIServer) rotateUserTokenSecrets(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	secrets, err := auth.RotateUserTokenSecrets(p.ByName("token"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return secrets, nil
+}
+
+func (s *APIServer) getUserToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	usertoken, err := auth.GetUserToken(p.ByName("token"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return usertoken, nil
+}
+
+func (s *APIServer) createUserToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req CreateUserTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resetToken, err := auth.CreateUserToken(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resetToken, nil
+}
+
+func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req ChangePasswordWithTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	webSession, err := auth.ChangePasswordWithToken(req)
+	if err != nil {
+		log.Debugf("failed to change user password with token: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(webSession, services.WithVersion(version)))
+}
+
 // getU2FAppID returns the U2F AppID in the auth configuration
 func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	cap, err := auth.GetAuthPreference()
@@ -1226,26 +1273,6 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return se, nil
 }
 
-type getSignupTokenDataResponse struct {
-	User  string `json:"user"`
-	QRImg []byte `json:"qrimg"`
-}
-
-// getSignupTokenData returns the signup data for a token.
-func (s *APIServer) getSignupTokenData(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	token := p.ByName("token")
-
-	user, otpQRCode, err := auth.GetSignupTokenData(token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &getSignupTokenDataResponse{
-		User:  user,
-		QRImg: otpQRCode,
-	}, nil
-}
-
 func (s *APIServer) getSignupU2FRegisterRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token := p.ByName("token")
 	u2fRegReq, err := auth.GetSignupU2FRegisterRequest(token)
@@ -1253,83 +1280,6 @@ func (s *APIServer) getSignupU2FRegisterRequest(auth ClientI, w http.ResponseWri
 		return nil, trace.Wrap(err)
 	}
 	return u2fRegReq, nil
-}
-
-type createSignupTokenReq struct {
-	User services.UserV1 `json:"user"`
-	TTL  time.Duration   `json:"ttl"`
-}
-
-func (s *APIServer) createSignupToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createSignupTokenReq
-
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := req.User.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := auth.CreateSignupToken(req.User, req.TTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return token, nil
-}
-
-type createUserWithTokenReq struct {
-	Token    string `json:"token"`
-	Password string `json:"password"`
-	OTPToken string `json:"otp_token"`
-}
-
-func (s *APIServer) createUserWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createUserWithTokenReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cap, err := auth.GetAuthPreference()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var webSession services.WebSession
-
-	switch cap.GetSecondFactor() {
-	case teleport.OFF:
-		webSession, err = auth.CreateUserWithoutOTP(req.Token, req.Password)
-	case teleport.OTP, teleport.TOTP, teleport.HOTP:
-		webSession, err = auth.CreateUserWithOTP(req.Token, req.Password, req.OTPToken)
-	}
-	if err != nil {
-		log.Warningf("failed to create user: %v", err.Error())
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(webSession, services.WithVersion(version)))
-}
-
-type createUserWithU2FTokenReq struct {
-	Token               string               `json:"token"`
-	Password            string               `json:"password"`
-	U2FRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
-}
-
-func (s *APIServer) createUserWithU2FToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createUserWithU2FTokenReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sess, err := auth.CreateUserWithU2FToken(req.Token, req.Password, req.U2FRegisterResponse)
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 type upsertOIDCConnectorRawReq struct {

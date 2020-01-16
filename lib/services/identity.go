@@ -124,18 +124,6 @@ type Identity interface {
 	// UpsertPassword upserts new password and OTP token
 	UpsertPassword(user string, password []byte) error
 
-	// UpsertSignupToken upserts signup token - one time token that lets user to create a user account
-	UpsertSignupToken(token string, tokenData SignupToken, ttl time.Duration) error
-
-	// GetSignupToken returns signup token data
-	GetSignupToken(token string) (*SignupToken, error)
-
-	// GetSignupTokens returns a list of signup tokens
-	GetSignupTokens() ([]SignupToken, error)
-
-	// DeleteSignupToken deletes signup token from the storage
-	DeleteSignupToken(token string) error
-
 	// UpsertU2FRegisterChallenge upserts a U2F challenge for a new user corresponding to the token
 	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error
 
@@ -201,18 +189,42 @@ type Identity interface {
 
 	// CreateGithubConnector creates a new Github connector
 	CreateGithubConnector(connector GithubConnector) error
+
 	// UpsertGithubConnector creates or updates a new Github connector
 	UpsertGithubConnector(connector GithubConnector) error
+
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(withSecrets bool) ([]GithubConnector, error)
+
 	// GetGithubConnector returns a Github connector by its name
 	GetGithubConnector(name string, withSecrets bool) (GithubConnector, error)
+
 	// DeleteGithubConnector deletes a Github connector by its name
 	DeleteGithubConnector(name string) error
+
 	// CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
 	CreateGithubAuthRequest(req GithubAuthRequest) error
+
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(stateToken string) (*GithubAuthRequest, error)
+
+	// DeleteUserToken deletes user token
+	CreateUserToken(usertoken UserToken) (UserToken, error)
+
+	// DeleteUserToken deletes user token
+	DeleteUserToken(tokenID string) error
+
+	// GetUserTokens returns user tokens
+	GetUserTokens() ([]UserToken, error)
+
+	// GetUserToken returns user token
+	GetUserToken(tokenID string) (UserToken, error)
+
+	// UpsertUserTokenSecrets upserts token secrets
+	UpsertUserTokenSecrets(secrets UserTokenSecrets) error
+
+	// GetUserTokenSecrets returns user token secrets
+	GetUserTokenSecrets(tokenID string) (UserTokenSecrets, error)
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -227,16 +239,6 @@ func VerifyPassword(password []byte) error {
 			"password is too long, max length is %v", defaults.MaxPasswordLength)
 	}
 	return nil
-}
-
-// SignupToken stores metadata about user signup token
-// is stored and generated when tctl add user is executed
-type SignupToken struct {
-	Token     string    `json:"token"`
-	User      UserV1    `json:"user"`
-	OTPKey    string    `json:"otp_key"`
-	OTPQRCode []byte    `json:"otp_qr_code"`
-	Expires   time.Time `json:"expires"`
 }
 
 const ExternalIdentitySchema = `{
@@ -308,7 +310,7 @@ func (r *GithubAuthRequest) SetExpiry(expires time.Time) {
 	r.Expires = &expires
 }
 
-// Expires returns object expiry setting.
+// Expiry returns object expiry setting.
 func (r *GithubAuthRequest) Expiry() time.Time {
 	if r.Expires == nil {
 		return time.Time{}

@@ -162,8 +162,11 @@ const (
 	// to proxy
 	KindRemoteCluster = "remote_cluster"
 
-	// KindInviteToken is a local user invite token
-	KindInviteToken = "invite_token"
+	// KindUserToken is a token used to change user passwords
+	KindUserToken = "user_token"
+
+	// KindUserTokenSecrets is user token secrets used to change passwords
+	KindUserTokenSecrets = "user_token_secrets"
 
 	// KindIdentity is local on disk identity resource
 	KindIdentity = "identity"

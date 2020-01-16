@@ -173,6 +173,13 @@ const (
 	// AccessRequestID is the ID of an access request.
 	AccessRequestID = "id"
 
+	// UserTokenCreateEvent is emitted when a new user token created.
+	UserTokenCreateEvent
+	// UserTokenTTL is TTL of user token.
+	UserTokenTTL = "ttl"
+	// UserTokenFor is a user name
+	UserTokenFor = "for"
+
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
 	ExecEvent        = "exec"
