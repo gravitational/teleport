@@ -4,8 +4,8 @@ teleport:
   nodename: one-proxy
   advertise_ip: 172.10.1.10
   log:
-    output: /var/lib/teleport/teleport.log
-    severity: INFO
+    output: stdout
+    severity: DEBUG
   auth_servers:
     - one:3025
   data_dir: /var/lib/teleport
