@@ -174,11 +174,11 @@ const (
 	AccessRequestID = "id"
 
 	// UserTokenCreateEvent is emitted when a new user token created.
-	UserTokenCreateEvent
+	UserTokenCreateEvent = "usertoken.create"
 	// UserTokenTTL is TTL of user token.
 	UserTokenTTL = "ttl"
 	// UserTokenFor is a user name
-	UserTokenFor = "for"
+	UserTokenFor = "entity"
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side

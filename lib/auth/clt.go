@@ -1620,7 +1620,7 @@ func (c *Client) GetUserToken(tokenID string) (services.UserToken, error) {
 	return token, nil
 }
 
-// RotateUserTokenSecrets creates new secrets and replaces the old ones with it
+// RotateUserTokenSecrets rotates user token secrets for a given tokenID
 func (c *Client) RotateUserTokenSecrets(tokenID string) (services.UserTokenSecrets, error) {
 	out, err := c.Get(c.Endpoint("usertokens", tokenID, "secrets"), url.Values{})
 	if err != nil {
@@ -2713,7 +2713,7 @@ type IdentityService interface {
 	// GetUserToken returns user token
 	GetUserToken(username string) (services.UserToken, error)
 
-	// RotateUserTokenSecrets rotates user token secrets
+	// RotateUserTokenSecrets rotates user token secrets for a given tokenID
 	RotateUserTokenSecrets(tokenID string) (services.UserTokenSecrets, error)
 }
 

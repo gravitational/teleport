@@ -137,7 +137,7 @@ const (
 	ChangePasswordTokenTTL = 8 * time.Hour
 
 	// ResetPasswordLength is the length of the reset user password
-	ResetPasswordLength = 10
+	ResetPasswordLength = 16
 
 	// ProvisioningTokenTTL is a the default TTL for server provisioning
 	// tokens. When a user generates a token without an explicit TTL, this

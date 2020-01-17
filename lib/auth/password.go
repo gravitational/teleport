@@ -45,9 +45,9 @@ func (s *AuthServer) ChangePasswordWithToken(req ChangePasswordWithTokenRequest)
 	return sess, nil
 }
 
-// ResetPassword resets the user password and returns the new one
-func (s *AuthServer) ResetPassword(email string) (string, error) {
-	user, err := s.GetUser(email, false)
+// ResetPassword securely generates a new random password and assigns it to user
+func (s *AuthServer) ResetPassword(username string) (string, error) {
+	user, err := s.GetUser(username, false)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -103,7 +103,6 @@ func (s *AuthServer) CreateUserToken(req CreateUserTokenRequest) (services.UserT
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: check if some users cannot be reset
 	_, err = s.ResetPassword(req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -114,7 +113,7 @@ func (s *AuthServer) CreateUserToken(req CreateUserTokenRequest) (services.UserT
 		return nil, trace.Wrap(err)
 	}
 
-	// remove any other invite tokens for this user
+	// remove any other existing tokens for this user
 	err = s.deleteUserTokens(req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -128,7 +127,11 @@ func (s *AuthServer) CreateUserToken(req CreateUserTokenRequest) (services.UserT
 	return s.GetUserToken(token.GetName())
 }
 
-// RotateUserTokenSecrets rotates user token secrets
+// RotateUserTokenSecrets rotates secrets for a given tokenID.
+// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
+// This ensures that an attacker that gains the usertoken link can not view it,
+// extract the OTP key from the QR code, then allow the user to signup with
+// the same OTP token.
 func (s *AuthServer) RotateUserTokenSecrets(tokenID string) (services.UserTokenSecrets, error) {
 	userToken, err := s.GetUserToken(tokenID)
 	if err != nil {
