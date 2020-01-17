@@ -1046,7 +1046,8 @@ func (a *AuthWithRoles) CreateUserToken(req CreateUserTokenRequest) (services.Us
 
 	a.EmitAuditEvent(events.UserTokenCreated, events.EventFields{
 		events.UserTokenFor: req.Name,
-		events.UserTokenTTL: req.TTL,
+		events.UserTokenTTL: req.TTL.String(),
+		events.EventUser:    a.user.GetName(),
 	})
 
 	return a.authServer.CreateUserToken(req)

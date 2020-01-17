@@ -130,12 +130,11 @@ func (u *UserCommand) ChangePassword(client auth.ClientI) error {
 		ttl := token.Expiry().Sub(time.Now().UTC()).Round(time.Second)
 		fmt.Printf("Reset password token has been created and is valid for %v. Share this URL with the user to complete password reset process:\n%v\n\n", ttl, url)
 		fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
-		return nil
-	}
-
-	err = printTokenAsJSON(token)
-	if err != nil {
-		return trace.Wrap(err)
+	} else if u.format == teleport.JSON {
+		err = printTokenAsJSON(token)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -196,11 +195,11 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 		ttl := token.Expiry().Sub(time.Now().UTC()).Round(time.Second)
 		fmt.Printf("Invite token has been created and is valid for %v. Share this URL with the user to complete user setup:\n%v\n\n", ttl, url)
 		fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
-	}
-
-	err = printTokenAsJSON(token)
-	if err != nil {
-		return trace.Wrap(err)
+	} else if u.format == teleport.JSON {
+		err = printTokenAsJSON(token)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
