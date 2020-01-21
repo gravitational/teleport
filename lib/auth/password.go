@@ -45,7 +45,9 @@ func (s *AuthServer) ChangePasswordWithToken(req ChangePasswordWithTokenRequest)
 	return sess, nil
 }
 
-// ResetPassword securely generates a new random password and assigns it to user
+// ResetPassword securely generates a new random password and assigns it to user.
+// This method is used to invalidate existing user password during password
+// reset process.
 func (s *AuthServer) ResetPassword(username string) (string, error) {
 	user, err := s.GetUser(username, false)
 	if err != nil {
@@ -258,6 +260,7 @@ func (s *AuthServer) getOTPType(user string) (string, error) {
 }
 
 func (s *AuthServer) changePasswordWithToken(req ChangePasswordWithTokenRequest) (services.User, error) {
+	// Get cluster configuration and check if local auth is allowed.
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -271,6 +274,7 @@ func (s *AuthServer) changePasswordWithToken(req ChangePasswordWithTokenRequest)
 		return nil, trace.Wrap(err)
 	}
 
+	// Check if token exists.
 	userToken, err := s.GetUserToken(req.TokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -280,17 +284,21 @@ func (s *AuthServer) changePasswordWithToken(req ChangePasswordWithTokenRequest)
 		return nil, trace.BadParameter("expired token")
 	}
 
-	username := userToken.GetUser()
 	err = s.changeUserSecondFactor(req, userToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	username := userToken.GetUser()
+
+	// Delete this token first to minimize the chances
+	// of partially updated user with still valid token.
 	err = s.deleteUserTokens(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Set a new password.
 	err = s.UpsertPassword(username, []byte(req.Password))
 	if err != nil {
 		return nil, trace.Wrap(err)

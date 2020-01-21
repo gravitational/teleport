@@ -1201,16 +1201,16 @@ func (h *Handler) createUserToken(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return ui.UserToken{
-		URL: userToken.GetURL(),
+		URL:    userToken.GetURL(),
 		Expiry: userToken.Expiry(),
 	}, nil
 }
 
 func (h *Handler) getUserTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	result, err := h.getUserToken(p[0].Value)
+	result, err := h.getUserToken(p.ByName("token"))
 	if err != nil {
-		log.Warnf("failed to fetch user token: %v", err)
-		// we hide the error from the remote user to avoid giving any hints
+		log.Warnf("Failed to fetch user token: %v.", err)
+		// We hide the error from the remote user to avoid giving any hints.
 		return nil, trace.AccessDenied("bad or expired token")
 	}
 
@@ -1245,7 +1245,7 @@ func (h *Handler) getUserToken(tokenID string) (interface{}, error) {
 // {"version":"U2F_V2","challenge":"randombase64string","appId":"https://mycorp.com:3080"}
 //
 func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	token := p[0].Value
+	token := p.ByName("token")
 	u2fRegisterRequest, err := h.auth.GetUserInviteU2FRegisterRequest(token)
 	if err != nil {
 		return nil, trace.Wrap(err)

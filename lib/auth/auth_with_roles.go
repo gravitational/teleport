@@ -1064,7 +1064,7 @@ func (a *AuthWithRoles) RotateUserTokenSecrets(tokenID string) (services.UserTok
 }
 
 func (a *AuthWithRoles) ChangePasswordWithToken(req ChangePasswordWithTokenRequest) (services.WebSession, error) {
-	// token is it's own auth, no need for extra auth
+	// Token is it's own authentication, no need to double check.
 	return a.authServer.ChangePasswordWithToken(req)
 }
 
