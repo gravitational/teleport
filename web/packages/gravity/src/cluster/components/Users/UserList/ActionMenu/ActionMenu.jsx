@@ -15,58 +15,53 @@ limitations under the License.
 */
 
 import React from 'react';
-import MenuAction, { MenuItem } from 'gravity/cluster/components/components/ActionMenu';
+import MenuAction, {
+  MenuItem,
+} from 'gravity/cluster/components/components/ActionMenu';
 
 class UserMenuAction extends React.Component {
-
   onDelete = () => {
     this.props.onDelete(this.props.userId);
-  }
+  };
 
   onEdit = () => {
     this.props.onEdit(this.props.userId);
-  }
+  };
 
   onReset = () => {
     this.props.onReset(this.props.userId);
-  }
+  };
 
   onDelete = () => {
     this.props.onDelete(this.props.userId);
-  }
+  };
 
   render() {
     const { isInvite, owner } = this.props;
-    return (
-      <MenuAction buttonIconProps={ { kindColor: "secondaryLight" }}>
-        {this.renderItems(isInvite, owner)}
-      </MenuAction>
-    );
+    return <MenuAction>{this.renderItems(isInvite, owner)}</MenuAction>;
   }
 
   // returns an array so MenuAction component can pass down it's properties
-  renderItems(isInvite, isOwner){
+  renderItems(isInvite, isOwner) {
     if (!isInvite) {
-      return (
-        [
-          <MenuItem key="1" onClick={this.onEdit}>
-            Edit
-          </MenuItem>,
-          <MenuItem key="2" onClick={this.onReset}>
-            Reset Password
-          </MenuItem>,
-          <MenuItem key="3" disabled={isOwner} onClick={this.onDelete}>
-            Remove User
-          </MenuItem>
-        ]
-      )
+      return [
+        <MenuItem key="1" onClick={this.onEdit}>
+          Edit
+        </MenuItem>,
+        <MenuItem key="2" onClick={this.onReset}>
+          Reset Password
+        </MenuItem>,
+        <MenuItem key="3" disabled={isOwner} onClick={this.onDelete}>
+          Remove User
+        </MenuItem>,
+      ];
     }
 
     return [
       <MenuItem key="1" onClick={this.onDelete}>
         Revoke invitation...
       </MenuItem>,
-      ]
+    ];
   }
 }
 

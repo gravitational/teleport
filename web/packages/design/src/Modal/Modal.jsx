@@ -26,7 +26,6 @@ function getHasTransition(props) {
 }
 
 class Modal extends React.Component {
-
   mounted = false;
 
   constructor(props) {
@@ -55,7 +54,10 @@ class Modal extends React.Component {
   componentWillUnmount() {
     this.mounted = false;
 
-    if (this.props.open || (getHasTransition(this.props) && !this.state.exited)) {
+    if (
+      this.props.open ||
+      (getHasTransition(this.props) && !this.state.exited)
+    ) {
       this.handleClose();
     }
   }
@@ -134,7 +136,12 @@ class Modal extends React.Component {
 
   enforceFocus = () => {
     // The Modal might not already be mounted.
-    if (!this.isTopModal() || this.props.disableEnforceFocus || !this.mounted || !this.dialogRef) {
+    if (
+      !this.isTopModal() ||
+      this.props.disableEnforceFocus ||
+      !this.mounted ||
+      !this.dialogRef
+    ) {
       return;
     }
 
@@ -202,7 +209,7 @@ class Modal extends React.Component {
       disablePortal,
       modalCss,
       hideBackdrop,
-      open
+      open,
     } = this.props;
 
     const childProps = {};
@@ -218,8 +225,14 @@ class Modal extends React.Component {
         disablePortal={disablePortal}
         onRendered={this.handleRendered}
       >
-        <StyledModal modalCss={modalCss} data-mui-test="Modal" ref={this.handleModalRef}>
-          { !hideBackdrop && <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} /> }
+        <StyledModal
+          modalCss={modalCss}
+          data-mui-test="Modal"
+          ref={this.handleModalRef}
+        >
+          {!hideBackdrop && (
+            <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} />
+          )}
           <RootRef rootRef={this.onRootRef}>
             {React.cloneElement(children, childProps)}
           </RootRef>
@@ -343,15 +356,9 @@ Modal.defaultProps = {
 
 export default Modal;
 
-const Backdrop = props => {
+function Backdrop(props) {
   const { invisible, ...rest } = props;
-  return (
-    <StyledBackdrop
-      aria-hidden="true"
-      invisible={invisible}
-       {...rest}
-    />
-  );
+  return <StyledBackdrop aria-hidden="true" invisible={invisible} {...rest} />;
 }
 
 const StyledBackdrop = styled.div`
@@ -361,10 +368,11 @@ const StyledBackdrop = styled.div`
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: ${ props => props.invisible ? 'transparent' : `rgba(0, 0, 0, 0.5)`};
+  background-color: ${props =>
+    props.invisible ? 'transparent' : `rgba(0, 0, 0, 0.5)`};
   opacity: 1;
   touch-action: none;
-`
+`;
 
 const StyledModal = styled.div`
   position: fixed;
@@ -373,5 +381,5 @@ const StyledModal = styled.div`
   bottom: 0;
   top: 0;
   left: 0;
-  ${ props => props.modalCss && props.modalCss(props) }
-`
+  ${props => props.modalCss && props.modalCss(props)}
+`;

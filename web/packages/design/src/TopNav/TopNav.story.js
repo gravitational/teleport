@@ -15,61 +15,47 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
-import { withInfo } from '@storybook/addon-info';
 import TopNav from './TopNav';
 import TopNavItem from './TopNavItem';
 import TopNavUserMenu from './TopNavUserMenu';
 import MenuItem from './../Menu/MenuItem';
 
-storiesOf('Design/TopNav', module)
-  .addDecorator(withInfo)
-  .add('TopNav component', () => {
-    return (
-      <TopNav height="60px">
-        <TopNavItem>
-          Action 1
-        </TopNavItem>
-        <TopNavItem>
-          Action 2
-        </TopNavItem>
-        <MenuExample />
-      </TopNav>
-    );
-  });
+export default {
+  title: 'Design/TopNav',
+};
 
-class MenuExample extends React.Component {
+export function TopNavComponent() {
+  const [visible, setVisible] = React.useState(false);
 
-  state = {
-    open: false,
-  };
-
-  onShow = () => {
-    this.setState({ open: true });
-  };
-
-  onClose = () => {
-    this.setState({ open: false });
-  };
-
-  onItemClick = () => {
-    this.onClose();
+  function onShow() {
+    setVisible(true);
   }
 
-  render() {
-    return (
+  function onClose() {
+    setVisible(false);
+  }
+
+  function onItemClick() {
+    onClose();
+  }
+
+  return (
+    <TopNav height="60px">
+      <TopNavItem>MenuItem1</TopNavItem>
+      <TopNavItem>MenuItem2</TopNavItem>
       <TopNavUserMenu
-        open={this.state.open}
-        onShow={this.onShow}
-        onClose={this.onClose}
-        user="example@example.com" >
-        <MenuItem onClick={this.onItemClick}>
-          Test
-        </MenuItem>
-        <MenuItem onClick={this.onItemClick}>
-            Test2
-        </MenuItem>
+        open={visible}
+        onShow={onShow}
+        onClose={onClose}
+        user="example@example.com"
+      >
+        <MenuItem onClick={onItemClick}>Test</MenuItem>
+        <MenuItem onClick={onItemClick}>Test2</MenuItem>
       </TopNavUserMenu>
-    )
-  }
+    </TopNav>
+  );
 }
+
+TopNavComponent.story = {
+  name: 'TopNavComponent',
+};

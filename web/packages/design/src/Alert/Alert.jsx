@@ -18,38 +18,38 @@ import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import { space, color, width } from 'design/system';
-import defaultTheme from 'design/theme'
+import defaultTheme from 'design/theme';
 
-const kindColors = props => {
-  const { kindColor, theme } = props;
-  switch (kindColor) {
+const kind = props => {
+  const { kind, theme } = props;
+  switch (kind) {
     case 'danger':
       return {
         background: theme.colors.danger,
-        color: theme.colors.primary.contrastText
-      }
+        color: theme.colors.primary.contrastText,
+      };
     case 'info':
       return {
         background: theme.colors.info,
-        color: theme.colors.primary.contrastText
-      }
+        color: theme.colors.primary.contrastText,
+      };
     case 'warning':
       return {
         background: theme.colors.warning,
-        color: theme.colors.primary.contrastText
-      }
+        color: theme.colors.primary.contrastText,
+      };
     case 'success':
       return {
         background: theme.colors.success,
-        color: theme.colors.primary.contrastText
-      }
+        color: theme.colors.primary.contrastText,
+      };
     default:
       return {
         background: theme.colors.danger,
-        color: theme.colors.primary.contrastText
-      }
+        color: theme.colors.primary.contrastText,
+      };
   }
-}
+};
 
 const Alert = styled.div`
   display: flex;
@@ -58,7 +58,7 @@ const Alert = styled.div`
   border-radius: 8px;
   box-sizing: border-box;
   box-shadow: 0 0 2px rgba(0, 0, 0, .12),  0 2px 2px rgba(0, 0, 0, .24);
-  font-weight: ${({theme}) => theme.fontWeights.regular};
+  font-weight: ${({ theme }) => theme.fontWeights.regular};
   font-size: 16px;
   margin: 0 0 16px 0;
   min-height: 48px;
@@ -66,11 +66,11 @@ const Alert = styled.div`
   overflow: auto;
   word-break: break-all;
   ${space}
-  ${kindColors}
+  ${kind}
   ${width}
 
   a {
-    color: ${({theme}) => theme.colors.light};
+    color: ${({ theme }) => theme.colors.light};
   }
 `;
 
@@ -82,14 +82,14 @@ Alert.propTypes = {
 };
 
 Alert.defaultProps = {
-  kindColor: 'danger',
+  kind: 'danger',
   theme: defaultTheme,
 };
 
 Alert.displayName = 'Alert';
 
 export default Alert;
-export const Danger = props => <Alert kindColor="danger" {...props} />
-export const Info = props => <Alert kindColor="info" {...props} />
-export const Warning = props => <Alert kindColor="warning" {...props} />
-export const Success = props => <Alert kindColor="success" {...props} />
+export const Danger = props => <Alert kind="danger" {...props} />;
+export const Info = props => <Alert kind="info" {...props} />;
+export const Warning = props => <Alert kind="warning" {...props} />;
+export const Success = props => <Alert kind="success" {...props} />;

@@ -22,14 +22,13 @@ import Menu from '../../Menu/Menu';
 import defaultAvatar from './avatar.png';
 
 class TopNavUserMenu extends React.Component {
-
   static displayName = 'TopNavMenu';
 
   static defaultProps = {
-    menuListCss: () => { },
+    menuListCss: () => {},
     avatar: defaultAvatar,
-    open: false
-  }
+    open: false,
+  };
 
   static propTypes = {
     /** Callback fired when the component requests to be closed. */
@@ -38,11 +37,11 @@ class TopNavUserMenu extends React.Component {
     onShow: PropTypes.func,
     /** If true the menu is visible */
     open: PropTypes.bool,
-  }
+  };
 
   setRef = e => {
     this.btnRef = e;
-  }
+  };
 
   render() {
     const {
@@ -60,8 +59,15 @@ class TopNavUserMenu extends React.Component {
     const anchorEl = open ? this.btnRef : null;
     return (
       <React.Fragment>
-        <TopNavItem ml="auto" maxWidth="250px" ref={this.setRef} onClick={onShow}>
-          <Text typography="subtitle2" bold>{user}</Text>
+        <TopNavItem
+          ml="auto"
+          maxWidth="250px"
+          ref={this.setRef}
+          onClick={onShow}
+        >
+          <Text typography="subtitle2" bold>
+            {user}
+          </Text>
           <Image height="24px" ml="3" mr="2" src={avatar} />
         </TopNavItem>
         <Menu
@@ -72,7 +78,7 @@ class TopNavUserMenu extends React.Component {
           open={Boolean(anchorEl)}
           onClose={onClose}
         >
-          { children }
+          {children}
         </Menu>
       </React.Fragment>
     );

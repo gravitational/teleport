@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,19 +16,27 @@ limitations under the License.
 
 const path = require('path');
 const createConfig = require('@gravitational/build/webpack/webpack.base');
+
 const webpackCfg = createConfig();
 
-module.exports = ({ config }) => {
-  config.devtool = false;
-  config.resolve = {
-    ...config.resolve,
-    ...webpackCfg.resolve,
-  };
+module.exports = {
+  stories: ['../packages/**/*.story.(js|jsx|tsx)'],
 
-  config.module.rules.push({
-    test: /\.(ts|tsx)$/,
-    loader: require.resolve('babel-loader'),
-  });
+  webpackFinal: async (config, { configType }) => {
+    // configType has a value of 'DEVELOPMENT' or 'PRODUCTION'
+    // You can change the configuration based on that.
+    // 'PRODUCTION' is used when building the static version of storybook.
+    config.devtool = false;
+    config.resolve = {
+      ...config.resolve,
+      ...webpackCfg.resolve,
+    };
 
-  return config;
+    config.module.rules.push({
+      test: /\.(ts|tsx)$/,
+      loader: require.resolve('babel-loader'),
+    });
+
+    return config;
+  },
 };

@@ -15,27 +15,24 @@ limitations under the License.
 */
 
 import React from 'react';
-import { configure, addParameters } from '@storybook/react';
-import { addDecorator } from '@storybook/react';
+import { addDecorator, addParameters } from '@storybook/react';
 import theme from './../packages/design/src/theme';
 import ThemeProvider from './../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
 
-const reqs = require.context('./../packages/', true, /\.story.(js|tsx)$/);
-
-function storySort(moduleA, moduleB) {
-  return moduleA[1].id.localeCompare(moduleB[1].id);
-}
-
-function loadStories() {
-  reqs.keys().forEach(reqs);
-}
-
+// wrap each story with gravitational theme provider
 const ThemeDecorator = storyFn => (
   <ThemeProvider theme={theme}>
     <Box p={3}>{storyFn()}</Box>
   </ThemeProvider>
 );
+
+// alphabetically sort stories
+function storySort(a, b) {
+  return a[1].kind === b[1].kind
+    ? 0
+    : a[1].id.localeCompare(b[1].id, undefined, { numeric: true });
+}
 
 addDecorator(ThemeDecorator);
 addParameters({
@@ -46,5 +43,3 @@ addParameters({
     storySort,
   },
 });
-
-configure(loadStories, module);

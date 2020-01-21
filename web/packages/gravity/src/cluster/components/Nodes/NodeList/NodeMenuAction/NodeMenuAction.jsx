@@ -15,16 +15,16 @@ limitations under the License.
 */
 
 import React from 'react';
-import MenuAction, { MenuItem } from 'gravity/cluster/components/components/ActionMenu';
+import MenuAction, {
+  MenuItem,
+} from 'gravity/cluster/components/components/ActionMenu';
 
-function NodeActionMenu(props){
+function NodeActionMenu(props) {
   return (
-    <MenuAction buttonIconProps={ { kindColor: "secondaryLight" }}>
-      <MenuItem onClick={props.onDelete}>
-        Delete...
-      </MenuItem>
+    <MenuAction>
+      <MenuItem onClick={props.onDelete}>Delete...</MenuItem>
     </MenuAction>
-  )
+  );
 }
 
 export default NodeActionMenu;
