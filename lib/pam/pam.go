@@ -35,7 +35,10 @@ package pam
 // extern int _pam_acct_mgmt(void *, pam_handle_t *, int);
 // extern int _pam_open_session(void *, pam_handle_t *, int);
 // extern int _pam_close_session(void *, pam_handle_t *, int);
+// extern char **_pam_getenvlist(void *handle, pam_handle_t *pamh);
 // extern const char *_pam_strerror(void *, pam_handle_t *, int);
+// extern int _pam_envlist_len(char **);
+// extern char * _pam_getenv(char **, int);
 import "C"
 
 import (
@@ -71,6 +74,13 @@ const (
 	// [1] http://pubs.opengroup.org/onlinepubs/008329799/apdxa.htm
 	// [2] https://github.com/openssh/openssh-portable/blob/V_8_0/auth-pam.c#L615-L654
 	maxMessageSize = 2000 * C.PAM_MAX_MSG_SIZE
+
+	// maxEnvironmentVariableSize is the maximum size of any environment
+	// variable. Even though pam_env.so sets this to a maximum of 1024, set
+	// it to be 10x that because not all PAM modules follow that convention. [1]
+	//
+	// [1] https://github.com/linux-pam/linux-pam/blob/master/modules/pam_env/pam_env.c#L55
+	maxEnvironmentVariableSize = 1024 * 10
 )
 
 // handler is used to register and find instances of *PAM at the package level
@@ -314,6 +324,39 @@ func (p *PAM) Close() error {
 	C.free(unsafe.Pointer(p.user))
 
 	return nil
+}
+
+// Environment returns the PAM environment variables associated with a PAM
+// handle. For example pam_env.so reads in certain environment variables
+// which then have to be set when spawning the users shell.
+//
+// Note that pam_getenvlist is used to fetch the list of PAM environment
+// variables and it is the responsibility of the caller to free that memory.
+// From http://man7.org/linux/man-pages/man3/pam_getenvlist.3.html:
+//
+//   It should be noted that this memory will never be free()'d by libpam.
+//   Once obtained by a call to pam_getenvlist, it is the responsibility
+//   of the calling application to free() this memory.
+func (p *PAM) Environment() []string {
+	// Get list of additional environment variables requested from PAM.
+	pam_envlist := C._pam_getenvlist(pamHandle, p.pamh)
+	defer C.free(unsafe.Pointer(pam_envlist))
+
+	// Find out how many environment variables exist and size the output
+	// slice. This is pushed to C to avoid doing pointer arithmetic in Go.
+	n := int(C._pam_envlist_len(pam_envlist))
+	env := make([]string, 0, n)
+
+	// Loop over all environment variables and convert them to a Go string.
+	for i := 0; i < n; i++ {
+		pam_env := C._pam_getenv(pam_envlist, C.int(i))
+		defer C.free(unsafe.Pointer(pam_env))
+
+		pam_env_size := C.int(C.strnlen(pam_env, C.size_t(maxEnvironmentVariableSize)))
+		env = append(env, C.GoStringN(pam_env, pam_env_size))
+	}
+
+	return env
 }
 
 // writeStream will write to the output stream (stdout or stderr or
