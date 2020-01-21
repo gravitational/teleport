@@ -482,12 +482,15 @@ most of them can be mitigated.
 
 If you'd like to set the login name that should be used by default on the remote host, you can set the `TELEPORT_LOGIN` environment variable.
 
-```bash
+```bsh
 $ echo $USER
 test
+
 $ tsh ssh testnode
 error: access denied to test connecting to testnode on cluster testcluster
+
 $ export TELEPORT_LOGIN=root
+
 $ tsh ssh testnode
 root@testnode:~#
 ```
