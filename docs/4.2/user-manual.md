@@ -480,8 +480,7 @@ most of them can be mitigated.
    But again, if you use `tsh login` before `tsh ssh`, your Teleport username
    will be stored in `~/.tsh`.
 
-   If you'd like to set the login name that should be used by default on the remote
-   host, you can set the `TELEPORT_LOGIN` environment variable.
+   If you'd like to set the login name that should be used by default on the remote host, you can set the `TELEPORT_LOGIN` environment variable.
 
    ```bash
    $ echo $USER
