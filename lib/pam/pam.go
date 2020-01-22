@@ -36,6 +36,7 @@ package pam
 // extern int _pam_open_session(void *, pam_handle_t *, int);
 // extern int _pam_close_session(void *, pam_handle_t *, int);
 // extern char **_pam_getenvlist(void *handle, pam_handle_t *pamh);
+// extern int _pam_set_item(void *, pam_handle_t *, int, const void *);
 // extern const char *_pam_strerror(void *, pam_handle_t *, int);
 // extern int _pam_envlist_len(char **);
 // extern char * _pam_getenv(char **, int);
@@ -233,6 +234,10 @@ type PAM struct {
 	// user is the name of the target user.
 	user *C.char
 
+	// metadata is additional data about the user that Teleport passes in
+	// PAM_RUSER.
+	metadata *C.char
+
 	// handlerIndex is the index to the package level handler map.
 	handlerIndex int
 }
@@ -272,6 +277,14 @@ func Open(config *Config) (*PAM, error) {
 	// allocate pamh if needed and the pam_end function will release any
 	// allocated memory.
 	p.retval = C._pam_start(pamHandle, p.service_name, p.user, p.conv, &p.pamh)
+	if p.retval != C.PAM_SUCCESS {
+		return nil, p.codeToError(p.retval)
+	}
+
+	// Pack the metadata into the PAM_RUSER field where it can be extracted
+	// by a PAM module.
+	p.metadata = C.CString(config.Metadata)
+	p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_RUSER, unsafe.Pointer(p.metadata))
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
 	}
@@ -322,6 +335,7 @@ func (p *PAM) Close() error {
 	// Release strings that were allocated when opening the PAM context.
 	C.free(unsafe.Pointer(p.service_name))
 	C.free(unsafe.Pointer(p.user))
+	C.free(unsafe.Pointer(p.metadata))
 
 	return nil
 }
