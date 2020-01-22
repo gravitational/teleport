@@ -124,23 +124,23 @@ func New(config *Config) (BPF, error) {
 	start := time.Now()
 	log.Debugf("Starting enhanced session recording.")
 
-	// Compile and start BPF programs.
-	s.exec, err = startExec(closeContext, config.CommandBufferSize)
+	// Compile and start BPF programs if they are enabled (buffer size given).
+	s.exec, err = startExec(closeContext, *config.CommandBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.open, err = startOpen(closeContext, config.DiskBufferSize)
+	s.open, err = startOpen(closeContext, *config.DiskBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.conn, err = startConn(closeContext, config.NetworkBufferSize)
+	s.conn, err = startConn(closeContext, *config.NetworkBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
 		"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
-		s.CommandBufferSize, s.DiskBufferSize, s.NetworkBufferSize, s.CgroupPath,
+		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize, s.CgroupPath,
 		time.Since(start))
 
 	// Start pulling events off the perf buffers and emitting them to the
@@ -294,8 +294,8 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			events.EventLogin:      ctx.Login,
 			events.EventUser:       ctx.User,
 			// Command fields.
-			events.PID:        event.PPID,
-			events.PPID:       event.PID,
+			events.PID:        event.PID,
+			events.PPID:       event.PPID,
 			events.CgroupID:   event.CgroupID,
 			events.Program:    convertString(unsafe.Pointer(&event.Command)),
 			events.Path:       argv[0],

@@ -69,7 +69,7 @@ Teleport source code consists of the actual Teleport daemon binary written in Go
 it has a web UI (located in /web directory) written in Javascript. The WebUI is not changed often
 and we keep it checked into Git under `/dist`, so you only need to build Golang:
 
-Make sure you have Golang `v1.12` or newer, then run:
+Make sure you have Golang `v1.13` or newer, then run:
 
 ```bash
 # get the source & build:

@@ -474,11 +474,13 @@ most of them can be mitigated.
     the current proxy will be saved in your `~/.tsh` profile and won't be needed
     for other `tsh` commands.
 
-* `tsh ssh` operates _two_ usernames: one for the cluster and another for the
+2. `tsh ssh` operates _two_ usernames: one for the cluster and another for the
    node you are trying to log into. See [User Identities](#user-identities)
    section below. For convenience, `tsh` assumes `$USER` for both by default.
    But again, if you use `tsh login` before `tsh ssh`, your Teleport username
    will be stored in `~/.tsh`.
+
+If you'd like to set the login name that should be used by default on the remote host, you can set the `TELEPORT_LOGIN` environment variable.
 
 !!! tip "Tip":
     To avoid typing `tsh ssh user@host` when logging into servers,

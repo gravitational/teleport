@@ -14,7 +14,7 @@ VM.
 
 * In this tutorial you will start a web UI which must be accessible via a web 
   browser. If you run this tutorial on a remote machine without a GUI, first
-  make sure that this machine's IP can be reached over the your network and that
+  make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
 
 * We recommend that you read the [Architecture Guide](architecture) before
@@ -29,7 +29,7 @@ Instead follow the [Admin Guide](admin-guide.md))**
 
 ## Step 1: Install Teleport
 
-This guide installs teleport v4.1.0 on the CLI. Previous versions are documented
+This guide installs teleport v4.2.1 on the CLI. Previous versions are documented
 in [Release History](https://gravitational.com/teleport/releases/). You can
 download pre-built binaries from our
 [Downloads](https://gravitational.com/teleport/download/) page or you can [build
@@ -39,7 +39,7 @@ You can also download `.deb` , `.rpm` , and `.pkg` files from
 [Downloads](https://gravitational.com/teleport/download/)
 
 ``` bash
-$ export version=v4.1.0
+$ export version=v4.2.1
 $ export os=linux # 'darwin' 'linux' or 'windows'
 $ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
 # Automated way to retrieve the checksum, just append .sha256
@@ -129,13 +129,11 @@ open this URL in a web browser to complete the registration process.
 ## Step 4: Register a User
 
 * If the machine where you ran these commands has a web browser installed you
-
-  should be able to open the URL and connect to Teleport Proxy right away.
+should be able to open the URL and connect to Teleport Proxy right away.
 
 * If the are working on a remote machine you may need to access the Teleport
-
-  Proxy via the host machine and port `3080` in a web browser. One simple way to
-  do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`
+Proxy via the host machine and port `3080` in a web browser. One simple way to
+do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`
 
 !!! warning "Warning":
     We haven't provisioned any SSL certs for Teleport yet.
@@ -165,10 +163,10 @@ accessible IP.
 
 !!! warning "Warning":
     For the purposes of this quickstart we are using the
-    `--insecure-no-tls` flag which allows us to skip configuring the HTTP/TLS
+    `--insecure` flag which allows us to skip configuring the HTTP/TLS
     certificate for Teleport proxy.
 
-    **Caution**: the `--insecure-no-tls` flag does **not** skip TLS validation for the Auth Server. The self-signed Auth Server certificate expects to be accessed via one of a set of hostnames (ex. `grav-00` ). If you attempt to access via `localhost` you will probably get this error: `principal "localhost" not in the set of valid principals for given certificate` .
+    **Caution**: the `--insecure` flag does **not** skip TLS validation for the Auth Server. The self-signed Auth Server certificate expects to be accessed via one of a set of hostnames (ex. `grav-00` ). If you attempt to access via `localhost` you will probably get this error: `principal "localhost" not in the set of valid principals for given certificate` .
 
     To resolve this error find your hostname with the `hostname` command and use that instead of `localhost` .
 
@@ -221,11 +219,10 @@ Try a few things to get familiar with recorded sessions:
 ![Sessions View](img/sessions.png)
 
 1. Navigate to `https://[HOST]:3080/web/sessions` in your web browser to see the
+list of current and past sessions on the cluster. The session you just created 
+should be listed.
 
-   list of current and past sessions on the cluster. The session you just
-   created should be listed.
-
-2. After you end a session, replay it in your browser.
+2. After you end a session (type `$ exit` in session), replay it in your browser.
 3. Join the session in your web browser.
 
 ![Two Recorded Sessions](img/recorded-session.png)
@@ -297,4 +294,3 @@ common Teleport tasks.
 * [Manage Users](admin-guide.md#adding-and-deleting-users)
 * [Label Nodes](admin-guide.md#labeling-nodes)
 * [Teleport with OpenSSH](admin-guide.md#using-teleport-with-openssh)
-

@@ -1,5 +1,9 @@
 # CLI Docs
 
+[teleport](#teleport)<br>
+[tsh](#tsh)<br>
+[tctl](#tctl)
+
 ## teleport
 
 The Teleport daemon is called `teleport` . It can be configured to run one or

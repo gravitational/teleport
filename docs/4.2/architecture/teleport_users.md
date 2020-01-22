@@ -45,7 +45,7 @@ where the auth server is running, i.e. `teleport` was started with
 
 A cluster administrator must create account entries for every Teleport user with
 [ `tctl users add` ](../cli-docs.md). Every Teleport User must be associated with a
-list of one or more machine-level OS usernames.it can authenticate as during a
+list of one or more machine-level OS usernames it can authenticate as during a
 login. This list is called "user mappings".
 
 ![User Mappings](../img/user_mappings.svg)
@@ -76,12 +76,11 @@ connector and it is enforced by default.
  There are two types of 2FA supported:
 
 * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+* [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
 
-  is the default. You can use [Google
+  TOTP is the default. You can use [Google
   Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
   [Authy](https://www.authy.com/) or any other TOTP client.
-
-* [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor).
 
 ### External users
 

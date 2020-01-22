@@ -34,9 +34,11 @@ $ sudo mkdir -p /var/lib/teleport
 
 ### Teleport Checksum
 
-Gravitational Teleport provides a checksum from the Downloads page. This can be
+Gravitational Teleport provides a checksum from the 
+[Downloads](https://gravitational.com/teleport/download/) page. This can be
 used to verify the integrity of our binary.
 
+Example using v4.0.8 *(replace v4.0.8 with the version of Teleport you are using)*:
 ![Teleport Checksum](img/teleport-sha.png)
 
 **Checking Checksum on Mac OS**
@@ -859,13 +861,13 @@ dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro
 
 Teleport nodes use the HTTPS protocol to offer the join tokens to the auth
 server running on `10.0.10.5` in the example above. In a zero-trust environment,
-you must assume that an attacker can highjack the IP address of the auth server
+you must assume that an attacker can hijack the IP address of the auth server
 e.g. `10.0.10.5` .
 
 To prevent this from happening, you need to supply every new node with an
 additional bit of information about the auth server. This technique is called
 "CA Pinning". It works by asking the auth server to produce a "CA Pin", which is
-a hashed value of it's private key, i.e.it cannot be forged by an attacker.
+a hashed value of its private key, i.e. it cannot be forged by an attacker.
 
 On the auth server:
 
@@ -878,7 +880,7 @@ CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
 ```
 
 The "CA pin" at the bottom needs to be passed to the new nodes when they're
-starting for the first time, i.e.when they join a cluster:
+starting for the first time, i.e. when they join a cluster:
 
 Via CLI:
 
@@ -897,14 +899,12 @@ teleport:
   auth_token: "1ac590d36493acdaa2387bc1c492db1a"
   ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
   auth_servers:
-
     - "10.12.0.6:3025"
-
 ```
 
 !!! warning "Warning":
-    If a CA pin not provided, Teleport node will join a
-    cluster but it will print a `WARN` message (warning) into it's standard
+    If a CA pin is not provided, Teleport node will join a
+    cluster but it will print a `WARN` message (warning) into its standard
     error output.
 
 !!! warning "Warning":
@@ -1015,10 +1015,11 @@ ssh_service:
   enabled: "yes"
   # Dynamic labels AKA "commands":
   commands:
-
-  + name: arch
-
-    command: ['/path/to/executable', 'flag1', 'flag2']
+  - name: hostname
+    command: [/usr/bin/hostname]
+    period: 1m0s
+  - name: arch
+    command: [/usr/bin/uname, -p]
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s
@@ -1566,9 +1567,7 @@ list of available clusters.
     cluster uses a self-signed or invalid HTTPS certificate, you will get an
     error: _"the trusted cluster uses misconfigured HTTP/TLS certificate"_. For
     ease of testing the teleport daemon of "east" can be started with
-
-`--insecure` CLI flag to accept self-signed certificates. Make sure to configure
-
+    `--insecure` CLI flag to accept self-signed certificates. Make sure to configure
     HTTPS properly and remove the insecure flag for production use.
 
 ### Using Trusted Clusters
@@ -1703,10 +1702,9 @@ spec:
     authorization flow.
 
 To obtain client ID and client secret, please follow Github documentation on how
-to [create and register an OAuth
-app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
-Be sure to set the "Authorization callback URL" to the same value as
-`redirect_url` in the resource spec.
+to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
+Be sure to set the "Authorization callback URL" to the same value as `redirect_url` in 
+the resource spec.
 
 Finally, create the connector using [ `tctl` ](cli-docs.md#tctl)
 [resource](#resources) management command:
@@ -1765,7 +1763,7 @@ user sessions using PAM session profiles.
 
 To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
 
-``` yaml
+```yaml
 teleport:
    ssh_service:
       pam:
@@ -2148,10 +2146,8 @@ proxy is running without problems.
 !!! tip "NOTE":
     As the new auth servers get added to the cluster and the old
     servers get decommissioned, nodes and proxies will refresh the list of
-    available auth servers and store it in their local cache
-
-`/var/lib/teleport/authservers.json` . The values from the cache file will take
-
+    available auth servers and store it in their local cache 
+    `/var/lib/teleport/authservers.json` - the values from the cache file will take
     precedence over the configuration file.
 
 We'll cover how to use `etcd` and `DynamoDB` storage back-ends to make Teleport
@@ -2159,7 +2155,7 @@ highly available below.
 
 ### Using etcd
 
-Teleport can use [etcd](https://coreos.com/etcd/) as a storage backend to
+Teleport can use [etcd](https://etcd.io/) as a storage backend to
 achieve highly available deployments. You must take steps to protect access to
 `etcd` in this configuration because that is where Teleport secrets like keys
 and user records will be stored.
@@ -2168,11 +2164,8 @@ To configure Teleport for using etcd as a storage back-end:
 
 * Make sure you are using **etcd version 3.3** or newer.
 * Install etcd and configure peer and client TLS authentication using the [etcd
-  security guide](https://coreos.com/etcd/docs/latest/security.html).
-
-* Configure all Teleport Auth servers to use etcd in the "storage" section of
-  the config file as shown below.
-
+  security guide](https://etcd.io/docs/v3.4.0/op-guide/security/).
+* Configure all Teleport Auth servers to use etcd in the "storage" section of the config file as shown below.
 * Deploy several auth servers connected to etcd back-end.
 * Deploy several proxy nodes that have `auth_servers` pointed to list of auth
   servers to connect to.
@@ -2188,6 +2181,12 @@ teleport:
      # required path to TLS client certificate and key files to connect to etcd
      tls_cert_file: /var/lib/teleport/etcd-cert.pem
      tls_key_file: /var/lib/teleport/etcd-key.pem
+
+     # optional password based authentication
+     # See https://etcd.io/docs/v3.4.0/op-guide/authentication/ for setting
+     # up a new user
+     username: username
+     password_file: /mnt/secrets/etcd-pass
 
      # optional file with trusted CA authority
      # file to authenticate etcd nodes
@@ -2473,7 +2472,7 @@ When upgrading multiple clusters:
 
 ## Backing Up Teleport
 
-With Teleport 4.1 you can now quickly export a collection of resources from 
+As of version v4.1 you can now quickly export a collection of resources from 
 Teleport. This feature set works best for local and etcd, it's currently experimental
 for AWS/GCP. 
 
@@ -2607,4 +2606,3 @@ If you find a bug, please open an [issue on Github](https://github.com/gravitati
 For commercial support, custom features or to try our commercial edition,
 [Teleport Enterprise](enterprise/index.md), please reach out to us:
 `sales@gravitational.com` .
-

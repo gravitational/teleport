@@ -61,10 +61,11 @@ LINUX_CONFIG_DIR=/etc
 LINUX_DATA_DIR=/var/lib/teleport
 
 # extra package information for linux
-MAINTAINER="ops@gravitational.com"
-LICENSE="Apache License 2.0"
+MAINTAINER="info@gravitational.com"
+LICENSE="Apache-2.0"
 VENDOR="Gravitational"
 DESCRIPTION="Gravitational Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
+DOCS_URL="https://gravitational.com/teleport/docs"
 
 # signing IDs to use for mac (must be pre-loaded into the keychain on the build box)
 DEVELOPER_ID_APPLICATION="Developer ID Application: Gravitational Inc." # used for signing binaries
@@ -163,17 +164,21 @@ fi
 FILENAME_ARCH=${ARCH}
 if [[ "${ARCH}" == "i386" ]]; then
     FILENAME_ARCH="386"
+    TEXT_ARCH="32-bit"
 elif [[ "${ARCH}" == "386" ]]; then
     ARCH="i386"
+    TEXT_ARCH="32-bit"
 elif [[ "${ARCH}" == "x86_64" ]]; then
     FILENAME_ARCH="amd64"
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         ARCH="x86_64"
     fi
+    TEXT_ARCH="64-bit"
 elif [[ "${ARCH}" == "amd64" ]]; then
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         ARCH="x86_64"
     fi
+    TEXT_ARCH="64-bit"
 fi
 
 # set optional runtime section for filename
@@ -189,22 +194,22 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport-ent"
     if [[ "${RUNTIME}" == "go1.9.7" ]]; then
-        TYPE_DESCRIPTION="[Enterprise edition, built with Go 1.9.7]"
+        TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition, built with Go 1.9.7]"
     elif [[ "${RUNTIME}" == "fips" ]]; then
-        TYPE_DESCRIPTION="[Enterprise edition, built with FIPS support]"
+        TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition, built with FIPS support]"
     else
-        TYPE_DESCRIPTION="[Enterprise edition]"
+        TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition]"
     fi
 else
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport"
     if [[ "${RUNTIME}" == "go1.9.7" ]]; then
-        TYPE_DESCRIPTION="[Open source edition, built with Go 1.9.7]"
+        TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition, built with Go 1.9.7]"
     elif [[ "${RUNTIME}" == "fips" ]]; then
-        TYPE_DESCRIPTION="[Open source edition, built with FIPS support]"
+        TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition, built with FIPS support]"
     else
-        TYPE_DESCRIPTION="[Open source edition]"
+        TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition]"
     fi
 fi
 
@@ -360,7 +365,7 @@ else
         --name ${TAR_PATH} \
         --version "${TELEPORT_VERSION}" \
         --maintainer "${MAINTAINER}" \
-        --url "${URL}" \
+        --url "${DOCS_URL}" \
         --license "${LICENSE}" \
         --vendor "${VENDOR}" \
         --description "${DESCRIPTION} ${TYPE_DESCRIPTION}" \

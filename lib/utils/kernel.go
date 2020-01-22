@@ -17,8 +17,12 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
+	"io"
 	"io/ioutil"
+	"os"
 	"runtime"
+	"strings"
 
 	"github.com/gravitational/teleport"
 
@@ -27,19 +31,40 @@ import (
 	"github.com/coreos/go-semver/semver"
 )
 
-// KernelVersion returns the kernel version of the host. This only returns
-// something meaningful on Linux.
+// KernelVersion parses /proc/sys/kernel/osrelease and returns the kernel
+// version of the host. This only returns something meaningful on Linux.
 func KernelVersion() (*semver.Version, error) {
 	if runtime.GOOS != teleport.LinuxOS {
 		return nil, trace.BadParameter("requested kernel version on non-Linux host")
 	}
 
-	buf, err := ioutil.ReadFile("/proc/sys/kernel/osrelease")
+	file, err := os.Open("/proc/sys/kernel/osrelease")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer file.Close()
+
+	ver, err := kernelVersion(file)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ver, err := semver.NewVersion(string(buf))
+	return ver, nil
+}
+
+// kernelVersion reads in the kernel version from the reader and returns
+// a *semver.Version.
+func kernelVersion(reader io.Reader) (*semver.Version, error) {
+	buf, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only keep the major, minor, and patch, throw away everything after "-".
+	parts := bytes.Split(buf, []byte("-"))
+	s := strings.TrimSpace(string(parts[0]))
+
+	ver, err := semver.NewVersion(s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

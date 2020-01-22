@@ -1,0 +1,18 @@
+[Unit]
+Description=Teleport SSH Service
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+# Set the nodes roles with the `--roles`
+# In most production environments you will not
+# want to run all three roles on a single host
+# --roles='proxy,auth,node' is the default value
+# if none is set
+ExecStart=/usr/local/bin/teleport start --roles=node --config=/etc/teleport.yaml --pid-file=/var/run/teleport.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/teleport.pid
+
+[Install]
+WantedBy=multi-user.target

@@ -85,13 +85,13 @@ type Config struct {
 	Enabled bool
 
 	// CommandBufferSize is the size of the perf buffer for command events.
-	CommandBufferSize int
+	CommandBufferSize *int
 
 	// DiskBufferSize is the size of the perf buffer for disk events.
-	DiskBufferSize int
+	DiskBufferSize *int
 
 	// NetworkBufferSize is the size of the perf buffer for network events.
-	NetworkBufferSize int
+	NetworkBufferSize *int
 
 	// CgroupPath is where the cgroupv2 hierarchy is mounted.
 	CgroupPath string
@@ -99,14 +99,17 @@ type Config struct {
 
 // CheckAndSetDefaults checks BPF configuration.
 func (c *Config) CheckAndSetDefaults() error {
-	if c.CommandBufferSize == 0 {
-		c.CommandBufferSize = defaults.PerfBufferPageCount
+	var perfBufferPageCount = defaults.PerfBufferPageCount
+	var openPerfBufferPageCount = defaults.OpenPerfBufferPageCount
+
+	if c.CommandBufferSize == nil {
+		c.CommandBufferSize = &perfBufferPageCount
 	}
-	if c.DiskBufferSize == 0 {
-		c.DiskBufferSize = defaults.OpenPerfBufferPageCount
+	if c.DiskBufferSize == nil {
+		c.DiskBufferSize = &openPerfBufferPageCount
 	}
-	if c.NetworkBufferSize == 0 {
-		c.NetworkBufferSize = defaults.PerfBufferPageCount
+	if c.NetworkBufferSize == nil {
+		c.NetworkBufferSize = &perfBufferPageCount
 	}
 	if c.CgroupPath == "" {
 		c.CgroupPath = defaults.CgroupPath
