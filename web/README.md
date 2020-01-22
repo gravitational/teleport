@@ -1,4 +1,3 @@
-
 # Gravitational Web Applications and Packages
 
 This mono-repository contains the source code for the
@@ -12,7 +11,25 @@ the [packages directory](https://github.com/gravitational/webapps/tree/master/pa
 
 You can make production builds locally or you can use Docker to do that.
 
+### Setup Prettier on VSCode
+
+1. Install plugin: https://github.com/prettier/prettier-vscode
+1. Go to Command Palette: CMD/CTRL + SHIFT + P
+1. Type `open settings`
+1. Select `Open Settings (JSON)`
+1. Include the below snippet and save:
+
+```
+// Set the default
+"editor.formatOnSave": false,
+// Enable per-language
+"[javascript]": {
+    "editor.formatOnSave": true
+}
+```
+
 ### Local Build
+
 Make sure that [you have yarn installed](https://yarnpkg.com/lang/en/docs/install/#debian-stable)
 on your system since this monorepo uses the yarn package manager.
 
@@ -39,16 +56,19 @@ The resulting output will be in `/packages/teleport/dist/` and `/packages/gravit
 ### Docker Build
 
 To build Teleport Web UI
+
 ```
 $ make teleport
 ```
 
 To build Gravity Web UI
+
 ```
 $ make gravity
 ```
 
 ## Development
+
 To avoid having to install a dedicated Teleport or Gravity cluster,
 you can use a local development server which can proxy network requests
 to an existing cluster.
@@ -62,6 +82,7 @@ $ yarn start-teleport --target=https://example.com:3080/web
 ```
 
 or to start your local Gravity development server
+
 ```
 $ yarn start-gravity --target=https://example.com:3080/web
 ```
@@ -70,18 +91,20 @@ This service will serve your local javascript files and proxy network
 requests to the given target.
 
 > Keep in mind that you have to use a local user because social
-logins (google/github) are not supported by development server.
+> logins (google/github) are not supported by development server.
 
 ### Unit-Tests
 
 We use [jest](https://jestjs.io/) as our testing framework.
 
 To run all jest unit-tests:
+
 ```
 $ yarn run test
 ```
 
 To run jest in watch-mode
+
 ```
 $ yarn run tdd
 ```
@@ -93,6 +116,7 @@ It allows us to browse our component library, view the different states of
 each component, and interactively develop and test components.
 
 To start a storybook:
+
 ```
 $ yarn run storybook
 ```

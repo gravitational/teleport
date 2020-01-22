@@ -14,10 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Button, {
-  ButtonPrimary,
-  ButtonWarning,
-  ButtonSecondary,
-} from './Button';
-export default Button;
-export { ButtonPrimary, ButtonWarning, ButtonSecondary };
+import React from 'react';
+import ButtonOutlinedDefault, { OutlinedPrimary } from './ButtonOutlined';
+
+export default {
+  title: 'Design/Button',
+};
+
+export const Outlines = () => (
+  <>
+    <ButtonOutlinedDefault mr={3}>Default</ButtonOutlinedDefault>
+    <OutlinedPrimary>Primary</OutlinedPrimary>
+  </>
+);

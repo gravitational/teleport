@@ -14,10 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Button, {
-  ButtonPrimary,
-  ButtonWarning,
-  ButtonSecondary,
-} from './Button';
-export default Button;
-export { ButtonPrimary, ButtonWarning, ButtonSecondary };
+import React from 'react';
+import Alert from './index';
+
+export default {
+  title: 'Design/Alert',
+  component: Alert,
+};
+
+export const Default = () => <Alert>Default is danger</Alert>;
+
+export const Danger = () => <Alert kind="danger">Some error message</Alert>;
+
+export const Warning = () => <Alert kind="warning">Some warning message</Alert>;
+
+export const Informational = () => (
+  <Alert kind="info">Some informational message</Alert>
+);
+
+export const Success = () => <Alert kind="success">Some success message</Alert>;

@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Button, {
-  ButtonPrimary,
-  ButtonWarning,
-  ButtonSecondary,
-} from './Button';
-export default Button;
-export { ButtonPrimary, ButtonWarning, ButtonSecondary };
+import React from 'react';
+import ButtonLink from './ButtonLink';
+
+export default {
+  title: 'Design/Button',
+};
+
+export const Link = () => <ButtonLink href="">Link Button</ButtonLink>;
