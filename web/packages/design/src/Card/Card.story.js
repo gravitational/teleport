@@ -14,14 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
-import { storiesOf } from '@storybook/react'
-import { withInfo } from '@storybook/addon-info'
-import Card from './Card'
+import React from 'react';
+import Card from './Card';
 
-storiesOf('Design/Card', module)
-  .addDecorator(withInfo)
-  .add('Card', () => (
-    <Card width="500px" height="200px" m="0 auto">
-    </Card>
-  ))
+export default {
+  title: 'Design/Card',
+};
+
+export const Basic = () => <Card width="500px" height="200px" m="0 auto" />;

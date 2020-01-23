@@ -14,9 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
+import React from 'react';
 import { sortBy } from 'lodash';
-import { storiesOf } from '@storybook/react'
 import match from './../utils/match';
 import {
   Table,
@@ -25,27 +24,32 @@ import {
   TextCell,
   SortHeaderCell,
   SortTypes,
-  EmptyIndicator
-} from './../DataTable';
+  EmptyIndicator,
+} from './index';
 
-storiesOf('Design/DataTable', module)
-  .add('DataTable', () => (
-    <TableSample TableComponent={Table} data={data}/>
-  ))
-  .add('Empty', () => (
-    <TableSample TableComponent={Table} data={[]}/>
-  ))
-  .add('Nothing found', () => (
-    <TableSample TableComponent={Table} data={data} filter="no_results"/>
-  ))
+export default {
+  title: 'Design/DataTable',
+};
 
-storiesOf('Design/DataTable/Paged', module)
-  .add('Page size 3', () => (
-    <TableSample TableComponent={TablePaged} tableProps={ { pageSize: 3 }} data={data}/>
-  ))
+export const DataTable = () => (
+  <TableSample TableComponent={Table} data={data} />
+);
+
+export const Empty = () => <TableSample TableComponent={Table} data={[]} />;
+
+export const NothingFound = () => (
+  <TableSample TableComponent={Table} data={data} filter="no_results" />
+);
+
+export const PagedTable = () => (
+  <TableSample
+    TableComponent={TablePaged}
+    tableProps={{ pageSize: 3 }}
+    data={data}
+  />
+);
 
 class TableSample extends React.Component {
-
   searchableProps = ['addr', 'hostname', 'tags'];
 
   constructor(props) {
@@ -53,43 +57,46 @@ class TableSample extends React.Component {
     this.state = {
       filter: props.filter || '',
       colSortDirs: {
-        hostname: SortTypes.DESC
-      }
+        hostname: SortTypes.DESC,
+      },
     };
   }
 
   onSortChange = (columnKey, sortDir) => {
     this.state.colSortDirs = { [columnKey]: sortDir };
     this.setState(this.state);
-  }
+  };
 
   onFilterChange = value => {
     this.state.filter = value;
     this.setState(this.state);
-  }
+  };
 
-  searchAndFilterCb(targetValue, searchValue, propName){
-    if(propName === 'tags'){
-      return targetValue.some((item) => {
+  searchAndFilterCb(targetValue, searchValue, propName) {
+    if (propName === 'tags') {
+      return targetValue.some(item => {
         const { name, value } = item;
-        return name.toLocaleUpperCase().indexOf(searchValue) !==-1 ||
-          value.toLocaleUpperCase().indexOf(searchValue) !==-1;
+        return (
+          name.toLocaleUpperCase().indexOf(searchValue) !== -1 ||
+          value.toLocaleUpperCase().indexOf(searchValue) !== -1
+        );
       });
     }
   }
 
   sortAndFilter(data) {
     const { colSortDirs } = this.state;
-    const filtered = data
-      .filter(obj => match(obj, this.state.filter, {
+    const filtered = data.filter(obj =>
+      match(obj, this.state.filter, {
         searchableProps: this.searchableProps,
-        cb: this.searchAndFilterCb
-      }));
+        cb: this.searchAndFilterCb,
+      })
+    );
 
     const columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
     const sortDir = colSortDirs[columnKey];
     let sorted = sortBy(filtered, columnKey);
-    if(sortDir === SortTypes.ASC){
+    if (sortDir === SortTypes.ASC) {
       sorted = sorted.reverse();
     }
 
@@ -104,18 +111,21 @@ class TableSample extends React.Component {
     if (nothingFound) {
       return (
         <EmptyIndicator title='No Results Found for "X458AAZ"'>
-          For tips on getting better search results, please read <a href="https://gravitational.com/teleport/docs">our documentation</a>
+          For tips on getting better search results, please read{' '}
+          <a href="https://gravitational.com/teleport/docs">
+            our documentation
+          </a>
         </EmptyIndicator>
-      )
+      );
     }
 
     const props = {
       data: data,
-      ...tableProps
-    }
+      ...tableProps,
+    };
 
     return (
-      <TableComponent {...props} >
+      <TableComponent {...props}>
         <Column
           columnKey="hostname"
           header={
@@ -125,7 +135,7 @@ class TableSample extends React.Component {
               title="Hostname"
             />
           }
-          cell={<TextCell /> }
+          cell={<TextCell />}
         />
         <Column
           columnKey="addr"
@@ -136,30 +146,32 @@ class TableSample extends React.Component {
               title="Address"
             />
           }
-          cell={<TextCell /> }
+          cell={<TextCell />}
         />
       </TableComponent>
-    )
+    );
   }
 }
 
-const data = [{
-  hostname: <strong>host-a</strong>,
-  addr: '192.168.7.1'
-},
-{
-  hostname: <strong>host-b</strong>,
-  addr: '192.168.7.2'
-},
-{
-  hostname: <strong>host-c</strong>,
-  addr: '192.168.7.3'
-},
-{
-  hostname: <strong>host-d</strong>,
-  addr: '192.168.7.4'
-},
-{
-  hostname: <strong>host-3</strong>,
-  addr: '192.168.7.4'
-}];
+const data = [
+  {
+    hostname: <strong>host-a</strong>,
+    addr: '192.168.7.1',
+  },
+  {
+    hostname: <strong>host-b</strong>,
+    addr: '192.168.7.2',
+  },
+  {
+    hostname: <strong>host-c</strong>,
+    addr: '192.168.7.3',
+  },
+  {
+    hostname: <strong>host-d</strong>,
+    addr: '192.168.7.4',
+  },
+  {
+    hostname: <strong>host-3</strong>,
+    addr: '192.168.7.4',
+  },
+];

@@ -22,7 +22,7 @@ import {
   SortHeaderCell,
   SortIndicator,
   SortTypes,
-  EmptyIndicator
+  EmptyIndicator,
 } from './Table';
 
 import TablePaged from './Paged';
@@ -36,5 +36,5 @@ export {
   SortHeaderCell,
   SortIndicator,
   SortTypes,
-  EmptyIndicator
-}
+  EmptyIndicator,
+};

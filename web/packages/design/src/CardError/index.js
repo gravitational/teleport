@@ -14,10 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import CardError, { Failed, Offline, LoginFailed, AccessDenied, NotFound } from './CardError';
+import CardError, {
+  Failed,
+  Offline,
+  LoginFailed,
+  AccessDenied,
+  NotFound,
+} from './CardError';
 
 export default CardError;
-export {
-  Failed, LoginFailed, AccessDenied, NotFound, Offline
-}
-
+export { Failed, LoginFailed, AccessDenied, NotFound, Offline };

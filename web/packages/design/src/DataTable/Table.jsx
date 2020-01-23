@@ -180,8 +180,10 @@ class SortHeaderCell extends React.Component {
     const { sortDir, title, ...props } = this.props;
     return (
       <Cell {...props}>
-        <a onClick={this.onSortChange}>{title}</a>
-        <SortIndicator sortDir={sortDir} />
+        <a onClick={this.onSortChange}>
+          {title}
+          <SortIndicator sortDir={sortDir} />
+        </a>
       </Cell>
     );
   }

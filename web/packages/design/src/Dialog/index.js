@@ -21,9 +21,4 @@ import DialogContent from './DialogContent';
 import DialogFooter from './DialogFooter';
 
 export default Dialog;
-export {
-  DialogTitle,
-  DialogContent,
-  DialogFooter,
-  DialogHeader
-}
+export { DialogTitle, DialogContent, DialogFooter, DialogHeader };

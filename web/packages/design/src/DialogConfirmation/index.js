@@ -15,12 +15,12 @@ limitations under the License.
 */
 
 import DialogConfirmation from './DialogConfirmation';
-import { DialogTitle, DialogContent, DialogFooter, DialogHeader } from './../Dialog';
-
-export default DialogConfirmation;
-export {
+import {
   DialogTitle,
   DialogContent,
   DialogFooter,
-  DialogHeader
-}
+  DialogHeader,
+} from './../Dialog';
+
+export default DialogConfirmation;
+export { DialogTitle, DialogContent, DialogFooter, DialogHeader };

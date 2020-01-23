@@ -14,28 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
-import { storiesOf } from '@storybook/react'
-import Dialog, { DialogHeader, DialogContent, DialogFooter, DialogTitle } from './index';
+import React from 'react';
+import Dialog, {
+  DialogHeader,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+} from './index';
 import { ButtonPrimary, Input, LabelInput } from './..';
 
-storiesOf('Design/Dialog', module)
-  .add('Simple Dialog', () => (
-    <Dialog open={true}>
-      <DialogHeader>
-        <DialogTitle>
-          Hello
-        </DialogTitle>
-      </DialogHeader>
-      <DialogContent width="400px">
-        <LabelInput>Name</LabelInput>
-        <Input />
-      </DialogContent>
-      <DialogFooter>
-        <ButtonPrimary onClick={ () => null} >
-          Save And Close
-        </ButtonPrimary>
-      </DialogFooter>
-    </Dialog>
-  )
+export default {
+  title: 'Design/Dialog',
+};
+
+export const Basic = () => (
+  <Dialog open={true}>
+    <DialogHeader>
+      <DialogTitle>Header title</DialogTitle>
+    </DialogHeader>
+    <DialogContent width="400px">
+      <p>Some text and other elements inside content</p>
+      <LabelInput>Input</LabelInput>
+      <Input />
+    </DialogContent>
+    <DialogFooter>
+      <ButtonPrimary onClick={() => null}>Save And Close</ButtonPrimary>
+    </DialogFooter>
+  </Dialog>
 );

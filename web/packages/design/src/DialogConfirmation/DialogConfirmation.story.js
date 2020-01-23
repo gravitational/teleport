@@ -14,26 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
-import { storiesOf } from '@storybook/react'
-import DialogConfirmation, { DialogHeader, DialogContent, DialogFooter, DialogTitle } from './index';
+import React from 'react';
+import DialogConfirmation, {
+  DialogHeader,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+} from './index';
 import { ButtonPrimary } from './../Button';
 
-storiesOf('Design/DialogConfirmation', module)
-  .add('Simple DialogConfirmation', () => (
-    <DialogConfirmation open={true} >
+export default {
+  title: 'Design/Dialog',
+};
+
+export const Confirmation = () => (
+  <DialogConfirmation open={true}>
     <DialogHeader>
-      <DialogTitle>
-        Hello
-      </DialogTitle>
+      <DialogTitle>Confirmation Dialog Header</DialogTitle>
     </DialogHeader>
-    <DialogContent width="400px">
-       DIALOG CONTENT AREA
-    </DialogContent>
+    <DialogContent>Simplified dialog for use with confirmations</DialogContent>
     <DialogFooter>
-      <ButtonPrimary>
-        Save And Close
-      </ButtonPrimary>
+      <ButtonPrimary>Save and Close</ButtonPrimary>
     </DialogFooter>
   </DialogConfirmation>
-  ));
+);

@@ -19,9 +19,7 @@ import Modal from './../Modal';
 import styled from 'styled-components';
 
 class Dialog extends React.Component {
-
   handleBackdropClick = event => {
-
     if (event.target !== event.currentTarget) {
       return;
     }
