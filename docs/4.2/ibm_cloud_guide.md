@@ -6,11 +6,10 @@ introduction leading to a deep dive into how to setup and run Teleport in produc
 
 We have split this guide into:
 
-- [Teleport on GCP FAQ](#teleport-on-IBM-faq)
-- [IBM Teleport Introduction](#gcp-teleport-introduction)
-- [IBM Quickstart](#gcp-quickstart)
+- [Teleport on IBM FAQ](#teleport-on-ibm-cloud-faq)
+- [IBM Teleport Introduction](#ibm-teleport-introduction)
 
-## Teleport on  IBM Cloud  FAQ
+## Teleport on IBM Cloud FAQ
 
 #### Why would you want to use Teleport with IBM Cloud?
 TODO
@@ -46,27 +45,16 @@ stores the audit logs.
 
 ### IBM Cloud: Virtual Servers with Instance Groups
 
-https://www.ibm.com/cloud/virtual-servers 
+We recommend Gen 2 Cloud IBM [Virtual Servers](https://www.ibm.com/cloud/virtual-servers) and [Auto Scaling](https://www.ibm.com/cloud/auto-scaling)
 
-We recommend Gen 2 Cloud.
-
-For testing and POCs 
-
-`bx2-2x8	2 vCPUs	4 GB RAM	4 Gbps`
-
-For Production we would recommend
-
-```
-cx2-4x8,	4 vCPUs, 	8 GB RAM	8 Gbps
-``` 
-
-https://www.ibm.com/cloud/auto-scaling 
-
+  - For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4 GB RAM,	4 Gbps. 
+  
+  - For Production we would recommend `cx2-4x8` with	4 vCPUs, 	8 GB RAM	8 Gbps
 
 ### Storage: Database for etcd
 
 IBM offers [managed etcd](https://www.ibm.com/cloud/databases-for-etcd) instances. 
-Teleport uses etcd as a scalable and database to maintain high availability and provide
+Teleport uses etcd as a scalable  database to maintain high availability and provide
 graceful restarts.  The service has to be turned on from within the [IBM Cloud Dashboard](https://cloud.ibm.com/catalog/services/databases-for-etcd).
 
 We recommend picking an etcd instance in the same region as your planned Teleport 
@@ -88,21 +76,25 @@ teleport:
      type: etcd
 
      # list of etcd peers to connect to:
-     peers: ["https://172.17.0.1:4001", "https://172.17.0.2:4001"]
+     peers: ["https://a9e977c0-224a-40bb-af51-21893b8fde79.b2b5a92ee2df47d58bad0fa448c15585.databases.appdomain.cloud:30359"]
 
      # required path to TLS client certificate and key files to connect to etcd
+     # tls_cert_file will contain ETCDCTL_CACERT
      tls_cert_file: /var/lib/teleport/etcd-cert.pem
+     # tls_key_file wil contain ???
      tls_key_file: /var/lib/teleport/etcd-key.pem
 
      # optional password based authentication
      # See https://etcd.io/docs/v3.4.0/op-guide/authentication/ for setting
-     # up a new user
-     username: username
+     # up a new user. IBM Defaults to `root`
+     username: root
      password_file: /mnt/secrets/etcd-pass
 
      # optional file with trusted CA authority
      # file to authenticate etcd nodes
-     tls_ca_file: /var/lib/teleport/etcd-ca.pem
+     # Note needed if using Hosted IBM Server
+     #
+     # tls_ca_file: /var/lib/teleport/etcd-ca.pem
 
      # etcd key (location) where teleport will be storing its state under:
      prefix: teleport
@@ -115,12 +107,13 @@ teleport:
 
 
 ### Storage: IBM Cloud File Storage
-Marketing Page:  https://www.ibm.com/cloud/file-storage
+We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-storage) to store Teleport recorded sessions. 
 
+1. Create New File Storage Resource. [IBM Catalog - File Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/file-storage)
 
-1. Create New File Storage Resouce https://cloud.ibm.com/catalog/infrastructure/file-storage
-  1.a We recomend using `Standard`
-2. Create a bucket. 
+    1a. We recommend using `Standard`
+
+2. Create a new bucket. 
 3. HMAC Credentials ... https://cloud.ibm.com/docs/services/cloud-object-storage/hmac?topic=cloud-object-storage-uhc-hmac-credentials-main 
 
 
@@ -151,7 +144,7 @@ The credentials are used from `~/.aws/credentials` and should be created with HM
 `~/.aws/credentials` 
 
 ```yaml
-# Example keys from example service account from above.
+# Example keys from example service account to be saved into ~/.aws/credentials
 cos_hmac_keys:                                          
      access_key_id:       e668d66374e141668ef0089f43bc879e         
      secret_access_key:   d8762b57f61d5dd524ccd49c7d44861ceab098d217d05836       
