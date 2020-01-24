@@ -127,7 +127,7 @@ teleport:
     type: dir
     path: /var/lib/teleport/backend
   auth_servers:
-    - ${TELEPORT_AUTH_SERVER_LB}
+    - ${TELEPORT_AUTH_SERVER_LB}:3025
 
 auth_service:
   enabled: no
@@ -144,7 +144,9 @@ proxy_service:
 EOF
     # if we have an SSH proxy LB address, append it
     if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
-        echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}" >> /etc/teleport.yaml
+        echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}:3023" >> /etc/teleport.yaml
+        # also set tunnel public address
+        echo "  tunnel_public_addr: ${TELEPORT_PROXY_SERVER_LB}:${TUNNEL_LISTEN_PORT}" >> /etc/teleport.yaml
     fi
 
     # if we are using letsencrypt (i.e. not ACM) then append config lines
@@ -186,7 +188,7 @@ teleport:
     type: dir
     path: /var/lib/teleport/backend
   auth_servers:
-    - ${TELEPORT_AUTH_SERVER_LB}
+    - ${TELEPORT_AUTH_SERVER_LB}:3025
 
 auth_service:
   enabled: no
@@ -269,6 +271,8 @@ EOF
     # if we have an SSH proxy LB address, append it
     if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
         echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}" >> /etc/teleport.yaml
+        # also set tunnel public address
+        echo "  tunnel_public_addr: ${TELEPORT_PROXY_SERVER_LB}:${TUNNEL_LISTEN_PORT}" >> /etc/teleport.yaml
     fi
 
     # if we are using letsencrypt, append config lines

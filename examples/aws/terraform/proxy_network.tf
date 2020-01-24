@@ -51,6 +51,17 @@ resource "aws_security_group_rule" "proxy_ingress_allow_proxy" {
   security_group_id = "${aws_security_group.proxy.id}"
 }
 
+// Ingress traffic to tunnel port 3024 is allowed from all directions (ACM)
+resource "aws_security_group_rule" "proxy_ingress_allow_tunnel" {
+  type              = "ingress"
+  from_port         = 3024
+  to_port           = 3024
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = "${aws_security_group.proxy.id}"
+  count             = "${var.use_acm ? 1 : 0}"
+}
+
 // Ingress traffic to web port 3080 is allowed from all directions
 resource "aws_security_group_rule" "proxy_ingress_allow_web" {
   type              = "ingress"
@@ -135,6 +146,28 @@ resource "aws_lb_listener" "proxy_proxy" {
 
   default_action {
     target_group_arn = "${aws_lb_target_group.proxy_proxy.arn}"
+    type             = "forward"
+  }
+}
+
+// Tunnel endpoint/listener on LB - this is only used with ACM (as
+// Teleport web/tunnel multiplexing can be used with Letsencrypt)
+resource "aws_lb_target_group" "proxy_tunnel_acm" {
+  name     = "${var.cluster_name}-proxy-tunnel"
+  port     = 3024
+  vpc_id   = "${aws_vpc.teleport.id}"
+  protocol = "TCP"
+  count    = "${var.use_acm ? 1 : 0}"
+}
+
+resource "aws_lb_listener" "proxy_tunnel_acm" {
+  load_balancer_arn = "${aws_lb.proxy.arn}"
+  port              = "3024"
+  protocol          = "TCP"
+  count             = "${var.use_acm ? 1 : 0}"
+
+  default_action {
+    target_group_arn = "${aws_lb_target_group.proxy_tunnel_acm.arn}"
     type             = "forward"
   }
 }
