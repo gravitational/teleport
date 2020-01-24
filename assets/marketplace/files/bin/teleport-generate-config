@@ -145,8 +145,15 @@ EOF
     # if we have an SSH proxy LB address, append it
     if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
         echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}:3023" >> /etc/teleport.yaml
-        # also set tunnel public address
-        echo "  tunnel_public_addr: ${TELEPORT_PROXY_SERVER_LB}:${TUNNEL_LISTEN_PORT}" >> /etc/teleport.yaml
+        # when using ACM, we have to set up a dedicated listener and target group as
+        # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
+        if [[ "${USE_ACM}" == "true" ]]; then
+          echo "  tunnel_public_addr: ${TELEPORT_PROXY_SERVER_LB}:${TUNNEL_LISTEN_PORT}" >> /etc/teleport.yaml
+        # when ACM is not being used, Teleport handles SSL termination itself and so tunnel connections
+        # can be multiplexed over the same connection as regular web proxy traffic
+        else
+          echo "  tunnel_public_addr: ${TELEPORT_DOMAIN_NAME}:443" >> /etc/teleport.yaml
+        fi
     fi
 
     # if we are using letsencrypt (i.e. not ACM) then append config lines
@@ -271,8 +278,15 @@ EOF
     # if we have an SSH proxy LB address, append it
     if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
         echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}" >> /etc/teleport.yaml
-        # also set tunnel public address
-        echo "  tunnel_public_addr: ${TELEPORT_PROXY_SERVER_LB}:${TUNNEL_LISTEN_PORT}" >> /etc/teleport.yaml
+        # when using ACM, we have to set up a dedicated listener and target group as
+        # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
+        if [[ "${USE_ACM}" == "true" ]]; then
+          echo "  tunnel_public_addr: ${TELEPORT_PROXY_SERVER_LB}:${TUNNEL_LISTEN_PORT}" >> /etc/teleport.yaml
+        # when ACM is not being used, Teleport handles SSL termination itself and so tunnel connections
+        # can be multiplexed over the same connection as regular web proxy traffic
+        else
+          echo "  tunnel_public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-3080}" >> /etc/teleport.yaml
+        fi
     fi
 
     # if we are using letsencrypt, append config lines
