@@ -83,27 +83,20 @@ cluster.
 ```yaml
 teleport:
   storage:
-     type: etcd
-
-     # list of etcd peers to connect to:
-     # Showing IBM example host and port. 
-     peers: ["https://a9e977c0-224a-40bb-af51-21893b8fde79.b2b5a92ee2df47d58bad0fa448c15585.databases.appdomain.cloud:30359"]
-
-     # optional password based authentication
-     # See https://etcd.io/docs/v3.4.0/op-guide/authentication/ for setting
-     # up a new user. IBM Defaults to `root`
+    type: etcd
+    # list of etcd peers to connect to:
+    # Showing IBM example host and port. 
+    peers: ["https://a9e977c0-224a-40bb-af51-21893b8fde79.b2b5a92ee2df47d58bad0fa448c15585.databases.appdomain.cloud:30359"]
+    # optional password based authentication
+    # See https://etcd.io/docs/v3.4.0/op-guide/authentication/ for setting
+    # up a new user. IBM Defaults to `root`
     username: 'root'
-     # The password file should just contain the password. 
+    # The password file should just contain the password. 
     password_file: '/var/lib/etcd-pass'
-
-     # File with trusted CA authority
-     # file to authenticate etcd nodes
-     # Note needed if using Hosted IBM Server
-     #
-     tls_ca_file: '/var/lib/teleport/797cfsdf23e-4027-11e9-a020-42025ffb08c8.pem'
-
-     # etcd key (location) where teleport will be storing its state under:
-     prefix: 'teleport'
+    # TLS certificate Name, with file contents from Overview
+    tls_ca_file: '/var/lib/teleport/797cfsdf23e-4027-11e9-a020-42025ffb08c8.pem'
+    # etcd key (location) where teleport will be storing its state under:
+    prefix: 'teleport'
 ``` 
 
 
@@ -116,10 +109,8 @@ We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-stora
     1a. We recommend using `Standard`
 
 2. Create a new bucket. 
-3. HMAC Credentials ... https://cloud.ibm.com/docs/services/cloud-object-storage/hmac?topic=cloud-object-storage-uhc-hmac-credentials-main 
-
-
-audit_sessions_uri: 's3://readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'
+3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/services/cloud-object-storage/hmac?topic=cloud-object-storage-uhc-hmac-credentials-main)
+4. Update audit session URI `audit_sessions_uri:` 's3://readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'
 
 When setting up `audit_session_uri` use `s3://` session prefix.
 
@@ -143,7 +134,7 @@ The credentials are used from `~/.aws/credentials` and should be created with HM
 }
 ```
 
-`~/.aws/credentials` 
+Save these settings to `~/.aws/credentials` 
 
 ```yaml
 # Example keys from example service account to be saved into ~/.aws/credentials
@@ -152,7 +143,9 @@ cos_hmac_keys:
      secret_access_key:   d8762b57f61d5dd524ccd49c7d44861ceab098d217d05836       
 ```
 
+Example `/etc/teleport.yaml`
 ```yaml
+...
 storage:
     ...
     # Note
@@ -166,17 +159,6 @@ storage:
     ...
 ```
 
-Add 
-
-
-### Network: IBM Cloud Load Balancer 
-
-
-
-Marketing Page: https://www.ibm.com/cloud/load-balancer
-
-Cloud Dashboard Link: https://cloud.ibm.com/catalog/infrastructure/load-balancer-group 
-
 ### Network: IBM Cloud DNS Services
 
-Cloud Dashboard Link:  https://cloud.ibm.com/catalog/services/dns-services
+We recommend using [IBM Cloud DNS](https://cloud.ibm.com/catalog/services/dns-services) for the Teleport Proxy public address.  
