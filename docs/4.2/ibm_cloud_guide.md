@@ -12,7 +12,13 @@ We have split this guide into:
 ## Teleport on IBM Cloud FAQ
 
 #### Why would you want to use Teleport with IBM Cloud?
-TODO
+Teleport provides privileged access management for cloud-native infrastructure that 
+doesn’t get in the way. Infosec and systems engineers can secure access to their 
+infrastructure, meet compliance requirements, reduce operational overhead, and have 
+complete visibility into access and behavior.
+
+By using Teleport with IBM you can easily unify all access for both IBM Cloud and 
+softlayer infrastrcure. 
 
 #### Which Services can I use Teleport with?
 
@@ -68,7 +74,11 @@ cluster.
 
 ![Creating IBM Server](img/IBM/cloud.ibm.com_catalog_services_databases-for-etcd.png) 
 
-#### Saving Service Credentials
+#### Saving Credentials
+
+![Creating IBM Server](img/IBM/etcd-pass.png) 
+![etcd cert and host](img/IBM/etcd-cert-and-host.png) 
+
 
 ```yaml
 teleport:
@@ -76,32 +86,24 @@ teleport:
      type: etcd
 
      # list of etcd peers to connect to:
+     # Showing IBM example host and port. 
      peers: ["https://a9e977c0-224a-40bb-af51-21893b8fde79.b2b5a92ee2df47d58bad0fa448c15585.databases.appdomain.cloud:30359"]
-
-     # required path to TLS client certificate and key files to connect to etcd
-     # tls_cert_file will contain ETCDCTL_CACERT
-     tls_cert_file: /var/lib/teleport/etcd-cert.pem
-     # tls_key_file wil contain ???
-     tls_key_file: /var/lib/teleport/etcd-key.pem
 
      # optional password based authentication
      # See https://etcd.io/docs/v3.4.0/op-guide/authentication/ for setting
      # up a new user. IBM Defaults to `root`
-     username: root
-     password_file: /mnt/secrets/etcd-pass
+    username: 'root'
+     # The password file should just contain the password. 
+    password_file: '/var/lib/etcd-pass'
 
-     # optional file with trusted CA authority
+     # File with trusted CA authority
      # file to authenticate etcd nodes
      # Note needed if using Hosted IBM Server
      #
-     # tls_ca_file: /var/lib/teleport/etcd-ca.pem
+     tls_ca_file: '/var/lib/teleport/797cfsdf23e-4027-11e9-a020-42025ffb08c8.pem'
 
      # etcd key (location) where teleport will be storing its state under:
-     prefix: teleport
-
-     # NOT RECOMMENDED: enables insecure etcd mode in which self-signed
-     # certificate will be accepted
-     insecure: false
+     prefix: 'teleport'
 ``` 
 
 
