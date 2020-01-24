@@ -560,15 +560,16 @@
   version = "v0.3.4"
 
 [[projects]]
-  digest = "1:6fdc5ab2b51daaff685258da6a6b6dec3fffcf4207fab3df360e3a2b42d2f1af"
+  digest = "1:de4c308afcff6ffdbfaf7dbdcd5951cfd72f2c48465bf16789b5b8a50e72aa97"
   name = "github.com/iovisor/gobpf"
   packages = [
     "bcc",
     "pkg/cpuonline",
   ]
   pruneopts = "NUT"
-  revision = "0e328af3088341056aa453a95756f94c87492220"
+  revision = "3bb6e7ff1bc74fa4b3053e2dd0948b6228e5f3b1"
   source = "github.com/gravitational/gobpf"
+  version = "v0.0.1"
 
 [[projects]]
   digest = "1:ac6d01547ec4f7f673311b4663909269bfb8249952de3279799289467837c3cc"
@@ -1089,14 +1090,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8cac879720b683f6e1c14fa63076f5b5538ff95fd8f43028940ad396d81b5bee"
+  digest = "1:855811b1c0699e1d3852fc4670d880ae4c80682a7b970faada7668e616294e6b"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "NUT"
-  revision = "1d206c9fa8975fb4cf00df1dc8bf3283dc24ba0e"
+  revision = "548cf772de5052aa878ccb47cdeb7d262b75c8ec"
 
 [[projects]]
   digest = "1:28675596ba760768a08ebfc0872bf8188a30c6b31f056b791e06e94e3c40c81a"
@@ -1243,14 +1244,6 @@
   pruneopts = "NUT"
   revision = "6eaf6f47437a6b4e2153a190160ef39a92c7eceb"
   version = "v1.23.0"
-
-[[projects]]
-  digest = "1:22b2dee6f30bc8601f087449a2a819df8388e54e9547349c658f14d8f8c590f2"
-  name = "gopkg.in/alecthomas/kingpin.v2"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
-  version = "v2.2.6"
 
 [[projects]]
   digest = "1:67ae56e0579de0f16006ee42cc42daaaacefcfd36324ba00540f62fe42fc64df"
@@ -1534,7 +1527,6 @@
     "google.golang.org/grpc/keepalive",
     "google.golang.org/grpc/peer",
     "google.golang.org/grpc/status",
-    "gopkg.in/alecthomas/kingpin.v2",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",
     "k8s.io/api/certificates/v1beta1",

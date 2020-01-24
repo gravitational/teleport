@@ -13,7 +13,13 @@
 // limitations under the License.
 
 #include "_cgo_export.h"
-#include <bcc/bcc_common.h>
+#include <stdio.h>
+#include <stdbool.h>
+#if __has_include(<bcc/bcc_common.h>)
+  #include <bcc/bcc_common.h>
+#else
+  #include <bcc/bpf_common.h>
+#endif
 #include <bcc/libbpf.h>
 #include <dlfcn.h>
 
@@ -72,10 +78,27 @@ char *bcc_library_name()
 // in gobpf.
 void *symlookup[SYM_TABLE_SIZE];
 
+// older_package refers to version v0.8.0 or older of bcc-tools. This version
+// is very common in OS packages.
+bool older_package = false;
+char *prog_load_sym_name = "bcc_prog_load";
+
 // init_symlookup initializes the symbol lookup table.
 int init_symlookup(void *handle) {
+    // Discover if an older packaged version of bcc-tools is installed on
+    // the system. The way we figure this out is checking if "bcc_prog_load"
+    // is in the library. It is for older versions but not for newer versions.
+    //
+    // This will control the arguments to "bpf_attach_kprobe" and
+    // "bpf_module_create_c_from_string" and the symbol name for
+    // {bcc,bpf}_prog_load.
+    if (dlsym(handle, "bcc_prog_load") == NULL) {
+        older_package = true;
+        prog_load_sym_name = "bpf_prog_load";
+    }
+
     symlookup[BCC_FOREACH_FUNCTION_SYMBOL    ] = dlsym(handle, "bcc_foreach_function_symbol");
-    symlookup[BCC_PROG_LOAD                  ] = dlsym(handle, "bcc_prog_load");
+    symlookup[BCC_PROG_LOAD                  ] = dlsym(handle, prog_load_sym_name);
     symlookup[BCC_RESOLVE_SYMNAME            ] = dlsym(handle, "bcc_resolve_symname");
     symlookup[BCC_SYMCACHE_NEW               ] = dlsym(handle, "bcc_symcache_new");
     symlookup[BCC_SYMCACHE_RESOLVE_NAME      ] = dlsym(handle, "bcc_symcache_resolve_name");
@@ -134,7 +157,7 @@ int bcc_foreach_function_symbol(const char *module, SYM_CB cb)
     return (f)(module, cb);
 }
 
-int bcc_prog_load(enum bpf_prog_type prog_type, const char *name,
+int _bpf_prog_load(enum bpf_prog_type prog_type, const char *name,
                    const struct bpf_insn *insns, int prog_len,
                    const char *license, unsigned kern_version,
                    int log_level, char *log_buf, unsigned log_buf_size)
@@ -144,7 +167,6 @@ int bcc_prog_load(enum bpf_prog_type prog_type, const char *name,
     f = symlookup[BCC_PROG_LOAD];
     return (f)(prog_type, name, insns, prog_len, license, kern_version, log_level, log_buf, log_buf_size);
 }
-
 
 int bcc_resolve_symname(const char *module, const char *symname,
                         const uint64_t addr, int pid,
@@ -171,13 +193,19 @@ int bcc_symcache_resolve_name(void *resolver, const char *module,
     return (f)(resolver, module, name, addr);
 }
 
-int bpf_attach_kprobe(int progfd, enum bpf_probe_attach_type attach_type,
+int _bpf_attach_kprobe(int progfd, enum bpf_probe_attach_type attach_type,
                       const char *ev_name, const char *fn_name, uint64_t fn_offset,
                       int maxactive)
 {
-    int (*f)(int, enum bpf_probe_attach_type, const char*, const char *, uint64_t, int);
-    f = symlookup[BPF_ATTACH_KPROBE];
-    return (f)(progfd, attach_type, ev_name, fn_name, fn_offset, maxactive);
+    if (older_package) {
+        int (*f)(int, enum bpf_probe_attach_type, const char*, const char *, uint64_t);
+        f = symlookup[BPF_ATTACH_KPROBE];
+        return (f)(progfd, attach_type, ev_name, fn_name, fn_offset);
+    } else {
+        int (*f)(int, enum bpf_probe_attach_type, const char*, const char *, uint64_t, int);
+        f = symlookup[BPF_ATTACH_KPROBE];
+        return (f)(progfd, attach_type, ev_name, fn_name, fn_offset, maxactive);
+    }
 }
 
 int bpf_attach_perf_event(int progfd, uint32_t ev_type, uint32_t ev_config,
@@ -291,12 +319,18 @@ int bpf_lookup_elem(int fd, void *key, void *value)
     return (f)(fd, key, value);
 }
 
-void *bpf_module_create_c_from_string(const char *text, unsigned flags, const char *cflags[],
+void *_bpf_module_create_c_from_string(const char *text, unsigned flags, const char *cflags[],
                                        int ncflags, bool allow_rlimit, const char *dev_name)
 {
-    void *(*f)(const char *, unsigned, const char *[], int, bool, const char *);
-    f = symlookup[BPF_MODULE_CREATE_C_FROM_STRING];
-    return (f)(text, flags, cflags, ncflags, allow_rlimit, dev_name);
+    if (older_package) {
+        void *(*f)(const char *, unsigned, const char *[], int);
+        f = symlookup[BPF_MODULE_CREATE_C_FROM_STRING];
+        return (f)(text, flags, cflags, ncflags);
+    } else {
+        void *(*f)(const char *, unsigned, const char *[], int, bool, const char *);
+        f = symlookup[BPF_MODULE_CREATE_C_FROM_STRING];
+        return (f)(text, flags, cflags, ncflags, allow_rlimit, dev_name);
+    }
 }
 
 void bpf_module_destroy(void *program)

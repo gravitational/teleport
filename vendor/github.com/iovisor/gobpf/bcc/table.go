@@ -25,7 +25,11 @@ import (
 // #cgo CFLAGS: -I/usr/include/bcc/compat
 // #cgo LDFLAGS: -ldl
 //
-// #include <bcc/bcc_common.h>
+// #if __has_include(<bcc/bcc_common.h>)
+//   #include <bcc/bcc_common.h>
+// #else
+//   #include <bcc/bpf_common.h>
+// #endif
 // #include <bcc/libbpf.h>
 //
 // extern int bpf_table_key_snprintf(void *, size_t, char *, size_t, const void *);
