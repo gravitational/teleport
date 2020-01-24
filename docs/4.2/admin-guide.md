@@ -17,7 +17,7 @@ $ sudo make install
 
 ### Installing from Source
 
-Gravitational Teleport is written in Go language. It requires Golang v1.8.3 or
+Gravitational Teleport is written in Go language. It requires Golang v1.13 or
 newer.
 
 ``` bash
