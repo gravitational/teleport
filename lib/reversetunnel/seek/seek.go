@@ -18,13 +18,13 @@ package seek
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
@@ -389,18 +389,22 @@ func (p *proxyGroup) releaseProxy(t time.Time, principals ...string) (ok bool) {
 }
 
 func (p *proxyGroup) resolveName(principals []string) string {
-	const uuidSize int = 36
+	// check if we're already using one of these principals
 	for _, name := range principals {
-		if len(name) >= uuidSize {
-			if uuid.Parse(name[:uuidSize]) != nil {
-				return name[:uuidSize]
-			}
-		}
 		if _, ok := p.states[name]; ok {
 			return name
 		}
 	}
-	return principals[0]
+	// default to using the first principal
+	name := principals[0]
+	// if we have a `.<cluster-name>` suffix, remove it.
+	if strings.HasSuffix(name, p.id.Cluster) {
+		t := strings.TrimSuffix(name, p.id.Cluster)
+		if strings.HasSuffix(t, ".") {
+			name = strings.TrimSuffix(t, ".")
+		}
+	}
+	return name
 }
 
 func (p *proxyGroup) GetStates() map[string]seekState {
