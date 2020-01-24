@@ -18,6 +18,7 @@ package seek
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -400,7 +401,14 @@ func (p *proxyGroup) resolveName(principals []string) string {
 			return name
 		}
 	}
-	return principals[0]
+	name := principals[0]
+	if strings.HasSuffix(name, p.id.Cluster) {
+		t := strings.TrimSuffix(name, p.id.Cluster)
+		if strings.HasSuffix(t, ".") {
+			name = strings.TrimSuffix(t, ".")
+		}
+	}
+	return name
 }
 
 func (p *proxyGroup) GetStates() map[string]seekState {
