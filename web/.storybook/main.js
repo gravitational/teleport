@@ -32,6 +32,19 @@ module.exports = {
       ...webpackCfg.resolve,
     };
 
+    config.optimization = {
+      splitChunks: {
+        cacheGroups: {
+          stories: {
+            maxSize: 500000, // 500kb
+            chunks: 'all',
+            name: 'stories',
+            test: /packages/,
+          },
+        },
+      },
+    };
+
     config.module.rules.push({
       test: /\.(ts|tsx)$/,
       loader: require.resolve('babel-loader'),
