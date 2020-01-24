@@ -110,7 +110,7 @@ We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-stora
 
 2. Create a new bucket. 
 3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/services/cloud-object-storage/hmac?topic=cloud-object-storage-uhc-hmac-credentials-main)
-4. Update audit session URI `audit_sessions_uri:` 's3://readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'
+4. Update audit session URI `audit_sessions_uri:` 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'
 
 When setting up `audit_session_uri` use `s3://` session prefix.
 
@@ -155,8 +155,23 @@ storage:
     # endpoints.
     # 
     # region=ibm | Should always be set as IBM. 
-    audit_sessions_uri: 's3://readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'
+    audit_sessions_uri: 's3://BUCKETNAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'
     ...
+```
+
+!!!tip
+    When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the 
+    bucket has been created. 
+
+
+```bash
+root@teleport:~# teleport start --config=/etc/teleport.yaml -d
+DEBU [SQLITE]    Connected to: file:/var/lib/teleport/proc/sqlite.db?_busy_timeout=10000&_sync=OFF, poll stream period: 1s lite/lite.go:173
+DEBU [SQLITE]    Synchronous: 0, busy timeout: 10000 lite/lite.go:220
+DEBU [KEYGEN]    SSH cert authority is going to pre-compute 25 keys. native/native.go:104
+DEBU [PROC:1]    Using etcd backend. service/service.go:2309
+INFO [S3]        Setting up bucket "ben-teleport-test-cos-standard-b98", sessions path "/readonly/records" in region "ibm". s3sessions/s3handler.go:143
+INFO [S3]        Setup bucket "ben-teleport-test-cos-standard-b98" completed. duration:356.958618ms s3sessions/s3handler.go:147
 ```
 
 ### Network: IBM Cloud DNS Services
