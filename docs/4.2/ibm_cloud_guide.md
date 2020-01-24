@@ -138,9 +138,9 @@ Save these settings to `~/.aws/credentials`
 
 ```yaml
 # Example keys from example service account to be saved into ~/.aws/credentials
-cos_hmac_keys:                                          
-     access_key_id:       e668d66374e141668ef0089f43bc879e         
-     secret_access_key:   d8762b57f61d5dd524ccd49c7d44861ceab098d217d05836       
+[default]                              
+access_key_id="e668d66374e141668e3432443bc879e"
+secret_access_key="d8762b57f61d5dd524ccd49c7d44861ceafdsfds37d05836"
 ```
 
 Example `/etc/teleport.yaml`
