@@ -218,7 +218,9 @@ func (c *remoteConn) updateProxies(proxies []services.Server) error {
 	case c.newProxiesC <- proxies:
 		return nil
 	default:
-		return trace.ConnectionProblem(nil, "discovery channel overflow at %v", len(c.newProxiesC))
+		c.log.Warnf("discovery channel overflow at %v", len(c.newProxiesC))
+		return nil
+		//return trace.ConnectionProblem(nil, "discovery channel overflow at %v", len(c.newProxiesC))
 	}
 }
 
