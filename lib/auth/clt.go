@@ -1606,7 +1606,7 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *
 }
 
 // ChangePasswordWithToken changes user password with usertoken
-func (c *Client) ChangePasswordWithToken(req ChangePasswordWithTokenRequest) (services.WebSession, error) {
+func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
 	out, err := c.PostJSON(c.Endpoint("usertokens", "password"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2714,7 +2714,7 @@ type IdentityService interface {
 	CreateUserToken(ctx context.Context, req CreateUserTokenRequest) (services.UserToken, error)
 
 	// ChangePasswordWithToken changes password with user token
-	ChangePasswordWithToken(req ChangePasswordWithTokenRequest) (services.WebSession, error)
+	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error)
 
 	// GetUserToken returns user token
 	GetUserToken(ctx context.Context, username string) (services.UserToken, error)

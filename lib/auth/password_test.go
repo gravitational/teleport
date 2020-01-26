@@ -199,7 +199,7 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	_, err = s.a.changePasswordWithToken(ChangePasswordWithTokenRequest{
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
 		TokenID:  usertoken.GetName(),
 		Password: password,
 	})
@@ -235,7 +235,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
 	c.Assert(err, IsNil)
 
-	_, err = s.a.changePasswordWithToken(ChangePasswordWithTokenRequest{
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
 		TokenID:           userToken.GetName(),
 		Password:          password,
 		SecondFactorToken: otpToken,
@@ -313,7 +313,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 		err = s.a.SetAuthPreference(authPreference)
 		c.Assert(err, IsNil)
 
-		_, err = s.a.changePasswordWithToken(tc.req)
+		_, err = s.a.changePasswordWithToken(context.TODO(), tc.req)
 		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
 	}
 
@@ -321,14 +321,14 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	err = s.a.SetAuthPreference(authPreference)
 	c.Assert(err, IsNil)
 
-	_, err = s.a.changePasswordWithToken(ChangePasswordWithTokenRequest{
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
 		TokenID:  validTokenID,
 		Password: validPassword,
 	})
 	c.Assert(err, IsNil)
 
 	// invite token cannot be reused
-	_, err = s.a.changePasswordWithToken(ChangePasswordWithTokenRequest{
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
 		TokenID:  validTokenID,
 		Password: validPassword,
 	})

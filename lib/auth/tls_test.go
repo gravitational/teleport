@@ -1896,7 +1896,7 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
 	c.Assert(err, check.IsNil)
 
-	_, err = s.server.Auth().ChangePasswordWithToken(ChangePasswordWithTokenRequest{
+	_, err = s.server.Auth().ChangePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
 		TokenID:           token.GetName(),
 		Password:          []byte("qweqweqwe"),
 		SecondFactorToken: otpToken,

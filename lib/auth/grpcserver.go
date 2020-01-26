@@ -268,7 +268,7 @@ func (g *GRPCServer) CreateUserToken(ctx context.Context, req *proto.CreateUserT
 
 	r, ok := usertoken.(*services.UserTokenV3)
 	if !ok {
-		err = trace.BadParameter("unexpected user token type %T", usertoken)
+		err = trace.BadParameter("unexpected usertoken type %T", usertoken)
 		return nil, trail.ToGRPC(err)
 	}
 
@@ -318,7 +318,7 @@ func (g *GRPCServer) GetUserToken(ctx context.Context, req *proto.GetUserTokenRe
 
 	r, ok := usertoken.(*services.UserTokenV3)
 	if !ok {
-		err = trace.BadParameter("unexpected user token type %T", usertoken)
+		err = trace.BadParameter("unexpected usertoken type %T", usertoken)
 		return nil, trail.ToGRPC(err)
 	}
 

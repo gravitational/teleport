@@ -1063,9 +1063,9 @@ func (a *AuthWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID stri
 	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
 }
 
-func (a *AuthWithRoles) ChangePasswordWithToken(req ChangePasswordWithTokenRequest) (services.WebSession, error) {
+func (a *AuthWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
 	// Token is it's own authentication, no need to double check.
-	return a.authServer.ChangePasswordWithToken(req)
+	return a.authServer.ChangePasswordWithToken(ctx, req)
 }
 
 func (a *AuthWithRoles) UpsertUser(u services.User) error {

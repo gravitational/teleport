@@ -32,8 +32,8 @@ type ChangePasswordWithTokenRequest struct {
 }
 
 // ChangePasswordWithToken changes password with user token
-func (s *AuthServer) ChangePasswordWithToken(req ChangePasswordWithTokenRequest) (services.WebSession, error) {
-	user, err := s.changePasswordWithToken(req)
+func (s *AuthServer) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
+	user, err := s.changePasswordWithToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -260,7 +260,7 @@ func (s *AuthServer) getOTPType(user string) (string, error) {
 	return teleport.HOTP, nil
 }
 
-func (s *AuthServer) changePasswordWithToken(req ChangePasswordWithTokenRequest) (services.User, error) {
+func (s *AuthServer) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.User, error) {
 	// Get cluster configuration and check if local auth is allowed.
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
@@ -276,7 +276,7 @@ func (s *AuthServer) changePasswordWithToken(req ChangePasswordWithTokenRequest)
 	}
 
 	// Check if token exists.
-	userToken, err := s.GetUserToken(context.TODO(), req.TokenID)
+	userToken, err := s.GetUserToken(ctx, req.TokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -294,7 +294,7 @@ func (s *AuthServer) changePasswordWithToken(req ChangePasswordWithTokenRequest)
 
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	err = s.deleteUserTokens(context.TODO(), username)
+	err = s.deleteUserTokens(ctx, username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

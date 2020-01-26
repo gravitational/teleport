@@ -1170,7 +1170,7 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := h.auth.proxyClient.ChangePasswordWithToken(req)
+	sess, err := h.auth.proxyClient.ChangePasswordWithToken(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

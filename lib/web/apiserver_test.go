@@ -1281,7 +1281,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	c.Assert(err, IsNil)
 
 	tempPass := []byte("abc123")
-	_, err = s.proxyClient.ChangePasswordWithToken(auth.ChangePasswordWithTokenRequest{
+	_, err = s.proxyClient.ChangePasswordWithToken(context.TODO(), auth.ChangePasswordWithTokenRequest{
 		TokenID:             token.GetName(),
 		U2FRegisterResponse: *u2fRegResp,
 		Password:            tempPass,
