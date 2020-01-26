@@ -1605,51 +1605,6 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *
 	return &u2fRegReq, nil
 }
 
-// GetUserToken returns user token
-func (c *Client) GetUserToken(tokenID string) (services.UserToken, error) {
-	out, err := c.Get(c.Endpoint("usertokens", tokenID), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := services.UnmarshalUserToken(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return token, nil
-}
-
-// RotateUserTokenSecrets rotates user token secrets for a given tokenID
-func (c *Client) RotateUserTokenSecrets(tokenID string) (services.UserTokenSecrets, error) {
-	out, err := c.Get(c.Endpoint("usertokens", tokenID, "secrets"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	secrets, err := services.UnmarshalUserTokenSecrets(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return secrets, nil
-}
-
-// CreateUserToken creates user token
-func (c *Client) CreateUserToken(req CreateUserTokenRequest) (services.UserToken, error) {
-	out, err := c.PostJSON(c.Endpoint("usertokens"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := services.UnmarshalUserToken(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return token, nil
-}
-
 // ChangePasswordWithToken changes user password with usertoken
 func (c *Client) ChangePasswordWithToken(req ChangePasswordWithTokenRequest) (services.WebSession, error) {
 	out, err := c.PostJSON(c.Endpoint("usertokens", "password"), req)
@@ -2550,6 +2505,57 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req services.AccessReq
 	return nil
 }
 
+func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (services.UserTokenSecrets, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	secrets, err := clt.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
+		TokenID: tokenID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return secrets, nil
+}
+
+func (c *Client) GetUserToken(ctx context.Context, tokenID string) (services.UserToken, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	usertoken, err := clt.GetUserToken(ctx, &proto.GetUserTokenRequest{
+		TokenID: tokenID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return usertoken, nil
+}
+
+// CreateUserToken creates user token
+func (c *Client) CreateUserToken(ctx context.Context, req CreateUserTokenRequest) (services.UserToken, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	usertoken, err := clt.CreateUserToken(ctx, &proto.CreateUserTokenRequest{
+		Name: req.Name,
+		TTL:  proto.Duration(req.TTL),
+		Type: req.Type,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return usertoken, nil
+}
+
 func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	clt, err := c.grpc()
 	if err != nil {
@@ -2705,16 +2711,16 @@ type IdentityService interface {
 	DeleteAllUsers() error
 
 	// CreateUserToken creates a new user reset token
-	CreateUserToken(req CreateUserTokenRequest) (services.UserToken, error)
+	CreateUserToken(ctx context.Context, req CreateUserTokenRequest) (services.UserToken, error)
 
 	// ChangePasswordWithToken changes password with user token
 	ChangePasswordWithToken(req ChangePasswordWithTokenRequest) (services.WebSession, error)
 
 	// GetUserToken returns user token
-	GetUserToken(username string) (services.UserToken, error)
+	GetUserToken(ctx context.Context, username string) (services.UserToken, error)
 
 	// RotateUserTokenSecrets rotates user token secrets for a given tokenID
-	RotateUserTokenSecrets(tokenID string) (services.UserTokenSecrets, error)
+	RotateUserTokenSecrets(ctx context.Context, tokenID string) (services.UserTokenSecrets, error)
 }
 
 // ProvisioningService is a service in control

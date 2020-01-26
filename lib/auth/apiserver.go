@@ -102,11 +102,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
-
-	srv.POST("/:version/usertokens", srv.withAuth(srv.createUserToken))
 	srv.POST("/:version/usertokens/password", srv.withRate(srv.withAuth(srv.changePasswordWithToken)))
-	srv.GET("/:version/usertokens/:token", srv.withAuth(srv.getUserToken))
-	srv.GET("/:version/usertokens/:token/secrets", srv.withRate(srv.withAuth(srv.rotateUserTokenSecrets)))
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
@@ -1121,38 +1117,6 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	}
 
 	return localCA, nil
-}
-
-func (s *APIServer) rotateUserTokenSecrets(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	secrets, err := auth.RotateUserTokenSecrets(p.ByName("token"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return secrets, nil
-}
-
-func (s *APIServer) getUserToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	usertoken, err := auth.GetUserToken(p.ByName("token"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return usertoken, nil
-}
-
-func (s *APIServer) createUserToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req CreateUserTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resetToken, err := auth.CreateUserToken(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resetToken, nil
 }
 
 func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

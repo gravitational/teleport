@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/subtle"
 
 	"golang.org/x/crypto/bcrypt"
@@ -227,7 +228,7 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(tokenID string) (u2fRegister
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.GetUserToken(tokenID)
+	_, err = s.GetUserToken(context.TODO(), tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,7 +276,7 @@ func (s *AuthServer) changePasswordWithToken(req ChangePasswordWithTokenRequest)
 	}
 
 	// Check if token exists.
-	userToken, err := s.GetUserToken(req.TokenID)
+	userToken, err := s.GetUserToken(context.TODO(), req.TokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,7 +294,7 @@ func (s *AuthServer) changePasswordWithToken(req ChangePasswordWithTokenRequest)
 
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	err = s.deleteUserTokens(username)
+	err = s.deleteUserTokens(context.TODO(), username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -323,7 +324,7 @@ func (s *AuthServer) changeUserSecondFactor(req ChangePasswordWithTokenRequest, 
 	case teleport.OFF:
 		return nil
 	case teleport.OTP, teleport.TOTP, teleport.HOTP:
-		secrets, err := s.Identity.GetUserTokenSecrets(req.TokenID)
+		secrets, err := s.Identity.GetUserTokenSecrets(context.TODO(), req.TokenID)
 		if err != nil {
 			return trace.Wrap(err)
 		}

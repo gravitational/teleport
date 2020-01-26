@@ -20,6 +20,7 @@ package web
 
 import (
 	"compress/gzip"
+	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -1195,7 +1196,12 @@ func (h *Handler) createUserToken(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	userToken, err := clt.CreateUserToken(req)
+	userToken, err := clt.CreateUserToken(context.TODO(),
+		auth.CreateUserTokenRequest{
+			Name: req.Name,
+			Type: req.Type,
+		})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1207,7 +1213,7 @@ func (h *Handler) createUserToken(w http.ResponseWriter, r *http.Request, p http
 }
 
 func (h *Handler) getUserTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	result, err := h.getUserToken(p.ByName("token"))
+	result, err := h.getUserToken(context.TODO(), p.ByName("token"))
 	if err != nil {
 		log.Warnf("Failed to fetch user token: %v.", err)
 		// We hide the error from the remote user to avoid giving any hints.
@@ -1217,14 +1223,14 @@ func (h *Handler) getUserTokenHandle(w http.ResponseWriter, r *http.Request, p h
 	return result, nil
 }
 
-func (h *Handler) getUserToken(tokenID string) (interface{}, error) {
-	userToken, err := h.auth.proxyClient.GetUserToken(tokenID)
+func (h *Handler) getUserToken(ctx context.Context, tokenID string) (interface{}, error) {
+	userToken, err := h.auth.proxyClient.GetUserToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// rotate secrets each time when requested (security)
-	secrets, err := h.auth.proxyClient.RotateUserTokenSecrets(tokenID)
+	secrets, err := h.auth.proxyClient.RotateUserTokenSecrets(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

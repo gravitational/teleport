@@ -42,24 +42,6 @@ type UserToken interface {
 	CheckAndSetDefaults() error
 }
 
-// UserTokenV3 is an user token format V3
-type UserTokenV3 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// SubKind is a resource sub kind
-	SubKind string `json:"sub_kind,omitempty"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Spec is a spec of the invite token
-	Spec UserTokenSpecV3 `json:"spec"`
-}
-
 // GetName returns Name
 func (u *UserTokenV3) GetName() string {
 	return u.Metadata.Name
@@ -145,14 +127,9 @@ func (u UserTokenV3) CheckAndSetDefaults() error {
 	return u.Metadata.CheckAndSetDefaults()
 }
 
-// UserTokenSpecV3 is a spec for invite token
-type UserTokenSpecV3 struct {
-	// User is user name associated with this token
-	User string `json:"user"`
-	// Created holds information about when the token was created
-	Created time.Time `json:"created"`
-	// URL is this token URL
-	URL string `json:"url"`
+// // String represents a human readable version of the user token
+func (u *UserTokenV3) String() string {
+	return fmt.Sprintf("UserTokenV3(tokenID=%v, user=%v, expires at %v)", u.GetName(), u.Spec.User, u.Expiry())
 }
 
 // NewUserToken is a convenience wa to create a RemoteCluster resource.

@@ -1154,7 +1154,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	s.createUser(c, "user1", "root", "password", "")
 
 	// create password change token
-	token, err := s.server.Auth().CreateUserToken(auth.CreateUserTokenRequest{
+	token, err := s.server.Auth().CreateUserToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "user1",
 	})
 	c.Assert(err, IsNil)
@@ -1168,7 +1168,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	c.Assert(uiToken.User, Equals, token.GetUser())
 	c.Assert(uiToken.TokenID, Equals, token.GetName())
 
-	secrets, err := s.server.Auth().RotateUserTokenSecrets(token.GetName())
+	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
 	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), time.Now())
@@ -1213,7 +1213,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	s.createUser(c, "user2", "root", "password", "")
 
 	// create reset password token
-	token, err := s.server.Auth().CreateUserToken(auth.CreateUserTokenRequest{
+	token, err := s.server.Auth().CreateUserToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "user2",
 	})
 	c.Assert(err, IsNil)
@@ -1269,7 +1269,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	s.createUser(c, "bob", "root", "password", "")
 
 	// create password change token
-	token, err := s.server.Auth().CreateUserToken(auth.CreateUserTokenRequest{
+	token, err := s.server.Auth().CreateUserToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "bob",
 	})
 	c.Assert(err, IsNil)

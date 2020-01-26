@@ -194,13 +194,13 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	resetToken, err := s.a.CreateUserToken(CreateUserTokenRequest{
+	usertoken, err := s.a.CreateUserToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)
 
 	_, err = s.a.changePasswordWithToken(ChangePasswordWithTokenRequest{
-		TokenID:  resetToken.GetName(),
+		TokenID:  usertoken.GetName(),
 		Password: password,
 	})
 	c.Assert(err, IsNil)
@@ -225,11 +225,11 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	userToken, err := s.a.CreateUserToken(CreateUserTokenRequest{
+	userToken, err := s.a.CreateUserToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 	})
 
-	secrets, err := s.a.RotateUserTokenSecrets(userToken.GetName())
+	secrets, err := s.a.RotateUserTokenSecrets(context.TODO(), userToken.GetName())
 	c.Assert(err, IsNil)
 
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
@@ -257,7 +257,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	userToken, err := s.a.CreateUserToken(CreateUserTokenRequest{
+	userToken, err := s.a.CreateUserToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)

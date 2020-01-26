@@ -93,7 +93,7 @@ func (s *UserTokenTest) TestCreateUserToken(c *C) {
 		TTL:  time.Hour,
 	}
 
-	token, err := s.a.CreateUserToken(req)
+	token, err := s.a.CreateUserToken(context.TODO(), req)
 	c.Assert(err, IsNil)
 	c.Assert(token.GetUser(), Equals, username)
 	c.Assert(token.GetURL(), Equals, "https://<proxyhost>:3080/web/reset/"+token.GetName())
@@ -103,11 +103,11 @@ func (s *UserTokenTest) TestCreateUserToken(c *C) {
 	c.Assert(err, NotNil)
 
 	// create another reset token for the same user
-	token, err = s.a.CreateUserToken(req)
+	token, err = s.a.CreateUserToken(context.TODO(), req)
 	c.Assert(err, IsNil)
 
 	// previous token must be deleted
-	tokens, err := s.a.GetUserTokens()
+	tokens, err := s.a.GetUserTokens(context.TODO())
 	c.Assert(err, IsNil)
 	c.Assert(len(tokens), Equals, 1)
 	c.Assert(tokens[0].GetName(), Equals, token.GetName())
@@ -162,7 +162,7 @@ func (s *UserTokenTest) TestCreateUserTokenErrors(c *C) {
 	}
 
 	for _, tc := range testCases {
-		_, err := s.a.CreateUserToken(tc.req)
+		_, err := s.a.CreateUserToken(context.TODO(), tc.req)
 		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
 	}
 }

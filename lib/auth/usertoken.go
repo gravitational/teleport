@@ -18,6 +18,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image/png"
 	"net/url"
@@ -26,9 +27,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/pquerna/otp/totp"
 
 	"github.com/gravitational/trace"
+
+	"github.com/pquerna/otp/totp"
 )
 
 const (
@@ -54,7 +56,7 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("user name can't be empty")
 	}
 	if r.TTL < 0 {
-		return trace.BadParameter("ttl can't be negative")
+		return trace.BadParameter("TTL can't be negative")
 	}
 
 	if r.Type == "" {
@@ -92,7 +94,7 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 }
 
 // CreateUserToken creates user token
-func (s *AuthServer) CreateUserToken(req CreateUserTokenRequest) (services.UserToken, error) {
+func (s *AuthServer) CreateUserToken(ctx context.Context, req CreateUserTokenRequest) (services.UserToken, error) {
 	err := req.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -114,17 +116,17 @@ func (s *AuthServer) CreateUserToken(req CreateUserTokenRequest) (services.UserT
 	}
 
 	// remove any other existing tokens for this user
-	err = s.deleteUserTokens(req.Name)
+	err = s.deleteUserTokens(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.Identity.CreateUserToken(token)
+	_, err = s.Identity.CreateUserToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return s.GetUserToken(token.GetName())
+	return s.GetUserToken(ctx, token.GetName())
 }
 
 // RotateUserTokenSecrets rotates secrets for a given tokenID.
@@ -132,8 +134,8 @@ func (s *AuthServer) CreateUserToken(req CreateUserTokenRequest) (services.UserT
 // This ensures that an attacker that gains the usertoken link can not view it,
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
-func (s *AuthServer) RotateUserTokenSecrets(tokenID string) (services.UserTokenSecrets, error) {
-	userToken, err := s.GetUserToken(tokenID)
+func (s *AuthServer) RotateUserTokenSecrets(ctx context.Context, tokenID string) (services.UserTokenSecrets, error) {
+	userToken, err := s.GetUserToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +152,7 @@ func (s *AuthServer) RotateUserTokenSecrets(tokenID string) (services.UserTokenS
 
 	secrets.Spec.OTPKey = key
 	secrets.Spec.QRCode = string(qr)
-	err = s.UpsertUserTokenSecrets(&secrets)
+	err = s.UpsertUserTokenSecrets(ctx, &secrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -212,8 +214,8 @@ func formatUserTokenURL(advertiseURL string, tokenID string, reqType string) (st
 	return u.String(), nil
 }
 
-func (s *AuthServer) deleteUserTokens(username string) error {
-	userTokens, err := s.GetUserTokens()
+func (s *AuthServer) deleteUserTokens(ctx context.Context, username string) error {
+	userTokens, err := s.GetUserTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -223,7 +225,7 @@ func (s *AuthServer) deleteUserTokens(username string) error {
 			continue
 		}
 
-		err = s.DeleteUserToken(token.GetName())
+		err = s.DeleteUserToken(ctx, token.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}

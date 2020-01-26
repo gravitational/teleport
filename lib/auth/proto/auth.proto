@@ -1,10 +1,11 @@
 syntax = "proto3";
 package proto;
 
+import "github.com/gravitational/teleport/lib/services/types.proto";
+
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
-import "github.com/gravitational/teleport/lib/services/types.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -110,7 +111,7 @@ message UserCertsRequest {
     repeated string AccessRequests = 6 [(gogoproto.jsontag) = "access_requests,omitempty"];
 }
 
-// GetUserRequest specifies paramters for the GetUser method.
+// GetUserRequest specifies parameters for the GetUser method.
 message GetUserRequest {
     // Name is the name of the desired user.
     string Name = 1 [(gogoproto.jsontag) = "name"];
@@ -141,6 +142,26 @@ message RequestID {
     string ID = 1 [(gogoproto.jsontag) = "id"];
 }
 
+// RotateUserTokenSecretsRequest is a request to rotate user token secrets.
+message RotateUserTokenSecretsRequest {
+    string TokenID = 1 [(gogoproto.jsontag) = "token"];
+}
+
+// GetUserTokenRequest is a request to get user token.
+message GetUserTokenRequest {
+    string TokenID = 1 [(gogoproto.jsontag) = "token"];
+}
+
+// CreateUserTokenRequest is a request to create an instance of UserToken
+message CreateUserTokenRequest {
+    // Name is the user name to reset.
+    string Name = 1 [(gogoproto.jsontag) = "name"];
+    // Type is user token type.
+    string Type = 2 [(gogoproto.jsontag) = "type"];
+    // TTL specifies how long the generated reset token is valid for.
+    int64 TTL = 3 [(gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -163,4 +184,10 @@ service AuthService {
     rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
     // SetAccessRequestState sets the state of an access request.
     rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
+    // RotateUserTokenSecrets rotates user token secrets for a given tokenID.
+    rpc RotateUserTokenSecrets(RotateUserTokenSecretsRequest) returns (services.UserTokenSecretsV3);
+    // GetUserToken returns user token.
+    rpc GetUserToken(GetUserTokenRequest) returns (services.UserTokenV3);
+    // CreateUserToken creates UserToken.
+    rpc CreateUserToken(CreateUserTokenRequest) returns (services.UserTokenV3);
 }

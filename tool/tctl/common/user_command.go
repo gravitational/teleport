@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -88,6 +89,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userChangePassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.ChangePasswordTokenTTL)).DurationVar(&u.ttl)
+	u.userChangePassword.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
@@ -116,7 +118,7 @@ func (u *UserCommand) ChangePassword(client auth.ClientI) error {
 		TTL:  u.ttl,
 		Type: auth.UserTokenTypePasswordChange,
 	}
-	token, err := client.CreateUserToken(req)
+	token, err := client.CreateUserToken(context.TODO(), req)
 	if err != nil {
 		return err
 	}
@@ -177,7 +179,7 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 		return err
 	}
 
-	token, err := client.CreateUserToken(auth.CreateUserTokenRequest{
+	token, err := client.CreateUserToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
 		Type: auth.UserTokenTypeInvite,

@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
@@ -244,6 +245,84 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) CreateUserToken(ctx context.Context, req *proto.CreateUserTokenRequest) (*services.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if req == nil {
+		req = &proto.CreateUserTokenRequest{}
+	}
+
+	usertoken, err := auth.CreateUserToken(ctx, CreateUserTokenRequest{
+		Name: req.Name,
+		TTL:  time.Duration(req.TTL),
+		Type: req.Type,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := usertoken.(*services.UserTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected user token type %T", usertoken)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
+}
+
+func (g *GRPCServer) RotateUserTokenSecrets(ctx context.Context, req *proto.RotateUserTokenSecretsRequest) (*services.UserTokenSecretsV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	tokenID := ""
+	if req != nil {
+		tokenID = req.TokenID
+	}
+
+	secrets, err := auth.RotateUserTokenSecrets(ctx, tokenID)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	r, ok := secrets.(*services.UserTokenSecretsV3)
+	if !ok {
+		err = trace.BadParameter("unexpected user token secrets type %T", secrets)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
+}
+
+func (g *GRPCServer) GetUserToken(ctx context.Context, req *proto.GetUserTokenRequest) (*services.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	tokenID := ""
+	if req != nil {
+		tokenID = req.TokenID
+	}
+
+	usertoken, err := auth.GetUserToken(ctx, tokenID)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	r, ok := usertoken.(*services.UserTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected user token type %T", usertoken)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
 }
 
 type grpcContext struct {

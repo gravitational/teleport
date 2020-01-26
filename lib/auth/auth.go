@@ -1195,7 +1195,7 @@ func (s *AuthServer) DeleteToken(token string) (err error) {
 		}
 	}
 	// delete user token:
-	if err = s.Identity.DeleteUserToken(token); err == nil {
+	if err = s.Identity.DeleteUserToken(context.TODO(), token); err == nil {
 		return nil
 	}
 	// delete node token:
@@ -1222,7 +1222,7 @@ func (s *AuthServer) GetTokens(opts ...services.MarshalOption) (tokens []service
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get user tokens:
-	userTokens, err := s.Identity.GetUserTokens()
+	userTokens, err := s.Identity.GetUserTokens(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

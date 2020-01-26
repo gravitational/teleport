@@ -39,24 +39,6 @@ type UserTokenSecrets interface {
 	CheckAndSetDefaults() error
 }
 
-// UserTokenSecretsV3 is an user token spec format V3
-type UserTokenSecretsV3 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// SubKind is a resource sub kind
-	SubKind string `json:"sub_kind,omitempty"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Spec is a spec of the user token secretes
-	Spec UserTokenSecretsSpecV3 `json:"spec"`
-}
-
 // GetName returns Name
 func (u *UserTokenSecretsV3) GetName() string {
 	return u.Metadata.Name
@@ -137,14 +119,9 @@ func (u UserTokenSecretsV3) CheckAndSetDefaults() error {
 	return u.Metadata.CheckAndSetDefaults()
 }
 
-// UserTokenSecretsSpecV3 is a spec for user token secrets
-type UserTokenSecretsSpecV3 struct {
-	// Created holds information about when the token was created
-	Created time.Time `json:"created"`
-	// OTPKey is is a secret value of one time password secret generator
-	OTPKey string `json:"opt_key,omitempty"`
-	// QRCode is a QR code value
-	QRCode string `json:"qr_code,omitempty"`
+// // String represents a human readable version of the user token secrets
+func (u *UserTokenSecretsV3) String() string {
+	return fmt.Sprintf("UserTokenSecretsV3(tokenID=%v, opt_key=%v, qr_code=%v)", u.GetName(), u.Spec.OTPKey, u.Spec.QRCode)
 }
 
 // NewUserTokenSecrets creates an instance of UserTokenSecrets

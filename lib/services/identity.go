@@ -21,6 +21,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -209,22 +210,22 @@ type Identity interface {
 	GetGithubAuthRequest(stateToken string) (*GithubAuthRequest, error)
 
 	// DeleteUserToken deletes user token
-	CreateUserToken(usertoken UserToken) (UserToken, error)
+	CreateUserToken(ctx context.Context, usertoken UserToken) (UserToken, error)
 
 	// DeleteUserToken deletes user token
-	DeleteUserToken(tokenID string) error
+	DeleteUserToken(ctx context.Context, tokenID string) error
 
 	// GetUserTokens returns user tokens
-	GetUserTokens() ([]UserToken, error)
+	GetUserTokens(ctx context.Context) ([]UserToken, error)
 
 	// GetUserToken returns user token
-	GetUserToken(tokenID string) (UserToken, error)
+	GetUserToken(ctx context.Context, tokenID string) (UserToken, error)
 
 	// UpsertUserTokenSecrets upserts token secrets
-	UpsertUserTokenSecrets(secrets UserTokenSecrets) error
+	UpsertUserTokenSecrets(ctx context.Context, secrets UserTokenSecrets) error
 
 	// GetUserTokenSecrets returns user token secrets
-	GetUserTokenSecrets(tokenID string) (UserTokenSecrets, error)
+	GetUserTokenSecrets(ctx context.Context, tokenID string) (UserTokenSecrets, error)
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
