@@ -18,13 +18,13 @@ infrastructure, meet compliance requirements, reduce operational overhead, and h
 complete visibility into access and behavior.
 
 By using Teleport with IBM you can easily unify all access for both IBM Cloud and 
-softlayer infrastrcure. 
+Softlayer infrastructure. 
 
 #### Which Services can I use Teleport with?
 
 You can use Teleport for all the services that you would SSH into. This guide is 
-focused on IBM Cloud.  In the future we'll plan to update on how to use 
-Teleport with IBM Cloud Kubernetes Service. 
+focused on IBM Cloud. In the future we'll plan to update on how to use Teleport 
+with IBM Cloud Kubernetes Service. 
 
 ## IBM Teleport Introduction
 
@@ -43,7 +43,7 @@ Other things needed:
  - [SSL Certificate](https://www.ibm.com/cloud/ssl-certificates)
 
 
-We recommend setting up Teleport in high availability mode (HA). In HA mode etcD 
+We recommend setting up Teleport in high availability mode (HA). In HA mode [etcd](https://etcd.io/)
 stores the state of the system and [IBM Cloud Storage](https://www.ibm.com/cloud/storage) 
 stores the audit logs.
 
@@ -53,15 +53,15 @@ stores the audit logs.
 
 We recommend Gen 2 Cloud IBM [Virtual Servers](https://www.ibm.com/cloud/virtual-servers) and [Auto Scaling](https://www.ibm.com/cloud/auto-scaling)
 
-  - For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4 GB RAM,	4 Gbps. 
+  - For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4GB RAM, 4 Gbps. 
   
-  - For Production we would recommend `cx2-4x8` with	4 vCPUs, 	8 GB RAM	8 Gbps
+  - For Production we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
 
 ### Storage: Database for etcd
 
 IBM offers [managed etcd](https://www.ibm.com/cloud/databases-for-etcd) instances. 
-Teleport uses etcd as a scalable  database to maintain high availability and provide
-graceful restarts.  The service has to be turned on from within the [IBM Cloud Dashboard](https://cloud.ibm.com/catalog/services/databases-for-etcd).
+Teleport uses etcd as a scalable database to maintain high availability and provide
+graceful restarts. The service has to be turned on from within the [IBM Cloud Dashboard](https://cloud.ibm.com/catalog/services/databases-for-etcd).
 
 We recommend picking an etcd instance in the same region as your planned Teleport 
 cluster. 
@@ -176,4 +176,14 @@ INFO [S3]        Setup bucket "ben-teleport-test-cos-standard-b98" completed. du
 
 ### Network: IBM Cloud DNS Services
 
-We recommend using [IBM Cloud DNS](https://cloud.ibm.com/catalog/services/dns-services) for the Teleport Proxy public address.  
+We recommend using [IBM Cloud DNS](https://cloud.ibm.com/catalog/services/dns-services) for
+the Teleport Proxy public address.  See the [Admin Guide](admin-guide.md) for more 
+information. 
+
+```yaml
+    # The DNS name the proxy HTTPS endpoint as accessible by cluster users.
+    # Defaults to the proxy's hostname if not specified. If running multiple
+    # proxies behind a load balancer, this name must point to the load balancer
+    # (see public_addr section below)
+    public_addr: proxy.example.com:3080
+``` 
