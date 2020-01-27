@@ -1262,9 +1262,7 @@ $ ssh-add -L
 !!! warning "GNOME Keyring SSH Agent":
     It is well-known that Gnome Keyring SSH
     agent, used by many popular Linux desktops like Ubuntu, does not support SSH
-    certificates. We recommend using the `ssh-agent` command from
-
-`openssh-client` package.
+    certificates. We recommend using the `ssh-agent` command from `openssh-client` package.
 
 ### OpenSSH Rate Limiting
 
