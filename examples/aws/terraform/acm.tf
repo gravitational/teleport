@@ -2,7 +2,7 @@
 // import the existing ACM certificate with:
 // terraform import aws_acm_certificate.cert <certificate_arn>
 // NOTE: using non-Amazon issued certificates in this manner is a bad idea as they cannot be automatically recreated by
-// Terraform if they are deleted. In this instance we recommend setting up ACM on the proxy 2load balancer yourself.
+// Terraform if they are deleted. In this instance we recommend setting up ACM on the proxy load balancer yourself.
 
 // Define an ACM cert we can use for the proxy
 resource "aws_acm_certificate" "cert" {

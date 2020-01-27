@@ -48,7 +48,7 @@ resource "aws_autoscaling_group" "proxy_acm" {
   launch_configuration      = "${aws_launch_configuration.proxy.name}"
   vpc_zone_identifier       = ["${aws_subnet.public.*.id}"]
   // Auto scaling group is associated with load balancer
-  target_group_arns         = ["${aws_lb_target_group.proxy_proxy.arn}", "${aws_lb_target_group.proxy_web_acm.arn}"]
+  target_group_arns         = ["${aws_lb_target_group.proxy_proxy.arn}", "${aws_lb_target_group.proxy_tunnel_acm.arn}", "${aws_lb_target_group.proxy_web_acm.arn}"]
   count                     = "${var.use_acm ? 1 : 0}"
 
   tag {
@@ -76,8 +76,8 @@ data "template_file" "proxy_user_data" {
   vars {
     region = "${var.region}"
     cluster_name = "${var.cluster_name}"
-    auth_server_addr = "${aws_lb.auth.dns_name}:3025"
-    proxy_server_lb_addr = "${aws_lb.proxy.dns_name}:3023"
+    auth_server_addr = "${aws_lb.auth.dns_name}"
+    proxy_server_lb_addr = "${aws_lb.proxy.dns_name}"
     influxdb_addr = "http://${aws_lb.monitor.dns_name}:8086"
     email = "${var.email}"
     domain_name = "${var.route53_domain}"
