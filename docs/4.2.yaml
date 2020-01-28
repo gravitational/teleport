@@ -3,7 +3,7 @@ site_url: https://gravitational.com/teleport/docs
 repo_url: https://github.com/gravitational/teleport
 site_description: SSH and Kubernetes Gateway for Clusters and Teams
 site_author: Gravitational Inc
-copyright: Gravitational Inc, 2016-19
+copyright: Gravitational Inc, 2016-20
 
 # output directory:
 site_dir: ../build/docs/4.2
