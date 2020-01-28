@@ -1,4 +1,4 @@
-FROM benarent/mkdocs-base:latest 
+FROM quay.io/gravitational/mkdocs-base:1.0.3
 
 ARG UID
 ARG GID
