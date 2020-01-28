@@ -15,12 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
-import styled from 'styled-components';
 import * as Icon from '../Icon';
+import Flex from './../Flex';
 
-storiesOf('Design/Icon', module).add('Icon components', () => (
-  <Container>
+export default {
+  title: 'Design/Icon',
+};
+
+export const ListOfIcons = () => (
+  <Flex flexWrap="wrap">
     <IconBox IconCmpt={Icon.Add} text="Add" />
     <IconBox IconCmpt={Icon.AddUsers} text="AddUsers" />
     <IconBox IconCmpt={Icon.Amex} text="Amex" />
@@ -161,32 +164,12 @@ storiesOf('Design/Icon', module).add('Icon components', () => (
     <IconBox IconCmpt={Icon.Wifi} text="Wifi" />
     <IconBox IconCmpt={Icon.Windows} text="Windows" />
     <IconBox IconCmpt={Icon.Youtube} text="Youtube" />
-  </Container>
-));
-
-const Container = styled.div`
-  font-size: 24px;
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-`;
-
-const IconBox = ({ IconCmpt, text }) => (
-  <Box>
-    <IconCmpt />
-    {text}
-  </Box>
+  </Flex>
 );
 
-const Box = styled.div`
-  display: flex;
-  margin: 10px 10px;
-  width: 300px;
-  font-size: 14px;
-
-  .icon {
-    display: inline-block;
-    margin: 0 10px;
-    font-size: 16px;
-  }
-`;
+const IconBox = ({ IconCmpt, text }) => (
+  <Flex m="10px" width="300px">
+    <IconCmpt m="0 10px" fontSize="20px" />
+    {text}
+  </Flex>
+);

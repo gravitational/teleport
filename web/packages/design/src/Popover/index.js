@@ -16,6 +16,4 @@ limitations under the License.
 
 import Popover, { StyledPopover } from './Popover';
 export default Popover;
-export {
-  StyledPopover
-}
+export { StyledPopover };

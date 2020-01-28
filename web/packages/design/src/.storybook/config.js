@@ -23,11 +23,9 @@ import Box from './../Box';
 
 const ThemeDecorator = storyFn => (
   <ThemeProvider theme={theme}>
-    <Box p={3}>
-      {storyFn()}
-    </Box>
+    <Box p={3}>{storyFn()}</Box>
   </ThemeProvider>
-)
+);
 
 addDecorator(ThemeDecorator);
 
@@ -37,6 +35,6 @@ const srcReq = require.context('./../../../src', true, /\.story.js$/);
 const loadStories = () => {
   sharedReq.keys().forEach(sharedReq);
   srcReq.keys().forEach(srcReq);
-}
+};
 
 configure(loadStories, module);

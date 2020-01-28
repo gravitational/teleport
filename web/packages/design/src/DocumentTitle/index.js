@@ -16,6 +16,4 @@ limitations under the License.
 
 import DocumentTitle, { withDocTitle } from './DocumentTitle';
 export default DocumentTitle;
-export {
-  withDocTitle
-}
+export { withDocTitle };

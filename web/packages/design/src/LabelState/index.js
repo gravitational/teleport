@@ -22,9 +22,4 @@ import LabelState, {
 } from './LabelState';
 export default LabelState;
 
-export {
-  StateDanger,
-  StateInfo,
-  StateWarning,
-  StateSuccess,
-}
+export { StateDanger, StateInfo, StateWarning, StateSuccess };

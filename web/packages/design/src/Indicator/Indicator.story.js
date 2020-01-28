@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
-import { storiesOf } from '@storybook/react'
-import { withInfo } from '@storybook/addon-info'
-import Indicator from '../Indicator'
+import React from 'react';
+import Indicator from '../Indicator';
 
-storiesOf('Design/Indicator', module)
-  .addDecorator(withInfo)
-  .add('Loading Indicator', () => <Indicator />)
+export default {
+  title: 'Design/Indicator',
+};
+
+export const Loader = () => <Indicator />;

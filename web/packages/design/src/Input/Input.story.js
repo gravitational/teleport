@@ -15,18 +15,18 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
-import { withInfo } from '@storybook/addon-info';
 import Input from '../Input';
 
-storiesOf('Design/Input', module)
-  .addDecorator(withInfo)
-  .add('empty', () => {
-    return <Input placeholder="Enter Some Text" />;
-  })
-  .add('error', () => {
-    return <Input hasError="blah" defaultValue="This field has an error" />;
-  })
-  .add('focused', () => {
-    return <Input autoFocus defaultValue="This field has an focus" />;
-  });
+export default {
+  title: 'Design/Input',
+};
+
+export const Empty = () => <Input placeholder="Enter SomeText" />;
+
+export const Error = () => (
+  <Input hasError={true} defaultValue="This field has an error" />
+);
+
+export const Focused = () => (
+  <Input autoFocus defaultValue="This field is focused" />
+);

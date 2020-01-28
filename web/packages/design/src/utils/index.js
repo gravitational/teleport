@@ -28,7 +28,7 @@ export function ownerWindow(node, fallback = window) {
   return doc.defaultView || doc.parentView || fallback;
 }
 
-export function getContainer(container, defaultContainer){
+export function getContainer(container, defaultContainer) {
   container = typeof container === 'function' ? container() : container;
   return ReactDOM.findDOMNode(container) || defaultContainer;
 }
@@ -48,7 +48,7 @@ function getContainerDimensions(containerNode) {
     scroll = getScrollTop(containerNode);
   }
 
-  return { width, height, scroll};
+  return { width, height, scroll };
 }
 
 function getTopDelta(top, overlayHeight, container, padding) {
@@ -84,12 +84,19 @@ function getLeftDelta(left, overlayWidth, container, padding) {
   return 0;
 }
 
-export function calculatePosition(placement, overlayNode, target, container, padding) {
-  const childOffset = container.tagName === 'BODY' ?
-    getOffset(target) : getPosition(target, container);
+export function calculatePosition(
+  placement,
+  overlayNode,
+  target,
+  container,
+  padding
+) {
+  const childOffset =
+    container.tagName === 'BODY'
+      ? getOffset(target)
+      : getPosition(target, container);
 
-  const { height: overlayHeight, width: overlayWidth } =
-    getOffset(overlayNode);
+  const { height: overlayHeight, width: overlayWidth } = getOffset(overlayNode);
 
   let positionLeft, positionTop, arrowOffsetLeft, arrowOffsetTop;
 
@@ -103,13 +110,15 @@ export function calculatePosition(placement, overlayNode, target, container, pad
     }
 
     const topDelta = getTopDelta(
-      positionTop, overlayHeight, container, padding
+      positionTop,
+      overlayHeight,
+      container,
+      padding
     );
 
     positionTop += topDelta;
-    arrowOffsetTop = 50 * (1 - 2 * topDelta / overlayHeight) + '%';
+    arrowOffsetTop = 50 * (1 - (2 * topDelta) / overlayHeight) + '%';
     arrowOffsetLeft = void 0;
-
   } else if (placement === 'top' || placement === 'bottom') {
     positionLeft = childOffset.left + (childOffset.width - overlayWidth) / 2;
 
@@ -120,13 +129,15 @@ export function calculatePosition(placement, overlayNode, target, container, pad
     }
 
     const leftDelta = getLeftDelta(
-      positionLeft, overlayWidth, container, padding
+      positionLeft,
+      overlayWidth,
+      container,
+      padding
     );
 
     positionLeft += leftDelta;
-    arrowOffsetLeft = 50 * (1 - 2 * leftDelta / overlayWidth) + '%';
+    arrowOffsetLeft = 50 * (1 - (2 * leftDelta) / overlayWidth) + '%';
     arrowOffsetTop = void 0;
-
   } else {
     throw new Error(
       `calcOverlayPosition(): No such placement of "${placement}" found.`

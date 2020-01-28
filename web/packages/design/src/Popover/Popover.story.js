@@ -14,35 +14,38 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
-import React from 'react'
+import React from 'react';
 import styled from 'styled-components';
-import { storiesOf } from '@storybook/react'
+import { storiesOf } from '@storybook/react';
 import Popover from './../Popover';
 import { ButtonPrimary, Box, Flex, Text } from '../';
 
-storiesOf('Design/Popover', module)
-  .add('Simple Popover', () => (
-    <Box m={11} textAlign="center">
-      <SimplePopover />
-    </Box>
-  ))
-  .add('Simple Mouse on hover', () => (
-    <Box m={11} textAlign="center">
-      <MouseOverPopover />
-    </Box>
-  ));
+export default {
+  title: 'Design/Popover',
+};
+
+export const Sample = () => (
+  <Box m={11} textAlign="center">
+    <SimplePopover />
+  </Box>
+);
+
+export const Tooltip = () => (
+  <Box m={11} textAlign="center">
+    <MouseOverPopover />
+  </Box>
+);
 
 class SimplePopover extends React.Component {
   state = {
     anchorEl: null,
-  }
+  };
 
   handleClick = () => {
     this.setState({
       anchorEl: this.btnRef,
     });
-  }
+  };
 
   topCenter = () => {
     this.setState({
@@ -54,9 +57,9 @@ class SimplePopover extends React.Component {
       transformOrigin: {
         vertical: 'bottom',
         horizontal: 'center',
-      }
-    })
-  }
+      },
+    });
+  };
 
   centerCenter = () => {
     this.setState({
@@ -68,9 +71,9 @@ class SimplePopover extends React.Component {
       transformOrigin: {
         vertical: 'center',
         horizontal: 'center',
-      }
-    })
-  }
+      },
+    });
+  };
 
   left = () => {
     this.setState({
@@ -82,9 +85,9 @@ class SimplePopover extends React.Component {
       transformOrigin: {
         vertical: 'top',
         horizontal: 'right',
-      }
-    })
-  }
+      },
+    });
+  };
 
   right = () => {
     this.setState({
@@ -96,9 +99,9 @@ class SimplePopover extends React.Component {
       transformOrigin: {
         vertical: 'top',
         horizontal: 'left',
-      }
-    })
-  }
+      },
+    });
+  };
 
   bottomCenter = () => {
     this.setState({
@@ -110,15 +113,15 @@ class SimplePopover extends React.Component {
       transformOrigin: {
         vertical: 'top',
         horizontal: 'center',
-      }
-    })
-  }
+      },
+    });
+  };
 
   handleClose = () => {
     this.setState({
       anchorEl: null,
     });
-  }
+  };
 
   render() {
     const { anchorEl, anchorOrigin, transformOrigin } = this.state;
@@ -127,7 +130,7 @@ class SimplePopover extends React.Component {
     return (
       <div>
         <Box>
-          <ButtonPrimary mt={7} setRef={e => this.btnRef = e} >
+          <ButtonPrimary mt={7} setRef={e => (this.btnRef = e)}>
             This is anchor element
           </ButtonPrimary>
           <Popover
@@ -183,15 +186,13 @@ class MouseOverPopover extends React.Component {
     const open = Boolean(anchorEl);
     return (
       <Flex justifyContent="center">
-        <Box
-          style={{height: "200", width: "200px"}}
-        >
+        <Box style={{ height: '200', width: '200px' }}>
           <Text
             aria-owns={open ? 'mouse-over-popover' : undefined}
             onMouseEnter={this.handlePopoverOpen}
             onMouseLeave={this.handlePopoverClose}
           >
-              Hover with a Popover.
+            Hover with a Popover.
           </Text>
         </Box>
         <Popover
@@ -217,9 +218,9 @@ class MouseOverPopover extends React.Component {
 
 const modalCss = () => `
   pointer-events: none;
-`
+`;
 
 const StyledOnHover = styled(Text)`
   background-color: white;
   color: black;
-`
+`;

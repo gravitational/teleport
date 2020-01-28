@@ -15,27 +15,30 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import typography from './typography';
 import { Text, Box } from './../';
 
-storiesOf('Design/Theme', module).add('Typography', () => {
-  return (
-    <div>
-      <Specs />
-      <Example />
-    </div>
-  );
-});
+export default {
+  title: 'Design/Theme',
+};
+
+export const Typography = () => (
+  <>
+    <Specs />
+    <Example />
+  </>
+);
 
 const Specs = () => (
-  <Box bg="primary.light" p={2}>
-    <Text typography="h2">Specs</Text>
+  <Box bg="primary.light" p={2} textAlign="left">
+    <Text typography="h2" mb={3}>
+      Specs
+    </Text>
     <table css={tableCss}>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Size</th>
+          <th width="100">Name</th>
+          <th width="100">Size</th>
           <th>Weight</th>
         </tr>
       </thead>
@@ -154,12 +157,14 @@ const Specs = () => (
 );
 
 const Example = () => (
-  <Box bg="primary.light" p={2} width="600px" mt={5}>
-    <Text typography="h2">Examples</Text>
-    <table css={tableCss}>
+  <Box bg="primary.light" p={2} width="600px" mt={5} textAlign="left">
+    <Text typography="h2" mb={3}>
+      Examples
+    </Text>
+    <table css={tableCss} border={1}>
       <thead>
         <tr>
-          <th>Name</th>
+          <th width="100px">Name</th>
           <th>Sample Text</th>
         </tr>
       </thead>

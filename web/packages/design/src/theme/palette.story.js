@@ -18,21 +18,22 @@ limitations under the License.
 
 import React from 'react';
 import * as colors from './palette';
-import { storiesOf } from '@storybook/react';
-import { Flex, Box } from '../';
+import { Flex, Box } from '..';
 import { getContrastText } from './theme';
 
-storiesOf('Design/Theme', module).add('Palette', () => {
-  return <Color />;
-});
+export default {
+  title: 'Design/Theme',
+};
+
+export const Palette = () => <Color />;
 
 function Color() {
   const $mainGroups = mainColors.map(color => (
-    <ColorGroup color={color} showAltPalette={true} />
+    <ColorGroup key={color} color={color} showAltPalette={true} />
   ));
 
   const $neutralColors = neutralColors.map(color => (
-    <ColorGroup color={color} showAltPalette={false} />
+    <ColorGroup key={color} color={color} showAltPalette={false} />
   ));
 
   return (
@@ -86,7 +87,7 @@ function ColorBlock(colorName, colorValue, colorTitle) {
   }
 
   return (
-    <Box {...boxProps}>
+    <Box {...boxProps} key={colorValue}>
       {colorTitle && <Box mb={3}>{colorName}</Box>}
       <Flex justifyContent="space-between">
         <span>{colorValue}</span>

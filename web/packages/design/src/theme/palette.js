@@ -104,7 +104,6 @@ export const cyan = {
   A700: '#00b8d4',
 };
 
-
 export const deepOrange = {
   50: '#fbe9e7',
   100: '#ffccbc',
@@ -121,7 +120,6 @@ export const deepOrange = {
   A400: '#ff3d00',
   A700: '#dd2c00',
 };
-
 
 export const deepPurple = {
   50: '#ede7f6',
@@ -140,7 +138,6 @@ export const deepPurple = {
   A700: '#6200ea',
 };
 
-
 export const green = {
   50: '#e8f5e9',
   100: '#c8e6c9',
@@ -157,7 +154,6 @@ export const green = {
   A400: '#00e676',
   A700: '#00c853',
 };
-
 
 export const grey = {
   50: '#fafafa',
@@ -176,7 +172,6 @@ export const grey = {
   A700: '#616161',
 };
 
-
 export const indigo = {
   50: '#e8eaf6',
   100: '#c5cae9',
@@ -193,7 +188,6 @@ export const indigo = {
   A400: '#3d5afe',
   A700: '#304ffe',
 };
-
 
 export const lightBlue = {
   50: '#e1f5fe',
@@ -212,7 +206,6 @@ export const lightBlue = {
   A700: '#0091ea',
 };
 
-
 export const lightGreen = {
   50: '#f1f8e9',
   100: '#dcedc8',
@@ -229,7 +222,6 @@ export const lightGreen = {
   A400: '#76ff03',
   A700: '#64dd17',
 };
-
 
 export const lime = {
   50: '#f9fbe7',
@@ -248,7 +240,6 @@ export const lime = {
   A700: '#aeea00',
 };
 
-
 export const orange = {
   50: '#fff3e0',
   100: '#ffe0b2',
@@ -265,7 +256,6 @@ export const orange = {
   A400: '#ff9100',
   A700: '#ff6d00',
 };
-
 
 export const pink = {
   50: '#fce4ec',
@@ -284,7 +274,6 @@ export const pink = {
   A700: '#c51162',
 };
 
-
 export const purple = {
   50: '#f3e5f5',
   100: '#e1bee7',
@@ -302,7 +291,6 @@ export const purple = {
   A700: '#aa00ff',
 };
 
-
 export const red = {
   50: '#ffebee',
   100: '#ffcdd2',
@@ -319,7 +307,6 @@ export const red = {
   A400: '#ff1744',
   A700: '#d50000',
 };
-
 
 export const teal = {
   50: '#e0f2f1',

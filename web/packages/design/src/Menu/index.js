@@ -18,7 +18,4 @@ import Menu from './Menu';
 import MenuItem from './MenuItem';
 import MenuItemIcon from './MenuItemIcon';
 export default Menu;
-export {
-  MenuItem,
-  MenuItemIcon
-}
+export { MenuItem, MenuItemIcon };

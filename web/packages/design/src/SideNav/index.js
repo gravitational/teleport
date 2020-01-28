@@ -14,11 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
 import SideNav from './SideNav';
 import SideNavItem from './SideNavItem';
 export default SideNav;
 
-export {
-  SideNavItem
-}
+export { SideNavItem };

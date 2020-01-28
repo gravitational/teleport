@@ -23,10 +23,9 @@ import {
 } from './Layout';
 
 export {
-
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
   AppHorizontalSplit,
   AppVerticalSplit,
-}
+};

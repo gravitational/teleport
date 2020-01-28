@@ -14,20 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
-import { storiesOf } from '@storybook/react'
-import { withInfo } from '@storybook/addon-info'
+import React from 'react';
 import Label from './Label';
 import Flex from './../Flex';
 
-storiesOf('Design/Label', module)
-  .addDecorator(withInfo)
-  .add('kinds', () => (
-    <Flex height="100px" bg="primary.main" justifyContent="center" alignItems="center">
-      <Label mr="3" kind="primary">Primary</Label>
-      <Label mr="3" kind="secondary">Secondary</Label>
-      <Label mr="3" kind="warning">Warning</Label>
-      <Label mr="3" kind="danger">Danger</Label>
-    </Flex>
-  ))
+export default {
+  title: 'Design/Label',
+};
 
+export const Tags = () => (
+  <Flex
+    height="100px"
+    bg="primary.main"
+    justifyContent="center"
+    alignItems="center"
+  >
+    <Label mr={4} kind="primary">
+      Primary
+    </Label>
+    <Label mr={4} kind="secondary">
+      Secondary
+    </Label>
+    <Label mr={4} kind="warning">
+      Warning
+    </Label>
+    <Label kind="danger">Danger</Label>
+  </Flex>
+);

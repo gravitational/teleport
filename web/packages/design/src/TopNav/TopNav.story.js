@@ -24,7 +24,7 @@ export default {
   title: 'Design/TopNav',
 };
 
-export function TopNavComponent() {
+export const Sample = () => {
   const [visible, setVisible] = React.useState(false);
 
   function onShow() {
@@ -54,8 +54,4 @@ export function TopNavComponent() {
       </TopNavUserMenu>
     </TopNav>
   );
-}
-
-TopNavComponent.story = {
-  name: 'TopNavComponent',
 };

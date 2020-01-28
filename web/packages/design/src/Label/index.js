@@ -16,8 +16,4 @@ limitations under the License.
 
 import Label, { Primary, Secondary, Warning, Danger } from './Label';
 export default Label;
-export {
-  Primary, Secondary, Warning, Danger
-}
-
-
+export { Primary, Secondary, Warning, Danger };

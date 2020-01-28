@@ -51,7 +51,7 @@ import warning from './warning';
 function clamp(value, min = 0, max = 1) {
   warning(
     value >= min && value <= max,
-    `Shared components: the value provided ${value} is out of range [${min}, ${max}].`,
+    `Shared components: the value provided ${value} is out of range [${min}, ${max}].`
   );
 
   if (value < min) {
@@ -128,7 +128,7 @@ export function decomposeColor(color) {
         [
           `Shared components: unsupported \`${color}\` color.`,
           'We support the following formats: #nnn, #nnnnnn, rgb(), rgba(), hsl(), hsla().',
-        ].join('\n'),
+        ].join('\n')
       );
     }
   }
@@ -194,7 +194,9 @@ export function getLuminance(color) {
       return val <= 0.03928 ? val / 12.92 : ((val + 0.055) / 1.055) ** 2.4;
     });
     // Truncate at 3 digits
-    return Number((0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]).toFixed(3));
+    return Number(
+      (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]).toFixed(3)
+    );
   }
 
   // else if (decomposedColor.type.indexOf('hsl') !== -1)
@@ -210,7 +212,9 @@ export function getLuminance(color) {
  * @returns {string} A CSS color string. Hex input values are returned as rgb
  */
 export function emphasize(color, coefficient = 0.15) {
-  return getLuminance(color) > 0.5 ? darken(color, coefficient) : lighten(color, coefficient);
+  return getLuminance(color) > 0.5
+    ? darken(color, coefficient)
+    : lighten(color, coefficient);
 }
 
 /**
@@ -222,7 +226,10 @@ export function emphasize(color, coefficient = 0.15) {
  * @returns {string} A CSS color string. Hex input values are returned as rgb
  */
 export function fade(color, value) {
-  warning(color, `Shared components: missing color argument in fade(${color}, ${value}).`);
+  warning(
+    color,
+    `Shared components: missing color argument in fade(${color}, ${value}).`
+  );
 
   if (!color) return color;
 
@@ -245,7 +252,10 @@ export function fade(color, value) {
  * @returns {string} A CSS color string. Hex input values are returned as rgb
  */
 export function darken(color, coefficient) {
-  warning(color, `Shared components: missing color argument in darken(${color}, ${coefficient}).`);
+  warning(
+    color,
+    `Shared components: missing color argument in darken(${color}, ${coefficient}).`
+  );
 
   if (!color) return color;
 
@@ -270,7 +280,10 @@ export function darken(color, coefficient) {
  * @returns {string} A CSS color string. Hex input values are returned as rgb
  */
 export function lighten(color, coefficient) {
-  warning(color, `Shared components: missing color argument in lighten(${color}, ${coefficient}).`);
+  warning(
+    color,
+    `Shared components: missing color argument in lighten(${color}, ${coefficient}).`
+  );
 
   if (!color) return color;
 

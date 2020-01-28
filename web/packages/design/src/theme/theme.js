@@ -23,7 +23,6 @@ const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
 
 const colors = {
-
   accent: '#FA2A6A',
 
   dark: '#000',
@@ -35,14 +34,14 @@ const colors = {
     light: '#222C59',
     lighter: '#373F64',
     dark: '#0C143D',
-    contrastText: '#FFFFFF'
+    contrastText: '#FFFFFF',
   },
 
   secondary: {
     main: '#00BFA5',
     light: '#00EAC3',
     dark: '#26A69A',
-    contrastText: '#FFFFFF'
+    contrastText: '#FFFFFF',
   },
 
   text: {
@@ -61,7 +60,7 @@ const colors = {
   },
 
   grey: {
-    ...blueGrey
+    ...blueGrey,
   },
 
   error: {
@@ -71,7 +70,7 @@ const colors = {
   },
 
   action: {
-    active: "#FFFFFF",
+    active: '#FFFFFF',
     hover: 'rgba(255, 255, 255, 0.1)',
     hoverOpacity: 0.1,
     selected: 'rgba(255, 255, 255, 0.2)',
@@ -82,12 +81,12 @@ const colors = {
   subtle: blueGrey[50],
   link: lightBlue[500],
   bgTerminal: '#010B1C',
-  danger:  pink.A400,
-  disabled:  blueGrey[500],
-  info:  lightBlue[600],
-  warning:  orange.A400,
-  success:  teal.A700,
-}
+  danger: pink.A400,
+  disabled: blueGrey[500],
+  info: lightBlue[600],
+  warning: orange.A400,
+  success: teal.A700,
+};
 
 const borders = [
   0,
@@ -112,8 +111,8 @@ const theme = {
   regular: fontWeights.regular,
   bold: fontWeights.bold,
   // disabled media queries for styled-system
-  breakpoints: []
-}
+  breakpoints: [],
+};
 
 export default theme;
 

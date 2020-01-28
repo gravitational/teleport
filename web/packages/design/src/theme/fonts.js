@@ -20,12 +20,12 @@ const fontMonoLinux = `"Droid Sans Mono", "monospace", monospace, "Droid Sans Fa
 const fontMonoWin = `Consolas, "Courier New", monospace`;
 const fontMonoMac = `Menlo, Monaco, "Courier New", monospace`;
 
-export const font = `Ubuntu2, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";`
+export const font = `Ubuntu2, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";`;
 
 export const fonts = {
   sansSerif: font,
-  mono: getMonoFont()
-}
+  mono: getMonoFont(),
+};
 
 function getMonoFont() {
   const platform = getPlatform();

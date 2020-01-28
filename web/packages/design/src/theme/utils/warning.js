@@ -21,7 +21,6 @@ limitations under the License.
  * LICENSE file in the root directory of this source tree.
  */
 
-
 /**
  * Similar to invariant but only logs a warning if the condition is not met.
  * This can be used to log issues in development environments in critical
@@ -43,7 +42,8 @@ if (__DEV__) {
       args[key - 2] = arguments[key];
     }
     var argIndex = 0;
-    var message = 'Warning: ' +
+    var message =
+      'Warning: ' +
       format.replace(/%s/g, function() {
         return args[argIndex++];
       });
@@ -55,10 +55,8 @@ if (__DEV__) {
       // This error was thrown as a convenience so that you can use this stack
       // to find the callsite that caused this warning to fire.
       throw new Error(message);
-    } catch (x) {
-
-    }
-  }
+    } catch (x) {}
+  };
 
   warning = function(condition, format, args) {
     var len = arguments.length;
@@ -68,7 +66,7 @@ if (__DEV__) {
     }
     if (format === undefined) {
       throw new Error(
-          '`warning(condition, format, ...args)` requires a warning ' +
+        '`warning(condition, format, ...args)` requires a warning ' +
           'message argument'
       );
     }

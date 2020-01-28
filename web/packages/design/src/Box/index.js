@@ -17,6 +17,3 @@ limitations under the License.
 import Box from './Box';
 
 export default Box;
-
-
-

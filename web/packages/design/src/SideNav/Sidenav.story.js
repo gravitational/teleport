@@ -14,26 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
-import { storiesOf } from '@storybook/react'
-import { withInfo } from '@storybook/addon-info'
-import SideNav, { SideNavItem } from '../SideNav'
+import React from 'react';
+import SideNav, { SideNavItem } from '../SideNav';
 
-storiesOf('Design/SideNav', module)
-  .addDecorator(withInfo)
-  .add('SideNav component', () => {
-    return (
-      <SideNav static>
-        <SideNavItem>
-          Item 1
-          </SideNavItem>
-        <SideNavItem>
-          Item 2
-          </SideNavItem>
-        <SideNavItem>
-          Item 3
-          </SideNavItem>
-      </SideNav>
-    );
-  });
+export default {
+  title: 'Design/SideNav',
+};
 
+export const Sample = () => (
+  <SideNav static>
+    <SideNavItem>Item 1</SideNavItem>
+    <SideNavItem>Item 2</SideNavItem>
+    <SideNavItem>Item 3</SideNavItem>
+  </SideNav>
+);

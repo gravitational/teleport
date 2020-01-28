@@ -23,66 +23,66 @@ export const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 34];
 export const fontWeights = { light, regular, bold };
 
 const typography = {
-  h1:{
+  h1: {
     fontWeight: light,
-    fontSize: "34px",
+    fontSize: '34px',
     lineHeight: '56px',
   },
   h2: {
     fontWeight: light,
-    fontSize: "26px",
+    fontSize: '26px',
     lineHeight: '40px',
   },
   h3: {
     fontWeight: regular,
-    fontSize: "20px",
+    fontSize: '20px',
     lineHeight: '32px',
   },
-  h4:{
+  h4: {
     fontWeight: regular,
-    fontSize: "18px",
+    fontSize: '18px',
     lineHeight: '32px',
   },
-  h5:{
+  h5: {
     fontWeight: regular,
-    fontSize: "16px",
+    fontSize: '16px',
     lineHeight: '24px',
   },
-  h6:{
+  h6: {
     fontWeight: bold,
-    fontSize: "14px",
+    fontSize: '14px',
     lineHeight: '24px',
   },
-  body1:{
+  body1: {
     fontWeight: regular,
-    fontSize: "14px",
+    fontSize: '14px',
     lineHeight: '24px',
   },
-  body2:{
+  body2: {
     fontWeight: regular,
-    fontSize: "12px",
+    fontSize: '12px',
     lineHeight: '16px',
   },
-  paragraph:{
+  paragraph: {
     fontWeight: light,
-    fontSize: "16px",
+    fontSize: '16px',
     lineHeight: '32px',
   },
-  paragraph2:{
+  paragraph2: {
     fontWeight: light,
-    fontSize: "12px",
+    fontSize: '12px',
     lineHeight: '24px',
   },
-  subtitle1:{
+  subtitle1: {
     fontWeight: regular,
-    fontSize: "14px",
+    fontSize: '14px',
     lineHeight: '24px',
   },
-  subtitle2:{
+  subtitle2: {
     fontWeight: bold,
-    fontSize: "10px",
+    fontSize: '10px',
     lineHeight: '16px',
-  }
-}
+  },
+};
 
 export default typography;

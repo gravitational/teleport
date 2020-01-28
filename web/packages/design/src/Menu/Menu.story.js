@@ -14,67 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
-import { storiesOf } from '@storybook/react'
+import React from 'react';
 import Menu from './Menu';
 import MenuItem from './MenuItem';
 import MenuItemIcon from './MenuItemIcon';
 import { ButtonPrimary } from '../Button';
 import Box from '../Box';
 import Flex from '../Flex';
-import  * as Icons from '../Icon';
+import * as Icons from '../Icon';
 
-storiesOf('Design/Menu', module)
-  .add('Menu', () => (
-    <Flex justifyContent="space-between">
-      <SimpleMenu text="Menu to right">
-        <MenuItem>
-          Test
-        </MenuItem>
-        <MenuItem>
-          Test2
-        </MenuItem>
-      </SimpleMenu>
-      <SimpleMenu text="Menu in center"
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}>
-        <MenuItem>
-          Test
-        </MenuItem>
-        <MenuItem>
-          Test2
-        </MenuItem>
-        <MenuItem>
-          <ButtonPrimary mt={2} mb={2} block> Logout</ButtonPrimary>
-        </MenuItem>
-      </SimpleMenu>
-      <SimpleMenu text="Menu to left"
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-      >
-        <MenuItem>
-          Test
-        </MenuItem>
-        <MenuItem>
-          Test2
-        </MenuItem>
-      </SimpleMenu>
-    </Flex>
-  ))
-.add('MenuItemIcon', () => (
-    <Menu
+export default {
+  title: 'Design/Menu',
+};
+
+export const PlacementExample = () => (
+  <Flex justifyContent="space-between">
+    <SimpleMenu text="Menu to right">
+      <MenuItem>Test</MenuItem>
+      <MenuItem>Test2</MenuItem>
+    </SimpleMenu>
+    <SimpleMenu
+      text="Menu in center"
       anchorOrigin={{
         vertical: 'bottom',
         horizontal: 'center',
@@ -83,24 +43,60 @@ storiesOf('Design/Menu', module)
         vertical: 'top',
         horizontal: 'center',
       }}
-      open={true}>
+    >
+      <MenuItem>Test</MenuItem>
+      <MenuItem>Test2</MenuItem>
       <MenuItem>
-        <MenuItemIcon as={Icons.Apple }/>
-        Test
+        <ButtonPrimary mt={2} mb={2} block>
+          Logout
+        </ButtonPrimary>
       </MenuItem>
-      <MenuItem>
-        <MenuItemIcon as={Icons.Cash }/>
-        Test
-      </MenuItem>
-      <MenuItem>
-        <MenuItemIcon as={Icons.CircleArrowLeft }/>
-        Test
-      </MenuItem>
-    </Menu>
-));
+    </SimpleMenu>
+    <SimpleMenu
+      text="Menu to left"
+      anchorOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+    >
+      <MenuItem>Test</MenuItem>
+      <MenuItem>Test2</MenuItem>
+    </SimpleMenu>
+  </Flex>
+);
+
+export const IconExample = () => (
+  <Menu
+    anchorOrigin={{
+      vertical: 'bottom',
+      horizontal: 'center',
+    }}
+    transformOrigin={{
+      vertical: 'top',
+      horizontal: 'center',
+    }}
+    open={true}
+  >
+    <MenuItem>
+      <MenuItemIcon as={Icons.Apple} />
+      Test
+    </MenuItem>
+    <MenuItem>
+      <MenuItemIcon as={Icons.Cash} />
+      Test
+    </MenuItem>
+    <MenuItem>
+      <MenuItemIcon as={Icons.CircleArrowLeft} />
+      Test
+    </MenuItem>
+  </Menu>
+);
 
 class SimpleMenu extends React.Component {
-
   state = {
     anchorEl: null,
   };
@@ -132,7 +128,7 @@ class SimpleMenu extends React.Component {
           open={Boolean(anchorEl)}
           onClose={this.handleClose}
         >
-          { children }
+          {children}
         </Menu>
       </Box>
     );

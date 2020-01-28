@@ -14,26 +14,76 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
-import { storiesOf } from '@storybook/react'
+import React from 'react';
 import LabelState from './LabelState';
 import Flex from './../Flex';
 
-storiesOf('Design/LabelState', module)
-  .add('LabelState', () => (
-    <Flex height="100px" bg="primary.main" justifyContent="center" alignItems="center">
-      <LabelState mr="4" kind="success">Primary</LabelState>
-      <LabelState mr="4" kind="secondary">Secondary</LabelState>
-      <LabelState mr="4" kind="warning">Warning</LabelState>
-      <LabelState mr="4" kind="danger">Danger</LabelState>
-    </Flex>
-  ))
-  .add('with shadow', () => (
-    <Flex height="100px" bg="primary.main" justifyContent="center" alignItems="center">
-      <LabelState shadow mr="4" kind="success">Primary</LabelState>
-      <LabelState shadow mr="4" kind="secondary">Secondary</LabelState>
-      <LabelState shadow mr="4" kind="warning">Warning</LabelState>
-      <LabelState shadow mr="4" kind="danger">Danger</LabelState>
-    </Flex>
-  ))
+export default {
+  title: 'Design/Label',
+};
 
+export const TagsStates = () => (
+  <Flex
+    height="100px"
+    bg="primary.main"
+    justifyContent="center"
+    alignItems="center"
+  >
+    <LabelState mr="4" kind="success">
+      Primary
+    </LabelState>
+    <LabelState mr="4" kind="secondary">
+      Secondary
+    </LabelState>
+    <LabelState mr="4" kind="warning">
+      Warning
+    </LabelState>
+    <LabelState mr="4" kind="danger">
+      Danger
+    </LabelState>
+  </Flex>
+);
+
+export const TagsStatesShadowed = () => (
+  <>
+    <Flex
+      height="100px"
+      bg="primary.main"
+      justifyContent="center"
+      alignItems="center"
+    >
+      <LabelState shadow mr="4" kind="success">
+        Primary
+      </LabelState>
+      <LabelState shadow mr="4" kind="secondary">
+        Secondary
+      </LabelState>
+      <LabelState shadow mr="4" kind="warning">
+        Warning
+      </LabelState>
+      <LabelState shadow mr="4" kind="danger">
+        Danger
+      </LabelState>
+    </Flex>
+    <Flex
+      height="100px"
+      bg="primary.lighter"
+      justifyContent="center"
+      alignItems="center"
+      mt={5}
+    >
+      <LabelState shadow mr="4" kind="success">
+        Primary
+      </LabelState>
+      <LabelState shadow mr="4" kind="secondary">
+        Secondary
+      </LabelState>
+      <LabelState shadow mr="4" kind="warning">
+        Warning
+      </LabelState>
+      <LabelState shadow mr="4" kind="danger">
+        Danger
+      </LabelState>
+    </Flex>
+  </>
+);

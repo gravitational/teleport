@@ -15,8 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import Image from '../Image';
 import teleportSvg from './../assets/images/gravity-medallion.svg';
 
-storiesOf('Design/Image', module).add('Component', () => <Image src={teleportSvg} />);
+export default {
+  title: 'Design/Image',
+};
+
+export const Logo = () => <Image src={teleportSvg} />;
