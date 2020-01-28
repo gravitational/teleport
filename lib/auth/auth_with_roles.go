@@ -1039,28 +1039,28 @@ func (a *AuthWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRe
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
 
-func (a *AuthWithRoles) CreateUserToken(ctx context.Context, req CreateUserTokenRequest) (services.UserToken, error) {
+func (a *AuthWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.UserTokenCreated, events.EventFields{
-		events.UserTokenFor: req.Name,
-		events.UserTokenTTL: req.TTL.String(),
+	a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
+		events.ResetPasswordTokenFor: req.Name,
+		events.ResetPasswordTokenTTL: req.TTL.String(),
 		events.EventUser:    a.user.GetName(),
 	})
 
-	return a.authServer.CreateUserToken(ctx, req)
+	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
 
-func (a *AuthWithRoles) GetUserToken(ctx context.Context, tokenID string) (services.UserToken, error) {
+func (a *AuthWithRoles) GetResetPasswordToken(ctx context.Context, tokenID string) (services.ResetPasswordToken, error) {
 	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.GetUserToken(ctx, tokenID)
+	return a.authServer.GetResetPasswordToken(ctx, tokenID)
 }
 
-func (a *AuthWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID string) (services.UserTokenSecrets, error) {
+func (a *AuthWithRoles) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error) {
 	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
+	return a.authServer.RotateResetPasswordTokenSecrets(ctx, tokenID)
 }
 
 func (a *AuthWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {

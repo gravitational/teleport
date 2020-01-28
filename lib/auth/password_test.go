@@ -194,13 +194,13 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	usertoken, err := s.a.CreateUserToken(context.TODO(), CreateUserTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)
 
 	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
-		TokenID:  usertoken.GetName(),
+		TokenID:  token.GetName(),
 		Password: password,
 	})
 	c.Assert(err, IsNil)
@@ -225,18 +225,18 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	userToken, err := s.a.CreateUserToken(context.TODO(), CreateUserTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
 		Name: username,
 	})
 
-	secrets, err := s.a.RotateUserTokenSecrets(context.TODO(), userToken.GetName())
+	secrets, err := s.a.RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
 	c.Assert(err, IsNil)
 
 	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
-		TokenID:           userToken.GetName(),
+		TokenID:           token.GetName(),
 		Password:          password,
 		SecondFactorToken: otpToken,
 	})
@@ -257,13 +257,13 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	userToken, err := s.a.CreateUserToken(context.TODO(), CreateUserTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)
 
 	validPassword := []byte("qweQWE1")
-	validTokenID := userToken.GetName()
+	validTokenID := token.GetName()
 
 	type testCase struct {
 		desc         string

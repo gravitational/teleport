@@ -1154,21 +1154,21 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	s.createUser(c, "user1", "root", "password", "")
 
 	// create password change token
-	token, err := s.server.Auth().CreateUserToken(context.TODO(), auth.CreateUserTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
 		Name: "user1",
 	})
 	c.Assert(err, IsNil)
 
 	clt := s.client()
-	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "usertokens", token.GetName()), url.Values{})
+	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "users", "password", "token", token.GetName()), url.Values{})
 	c.Assert(err, IsNil)
 
-	var uiToken *ui.UserToken
+	var uiToken *ui.ResetPasswordToken
 	c.Assert(json.Unmarshal(re.Bytes(), &uiToken), IsNil)
 	c.Assert(uiToken.User, Equals, token.GetUser())
 	c.Assert(uiToken.TokenID, Equals, token.GetName())
 
-	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
 	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), time.Now())
@@ -1180,7 +1180,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 		SecondFactorToken: secondFactorToken,
 	})
 
-	req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "usertoken"), bytes.NewBuffer(data))
+	req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(data))
 	c.Assert(err, IsNil)
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
@@ -1213,7 +1213,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	s.createUser(c, "user2", "root", "password", "")
 
 	// create reset password token
-	token, err := s.server.Auth().CreateUserToken(context.TODO(), auth.CreateUserTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
 		Name: "user2",
 	})
 	c.Assert(err, IsNil)
@@ -1234,7 +1234,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 		U2FRegisterResponse: *u2fRegResp,
 	})
 
-	req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "usertoken"), bytes.NewBuffer(data))
+	req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(data))
 	c.Assert(err, IsNil)
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
@@ -1269,7 +1269,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	s.createUser(c, "bob", "root", "password", "")
 
 	// create password change token
-	token, err := s.server.Auth().CreateUserToken(context.TODO(), auth.CreateUserTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
 		Name: "bob",
 	})
 	c.Assert(err, IsNil)

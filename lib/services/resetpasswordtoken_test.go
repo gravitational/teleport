@@ -25,23 +25,23 @@ import (
 	"gopkg.in/check.v1"
 )
 
-type UserTokenSuite struct{}
+type ResetPasswordTokenSuite struct{}
 
-var _ = check.Suite(&UserTokenSuite{})
+var _ = check.Suite(&ResetPasswordTokenSuite{})
 var _ = fmt.Printf
 
-func (s *UserTokenSuite) SetUpSuite(c *check.C) {
+func (s *ResetPasswordTokenSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 }
 
-func (s *UserTokenSuite) TestUnmarshal(c *check.C) {
+func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 	created, err := time.Parse(time.RFC3339, "2020-01-14T18:52:39.523076855Z")
 	c.Assert(err, check.IsNil)
 
 	type testCase struct {
 		description string
 		input       string
-		expected    UserToken
+		expected    ResetPasswordToken
 	}
 
 	testCases := []testCase{
@@ -61,13 +61,13 @@ func (s *UserTokenSuite) TestUnmarshal(c *check.C) {
           }
         }
       `,
-			expected: &UserTokenV3{
-				Kind:    KindUserToken,
+			expected: &ResetPasswordTokenV3{
+				Kind:    KindResetPasswordToken,
 				Version: V3,
 				Metadata: Metadata{
 					Name: "tokenId",
 				},
-				Spec: UserTokenSpecV3{
+				Spec: ResetPasswordTokenSpecV3{
 					Created: created,
 					User:    "example@example.com",
 					URL:     "https://localhost",
@@ -78,12 +78,12 @@ func (s *UserTokenSuite) TestUnmarshal(c *check.C) {
 
 	for _, tc := range testCases {
 		comment := check.Commentf("test case %q", tc.description)
-		out, err := UnmarshalUserToken([]byte(tc.input))
+		out, err := UnmarshalResetPasswordToken([]byte(tc.input))
 		c.Assert(err, check.IsNil, comment)
 		fixtures.DeepCompare(c, tc.expected, out)
-		data, err := MarshalUserToken(out)
+		data, err := MarshalResetPasswordToken(out)
 		c.Assert(err, check.IsNil, comment)
-		out2, err := UnmarshalUserToken(data)
+		out2, err := UnmarshalResetPasswordToken(data)
 		c.Assert(err, check.IsNil, comment)
 		fixtures.DeepCompare(c, tc.expected, out2)
 	}

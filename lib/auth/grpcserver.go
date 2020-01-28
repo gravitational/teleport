@@ -247,17 +247,17 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	return &empty.Empty{}, nil
 }
 
-func (g *GRPCServer) CreateUserToken(ctx context.Context, req *proto.CreateUserTokenRequest) (*services.UserTokenV3, error) {
+func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (*services.ResetPasswordTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
 	if req == nil {
-		req = &proto.CreateUserTokenRequest{}
+		req = &proto.CreateResetPasswordTokenRequest{}
 	}
 
-	usertoken, err := auth.CreateUserToken(ctx, CreateUserTokenRequest{
+	token, err := auth.CreateResetPasswordToken(ctx, CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		TTL:  time.Duration(req.TTL),
 		Type: req.Type,
@@ -266,16 +266,16 @@ func (g *GRPCServer) CreateUserToken(ctx context.Context, req *proto.CreateUserT
 		return nil, trace.Wrap(err)
 	}
 
-	r, ok := usertoken.(*services.UserTokenV3)
+	r, ok := token.(*services.ResetPasswordTokenV3)
 	if !ok {
-		err = trace.BadParameter("unexpected usertoken type %T", usertoken)
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", token)
 		return nil, trail.ToGRPC(err)
 	}
 
 	return r, nil
 }
 
-func (g *GRPCServer) RotateUserTokenSecrets(ctx context.Context, req *proto.RotateUserTokenSecretsRequest) (*services.UserTokenSecretsV3, error) {
+func (g *GRPCServer) RotateResetPasswordTokenSecrets(ctx context.Context, req *proto.RotateResetPasswordTokenSecretsRequest) (*services.ResetPasswordTokenSecretsV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -286,21 +286,21 @@ func (g *GRPCServer) RotateUserTokenSecrets(ctx context.Context, req *proto.Rota
 		tokenID = req.TokenID
 	}
 
-	secrets, err := auth.RotateUserTokenSecrets(ctx, tokenID)
+	secrets, err := auth.RotateResetPasswordTokenSecrets(ctx, tokenID)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	r, ok := secrets.(*services.UserTokenSecretsV3)
+	r, ok := secrets.(*services.ResetPasswordTokenSecretsV3)
 	if !ok {
-		err = trace.BadParameter("unexpected user token secrets type %T", secrets)
+		err = trace.BadParameter("unexpected ResetPasswordTokenSecrets type %T", secrets)
 		return nil, trail.ToGRPC(err)
 	}
 
 	return r, nil
 }
 
-func (g *GRPCServer) GetUserToken(ctx context.Context, req *proto.GetUserTokenRequest) (*services.UserTokenV3, error) {
+func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetResetPasswordTokenRequest) (*services.ResetPasswordTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -311,14 +311,14 @@ func (g *GRPCServer) GetUserToken(ctx context.Context, req *proto.GetUserTokenRe
 		tokenID = req.TokenID
 	}
 
-	usertoken, err := auth.GetUserToken(ctx, tokenID)
+	token, err := auth.GetResetPasswordToken(ctx, tokenID)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	r, ok := usertoken.(*services.UserTokenV3)
+	r, ok := token.(*services.ResetPasswordTokenV3)
 	if !ok {
-		err = trace.BadParameter("unexpected usertoken type %T", usertoken)
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", token)
 		return nil, trail.ToGRPC(err)
 	}
 

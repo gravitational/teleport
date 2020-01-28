@@ -209,23 +209,23 @@ type Identity interface {
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(stateToken string) (*GithubAuthRequest, error)
 
-	// DeleteUserToken deletes user token
-	CreateUserToken(ctx context.Context, usertoken UserToken) (UserToken, error)
+	// CreateResetPasswordToken creates a token
+	CreateResetPasswordToken(ctx context.Context, resetPasswordToken ResetPasswordToken) (ResetPasswordToken, error)
 
-	// DeleteUserToken deletes user token
-	DeleteUserToken(ctx context.Context, tokenID string) error
+	// DeleteResetPasswordToken deletes a token
+	DeleteResetPasswordToken(ctx context.Context, tokenID string) error
 
-	// GetUserTokens returns user tokens
-	GetUserTokens(ctx context.Context) ([]UserToken, error)
+	// GetResetPasswordTokens returns tokens
+	GetResetPasswordTokens(ctx context.Context) ([]ResetPasswordToken, error)
 
-	// GetUserToken returns user token
-	GetUserToken(ctx context.Context, tokenID string) (UserToken, error)
+	// GetResetPasswordToken returns a token
+	GetResetPasswordToken(ctx context.Context, tokenID string) (ResetPasswordToken, error)
 
-	// UpsertUserTokenSecrets upserts token secrets
-	UpsertUserTokenSecrets(ctx context.Context, secrets UserTokenSecrets) error
+	// UpsertResetPasswordTokenSecrets upserts token secrets
+	UpsertResetPasswordTokenSecrets(ctx context.Context, secrets ResetPasswordTokenSecrets) error
 
-	// GetUserTokenSecrets returns user token secrets
-	GetUserTokenSecrets(ctx context.Context, tokenID string) (UserTokenSecrets, error)
+	// GetResetPasswordTokenSecrets returns token secrets
+	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

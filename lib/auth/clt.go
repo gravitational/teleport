@@ -686,7 +686,7 @@ func (c *Client) GetToken(token string) (services.ProvisionToken, error) {
 }
 
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
-// could be a user token or a machine token
+// could be a reset password token or a machine token
 func (c *Client) DeleteToken(token string) error {
 	_, err := c.Delete(c.Endpoint("tokens", token))
 	return trace.Wrap(err)
@@ -1605,9 +1605,9 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *
 	return &u2fRegReq, nil
 }
 
-// ChangePasswordWithToken changes user password with usertoken
+// ChangePasswordWithToken changes user password with ResetPasswordToken
 func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("usertokens", "password"), req)
+	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2505,13 +2505,13 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req services.AccessReq
 	return nil
 }
 
-func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (services.UserTokenSecrets, error) {
+func (c *Client) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error) {
 	clt, err := c.grpc()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := clt.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
+	secrets, err := clt.RotateResetPasswordTokenSecrets(ctx, &proto.RotateResetPasswordTokenSecretsRequest{
 		TokenID: tokenID,
 	})
 	if err != nil {
@@ -2521,30 +2521,30 @@ func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (se
 	return secrets, nil
 }
 
-func (c *Client) GetUserToken(ctx context.Context, tokenID string) (services.UserToken, error) {
+func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (services.ResetPasswordToken, error) {
 	clt, err := c.grpc()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	usertoken, err := clt.GetUserToken(ctx, &proto.GetUserTokenRequest{
+	token, err := clt.GetResetPasswordToken(ctx, &proto.GetResetPasswordTokenRequest{
 		TokenID: tokenID,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 
-	return usertoken, nil
+	return token, nil
 }
 
-// CreateUserToken creates user token
-func (c *Client) CreateUserToken(ctx context.Context, req CreateUserTokenRequest) (services.UserToken, error) {
+// CreateResetPasswordToken creates reset password token
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
 	clt, err := c.grpc()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	usertoken, err := clt.CreateUserToken(ctx, &proto.CreateUserTokenRequest{
+	token, err := clt.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		TTL:  proto.Duration(req.TTL),
 		Type: req.Type,
@@ -2553,7 +2553,7 @@ func (c *Client) CreateUserToken(ctx context.Context, req CreateUserTokenRequest
 		return nil, trail.FromGRPC(err)
 	}
 
-	return usertoken, nil
+	return token, nil
 }
 
 func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
@@ -2710,17 +2710,17 @@ type IdentityService interface {
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
 
-	// CreateUserToken creates a new user reset token
-	CreateUserToken(ctx context.Context, req CreateUserTokenRequest) (services.UserToken, error)
+	// CreateResetPasswordToken creates a new user reset token
+	CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error)
 
-	// ChangePasswordWithToken changes password with user token
+	// ChangePasswordWithToken changes password with token
 	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error)
 
-	// GetUserToken returns user token
-	GetUserToken(ctx context.Context, username string) (services.UserToken, error)
+	// GetResetPasswordToken returns token
+	GetResetPasswordToken(ctx context.Context, username string) (services.ResetPasswordToken, error)
 
-	// RotateUserTokenSecrets rotates user token secrets for a given tokenID
-	RotateUserTokenSecrets(ctx context.Context, tokenID string) (services.UserTokenSecrets, error)
+	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
+	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error)
 }
 
 // ProvisioningService is a service in control
@@ -2733,7 +2733,7 @@ type ProvisioningService interface {
 	GetToken(token string) (services.ProvisionToken, error)
 
 	// DeleteToken deletes a given provisioning token on the auth server (CA). It
-	// could be a user token or a machine token
+	// could be a reset password token or a machine token
 	DeleteToken(token string) error
 
 	// DeleteAllTokens deletes all provisioning tokens

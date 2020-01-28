@@ -176,10 +176,10 @@ var (
 		Name: SessionNetworkEvent,
 		Code: SessionNetworkCode,
 	}
-	// UserTokenCreated is emitted when user token is created.
-	UserTokenCreated = Event{
-		Name: UserTokenCreateEvent,
-		Code: UserTokenCreateCode,
+	// ResetPasswordTokenCreated is emitted when token is created.
+	ResetPasswordTokenCreated = Event{
+		Name: ResetPasswordTokenCreateEvent,
+		Code: ResetPasswordTokenCreateCode,
 	}
 )
 
@@ -244,6 +244,6 @@ var (
 	AccessRequestCreateCode = "T5000I"
 	// AccessRequestUpdateCode is the access request state update code.
 	AccessRequestUpdateCode = "T5001I"
-	// UserTokenCreateCode is the user token create event code.
-	UserTokenCreateCode = "T6000I"
+	// ResetPasswordTokenCreateCode is the token create event code.
+	ResetPasswordTokenCreateCode = "T6000I"
 )

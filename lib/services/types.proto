@@ -371,23 +371,23 @@ message Namespace  {
 message NamespaceSpec {
 }
 
-message UserTokenV3  {
+message ResetPasswordTokenV3  {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
-    // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
-    // SubKind is an optional resource sub kind, used in some resources
+		// Kind is a resource kind
+		string Kind = 1 [(gogoproto.jsontag) = "kind"];
+		// SubKind is an optional resource sub kind, used in some resources
 		string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 		// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-		// Metadata is AccessRequest metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
-    // Spec is an AccessReqeust specification
-    UserTokenSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+		string Version = 3 [(gogoproto.jsontag) = "version"];
+		// Metadata is ResetPasswordToken metadata
+		Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+		// Spec is an ResetPasswordToken specification
+		ResetPasswordTokenSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
 }
 
-message UserTokenSpecV3 {
+message ResetPasswordTokenSpecV3 {
 		// User is user name associated with this token
     string User = 1 [(gogoproto.jsontag) = "user"];
 		// URL is this token URL
@@ -396,7 +396,7 @@ message UserTokenSpecV3 {
 		google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "created,omitempty"];
 }
 
-message UserTokenSecretsV3  {
+message ResetPasswordTokenSecretsV3  {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
@@ -406,13 +406,13 @@ message UserTokenSecretsV3  {
 		string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 		// Version is version
     string Version = 3 [(gogoproto.jsontag) = "version"];
-		// Metadata is AccessRequest metadata
+		// Metadata is ResetPasswordTokenSecrets metadata
     Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
-    // Spec is an AccessReqeust specification
-    UserTokenSecretsSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    // Spec is an ResetPasswordTokenSecrets specification
+    ResetPasswordTokenSecretsSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
 }
 
-message UserTokenSecretsSpecV3 {
+message ResetPasswordTokenSecretsSpecV3 {
 		// OTPKey is is a secret value of one time password secret generator
     string OTPKey = 1 [(gogoproto.jsontag) = "opt_key"];
 		// OTPKey is is a secret value of one time password secret generator

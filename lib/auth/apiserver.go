@@ -102,7 +102,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
-	srv.POST("/:version/usertokens/password", srv.withRate(srv.withAuth(srv.changePasswordWithToken)))
+	srv.POST("/:version/web/password/token", srv.withRate(srv.withAuth(srv.changePasswordWithToken)))
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
@@ -1127,7 +1127,7 @@ func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter,
 
 	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
 	if err != nil {
-		log.Debugf("failed to change user password with token: %v", err)
+		log.Debugf("Failed to change user password with token: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 

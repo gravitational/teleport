@@ -168,10 +168,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
-	h.GET("/webapi/usertokens/:token", httplib.MakeHandler(h.getUserTokenHandle))
-	h.PUT("/webapi/users/password/usertoken", httplib.WithCSRFProtection(h.changePasswordWithToken))
+	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
+	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
-	h.POST("/webapi/sites/:site/namespaces/:namespace/usertokens", h.WithClusterAuth(h.createUserToken))
+	h.POST("/webapi/sites/:site/namespaces/:namespace/users/password/token", h.WithClusterAuth(h.createResetPasswordToken))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -1185,19 +1185,19 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 	return NewSessionResponse(ctx)
 }
 
-func (h *Handler) createUserToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var req auth.CreateUserTokenRequest
+	var req auth.CreateResetPasswordTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	userToken, err := clt.CreateUserToken(context.TODO(),
-		auth.CreateUserTokenRequest{
+	token, err := clt.CreateResetPasswordToken(context.TODO(),
+		auth.CreateResetPasswordTokenRequest{
 			Name: req.Name,
 			Type: req.Type,
 		})
@@ -1206,16 +1206,16 @@ func (h *Handler) createUserToken(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.UserToken{
-		URL:    userToken.GetURL(),
-		Expiry: userToken.Expiry(),
+	return ui.ResetPasswordToken{
+		URL:    token.GetURL(),
+		Expiry: token.Expiry(),
 	}, nil
 }
 
-func (h *Handler) getUserTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	result, err := h.getUserToken(context.TODO(), p.ByName("token"))
+func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	result, err := h.getResetPasswordToken(context.TODO(), p.ByName("token"))
 	if err != nil {
-		log.Warnf("Failed to fetch user token: %v.", err)
+		log.Warnf("Failed to fetch a reset password token: %v.", err)
 		// We hide the error from the remote user to avoid giving any hints.
 		return nil, trace.AccessDenied("bad or expired token")
 	}
@@ -1223,21 +1223,25 @@ func (h *Handler) getUserTokenHandle(w http.ResponseWriter, r *http.Request, p h
 	return result, nil
 }
 
-func (h *Handler) getUserToken(ctx context.Context, tokenID string) (interface{}, error) {
-	userToken, err := h.auth.proxyClient.GetUserToken(ctx, tokenID)
+func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (interface{}, error) {
+	token, err := h.auth.proxyClient.GetResetPasswordToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// rotate secrets each time when requested (security)
-	secrets, err := h.auth.proxyClient.RotateUserTokenSecrets(ctx, tokenID)
+	// RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
+	// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
+	// This ensures that an attacker that gains the ResetPasswordToken link can not view it,
+	// extract the OTP key from the QR code, then allow the user to signup with
+	// the same OTP token.
+	secrets, err := h.auth.proxyClient.RotateResetPasswordTokenSecrets(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.UserToken{
-		TokenID: userToken.GetName(),
-		User:    userToken.GetUser(),
+	return ui.ResetPasswordToken{
+		TokenID: token.GetName(),
+		User:    token.GetUser(),
 		QRCode:  secrets.GetQRCode(),
 	}, nil
 }

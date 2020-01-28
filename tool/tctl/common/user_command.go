@@ -113,12 +113,12 @@ func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ChangePassword resets user password and generates a token to setup new password
 func (u *UserCommand) ChangePassword(client auth.ClientI) error {
-	req := auth.CreateUserTokenRequest{
+	req := auth.CreateResetPasswordTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.UserTokenTypePasswordChange,
+		Type: auth.ResetPasswordTokenTypePassword,
 	}
-	token, err := client.CreateUserToken(context.TODO(), req)
+	token, err := client.CreateResetPasswordToken(context.TODO(), req)
 	if err != nil {
 		return err
 	}
@@ -179,10 +179,10 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 		return err
 	}
 
-	token, err := client.CreateUserToken(context.TODO(), auth.CreateUserTokenRequest{
+	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.UserTokenTypeInvite,
+		Type: auth.ResetPasswordTokenTypeInvite,
 	})
 	if err != nil {
 		return err
@@ -207,10 +207,10 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	return nil
 }
 
-func printTokenAsJSON(token services.UserToken) error {
+func printTokenAsJSON(token services.ResetPasswordToken) error {
 	out, err := json.MarshalIndent(token, "", "  ")
 	if err != nil {
-		return trace.Wrap(err, "failed to marshal user token")
+		return trace.Wrap(err, "failed to marshal reset password token")
 	}
 	fmt.Printf(string(out))
 	return nil

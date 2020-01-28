@@ -31,22 +31,22 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type UserTokenTest struct {
+type ResetPasswordTokenTest struct {
 	bk backend.Backend
 	a  *AuthServer
 }
 
 var _ = fmt.Printf
-var _ = Suite(&UserTokenTest{})
+var _ = Suite(&ResetPasswordTokenTest{})
 
-func (s *UserTokenTest) SetUpSuite(c *C) {
+func (s *ResetPasswordTokenTest) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 }
 
-func (s *UserTokenTest) TearDownSuite(c *C) {
+func (s *ResetPasswordTokenTest) TearDownSuite(c *C) {
 }
 
-func (s *UserTokenTest) SetUpTest(c *C) {
+func (s *ResetPasswordTokenTest) SetUpTest(c *C) {
 	var err error
 	c.Assert(err, IsNil)
 	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
@@ -79,21 +79,21 @@ func (s *UserTokenTest) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *UserTokenTest) TearDownTest(c *C) {
+func (s *ResetPasswordTokenTest) TearDownTest(c *C) {
 }
 
-func (s *UserTokenTest) TestCreateUserToken(c *C) {
+func (s *ResetPasswordTokenTest) TestCreateResetPasswordToken(c *C) {
 	username := "joe@example.com"
 	pass := "pass123"
 	_, _, err := CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	req := CreateUserTokenRequest{
+	req := CreateResetPasswordTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	}
 
-	token, err := s.a.CreateUserToken(context.TODO(), req)
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), req)
 	c.Assert(err, IsNil)
 	c.Assert(token.GetUser(), Equals, username)
 	c.Assert(token.GetURL(), Equals, "https://<proxyhost>:3080/web/reset/"+token.GetName())
@@ -103,66 +103,66 @@ func (s *UserTokenTest) TestCreateUserToken(c *C) {
 	c.Assert(err, NotNil)
 
 	// create another reset token for the same user
-	token, err = s.a.CreateUserToken(context.TODO(), req)
+	token, err = s.a.CreateResetPasswordToken(context.TODO(), req)
 	c.Assert(err, IsNil)
 
 	// previous token must be deleted
-	tokens, err := s.a.GetUserTokens(context.TODO())
+	tokens, err := s.a.GetResetPasswordTokens(context.TODO())
 	c.Assert(err, IsNil)
 	c.Assert(len(tokens), Equals, 1)
 	c.Assert(tokens[0].GetName(), Equals, token.GetName())
 }
 
-func (s *UserTokenTest) TestCreateUserTokenErrors(c *C) {
+func (s *ResetPasswordTokenTest) TestCreateResetPasswordTokenErrors(c *C) {
 	username := "joe@example.com"
 	_, _, err := CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
 	type testCase struct {
 		desc string
-		req  CreateUserTokenRequest
+		req  CreateResetPasswordTokenRequest
 	}
 
 	testCases := []testCase{
 		{
 			desc: "Reset Password: TTL < 0",
-			req: CreateUserTokenRequest{
+			req: CreateResetPasswordTokenRequest{
 				Name: username,
 				TTL:  -1,
 			},
 		},
 		{
 			desc: "Reset Password: TTL > max",
-			req: CreateUserTokenRequest{
+			req: CreateResetPasswordTokenRequest{
 				Name: username,
 				TTL:  defaults.MaxChangePasswordTokenTTL + time.Hour,
 			},
 		},
 		{
 			desc: "Reset Password: empty user name",
-			req: CreateUserTokenRequest{
+			req: CreateResetPasswordTokenRequest{
 				TTL: time.Hour,
 			},
 		},
 		{
 			desc: "Reset Password: user does not exist",
-			req: CreateUserTokenRequest{
+			req: CreateResetPasswordTokenRequest{
 				Name: "doesnotexist@example.com",
 				TTL:  time.Hour,
 			},
 		},
 		{
 			desc: "Invite: TTL > max",
-			req: CreateUserTokenRequest{
+			req: CreateResetPasswordTokenRequest{
 				Name: username,
 				TTL:  defaults.MaxSignupTokenTTL + time.Hour,
-				Type: UserTokenTypeInvite,
+				Type: ResetPasswordTokenTypeInvite,
 			},
 		},
 	}
 
 	for _, tc := range testCases {
-		_, err := s.a.CreateUserToken(context.TODO(), tc.req)
+		_, err := s.a.CreateResetPasswordToken(context.TODO(), tc.req)
 		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
 	}
 }

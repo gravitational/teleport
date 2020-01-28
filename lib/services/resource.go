@@ -162,11 +162,11 @@ const (
 	// to proxy
 	KindRemoteCluster = "remote_cluster"
 
-	// KindUserToken is a token used to change user passwords
-	KindUserToken = "user_token"
+	// KindResetPasswordToken is a token used to change user passwords
+	KindResetPasswordToken = "user_token"
 
-	// KindUserTokenSecrets is user token secrets used to change passwords
-	KindUserTokenSecrets = "user_token_secrets"
+	// KindResetPasswordTokenSecrets is reset password token secrets
+	KindResetPasswordTokenSecrets = "reset_password_token_secrets"
 
 	// KindIdentity is local on disk identity resource
 	KindIdentity = "identity"

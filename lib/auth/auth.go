@@ -1194,8 +1194,8 @@ func (s *AuthServer) DeleteToken(token string) (err error) {
 			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
 		}
 	}
-	// delete user token:
-	if err = s.Identity.DeleteUserToken(context.TODO(), token); err == nil {
+	// delete reset password token:
+	if err = s.Identity.DeleteResetPasswordToken(context.TODO(), token); err == nil {
 		return nil
 	}
 	// delete node token:
@@ -1221,13 +1221,13 @@ func (s *AuthServer) GetTokens(opts ...services.MarshalOption) (tokens []service
 	if err == nil {
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
-	// get user tokens:
-	userTokens, err := s.Identity.GetUserTokens(context.TODO())
+	// get reset password tokens:
+	resetPasswordTokens, err := s.Identity.GetResetPasswordTokens(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// convert user tokens to machine tokens:
-	for _, t := range userTokens {
+	// convert reset password tokens to machine tokens:
+	for _, t := range resetPasswordTokens {
 		roles := teleport.Roles{teleport.RoleSignup}
 		tok, err := services.NewProvisionToken(t.GetName(), roles, t.Expiry())
 		if err != nil {

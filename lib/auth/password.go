@@ -31,7 +31,7 @@ type ChangePasswordWithTokenRequest struct {
 	U2FRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
 }
 
-// ChangePasswordWithToken changes password with user token
+// ChangePasswordWithToken changes password with token
 func (s *AuthServer) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
 	user, err := s.changePasswordWithToken(ctx, req)
 	if err != nil {
@@ -228,7 +228,7 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(tokenID string) (u2fRegister
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.GetUserToken(context.TODO(), tokenID)
+	_, err = s.GetResetPasswordToken(context.TODO(), tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -276,25 +276,24 @@ func (s *AuthServer) changePasswordWithToken(ctx context.Context, req ChangePass
 	}
 
 	// Check if token exists.
-	userToken, err := s.GetUserToken(ctx, req.TokenID)
+	token, err := s.GetResetPasswordToken(ctx, req.TokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if userToken.Expiry().Before(s.clock.Now().UTC()) {
+	if token.Expiry().Before(s.clock.Now().UTC()) {
 		return nil, trace.BadParameter("expired token")
 	}
 
-	err = s.changeUserSecondFactor(req, userToken)
+	err = s.changeUserSecondFactor(req, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	username := userToken.GetUser()
-
+	username := token.GetUser()
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	err = s.deleteUserTokens(ctx, username)
+	err = s.deleteResetPasswordTokens(ctx, username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,8 +312,8 @@ func (s *AuthServer) changePasswordWithToken(ctx context.Context, req ChangePass
 	return user, nil
 }
 
-func (s *AuthServer) changeUserSecondFactor(req ChangePasswordWithTokenRequest, userToken services.UserToken) error {
-	username := userToken.GetUser()
+func (s *AuthServer) changeUserSecondFactor(req ChangePasswordWithTokenRequest, ResetPasswordToken services.ResetPasswordToken) error {
+	username := ResetPasswordToken.GetUser()
 	cap, err := s.GetAuthPreference()
 	if err != nil {
 		return trace.Wrap(err)
@@ -324,7 +323,7 @@ func (s *AuthServer) changeUserSecondFactor(req ChangePasswordWithTokenRequest, 
 	case teleport.OFF:
 		return nil
 	case teleport.OTP, teleport.TOTP, teleport.HOTP:
-		secrets, err := s.Identity.GetUserTokenSecrets(context.TODO(), req.TokenID)
+		secrets, err := s.Identity.GetResetPasswordTokenSecrets(context.TODO(), req.TokenID)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -25,8 +25,8 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// UserTokenSecrets contains secrets of user token
-type UserTokenSecrets interface {
+// ResetPasswordTokenSecrets contains token secrets
+type ResetPasswordTokenSecrets interface {
 	// Resource provides common resource properties
 	Resource
 	// GetCreated returns Created
@@ -40,94 +40,94 @@ type UserTokenSecrets interface {
 }
 
 // GetName returns Name
-func (u *UserTokenSecretsV3) GetName() string {
+func (u *ResetPasswordTokenSecretsV3) GetName() string {
 	return u.Metadata.Name
 }
 
 // GetCreated returns Created
-func (u *UserTokenSecretsV3) GetCreated() time.Time {
+func (u *ResetPasswordTokenSecretsV3) GetCreated() time.Time {
 	return u.Spec.Created
 }
 
 // GetOTPKey returns OTP Key
-func (u *UserTokenSecretsV3) GetOTPKey() string {
+func (u *ResetPasswordTokenSecretsV3) GetOTPKey() string {
 	return u.Spec.OTPKey
 }
 
 // GetQRCode returns QRCode
-func (u *UserTokenSecretsV3) GetQRCode() []byte {
+func (u *ResetPasswordTokenSecretsV3) GetQRCode() []byte {
 	return []byte(u.Spec.QRCode)
 }
 
 // Expiry returns object expiry setting
-func (u *UserTokenSecretsV3) Expiry() time.Time {
+func (u *ResetPasswordTokenSecretsV3) Expiry() time.Time {
 	return u.Metadata.Expiry()
 }
 
 // SetExpiry sets object expiry
-func (u *UserTokenSecretsV3) SetExpiry(t time.Time) {
+func (u *ResetPasswordTokenSecretsV3) SetExpiry(t time.Time) {
 	u.Metadata.SetExpiry(t)
 }
 
 // SetTTL sets Expires header using current clock
-func (u *UserTokenSecretsV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (u *ResetPasswordTokenSecretsV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
 	u.Metadata.SetTTL(clock, ttl)
 }
 
 // GetMetadata returns object metadata
-func (u *UserTokenSecretsV3) GetMetadata() Metadata {
+func (u *ResetPasswordTokenSecretsV3) GetMetadata() Metadata {
 	return u.Metadata
 }
 
 // GetVersion returns resource version
-func (u *UserTokenSecretsV3) GetVersion() string {
+func (u *ResetPasswordTokenSecretsV3) GetVersion() string {
 	return u.Version
 }
 
 // GetKind returns resource kind
-func (u *UserTokenSecretsV3) GetKind() string {
+func (u *ResetPasswordTokenSecretsV3) GetKind() string {
 	return u.Kind
 }
 
 // SetName sets the name of the resource
-func (u *UserTokenSecretsV3) SetName(name string) {
+func (u *ResetPasswordTokenSecretsV3) SetName(name string) {
 	u.Metadata.Name = name
 }
 
 // GetResourceID returns resource ID
-func (u *UserTokenSecretsV3) GetResourceID() int64 {
+func (u *ResetPasswordTokenSecretsV3) GetResourceID() int64 {
 	return u.Metadata.ID
 }
 
 // SetResourceID sets resource ID
-func (u *UserTokenSecretsV3) SetResourceID(id int64) {
+func (u *ResetPasswordTokenSecretsV3) SetResourceID(id int64) {
 	u.Metadata.ID = id
 }
 
 // GetSubKind returns resource sub kind
-func (u *UserTokenSecretsV3) GetSubKind() string {
+func (u *ResetPasswordTokenSecretsV3) GetSubKind() string {
 	return u.SubKind
 }
 
 // SetSubKind sets resource subkind
-func (u *UserTokenSecretsV3) SetSubKind(s string) {
+func (u *ResetPasswordTokenSecretsV3) SetSubKind(s string) {
 	u.SubKind = s
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
-func (u UserTokenSecretsV3) CheckAndSetDefaults() error {
+func (u ResetPasswordTokenSecretsV3) CheckAndSetDefaults() error {
 	return u.Metadata.CheckAndSetDefaults()
 }
 
-// // String represents a human readable version of the user token secrets
-func (u *UserTokenSecretsV3) String() string {
-	return fmt.Sprintf("UserTokenSecretsV3(tokenID=%v, opt_key=%v, qr_code=%v)", u.GetName(), u.Spec.OTPKey, u.Spec.QRCode)
+// // String represents a human readable version of the token secrets
+func (u *ResetPasswordTokenSecretsV3) String() string {
+	return fmt.Sprintf("ResetPasswordTokenSecretsV3(tokenID=%v, opt_key=%v, qr_code=%v)", u.GetName(), u.Spec.OTPKey, u.Spec.QRCode)
 }
 
-// NewUserTokenSecrets creates an instance of UserTokenSecrets
-func NewUserTokenSecrets(tokenID string) (UserTokenSecretsV3, error) {
-	secrets := UserTokenSecretsV3{
-		Kind:    KindUserTokenSecrets,
+// NewResetPasswordTokenSecrets creates an instance of ResetPasswordTokenSecrets
+func NewResetPasswordTokenSecrets(tokenID string) (ResetPasswordTokenSecretsV3, error) {
+	secrets := ResetPasswordTokenSecretsV3{
+		Kind:    KindResetPasswordTokenSecrets,
 		Version: V3,
 		Metadata: Metadata{
 			Name: tokenID,
@@ -136,14 +136,14 @@ func NewUserTokenSecrets(tokenID string) (UserTokenSecretsV3, error) {
 
 	err := secrets.CheckAndSetDefaults()
 	if err != nil {
-		return UserTokenSecretsV3{}, trace.Wrap(err)
+		return ResetPasswordTokenSecretsV3{}, trace.Wrap(err)
 	}
 
 	return secrets, nil
 }
 
-// UserTokenSecretsSpecV3Template is a template for V3 UserTokenSecrets JSON schema
-const UserTokenSecretsSpecV3Template = `{
+// ResetPasswordTokenSecretsSpecV3Template is a template for V3 ResetPasswordTokenSecrets JSON schema
+const ResetPasswordTokenSecretsSpecV3Template = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -159,24 +159,24 @@ const UserTokenSecretsSpecV3Template = `{
   }
 }`
 
-// UnmarshalUserTokenSecrets unmarshals UserTokenSecrets
-func UnmarshalUserTokenSecrets(bytes []byte) (UserTokenSecrets, error) {
+// UnmarshalResetPasswordTokenSecrets unmarshals ResetPasswordTokenSecrets
+func UnmarshalResetPasswordTokenSecrets(bytes []byte) (ResetPasswordTokenSecrets, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, UserTokenSecretsSpecV3Template, DefaultDefinitions)
+	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ResetPasswordTokenSecretsSpecV3Template, DefaultDefinitions)
 
-	var usertokenSecrets UserTokenSecretsV3
-	err := utils.UnmarshalWithSchema(schema, &usertokenSecrets, bytes)
+	var secrets ResetPasswordTokenSecretsV3
+	err := utils.UnmarshalWithSchema(schema, &secrets, bytes)
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 
-	return &usertokenSecrets, nil
+	return &secrets, nil
 }
 
-// MarshalUserTokenSecrets marshals role to JSON or YAML.
-func MarshalUserTokenSecrets(usertokenSecrets UserTokenSecrets, opts ...MarshalOption) ([]byte, error) {
-	return utils.FastMarshal(usertokenSecrets)
+// MarshalResetPasswordTokenSecrets marshals role to JSON or YAML.
+func MarshalResetPasswordTokenSecrets(secrets ResetPasswordTokenSecrets, opts ...MarshalOption) ([]byte, error) {
+	return utils.FastMarshal(secrets)
 }

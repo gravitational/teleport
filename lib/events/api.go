@@ -173,12 +173,12 @@ const (
 	// AccessRequestID is the ID of an access request.
 	AccessRequestID = "id"
 
-	// UserTokenCreateEvent is emitted when a new user token created.
-	UserTokenCreateEvent = "usertoken.create"
-	// UserTokenTTL is TTL of user token.
-	UserTokenTTL = "ttl"
-	// UserTokenFor is a user name
-	UserTokenFor = "entity"
+	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
+	ResetPasswordTokenCreateEvent = "reset_password_token.create"
+	// ResetPasswordTokenTTL is TTL of reset password token.
+	ResetPasswordTokenTTL = "ttl"
+	// ResetPasswordTokenFor is a user name of reset password token.
+	ResetPasswordTokenFor = "entity"
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side

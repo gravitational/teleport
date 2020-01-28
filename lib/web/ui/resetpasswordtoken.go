@@ -18,8 +18,8 @@ package ui
 
 import "time"
 
-// UserToken describes UserToken UI object
-type UserToken struct {
+// ResetPasswordToken describes ResetPasswordToken UI object
+type ResetPasswordToken struct {
 	// TokenID is token ID
 	TokenID string `json:"tokenId"`
 	// User is user name associated with this token

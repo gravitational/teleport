@@ -142,23 +142,23 @@ message RequestID {
     string ID = 1 [(gogoproto.jsontag) = "id"];
 }
 
-// RotateUserTokenSecretsRequest is a request to rotate user token secrets.
-message RotateUserTokenSecretsRequest {
+// RotateResetPasswordTokenSecretsRequest is a request to rotate token secrets.
+message RotateResetPasswordTokenSecretsRequest {
     string TokenID = 1 [(gogoproto.jsontag) = "token"];
 }
 
-// GetUserTokenRequest is a request to get user token.
-message GetUserTokenRequest {
+// GetResetPasswordTokenRequest is a request to get a reset password token.
+message GetResetPasswordTokenRequest {
     string TokenID = 1 [(gogoproto.jsontag) = "token"];
 }
 
-// CreateUserTokenRequest is a request to create an instance of UserToken
-message CreateUserTokenRequest {
-    // Name is the user name to reset.
+// CreateResetPasswordTokenRequest is a request to create an instance of ResetPasswordToken
+message CreateResetPasswordTokenRequest {
+    // Name is the user name.
     string Name = 1 [(gogoproto.jsontag) = "name"];
-    // Type is user token type.
+    // Type is a token type.
     string Type = 2 [(gogoproto.jsontag) = "type"];
-    // TTL specifies how long the generated reset token is valid for.
+    // TTL specifies how long the generated token is valid for.
     int64 TTL = 3 [(gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration"];
 }
 
@@ -184,10 +184,10 @@ service AuthService {
     rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
     // SetAccessRequestState sets the state of an access request.
     rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
-    // RotateUserTokenSecrets rotates user token secrets for a given tokenID.
-    rpc RotateUserTokenSecrets(RotateUserTokenSecretsRequest) returns (services.UserTokenSecretsV3);
-    // GetUserToken returns user token.
-    rpc GetUserToken(GetUserTokenRequest) returns (services.UserTokenV3);
-    // CreateUserToken creates UserToken.
-    rpc CreateUserToken(CreateUserTokenRequest) returns (services.UserTokenV3);
+    // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
+    rpc RotateResetPasswordTokenSecrets(RotateResetPasswordTokenSecretsRequest) returns (services.ResetPasswordTokenSecretsV3);
+    // GetResetPasswordToken returns a token.
+    rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (services.ResetPasswordTokenV3);
+    // CreateResetPasswordToken creates ResetPasswordToken.
+    rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (services.ResetPasswordTokenV3);
 }
