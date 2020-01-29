@@ -108,7 +108,7 @@ yet. Let's create one for your OS user. In this example the OS user is
     do not map to a real OS user you will get authentication errors later on in
     this tutorial!
 
-```
+```bash
 # A new Teleport user will be assigned a
 # mapping to an OS user of the same name
 # This is the same as running `tctl users add teleport teleport`

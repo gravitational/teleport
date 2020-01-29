@@ -140,7 +140,8 @@ cryptographic module (BoringCrypto) and fails to start if it was not.
 
 ### FedRAMP Audit Log
 
-. At the close of a connection (close of a *srv.ServerContext) the total data transmitted and received is emitted to the Audit Log.
+At the close of a connection (close of a *srv.ServerContext) the total data transmitted and received 
+is emitted to the Audit Log.
 
 
 
