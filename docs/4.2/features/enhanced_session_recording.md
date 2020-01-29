@@ -208,22 +208,22 @@ auth_service:
   enabled: false
 ssh_service:
   enabled: true
-    enhanced_recording:
-       # Enable or disable enhanced auditing for this node. Default value: false.
-       enabled: true
-    
-       # Optional: command_buffer_size is optional with a default value of 8 pages. 
-       command_buffer_size: 8
+  enhanced_recording:
+    # Enable or disable enhanced auditing for this node. Default value: false.
+    enabled: true
 
-       # Optional: disk_buffer_size is optional with default value of 128 pages.
-       disk_buffer_size: 128
+    # Optional: command_buffer_size is optional with a default value of 8 pages. 
+    command_buffer_size: 8
 
-       # Optional: network_buffer_size is optional with default value of 8 pages.
-       network_buffer_size: 8
+    # Optional: disk_buffer_size is optional with default value of 128 pages.
+    disk_buffer_size: 128
 
-       # Optional: Controls where cgroupv2 hierarchy is mounted. Default value: 
-       # /cgroup2.
-       cgroup_path: /cgroup2
+    # Optional: network_buffer_size is optional with default value of 8 pages.
+    network_buffer_size: 8
+
+    # Optional: Controls where cgroupv2 hierarchy is mounted. Default value: 
+    # /cgroup2.
+    cgroup_path: /cgroup2
 ```
 
 ## 4. Test by logging into node via Teleport.
