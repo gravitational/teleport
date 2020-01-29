@@ -60,7 +60,7 @@ func (x Operation) String() string {
 	return proto.EnumName(Operation_name, int32(x))
 }
 func (Operation) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{0}
+	return fileDescriptor_auth_8605baa7098e7332, []int{0}
 }
 
 // Event returns cluster event
@@ -93,7 +93,7 @@ func (m *Event) Reset()         { *m = Event{} }
 func (m *Event) String() string { return proto.CompactTextString(m) }
 func (*Event) ProtoMessage()    {}
 func (*Event) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{0}
+	return fileDescriptor_auth_8605baa7098e7332, []int{0}
 }
 func (m *Event) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -583,7 +583,7 @@ func (m *Watch) Reset()         { *m = Watch{} }
 func (m *Watch) String() string { return proto.CompactTextString(m) }
 func (*Watch) ProtoMessage()    {}
 func (*Watch) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{1}
+	return fileDescriptor_auth_8605baa7098e7332, []int{1}
 }
 func (m *Watch) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -641,7 +641,7 @@ func (m *WatchKind) Reset()         { *m = WatchKind{} }
 func (m *WatchKind) String() string { return proto.CompactTextString(m) }
 func (*WatchKind) ProtoMessage()    {}
 func (*WatchKind) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{2}
+	return fileDescriptor_auth_8605baa7098e7332, []int{2}
 }
 func (m *WatchKind) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -713,7 +713,7 @@ func (m *Certs) Reset()         { *m = Certs{} }
 func (m *Certs) String() string { return proto.CompactTextString(m) }
 func (*Certs) ProtoMessage()    {}
 func (*Certs) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{3}
+	return fileDescriptor_auth_8605baa7098e7332, []int{3}
 }
 func (m *Certs) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -766,7 +766,8 @@ type UserCertsRequest struct {
 	// Expires is a desired time of the expiry of the certificate, could
 	// be adjusted based on the permissions
 	Expires time.Time `protobuf:"bytes,3,opt,name=Expires,stdtime" json:"expires,omitempty"`
-	// Format encodes the desired SSH Certificate format (either old ssh compatibility
+	// Format encodes the desired SSH Certificate format (either old ssh
+	// compatibility
 	// format to remove some metadata causing trouble with old SSH servers)
 	// or standard SSH cert format with custom extensions
 	Format string `protobuf:"bytes,4,opt,name=Format,proto3" json:"format,omitempty"`
@@ -786,7 +787,7 @@ func (m *UserCertsRequest) Reset()         { *m = UserCertsRequest{} }
 func (m *UserCertsRequest) String() string { return proto.CompactTextString(m) }
 func (*UserCertsRequest) ProtoMessage()    {}
 func (*UserCertsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{4}
+	return fileDescriptor_auth_8605baa7098e7332, []int{4}
 }
 func (m *UserCertsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -872,7 +873,7 @@ func (m *GetUserRequest) Reset()         { *m = GetUserRequest{} }
 func (m *GetUserRequest) String() string { return proto.CompactTextString(m) }
 func (*GetUserRequest) ProtoMessage()    {}
 func (*GetUserRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{5}
+	return fileDescriptor_auth_8605baa7098e7332, []int{5}
 }
 func (m *GetUserRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -928,7 +929,7 @@ func (m *GetUsersRequest) Reset()         { *m = GetUsersRequest{} }
 func (m *GetUsersRequest) String() string { return proto.CompactTextString(m) }
 func (*GetUsersRequest) ProtoMessage()    {}
 func (*GetUsersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{6}
+	return fileDescriptor_auth_8605baa7098e7332, []int{6}
 }
 func (m *GetUsersRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -976,7 +977,7 @@ func (m *AccessRequests) Reset()         { *m = AccessRequests{} }
 func (m *AccessRequests) String() string { return proto.CompactTextString(m) }
 func (*AccessRequests) ProtoMessage()    {}
 func (*AccessRequests) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{7}
+	return fileDescriptor_auth_8605baa7098e7332, []int{7}
 }
 func (m *AccessRequests) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1026,7 +1027,7 @@ func (m *RequestStateSetter) Reset()         { *m = RequestStateSetter{} }
 func (m *RequestStateSetter) String() string { return proto.CompactTextString(m) }
 func (*RequestStateSetter) ProtoMessage()    {}
 func (*RequestStateSetter) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{8}
+	return fileDescriptor_auth_8605baa7098e7332, []int{8}
 }
 func (m *RequestStateSetter) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1081,7 +1082,7 @@ func (m *RequestID) Reset()         { *m = RequestID{} }
 func (m *RequestID) String() string { return proto.CompactTextString(m) }
 func (*RequestID) ProtoMessage()    {}
 func (*RequestID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{9}
+	return fileDescriptor_auth_8605baa7098e7332, []int{9}
 }
 func (m *RequestID) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1131,7 +1132,7 @@ func (m *RotateResetPasswordTokenSecretsRequest) Reset() {
 func (m *RotateResetPasswordTokenSecretsRequest) String() string { return proto.CompactTextString(m) }
 func (*RotateResetPasswordTokenSecretsRequest) ProtoMessage()    {}
 func (*RotateResetPasswordTokenSecretsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{10}
+	return fileDescriptor_auth_8605baa7098e7332, []int{10}
 }
 func (m *RotateResetPasswordTokenSecretsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1179,7 +1180,7 @@ func (m *GetResetPasswordTokenRequest) Reset()         { *m = GetResetPasswordTo
 func (m *GetResetPasswordTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*GetResetPasswordTokenRequest) ProtoMessage()    {}
 func (*GetResetPasswordTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{11}
+	return fileDescriptor_auth_8605baa7098e7332, []int{11}
 }
 func (m *GetResetPasswordTokenRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1215,7 +1216,8 @@ func (m *GetResetPasswordTokenRequest) GetTokenID() string {
 	return ""
 }
 
-// CreateResetPasswordTokenRequest is a request to create an instance of ResetPasswordToken
+// CreateResetPasswordTokenRequest is a request to create an instance of
+// ResetPasswordToken
 type CreateResetPasswordTokenRequest struct {
 	// Name is the user name.
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
@@ -1232,7 +1234,7 @@ func (m *CreateResetPasswordTokenRequest) Reset()         { *m = CreateResetPass
 func (m *CreateResetPasswordTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateResetPasswordTokenRequest) ProtoMessage()    {}
 func (*CreateResetPasswordTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_a46564e9693c8eaf, []int{12}
+	return fileDescriptor_auth_8605baa7098e7332, []int{12}
 }
 func (m *CreateResetPasswordTokenRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1317,7 +1319,8 @@ type AuthServiceClient interface {
 	WatchEvents(ctx context.Context, in *Watch, opts ...grpc.CallOption) (AuthService_WatchEventsClient, error)
 	// UpsertNode upserts node
 	UpsertNode(ctx context.Context, in *services.ServerV2, opts ...grpc.CallOption) (*services.KeepAlive, error)
-	// GenerateUserCerts generates a set of user certificates for use by `tctl auth sign`.
+	// GenerateUserCerts generates a set of user certificates for use by `tctl
+	// auth sign`.
 	GenerateUserCerts(ctx context.Context, in *UserCertsRequest, opts ...grpc.CallOption) (*Certs, error)
 	// GetUser gets a user resource by name.
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*services.UserV2, error)
@@ -1544,7 +1547,8 @@ type AuthServiceServer interface {
 	WatchEvents(*Watch, AuthService_WatchEventsServer) error
 	// UpsertNode upserts node
 	UpsertNode(context.Context, *services.ServerV2) (*services.KeepAlive, error)
-	// GenerateUserCerts generates a set of user certificates for use by `tctl auth sign`.
+	// GenerateUserCerts generates a set of user certificates for use by `tctl
+	// auth sign`.
 	GenerateUserCerts(context.Context, *UserCertsRequest) (*Certs, error)
 	// GetUser gets a user resource by name.
 	GetUser(context.Context, *GetUserRequest) (*services.UserV2, error)
@@ -4890,9 +4894,9 @@ var (
 	ErrIntOverflowAuth   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("auth.proto", fileDescriptor_auth_a46564e9693c8eaf) }
+func init() { proto.RegisterFile("auth.proto", fileDescriptor_auth_8605baa7098e7332) }
 
-var fileDescriptor_auth_a46564e9693c8eaf = []byte{
+var fileDescriptor_auth_8605baa7098e7332 = []byte{
 	// 1542 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x57, 0x41, 0x6f, 0xdb, 0xc6,
 	0x12, 0x36, 0x25, 0x4b, 0x96, 0x46, 0x8e, 0xa2, 0xac, 0x1d, 0x9b, 0x51, 0x1c, 0xd3, 0x90, 0x91,
