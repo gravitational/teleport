@@ -17,7 +17,6 @@ markdown_extensions:
   - admonition
   - def_list
   - footnotes
-  #- codehilite
   - toc:
       marker: '[TOC]'
 extra_css: []

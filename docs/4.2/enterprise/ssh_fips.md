@@ -143,8 +143,6 @@ cryptographic module (BoringCrypto) and fails to start if it was not.
 At the close of a connection (close of a *srv.ServerContext) the total data transmitted and received 
 is emitted to the Audit Log.
 
-
-
 ## What else does the Teleport FIPS binary enforce? 
 * Supporting configurable TLS versions. This is to ensure that only TLS 1.2 is supported in FedRAMP mode.
 * Removes all uses of non-compliant algorithms like NaCl and replace with compliant algorithms like AES-GCM.
