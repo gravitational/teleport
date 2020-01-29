@@ -180,3 +180,51 @@ func UnmarshalResetPasswordTokenSecrets(bytes []byte) (ResetPasswordTokenSecrets
 func MarshalResetPasswordTokenSecrets(secrets ResetPasswordTokenSecrets, opts ...MarshalOption) ([]byte, error) {
 	return utils.FastMarshal(secrets)
 }
+
+type TeleportResetPasswordTokenSecretsMarshaler struct{}
+
+// ResetPasswordTokenSecretsMarshaler implements marshal/unmarshal of ResetPasswordTokenSecrets implementations
+// mostly adds support for extended versions
+type ResetPasswordTokenSecretsMarshaler interface {
+	// Marshal marshals token to binary representation
+	Marshal(t ResetPasswordTokenSecrets, opts ...MarshalOption) ([]byte, error)
+	// Unmarshal unmarshals token from binary representation
+	Unmarshal(bytes []byte, opts ...MarshalOption) (ResetPasswordTokenSecrets, error)
+}
+
+var resetPasswordTokenSecretsMarshaler ResetPasswordTokenSecretsMarshaler = &TeleportResetPasswordTokenSecretsMarshaler{}
+
+// SetResetTokenSecretsMarshaler sets global ResetPasswordTokenSecrets marshaler
+func SetResetTokenSecretsMarshaler(m ResetPasswordTokenSecretsMarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	resetPasswordTokenSecretsMarshaler = m
+}
+
+// GetResetPasswordTokenSecretsMarshaler returns ResetPasswordTokenSecrets marshaler
+func GetResetPasswordTokenSecretsMarshaler() ResetPasswordTokenSecretsMarshaler {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	return resetPasswordTokenSecretsMarshaler
+}
+
+// Unmarshal unmarshals ResetPasswordTokenSecrets
+func (t *TeleportResetPasswordTokenSecretsMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (ResetPasswordTokenSecrets, error) {
+	if len(bytes) == 0 {
+		return nil, trace.BadParameter("missing resource data")
+	}
+
+	var secrets ResetPasswordTokenSecretsV3
+	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ResetPasswordTokenSecretsSpecV3Template, DefaultDefinitions)
+	err := utils.UnmarshalWithSchema(schema, &secrets, bytes)
+	if err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+
+	return &secrets, nil
+}
+
+// Marshal marshals role to JSON or YAML.
+func (t *TeleportResetPasswordTokenSecretsMarshaler) Marshal(secrets ResetPasswordTokenSecrets, opts ...MarshalOption) ([]byte, error) {
+	return utils.FastMarshal(secrets)
+}
