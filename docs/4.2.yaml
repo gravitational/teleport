@@ -25,7 +25,7 @@ extra:
     version: 4.2
 nav:
     - Documentation:
-        - Introduction: intro.md
+        - Introduction: index.md
         - Installation: installation.md
         - Quick Start Guide: quickstart.md
         - User Manual: user-manual.md
