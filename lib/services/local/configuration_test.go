@@ -38,6 +38,7 @@ type ClusterConfigurationSuite struct {
 }
 
 var _ = check.Suite(&ClusterConfigurationSuite{})
+var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *ClusterConfigurationSuite) SetUpSuite(c *check.C) {
