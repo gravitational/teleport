@@ -3,11 +3,11 @@ terraform {
 }
 
 provider "random" {
-  version = "~> 1.0"
+  version = "~> 2.2.1"
 }
 
 provider "template" {
-  version = "~> 1.0"
+  version = "~> 2.1.2"
 }
 
 variable "aws_max_retries" {
@@ -15,6 +15,6 @@ variable "aws_max_retries" {
 }
 
 provider "aws" {
-  version                 = "~> 1.18.0"
+  version    = "~> 2.0"
   region     = "${var.region}"
 }

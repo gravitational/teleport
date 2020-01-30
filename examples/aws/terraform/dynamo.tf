@@ -159,7 +159,9 @@ EOF
 resource "aws_appautoscaling_target" "read_target" {
   max_capacity       = "${var.autoscale_max_read_capacity}"
   min_capacity       = "${var.autoscale_min_read_capacity}"
-  resource_id        = "table/${var.cluster_name}"
+  //TODO(gus): delete
+  //resource_id        = "table/${var.cluster_name}"
+  resource_id        = "table/${aws_dynamodb_table.teleport.name}"
   role_arn           = "${aws_iam_role.autoscaler.arn}"
   scalable_dimension = "dynamodb:table:ReadCapacityUnits"
   service_namespace  = "dynamodb"
@@ -184,7 +186,9 @@ resource "aws_appautoscaling_policy" "read_policy" {
 resource "aws_appautoscaling_target" "write_target" {
   max_capacity       = "${var.autoscale_max_write_capacity}"
   min_capacity       = "${var.autoscale_min_write_capacity}"
-  resource_id        = "table/${var.cluster_name}"
+  //TODO(gus): delete
+  //resource_id        = "table/${var.cluster_name}"
+  resource_id        = "table/${aws_dynamodb_table.teleport.name}"
   role_arn           = "${aws_iam_role.autoscaler.arn}"
   scalable_dimension = "dynamodb:table:WriteCapacityUnits"
   service_namespace  = "dynamodb"

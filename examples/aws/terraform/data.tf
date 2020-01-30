@@ -3,6 +3,7 @@
 // are relying on systemd
 data "aws_ami" "base" {
   most_recent      = true
+  owners           = [126027368216]
 
   filter {
     name   = "name"
@@ -16,7 +17,7 @@ data "aws_caller_identity" "current" {}
 // Use current region of the credentials in some parts of the script,
 // could be as well hardcoded.
 data "aws_region" "current" {
-  current = true
+  name = "${var.region}"
 }
 
 data "aws_availability_zones" "available" {}
