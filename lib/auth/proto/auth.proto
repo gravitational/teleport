@@ -129,6 +129,11 @@ message AccessRequests {
     repeated services.AccessRequestV3 AccessRequests = 1 [(gogoproto.jsontag) = "access_requests"];
 }
 
+// PluginDataSeq is a sequence of plugin data.
+message PluginDataSeq {
+    repeated services.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
+}
+
 // RequestStateSetter encodes the paramters necessary to update the
 // state of a privilege escalation request.
 message RequestStateSetter {
@@ -163,4 +168,8 @@ service AuthService {
     rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
     // SetAccessRequestState sets the state of an access request.
     rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
+    // GetPluginData gets all plugin data matching the supplied filter.
+    rpc GetPluginData(services.PluginDataFilter) returns (PluginDataSeq);
+    // UpdatePluginData updates a plugin's resource-specific datastore.
+    rpc UpdatePluginData(services.PluginDataUpdateParams) returns (google.protobuf.Empty);
 }

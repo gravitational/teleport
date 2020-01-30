@@ -19,6 +19,7 @@ package services
 import (
 	"fmt"
 
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
@@ -49,6 +50,128 @@ func (s *AccessRequestSuite) TestRequestMarshaling(c *C) {
 	if !req1.Equals(req2) {
 		c.Errorf("unexpected inequality %+v <---> %+v", req1, req2)
 	}
+}
+
+// TestPluginDataExpectations verifies the correct behavior of the `Expect` mapping.
+// Update operations which include an `Expect` mapping should not succeed unless
+// all expectations match (e.g. `{"foo":"bar","spam":""}` matches the state where
+// key `foo` has value `bar` and key `spam` does not exist).
+func (s *AccessRequestSuite) TestPluginDataExpectations(c *C) {
+	const rname = "my-resource"
+	const pname = "my-plugin"
+	data, err := NewPluginData(rname, KindAccessRequest)
+	c.Assert(err, IsNil)
+
+	// Set two keys, expecting them to be unset.
+	err = data.Update(PluginDataUpdateParams{
+		Kind:     KindAccessRequest,
+		Resource: rname,
+		Plugin:   pname,
+		Set: map[string]string{
+			"hello": "world",
+			"spam":  "eggs",
+		},
+		Expect: map[string]string{
+			"hello": "",
+			"spam":  "",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// Expect a value which does not exist.
+	err = data.Update(PluginDataUpdateParams{
+		Kind:     KindAccessRequest,
+		Resource: rname,
+		Plugin:   pname,
+		Set: map[string]string{
+			"should": "fail",
+		},
+		Expect: map[string]string{
+			"missing": "key",
+		},
+	})
+	fixtures.ExpectCompareFailed(c, err)
+
+	// Expect a value to not exist when it does exist.
+	err = data.Update(PluginDataUpdateParams{
+		Kind:     KindAccessRequest,
+		Resource: rname,
+		Plugin:   pname,
+		Set: map[string]string{
+			"should": "fail",
+		},
+		Expect: map[string]string{
+			"hello": "world",
+			"spam":  "",
+		},
+	})
+	fixtures.ExpectCompareFailed(c, err)
+
+	// Expect the correct state, updating one key and removing another.
+	err = data.Update(PluginDataUpdateParams{
+		Kind:     KindAccessRequest,
+		Resource: rname,
+		Plugin:   pname,
+		Set: map[string]string{
+			"hello": "there",
+			"spam":  "",
+		},
+		Expect: map[string]string{
+			"hello": "world",
+			"spam":  "eggs",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// Expect the new updated state.
+	err = data.Update(PluginDataUpdateParams{
+		Kind:     KindAccessRequest,
+		Resource: rname,
+		Plugin:   pname,
+		Set: map[string]string{
+			"should": "succeed",
+		},
+		Expect: map[string]string{
+			"hello": "there",
+			"spam":  "",
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
+// TestPluginDataFilterMatching verifies the expected matching behavior for PluginDataFilter
+func (s *AccessRequestSuite) TestPluginDataFilterMatching(c *C) {
+	const rname = "my-resource"
+	const pname = "my-plugin"
+	data, err := NewPluginData(rname, KindAccessRequest)
+	c.Assert(err, IsNil)
+
+	var f PluginDataFilter
+
+	// Filter for a different resource
+	f.Resource = "other-resource"
+	c.Assert(f.Match(data), Equals, false)
+
+	// Filter for the same resource
+	f.Resource = rname
+	c.Assert(f.Match(data), Equals, true)
+
+	// Filter for a plugin which does not have data yet
+	f.Plugin = pname
+	c.Assert(f.Match(data), Equals, false)
+
+	// Add some data
+	err = data.Update(PluginDataUpdateParams{
+		Kind:     KindAccessRequest,
+		Resource: rname,
+		Plugin:   pname,
+		Set: map[string]string{
+			"spam": "eggs",
+		},
+	})
+	// Filter again now that data exists
+	c.Assert(err, IsNil)
+	c.Assert(f.Match(data), Equals, true)
 }
 
 // TestRequestFilterMatching verifies expected matching behavior for AccessRequestFilter.

@@ -150,6 +150,10 @@ type DynamicAccess interface {
 	GetAccessRequests(ctx context.Context, filter AccessRequestFilter) ([]AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
 	DeleteAccessRequest(ctx context.Context, reqID string) error
+	// GetPluginData loads all plugin data matching the supplied filter.
+	GetPluginData(ctx context.Context, filter PluginDataFilter) ([]PluginData, error)
+	// UpdatePluginData updates a per-resource PluginData entry.
+	UpdatePluginData(ctx context.Context, params PluginDataUpdateParams) error
 }
 
 // DynamicAccessExt is an extended dynamic access interface
