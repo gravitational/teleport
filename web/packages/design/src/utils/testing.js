@@ -4,9 +4,9 @@ import {
   screen,
   fireEvent,
 } from '@testing-library/react';
-import renderer from 'react-test-renderer';
 import ThemeProvider from 'design/ThemeProvider';
 import theme from 'design/theme';
+import 'jest-styled-components';
 
 export function render(component) {
   return testingRender(
@@ -14,10 +14,4 @@ export function render(component) {
   );
 }
 
-export function convertToJSON(component) {
-  return renderer
-    .create(<ThemeProvider theme={theme}>{component}</ThemeProvider>)
-    .toJSON();
-}
-
-export { screen, fireEvent };
+export { screen, fireEvent, theme };
