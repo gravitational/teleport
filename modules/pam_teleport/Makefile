@@ -26,6 +26,8 @@ install:
 	cp pam_teleport.so $(PAM_MODULE_PATH)
 	sudo cp policy/teleport-acct-failure $(PAM_POLICY_PATH)
 	sudo cp policy/teleport-session-failure $(PAM_POLICY_PATH)
+	sudo cp policy/teleport-session-echo-ruser $(PAM_POLICY_PATH)
+	sudo cp policy/teleport-session-environment $(PAM_POLICY_PATH)
 	sudo cp policy/teleport-success $(PAM_POLICY_PATH)
 
 pam_teleport.so: pam_teleport.o
