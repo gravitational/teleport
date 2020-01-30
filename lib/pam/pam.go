@@ -231,12 +231,12 @@ type PAM struct {
 	// service_name is the name of the PAM policy to use.
 	service_name *C.char
 
-	// user is the name of the target user.
-	user *C.char
+	// login is the name of the host login.
+	login *C.char
 
-	// metadata is additional data about the user that Teleport passes in
+	// loginContext is additional data about the user that Teleport passes in
 	// PAM_RUSER.
-	metadata *C.char
+	loginContext *C.char
 
 	// handlerIndex is the index to the package level handler map.
 	handlerIndex int
@@ -264,7 +264,7 @@ func Open(config *Config) (*PAM, error) {
 	// C strings. Since the C strings are allocated on the heap in Go code, this
 	// memory must be released (and will be on the call to the Close method).
 	p.service_name = C.CString(config.ServiceName)
-	p.user = C.CString(config.Username)
+	p.login = C.CString(config.LoginContext.Login)
 
 	// C code does not know that this PAM context exists. To ensure the
 	// conversation function can get messages to the right context, a handle
@@ -276,15 +276,19 @@ func Open(config *Config) (*PAM, error) {
 	// Create and initialize a PAM context. The pam_start function will
 	// allocate pamh if needed and the pam_end function will release any
 	// allocated memory.
-	p.retval = C._pam_start(pamHandle, p.service_name, p.user, p.conv, &p.pamh)
+	p.retval = C._pam_start(pamHandle, p.service_name, p.login, p.conv, &p.pamh)
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
 	}
 
-	// Pack the metadata into the PAM_RUSER field where it can be extracted
+	// Pack the login context into the PAM_RUSER field where it can be extracted
 	// by a PAM module.
-	p.metadata = C.CString(config.Metadata)
-	p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_RUSER, unsafe.Pointer(p.metadata))
+	buffer, err := config.LoginContext.Marshal()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.loginContext = C.CString(buffer)
+	p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_RUSER, unsafe.Pointer(p.loginContext))
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
 	}
@@ -334,8 +338,8 @@ func (p *PAM) Close() error {
 
 	// Release strings that were allocated when opening the PAM context.
 	C.free(unsafe.Pointer(p.service_name))
-	C.free(unsafe.Pointer(p.user))
-	C.free(unsafe.Pointer(p.metadata))
+	C.free(unsafe.Pointer(p.login))
+	C.free(unsafe.Pointer(p.loginContext))
 
 	return nil
 }

@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -57,52 +56,49 @@ const (
 )
 
 // execCommand contains the payload to "teleport exec" will will be used to
-// construct and execute a exec.Cmd.
+// construct and execute a shell.
 type execCommand struct {
-	// Path the the full path to the binary to execute.
-	Path string `json:"path"`
+	// Command is the command to execute. If a interactive session is being
+	// requested, will be empty.
+	Command string `json:"command"`
 
-	// Args is the list of arguments to pass to the command.
-	Args []string `json:"args"`
+	// Username is the username associated with the Teleport identity.
+	Username string `json:"username"`
 
-	// Env is a list of environment variables to pass to the command.
-	Env []string `json:"env"`
+	// Login is the local *nix account.
+	Login string `json:"login"`
 
-	// Dir is the working/home directory of the command.
-	Dir string `json:"dir"`
+	// Roles is the list of Teleport roles assigned to the Teleport identity.
+	Roles []string `json:"roles"`
 
-	// Uid is the UID under which to spawn the command.
-	Uid uint32 `json:"uid"`
+	// ClusterName is the name of the Teleport cluster.
+	ClusterName string `json:"cluster_name"`
 
-	// Gid it the GID under which to spawn the command.
-	Gid uint32 `json:"gid"`
-
-	// Groups is the list of supplementary groups.
-	Groups []uint32 `json:"groups"`
-
-	// SetCreds controls if the process credentials will be set.
-	SetCreds bool `json:"set_creds"`
-
-	// Terminal is if a TTY has been allocated for the session.
+	// Terminal indicates if a TTY has been allocated for the session. This is
+	// typically set if either an shell was requested or a TTY was explicitly
+	// allocated for a exec request.
 	Terminal bool `json:"term"`
 
-	// RequestType is the type of request: either "exec" or "shell".
+	// RequestType is the type of request: either "exec" or "shell". This will
+	// be used to control where to connect std{out,err} based on the request
+	// type: "exec" or "shell".
 	RequestType string `json:"request_type"`
 
-	// PAM contains metadata needed to launch a PAM context.
-	PAM *pamCommand `json:"pam"`
-}
+	// PAM indicates if PAM support was requested by the node.
+	PAM bool `json:"pam"`
 
-// pamCommand contains the payload to launch a PAM context.
-type pamCommand struct {
-	// Enabled indicates that PAM has been enabled on this host.
-	Enabled bool `json:"enabled"`
-
-	// ServiceName is the name service whose policy will be loaded.
+	// ServiceName is the name of the PAM service requested if PAM is enabled.
 	ServiceName string `json:"service_name"`
 
-	// Username is the host login.
-	Username string `json:"username"`
+	// Environment is a list of environment variables to add to the defaults.
+	Environment []string `json:"environment"`
+
+	// PermitUserEnvironment is set to allow reading in ~/.tsh/environment
+	// upon login.
+	PermitUserEnvironment bool `json:"permit_user_environment"`
+
+	// IsTestStub is used by tests to mock the shell.
+	IsTestStub bool `json:"is_test_stub"`
 }
 
 // ExecResult is used internally to send the result of a command execution from
@@ -290,7 +286,7 @@ func (e *localExec) String() string {
 func RunCommand() {
 	// errorWriter is used to return any error message back to the client. By
 	// default it writes to stdout, but if a TTY is allocated, it will write
-	// to it.
+	// to it instead.
 	errorWriter := os.Stdout
 
 	// Parent sends the command payload in the third file descriptor.
@@ -315,17 +311,6 @@ func RunCommand() {
 		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
 	}
 
-	// Start constructing the the exec.Cmd.
-	cmd := exec.Cmd{
-		Path: c.Path,
-		Args: c.Args,
-		Dir:  c.Dir,
-		Env:  c.Env,
-		SysProcAttr: &syscall.SysProcAttr{
-			Setsid: true,
-		},
-	}
-
 	var tty *os.File
 	var pty *os.File
 
@@ -338,41 +323,14 @@ func RunCommand() {
 		if pty == nil || tty == nil {
 			errorAndExit(errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found"))
 		}
-
-		cmd.Stdin = tty
-		cmd.Stdout = tty
-		cmd.Stderr = tty
-
-		cmd.SysProcAttr.Setctty = true
-		cmd.SysProcAttr.Ctty = int(tty.Fd())
-
 		errorWriter = tty
-	} else {
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 	}
 
-	// Only set process credentials if requested. See comment in the
-	// "prepareCommand" function for more details.
-	if c.SetCreds {
-		cmd.SysProcAttr.Credential = &syscall.Credential{
-			Uid:    c.Uid,
-			Gid:    c.Gid,
-			Groups: c.Groups,
-		}
-	}
-
-	// Wait until the continue signal is received from Teleport signaling that
-	// the child process has been placed in a cgroup.
-	err = waitForContinue(contfd)
-	if err != nil {
-		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
-	}
-
-	// If PAM is enabled, open a PAM context.
-	var pamContext *pam.PAM
-	if c.PAM.Enabled {
+	// If PAM is enabled, open a PAM context. This has to be done before anything
+	// else because PAM is sometimes used to create the local user used to
+	// launch the shell under.
+	var pamEnvironment []string
+	if c.PAM {
 		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
 		// discard std{out,err}. If this was not done, things like MOTD would be
 		// printed for "exec" requests.
@@ -390,17 +348,37 @@ func RunCommand() {
 		}
 
 		// Open the PAM context.
-		pamContext, err = pam.Open(&pam.Config{
-			ServiceName: c.PAM.ServiceName,
-			Username:    c.PAM.Username,
-			Stdin:       stdin,
-			Stdout:      stdout,
-			Stderr:      stderr,
+		pamContext, err := pam.Open(&pam.Config{
+			ServiceName: c.ServiceName,
+			LoginContext: &pam.LoginContextV1{
+				Username: c.Username,
+				Login:    c.Login,
+				Roles:    c.Roles,
+			},
+			Stdin:  stdin,
+			Stdout: stdout,
+			Stderr: stderr,
 		})
 		if err != nil {
 			errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
 		}
 		defer pamContext.Close()
+
+		// Save off any environment variables that come from PAM.
+		pamEnvironment = pamContext.Environment()
+	}
+
+	// Build the actual command that will launch the shell.
+	cmd, err := buildCommand(&c, tty, pty, pamEnvironment)
+	if err != nil {
+		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
+	}
+
+	// Wait until the continue signal is received from Teleport signaling that
+	// the child process has been placed in a cgroup.
+	err = waitForContinue(contfd)
+	if err != nil {
+		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
 	}
 
 	// Start the command.
@@ -447,198 +425,12 @@ func (e *localExec) transformSecureCopy() error {
 	return nil
 }
 
-// prepareCommand prepares a command execution payload.
-func prepareCommand(ctx *ServerContext) (*execCommand, error) {
-	var c execCommand
-
-	// Get the login shell for the user (or fallback to the default).
-	shellPath, err := shell.GetLoginShell(ctx.Identity.Login)
-	if err != nil {
-		log.Debugf("Failed to get login shell for %v: %v. Using default: %v.",
-			ctx.Identity.Login, err, shell.DefaultShell)
-	}
-	if ctx.IsTestStub {
-		shellPath = "/bin/sh"
-	}
-
-	// Save off the SSH request type. This will be used to control where to
-	// connect std{out,err} based on the request type: "exec" or "shell".
-	c.RequestType = ctx.request.Type
-
-	// If a term was allocated before (this means it was an exec request with an
-	// PTY explicitly allocated) or no command was given (which means an
-	// interactive session was requested), then make sure "teleport exec"
-	// executes through a PTY.
-	if ctx.termAllocated || ctx.ExecRequest.GetCommand() == "" {
-		c.Terminal = true
-	}
-
-	// If no command was given, configure a shell to run in 'login' mode.
-	// Otherwise, execute a command through bash.
-	if ctx.ExecRequest.GetCommand() == "" {
-		// Overwrite whatever was in the exec command (probably empty) with the shell.
-		ctx.ExecRequest.SetCommand(shellPath)
-
-		// Set the path to the path of the shell.
-		c.Path = shellPath
-
-		// Configure the shell to run in 'login' mode. From OpenSSH source:
-		// "If we have no command, execute the shell. In this case, the shell
-		// name to be passed in argv[0] is preceded by '-' to indicate that
-		// this is a login shell."
-		// https://github.com/openssh/openssh-portable/blob/master/session.c
-		c.Args = []string{"-" + filepath.Base(shellPath)}
-	} else {
-		// Execute commands like OpenSSH does:
-		// https://github.com/openssh/openssh-portable/blob/master/session.c
-		c.Path = shellPath
-		c.Args = []string{shellPath, "-c", ctx.ExecRequest.GetCommand()}
-	}
-
-	clusterName, err := ctx.srv.GetAccessPoint().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Lookup the UID and GID for the user.
-	osUser, err := user.Lookup(ctx.Identity.Login)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	uid, err := strconv.Atoi(osUser.Uid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.Uid = uint32(uid)
-	gid, err := strconv.Atoi(osUser.Gid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.Gid = uint32(gid)
-
-	// Set the home directory for the user.
-	c.Dir = osUser.HomeDir
-
-	// Lookup supplementary groups for the user.
-	userGroups, err := osUser.GroupIds()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	groups := make([]uint32, 0)
-	for _, sgid := range userGroups {
-		igid, err := strconv.Atoi(sgid)
-		if err != nil {
-			log.Warnf("Cannot interpret user group: '%v'", sgid)
-		} else {
-			groups = append(groups, uint32(igid))
-		}
-	}
-	if len(groups) == 0 {
-		groups = append(groups, uint32(gid))
-	}
-	c.Groups = groups
-
-	// Only set process credentials if the UID/GID of the requesting user are
-	// different than the process (Teleport).
-	//
-	// Note, the above is important because setting the credentials struct
-	// triggers calling of the SETUID and SETGID syscalls during process start.
-	// If the caller does not have permission to call those two syscalls (for
-	// example, if Teleport is started from a shell), this will prevent the
-	// process from spawning shells with the error: "operation not permitted". To
-	// workaround this, the credentials struct is only set if the credentials
-	// are different from the process itself. If the credentials are not, simply
-	// pick up the ambient credentials of the process.
-	if strconv.Itoa(os.Getuid()) != osUser.Uid || strconv.Itoa(os.Getgid()) != osUser.Gid {
-		c.SetCreds = true
-		log.Debugf("Creating process with UID %v, GID: %v, and Groups: %v.",
-			uid, gid, groups)
-	} else {
-		log.Debugf("Credential process with ambient credentials UID %v, GID: %v, Groups: %v.",
-			uid, gid, groups)
-	}
-
-	// Create environment for user.
-	c.Env = []string{
-		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(osUser.Uid, defaultLoginDefsPath),
-		"HOME=" + osUser.HomeDir,
-		"USER=" + ctx.Identity.Login,
-		"SHELL=" + shellPath,
-		teleport.SSHTeleportUser + "=" + ctx.Identity.TeleportUser,
-		teleport.SSHSessionWebproxyAddr + "=" + ctx.ProxyPublicAddress(),
-		teleport.SSHTeleportHostUUID + "=" + ctx.srv.ID(),
-		teleport.SSHTeleportClusterName + "=" + clusterName.GetClusterName(),
-	}
-
-	// Apply environment variables passed in from client.
-	for n, v := range ctx.env {
-		c.Env = append(c.Env, fmt.Sprintf("%s=%s", n, v))
-	}
-
-	// Apply SSH_* environment variables.
-	remoteHost, remotePort, err := net.SplitHostPort(ctx.Conn.RemoteAddr().String())
-	if err != nil {
-		log.Warn(err)
-	} else {
-		localHost, localPort, err := net.SplitHostPort(ctx.Conn.LocalAddr().String())
-		if err != nil {
-			log.Warn(err)
-		} else {
-			c.Env = append(c.Env,
-				fmt.Sprintf("SSH_CLIENT=%s %s %s", remoteHost, remotePort, localPort),
-				fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", remoteHost, remotePort, localHost, localPort))
-		}
-	}
-	if ctx.session != nil {
-		if ctx.session.term != nil {
-			c.Env = append(c.Env, fmt.Sprintf("SSH_TTY=%s", ctx.session.term.TTY().Name()))
-		}
-		if ctx.session.id != "" {
-			c.Env = append(c.Env, fmt.Sprintf("%s=%s", teleport.SSHSessionID, ctx.session.id))
-		}
-	}
-
-	// If a terminal was allocated, set terminal type variable.
-	if ctx.session != nil {
-		c.Env = append(c.Env, fmt.Sprintf("TERM=%v", ctx.session.term.GetTermType()))
-	}
-
-	// If the command is being prepared for local execution, check if PAM should
-	// be called.
-	if ctx.srv.Component() == teleport.ComponentNode {
-		conf, err := ctx.srv.GetPAM()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		c.PAM = &pamCommand{
-			Enabled:     conf.Enabled,
-			ServiceName: conf.ServiceName,
-			Username:    ctx.Identity.Login,
-		}
-	}
-
-	// If the server allows reading in of ~/.tsh/environment read it in
-	// and pass environment variables along to new session.
-	if ctx.srv.PermitUserEnvironment() {
-		filename := filepath.Join(osUser.HomeDir, ".tsh", "environment")
-		userEnvs, err := utils.ReadEnvironmentFile(filename)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		c.Env = append(c.Env, userEnvs...)
-	}
-
-	return &c, nil
-}
-
-// configureCommand creates a command fully configured to execute.
+// configureCommand creates a command fully configured to execute. This
+// function is used by Teleport to re-execute itself and pass whatever data
+// is need to the child to actually execute the shell.
 func configureCommand(ctx *ServerContext) (*exec.Cmd, error) {
-	var err error
-
-	// Create and marshal command to execute.
-	cmdmsg, err := prepareCommand(ctx)
+	// Marshal the parts needed from the *ServerContext into a *execCommand.
+	cmdmsg, err := ctx.ExecCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -660,12 +452,12 @@ func configureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	ctx.cmdw = nil
 
-	// Re-execute Teleport and pass along the allocated PTY as well as the
-	// command reader from where Teleport will know how to re-spawn itself.
+	// Find the Teleport executable and it's directory on disk.
 	executable, err := os.Executable()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	executableDir, _ := filepath.Split(executable)
 
 	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
 	// is appended if Teleport is running in debug mode.
@@ -675,12 +467,158 @@ func configureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	return &exec.Cmd{
 		Path: executable,
 		Args: args,
-		Dir:  cmdmsg.Dir,
+		Dir:  executableDir,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,
 		},
 	}, nil
+}
+
+// buildCommand construct a command that will execute the users shell. This
+// function is run by Teleport while it's re-executing.
+func buildCommand(c *execCommand, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+	var cmd exec.Cmd
+
+	// Lookup the UID and GID for the user.
+	localUser, err := user.Lookup(c.Login)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uid, err := strconv.Atoi(localUser.Uid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gid, err := strconv.Atoi(localUser.Gid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Lookup supplementary groups for the user.
+	userGroups, err := localUser.GroupIds()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	groups := make([]uint32, 0)
+	for _, sgid := range userGroups {
+		igid, err := strconv.Atoi(sgid)
+		if err != nil {
+			log.Warnf("Cannot interpret user group: '%v'", sgid)
+		} else {
+			groups = append(groups, uint32(igid))
+		}
+	}
+	if len(groups) == 0 {
+		groups = append(groups, uint32(gid))
+	}
+
+	// Get the login shell for the user (or fallback to the default).
+	shellPath, err := shell.GetLoginShell(c.Login)
+	if err != nil {
+		log.Debugf("Failed to get login shell for %v: %v. Using default: %v.",
+			c.Login, err, shell.DefaultShell)
+	}
+	if c.IsTestStub {
+		shellPath = "/bin/sh"
+	}
+
+	// If no command was given, configure a shell to run in 'login' mode.
+	// Otherwise, execute a command through the shell.
+	if c.Command == "" {
+		// Set the path to the path of the shell.
+		cmd.Path = shellPath
+
+		// Configure the shell to run in 'login' mode. From OpenSSH source:
+		// "If we have no command, execute the shell. In this case, the shell
+		// name to be passed in argv[0] is preceded by '-' to indicate that
+		// this is a login shell."
+		// https://github.com/openssh/openssh-portable/blob/master/session.c
+		cmd.Args = []string{"-" + filepath.Base(shellPath)}
+	} else {
+		// Execute commands like OpenSSH does:
+		// https://github.com/openssh/openssh-portable/blob/master/session.c
+		cmd.Path = shellPath
+		cmd.Args = []string{shellPath, "-c", c.Command}
+	}
+
+	// Create default environment for user.
+	cmd.Env = []string{
+		"LANG=en_US.UTF-8",
+		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
+		"HOME=" + localUser.HomeDir,
+		"USER=" + c.Login,
+		"SHELL=" + shellPath,
+	}
+
+	// Add in Teleport specific environment variables.
+	cmd.Env = append(cmd.Env, c.Environment...)
+
+	// If the server allows reading in of ~/.tsh/environment read it in
+	// and pass environment variables along to new session.
+	if c.PermitUserEnvironment {
+		filename := filepath.Join(localUser.HomeDir, ".tsh", "environment")
+		userEnvs, err := utils.ReadEnvironmentFile(filename)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cmd.Env = append(cmd.Env, userEnvs...)
+	}
+
+	// If any additional environment variables come from PAM, apply them as well.
+	cmd.Env = append(cmd.Env, pamEnvironment...)
+
+	// Set the home directory for the user.
+	cmd.Dir = localUser.HomeDir
+
+	// If a terminal was requested, connect std{in,out,err} to the TTY and set
+	// the controlling TTY. Otherwise, connect std{in,out,err} to
+	// os.Std{in,out,err}.
+	if c.Terminal {
+		cmd.Stdin = tty
+		cmd.Stdout = tty
+		cmd.Stderr = tty
+
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:  true,
+			Setctty: true,
+			Ctty:    int(tty.Fd()),
+		}
+	} else {
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid: true,
+		}
+	}
+
+	// Only set process credentials if the UID/GID of the requesting user are
+	// different than the process (Teleport).
+	//
+	// Note, the above is important because setting the credentials struct
+	// triggers calling of the SETUID and SETGID syscalls during process start.
+	// If the caller does not have permission to call those two syscalls (for
+	// example, if Teleport is started from a shell), this will prevent the
+	// process from spawning shells with the error: "operation not permitted". To
+	// workaround this, the credentials struct is only set if the credentials
+	// are different from the process itself. If the credentials are not, simply
+	// pick up the ambient credentials of the process.
+	if strconv.Itoa(os.Getuid()) != localUser.Uid || strconv.Itoa(os.Getgid()) != localUser.Gid {
+		cmd.SysProcAttr.Credential = &syscall.Credential{
+			Uid:    uint32(uid),
+			Gid:    uint32(gid),
+			Groups: groups,
+		}
+
+		log.Debugf("Creating process with UID %v, GID: %v, and Groups: %v.",
+			uid, gid, groups)
+	} else {
+		log.Debugf("Credential process with ambient credentials UID %v, GID: %v, Groups: %v.",
+			uid, gid, groups)
+	}
+
+	return &cmd, nil
 }
 
 // waitForContinue will wait 10 seconds for the continue signal, if not
