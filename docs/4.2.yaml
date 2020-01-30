@@ -9,7 +9,6 @@ copyright: Gravitational Inc, 2016-20
 site_dir: ../build/docs/4.2
 docs_dir: "4.2"
 
-site_url: https://gravitational.co/teleport/docs/
 
 theme:
     name: null
