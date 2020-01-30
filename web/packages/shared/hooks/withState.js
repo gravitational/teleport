@@ -18,22 +18,21 @@ import { createElement } from 'react';
 import hoistStatics from 'hoist-non-react-statics';
 
 export default function withState(mapState) {
-  const hooks = hooks ? hooks : () => ({});
   return function wrapWithHook(WrappedComponent) {
-    function WithState(props, context){
+    function WithState(props, context) {
       const propsFromMapState = mapState(props, context);
       return createElement(WrappedComponent, {
         ...props,
         ...propsFromMapState,
-      })
+      });
     }
 
-    WithState.displayName = `WithState(${getDisplayName(WrappedComponent)})`
-    WithState.WrappedComponent = WrappedComponent
-    return hoistStatics(WithState, WrappedComponent)
-  }
+    WithState.displayName = `WithState(${getDisplayName(WrappedComponent)})`;
+    WithState.WrappedComponent = WrappedComponent;
+    return hoistStatics(WithState, WrappedComponent);
+  };
 }
 
 function getDisplayName(WrappedComponent) {
-  return WrappedComponent.displayName || WrappedComponent.name || 'Component'
+  return WrappedComponent.displayName || WrappedComponent.name || 'Component';
 }

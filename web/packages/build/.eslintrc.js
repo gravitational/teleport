@@ -42,8 +42,9 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:import/errors',
     'plugin:import/warnings',
+    'plugin:jest/all',
   ],
-  plugins: ['react', 'babel', 'import'],
+  plugins: ['react', 'babel', 'import', 'jest'],
 
   rules: {
     // <TODO> Enable these rules after fixing all existing issues

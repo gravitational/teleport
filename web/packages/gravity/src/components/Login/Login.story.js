@@ -15,46 +15,36 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import LoginSuccess from './LoginSuccess';
 import LoginFailed from './LoginFailed';
 import { Login } from './Login';
 import longLogoSvg from 'design/assets/images/sample-logo-long.svg';
 import squireLogoSvg from 'design/assets/images/sample-logo-squire.svg';
 
-storiesOf('Gravity/Login', module)
-  .add('Login', () => {
-    const props = {
-      authType: '',
-      attempt: {},
-      auth2faType: 'off',
-    };
+export default {
+  title: 'Gravity/Login',
+};
 
-    return <Login {...props} />;
-  })
-  .add('Long Logo', () => {
-    const props = {
-      authType: '',
-      attempt: {},
-      auth2faType: 'off',
-      logoSrc: longLogoSvg,
-    };
+const props = {
+  authType: '',
+  attempt: {},
+  auth2faType: 'off',
+};
 
-    return <Login {...props} />;
-  })
-  .add('Square Logo', () => {
-    const props = {
-      authType: '',
-      attempt: {},
-      auth2faType: 'off',
-      logoSrc: squireLogoSvg,
-    };
+export const Basic = () => <Login {...props} />;
 
-    return <Login {...props} />;
-  })
-  .add('LoginSuccess', () => {
-    return <LoginSuccess />;
-  })
-  .add('LoginFailed', () => {
-    return <LoginFailed />;
-  });
+export const Success = () => <LoginSuccess />;
+
+export const Failed = () => <LoginFailed />;
+
+export const LongLogo = () => {
+  props.logoSrc = longLogoSvg;
+
+  return <Login {...props} />;
+};
+
+export const SquireLogo = () => {
+  props.logoSrc = squireLogoSvg;
+
+  return <Login {...props} />;
+};
