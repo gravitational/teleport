@@ -600,7 +600,7 @@ start using U2F:
 
 * For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
 
-* For web-based logins you have to use Google Chrome and Firefox 67, are the only 
+* For web-based logins you have to use Google Chrome and Firefox 67 or greater, are the only 
    supported U2F browsers at this time.
 
 ``` yaml
