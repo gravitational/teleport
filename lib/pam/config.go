@@ -19,6 +19,7 @@ limitations under the License.
 package pam
 
 import (
+	"encoding/json"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -33,13 +34,10 @@ type Config struct {
 	// ServiceName is the name of the policy to apply typically in /etc/pam.d/
 	ServiceName string
 
-	// Username is the name of the target user.
-	Username string
-
-	// Metadata is additional metadata about the user that Teleport stores in
+	// LoginContext is additional metadata about the user that Teleport stores in
 	// the PAM_RUSER field. It can be extracted by PAM modules like
 	// pam_script.so to configure the users environment.
-	Metadata string
+	LoginContext *LoginContextV1
 
 	// Stdin is the input stream which the conversation function will use to
 	// obtain data from the user.
@@ -59,8 +57,8 @@ func (c *Config) CheckDefaults() error {
 	if c.ServiceName == "" {
 		return trace.BadParameter("required parameter ServiceName missing")
 	}
-	if c.Username == "" {
-		return trace.BadParameter("required parameter Username missing")
+	if c.LoginContext == nil {
+		return trace.BadParameter("login context required")
 	}
 	if c.Stdin == nil {
 		return trace.BadParameter("required parameter Stdin missing")
@@ -73,4 +71,32 @@ func (c *Config) CheckDefaults() error {
 	}
 
 	return nil
+}
+
+// LoginContextV1 is passed to PAM modules in the PAM_RUSER field.
+type LoginContextV1 struct {
+	// Version is the version of this struct.
+	Version int `json:"version"`
+
+	// Username is the Teleport user (identity) that is attempting to login.
+	Username string `json:"username"`
+
+	// Login is the *nix login that that is being used.
+	Login string `json:"login"`
+
+	// Roles is a list of roles assigned to the user.
+	Roles []string `json:"roles"`
+}
+
+// Marshal marshals the login context into a format that can be passed to
+// PAM modules.
+func (c *LoginContextV1) Marshal() (string, error) {
+	c.Version = 1
+
+	buf, err := json.Marshal(c)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return string(buf), nil
 }
