@@ -23,7 +23,7 @@ extra:
     version: 2.5
 nav:
     - Documentation:
-        - Introduction: intro.md
+        - Introduction: index.md
         - Quick Start Guide: quickstart.md
         - Architecture: architecture.md
         - User Manual: user-manual.md

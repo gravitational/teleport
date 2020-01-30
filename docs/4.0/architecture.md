@@ -141,7 +141,7 @@ requested node. The destination node then begins recording the session, sending 
 
 **Detailed Diagram of a Teleport cluster**
 
-![Teleport Everything](../img/everything.svg)
+![Teleport Everything](/img/everything.svg)
 
 
 ## Cluster State
