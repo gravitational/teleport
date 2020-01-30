@@ -36,6 +36,7 @@ type PresenceSuite struct {
 }
 
 var _ = check.Suite(&PresenceSuite{})
+var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *PresenceSuite) SetUpSuite(c *check.C) {
