@@ -934,10 +934,14 @@ func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn,
 		// the users screen during port forwarding.
 		pamContext, err = pam.Open(&pam.Config{
 			ServiceName: s.pamConfig.ServiceName,
-			Username:    ctx.Identity.Login,
-			Stdin:       ch,
-			Stderr:      ioutil.Discard,
-			Stdout:      ioutil.Discard,
+			LoginContext: &pam.LoginContextV1{
+				Username: ctx.Identity.TeleportUser,
+				Login:    ctx.Identity.Login,
+				Roles:    ctx.Identity.RoleSet.RoleNames(),
+			},
+			Stdin:  ch,
+			Stderr: ioutil.Discard,
+			Stdout: ioutil.Discard,
 		})
 		if err != nil {
 			ctx.Errorf("Unable to open PAM context for direct-tcpip request: %v.", err)
