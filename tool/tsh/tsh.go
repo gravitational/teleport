@@ -689,6 +689,46 @@ func onListNodes(cf *CLIConf) {
 	}
 }
 
+func showNodes(nodes []services.Server, verbose bool) {
+	switch verbose {
+	// In verbose mode, print everything on a single line and include the Node
+	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
+	case true:
+		t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
+		for _, n := range nodes {
+			addr := n.GetAddr()
+			if n.GetUseTunnel() {
+				addr = "⟵ Tunnel"
+			}
+
+			t.AddRow([]string{
+				n.GetHostname(), n.GetName(), addr, n.LabelsString(),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	// In normal mode chunk the labels and print two per line and allow multiple
+	// lines per node.
+	case false:
+		t := asciitable.MakeTable([]string{"Node Name", "Address", "Labels"})
+		for _, n := range nodes {
+			labelChunks := chunkLabels(n.GetAllLabels(), 2)
+			for i, v := range labelChunks {
+				var hostname string
+				var addr string
+				if i == 0 {
+					hostname = n.GetHostname()
+					addr = n.GetAddr()
+					if n.GetUseTunnel() {
+						addr = "⟵ Tunnel"
+					}
+				}
+				t.AddRow([]string{hostname, addr, strings.Join(v, ", ")})
+			}
+		}
+		fmt.Println(t.AsBuffer().String())
+	}
+}
+
 func executeAccessRequest(cf *CLIConf) {
 	if cf.DesiredRoles == "" {
 		utils.FatalError(trace.BadParameter("one or more roles must be specified"))
@@ -783,6 +823,15 @@ func onSSH(cf *CLIConf) {
 		return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
 	})
 	if err != nil {
+		if fields := trace.GetFields(err); len(fields) > 0 {
+			if n, ok := fields[client.ErrSameHostnameNodes]; ok {
+				if nodes, ok := n.([]services.Server); ok {
+					fmt.Fprintf(os.Stderr, "%s\n\n", utils.UserMessageFromError(err))
+					showNodes(nodes, true)
+					os.Exit(1)
+				}
+			}
+		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))

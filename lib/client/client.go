@@ -295,6 +295,30 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	return nodes, nil
 }
 
+// FindServersByHostname returns list of all nodes whose hostname is a case-insensitive match for `hostname`.
+func (proxy *ProxyClient) FindServersByHostname(ctx context.Context, namespace string, hostname string) ([]services.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter(auth.MissingNamespaceError)
+	}
+	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	siteNodes, err := site.GetNodes(namespace, services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var nodes []services.Server
+	for _, node := range siteNodes {
+		if strings.EqualFold(hostname, node.GetHostname()) {
+			nodes = append(nodes, node)
+		}
+	}
+	return nodes, nil
+}
+
 // CurrentClusterAccessPoint returns cluster access point to the currently
 // selected cluster and is used for discovery
 // and could be cached based on the access policy
