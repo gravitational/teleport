@@ -219,18 +219,6 @@ char **_pam_getenvlist(void *handle, pam_handle_t *pamh)
     return (f)(pamh);
 }
 
-int _pam_set_item(void *handle, pam_handle_t *pamh, int item_type, const void *item)
-{
-    int (*f)(pam_handle_t *, int, const void *);
-
-    f = dlsym(handle, "pam_set_item");
-    if (f == NULL) {
-        return PAM_ABORT;
-    }
-
-    return (f)(pamh, item_type, item);
-}
-
 const char *_pam_strerror(void *handle, pam_handle_t *pamh, int errnum)
 {
     const char *(*f)(pam_handle_t *, int);
