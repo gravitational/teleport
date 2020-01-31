@@ -14,21 +14,21 @@ resource "aws_iam_role" "proxy" {
     ]
 }
 EOF
-}
 
+}
 
 // Proxy fetches certificates obtained by auth servers from encrypted S3 bucket.
 // Proxies do not setup certificates, to keep privileged operations happening
 // only on auth servers.
 resource "aws_iam_instance_profile" "proxy" {
   name       = "${var.cluster_name}-proxy"
-  role       = "${aws_iam_role.proxy.name}"
-  depends_on = ["aws_iam_role_policy.proxy_ssm"]
+  role       = aws_iam_role.proxy.name
+  depends_on = [aws_iam_role_policy.proxy_ssm]
 }
 
 resource "aws_iam_role_policy" "proxy_s3" {
   name = "${var.cluster_name}-proxy-s3"
-  role = "${aws_iam_role.proxy.id}"
+  role = aws_iam_role.proxy.id
 
   policy = <<EOF
 {
@@ -48,14 +48,16 @@ resource "aws_iam_role_policy" "proxy_s3" {
      }
    ]
  }
- EOF
+ 
+EOF
+
 }
 
 // Proxies fetch join tokens from SSM parameter store. Tokens are rotated
 // and published by auth servers on an hourly basis.
 resource "aws_iam_role_policy" "proxy_ssm" {
   name = "${var.cluster_name}-proxy-ssm"
-  role = "${aws_iam_role.proxy.id}"
+  role = aws_iam_role.proxy.id
 
   policy = <<EOF
 {
@@ -91,4 +93,6 @@ resource "aws_iam_role_policy" "proxy_ssm" {
     ]
 }
 EOF
+
 }
+

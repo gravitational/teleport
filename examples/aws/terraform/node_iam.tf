@@ -14,6 +14,7 @@ resource "aws_iam_role" "node" {
     ]
 }
 EOF
+
 }
 
 // Nodes use SSM to fetch join tokens to join the cluster.
@@ -21,13 +22,13 @@ EOF
 // Note that nodes are only allowed to read node SSM path.
 resource "aws_iam_instance_profile" "node" {
   name       = "${var.cluster_name}-node"
-  role       = "${aws_iam_role.node.name}"
-  depends_on = ["aws_iam_role_policy.node_ssm"]
+  role       = aws_iam_role.node.name
+  depends_on = [aws_iam_role_policy.node_ssm]
 }
 
 resource "aws_iam_role_policy" "node_ssm" {
   name = "${var.cluster_name}-node-ssm"
-  role = "${aws_iam_role.node.id}"
+  role = aws_iam_role.node.id
 
   policy = <<EOF
 {
@@ -63,4 +64,6 @@ resource "aws_iam_role_policy" "node_ssm" {
     ]
 }
 EOF
+
 }
+
