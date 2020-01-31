@@ -514,7 +514,6 @@ following use cases:
 
 * You have multiple identical services, like proxies, behind a load balancer.
 * You want Teleport to issue SSH certificate for the service with the additional
-
   principals, e.g.host names.
 
 ## Authentication
@@ -530,15 +529,11 @@ database. This database is managed by [ `tctl users` ](cli-docs.md#tctl-users-ad
 command. Teleport also supports second factor authentication (2FA) for the local
 connector. There are three possible values (types) of 2FA:
 
-  + `otp` is the default. It implements
-
-     [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-     standard. You can use [Google
-     Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
-     [Authy](https://www.authy.com/) or any other TOTP client.
+  + `otp` is the default. It implements [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+     standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) 
+     or [Authy](https://www.authy.com/) or any other TOTP client.
 
   + `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
-
     standard for utilizing hardware (USB) keys for second factor.
 
   + `off` turns off second factor authentication.
@@ -555,8 +550,7 @@ auth_service:
 ### Github OAuth 2.0 Connector
 
 This connector implements Github OAuth 2.0 authentication flow. Please refer to
-Github documentation on [Creating an OAuth
-App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+Github documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
 to learn how to create and register an OAuth app.
 
 Here is an example of this setting in the `teleport.yaml` :
@@ -603,13 +597,11 @@ hardware keys as a second authentication factor. By default U2F is disabled. To
 start using U2F:
 
 * Enable U2F in Teleport configuration `/etc/teleport.yaml` .
-* For CLI-based logins you have to install
 
-  [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
+* For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
 
-* For web-based logins you have to use Google Chrome, as it is the only browser
-
-  supporting U2F at this time.
+* For web-based logins you have to use Google Chrome and Firefox 67 or greater, are the only 
+   supported U2F browsers at this time.
 
 ``` yaml
 # snippet from /etc/teleport.yaml to show an example configuration of U2F:
@@ -1270,9 +1262,7 @@ $ ssh-add -L
 !!! warning "GNOME Keyring SSH Agent":
     It is well-known that Gnome Keyring SSH
     agent, used by many popular Linux desktops like Ubuntu, does not support SSH
-    certificates. We recommend using the `ssh-agent` command from
-
-`openssh-client` package.
+    certificates. We recommend using the `ssh-agent` command from `openssh-client` package.
 
 ### OpenSSH Rate Limiting
 
@@ -1965,11 +1955,9 @@ Teleport without any extra work, except configuring OpenSSH client to work with
 Teleport Proxy:
 
 * configure your OpenSSH to connect to Teleport proxy and use `ssh-agent` socket
-* enable scp mode in the Ansible config file (default is
+* enable scp mode in the Ansible config file (default is `/etc/ansible/ansible.cfg` ):
 
-`/etc/ansible/ansible.cfg` ):
-
-``` bsh
+```bsh
 scp_if_ssh = True
 ```
 
@@ -2030,7 +2018,6 @@ API endpoint. This can be done either by:
 
 * Deploying the proxy service inside a Kubernetes pod.
 * Deploying the proxy service outside Kubernetes adding a valid `kubeconfig`
-
   setting to the configuration file as shown above.
 
 When adding new local users you have to specify which Kubernetes groups they

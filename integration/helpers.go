@@ -63,6 +63,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	Loopback = "127.0.0.1"
+	Host     = "localhost"
+)
+
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
 // work faster but consuming more CPU (useful for integration testing)
 func SetTestTimeouts(t time.Duration) {
@@ -507,6 +512,12 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 		},
 	}
 	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortAuth())
+	tconf.Auth.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        i.Hostname,
+		},
+	}
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 	tconf.Proxy.PublicAddrs = []utils.NetAddr{

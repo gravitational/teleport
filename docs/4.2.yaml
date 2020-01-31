@@ -36,6 +36,7 @@ pages:
     - Infrastructure Guides:
         - AWS: aws_oss_guide.md
         - GCP: gcp_guide.md
+        - IBM: ibm_cloud_guide.md
         - Kubernetes Guide: kubernetes_ssh.md
     - Enterprise Guides:
         - Introduction: enterprise/index.md

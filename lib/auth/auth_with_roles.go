@@ -817,6 +817,35 @@ func (a *AuthWithRoles) SetAccessRequestState(ctx context.Context, reqID string,
 	return a.authServer.SetAccessRequestState(updateCtx, reqID, state)
 }
 
+// GetPluginData loads all plugin data matching the supplied filter.
+func (a *AuthWithRoles) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
+	switch filter.Kind {
+	case services.KindAccessRequest:
+		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return a.authServer.GetPluginData(ctx, filter)
+	default:
+		return nil, trace.BadParameter("unsupported resource kind %q", filter.Kind)
+	}
+}
+
+// UpdatePluginData updates a per-resource PluginData entry.
+func (a *AuthWithRoles) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
+	switch params.Kind {
+	case services.KindAccessRequest:
+		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+		return a.authServer.UpdatePluginData(ctx, params)
+	default:
+		return trace.BadParameter("unsupported resource kind %q", params.Kind)
+	}
+}
+
 // withUpdateBy creates a child context with the AccessRequestUpdateBy
 // value set.  Expected by AuthServer.SetAccessRequestState.
 func withUpdateBy(ctx context.Context, user string) context.Context {
