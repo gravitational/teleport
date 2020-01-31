@@ -14,6 +14,15 @@
 
 int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
+    // If the "echo" command is requested that will echo out the value of
+    // the Teleport specific environment variables.
+    if (argc > 0 && strcmp(argv[0], "echo") == 0) {
+        pam_info(pamh, "%s", getenv("TELEPORT_USERNAME"));
+        pam_info(pamh, "%s", getenv("TELEPORT_LOGIN"));
+        pam_info(pamh, "%s", getenv("TELEPORT_ROLES"));
+        return PAM_SUCCESS;
+    }
+
     if (argc > 0 && argv[0][0] == '0') {
         return PAM_ACCT_EXPIRED;
     }
@@ -26,19 +35,6 @@ int pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, const char **ar
 {
     int pam_err;
 
-    // If the "echo_ruser" command is requested that will echo out the value of
-    // the PAM_RUSER variable.
-    if (argc > 0 && strcmp(argv[0], "echo_ruser") == 0) {
-	    const char **ruser;
-
-        pam_err = pam_get_item(pamh, PAM_RUSER, (const void **)ruser);
-        if (pam_err < 0) {
-            return PAM_SYSTEM_ERR;
-        }
-
-        pam_info(pamh, "%s", *ruser);
-        return PAM_SUCCESS;
-    }
 
     // If the "set_env" command is requested, set the PAM environment variable.
     if (argc > 0 && strcmp(argv[0], "set_env") == 0) {

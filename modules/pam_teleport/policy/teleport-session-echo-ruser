@@ -1,1 +1,0 @@
-session     required    pam_teleport.so echo_ruser

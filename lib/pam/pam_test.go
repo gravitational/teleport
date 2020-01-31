@@ -18,9 +18,10 @@ package pam
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"os"
 	"os/user"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -58,29 +59,27 @@ func (s *Suite) TestEcho(c *check.C) {
 	local, err := user.Current()
 	c.Assert(err, check.IsNil)
 
+	os.Setenv("TELEPORT_USERNAME", local.Username+"@example.com")
+	os.Setenv("TELEPORT_LOGIN", local.Username)
+	os.Setenv("TELEPORT_ROLES", "bar baz qux")
+
 	var buf bytes.Buffer
-	_, err = Open(&Config{
+	pamContext, err := Open(&Config{
 		Enabled:     true,
-		ServiceName: "teleport-session-echo-ruser",
-		LoginContext: &LoginContextV1{
-			Version:  1,
-			Username: "foo",
-			Login:    local.Username,
-			Roles:    []string{"baz", "qux"},
-		},
-		Stdin:  &discardReader{},
-		Stdout: &buf,
-		Stderr: &buf,
+		ServiceName: "teleport-acct-echo",
+		Login:       local.Username,
+		Stdin:       &discardReader{},
+		Stdout:      &buf,
+		Stderr:      &buf,
 	})
 	c.Assert(err, check.IsNil)
+	defer pamContext.Close()
 
-	var context LoginContextV1
-	err = json.Unmarshal(buf.Bytes(), &context)
-	c.Assert(err, check.IsNil)
-
-	c.Assert(context.Username, check.Equals, "foo")
-	c.Assert(context.Login, check.Equals, local.Username)
-	c.Assert(context.Roles, check.DeepEquals, []string{"baz", "qux"})
+	parts := strings.FieldsFunc(buf.String(), func(c rune) bool { return c == '\n' })
+	c.Assert(parts, check.HasLen, 3)
+	c.Assert(strings.TrimSpace(parts[0]), check.Equals, local.Username+"@example.com")
+	c.Assert(strings.TrimSpace(parts[1]), check.Equals, local.Username)
+	c.Assert(strings.TrimSpace(parts[2]), check.Equals, "bar baz qux")
 }
 
 // TestEnvironment makes sure that PAM environment variables (environment
@@ -104,14 +103,13 @@ func (s *Suite) TestEnvironment(c *check.C) {
 	pamContext, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-session-environment",
-		LoginContext: &LoginContextV1{
-			Login: local.Username,
-		},
-		Stdin:  &discardReader{},
-		Stdout: &buf,
-		Stderr: &buf,
+		Login:       local.Username,
+		Stdin:       &discardReader{},
+		Stdout:      &buf,
+		Stderr:      &buf,
 	})
 	c.Assert(err, check.IsNil)
+	defer pamContext.Close()
 
 	c.Assert(pamContext.Environment(), check.HasLen, 1)
 	c.Assert(pamContext.Environment()[0], check.Equals, "foo=bar")
