@@ -36,7 +36,6 @@ package pam
 // extern int _pam_open_session(void *, pam_handle_t *, int);
 // extern int _pam_close_session(void *, pam_handle_t *, int);
 // extern char **_pam_getenvlist(void *handle, pam_handle_t *pamh);
-// extern int _pam_set_item(void *, pam_handle_t *, int, const void *);
 // extern const char *_pam_strerror(void *, pam_handle_t *, int);
 // extern int _pam_envlist_len(char **);
 // extern char * _pam_getenv(char **, int);
@@ -231,15 +230,15 @@ type PAM struct {
 	// service_name is the name of the PAM policy to use.
 	service_name *C.char
 
-	// login is the name of the host login.
+	// login is the *nix login that that is being used.
 	login *C.char
-
-	// loginContext is additional data about the user that Teleport passes in
-	// PAM_RUSER.
-	loginContext *C.char
 
 	// handlerIndex is the index to the package level handler map.
 	handlerIndex int
+
+	// once is used to ensure that any memory allocated by C only has free
+	// called on it once.
+	once sync.Once
 }
 
 // Open creates a PAM context and initiates a PAM transaction to check the
@@ -264,7 +263,7 @@ func Open(config *Config) (*PAM, error) {
 	// C strings. Since the C strings are allocated on the heap in Go code, this
 	// memory must be released (and will be on the call to the Close method).
 	p.service_name = C.CString(config.ServiceName)
-	p.login = C.CString(config.LoginContext.Login)
+	p.login = C.CString(config.Login)
 
 	// C code does not know that this PAM context exists. To ensure the
 	// conversation function can get messages to the right context, a handle
@@ -277,18 +276,6 @@ func Open(config *Config) (*PAM, error) {
 	// allocate pamh if needed and the pam_end function will release any
 	// allocated memory.
 	p.retval = C._pam_start(pamHandle, p.service_name, p.login, p.conv, &p.pamh)
-	if p.retval != C.PAM_SUCCESS {
-		return nil, p.codeToError(p.retval)
-	}
-
-	// Pack the login context into the PAM_RUSER field where it can be extracted
-	// by a PAM module.
-	buffer, err := config.LoginContext.Marshal()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	p.loginContext = C.CString(buffer)
-	p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_RUSER, unsafe.Pointer(p.loginContext))
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
 	}
@@ -324,22 +311,11 @@ func (p *PAM) Close() error {
 		return p.codeToError(p.retval)
 	}
 
-	// Terminate the PAM transaction.
-	retval := C._pam_end(pamHandle, p.pamh, p.retval)
-	if retval != C.PAM_SUCCESS {
-		return p.codeToError(retval)
-	}
-
 	// Unregister handler index at the package level.
 	unregisterHandler(p.handlerIndex)
 
-	// Release the memory allocated for the conversation function.
-	C.free(unsafe.Pointer(p.conv))
-
-	// Release strings that were allocated when opening the PAM context.
-	C.free(unsafe.Pointer(p.service_name))
-	C.free(unsafe.Pointer(p.login))
-	C.free(unsafe.Pointer(p.loginContext))
+	// Free any allocated memory on close.
+	p.free()
 
 	return nil
 }
@@ -377,6 +353,26 @@ func (p *PAM) Environment() []string {
 	return env
 }
 
+// free will end the PAM transaction (which itself will free memory) and
+// then manually free any other memory allocated.
+func (p *PAM) free() {
+	// Only free memory one time to prevent double free bugs.
+	p.once.Do(func() {
+		// Terminate the PAM transaction.
+		retval := C._pam_end(pamHandle, p.pamh, p.retval)
+		if retval != C.PAM_SUCCESS {
+			log.Warnf("Failed to end PAM transaction: %v.\n", p.codeToError(retval))
+		}
+
+		// Release the memory allocated for the conversation function.
+		C.free(unsafe.Pointer(p.conv))
+
+		// Release strings that were allocated when opening the PAM context.
+		C.free(unsafe.Pointer(p.service_name))
+		C.free(unsafe.Pointer(p.login))
+	})
+}
+
 // writeStream will write to the output stream (stdout or stderr or
 // equivalent).
 func (p *PAM) writeStream(stream int, s string) (int, error) {
@@ -410,6 +406,9 @@ func (p *PAM) readStream(echo bool) (string, error) {
 
 // codeToError returns a human readable string from the PAM error.
 func (p *PAM) codeToError(returnValue C.int) error {
+	// If an error is being returned, free any memory that was allocated.
+	defer p.free()
+
 	// Error strings are not allocated on the heap, so memory does not need
 	// released.
 	err := C._pam_strerror(pamHandle, p.pamh, returnValue)
