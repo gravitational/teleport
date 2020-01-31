@@ -26,7 +26,7 @@ import (
 )
 
 // NotFound returns new instance of not found error
-func NotFound(message string, args ...interface{}) error {
+func NotFound(message string, args ...interface{}) Error {
 	return WrapWithMessage(&NotFoundError{
 		Message: fmt.Sprintf(message, args...),
 	}, message, args...)
@@ -69,7 +69,7 @@ func IsNotFound(e error) bool {
 }
 
 // AlreadyExists returns a new instance of AlreadyExists error
-func AlreadyExists(message string, args ...interface{}) error {
+func AlreadyExists(message string, args ...interface{}) Error {
 	return WrapWithMessage(&AlreadyExistsError{
 		fmt.Sprintf(message, args...),
 	}, message, args...)
@@ -110,7 +110,7 @@ func IsAlreadyExists(e error) bool {
 }
 
 // BadParameter returns a new instance of BadParameterError
-func BadParameter(message string, args ...interface{}) error {
+func BadParameter(message string, args ...interface{}) Error {
 	return WrapWithMessage(&BadParameterError{
 		Message: fmt.Sprintf(message, args...),
 	}, message, args...)
@@ -147,7 +147,7 @@ func IsBadParameter(e error) bool {
 }
 
 // NotImplemented returns a new instance of NotImplementedError
-func NotImplemented(message string, args ...interface{}) error {
+func NotImplemented(message string, args ...interface{}) Error {
 	return WrapWithMessage(&NotImplementedError{
 		Message: fmt.Sprintf(message, args...),
 	}, message, args...)
@@ -184,7 +184,7 @@ func IsNotImplemented(e error) bool {
 }
 
 // CompareFailed returns new instance of CompareFailedError
-func CompareFailed(message string, args ...interface{}) error {
+func CompareFailed(message string, args ...interface{}) Error {
 	return WrapWithMessage(&CompareFailedError{Message: fmt.Sprintf(message, args...)}, message, args...)
 }
 
@@ -222,7 +222,7 @@ func IsCompareFailed(e error) bool {
 }
 
 // AccessDenied returns new instance of AccessDeniedError
-func AccessDenied(message string, args ...interface{}) error {
+func AccessDenied(message string, args ...interface{}) Error {
 	return WrapWithMessage(&AccessDeniedError{
 		Message: fmt.Sprintf(message, args...),
 	}, message, args...)
@@ -296,7 +296,7 @@ func ConvertSystemError(err error) error {
 }
 
 // ConnectionProblem returns new instance of ConnectionProblemError
-func ConnectionProblem(err error, message string, args ...interface{}) error {
+func ConnectionProblem(err error, message string, args ...interface{}) Error {
 	return WrapWithMessage(&ConnectionProblemError{
 		Message: fmt.Sprintf(message, args...),
 		Err:     err,
@@ -337,7 +337,7 @@ func IsConnectionProblem(e error) bool {
 }
 
 // LimitExceeded returns whether new instance of LimitExceededError
-func LimitExceeded(message string, args ...interface{}) error {
+func LimitExceeded(message string, args ...interface{}) Error {
 	return WrapWithMessage(&LimitExceededError{
 		Message: fmt.Sprintf(message, args...),
 	}, message, args...)
@@ -444,7 +444,7 @@ func IsEOF(e error) bool {
 }
 
 // Retry return new instance of RetryError which indicates a transient error type
-func Retry(err error, message string, args ...interface{}) error {
+func Retry(err error, message string, args ...interface{}) Error {
 	return WrapWithMessage(&RetryError{
 		Message: fmt.Sprintf(message, args...),
 		Err:     err,

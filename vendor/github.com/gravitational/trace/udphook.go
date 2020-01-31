@@ -67,8 +67,8 @@ type Frame struct {
 func (elk *UDPHook) Fire(e *log.Entry) error {
 	// Make a copy to safely modify
 	entry := e.WithFields(nil)
-	if frameNo := findFrame(); frameNo != -1 {
-		t := newTrace(frameNo-1, nil)
+	if cursor := findFrame(); cursor != nil {
+		t := newTraceFromFrames(*cursor, nil)
 		entry.Data[FileField] = t.String()
 		entry.Data[FunctionField] = t.Func()
 	}

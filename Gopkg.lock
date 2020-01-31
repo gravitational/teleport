@@ -521,15 +521,15 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:a43816dbfa9fa218af700e9d230d1adbcef12ffc495efe46046a57fe5490aad0"
+  digest = "1:af7bc6c67c4c4626e78f480dd65d1b450972df92bf455a525bfa9683d6ede4df"
   name = "github.com/gravitational/trace"
   packages = [
     ".",
     "trail",
   ]
   pruneopts = "NUT"
-  revision = "5d6afe38af2b50a51fdf5c49714a628efbbb3161"
-  version = "1.1.6"
+  revision = "42a8fffe760db82cf94b0c3e0112f91c3526a604"
+  version = "v1.1.9"
 
 [[projects]]
   digest = "1:869f0a997dcde348e34e5e11c619054fd29351a71fef4781c86cd2b82fbdd646"
@@ -1253,6 +1253,14 @@
   version = "v1.23.0"
 
 [[projects]]
+  digest = "1:22b2dee6f30bc8601f087449a2a819df8388e54e9547349c658f14d8f8c590f2"
+  name = "gopkg.in/alecthomas/kingpin.v2"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
+  version = "v2.2.6"
+
+[[projects]]
   digest = "1:67ae56e0579de0f16006ee42cc42daaaacefcfd36324ba00540f62fe42fc64df"
   name = "gopkg.in/check.v1"
   packages = ["."]
@@ -1534,6 +1542,7 @@
     "google.golang.org/grpc/keepalive",
     "google.golang.org/grpc/peer",
     "google.golang.org/grpc/status",
+    "gopkg.in/alecthomas/kingpin.v2",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",
     "k8s.io/api/certificates/v1beta1",

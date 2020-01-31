@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,10 @@ limitations under the License.
 package trace
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -40,7 +42,7 @@ func SetDebug(enabled bool) {
 	}
 }
 
-// IsDebug returns true if debug mode is on, false otherwize
+// IsDebug returns true if debug mode is on, false otherwise
 func IsDebug() bool {
 	return atomic.LoadInt32(&debug) == 1
 }
@@ -75,6 +77,25 @@ func UserMessage(err error) string {
 	return err.Error()
 }
 
+// UserMessageWithFields returns user-friendly error with key-pairs as part of the message
+func UserMessageWithFields(err error) string {
+	if err == nil {
+		return ""
+	}
+	if wrap, ok := err.(Error); ok {
+		if len(wrap.GetFields()) == 0 {
+			return wrap.UserMessage()
+		}
+
+		var kvps []string
+		for k, v := range wrap.GetFields() {
+			kvps = append(kvps, fmt.Sprintf("%v=%q", k, v))
+		}
+		return fmt.Sprintf("%v %v", strings.Join(kvps, " "), wrap.UserMessage())
+	}
+	return err.Error()
+}
+
 // DebugReport returns debug report with all known information
 // about the error including stack trace if it was captured
 func DebugReport(err error) string {
@@ -85,6 +106,17 @@ func DebugReport(err error) string {
 		return wrap.DebugReport()
 	}
 	return err.Error()
+}
+
+// GetFields returns any fields that have been added to the error message
+func GetFields(err error) map[string]interface{} {
+	if err == nil {
+		return map[string]interface{}{}
+	}
+	if wrap, ok := err.(Error); ok {
+		return wrap.GetFields()
+	}
+	return map[string]interface{}{}
 }
 
 // WrapWithMessage wraps the original error into Error and adds user message if any
@@ -124,31 +156,58 @@ func Errorf(format string, args ...interface{}) (err error) {
 // true Fatalf calls panic
 func Fatalf(format string, args ...interface{}) error {
 	if IsDebug() {
-		panic(fmt.Sprintf(format, args))
+		panic(fmt.Sprintf(format, args...))
 	} else {
-		return Errorf(format, args)
+		return Errorf(format, args...)
 	}
 }
 
 func newTrace(depth int, err error) *TraceErr {
-	var pc [32]uintptr
-	count := runtime.Callers(depth+1, pc[:])
+	var buf [32]uintptr
+	n := runtime.Callers(depth+1, buf[:])
+	pcs := buf[:n]
+	frames := runtime.CallersFrames(pcs)
+	cursor := frameCursor{
+		rest: frames,
+		n:    n,
+	}
+	return newTraceFromFrames(cursor, err)
+}
 
-	traces := make(Traces, count)
-	for i := 0; i < count; i++ {
-		fn := runtime.FuncForPC(pc[i])
-		filePath, line := fn.FileLine(pc[i])
-		traces[i] = Trace{
-			Func: fn.Name(),
-			Path: filePath,
-			Line: line,
+func newTraceFromFrames(cursor frameCursor, err error) *TraceErr {
+	traces := make(Traces, 0, cursor.n)
+	if cursor.current != nil {
+		traces = append(traces, frameToTrace(*cursor.current))
+	}
+	for {
+		frame, more := cursor.rest.Next()
+		traces = append(traces, frameToTrace(frame))
+		if !more {
+			break
 		}
 	}
 	return &TraceErr{
-		err,
-		traces,
-		"",
+		Err:    err,
+		Traces: traces,
 	}
+}
+
+func frameToTrace(frame runtime.Frame) Trace {
+	return Trace{
+		Func: frame.Function,
+		Path: frame.File,
+		Line: frame.Line,
+	}
+}
+
+type frameCursor struct {
+	// current specifies the current stack frame.
+	// if omitted, rest contains the complete stack
+	current *runtime.Frame
+	// rest specifies the rest of stack frames to explore
+	rest *runtime.Frames
+	// n specifies the total number of stack frames
+	n int
 }
 
 // Traces is a list of trace entries
@@ -223,43 +282,123 @@ func (t *Trace) String() string {
 // TraceErr contains error message and some additional
 // information about the error origin
 type TraceErr struct {
-	Err     error `json:"error"`
-	Traces  `json:"traces"`
-	Message string `json:"message,omitemtpy"`
+	// Err is the underlying error that TraceErr wraps
+	Err error `json:"error"`
+	// Traces is a slice of stack trace entries for the error
+	Traces `json:"traces"`
+	// Message is an optional message that can be wrapped with the original error.
+	//
+	// This field is obsolete, replaced by messages list below.
+	Message string `json:"message,omitempty"`
+	// Messages is a list of user messages added to this error.
+	Messages []string `json:"messages,omitempty"`
+	// Fields is a list of key-value-pairs that can be wrapped with the error to give additional context
+	Fields map[string]interface{} `json:"fields,omitempty`
 }
 
+// Fields maps arbitrary keys to values inside an error
+type Fields map[string]interface{}
+
+// RawTrace is the trace error that gets passed over the wire.
 type RawTrace struct {
-	Err     json.RawMessage `json:"error"`
-	Traces  `json:"traces"`
+	// Err is the json-encoded error.
+	Err json.RawMessage `json:"error"`
+	// Traces represents the error callstack.
+	Traces `json:"traces"`
+	// Message is the user message.
+	//
+	// This field is obsolete, replaced by messages list below.
 	Message string `json:"message"`
+	// Messages is a list of user messages added to this error.
+	Messages []string `json:"messages"`
 }
 
 // AddUserMessage adds user-friendly message describing the error nature
-func (e *TraceErr) AddUserMessage(formatArg interface{}, rest ...interface{}) {
+func (e *TraceErr) AddUserMessage(formatArg interface{}, rest ...interface{}) *TraceErr {
 	newMessage := fmt.Sprintf(fmt.Sprintf("%v", formatArg), rest...)
-	if len(e.Message) == 0 {
-		e.Message = newMessage
-	} else {
-		e.Message = strings.Join([]string{e.Message, newMessage}, ", ")
+	e.Messages = append(e.Messages, newMessage)
+	return e
+}
+
+// AddFields adds the given map of fields to the error being reported
+func (e *TraceErr) AddFields(fields map[string]interface{}) *TraceErr {
+	if e.Fields == nil {
+		e.Fields = make(map[string]interface{}, len(fields))
 	}
+	for k, v := range fields {
+		e.Fields[k] = v
+	}
+	return e
+}
+
+// AddField adds a single field to the error wrapper as context for the error
+func (e *TraceErr) AddField(k string, v interface{}) *TraceErr {
+	if e.Fields == nil {
+		e.Fields = make(map[string]interface{}, 1)
+	}
+	e.Fields[k] = v
+	return e
 }
 
 // UserMessage returns user-friendly error message
 func (e *TraceErr) UserMessage() string {
+	if len(e.Messages) > 0 {
+		// Format all collected messages in the reverse order, with each error
+		// on its own line with appropriate indentation so they form a tree and
+		// it's easy to see the cause and effect.
+		result := e.Messages[len(e.Messages)-1]
+		for index, indent := len(e.Messages)-1, 1; index > 0; index, indent = index-1, indent+1 {
+			result = fmt.Sprintf("%v\n%v%v", result, strings.Repeat("\t", indent), e.Messages[index-1])
+		}
+		return result
+	}
 	if e.Message != "" {
+		// For backwards compatibility return the old user message if it's present.
 		return e.Message
 	}
 	return UserMessage(e.Err)
 }
 
-// DebugReport returns develeoper-friendly error report
+// DebugReport returns developer-friendly error report
 func (e *TraceErr) DebugReport() string {
-	return fmt.Sprintf("\nERROR REPORT:\nOriginal Error: %T %v\nStack Trace:\n%v\nUser Message: %v\n", e.Err, e.Err.Error(), e.Traces.String(), e.Message)
+	var buffer bytes.Buffer
+	err := reportTemplate.Execute(&buffer, struct {
+		OrigErrType    string
+		OrigErrMessage string
+		Fields         map[string]interface{}
+		StackTrace     string
+		UserMessage    string
+	}{
+		OrigErrType:    fmt.Sprintf("%T", e.Err),
+		OrigErrMessage: e.Err.Error(),
+		Fields:         e.Fields,
+		StackTrace:     e.Traces.String(),
+		UserMessage:    e.UserMessage(),
+	})
+	if err != nil {
+		return fmt.Sprint("error generating debug report: ", err.Error())
+	}
+	return buffer.String()
 }
+
+var reportTemplate = template.Must(template.New("debugReport").Parse(reportTemplateText))
+var reportTemplateText = `
+ERROR REPORT:
+Original Error: {{.OrigErrType}} {{.OrigErrMessage}}
+{{if .Fields}}Fields:
+{{range $key, $value := .Fields}}  {{$key}}: {{$value}}
+{{end}}{{end}}Stack Trace:
+{{.StackTrace}}
+User Message: {{.UserMessage}}
+`
 
 // Error returns user-friendly error message when not in debug mode
 func (e *TraceErr) Error() string {
 	return e.UserMessage()
+}
+
+func (e *TraceErr) GetFields() map[string]interface{} {
+	return e.Fields
 }
 
 // OrigError returns original wrapped error
@@ -301,13 +440,22 @@ type Error interface {
 	// usually works as fmt.Sprintf(formatArg, rest...)
 	// but implementations can choose another way, e.g. treat
 	// arguments as structured args
-	AddUserMessage(formatArg interface{}, rest ...interface{})
+	AddUserMessage(formatArg interface{}, rest ...interface{}) *TraceErr
+
+	// AddField adds additional field information to the error
+	AddField(key string, value interface{}) *TraceErr
+
+	// AddFields adds a map of additional fields to the error
+	AddFields(fields map[string]interface{}) *TraceErr
 
 	// UserMessage returns user-friendly error message
 	UserMessage() string
 
-	// DebugReport returns develeoper-friendly error report
+	// DebugReport returns developer-friendly error report
 	DebugReport() string
+
+	// GetFields returns any fields that have been added to the error
+	GetFields() map[string]interface{}
 }
 
 // NewAggregate creates a new aggregate instance from the specified

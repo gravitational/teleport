@@ -74,7 +74,7 @@ func ReadError(statusCode int, re []byte) error {
 	case http.StatusGatewayTimeout:
 		e = &ConnectionProblemError{Message: string(re)}
 	default:
-		if statusCode < 200 || statusCode > 299 {
+		if statusCode < 200 || statusCode >= 400 {
 			return Errorf(string(re))
 		}
 		return nil
