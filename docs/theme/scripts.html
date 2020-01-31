@@ -14,15 +14,17 @@
  </script>
 {% endif %}
 
-<script src="{{ base_url }}/src/prettify.js"></script>
-<script src="{{ base_url }}/src/prettify-yaml.js"></script>
-<script src="{{ base_url }}/src/docs.js"></script>
+<script src="{{ path|url }}/src/prettify.js"></script>
+<script src="{{ path|url }}/src/prettify-yaml.js"></script>
+<script src="{{ path|url }}/src/docs.js"></script>
+
+<script>var base_url = '{{ base_url }}';</script>
 
 
 {%- for path in extra_javascript %}
-<script src="{{ path }}"></script>
+<script src="{{ path|url }}"></script>
 {%- endfor %}
 
-<script src="{{ base_url }}/src/third-party.js"></script>
+<script src="{{ path|url }}/src/third-party.js"></script>
 
 

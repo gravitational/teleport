@@ -13,6 +13,7 @@ docs_dir: "4.2"
 theme:
     name: null
     custom_dir: 'theme/'
+    include_search_page: true
 markdown_extensions:
   - markdown_include.include
   - admonition
@@ -21,6 +22,9 @@ markdown_extensions:
   - toc:
       marker: '[TOC]'
 extra_css: []
+plugins:
+    - search:
+        separator: '[\s\-\.]+'
 extra_javascript: []
 extra:
     version: 4.2
