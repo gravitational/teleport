@@ -281,9 +281,19 @@ func (e *localExec) String() string {
 	return fmt.Sprintf("Exec(Command=%v)", e.Command)
 }
 
+// RunAndExit will run the requested command and then exit.
+func RunAndExit() {
+	w, code, err := RunCommand()
+	if err != nil {
+		s := fmt.Sprintf("Failed to launch shell: %v.\r\n", err)
+		io.Copy(w, bytes.NewBufferString(s))
+	}
+	os.Exit(code)
+}
+
 // RunCommand reads in the command to run from the parent process (over a
 // pipe) then constructs and runs the command.
-func RunCommand() {
+func RunCommand() (io.Writer, int, error) {
 	// errorWriter is used to return any error message back to the client. By
 	// default it writes to stdout, but if a TTY is allocated, it will write
 	// to it instead.
@@ -292,23 +302,23 @@ func RunCommand() {
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(uintptr(3), "/proc/self/fd/3")
 	if cmdfd == nil {
-		errorAndExit(errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found"))
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 	contfd := os.NewFile(uintptr(4), "/proc/self/fd/4")
 	if cmdfd == nil {
-		errorAndExit(errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found"))
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
 
 	// Read in the command payload.
 	var b bytes.Buffer
 	_, err := b.ReadFrom(cmdfd)
 	if err != nil {
-		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 	var c execCommand
 	err = json.Unmarshal(b.Bytes(), &c)
 	if err != nil {
-		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	var tty *os.File
@@ -321,7 +331,7 @@ func RunCommand() {
 		pty = os.NewFile(uintptr(5), "/proc/self/fd/5")
 		tty = os.NewFile(uintptr(6), "/proc/self/fd/6")
 		if pty == nil || tty == nil {
-			errorAndExit(errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found"))
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
 		errorWriter = tty
 	}
@@ -362,7 +372,7 @@ func RunCommand() {
 			Stderr:      stderr,
 		})
 		if err != nil {
-			errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 		defer pamContext.Close()
 
@@ -373,20 +383,20 @@ func RunCommand() {
 	// Build the actual command that will launch the shell.
 	cmd, err := buildCommand(&c, tty, pty, pamEnvironment)
 	if err != nil {
-		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
 	err = waitForContinue(contfd)
 	if err != nil {
-		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	// Start the command.
 	err = cmd.Start()
 	if err != nil {
-		errorAndExit(errorWriter, teleport.RemoteCommandFailure, err)
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	// Wait for the command to exit. It doesn't make sense to print an error
@@ -395,7 +405,7 @@ func RunCommand() {
 	// running exit 2), the shell will print an error if appropriate and return
 	// an exit code.
 	err = cmd.Wait()
-	os.Exit(exitCode(err))
+	return ioutil.Discard, exitCode(err), trace.Wrap(err)
 }
 
 func (e *localExec) transformSecureCopy() error {

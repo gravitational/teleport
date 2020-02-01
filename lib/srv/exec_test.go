@@ -68,7 +68,7 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
-		RunCommand()
+		RunAndExit()
 		return
 	}
 
