@@ -32,6 +32,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// GetName is a part of backend API and it returns in-memory backend type
+// as it appears in `storage/type` section of Teleport YAML
+func GetName() string {
+	return "in-memory"
+}
+
 const (
 	// defaultBTreeDegreee is a default degree of a B-Tree
 	defaultBTreeDegree = 8
