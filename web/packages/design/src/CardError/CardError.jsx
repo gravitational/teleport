@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import styled from 'styled-components'
 import { Text, Alert, Card } from 'design';
 
@@ -36,13 +37,12 @@ const Header = props =>  (
   <Text typography="h1" mb={3} textAlign="center" children={props.children}/>
 )
 
-const Content = ({ message='', desc }) => {
-  const $desc = desc ? <Text typography="body2">{desc}</Text> : null;
+const Content = ({ message='', desc=null }) => {
   const $errMessage = message ? <Alert mt={2} mb={4}>{ message }</Alert> : null;
   return (
-    <div>
-      {$errMessage} {$desc}
-    </div>
+    <>
+      {$errMessage} {desc}
+    </>
   );
 }
 
@@ -55,7 +55,7 @@ export const NotFound = ({ message }) => (
 
 export const AccessDenied = ({ message}) => (
   <CardError>
-    <Header>Access denied</Header>
+    <Header>Access Denied</Header>
     <Content message={message}/>
   </CardError>
 )
@@ -79,9 +79,14 @@ export const Offline = ({message, title}) => (
   </CardError>
 )
 
+Offline.propTypes = {
+  title: PropTypes.string.isRequired,
+  message: PropTypes.string,
+}
+
 export const LoginFailed = ({ message, loginUrl }) => (
   <CardError>
-    <Header>Login unsuccessful</Header>
+    <Header>Login Unsuccessful</Header>
     <Content
       message={message}
       desc={(
@@ -91,6 +96,11 @@ export const LoginFailed = ({ message, loginUrl }) => (
       )}/>
   </CardError>
 )
+
+LoginFailed.propTypes = {
+  message: PropTypes.string,
+  loginUrl: PropTypes.string.isRequired
+}
 
 const HyperLink = styled.a`
   color: ${({ theme }) => theme.colors.link};

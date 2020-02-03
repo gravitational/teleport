@@ -15,10 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
-import CardSuccess from './index';
+import CardSuccess, { CardSuccessLogin } from './index';
 
 export default {
   title: 'Design/Card',
 };
 
 export const Success = () => <CardSuccess />;
+export const SuccessfulLogin = () => <CardSuccessLogin />;

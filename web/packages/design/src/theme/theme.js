@@ -46,7 +46,7 @@ const colors = {
 
   text: {
     // The most important text.
-    primary: 'rgba(255, 255, 255, 0.87)',
+    primary: 'rgba(255,255,255,0.87)',
     // Secondary text.
     secondary: 'rgba(255, 255, 255, 0.56)',
     // Disabled text have even lower visual prominence.

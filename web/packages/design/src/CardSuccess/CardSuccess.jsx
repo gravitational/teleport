@@ -15,19 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Card, Text } from 'design';
-import * as Icons from 'design/Icon';
+import { Card, Text} from 'design';
+import { CircleCheck } from 'design/Icon';
 
 export default function CardSuccess({ title, children }) {
   return (
     <Card width="540px" p={7} my={4} mx="auto" textAlign="center">
-      <Icons.CircleCheck mb={3} fontSize={64} color="success"/>
-      <Text typography="h1" mb="3">
-        {title}
-      </Text>
-      <Text typography="paragraph">
-        {children}
-      </Text>
+      <CircleCheck mb={3} fontSize={64} color="success"/>
+      {title && <Text typography="h1" mb="3">{title}</Text> }
+      {children && <Text typography="paragraph">{children}</Text> }
     </Card>
   )
 }

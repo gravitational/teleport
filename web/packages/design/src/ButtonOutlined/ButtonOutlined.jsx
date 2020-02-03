@@ -34,20 +34,16 @@ const size = props => {
         fontSize: '10px',
         padding: '8px 8px'
       }
-    case 'medium':
-      return {
-        fontSize: `12px`,
-        padding: '12px 32px'
-      }
     case 'large':
       return {
         fontSize: '14px',
         padding: '20px 40px'
       }
     default:
+      // medium
       return {
-        fontSize: `10px`,
-        padding: '12px 24px'
+        fontSize: `12px`,
+        padding: '12px 32px'
       }
   }
 }
