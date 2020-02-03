@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -56,11 +57,12 @@ func (c *StatusCommand) TryRun(cmd string, client auth.ClientI) (match bool, err
 
 // Status is called to execute "status" CLI command.
 func (c *StatusCommand) Status(client auth.ClientI) error {
-	clusterNameResource, err := client.GetClusterName()
+	pingRsp, err := client.Ping(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName := clusterNameResource.GetClusterName()
+	serverVersion := pingRsp.ServerVersion
+	clusterName := pingRsp.ClusterName
 
 	hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
@@ -83,6 +85,7 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 	view := func() string {
 		table := asciitable.MakeHeadlessTable(2)
 		table.AddRow([]string{"Cluster", clusterName})
+		table.AddRow([]string{"Version", serverVersion})
 		for _, ca := range authorities {
 			if ca.GetClusterName() != clusterName {
 				continue
