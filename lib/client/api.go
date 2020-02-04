@@ -847,8 +847,6 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 	return tc.localAgent
 }
 
-const ErrSameHostnameNodes = "same-hostname-nodes"
-
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
 func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
@@ -874,12 +872,6 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 			return nil, trace.BadParameter(
 				"please use ssh subcommand with '--port=%v' flag instead of semicolon",
 				port)
-		}
-		nodes, err = proxy.FindServersByHostname(ctx, tc.Namespace, tc.Host)
-		if len(nodes) > 1 {
-			var terr trace.Error = trace.CompareFailed("found %d nodes with hostname %s", len(nodes), tc.Host)
-			terr.AddField(ErrSameHostnameNodes, nodes)
-			return nil, terr
 		}
 		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
 		retval = append(retval, addr)
@@ -1417,6 +1409,17 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 	defer proxyClient.Close()
 
 	return proxyClient.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
+}
+
+// ListAllNodes is the same as ListNodes except that it ignores labels.
+func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]services.Server, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	return proxyClient.FindServersByLabels(ctx, tc.Namespace, nil)
 }
 
 // runCommand executes a given bash command on a bunch of remote nodes

@@ -315,12 +315,15 @@ func (t *proxySubsys) proxyToHost(
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server services.Server
+	matches := 0
 	for i := range servers {
 		// If the server has connected over a reverse tunnel, match only on hostname.
 		if servers[i].GetUseTunnel() {
 			if t.host == servers[i].GetHostname() {
 				server = servers[i]
-				break
+				//break
+				matches++
+				continue
 			}
 			continue
 		}
@@ -333,9 +336,14 @@ func (t *proxySubsys) proxyToHost(
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
 			if !specifiedPort || t.port == port {
 				server = servers[i]
-				break
+				//break
+				matches++
+				continue
 			}
 		}
+	}
+	if matches > 1 {
+		return trace.NotFound("err-server-is-ambiguous")
 	}
 
 	// Create a slice of principals that will be added into the host certificate.

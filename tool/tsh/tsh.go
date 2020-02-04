@@ -823,14 +823,21 @@ func onSSH(cf *CLIConf) {
 		return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
 	})
 	if err != nil {
-		if fields := trace.GetFields(err); len(fields) > 0 {
-			if n, ok := fields[client.ErrSameHostnameNodes]; ok {
-				if nodes, ok := n.([]services.Server); ok {
-					fmt.Fprintf(os.Stderr, "%s\n\n", utils.UserMessageFromError(err))
-					showNodes(nodes, true)
-					os.Exit(1)
+		if strings.Contains(utils.UserMessageFromError(err), "err-server-is-ambiguous") {
+			allNodes, err := tc.ListAllNodes(cf.Context)
+			if err != nil {
+				utils.FatalError(err)
+			}
+			var nodes []services.Server
+			for _, node := range allNodes {
+				if node.GetHostname() == tc.Host {
+					nodes = append(nodes, node)
 				}
 			}
+			fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
+			showNodes(nodes, true)
+			fmt.Fprintf(os.Stderr, "hint: try using ip and/or port to disambiguate your target\n")
+			os.Exit(1)
 		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
