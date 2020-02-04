@@ -7,7 +7,7 @@ ARG PLATFORM
 ENV TARBALL protoc-${PROTOC_VER}-${PLATFORM}.zip
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
-RUN apt-get update && apt-get install unzip
+RUN apt-get update && apt-get install unzip clang-format -y
 
 RUN curl -L -o /tmp/${TARBALL} https://github.com/google/protobuf/releases/download/v${PROTOC_VER}/${TARBALL}
 RUN cd /tmp && unzip /tmp/protoc-${PROTOC_VER}-linux-x86_64.zip -d /usr/local && rm /tmp/${TARBALL}

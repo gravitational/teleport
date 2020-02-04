@@ -76,6 +76,14 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	err = s.a.SetClusterName(clusterName)
 	c.Assert(err, IsNil)
 
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		LocalAuth: services.NewBool(true),
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
 	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionTokenV1{},
@@ -169,6 +177,162 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	req.SecondFactorToken = validToken
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
+}
+
+func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OFF,
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
+
+	username := "joe@example.com"
+	password := []byte("qweqweqwe")
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	c.Assert(err, IsNil)
+
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+		Name: username,
+	})
+	c.Assert(err, IsNil)
+
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+		TokenID:  token.GetName(),
+		Password: password,
+	})
+	c.Assert(err, IsNil)
+
+	// password should be updated
+	err = s.a.CheckPasswordWOToken(username, password)
+	c.Assert(err, IsNil)
+}
+
+func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OTP,
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
+
+	username := "joe@example.com"
+	password := []byte("qweqweqwe")
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	c.Assert(err, IsNil)
+
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+		Name: username,
+	})
+
+	secrets, err := s.a.RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	c.Assert(err, IsNil)
+
+	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
+	c.Assert(err, IsNil)
+
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+		TokenID:           token.GetName(),
+		Password:          password,
+		SecondFactorToken: otpToken,
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.CheckPasswordWOToken(username, password)
+	c.Assert(err, IsNil)
+}
+
+func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OTP,
+	})
+	c.Assert(err, IsNil)
+
+	username := "joe@example.com"
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	c.Assert(err, IsNil)
+
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+		Name: username,
+	})
+	c.Assert(err, IsNil)
+
+	validPassword := []byte("qweQWE1")
+	validTokenID := token.GetName()
+
+	type testCase struct {
+		desc         string
+		secondFactor string
+		req          ChangePasswordWithTokenRequest
+	}
+
+	testCases := []testCase{
+		{
+			secondFactor: teleport.OFF,
+			desc:         "invalid tokenID value",
+			req: ChangePasswordWithTokenRequest{
+				TokenID:  "what_token",
+				Password: validPassword,
+			},
+		},
+		{
+			secondFactor: teleport.OFF,
+			desc:         "invalid password",
+			req: ChangePasswordWithTokenRequest{
+				TokenID:  validTokenID,
+				Password: []byte("short"),
+			},
+		},
+		{
+			secondFactor: teleport.OTP,
+			desc:         "missing second factor",
+			req: ChangePasswordWithTokenRequest{
+				TokenID:  validTokenID,
+				Password: validPassword,
+			},
+		},
+		{
+			secondFactor: teleport.OTP,
+			desc:         "invalid OTP value",
+			req: ChangePasswordWithTokenRequest{
+				TokenID:           validTokenID,
+				Password:          validPassword,
+				SecondFactorToken: "invalid",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		// set new auth preference settings
+		authPreference.SetSecondFactor(tc.secondFactor)
+		err = s.a.SetAuthPreference(authPreference)
+		c.Assert(err, IsNil)
+
+		_, err = s.a.changePasswordWithToken(context.TODO(), tc.req)
+		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
+	}
+
+	authPreference.SetSecondFactor(teleport.OFF)
+	err = s.a.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+		TokenID:  validTokenID,
+		Password: validPassword,
+	})
+	c.Assert(err, IsNil)
+
+	// invite token cannot be reused
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+		TokenID:  validTokenID,
+		Password: validPassword,
+	})
+	c.Assert(err, NotNil)
 }
 
 func (s *PasswordSuite) shouldLockAfterFailedAttempts(c *C, req services.ChangePasswordReq) {
