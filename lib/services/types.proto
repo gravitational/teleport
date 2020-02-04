@@ -11,30 +11,39 @@ option (gogoproto.goproto_getters_all) = false;
 
 message KeepAlive {
     // ServerName is a server name to keep alive
-    string ServerName = 1 [(gogoproto.jsontag) = "server_name"];
+    string ServerName = 1 [ (gogoproto.jsontag) = "server_name" ];
     // Namespace is a server namespace
-    string Namespace = 2 [(gogoproto.jsontag) = "namespace"];
+    string Namespace = 2 [ (gogoproto.jsontag) = "namespace" ];
     // LeaseID is ID of the lease
-	int64 LeaseID = 3 [(gogoproto.jsontag) = "lease_id"];
+    int64 LeaseID = 3 [ (gogoproto.jsontag) = "lease_id" ];
     // Expires is set to update expiry time
-    google.protobuf.Timestamp Expires = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "expires"];
+    google.protobuf.Timestamp Expires = 4 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
 }
 
 // Metadata is resource metadata
 message Metadata {
     // Name is an object name
-	string Name = 1 [(gogoproto.jsontag) = "name"];
-	// Namespace is object namespace. The field should be called "namespace"
-	// when it returns in Teleport 2.4.
-	string Namespace = 2 [(gogoproto.jsontag) = "-"];
-	// Description is object description
-	string Description = 3 [(gogoproto.jsontag) = "description,omitempty"];
-	// Labels is a set of labels
-	map <string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
-	// Expires is a global expiry time header can be set on any resource in the system.
-	google.protobuf.Timestamp Expires = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true, (gogoproto.jsontag) = "expires,omitempty"];
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // Namespace is object namespace. The field should be called "namespace"
+    // when it returns in Teleport 2.4.
+    string Namespace = 2 [ (gogoproto.jsontag) = "-" ];
+    // Description is object description
+    string Description = 3 [ (gogoproto.jsontag) = "description,omitempty" ];
+    // Labels is a set of labels
+    map<string, string> Labels = 5 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    // Expires is a global expiry time header can be set on any resource in the
+    // system.
+    google.protobuf.Timestamp Expires = 6 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "expires,omitempty"
+    ];
     // ID is a record ID
-	int64 ID = 7 [(gogoproto.jsontag) = "id,omitempty"];
+    int64 ID = 7 [ (gogoproto.jsontag) = "id,omitempty" ];
 };
 
 // Rotation is a status of the rotation of the certificate authority
@@ -42,50 +51,73 @@ message Rotation {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
-	// State could be one of "init" or "in_progress".
-	string State = 1 [(gogoproto.jsontag) = "state,omitempty"];
-	// Phase is the current rotation phase.
-	string Phase = 2 [(gogoproto.jsontag) = "phase,omitempty"];
-	// Mode sets manual or automatic rotation mode.
-	string Mode = 3 [(gogoproto.jsontag) = "mode,omitempty"];
-	// CurrentID is the ID of the rotation operation
-	// to differentiate between rotation attempts.
-	string CurrentID = 4 [(gogoproto.jsontag) = "current_id"];
-	// Started is set to the time when rotation has been started
-	// in case if the state of the rotation is "in_progress".
-    google.protobuf.Timestamp Started = 5 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "started,omitempty"];
-	// GracePeriod is a period during which old and new CA
-	// are valid for checking purposes, but only new CA is issuing certificates.
-	int64 GracePeriod = 6 [(gogoproto.jsontag) = "grace_period,omitempty", (gogoproto.casttype) = "Duration"];
-	// LastRotated specifies the last time of the completed rotation.
-	google.protobuf.Timestamp LastRotated = 7 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "last_rotated,omitempty"];
-	// Schedule is a rotation schedule - used in
-	// automatic mode to switch beetween phases.
-	RotationSchedule Schedule = 8 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "schedule,omitempty"];
+    // State could be one of "init" or "in_progress".
+    string State = 1 [ (gogoproto.jsontag) = "state,omitempty" ];
+    // Phase is the current rotation phase.
+    string Phase = 2 [ (gogoproto.jsontag) = "phase,omitempty" ];
+    // Mode sets manual or automatic rotation mode.
+    string Mode = 3 [ (gogoproto.jsontag) = "mode,omitempty" ];
+    // CurrentID is the ID of the rotation operation
+    // to differentiate between rotation attempts.
+    string CurrentID = 4 [ (gogoproto.jsontag) = "current_id" ];
+    // Started is set to the time when rotation has been started
+    // in case if the state of the rotation is "in_progress".
+    google.protobuf.Timestamp Started = 5 [
+        (gogoproto.nullable) = false,
+        (gogoproto.stdtime) = true,
+        (gogoproto.jsontag) = "started,omitempty"
+    ];
+    // GracePeriod is a period during which old and new CA
+    // are valid for checking purposes, but only new CA is issuing certificates.
+    int64 GracePeriod = 6
+        [ (gogoproto.jsontag) = "grace_period,omitempty", (gogoproto.casttype) = "Duration" ];
+    // LastRotated specifies the last time of the completed rotation.
+    google.protobuf.Timestamp LastRotated = 7 [
+        (gogoproto.nullable) = false,
+        (gogoproto.stdtime) = true,
+        (gogoproto.jsontag) = "last_rotated,omitempty"
+    ];
+    // Schedule is a rotation schedule - used in
+    // automatic mode to switch beetween phases.
+    RotationSchedule Schedule = 8
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "schedule,omitempty" ];
 }
 
 // RotationSchedule is a rotation schedule setting time switches
 // for different phases.
 message RotationSchedule {
-	// UpdateClients specifies time to switch to the "Update clients" phase
-	google.protobuf.Timestamp UpdateClients = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "update_clients,omitempty"];
-	// UpdateServers specifies time to switch to the "Update servers" phase.
-	google.protobuf.Timestamp UpdateServers = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "update_servers,omitempty"];
-	// Standby specifies time to switch to the "Standby" phase.
-	google.protobuf.Timestamp Standby = 3 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true, (gogoproto.jsontag) = "standby,omitempty"];
+    // UpdateClients specifies time to switch to the "Update clients" phase
+    google.protobuf.Timestamp UpdateClients = 1 [
+        (gogoproto.nullable) = false,
+        (gogoproto.stdtime) = true,
+        (gogoproto.jsontag) = "update_clients,omitempty"
+    ];
+    // UpdateServers specifies time to switch to the "Update servers" phase.
+    google.protobuf.Timestamp UpdateServers = 2 [
+        (gogoproto.nullable) = false,
+        (gogoproto.stdtime) = true,
+        (gogoproto.jsontag) = "update_servers,omitempty"
+    ];
+    // Standby specifies time to switch to the "Standby" phase.
+    google.protobuf.Timestamp Standby = 3 [
+        (gogoproto.nullable) = false,
+        (gogoproto.stdtime) = true,
+        (gogoproto.jsontag) = "standby,omitempty"
+    ];
 }
 
 // ResorceHeader is a shared resource header
 // used in cases when only type and name is known
 message ResourceHeader {
-	// Kind is a resource kind
-	string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
-	// SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-	string Version = 3 [(gogoproto.jsontag) = "version,omitempty"];
-	// Metadata is User metadata
-	Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty"];
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind,omitempty" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version,omitempty" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty" ];
 }
 
 // ServerV2 represents a Node, Proxy or Auth server in a Teleport cluster
@@ -94,52 +126,53 @@ message ServerV2 {
     option (gogoproto.stringer) = false;
 
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a server spec
-    ServerSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    ServerSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // ServerSpecV2 is a specification for V2 Server
-message ServerSpecV2  {
-	// Addr is server host:port address
-	string Addr = 1 [(gogoproto.jsontag) = "addr"];
-	// PublicAddr is the public address this cluster can be reached at.
-	string PublicAddr = 2 [(gogoproto.jsontag) = "public_addr,omitempty"];
-	// Hostname is server hostname
-	string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
-	// CmdLabels is server dynamic labels
-	map <string, CommandLabelV2> CmdLabels = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "cmd_labels,omitempty"];
-	// Rotation specifies server rotation
-	Rotation Rotation  = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty"];
-	// UseTunnel indicates that connections to this server should occur over a
-	// reverse tunnel.
-	bool UseTunnel = 6 [(gogoproto.jsontag) = "use_tunnel,omitempty"];
+message ServerSpecV2 {
+    // Addr is server host:port address
+    string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+    // PublicAddr is the public address this cluster can be reached at.
+    string PublicAddr = 2 [ (gogoproto.jsontag) = "public_addr,omitempty" ];
+    // Hostname is server hostname
+    string Hostname = 3 [ (gogoproto.jsontag) = "hostname" ];
+    // CmdLabels is server dynamic labels
+    map<string, CommandLabelV2> CmdLabels = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "cmd_labels,omitempty" ];
+    // Rotation specifies server rotation
+    Rotation Rotation = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
+    // UseTunnel indicates that connections to this server should occur over a
+    // reverse tunnel.
+    bool UseTunnel = 6 [ (gogoproto.jsontag) = "use_tunnel,omitempty" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
 // output generated by running command, e.g. hostname
 message CommandLabelV2 {
-	// Period is a time between command runs
-	int64 Period = 1 [(gogoproto.jsontag) = "period", (gogoproto.casttype) = "Duration"];
-	// Command is a command to run
-	repeated string Command = 2 [(gogoproto.jsontag) = "command"];
-	// Result captures standard output
-	string Result = 3 [(gogoproto.jsontag) = "result"];
+    // Period is a time between command runs
+    int64 Period = 1 [ (gogoproto.jsontag) = "period", (gogoproto.casttype) = "Duration" ];
+    // Command is a command to run
+    repeated string Command = 2 [ (gogoproto.jsontag) = "command" ];
+    // Result captures standard output
+    string Result = 3 [ (gogoproto.jsontag) = "result" ];
 }
-
 
 // TLSKeyPair is a TLS key pair
 message TLSKeyPair {
-	// Cert is a PEM encoded TLS cert
-	bytes Cert = 1 [(gogoproto.jsontag) = "cert,omitempty"];
-	// Key is a PEM encoded TLS key
-	bytes Key = 2 [(gogoproto.jsontag) = "key,omitempty"];
+    // Cert is a PEM encoded TLS cert
+    bytes Cert = 1 [ (gogoproto.jsontag) = "cert,omitempty" ];
+    // Key is a PEM encoded TLS key
+    bytes Key = 2 [ (gogoproto.jsontag) = "key,omitempty" ];
 }
 
 // CertAuthorityV2 is version 2 resource spec for Cert Authority
@@ -147,51 +180,54 @@ message CertAuthorityV2 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-    string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
     // Metadata is connector metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec contains cert authority specification
-    CertAuthoritySpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    CertAuthoritySpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // CertAuthoritySpecV2 is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 message CertAuthoritySpecV2 {
-	// Type is either user or host certificate authority
-	string Type = 1 [(gogoproto.jsontag) = "type", (gogoproto.casttype) = "CertAuthType"];
-	// DELETE IN(2.7.0) this field is deprecated,
-	// as resource name matches cluster name after migrations.
-	// and this property is enforced by the auth server code.
-	// ClusterName identifies cluster name this authority serves,
-	// for host authorities that means base hostname of all servers,
-	// for user authorities that means organization name
-	string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-	// Checkers is a list of SSH public keys that can be used to check
-	// certificate signatures
-	repeated bytes CheckingKeys = 3 [(gogoproto.jsontag) = "checking_keys"];
-	// SigningKeys is a list of private keys used for signing
-	repeated bytes SigningKeys = 4 [(gogoproto.jsontag) = "signing_keys,omitempty"];
-	// Roles is a list of roles assumed by users signed by this CA
-	repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
-	// RoleMap specifies role mappings to remote roles
-	repeated RoleMapping RoleMap = 6 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "role_map,omitempty"];
-	// TLS is a list of TLS key pairs
-	repeated TLSKeyPair TLSKeyPairs = 7 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "tls_key_pairs,omitempty"];
-	// Rotation is a status of the certificate authority rotation
-	Rotation Rotation = 8 [(gogoproto.nullable) = true, (gogoproto.jsontag) = "rotation,omitempty"];
+    // Type is either user or host certificate authority
+    string Type = 1 [ (gogoproto.jsontag) = "type", (gogoproto.casttype) = "CertAuthType" ];
+    // DELETE IN(2.7.0) this field is deprecated,
+    // as resource name matches cluster name after migrations.
+    // and this property is enforced by the auth server code.
+    // ClusterName identifies cluster name this authority serves,
+    // for host authorities that means base hostname of all servers,
+    // for user authorities that means organization name
+    string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
+    // Checkers is a list of SSH public keys that can be used to check
+    // certificate signatures
+    repeated bytes CheckingKeys = 3 [ (gogoproto.jsontag) = "checking_keys" ];
+    // SigningKeys is a list of private keys used for signing
+    repeated bytes SigningKeys = 4 [ (gogoproto.jsontag) = "signing_keys,omitempty" ];
+    // Roles is a list of roles assumed by users signed by this CA
+    repeated string Roles = 5 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    // RoleMap specifies role mappings to remote roles
+    repeated RoleMapping RoleMap = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "role_map,omitempty" ];
+    // TLS is a list of TLS key pairs
+    repeated TLSKeyPair TLSKeyPairs = 7
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "tls_key_pairs,omitempty" ];
+    // Rotation is a status of the certificate authority rotation
+    Rotation Rotation = 8
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "rotation,omitempty" ];
 }
 
 // RoleMappping provides mapping of remote roles to local roles
 // for trusted clusters
 message RoleMapping {
-	// Remote specifies remote role name to map from
-	string Remote = 1 [(gogoproto.jsontag) = "remote"];
-	// Local specifies local roles to map to
-	repeated string Local = 2 [(gogoproto.jsontag) = "local"];
+    // Remote specifies remote role name to map from
+    string Remote = 1 [ (gogoproto.jsontag) = "remote" ];
+    // Local specifies local roles to map to
+    repeated string Local = 2 [ (gogoproto.jsontag) = "local" ];
 }
 
 // ProvisionTokenV1 is a provisioning token V1
@@ -199,14 +235,22 @@ message ProvisionTokenV1 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
-	// Roles is a list of roles associated with the token,
-	// that will be converted to metadata in the SSH and X509
-	// certificates issued to the user of the token
-	repeated string Roles = 1 [(gogoproto.jsontag) = "roles", (gogoproto.casttype) = "github.com/gravitational/teleport.Role"];
-	// Expires is a global expiry time header can be set on any resource in the system.
-	google.protobuf.Timestamp Expires = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "expires,omitempty"];
-	// Token is a token name
-	string Token = 3 [(gogoproto.jsontag) = "token"];
+    // Roles is a list of roles associated with the token,
+    // that will be converted to metadata in the SSH and X509
+    // certificates issued to the user of the token
+    repeated string Roles = 1 [
+        (gogoproto.jsontag) = "roles",
+        (gogoproto.casttype) = "github.com/gravitational/teleport.Role"
+    ];
+    // Expires is a global expiry time header can be set on any resource in the
+    // system.
+    google.protobuf.Timestamp Expires = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires,omitempty"
+    ];
+    // Token is a token name
+    string Token = 3 [ (gogoproto.jsontag) = "token" ];
 }
 
 // ProvisionTokenV2 specifies provisioning token
@@ -215,25 +259,27 @@ message ProvisionTokenV2 {
     option (gogoproto.stringer) = false;
 
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a provisioning token V2 spec
-    ProvisionTokenSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    ProvisionTokenSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
-message ProvisionTokenSpecV2  {
-	// Roles is a list of roles associated with the token,
-	// that will be converted to metadata in the SSH and X509
-	// certificates issued to the user of the token
-	repeated string Roles = 1 [(gogoproto.jsontag) = "roles", (gogoproto.casttype) = "github.com/gravitational/teleport.Role"];
+message ProvisionTokenSpecV2 {
+    // Roles is a list of roles associated with the token,
+    // that will be converted to metadata in the SSH and X509
+    // certificates issued to the user of the token
+    repeated string Roles = 1 [
+        (gogoproto.jsontag) = "roles",
+        (gogoproto.casttype) = "github.com/gravitational/teleport.Role"
+    ];
 }
-
 
 // StaticTokensV2 implements the StaticTokens interface.
 message StaticTokensV2 {
@@ -241,23 +287,23 @@ message StaticTokensV2 {
     option (gogoproto.stringer) = false;
 
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a provisioning token V2 spec
-    StaticTokensSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    StaticTokensSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-
 // StaticTokensSpecV2 is the actual data we care about for StaticTokensSpecV2.
-message StaticTokensSpecV2  {
-	// StaticTokens is a list of tokens that can be used to add nodes to the
-	// cluster.
-	repeated ProvisionTokenV1 StaticTokens = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "static_tokens"];
+message StaticTokensSpecV2 {
+    // StaticTokens is a list of tokens that can be used to add nodes to the
+    // cluster.
+    repeated ProvisionTokenV1 StaticTokens = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "static_tokens" ];
 }
 
 // ClusterNameV2 implements the ClusterName interface.
@@ -266,22 +312,22 @@ message ClusterNameV2 {
     option (gogoproto.stringer) = false;
 
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a cluster name V2 spec
-    ClusterNameSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    ClusterNameSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // ClusterNameSpecV2 is the actual data we care about for ClusterName.
-message ClusterNameSpecV2  {
-	// ClusterName is the name of the cluster. Changing this value once the
-	// cluster is setup can and will cause catastrophic problems.
-    string ClusterName = 1 [(gogoproto.jsontag) = "cluster_name"];
+message ClusterNameSpecV2 {
+    // ClusterName is the name of the cluster. Changing this value once the
+    // cluster is setup can and will cause catastrophic problems.
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name" ];
 }
 
 // ClusterConfigV3 implements the ClusterConfig interface.
@@ -290,102 +336,170 @@ message ClusterConfigV3 {
     option (gogoproto.stringer) = false;
 
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a cluster config V3 spec
-    ClusterConfigSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    ClusterConfigSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
 message ClusterConfigSpecV3 {
-	// SessionRecording controls where (or if) the session is recorded.
-    string SessionRecording = 1 [(gogoproto.jsontag) = "session_recording"];
+    // SessionRecording controls where (or if) the session is recorded.
+    string SessionRecording = 1 [ (gogoproto.jsontag) = "session_recording" ];
 
     // ClusterID is the unique cluster ID that is set once during the first auth
-	// server startup.
-    string ClusterID = 2 [(gogoproto.jsontag) = "cluster_id"];
+    // server startup.
+    string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
 
-	// ProxyChecksHostKeys is used to control if the proxy will check host keys
-	// when in recording mode.
-    string ProxyChecksHostKeys = 3 [(gogoproto.jsontag) = "proxy_checks_host_keys"];
+    // ProxyChecksHostKeys is used to control if the proxy will check host keys
+    // when in recording mode.
+    string ProxyChecksHostKeys = 3 [ (gogoproto.jsontag) = "proxy_checks_host_keys" ];
 
-	// Audit is a section with audit config
-	AuditConfig Audit = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "audit"];
+    // Audit is a section with audit config
+    AuditConfig Audit = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "audit" ];
 
-	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
-    int64 ClientIdleTimeout = 5 [(gogoproto.jsontag) = "client_idle_timeout", (gogoproto.casttype) = "Duration"];
+    // ClientIdleTimeout sets global cluster default setting for client idle
+    // timeouts
+    int64 ClientIdleTimeout = 5
+        [ (gogoproto.jsontag) = "client_idle_timeout", (gogoproto.casttype) = "Duration" ];
 
-	// DisconnectExpiredCert provides disconnect expired certificate setting -
-	// if true, connections with expired client certificates will get disconnected
-	bool DisconnectExpiredCert = 6 [(gogoproto.jsontag) = "disconnect_expired_cert", (gogoproto.casttype) = "Bool"];
+    // DisconnectExpiredCert provides disconnect expired certificate setting -
+    // if true, connections with expired client certificates will get disconnected
+    bool DisconnectExpiredCert = 6
+        [ (gogoproto.jsontag) = "disconnect_expired_cert", (gogoproto.casttype) = "Bool" ];
 
-	// KeepAliveInterval is the interval the server sends keep-alive messsages
-	// to the client at.
-	int64 KeepAliveInterval = 7 [(gogoproto.jsontag) = "keep_alive_interval", (gogoproto.casttype) = "Duration"];
+    // KeepAliveInterval is the interval the server sends keep-alive messsages
+    // to the client at.
+    int64 KeepAliveInterval = 7
+        [ (gogoproto.jsontag) = "keep_alive_interval", (gogoproto.casttype) = "Duration" ];
 
-	// KeepAliveCountMax is the number of keep-alive messages that can be missed before
-	// the server disconnects the connection to the client.
-	int64 KeepAliveCountMax = 8 [(gogoproto.jsontag) = "keep_alive_count_max"];
+    // KeepAliveCountMax is the number of keep-alive messages that can be missed
+    // before
+    // the server disconnects the connection to the client.
+    int64 KeepAliveCountMax = 8 [ (gogoproto.jsontag) = "keep_alive_count_max" ];
 
     // LocalAuth is true if local authentication is enabled.
-    bool LocalAuth = 9 [(gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool"];
+    bool LocalAuth = 9 [ (gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool" ];
 }
 
 // AuditConfig represents audit log settings in the cluster
 message AuditConfig {
     // Type is audit backend type
-    string Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+    string Type = 1 [ (gogoproto.jsontag) = "type,omitempty" ];
     // Region is a region setting for audit sessions used by cloud providers
-    string Region = 2 [(gogoproto.jsontag) = "region,omitempty"];
+    string Region = 2 [ (gogoproto.jsontag) = "region,omitempty" ];
     // AuditSessionsURI is a parameter where to upload sessions
-    string AuditSessionsURI = 3 [(gogoproto.jsontag) = "audit_sessions_uri,omitempty"];
+    string AuditSessionsURI = 3 [ (gogoproto.jsontag) = "audit_sessions_uri,omitempty" ];
     // AuditEventsURI is a parameter with all supported outputs
     // for audit events
-    wrappers.StringValues AuditEventsURI = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "audit_events_uri,omitempty", (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Strings"];
-	// AuditTableName is a DB table name used for audits
-	// Deprecated in favor of AuditEventsURI
-	// DELETE IN (3.1.0)
-	string AuditTableName = 5 [(gogoproto.jsontag) = "audit_table_name,omitempty"];
+    wrappers.StringValues AuditEventsURI = 4 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "audit_events_uri,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Strings"
+    ];
+    // AuditTableName is a DB table name used for audits
+    // Deprecated in favor of AuditEventsURI
+    // DELETE IN (3.1.0)
+    string AuditTableName = 5 [ (gogoproto.jsontag) = "audit_table_name,omitempty" ];
 }
 
 // Namespace represents namespace resource specification
-message Namespace  {
+message Namespace {
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a namespace spec
-    NamespaceSpec Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    NamespaceSpec Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // NamespaceSpec is a namespace specificateion
-message NamespaceSpec {
-}
+message NamespaceSpec {}
 
-// AccessRequest represents an access request resource specification
-message AccessRequestV3  {
+message ResetPasswordTokenV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is AccessRequest metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is ResetPasswordToken metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an ResetPasswordToken specification
+    ResetPasswordTokenSpecV3 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+message ResetPasswordTokenSpecV3 {
+    // User is user name associated with this token
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // URL is this token URL
+    string URL = 2 [ (gogoproto.jsontag) = "url" ];
+    // Created holds information about when the token was created
+    google.protobuf.Timestamp Created = 4 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created,omitempty"
+    ];
+}
+
+message ResetPasswordTokenSecretsV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is ResetPasswordTokenSecrets metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an ResetPasswordTokenSecrets specification
+    ResetPasswordTokenSecretsSpecV3 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+message ResetPasswordTokenSecretsSpecV3 {
+    // OTPKey is is a secret value of one time password secret generator
+    string OTPKey = 1 [ (gogoproto.jsontag) = "opt_key" ];
+    // OTPKey is is a secret value of one time password secret generator
+    string QRCode = 2 [ (gogoproto.jsontag) = "qr_code,omitempty" ];
+    // Created holds information about when the token was created
+    google.protobuf.Timestamp Created = 3 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created,omitempty"
+    ];
+}
+
+// AccessRequest represents an access request resource specification
+message AccessRequestV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is AccessRequest metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is an AccessReqeust specification
-    AccessRequestSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    AccessRequestSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // RequestState represents the state of a request for escalated privilege.
@@ -406,182 +520,227 @@ enum RequestState {
 // AccessRequestSpec is the specification for AccessRequest
 message AccessRequestSpecV3 {
     // User is the name of the user to whom the roles will be applied.
-    string User = 1 [(gogoproto.jsontag) = "user"];
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
     // Roles is the name of the roles being requested.
-    repeated string Roles = 2 [(gogoproto.jsontag) = "roles"];
+    repeated string Roles = 2 [ (gogoproto.jsontag) = "roles" ];
     // State is the current state of this access request.
-    RequestState State = 3 [(gogoproto.jsontag) = "state,omitempty"];
-    // Created encodes the time at which the request was registered with the auth server.
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "created,omitempty"];
-    // Expires constrains the maximum lifetime of any login session for which this request is active. 
-    google.protobuf.Timestamp Expires = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "expires,omitempty"];
+    RequestState State = 3 [ (gogoproto.jsontag) = "state,omitempty" ];
+    // Created encodes the time at which the request was registered with the auth
+    // server.
+    google.protobuf.Timestamp Created = 4 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created,omitempty"
+    ];
+    // Expires constrains the maximum lifetime of any login session for which this
+    // request is active.
+    google.protobuf.Timestamp Expires = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires,omitempty"
+    ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
 message AccessRequestFilter {
     // ID specifies a request ID if set.
-    string ID = 1 [(gogoproto.jsontag) = "id"];
+    string ID = 1 [ (gogoproto.jsontag) = "id" ];
     // User specifies a username if set.
-    string User = 2 [(gogoproto.jsontag) = "user"];
+    string User = 2 [ (gogoproto.jsontag) = "user" ];
     // RequestState filters for requests in a specific state.
-    RequestState State = 3 [(gogoproto.jsontag) = "state"];
+    RequestState State = 3 [ (gogoproto.jsontag) = "state" ];
 }
 
 // RoleV3 represents role resource specification
-message RoleV3  {
+message RoleV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a role specification
-    RoleSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    RoleSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // RoleSpecV3 is role specification for RoleV3.
 message RoleSpecV3 {
-	// Options is for OpenSSH options like agent forwarding.
-	RoleOptions Options = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "options,omitempty"];
-	// Allow is the set of conditions evaluated to grant access.
-	RoleConditions Allow = 2 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "allow,omitempty"];
-	// Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.
-	RoleConditions Deny = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "deny,omitempty"];
+    // Options is for OpenSSH options like agent forwarding.
+    RoleOptions Options = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "options,omitempty" ];
+    // Allow is the set of conditions evaluated to grant access.
+    RoleConditions Allow = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "allow,omitempty" ];
+    // Deny is the set of conditions evaluated to deny access. Deny takes priority
+    // over allow.
+    RoleConditions Deny = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "deny,omitempty" ];
 }
 
 // RoleOptions is a set of role options
-message RoleOptions  {
+message RoleOptions {
     // ForwardAgent is SSH agent forwarding.
-    bool ForwardAgent = 1 [(gogoproto.jsontag) = "forward_agent", (gogoproto.casttype) = "Bool"];
+    bool ForwardAgent = 1 [ (gogoproto.jsontag) = "forward_agent", (gogoproto.casttype) = "Bool" ];
 
-	// MaxSessionTTL defines how long a SSH session can last for.
-	int64 MaxSessionTTL = 2 [(gogoproto.jsontag) = "max_session_ttl,omitempty", (gogoproto.casttype) = "Duration"];
+    // MaxSessionTTL defines how long a SSH session can last for.
+    int64 MaxSessionTTL = 2
+        [ (gogoproto.jsontag) = "max_session_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
 
-	// PortForwarding defines if the certificate will have "permit-port-forwarding"
-	// in the certificate. PortForwarding is "yes" if not set,
-	// that's why this is a pointer
-    BoolValue PortForwarding = 3 [(gogoproto.nullable) = true, (gogoproto.jsontag) = "port_forwarding,omitempty", (gogoproto.customtype) = "BoolOption"];
+    // PortForwarding defines if the certificate will have
+    // "permit-port-forwarding"
+    // in the certificate. PortForwarding is "yes" if not set,
+    // that's why this is a pointer
+    BoolValue PortForwarding = 3 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "port_forwarding,omitempty",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 
-	// CertificateFormat defines the format of the user certificate to allow
-	// compatibility with older versions of OpenSSH.
-    string CertificateFormat = 4 [(gogoproto.jsontag) = "cert_format"];
+    // CertificateFormat defines the format of the user certificate to allow
+    // compatibility with older versions of OpenSSH.
+    string CertificateFormat = 4 [ (gogoproto.jsontag) = "cert_format" ];
 
-	// ClientIdleTimeout sets disconnect clients on idle timeout behavior,
-	// if set to 0 means do not disconnect, otherwise is set to the idle
-	// duration.
-	int64 ClientIdleTimeout = 5 [(gogoproto.jsontag) = "client_idle_timeout,omitempty", (gogoproto.casttype) = "Duration"];
+    // ClientIdleTimeout sets disconnect clients on idle timeout behavior,
+    // if set to 0 means do not disconnect, otherwise is set to the idle
+    // duration.
+    int64 ClientIdleTimeout = 5 [
+        (gogoproto.jsontag) = "client_idle_timeout,omitempty",
+        (gogoproto.casttype) = "Duration"
+    ];
 
-	// DisconnectExpiredCert sets disconnect clients on expired certificates.
-    bool DisconnectExpiredCert = 6 [(gogoproto.nullable) = true, (gogoproto.jsontag) = "disconnect_expired_cert,omitempty", (gogoproto.casttype) = "Bool"];
+    // DisconnectExpiredCert sets disconnect clients on expired certificates.
+    bool DisconnectExpiredCert = 6 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "disconnect_expired_cert,omitempty",
+        (gogoproto.casttype) = "Bool"
+    ];
 
     // BPF defines what events to record for the BPF-based session recorder.
-    repeated string BPF = 7 [(gogoproto.jsontag) = "enhanced_recording,omitempty"];
+    repeated string BPF = 7 [ (gogoproto.jsontag) = "enhanced_recording,omitempty" ];
 }
-
 
 // RoleConditions is a set of conditions that must all match to be allowed or
 // denied access.
 message RoleConditions {
-	// Logins is a list of *nix system logins.
-	repeated string Logins = 1 [(gogoproto.jsontag) = "logins"];
+    // Logins is a list of *nix system logins.
+    repeated string Logins = 1 [ (gogoproto.jsontag) = "logins" ];
 
-	// Namespaces is a list of namespaces (used to partition a cluster). The
-	// field should be called "namespaces" when it returns in Teleport 2.4.
-    repeated string Namespaces = 2 [(gogoproto.jsontag) = "-"];
+    // Namespaces is a list of namespaces (used to partition a cluster). The
+    // field should be called "namespaces" when it returns in Teleport 2.4.
+    repeated string Namespaces = 2 [ (gogoproto.jsontag) = "-" ];
 
-	// NodeLabels is a map of node labels (used to dynamically grant access to nodes).
-	wrappers.LabelValues NodeLabels = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "node_labels,omitempty", (gogoproto.customtype) = "Labels"];
+    // NodeLabels is a map of node labels (used to dynamically grant access to
+    // nodes).
+    wrappers.LabelValues NodeLabels = 3 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "node_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 
-	// Rules is a list of rules and their access levels. Rules are a high level
-	// construct used for access control.
-	repeated Rule Rules = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "rules,omitempty"];
+    // Rules is a list of rules and their access levels. Rules are a high level
+    // construct used for access control.
+    repeated Rule Rules = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rules,omitempty" ];
 
-	// KubeGroups is a list of kubernetes groups
-	repeated string KubeGroups = 5 [(gogoproto.jsontag) = "kubernetes_groups,omitempty"];
+    // KubeGroups is a list of kubernetes groups
+    repeated string KubeGroups = 5 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
 
-    AccessRequestConditions Request = 6 [(gogoproto.jsontag) = "request,omitempty"];
+    AccessRequestConditions Request = 6 [ (gogoproto.jsontag) = "request,omitempty" ];
 }
 
-// AccessRequestConditions is a matcher for allow/deny restrictions on access-requests.
+// AccessRequestConditions is a matcher for allow/deny restrictions on
+// access-requests.
 message AccessRequestConditions {
     // Roles is the name of roles which will match the request rule.
-    repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
+    repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
 }
 
 // Rule represents allow or deny rule that is executed to check
 // if user or service have access to resource
-message Rule  {
-	// Resources is a list of resources
-	repeated string Resources = 1 [(gogoproto.jsontag) = "resources,omitempty"];
-	// Verbs is a list of verbs
-	repeated string Verbs = 2 [(gogoproto.jsontag) = "verbs,omitempty"];
-	// Where specifies optional advanced matcher
-	string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
-	// Actions specifies optional actions taken when this rule matches
-	repeated string Actions = 4 [(gogoproto.jsontag) = "actions,omitempty"];
+message Rule {
+    // Resources is a list of resources
+    repeated string Resources = 1 [ (gogoproto.jsontag) = "resources,omitempty" ];
+    // Verbs is a list of verbs
+    repeated string Verbs = 2 [ (gogoproto.jsontag) = "verbs,omitempty" ];
+    // Where specifies optional advanced matcher
+    string Where = 3 [ (gogoproto.jsontag) = "where,omitempty" ];
+    // Actions specifies optional actions taken when this rule matches
+    repeated string Actions = 4 [ (gogoproto.jsontag) = "actions,omitempty" ];
 }
 
 // BoolValue is a wrapper around bool, used in cases
 // whenever bool value can have different default value when missing
-message BoolValue {
-    bool Value = 1;
-}
+message BoolValue { bool Value = 1; }
 
 // UserV2 is version 2 resource spec of the user
-message UserV2  {
+message UserV2 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
     // Kind is a resource kind
-    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-    string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is User metadata
-    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a user specification
-    UserSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    UserSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // UserSpecV2 is a specification for V2 user
-message UserSpecV2  {
-	// OIDCIdentities lists associated OpenID Connect identities
-	// that let user log in using externally verified identity
-	repeated ExternalIdentity OIDCIdentities = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "oidc_identities,omitempty"];
+message UserSpecV2 {
+    // OIDCIdentities lists associated OpenID Connect identities
+    // that let user log in using externally verified identity
+    repeated ExternalIdentity OIDCIdentities = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "oidc_identities,omitempty" ];
 
-	// SAMLIdentities lists associated SAML identities
-	// that let user log in using externally verified identity
-	repeated ExternalIdentity SAMLIdentities = 2 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "saml_identities,omitempty"];
+    // SAMLIdentities lists associated SAML identities
+    // that let user log in using externally verified identity
+    repeated ExternalIdentity SAMLIdentities = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "saml_identities,omitempty" ];
 
-	// GithubIdentities list associated Github OAuth2 identities
-	// that let user log in using externally verified identity
-	repeated ExternalIdentity GithubIdentities = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "github_identities,omitempty"];
+    // GithubIdentities list associated Github OAuth2 identities
+    // that let user log in using externally verified identity
+    repeated ExternalIdentity GithubIdentities = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "github_identities,omitempty" ];
 
-	// Roles is a list of roles assigned to user
-	repeated string Roles = 4 [(gogoproto.jsontag) = "roles,omitempty"];
+    // Roles is a list of roles assigned to user
+    repeated string Roles = 4 [ (gogoproto.jsontag) = "roles,omitempty" ];
 
-	// Traits are key/value pairs received from an identity provider (through
-	// OIDC claims or SAML assertions) or from a system administrator for local
-	// accounts. Traits are used to populate role variables.
-	wrappers.LabelValues Traits = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "traits,omitempty", (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"];
+    // Traits are key/value pairs received from an identity provider (through
+    // OIDC claims or SAML assertions) or from a system administrator for local
+    // accounts. Traits are used to populate role variables.
+    wrappers.LabelValues Traits = 5 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "traits,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+    ];
 
-	// Status is a login status of the user
-	LoginStatus Status = 6 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "status,omitempty"];
+    // Status is a login status of the user
+    LoginStatus Status = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "status,omitempty" ];
 
-	// Expires if set sets TTL on the user
-    google.protobuf.Timestamp Expires = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "expires"];
+    // Expires if set sets TTL on the user
+    google.protobuf.Timestamp Expires = 7 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
 
-	// CreatedBy holds information about agent or person created this user
-	CreatedBy CreatedBy = 8 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "created_by,omitempty"];
+    // CreatedBy holds information about agent or person created this user
+    CreatedBy CreatedBy = 8
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "created_by,omitempty" ];
 
-    // LocalAuths hold sensitive data necessary for performing local authentication
-    LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
+    // LocalAuths hold sensitive data necessary for performing local
+    // authentication
+    LocalAuthSecrets LocalAuth = 9 [ (gogoproto.jsontag) = "local_auth,omitempty" ];
 }
 
 // ExternalIdentity is OpenID Connect/SAML or Github identity that is linked
@@ -591,23 +750,31 @@ message ExternalIdentity {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
-	// ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
-	string ConnectorID = 1 [(gogoproto.jsontag) = "connector_id,omitempty"];
+    // ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
+    string ConnectorID = 1 [ (gogoproto.jsontag) = "connector_id,omitempty" ];
 
-	// Username is username supplied by external identity provider
-    string Username = 2 [(gogoproto.jsontag) = "username,omitempty"];
+    // Username is username supplied by external identity provider
+    string Username = 2 [ (gogoproto.jsontag) = "username,omitempty" ];
 }
 
 // LoginStatus is a login status of the user
 message LoginStatus {
-	// IsLocked tells us if user is locked
-	bool IsLocked = 1 [(gogoproto.jsontag) = "is_locked"];
-	// LockedMessage contains the message in case if user is locked
-	string LockedMessage = 2 [(gogoproto.jsontag) = "locked_message,omitempty"];
-	// LockedTime contains time when user was locked
-    google.protobuf.Timestamp LockedTime = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "locked_time,omitempty"];
-	// LockExpires contains time when this lock will expire
-	google.protobuf.Timestamp LockExpires = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "lock_expires,omitempty"];
+    // IsLocked tells us if user is locked
+    bool IsLocked = 1 [ (gogoproto.jsontag) = "is_locked" ];
+    // LockedMessage contains the message in case if user is locked
+    string LockedMessage = 2 [ (gogoproto.jsontag) = "locked_message,omitempty" ];
+    // LockedTime contains time when user was locked
+    google.protobuf.Timestamp LockedTime = 3 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "locked_time,omitempty"
+    ];
+    // LockExpires contains time when this lock will expire
+    google.protobuf.Timestamp LockExpires = 4 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "lock_expires,omitempty"
+    ];
 }
 
 // CreatedBy holds information about the person or agent who created the user
@@ -615,107 +782,114 @@ message CreatedBy {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
-	// Identity if present means that user was automatically created by identity
-	ConnectorRef Connector = 1 [(gogoproto.nullable) = true, (gogoproto.jsontag) = "connector,omitempty"];
-	// Time specifies when user was created
-    google.protobuf.Timestamp Time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "time"];
-	// User holds information about user
-	UserRef User = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "user"];
+    // Identity if present means that user was automatically created by identity
+    ConnectorRef Connector = 1
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "connector,omitempty" ];
+    // Time specifies when user was created
+    google.protobuf.Timestamp Time = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "time" ];
+    // User holds information about user
+    UserRef User = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "user" ];
 }
 
 // U2FRegistrationData encodes the universal second factor registration payload.
 message U2FRegistrationData {
     // Raw is the serialized registration data as received from the token
-    bytes Raw = 1 [(gogoproto.jsontag) = "raw"];
+    bytes Raw = 1 [ (gogoproto.jsontag) = "raw" ];
 
     // KeyHandle uniquely identifies a key on a device
-    bytes KeyHandle = 2 [(gogoproto.jsontag) = "key_handle"];
+    bytes KeyHandle = 2 [ (gogoproto.jsontag) = "key_handle" ];
 
     // PubKey is an DER encoded ecdsa public key
-    bytes PubKey = 3 [(gogoproto.jsontag) = "pubkey"];
+    bytes PubKey = 3 [ (gogoproto.jsontag) = "pubkey" ];
 }
 
 // LocalAuthSecrets holds sensitive data used to authenticate a local user.
 message LocalAuthSecrets {
     // PasswordHash encodes a combined salt & hash for password verification.
-    bytes PasswordHash = 1 [(gogoproto.jsontag) = "password_hash,omitempty"];
+    bytes PasswordHash = 1 [ (gogoproto.jsontag) = "password_hash,omitempty" ];
 
     // TOTPKey is the key used for Time-based One Time Password varification.
-    string TOTPKey = 2 [(gogoproto.jsontag) = "totp_key,omitempty"];
+    string TOTPKey = 2 [ (gogoproto.jsontag) = "totp_key,omitempty" ];
 
     // U2FRegistration holds Universal Second Factor registration info.
-    U2FRegistrationData U2FRegistration = 3 [(gogoproto.jsontag) = "u2f_registration,omitempty"];
+    U2FRegistrationData U2FRegistration = 3 [ (gogoproto.jsontag) = "u2f_registration,omitempty" ];
 
-    // U2FCounter holds the highest seen Universal Second Factor registration count.
-    uint32 U2FCounter = 4 [(gogoproto.jsontag) = "u2f_counter,omitempty"];
+    // U2FCounter holds the highest seen Universal Second Factor registration
+    // count.
+    uint32 U2FCounter = 4 [ (gogoproto.jsontag) = "u2f_counter,omitempty" ];
 }
 
 // ConnectorRef holds information about OIDC connector
 message ConnectorRef {
-	// Type is connector type
-	string Type = 1 [(gogoproto.jsontag) = "type"];
-	// ID is connector ID
-	string ID = 2 [(gogoproto.jsontag) = "id"];
-	// Identity is external identity of the user
-	string Identity = 3 [(gogoproto.jsontag) = "identity"];
+    // Type is connector type
+    string Type = 1 [ (gogoproto.jsontag) = "type" ];
+    // ID is connector ID
+    string ID = 2 [ (gogoproto.jsontag) = "id" ];
+    // Identity is external identity of the user
+    string Identity = 3 [ (gogoproto.jsontag) = "identity" ];
 }
 
 // UserRef holds references to user
 message UserRef {
-	// Name is name of the user
-	string Name = 1 [(gogoproto.jsontag) = "name"];
+    // Name is name of the user
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
 }
 
 // ReverseTunnelV2 is version 2 of the resource spec of the reverse tunnel
 message ReverseTunnelV2 {
-	// Kind is a resource kind
-	string Kind = 1 [(gogoproto.jsontag) = "kind"];
-	// SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-	string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is a resource metadata
-	Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
-	// Spec is a reverse tunnel specification
-	ReverseTunnelSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is a resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a reverse tunnel specification
+    ReverseTunnelSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // ReverseTunnelSpecV2 is a specification for V2 reverse tunnel
 message ReverseTunnelSpecV2 {
-	// ClusterName is a domain name of remote cluster we are connecting to
-	string ClusterName = 1 [(gogoproto.jsontag) = "cluster_name"];
-	// DialAddrs is a list of remote address to establish a connection to
-	// it's always SSH over TCP
-	repeated string DialAddrs = 2 [(gogoproto.jsontag) = "dial_addrs,omitempty"];
-	// Type is the type of reverse tunnel, either proxy or node.
-	string Type = 3 [(gogoproto.jsontag) = "type", (gogoproto.casttype) = "TunnelType"];
+    // ClusterName is a domain name of remote cluster we are connecting to
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name" ];
+    // DialAddrs is a list of remote address to establish a connection to
+    // it's always SSH over TCP
+    repeated string DialAddrs = 2 [ (gogoproto.jsontag) = "dial_addrs,omitempty" ];
+    // Type is the type of reverse tunnel, either proxy or node.
+    string Type = 3 [ (gogoproto.jsontag) = "type", (gogoproto.casttype) = "TunnelType" ];
 }
 
 // TunnelConnectionV2 is version 2 of the resource spec of the tunnel connection
 message TunnelConnectionV2 {
-	option (gogoproto.goproto_stringer) = false;
-	option (gogoproto.stringer) = false;
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
 
-	// Kind is a resource kind
-	string Kind = 1 [(gogoproto.jsontag) = "kind"];
-	// SubKind is an optional resource sub kind, used in some resources
-	string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-	// Version is version
-	string Version = 3 [(gogoproto.jsontag) = "version"];
-	// Metadata is a resource metadata
-	Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
-	// Spec is a tunnel specification
-	TunnelConnectionSpecV2 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is a resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a tunnel specification
+    TunnelConnectionSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // TunnelConnectionSpecV2 is a specification for V2 tunnel connection
 message TunnelConnectionSpecV2 {
-	// ClusterName is a name of the cluster
-	string ClusterName = 1 [(gogoproto.jsontag) = "cluster_name"];
-	// ProxyName is the name of the proxy server
-	string ProxyName = 2 [(gogoproto.jsontag) = "proxy_name"];
-	// LastHeartbeat is a time of the last heartbeat
-	google.protobuf.Timestamp LastHeartbeat = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "last_heartbeat,omitempty"];
-	// Type is the type of reverse tunnel, either proxy or node.
-	string Type = 4 [(gogoproto.jsontag) = "type", (gogoproto.casttype) = "TunnelType"];
+    // ClusterName is a name of the cluster
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name" ];
+    // ProxyName is the name of the proxy server
+    string ProxyName = 2 [ (gogoproto.jsontag) = "proxy_name" ];
+    // LastHeartbeat is a time of the last heartbeat
+    google.protobuf.Timestamp LastHeartbeat = 3 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "last_heartbeat,omitempty"
+    ];
+    // Type is the type of reverse tunnel, either proxy or node.
+    string Type = 4 [ (gogoproto.jsontag) = "type", (gogoproto.casttype) = "TunnelType" ];
 }

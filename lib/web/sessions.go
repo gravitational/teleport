@@ -29,7 +29,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -469,37 +468,8 @@ func (s *sessionCache) GetCertificateWithU2F(c client.CreateSSHCertWithU2FReq) (
 	})
 }
 
-func (s *sessionCache) GetUserInviteInfo(token string) (user string, otpQRCode []byte, err error) {
-	return s.proxyClient.GetSignupTokenData(token)
-}
-
 func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2f.RegisterRequest, error) {
 	return s.proxyClient.GetSignupU2FRegisterRequest(token)
-}
-
-func (s *sessionCache) CreateNewUser(token, password, otpToken string) (services.WebSession, error) {
-	cap, err := s.proxyClient.GetAuthPreference()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var webSession services.WebSession
-
-	switch cap.GetSecondFactor() {
-	case teleport.OFF:
-		webSession, err = s.proxyClient.CreateUserWithoutOTP(token, password)
-	case teleport.OTP, teleport.TOTP, teleport.HOTP:
-		webSession, err = s.proxyClient.CreateUserWithOTP(token, password, otpToken)
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return webSession, nil
-}
-
-func (s *sessionCache) CreateNewU2FUser(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error) {
-	return s.proxyClient.CreateUserWithU2FToken(token, password, u2fRegisterResponse)
 }
 
 func (s *sessionCache) ValidateTrustedCluster(validateRequest *auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error) {

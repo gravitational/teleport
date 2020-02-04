@@ -686,7 +686,7 @@ func (c *Client) GetToken(token string) (services.ProvisionToken, error) {
 }
 
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
-// could be a user token or a machine token
+// could be a reset password token or a machine token
 func (c *Client) DeleteToken(token string) error {
 	_, err := c.Delete(c.Endpoint("tokens", token))
 	return trace.Wrap(err)
@@ -1577,41 +1577,6 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// CreateSignupToken creates one time token for creating account for the user
-// For each token it creates username and otp generator
-func (c *Client) CreateSignupToken(user services.UserV1, ttl time.Duration) (string, error) {
-	if err := user.Check(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	out, err := c.PostJSON(c.Endpoint("signuptokens"), createSignupTokenReq{
-		User: user,
-		TTL:  ttl,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var token string
-	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
-}
-
-// GetSignupTokenData returns token data for a valid token
-func (c *Client) GetSignupTokenData(token string) (user string, otpQRCode []byte, e error) {
-	out, err := c.Get(c.Endpoint("signuptokens", token), url.Values{})
-	if err != nil {
-		return "", nil, err
-	}
-
-	var tokenData getSignupTokenDataResponse
-	if err := json.Unmarshal(out.Bytes(), &tokenData); err != nil {
-		return "", nil, err
-	}
-
-	return tokenData.User, tokenData.QRImg, nil
-}
-
 // GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 // text format, signs it using User Certificate Authority signing key and
 // returns the resulting certificates.
@@ -1640,41 +1605,9 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *
 	return &u2fRegReq, nil
 }
 
-// CreateUserWithOTP creates account with provided token and password.
-// Account username and OTP key are taken from token data.
-// Deletes token after account creation.
-func (c *Client) CreateUserWithOTP(token, password, otpToken string) (services.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
-		Token:    token,
-		Password: password,
-		OTPToken: otpToken,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
-}
-
-// CreateUserWithoutOTP validates a given token creates a user
-// with the given password and deletes the token afterwards.
-func (c *Client) CreateUserWithoutOTP(token string, password string) (services.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
-		Token:    token,
-		Password: password,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
-}
-
-// CreateUserWithU2FToken creates user account with provided token and U2F sign response
-func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("u2f", "users"), createUserWithU2FTokenReq{
-		Token:               token,
-		Password:            password,
-		U2FRegisterResponse: u2fRegisterResponse,
-	})
+// ChangePasswordWithToken changes user password with ResetPasswordToken
+func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
+	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2572,6 +2505,57 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req services.AccessReq
 	return nil
 }
 
+func (c *Client) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	secrets, err := clt.RotateResetPasswordTokenSecrets(ctx, &proto.RotateResetPasswordTokenSecretsRequest{
+		TokenID: tokenID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return secrets, nil
+}
+
+func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (services.ResetPasswordToken, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := clt.GetResetPasswordToken(ctx, &proto.GetResetPasswordTokenRequest{
+		TokenID: tokenID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return token, nil
+}
+
+// CreateResetPasswordToken creates reset password token
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := clt.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
+		Name: req.Name,
+		TTL:  proto.Duration(req.TTL),
+		Type: req.Type,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return token, nil
+}
+
 func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	clt, err := c.grpc()
 	if err != nil {
@@ -2680,9 +2664,6 @@ type IdentityService interface {
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
 
-	// CreateUserWithU2FToken creates user account with provided token and U2F sign response
-	CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error)
-
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (services.User, error)
 
@@ -2700,15 +2681,6 @@ type IdentityService interface {
 
 	// CheckPassword checks if the suplied web access password is valid.
 	CheckPassword(user string, password []byte, otpToken string) error
-
-	// CreateUserWithOTP creates account with provided token and password.
-	// Account username and OTP key are taken from token data.
-	// Deletes token after account creation.
-	CreateUserWithOTP(token, password, otpToken string) (services.WebSession, error)
-
-	// CreateUserWithoutOTP validates a given token creates a user
-	// with the given password and deletes the token afterwards.
-	CreateUserWithoutOTP(token string, password string) (services.WebSession, error)
 
 	// GenerateToken creates a special provisioning token for a new SSH server
 	// that is valid for ttl period seconds.
@@ -2735,15 +2707,20 @@ type IdentityService interface {
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
-	// GetSignupTokenData returns token data for a valid token
-	GetSignupTokenData(token string) (user string, otpQRCode []byte, e error)
-
-	// CreateSignupToken creates one time token for creating account for the user
-	// For each token it creates username and OTP key
-	CreateSignupToken(user services.UserV1, ttl time.Duration) (string, error)
-
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
+
+	// CreateResetPasswordToken creates a new user reset token
+	CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error)
+
+	// ChangePasswordWithToken changes password with token
+	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error)
+
+	// GetResetPasswordToken returns token
+	GetResetPasswordToken(ctx context.Context, username string) (services.ResetPasswordToken, error)
+
+	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
+	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error)
 }
 
 // ProvisioningService is a service in control
@@ -2756,7 +2733,7 @@ type ProvisioningService interface {
 	GetToken(token string) (services.ProvisionToken, error)
 
 	// DeleteToken deletes a given provisioning token on the auth server (CA). It
-	// could be a user token or a machine token
+	// could be a reset password token or a machine token
 	DeleteToken(token string) error
 
 	// DeleteAllTokens deletes all provisioning tokens

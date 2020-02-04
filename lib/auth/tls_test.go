@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,7 +49,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
-	"github.com/tstranex/u2f"
 	"gopkg.in/check.v1"
 )
 
@@ -1206,13 +1204,6 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 	err = s.server.Auth().UpsertTOTP(user, otpSecret)
 	c.Assert(err, check.IsNil)
 
-	// make sure the otp url we get back is valid url issued to the correct user
-	otpURL, _, err := s.server.Auth().GetOTPData(user)
-	c.Assert(err, check.IsNil)
-	u, err := url.Parse(otpURL)
-	c.Assert(err, check.IsNil)
-	c.Assert(u.Path, check.Equals, "/user1")
-
 	// a completely invalid token should return access denied
 	err = clt.CheckPassword("user1", pass, "123456")
 	c.Assert(err, check.NotNil)
@@ -1765,14 +1756,6 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	err = s.server.Auth().UpsertTOTP(user, otpSecret)
 	c.Assert(err, check.IsNil)
 
-	otpURL, _, err := s.server.Auth().GetOTPData(user)
-	c.Assert(err, check.IsNil)
-
-	// make sure label in url is correct
-	u, err := url.Parse(otpURL)
-	c.Assert(err, check.IsNil)
-	c.Assert(u.Path, check.Equals, "/ws-test")
-
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, s.server.Clock().Now())
 	c.Assert(err, check.IsNil)
@@ -1831,68 +1814,6 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-// TestTokenSignupFlow tests signup flow using invite token
-func (s *TLSSuite) TestTokenSignupFlow(c *check.C) {
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
-		SecondFactor: teleport.OTP,
-	})
-	c.Assert(err, check.IsNil)
-	err = s.server.Auth().SetAuthPreference(authPreference)
-	c.Assert(err, check.IsNil)
-
-	user := "foobar"
-	mappings := []string{"admin", "db"}
-
-	token, err := s.server.Auth().CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings}, 0)
-	c.Assert(err, check.IsNil)
-
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
-	c.Assert(err, check.IsNil)
-
-	// invalid token
-	_, _, err = proxy.GetSignupTokenData("bad_token_data")
-	c.Assert(err, check.NotNil)
-
-	// valid token - success
-	_, _, err = proxy.GetSignupTokenData(token)
-	c.Assert(err, check.IsNil)
-
-	signupToken, err := s.server.Auth().GetSignupToken(token)
-	c.Assert(err, check.IsNil)
-
-	otpToken, err := totp.GenerateCode(signupToken.OTPKey, s.server.Clock().Now())
-	c.Assert(err, check.IsNil)
-
-	// valid token, but missing second factor
-	newPassword := "abc123"
-	_, err = proxy.CreateUserWithoutOTP(token, newPassword)
-	fixtures.ExpectAccessDenied(c, err)
-
-	// invalid signup token
-	_, err = proxy.CreateUserWithOTP("what_token?", newPassword, otpToken)
-	fixtures.ExpectAccessDenied(c, err)
-
-	// valid signup token, invalid otp token
-	_, err = proxy.CreateUserWithOTP(token, newPassword, "badotp")
-	fixtures.ExpectAccessDenied(c, err)
-
-	// success
-	ws, err := proxy.CreateUserWithOTP(token, newPassword, otpToken)
-	c.Assert(err, check.IsNil)
-
-	// attempt to reuse token fails
-	_, err = proxy.CreateUserWithOTP(token, newPassword, otpToken)
-	fixtures.ExpectAccessDenied(c, err)
-
-	// can login with web session credentials now
-	userClient, err := s.server.NewClientFromWebSession(ws)
-	c.Assert(err, check.IsNil)
-
-	_, err = userClient.GetWebSessionInfo(user, ws.GetName())
-	c.Assert(err, check.IsNil)
-}
-
 // TestLoginAttempts makes sure the login attempt counter is incremented and
 // reset correctly.
 func (s *TLSSuite) TestLoginAttempts(c *check.C) {
@@ -1937,46 +1858,50 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 	c.Assert(loginAttempts, check.HasLen, 0)
 }
 
-// TestSignupNoLocalAuth make sure that signup tokens can not be created
-// when local auth is disabled.
-func (s *TLSSuite) TestSignupNoLocalAuth(c *check.C) {
-	// Set services.ClusterConfig to disallow local auth.
+func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		LocalAuth: services.NewBool(false),
+		LocalAuth: services.NewBool(true),
 	})
 	c.Assert(err, check.IsNil)
+
 	err = s.server.Auth().SetClusterConfig(clusterConfig)
 	c.Assert(err, check.IsNil)
 
-	// Make sure access is denied when trying to create a signup token.
-	_, err = s.server.Auth().CreateSignupToken(services.UserV1{
-		Name:          "foo",
-		AllowedLogins: []string{"admin"},
-	}, backend.Forever)
-	fixtures.ExpectAccessDenied(c, err)
-}
-
-// TestCreateUserNoLocalAuth make sure that local users can not be created
-// when local auth is disabled.
-func (s *TLSSuite) TestCreateUserNoLocalAuth(c *check.C) {
-	// Set services.ClusterConfig to disallow local auth.
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		LocalAuth: services.NewBool(false),
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OTP,
 	})
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+
+	err = s.server.Auth().SetAuthPreference(authPreference)
 	c.Assert(err, check.IsNil)
 
-	// Make sure access is denied when trying to create a user.
-	_, err = s.server.Auth().CreateUserWithoutOTP("foo", "bar")
-	fixtures.ExpectAccessDenied(c, err)
-	_, err = s.server.Auth().CreateUserWithOTP("foo", "bar", "123456")
-	fixtures.ExpectAccessDenied(c, err)
-	_, err = s.server.Auth().CreateUserWithU2FToken("foo", "bar", u2f.RegisterResponse{
-		ClientData:       "baz",
-		RegistrationData: "qux",
+	username := "user1"
+	// Create a local user.
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
+	c.Assert(err, check.IsNil)
+
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+		Name: username,
+		TTL:  time.Hour,
 	})
-	fixtures.ExpectAccessDenied(c, err)
+	c.Assert(err, check.IsNil)
+
+	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	c.Assert(err, check.IsNil)
+
+	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
+	c.Assert(err, check.IsNil)
+
+	_, err = s.server.Auth().ChangePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+		TokenID:           token.GetName(),
+		Password:          []byte("qweqweqwe"),
+		SecondFactorToken: otpToken,
+	})
+	c.Assert(err, check.IsNil)
 }
 
 // TestLoginNoLocalAuth makes sure that logins for local accounts can not be
