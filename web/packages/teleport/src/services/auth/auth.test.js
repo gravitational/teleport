@@ -20,6 +20,7 @@ import api from 'teleport/services/api';
 
 describe('services/auth', () => {
   beforeEach(() => {
+    // setup u2f mocks
     global.u2f = {
       sign() {},
       register() {},
@@ -32,150 +33,118 @@ describe('services/auth', () => {
   });
 
   // sample data
-  const user = 'user@example.com';
+  const dummyU2fRegResponse = Promise.resolve({ appId: 'xxx' });
   const password = 'sample_pass';
-  const inviteToken = 'invite_token';
-  const secretToken = 'sample_secret_token';
+  const email = 'user@example.com';
 
-  describe('login()', () => {
-    const user = 'user@example.com';
-    const email = user;
-    const submitData = {
+  test('login()', async () => {
+    jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
+
+    await auth.login(email, password);
+    expect(api.post).toHaveBeenCalledWith(
+      cfg.api.sessionPath,
+      {
+        user: email,
+        pass: password,
+        second_factor_token: undefined,
+      },
+      false
+    );
+  });
+
+  test('login() OTP', async () => {
+    jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
+    const data = {
       user: email,
       pass: password,
-      second_factor_token: undefined,
+      second_factor_token: 'xxx',
     };
 
-    it('should login with email', async () => {
-      jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
-      expect.assertions(1);
-      await auth.login(email, password).then(() => {
-        expect(api.post).toHaveBeenCalledWith(
-          cfg.api.sessionPath,
-          submitData,
-          false
-        );
-      });
-    });
-
-    it('should login with OTP', async () => {
-      jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
-      const data = {
-        ...submitData,
-        second_factor_token: 'xxx',
-      };
-
-      expect.assertions(1);
-      await auth.login(email, password, 'xxx').then(() => {
-        expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, data, false);
-      });
-    });
+    await auth.login(email, password, 'xxx');
+    expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, data, false);
   });
 
-  describe('loginWithU2f()', () => {
-    it('should login', () => {
-      const dummyResponse = { appId: 'xxx' };
-      jest
-        .spyOn(api, 'post')
-        .mockImplementation(() => Promise.resolve(dummyResponse));
-      jest.spyOn(global.u2f, 'sign').mockImplementation((a, b, c, d) => {
-        d(dummyResponse);
-      });
-
-      expect.assertions(1);
-      return auth.loginWithU2f(user, password).then(() => {
-        expect(window.u2f.sign).toHaveBeenCalled();
-      });
+  test('loginWithU2f()', async () => {
+    jest.spyOn(api, 'post').mockImplementation(() => dummyU2fRegResponse);
+    jest.spyOn(global.u2f, 'sign').mockImplementation((a, b, c, d) => {
+      d(dummyU2fRegResponse);
     });
 
-    it('should handle error', () => {
-      const dummyResponse = { appId: 'xxx' };
-      jest
-        .spyOn(api, 'post')
-        .mockImplementation(() => Promise.resolve(dummyResponse));
-      jest.spyOn(window.u2f, 'sign').mockImplementation((a, b, c, d) => {
-        d({ errorCode: '404' });
-      });
-
-      expect.assertions(1);
-      auth.loginWithU2f(user, password).catch(() => {
-        expect(window.u2f.sign).toHaveBeenCalled();
-      });
-    });
+    await auth.loginWithU2f(email, password);
+    expect(window.u2f.sign).toHaveBeenCalled();
   });
 
-  describe('registerWith2FA()', () => {
-    it('should accept invite with 2FA', () => {
-      const submitData = {
-        invite_token: 'invite_token',
-        pass: 'c2FtcGxlX3Bhc3M=',
-        token: 'invite_token',
-        u2f_register_response: undefined,
-      };
-
-      jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
-
-      expect.assertions(1);
-      return auth
-        .registerWith2FA(password, secretToken, inviteToken)
-        .then(() => {
-          expect(api.post).toHaveBeenCalledWith(
-            cfg.api.userTokenInviteDonePath,
-            submitData,
-            false
-          );
-        });
+  test('loginWithU2f() error', async () => {
+    jest.spyOn(api, 'post').mockImplementation(() => dummyU2fRegResponse);
+    jest.spyOn(window.u2f, 'sign').mockImplementation((a, b, c, d) => {
+      d({ errorCode: '404' });
     });
+
+    try {
+      await auth.loginWithU2f(email, password);
+    } catch (err) {
+      expect(window.u2f.sign).toHaveBeenCalled();
+    }
+    expect.assertions(1);
   });
 
-  describe('registerWithU2F()', () => {
-    xit('should accept invite with U2F', () => {
-      const appId = 'xxx';
-      const dummyResponse = { appId };
+  test('resetPassword()', async () => {
+    jest.spyOn(api, 'put').mockImplementation(() => Promise.resolve());
+    const submitData = {
+      token: 'tokenId',
+      second_factor_token: '2fa_token',
+      password: 'c2FtcGxlX3Bhc3M=',
+      u2f_register_response: undefined,
+    };
 
-      jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
-      jest
-        .spyOn(api, 'get')
-        .mockImplementation(() => Promise.resolve(dummyResponse));
-      jest.spyOn(window.u2f, 'register').mockImplementation((a, b, c, d) => {
-        d(dummyResponse);
-      });
+    await auth.resetPassword('tokenId', password, '2fa_token');
+    expect(api.put).toHaveBeenCalledWith(
+      cfg.getPasswordTokenUrl(),
+      submitData,
+      false
+    );
+  });
 
-      expect.assertions(2);
-      return auth.registerWithU2F(password, inviteToken).then(() => {
-        expect(api.get).toHaveBeenCalledWith(
-          `/v1/webapi/u2f/signuptokens/${inviteToken}`
-        );
-        expect(api.post).toHaveBeenCalledWith(
-          '/v1/webapi/u2f/users',
-          {
-            invite_token: 'invite_token',
-            pass: 'c2FtcGxlX3Bhc3M=',
-            token: 'invite_token',
-
-            u2f_register_response: {
-              appId: appId,
-            },
-          },
-          false
-        );
-      });
+  test('resetPasswordU2F()', async () => {
+    jest.spyOn(api, 'post').mockImplementation(() => dummyU2fRegResponse);
+    jest.spyOn(api, 'get').mockImplementation(() => Promise.resolve({}));
+    jest.spyOn(window.u2f, 'register').mockImplementation((a, b, c, d) => {
+      d(dummyU2fRegResponse);
     });
 
-    it('should handle error', () => {
-      const dummyResponse = { appId: 'xxx' };
-      jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
-      jest
-        .spyOn(api, 'get')
-        .mockImplementation(() => Promise.resolve(dummyResponse));
-      jest.spyOn(window.u2f, 'register').mockImplementation((a, b, c, d) => {
-        d({ errorCode: '404' });
-      });
+    const submitted = {
+      second_factor_token: null,
+      password: 'c2FtcGxlX3Bhc3M=',
+      token: 'tokenId',
+      u2f_register_response: {
+        appId: 'xxx',
+      },
+    };
 
-      expect.assertions(1);
-      return auth.registerWithU2F(password, inviteToken).catch(() => {
-        expect(api.post).toHaveBeenCalledTimes(0);
-      });
+    await auth.resetPasswordWithU2f('tokenId', password);
+    expect(api.get).toHaveBeenCalledWith(
+      cfg.getU2fCreateUserChallengeUrl('tokenId')
+    );
+    expect(api.put).toHaveBeenCalledWith(
+      cfg.getPasswordTokenUrl(),
+      submitted,
+      false
+    );
+  });
+
+  test('resetPasswordU2F() error', async () => {
+    jest.spyOn(api, 'post').mockImplementation(() => dummyU2fRegResponse);
+    jest.spyOn(api, 'get').mockImplementation(() => dummyU2fRegResponse);
+    jest.spyOn(window.u2f, 'register').mockImplementation((a, b, c, d) => {
+      d({ errorCode: '404' });
     });
+
+    try {
+      await auth.resetPasswordWithU2f('tokenId', password);
+    } catch (err) {
+      expect(api.post).toHaveBeenCalledTimes(0);
+    }
+
+    expect.assertions(1);
   });
 });

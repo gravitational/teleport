@@ -18,16 +18,9 @@ limitations under the License.
 import 'u2f-api-polyfill';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import makeUserToken from './makeUserToken';
+import makePasswordToken from './makePasswordToken';
 
 const auth = {
-  fetchToken(tokenId) {
-    const path = cfg.getInviteUrl(tokenId);
-    return api.get(path).then(json => {
-      return makeUserToken(json);
-    });
-  },
-
   login(userId, password, token) {
     const data = {
       user: userId,
@@ -73,46 +66,19 @@ const auth = {
     });
   },
 
-  registerWithU2F(password, tokenId) {
+  fetchPasswordToken(tokenId) {
+    const path = cfg.getPasswordTokenUrl(tokenId);
+    return api.get(path).then(makePasswordToken);
+  },
+
+  resetPasswordWithU2f(tokenId, password) {
     return auth._getU2FRegisterRes(tokenId).then(u2fRes => {
-      return auth._finishRegistration(
-        cfg.api.userTokenInviteDonePath,
-        tokenId,
-        password,
-        null,
-        u2fRes
-      );
+      return auth._resetPassword(tokenId, password, null, u2fRes);
     });
   },
 
-  registerWith2FA(password, hotpToken, tokenId) {
-    return auth._finishRegistration(
-      cfg.api.userTokenInviteDonePath,
-      tokenId,
-      password,
-      hotpToken
-    );
-  },
-
-  resetPasswordWithU2F(password, tokenId) {
-    return auth._getU2FRegisterRes(tokenId).then(u2fRes => {
-      return auth._finishRegistration(
-        cfg.api.userTokenResetDonePath,
-        tokenId,
-        password,
-        null,
-        u2fRes
-      );
-    });
-  },
-
-  resetPasswordWith2FA(password, hotpToken, tokenId) {
-    return this._finishRegistration(
-      cfg.api.userTokenResetDonePath,
-      tokenId,
-      password,
-      hotpToken
-    );
+  resetPassword(tokenId, password, hotpToken) {
+    return this._resetPassword(tokenId, password, hotpToken);
   },
 
   changePassword(oldPass, newPass, token) {
@@ -158,22 +124,19 @@ const auth = {
     });
   },
 
-  _finishRegistration(url, tokenId, psw, hotpToken, u2fResponse) {
+  _resetPassword(tokenId, psw, hotpToken, u2fResponse) {
     const request = {
-      //  'password': window.btoa(psw),
-      //  'second_factor_token': hotpToken,
+      password: window.btoa(psw),
+      second_factor_token: hotpToken,
       token: tokenId,
       u2f_register_response: u2fResponse,
-      // remote below props after refactoring signup APIs.
-      invite_token: tokenId,
-      pass: window.btoa(psw),
     };
 
-    return api.post(url, request, false);
+    return api.put(cfg.getPasswordTokenUrl(), request, false);
   },
 
-  _getU2FRegisterRes(tokenID) {
-    return api.get(cfg.getU2fCreateUserChallengeUrl(tokenID)).then(data => {
+  _getU2FRegisterRes(tokenId) {
+    return api.get(cfg.getU2fCreateUserChallengeUrl(tokenId)).then(data => {
       return new Promise((resolve, reject) => {
         window.u2f.register(data.appId, [data], [], function(res) {
           if (res.errorCode) {

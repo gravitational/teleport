@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,57 +15,45 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
-import Invite from './Invite';
+import { Invite as Component } from './Invite';
 
-storiesOf('Teleport/Invite', module)
-  .add('Invite', () => {
-    const props = {
-      ...defaultProps,
-      submitBtnText: 'Create Account',
-    }
+export default {
+  title: 'Teleport/Invite',
+  component: Component,
+};
 
-    return (
-      <Invite
-        {...props}
-      />);
-  })
-  .add('Invite Expired', () => {
-    const props = {
-      ...defaultProps,
-      fetchAttempt: { isFailed: true, message: 'this is error message' },
-      submitBtnText: 'Create Account',
-    }
+export function Invite() {
+  return <Component {...defaultProps} />;
+}
 
-    return (
-      <Invite
-        {...props}
-      />);
-  })
-  .add('Password Reset', () => {
-    const props = {
-      ...defaultProps,
-      submitBtnText: 'Change Password',
-    }
-    return (
-      <Invite
-        {...props}
-      />);
-  });
+export function Expired() {
+  const props = {
+    ...defaultProps,
+    fetchAttempt: { isFailed: true, message: 'this is error message' },
+  };
 
-  const defaultProps = {
-    submitAttempt: {},
-    auth2faType: "off",
-    authType: '',
-    fetchAttempt: {
-      isSuccess: true,
-    },
-    fetchUserToken: () => null,
-    onSubmit: () => null,
-    onSubmitWithU2f: () => null,
-    tokenId: 'tokenID',
-    userToken: {
-      userName: 'john@example.com',
-      url: 'https://localhost/sampleurl'
-    },
-  }
+  return <Component {...props} />;
+}
+
+export function ResetPasswordScreen() {
+  const props = {
+    ...defaultProps,
+    passwordResetMode: true,
+  };
+  return <Component {...props} />;
+}
+
+const defaultProps = {
+  auth2faType: 'off',
+  submitAttempt: {},
+  fetchAttempt: {
+    isSuccess: true,
+  },
+  onSubmitWithU2f: () => null,
+  fetchUserToken: () => null,
+  onSubmit: () => null,
+  passwordToken: {
+    user: 'john@example.com',
+    url: 'https://localhost/sampleurl',
+  },
+};

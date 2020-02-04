@@ -15,79 +15,78 @@ limitations under the License.
 */
 
 import $ from 'jQuery';
-import React from 'react'
+import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import { storiesOf } from '@storybook/react'
-import { withInfo } from '@storybook/addon-info'
-import { TopBar } from './TopBar'
+import { storiesOf } from '@storybook/react';
+import { TopBar } from './TopBar';
 import * as Icons from 'design/Icon';
 import { StatusEnum } from 'gravity/services/clusters';
 
 storiesOf('Gravity/TopBar', module)
-  .addDecorator(withInfo)
   .add('Healthy', () => {
     const newProps = {
       ...props,
       info: {
         ...props.info,
-        status: StatusEnum.READY
-      }
-    }
+        status: StatusEnum.READY,
+      },
+    };
     return (
       <Router history={inMemoryHistory}>
-        <TopBar {...newProps}/>
+        <TopBar {...newProps} />
       </Router>
-    )}
-  )
+    );
+  })
   .add('In Progress', () => {
     const newProps = {
       ...props,
       info: {
         ...props.info,
-        status: StatusEnum.PROCESSING
-      }
-    }
+        status: StatusEnum.PROCESSING,
+      },
+    };
     return (
       <Router history={inMemoryHistory}>
-        <TopBar {...newProps}/>
+        <TopBar {...newProps} />
       </Router>
-    )
+    );
   })
   .add('With Issues', () => {
     const newProps = {
       ...props,
       info: {
         ...props.info,
-        status: StatusEnum.ERROR
-      }
-    }
+        status: StatusEnum.ERROR,
+      },
+    };
 
     return (
       <Router history={inMemoryHistory}>
-        <TopBar {...newProps}/>
+        <TopBar {...newProps} />
       </Router>
-    )
-  }
-);
+    );
+  });
 
 const props = {
   user: {
-    userId: 'john@example.com'
+    userId: 'john@example.com',
   },
   navItems: [],
   info: {
     status: {},
     publicUrls: ['http://localhost/'],
     internalUrls: [],
-    commands: {}
+    commands: {},
   },
   onRefresh: () => $.Deferred().resolve(),
-  menu: [{
-    Icon: Icons.User,
-    title: 'Menu Item',
-    to: 'xxx'
-  }]
-}
+  menu: [
+    {
+      Icon: Icons.User,
+      title: 'Menu Item',
+      to: 'xxx',
+    },
+  ],
+};
 
-const inMemoryHistory = createMemoryHistory({ });
+const inMemoryHistory = createMemoryHistory({});

@@ -10,10 +10,10 @@ import { render } from 'design/utils/testing';
 
 const msg = 'some message';
 
-describe('Design/CardError', () => {
+describe('design/CardError', () => {
   it('respects styles', () => {
     const { container } = render(<CardError />);
-    expect(container.firstChild).toHaveStyleRule('width', '540px');
+    expect(container.firstChild).toHaveStyle('width: 540px');
   });
 
   test('<NotFound> renders header text and respects message prop', () => {

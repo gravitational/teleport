@@ -17,7 +17,7 @@ import { hot } from 'react-hot-loader/root';
 import React from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 import { Router, Route, Switch } from 'shared/components/Router';
-import { Invite, PasswordReset } from 'teleport/components/Invite';
+import Invite, { ResetPassword } from 'teleport/components/Invite';
 import CatchError from 'teleport/components/CatchError';
 import Login, { LoginSuccess, LoginFailed } from 'teleport/components/Login';
 import Console from 'teleport/console';
@@ -51,7 +51,7 @@ const Teleport = ({ history, children }) => (
           <Route
             title="Password Reset"
             path={cfg.routes.userReset}
-            component={PasswordReset}
+            component={ResetPassword}
           />
           <Route
             path={cfg.routes.app}

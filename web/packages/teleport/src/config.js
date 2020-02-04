@@ -54,8 +54,8 @@ const cfg = {
     login: '/web/login',
     loginFailed: '/web/msg/error/login_failed',
     loginSuccess: '/web/msg/info/login_success',
-    userInvite: '/web/newuser/:token',
-    userReset: '/web/reset/:token',
+    userInvite: '/web/invite/:tokenId',
+    userReset: '/web/reset/:tokenId',
   },
 
   api: {
@@ -67,14 +67,12 @@ const cfg = {
     sessionPath: '/v1/webapi/sessions',
     userContextPath: '/v1/webapi/sites/:clusterId/context',
     userStatusPath: '/v1/webapi/user/status',
-    invitePath: '/v1/webapi/users/invites/:token',
+    passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     userTokenInviteDonePath: '/v1/webapi/users',
     changeUserPasswordPath: '/v1/webapi/users/password',
-    u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',
-    u2fCreateUserPath: '/v1/webapi/u2f/users',
+    u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:tokenId',
     u2fSessionChallengePath: '/v1/webapi/u2f/signrequest',
     u2fChangePassChallengePath: '/v1/webapi/u2f/password/changerequest',
-    u2fChangePassPath: '/v1/webapi/u2f/password',
     u2fSessionPath: '/v1/webapi/u2f/sessions',
     nodesPath: '/v1/webapi/sites/:clusterId/nodes',
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
@@ -152,8 +150,8 @@ const cfg = {
     return generatePath(cfg.routes.clusterAuditSessions, { clusterId });
   },
 
-  getInviteUrl(token) {
-    return generatePath(cfg.api.invitePath, { token });
+  getPasswordTokenUrl(tokenId) {
+    return generatePath(cfg.api.passwordTokenPath, { tokenId });
   },
 
   getClusterRoute(clusterId) {
@@ -201,8 +199,8 @@ const cfg = {
     return generatePath(cfg.api.nodesPath, { clusterId });
   },
 
-  getU2fCreateUserChallengeUrl(inviteToken) {
-    return generatePath(cfg.api.u2fCreateUserChallengePath, { inviteToken });
+  getU2fCreateUserChallengeUrl(tokenId) {
+    return generatePath(cfg.api.u2fCreateUserChallengePath, { tokenId });
   },
 
   getScpUrl({ clusterId, serverId, login, location, filename }) {

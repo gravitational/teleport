@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,67 +15,70 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import FormInvite from './FormInvite';
 
-storiesOf('Shared/FormInvite', module)
-  .add('with user name and password', () => {
-    const props = {
-      ...defaultProps,
-      auth2faType: 'off',
-    };
+export default {
+  title: 'Shared/FormInvite',
+  component: FormInvite,
+};
 
-    return <FormInvite {...props} />;
-  })
-  .add('with OTP', () => {
-    return <FormInvite {...defaultProps} />;
-  })
-  .add('with U2F USB KEY', () => {
-    const props = {
-      ...defaultProps,
-      attempt: {
-        isProcessing: true,
-      },
-      auth2faType: 'u2f',
-    };
+export function Off() {
+  const props = {
+    ...defaultProps,
+    auth2faType: 'off',
+  };
 
-    return <FormInvite {...props} />;
-  })
-  .add('with U2F USB KEY error', () => {
-    const props = {
-      ...defaultProps,
-      attempt: {
-        isFailed: true,
-        message: 'Message whic has [U2F] word',
-      },
-      auth2faType: 'u2f',
-    };
+  return <FormInvite {...props} />;
+}
 
-    return <FormInvite {...props} />;
-  })
-  .add('with server error', () => {
-    const props = {
-      ...defaultProps,
-      attempt: {
-        isFailed: true,
-        message:
-          'Server error with a long teeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeext',
-      },
-    };
+export function Otp() {
+  return <FormInvite {...defaultProps} />;
+}
 
-    return <FormInvite {...props} />;
-  })
-  .add('with U2F error', () => {
-    const props = {
-      ...defaultProps,
-      attempt: {
-        isFailed: true,
-        message: 'U2F error',
-      },
-    };
+export function OtpError() {
+  const props = {
+    ...defaultProps,
+    attempt: {
+      isFailed: true,
+      message: 'Server error with a long teeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeext',
+    },
+  };
 
-    return <FormInvite {...props} />;
-  });
+  return <FormInvite {...props} />;
+}
+
+export function U2f() {
+  const props = {
+    ...defaultProps,
+    attempt: {
+      isProcessing: true,
+    },
+    auth2faType: 'u2f',
+  };
+
+  return <FormInvite {...props} />;
+}
+
+U2f.story = {
+  name: 'U2f',
+};
+
+export function U2fError() {
+  const props = {
+    ...defaultProps,
+    attempt: {
+      isFailed: true,
+      message: 'Message whic has [U2F] word',
+    },
+    auth2faType: 'u2f',
+  };
+
+  return <FormInvite {...props} />;
+}
+
+U2fError.story = {
+  name: 'U2fError',
+};
 
 const userToken = {
   user: 'test@gravitational.com',

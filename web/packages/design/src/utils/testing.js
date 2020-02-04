@@ -1,17 +1,35 @@
 import React from 'react';
 import {
   render as testingRender,
-  screen,
+  act,
   fireEvent,
+  waitForElement,
 } from '@testing-library/react';
+import { screen, wait, prettyDOM } from '@testing-library/dom';
 import ThemeProvider from 'design/ThemeProvider';
 import theme from 'design/theme';
+import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
-export function render(component) {
-  return testingRender(
-    <ThemeProvider theme={theme}>{component}</ThemeProvider>
-  );
+function Providers({ children }) {
+  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
 
-export { screen, fireEvent, theme };
+function render(ui, options) {
+  return testingRender(ui, { wrapper: Providers, ...options });
+}
+
+screen.debug = () => {
+  window.console.log(prettyDOM());
+};
+
+export {
+  act,
+  screen,
+  wait,
+  fireEvent,
+  theme,
+  render,
+  prettyDOM,
+  waitForElement,
+};

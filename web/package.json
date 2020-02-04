@@ -5,8 +5,8 @@
   "license": "Apache-2.0",
   "scripts": {
     "storybook": "start-storybook -p 9002 -c .storybook",
-    "test": "jest",
-    "tdd": "jest . --watch",
+    "test": "jest --runInBand",
+    "tdd": "jest packages --watch --runInBand" ,
     "start-force": "yarn workspace @gravitational/force run start",
     "start-gravity": "yarn workspace @gravitational/gravity run start",
     "start-teleport": "yarn workspace @gravitational/teleport run start",
@@ -23,3 +23,4 @@
     "packages/*/**"
   ]
 }
+

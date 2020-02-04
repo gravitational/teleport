@@ -19,17 +19,10 @@ import { NavLink } from 'react-router-dom';
 import { withState } from 'shared/hooks';
 import { SideNav, SideNavItem } from 'design';
 import SideNavItemIcon from 'design/SideNav/SideNavItemIcon';
-import { useStoreClusters, useStoreUser, useStoreNav } from 'teleport/teleport';
-import history from 'teleport/services/history';
+import { useStoreUser, useStoreNav } from 'teleport/teleport';
 import cfg from 'teleport/config';
-import SelectCluster from './SelectCluster';
 
-export function ClusterSideNav({
-  items,
-  clusterName,
-  clusterOptions,
-  onChangeCluster,
-}) {
+export function ClusterSideNav({ items }) {
   const $items = items.map((item, index) => (
     <SideNavItem key={index} as={NavLink} exact={item.exact} to={item.to}>
       <SideNavItemIcon as={item.Icon} />
@@ -37,43 +30,17 @@ export function ClusterSideNav({
     </SideNavItem>
   ));
 
-  const selectedCluster = {
-    value: clusterName,
-    label: clusterName,
-  };
-  return (
-    <SideNav>
-      <SelectCluster
-        py="2"
-        px="3"
-        value={selectedCluster}
-        options={clusterOptions}
-        onChange={onChangeCluster}
-      />
-      <div
-        style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}
-      >
-        {$items}
-      </div>
-    </SideNav>
-  );
+  return <SideNav>{$items}</SideNav>;
 }
 
 export default withState(() => {
-  const clusterOptions = useStoreClusters().getClusterOptions();
   const items = useStoreNav().getSideItems();
   const { version } = useStoreUser().state;
 
-  function onChangeCluster({ url }) {
-    history.push(url);
-  }
-
   return {
-    clusterOptions,
     version,
     items,
     clusterName: cfg.clusterName,
     homeUrl: cfg.getClusterRoute(),
-    onChangeCluster,
   };
 })(ClusterSideNav);

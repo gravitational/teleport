@@ -16,14 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import {
-  Text,
-  Card,
-  ButtonLink,
-  ButtonPrimary,
-  Flex,
-  Box,
-} from 'design';
+import { Text, Card, ButtonLink, ButtonPrimary, Flex, Box } from 'design';
 import * as Alerts from 'design/Alert';
 import FieldInput from './../FieldInput';
 import Validation from './../Validation';
@@ -46,6 +39,7 @@ export default function FormInvite(props) {
     attempt,
     user,
     qr,
+    title,
     submitBtnText,
   } = props;
   const [password, setPassword] = React.useState('');
@@ -54,8 +48,9 @@ export default function FormInvite(props) {
 
   const otpEnabled = isOtp(auth2faType);
   const u2fEnabled = isU2f(auth2faType);
+  const secondFactorEnabled = otpEnabled || u2fEnabled;
   const { isProcessing, isFailed, message } = attempt;
-  const boxWidth = (otpEnabled ? 720 : 464) + 'px';
+  const boxWidth = (secondFactorEnabled ? 720 : 464) + 'px';
 
   function onBtnClick(e, validator) {
     e.preventDefault();
@@ -76,6 +71,9 @@ export default function FormInvite(props) {
         <Card as="form" bg="primary.light" my={6} mx="auto" width={boxWidth}>
           <Flex>
             <Box flex="3" p="6">
+              <Text typography="h2" mb={3} textAlign="center" color="light">
+                {title}
+              </Text>
               {isFailed && <ErrorMessage message={message} />}
               <Text typography="h4" breakAll mb={3}>
                 {user}
@@ -97,7 +95,7 @@ export default function FormInvite(props) {
                 value={passwordConfirmed}
                 onChange={e => setPasswordConfirmed(e.target.value)}
                 type="password"
-                placeholder="Password"
+                placeholder="Confirm Password"
               />
               {otpEnabled && (
                 <Flex flexDirection="row">
@@ -142,7 +140,7 @@ export default function FormInvite(props) {
                 </Text>
               )}
             </Box>
-            {otpEnabled && (
+            {secondFactorEnabled && (
               <Box flex="1" bg="primary.main" p="6">
                 <TwoFAData auth2faType={auth2faType} qr={qr} />
               </Box>

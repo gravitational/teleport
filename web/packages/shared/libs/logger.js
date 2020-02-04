@@ -14,15 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/*eslint no-console: "off"*/
-
-class Logger {
-  constructor(name='default') {
+export class Logger {
+  constructor(name = 'default') {
     this.name = name;
   }
 
-  log(level='log', ...args) {
-    console[level](`%c[${this.name}]`, `color: blue;`, ...args);
+  log(level = 'log', ...args) {
+    window.console[level](`%c[${this.name}]`, `color: blue;`, ...args);
   }
 
   trace(...args) {
@@ -43,5 +41,5 @@ class Logger {
 }
 
 export default {
-  create: (...args) => new Logger(...args)
+  create: (...args) => new Logger(...args),
 };

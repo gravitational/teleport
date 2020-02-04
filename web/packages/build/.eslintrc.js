@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -84,6 +84,14 @@ module.exports = {
     'react/self-closing-comp': 0,
     'react/sort-comp': 0,
     'react/jsx-wrap-multilines': 1,
+    'jest/prefer-called-with': 0,
+    'jest/prefer-expect-assertions': 0,
+    'jest/consistent-test-it': 0,
+    'jest/no-try-expect': 0,
+    'jest/no-hooks': 0,
+    'jest/prefer-strict-equal': 0,
+    'jest/prefer-inline-snapshots': 0,
+    'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
   },
   settings: {
     'import/resolver': {

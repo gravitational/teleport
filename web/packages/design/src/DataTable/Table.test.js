@@ -27,12 +27,11 @@ const data = [
   },
 ];
 
-describe('Design/Table', () => {
+describe('design/Table', () => {
   let container = null;
-  let debug = null;
 
   beforeEach(() => {
-    ({ container, debug } = render(
+    ({ container } = render(
       <Table data={data}>
         <Column
           columnKey={colHeaderKeys[0]}

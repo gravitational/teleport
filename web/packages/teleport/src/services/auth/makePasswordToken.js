@@ -14,17 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { UserTokenTypeEnum } from 'teleport/services/enums';
-
-export default function makeUserToken(json){
+export default function makePasswordToken(json) {
   json = json || {};
   return {
-    token: json.token,
-    qrCode: json.qr_code,
-    userName: json.user,
-    accountId: json.account_id,
-    isInvite: json.type === UserTokenTypeEnum.INVITE,
-    isReset: json.type === UserTokenTypeEnum.RESET,
-  }
+    tokenId: json.tokenId,
+    qrCode: json.qrCode,
+    user: json.user,
+  };
 }
-

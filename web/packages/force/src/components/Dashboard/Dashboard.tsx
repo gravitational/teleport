@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box } from '@gravitational/design/src';
+import { Box } from 'design';
 
 export default function Dashboard(): JSX.Element {
   return (

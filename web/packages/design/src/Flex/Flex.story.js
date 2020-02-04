@@ -15,8 +15,6 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
-import { withInfo } from '@storybook/addon-info';
 import Flex from './Flex';
 import Box from './../Box';
 

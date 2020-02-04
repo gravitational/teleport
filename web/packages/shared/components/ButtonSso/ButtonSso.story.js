@@ -16,27 +16,24 @@ limitations under the License.
 
 import React from 'react';
 import { storiesOf } from '@storybook/react';
-import { withInfo } from '@storybook/addon-info';
 import ButtonSso, { TypeEnum } from './ButtonSso';
 
-storiesOf('Shared/ButtonSso', module)
-  .addDecorator(withInfo)
-  .add('color', () => (
-    <div style={{ width: '300px' }}>
-      <ButtonSso mt={3} ssoType={TypeEnum.MICROSOFT}>
-        Microsoft
-      </ButtonSso>
-      <ButtonSso mt={3} ssoType={TypeEnum.GITHUB}>
-        Github
-      </ButtonSso>
-      <ButtonSso mt={3} ssoType={TypeEnum.GOOGLE}>
-        Google
-      </ButtonSso>
-      <ButtonSso mt={3} ssoType={TypeEnum.BITBUCKET}>
-        Bitbucket
-      </ButtonSso>
-      <ButtonSso mt={3} ssoType="unknown">
-        Unkown SSO
-      </ButtonSso>
-    </div>
-  ));
+storiesOf('Shared/ButtonSso', module).add('color', () => (
+  <div style={{ width: '300px' }}>
+    <ButtonSso mt={3} ssoType={TypeEnum.MICROSOFT}>
+      Microsoft
+    </ButtonSso>
+    <ButtonSso mt={3} ssoType={TypeEnum.GITHUB}>
+      Github
+    </ButtonSso>
+    <ButtonSso mt={3} ssoType={TypeEnum.GOOGLE}>
+      Google
+    </ButtonSso>
+    <ButtonSso mt={3} ssoType={TypeEnum.BITBUCKET}>
+      Bitbucket
+    </ButtonSso>
+    <ButtonSso mt={3} ssoType="unknown">
+      Unkown SSO
+    </ButtonSso>
+  </div>
+));
