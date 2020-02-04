@@ -9,8 +9,9 @@ copyright: Gravitational Inc, 2016-17
 site_dir: ../build/docs/2.0
 docs_dir: "2.0"
 
-theme: readthedocs
-theme_dir: theme
+theme:
+    name: null
+    custom_dir: 'theme/'
 markdown_extensions:
   - markdown_include.include
   - admonition
@@ -20,7 +21,7 @@ extra_css: []
 extra_javascript: []
 extra:    
     version: 2.0           
-pages:
+nav:
     - Documentation:
         - QuickStart Guide: quickstart.md
         - Architecture: architecture.md
