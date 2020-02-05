@@ -246,6 +246,59 @@ Loop2:
 	}
 }
 
+// TestUUIDHandling verifies that host UUIDs are correctly extracted
+// from the expected teleport principal format, and that gossip messages
+// consisting only of uuid don't create duplicate seek entries.
+func (s *StateSuite) TestUUIDHandling(c *check.C) {
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*6)
+	defer cancel()
+	conf := newConfigOK(time.Millisecond * 512)
+	pool, err := NewPool(ctx, conf)
+	c.Assert(err, check.IsNil)
+	key := Key{Cluster: "test-cluster"}
+	handle := pool.Group(key)
+
+	// claim a proxy using principal of the form <uuid>.<cluster>
+	go handle.WithProxy(func() {
+		c.Logf("Successfully claimed proxy")
+		<-ctx.Done()
+	}, "my-proxy.test-cluster")
+
+	// Wait for proxy to be claimed
+Wait:
+	for {
+		select {
+		case status := <-handle.Status():
+			c.Logf("Status: %+v", status)
+			if !status.ShouldSeek() {
+				break Wait
+			}
+		case <-ctx.Done():
+			c.Errorf("pool never reached expected state")
+		}
+	}
+
+	// Send a gossip message containing host UUID only
+	handle.Gossip() <- "my-proxy"
+	c.Logf("Sent uuid-only gossip message; watching status...")
+
+	// Let pool go through a few ticks, monitoring status to ensure that
+	// we don't incorrectly enter seek mode (entering seek mode here would
+	// indicate that a duplicate entry was created for the uuid-only gossip
+	// message).
+	for i := 0; i < 3; i++ {
+		select {
+		case status := <-handle.Status():
+			c.Logf("Status: %+v", status)
+			if status.ShouldSeek() {
+				c.Errorf("pool incorrectly entered seek mode")
+			}
+		case <-ctx.Done():
+			c.Errorf("timeout")
+		}
+	}
+}
+
 func (s *StateSuite) BenchmarkBasicSeek(c *check.C) {
 	const proxyCount = 32
 	var proxies simpleTestProxies

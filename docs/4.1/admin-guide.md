@@ -127,7 +127,7 @@ teleport` will perform a graceful restart, i.e.the Teleport daemon will fork a
 new process to handle new incoming requests, leaving the old daemon process
 running until existing clients disconnect.
 
-!!! warning "Version warning":
+!!! warning "Version warning"
     Graceful restarts only work if Teleport is
     deployed using network-based storage like DynamoDB or etcd 3.3+. Future
     versions of Teleport will not have this limitation.
@@ -186,7 +186,7 @@ file is shown below. By default, it is stored in `/etc/teleport.yaml`
     editor handles white space. YAML requires consistent handling of
     tab characters.
 
-``` yaml
+```yaml
 # By default, this file should be stored in /etc/teleport.yaml
 
 # This section of the configuration file applies to all teleport
