@@ -835,8 +835,8 @@ func onSSH(cf *CLIConf) {
 				}
 			}
 			fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
-			showNodes(nodes, true)
-			fmt.Fprintf(os.Stderr, "hint: try using ip and/or port to disambiguate your target\n")
+			showNodes(nodes, false)
+			fmt.Fprintf(os.Stderr, "Hint: try using ip and/or port to disambiguate your target.\n")
 			os.Exit(1)
 		}
 		// exit with the same exit status as the failed command:
