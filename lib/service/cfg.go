@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -225,6 +226,8 @@ func (cfg *Config) DebugDumpToYAML() string {
 
 // CachePolicy sets caching policy for proxies and nodes
 type CachePolicy struct {
+	// Type sets the cache type
+	Type string
 	// Enabled enables or disables caching
 	Enabled bool
 	// TTL sets maximum TTL for the cached values
@@ -246,6 +249,19 @@ func (c *CachePolicy) GetRecentTTL() time.Duration {
 	return *c.RecentTTL
 }
 
+// CheckAndSetDefaults checks and sets default values
+func (c *CachePolicy) CheckAndSetDefaults() error {
+	switch c.Type {
+	case "", lite.GetName():
+		c.Type = lite.GetName()
+	case memory.GetName():
+	default:
+		return trace.BadParameter("unsupported cache type %q, supported values are %q and %q",
+			c.Type, lite.GetName(), memory.GetName())
+	}
+	return nil
+}
+
 // String returns human-friendly representation of the policy
 func (c CachePolicy) String() string {
 	if !c.Enabled {
@@ -258,12 +274,12 @@ func (c CachePolicy) String() string {
 		recentCachePolicy = fmt.Sprintf("will cache frequently accessed items for %v", c.GetRecentTTL())
 	}
 	if c.NeverExpires {
-		return fmt.Sprintf("cache that will not expire in case if connection to database is lost, %v", recentCachePolicy)
+		return fmt.Sprintf("%v cache that will not expire in case if connection to database is lost, %v", c.Type, recentCachePolicy)
 	}
 	if c.TTL == 0 {
-		return fmt.Sprintf("cache that will expire after connection to database is lost after %v, %v", defaults.CacheTTL, recentCachePolicy)
+		return fmt.Sprintf("%v cache that will expire after connection to database is lost after %v, %v", c.Type, defaults.CacheTTL, recentCachePolicy)
 	}
-	return fmt.Sprintf("cache that will expire after connection to database is lost after %v, %v", c.TTL, recentCachePolicy)
+	return fmt.Sprintf("%v cache that will expire after connection to database is lost after %v, %v", c.Type, c.TTL, recentCachePolicy)
 }
 
 // ProxyConfig specifies configuration for proxy service
