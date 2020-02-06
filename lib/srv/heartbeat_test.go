@@ -37,6 +37,7 @@ type HeartbeatSuite struct {
 }
 
 var _ = check.Suite(&HeartbeatSuite{})
+var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *HeartbeatSuite) SetUpSuite(c *check.C) {

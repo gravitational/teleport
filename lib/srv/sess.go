@@ -640,7 +640,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	}
 
 	if err := s.term.Run(); err != nil {
-		ctx.Errorf("Unable to run shell command (%v): %v", ctx.ExecRequest.GetCommand(), err)
+		ctx.Errorf("Unable to run shell command: %v.", err)
 		return trace.ConvertSystemError(err)
 	}
 	if err := s.addParty(p); err != nil {

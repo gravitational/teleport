@@ -2630,6 +2630,19 @@ func (c *Client) UpdatePluginData(ctx context.Context, params services.PluginDat
 	return nil
 }
 
+// Ping gets basic info about the auth server.
+func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+	rsp, err := clt.Ping(ctx, &proto.PingRequest{})
+	if err != nil {
+		return proto.PingResponse{}, trail.FromGRPC(err)
+	}
+	return *rsp, nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -2851,4 +2864,7 @@ type ClientI interface {
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if sucessful.
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
+
+	// Ping gets basic info about the auth server.
+	Ping(ctx context.Context) (proto.PingResponse, error)
 }
