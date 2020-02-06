@@ -15,17 +15,26 @@
  */
 
 import React from 'react';
-import ButtonLink from './index';
-import { render } from 'design/utils/testing';
+import { create, act } from 'react-test-renderer';
 
-describe('design/ButtonLink', () => {
-  it('respects the "as" prop', () => {
-    const { container } = render(<ButtonLink />);
-    expect(container.firstChild.nodeName).toEqual('A');
-  });
+// A wrapper to execute hooks during renderer process
+function TestHook(props) {
+  // trigger hooks and assessing its results to props.current
+  props.result.current = props.hooksCb();
+  return null;
+}
 
-  it('respects the button size prop', () => {
-    const { container } = render(<ButtonLink size="large" />);
-    expect(container.firstChild).toHaveStyle('min-height: 48px');
+export default function renderHook(hooksCb) {
+  const result = {
+    current: null,
+  };
+  act(() => {
+    // passes hooksCb to component and expect this
+    // component to pass back hooks execution results via results.results
+    create(<TestHook hooksCb={hooksCb} result={result} />);
   });
-});
+  // return hooks results only
+  return result;
+}
+
+export { act };

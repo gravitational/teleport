@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { space } from 'design/system';
+import PropTypes from 'prop-types';
 
 const kind = ({kind, theme}) => {
   if (kind === "secondary") {
@@ -65,8 +66,12 @@ const Label = styled.div`
   ${space}
 `;
 
+Label.propTypes = {
+  pagerPosition: PropTypes.oneOf(['primary', 'secondary', 'warning', 'danger'])
+}
+
 export default Label;
-export const Primary = props => <Label kind="secondary" {...props} />
-export const Secondary = props => <Label kind="primary" {...props} />
+export const Primary = props => <Label kind="primary" {...props} />
+export const Secondary = props => <Label kind="secondary" {...props} />
 export const Warning = props => <Label kind="warning" {...props} />
 export const Danger = props => <Label kind="danger" {...props} />

@@ -175,5 +175,3 @@ const data = [
     addr: '192.168.7.4',
   },
 ];
-
-export { TableSample, data };
