@@ -19,8 +19,6 @@ package srv
 import (
 	"fmt"
 	"net"
-	"os"
-	"os/user"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -190,17 +188,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return nil, trace.Wrap(err)
 	}
 	h.Debugf("Successfully authenticated")
-
-	// see if the host user is valid, we only do this when logging into a teleport node
-	if h.isTeleportNode() {
-		_, err = user.Lookup(conn.User())
-		if err != nil {
-			host, _ := os.Hostname()
-			h.Warnf("host '%s' does not have OS user '%s'", host, conn.User())
-			h.Errorf("no such user")
-			return nil, trace.AccessDenied("no such user: '%s'", conn.User())
-		}
-	}
 
 	clusterName, err := h.AccessPoint.GetClusterName()
 	if err != nil {

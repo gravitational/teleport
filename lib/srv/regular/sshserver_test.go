@@ -87,7 +87,7 @@ var _ = Suite(&SrvSuite{})
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
-		srv.RunCommand()
+		srv.RunAndExit()
 		return
 	}
 

@@ -6,7 +6,7 @@ resource "aws_dynamodb_table" "locks" {
   name           = "${var.cluster_name}-locks"
   read_capacity  = 10
   write_capacity = 10
-  hash_key        = "Lock"
+  hash_key       = "Lock"
 
   attribute {
     name = "Lock"
@@ -14,11 +14,12 @@ resource "aws_dynamodb_table" "locks" {
   }
 
   ttl {
-     attribute_name = "Expires"
-     enabled = true
+    attribute_name = "Expires"
+    enabled        = true
   }
 
-  tags {
-    TeleportCluster = "${var.cluster_name}"
+  tags = {
+    TeleportCluster = var.cluster_name
   }
 }
+

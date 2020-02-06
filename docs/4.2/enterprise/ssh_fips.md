@@ -24,6 +24,7 @@ government agencies.
 | [AC-2 Account Management](https://nvd.nist.gov/800-53/Rev4/control/AC-2) | Audit events are emitted in the auth server when a user is created, updated, deleted, locked or unlocked.  |
 | [AC-2 (12) Account Management](https://nvd.nist.gov/800-53/Rev4/control/AC-2) | At the close of a connection the total data transmitted and received is emitted to the Audit Log. |
 
+
 Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
 
 # Setup
@@ -137,6 +138,11 @@ cryptographic module (BoringCrypto) and fails to start if it was not.
 
 * If recording proxy mode is selected, validation of host certificates should always happen.
 
+
+### FedRAMP Audit Log
+
+At the close of a connection (close of a *srv.ServerContext) the total data transmitted and received 
+is emitted to the Audit Log.
 
 ## What else does the Teleport FIPS binary enforce? 
 * Supporting configurable TLS versions. This is to ensure that only TLS 1.2 is supported in FedRAMP mode.
