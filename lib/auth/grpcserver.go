@@ -286,6 +286,18 @@ func (g *GRPCServer) UpdatePluginData(ctx context.Context, params *services.Plug
 	return &empty.Empty{}, nil
 }
 
+func (g *GRPCServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	rsp, err := auth.Ping(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &rsp, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

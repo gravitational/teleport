@@ -42,6 +42,7 @@ type AuthInitSuite struct {
 }
 
 var _ = Suite(&AuthInitSuite{})
+var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *AuthInitSuite) SetUpSuite(c *C) {
