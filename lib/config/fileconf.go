@@ -623,8 +623,13 @@ func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	token, err := utils.ReadToken(parts[1])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &services.ProvisionTokenV1{
-		Token:   parts[1],
+		Token:   token,
 		Roles:   roles,
 		Expires: time.Unix(0, 0).UTC(),
 	}, nil
