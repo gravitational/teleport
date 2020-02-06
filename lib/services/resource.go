@@ -65,6 +65,9 @@ const (
 	// KindAccessRequest is an AccessReqeust resource
 	KindAccessRequest = "access_request"
 
+	// KindPluginData is a PluginData resource
+	KindPluginData = "plugin_data"
+
 	// KindOIDC is OIDC connector resource
 	KindOIDC = "oidc"
 

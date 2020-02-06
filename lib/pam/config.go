@@ -33,8 +33,8 @@ type Config struct {
 	// ServiceName is the name of the policy to apply typically in /etc/pam.d/
 	ServiceName string
 
-	// Username is the name of the target user.
-	Username string
+	// Login is the *nix login that that is being used.
+	Login string `json:"login"`
 
 	// Stdin is the input stream which the conversation function will use to
 	// obtain data from the user.
@@ -54,8 +54,8 @@ func (c *Config) CheckDefaults() error {
 	if c.ServiceName == "" {
 		return trace.BadParameter("required parameter ServiceName missing")
 	}
-	if c.Username == "" {
-		return trace.BadParameter("required parameter Username missing")
+	if c.Login == "" {
+		return trace.BadParameter("login parameter required")
 	}
 	if c.Stdin == nil {
 		return trace.BadParameter("required parameter Stdin missing")

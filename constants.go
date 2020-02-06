@@ -411,6 +411,10 @@ const (
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
 const MaxEnvironmentFileLines = 1000
 
+// MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
+// typically only enforced aginst resources that are likely to arbitrarily grow (e.g. PluginData).
+const MaxResourceSize = 1000000
+
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older
 	// versions of OpenSSH.

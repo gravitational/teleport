@@ -64,10 +64,8 @@ import (
 )
 
 const (
-	Loopback = "127.0.0.1"
-	Host     = "localhost"
-	HostID   = "00000000-0000-0000-0000-000000000000"
-	Site     = "local-site"
+	HostID = "00000000-0000-0000-0000-000000000000"
+	Site   = "local-site"
 
 	AllocatePortsNum = 400
 )
@@ -91,7 +89,7 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
-		srv.RunCommand()
+		srv.RunAndExit()
 		return
 	}
 

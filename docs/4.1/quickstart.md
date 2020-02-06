@@ -100,7 +100,7 @@ We've got Teleport running but there are no users recognized by Teleport Auth
 yet. Let's create one for your OS user. In this example the OS user is
 `teleport` and the hostname of the node is `grav-00` .
 
-!!! info "OS User Mappings":
+!!! info "OS User Mappings"
     The OS user `teleport` must exist! On Linux, if it
     does not already exist create it with `adduser teleport` . If you do not have
     the permission to create new users on the VM, run `tctl users add teleport
@@ -108,7 +108,7 @@ yet. Let's create one for your OS user. In this example the OS user is
     do not map to a real OS user you will get authentication errors later on in
     this tutorial!
 
-``` bash
+```bash
 # A new Teleport user will be assigned a
 # mapping to an OS user of the same name
 # This is the same as running `tctl users add teleport teleport`
@@ -176,7 +176,7 @@ accessible IP.
 
 <!-- More on TLS in Prod Guide -->
 
-``` bash
+```bash
 # here grav-00 is a resolvable hostname on the same network
 # --proxy can be an IP, hostname, or URL
 [teleport@grav-00 ~]$ tsh --proxy=grav-00 --insecure login
@@ -204,7 +204,7 @@ At this point you have authenticated with Teleport Auth and can now start a
 recorded SSH session. You logged in as the `teleport` user in the last step so
 the `--user` is defaulted to `teleport` .
 
-``` bash
+```bash
 $ tsh ssh --proxy=grav-00 grav-00
 $ echo 'howdy'
 howdy

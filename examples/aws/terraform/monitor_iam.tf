@@ -14,21 +14,21 @@ resource "aws_iam_role" "monitor" {
     ]
 }
 EOF
-}
 
+}
 
 // Monitor fetches certificates obtained by auth servers from encrypted S3 bucket.
 // Monitors do not setup certificates, to keep privileged operations happening
 // only on auth servers.
 resource "aws_iam_instance_profile" "monitor" {
   name       = "${var.cluster_name}-monitor"
-  role       = "${aws_iam_role.monitor.name}"
-  depends_on = ["aws_iam_role_policy.monitor_s3"]
+  role       = aws_iam_role.monitor.name
+  depends_on = [aws_iam_role_policy.monitor_s3]
 }
 
 resource "aws_iam_role_policy" "monitor_s3" {
   name = "${var.cluster_name}-monitor-s3"
-  role = "${aws_iam_role.monitor.id}"
+  role = aws_iam_role.monitor.id
 
   policy = <<EOF
 {
@@ -48,14 +48,15 @@ resource "aws_iam_role_policy" "monitor_s3" {
      }
    ]
  }
- EOF
-}
+ 
+EOF
 
+}
 
 // Fetch and setup default grafana adminpass
 resource "aws_iam_role_policy" "monitor_ssm" {
   name = "${var.cluster_name}-monitor-ssm"
-  role = "${aws_iam_role.monitor.id}"
+  role = aws_iam_role.monitor.id
 
   policy = <<EOF
 {
@@ -83,4 +84,6 @@ resource "aws_iam_role_policy" "monitor_ssm" {
     ]
 }
 EOF
+
 }
+

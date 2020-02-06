@@ -3,14 +3,17 @@ site_url: https://gravitational.com/teleport/docs
 repo_url: https://github.com/gravitational/teleport
 site_description: SSH and Kubernetes Gateway for Clusters and Teams
 site_author: Gravitational Inc
-copyright: Gravitational Inc, 2016-19
+copyright: Gravitational Inc, 2016-20
 
 # output directory:
 site_dir: ../build/docs/4.2
 docs_dir: "4.2"
 
-theme: readthedocs
-theme_dir: theme
+
+theme:
+    name: null
+    custom_dir: 'theme/'
+    include_search_page: true
 markdown_extensions:
   - markdown_include.include
   - admonition
@@ -19,12 +22,15 @@ markdown_extensions:
   - toc:
       marker: '[TOC]'
 extra_css: []
+plugins:
+    - search:
+        separator: '[\s\-\.]+'
 extra_javascript: []
 extra:
     version: 4.2
-pages:
+nav:
     - Documentation:
-        - Introduction: intro.md
+        - Introduction: index.md
         - Installation: installation.md
         - Quick Start Guide: quickstart.md
         - User Manual: user-manual.md
@@ -36,6 +42,7 @@ pages:
     - Infrastructure Guides:
         - AWS: aws_oss_guide.md
         - GCP: gcp_guide.md
+        - IBM: ibm_cloud_guide.md
         - Kubernetes Guide: kubernetes_ssh.md
     - Enterprise Guides:
         - Introduction: enterprise/index.md

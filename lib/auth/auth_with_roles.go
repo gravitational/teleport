@@ -817,6 +817,50 @@ func (a *AuthWithRoles) SetAccessRequestState(ctx context.Context, reqID string,
 	return a.authServer.SetAccessRequestState(updateCtx, reqID, state)
 }
 
+// GetPluginData loads all plugin data matching the supplied filter.
+func (a *AuthWithRoles) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
+	switch filter.Kind {
+	case services.KindAccessRequest:
+		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return a.authServer.GetPluginData(ctx, filter)
+	default:
+		return nil, trace.BadParameter("unsupported resource kind %q", filter.Kind)
+	}
+}
+
+// UpdatePluginData updates a per-resource PluginData entry.
+func (a *AuthWithRoles) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
+	switch params.Kind {
+	case services.KindAccessRequest:
+		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+		return a.authServer.UpdatePluginData(ctx, params)
+	default:
+		return trace.BadParameter("unsupported resource kind %q", params.Kind)
+	}
+}
+
+// Ping gets basic info about the auth server.
+func (a *AuthWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
+	// The Ping method does not require special permissions since it only returns
+	// basic status information.  This is an intentional design choice.  Alternative
+	// methods should be used for relaying any sensitive information.
+	cn, err := a.authServer.GetClusterName()
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+	return proto.PingResponse{
+		ClusterName:   cn.GetClusterName(),
+		ServerVersion: teleport.Version,
+	}, nil
+}
+
 // withUpdateBy creates a child context with the AccessRequestUpdateBy
 // value set.  Expected by AuthServer.SetAccessRequestState.
 func withUpdateBy(ctx context.Context, user string) context.Context {

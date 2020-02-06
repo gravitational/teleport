@@ -268,7 +268,7 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 
 // onExec will re-execute Teleport.
 func onExec(debug bool) error {
-	srv.RunCommand()
+	srv.RunAndExit()
 	return nil
 }
 

@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -30,6 +31,8 @@ type ServerSuite struct {
 }
 
 var _ = check.Suite(&ServerSuite{})
+var _ = testing.Verbose
+var _ = fmt.Printf
 
 func (s *ServerSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
