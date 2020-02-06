@@ -19,6 +19,11 @@ environments, not servers. Below is the list of most popular Teleport features:
 
 * Single SSH/Kubernetes access gateway for an entire organization.
 * SSH certificate based authentication instead of static keys.
+* Avoid key distribution and [trust on first use](https://en.wikipedia.org/wiki/Trust_on_first_use) issues by using auto-expiring keys signed by a cluster certificate authority (CA).
+* Enforce 2nd factor authentication.
+* Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
+* Collaboratively troubleshoot issues through session sharing.
+* Discover online servers and Docker containers within a cluster with dynamic node labels.
 * The ability to manage trust between teams, organizations and data centers.
 * SSH/Kubernetes access into behind-firewall environments without any open ports.
 * Role-based access control (RBAC) for SSH.
@@ -96,6 +101,26 @@ We also have several guides that go through the most typical configurations and 
 - [One Login Integration](ssh_one_login.md) - How to integrate Teleport Enterprise with One Login.
 - [OIDC Integration](oidc.md) - How to integrate Teleport Enterprise with identity providers using OIDC/OAuth2.
 - [Kubernetes Integration](kubernetes_ssh.md) - How to configure Teleport to serve as a unified gateway for Kubernetes clusters and clusters of regular SSH nodes.
+
+## Why Build Teleport?
+
+Mature tech companies with significant infrastructure footprints tend to implement most
+of these patterns internally. Teleport allows smaller companies without significant in-house 
+SSH expertise to easily adopt them, as well. Teleport comes with an accessible Web UI 
+and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
+license to facilitate adoption and use.
+
+Being a complete standalone tool, Teleport can be used as a software library enabling 
+trust management in complex multi-cluster, multi-region scenarios across many teams 
+within multiple organizations.
+
+## Who Built Teleport?
+
+Teleport was created by [Gravitational Inc](https://gravitational.com). We have built 
+Teleport by borrowing from our previous experiences at Rackspace. It has been extracted
+from [Gravity](https://gravitational.com/gravity/), our system for helping our clients 
+to deploy and remotely manage their SaaS applications on many cloud regions or even on-premise.
+
 
 ## Support and Contributing
 

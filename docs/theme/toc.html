@@ -13,7 +13,7 @@
             {% for nav_item in nav_item.children %}
               <ul class="side-nav-buttons">
                 <li>
-                  <a class="{% if nav_item.active%}is-active{%endif%}" href="{{ nav_item.url }}">{{ nav_item.title }}</a>
+                  <a class="{% if nav_item.active%}is-active{%endif%}" href="{{ nav_item.url|url }}">{{ nav_item.title }}</a>
                 </li>
               </ul>
             {% endfor %}
@@ -21,14 +21,14 @@
         {% else %}
           <ul class="side-nav-buttons">
             <li>
-              <a class="{% if nav_item.active%}is-active{%endif%}" href="{{ nav_item.url }}">{{ nav_item.title }}</a>
+              <a class="{% if nav_item.active%}is-active{%endif%}" href="{{ nav_item.url|url }}">{{ nav_item.title }}</a>
             </li>
           </ul>
 
           {% if nav_item == page %}
             <ul class="side-nav-secondary-buttons">
               {% for toc_item in page.toc %}
-                <li class="{% if toc_item.active%}is-active{%endif%}"><a href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
+                <li class="{% if toc_item.active%}is-active{%endif%}"><a href="{{ nav_item.url|url }}">{{ toc_item.title }}</a></li>
                 {% for toc_item in toc_item.children %}
                 <li><a href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
                 {% endfor %}

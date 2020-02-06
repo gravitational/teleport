@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "main.html" %}
 
 {% block content %}
   <h1 id="search">Search Results</h1>
@@ -12,6 +12,6 @@
 {% endblock %}
 
 {% block extrascripts %}
-  <script>var base_url = '{{ base_url }}';</script>
-  <script data-main="{{ base_url }}/mkdocs/js/search.js" src="{{ base_url }}/mkdocs/js/require.js"></script>
+  <script>var base_url = '{{ path|url }}';</script>
+  <script data-main="{{ path|url }}/search/search.js"></script>
 {% endblock %}

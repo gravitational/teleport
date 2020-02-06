@@ -1263,6 +1263,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 	var cacheBackend backend.Backend
 	if cfg.inMemory {
+		process.Debugf("Creating in-memory backend for %v.", cfg.cacheName)
 		mem, err := memory.New(memory.Config{
 			Context:   process.ExitContext(),
 			EventsOff: !cfg.events,
@@ -1273,6 +1274,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		}
 		cacheBackend = mem
 	} else {
+		process.Debugf("Creating sqlite backend for %v.", cfg.cacheName)
 		path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cfg.cacheName...)...)
 		if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
 			return nil, trace.ConvertSystemError(err)
@@ -1341,6 +1343,7 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cach
 		return clt, nil
 	}
 	cache, err := process.newAccessCache(accessCacheConfig{
+		inMemory:  process.Config.CachePolicy.Type == memory.GetName(),
 		services:  clt,
 		setup:     process.setupCachePolicy(setupConfig),
 		cacheName: cacheName,

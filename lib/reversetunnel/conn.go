@@ -108,7 +108,7 @@ func newRemoteConn(cfg *connConfig) *remoteConn {
 		}),
 		connConfig:  cfg,
 		clock:       clockwork.NewRealClock(),
-		newProxiesC: make(chan []services.Server, 10),
+		newProxiesC: make(chan []services.Server, 100),
 	}
 
 	c.closeContext, c.closeCancel = context.WithCancel(context.Background())
@@ -218,7 +218,10 @@ func (c *remoteConn) updateProxies(proxies []services.Server) error {
 	case c.newProxiesC <- proxies:
 		return nil
 	default:
-		return trace.ConnectionProblem(nil, "discovery channel overflow at %v", len(c.newProxiesC))
+		// Missing proxies update is no longer critical with more permissive
+		// discovery protocol that tolerates conflicting, stale or missing updates
+		c.log.Warnf("Discovery channel overflow at %v.", len(c.newProxiesC))
+		return nil
 	}
 }
 

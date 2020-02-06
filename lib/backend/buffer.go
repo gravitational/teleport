@@ -72,7 +72,6 @@ func (c *CircularBuffer) Reset() {
 	defer c.Unlock()
 	// could close mulitple times
 	c.watchers.walk(func(w *BufferWatcher) {
-		c.Debugf("Closing watcher %p via reset.", w)
 		w.closeWatcher()
 	})
 	c.watchers = newWatcherTree()
