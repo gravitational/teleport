@@ -14,19 +14,20 @@ resource "aws_iam_role" "auth" {
     ]
 }
 EOF
+
 }
 
 // Auth servers publish various secrets to SSM parameter store
 // for example join tokens, so other nodes and proxies can join the cluster.
 resource "aws_iam_instance_profile" "auth" {
   name       = "${var.cluster_name}-auth"
-  role       = "${aws_iam_role.auth.name}"
-  depends_on = ["aws_iam_role_policy.auth_ssm"]
+  role       = aws_iam_role.auth.name
+  depends_on = [aws_iam_role_policy.auth_ssm]
 }
 
 resource "aws_iam_role_policy" "auth_ssm" {
   name = "${var.cluster_name}-auth-ssm"
-  role = "${aws_iam_role.auth.id}"
+  role = aws_iam_role.auth.id
 
   policy = <<EOF
 {
@@ -56,12 +57,13 @@ resource "aws_iam_role_policy" "auth_ssm" {
     ]
 }
 EOF
+
 }
 
 // Auth server uses DynamoDB as a backend, and this is to allow read/write from the dynamo tables
 resource "aws_iam_role_policy" "auth_dynamo" {
   name = "${var.cluster_name}-auth-dynamo"
-  role = "${aws_iam_role.auth.id}"
+  role = aws_iam_role.auth.id
 
   policy = <<EOF
 {
@@ -94,12 +96,13 @@ resource "aws_iam_role_policy" "auth_dynamo" {
     ]
 }
 EOF
+
 }
 
 // Allow auth servers to update locks
 resource "aws_iam_role_policy" "auth_locks" {
   name = "${var.cluster_name}-auth-locks"
-  role = "${aws_iam_role.auth.id}"
+  role = aws_iam_role.auth.id
 
   policy = <<EOF
 {
@@ -114,6 +117,7 @@ resource "aws_iam_role_policy" "auth_locks" {
     ]
 }
 EOF
+
 }
 
 // S3 is used for letsencrypt, auth servers request certificates from letsencrypt
@@ -121,7 +125,7 @@ EOF
 // are too big for SSM.
 resource "aws_iam_role_policy" "auth_s3" {
   name = "${var.cluster_name}-auth-s3"
-  role = "${aws_iam_role.auth.id}"
+  role = aws_iam_role.auth.id
 
   policy = <<EOF
 {
@@ -146,14 +150,16 @@ resource "aws_iam_role_policy" "auth_s3" {
      }
    ]
  }
- EOF
+ 
+EOF
+
 }
 
 // Auth server uses route53 to get certs for domain, this allows
 // read/write operations from the zone.
 resource "aws_iam_role_policy" "auth_route53" {
   name = "${var.cluster_name}-auth-route53"
-  role = "${aws_iam_role.auth.id}"
+  role = aws_iam_role.auth.id
 
   policy = <<EOF
 {
@@ -182,4 +188,6 @@ resource "aws_iam_role_policy" "auth_route53" {
     ]
 }
 EOF
+
 }
+
