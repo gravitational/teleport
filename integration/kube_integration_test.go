@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -87,7 +87,7 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 
-	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum, utils.PortStartingNumber+AllocatePortsNum+1)
+	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum)
 	if err != nil {
 		c.Fatal(err)
 	}
