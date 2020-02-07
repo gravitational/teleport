@@ -35,7 +35,10 @@ package pam
 // extern int _pam_acct_mgmt(void *, pam_handle_t *, int);
 // extern int _pam_open_session(void *, pam_handle_t *, int);
 // extern int _pam_close_session(void *, pam_handle_t *, int);
+// extern char **_pam_getenvlist(void *handle, pam_handle_t *pamh);
 // extern const char *_pam_strerror(void *, pam_handle_t *, int);
+// extern int _pam_envlist_len(char **);
+// extern char * _pam_getenv(char **, int);
 import "C"
 
 import (
@@ -71,6 +74,13 @@ const (
 	// [1] http://pubs.opengroup.org/onlinepubs/008329799/apdxa.htm
 	// [2] https://github.com/openssh/openssh-portable/blob/V_8_0/auth-pam.c#L615-L654
 	maxMessageSize = 2000 * C.PAM_MAX_MSG_SIZE
+
+	// maxEnvironmentVariableSize is the maximum size of any environment
+	// variable. Even though pam_env.so sets this to a maximum of 1024, set
+	// it to be 10x that because not all PAM modules follow that convention. [1]
+	//
+	// [1] https://github.com/linux-pam/linux-pam/blob/master/modules/pam_env/pam_env.c#L55
+	maxEnvironmentVariableSize = 1024 * 10
 )
 
 // handler is used to register and find instances of *PAM at the package level
@@ -220,11 +230,15 @@ type PAM struct {
 	// service_name is the name of the PAM policy to use.
 	service_name *C.char
 
-	// user is the name of the target user.
-	user *C.char
+	// login is the *nix login that that is being used.
+	login *C.char
 
 	// handlerIndex is the index to the package level handler map.
 	handlerIndex int
+
+	// once is used to ensure that any memory allocated by C only has free
+	// called on it once.
+	once sync.Once
 }
 
 // Open creates a PAM context and initiates a PAM transaction to check the
@@ -249,7 +263,7 @@ func Open(config *Config) (*PAM, error) {
 	// C strings. Since the C strings are allocated on the heap in Go code, this
 	// memory must be released (and will be on the call to the Close method).
 	p.service_name = C.CString(config.ServiceName)
-	p.user = C.CString(config.Username)
+	p.login = C.CString(config.Login)
 
 	// C code does not know that this PAM context exists. To ensure the
 	// conversation function can get messages to the right context, a handle
@@ -261,7 +275,7 @@ func Open(config *Config) (*PAM, error) {
 	// Create and initialize a PAM context. The pam_start function will
 	// allocate pamh if needed and the pam_end function will release any
 	// allocated memory.
-	p.retval = C._pam_start(pamHandle, p.service_name, p.user, p.conv, &p.pamh)
+	p.retval = C._pam_start(pamHandle, p.service_name, p.login, p.conv, &p.pamh)
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
 	}
@@ -297,23 +311,66 @@ func (p *PAM) Close() error {
 		return p.codeToError(p.retval)
 	}
 
-	// Terminate the PAM transaction.
-	retval := C._pam_end(pamHandle, p.pamh, p.retval)
-	if retval != C.PAM_SUCCESS {
-		return p.codeToError(retval)
-	}
-
 	// Unregister handler index at the package level.
 	unregisterHandler(p.handlerIndex)
 
-	// Release the memory allocated for the conversation function.
-	C.free(unsafe.Pointer(p.conv))
-
-	// Release strings that were allocated when opening the PAM context.
-	C.free(unsafe.Pointer(p.service_name))
-	C.free(unsafe.Pointer(p.user))
+	// Free any allocated memory on close.
+	p.free()
 
 	return nil
+}
+
+// Environment returns the PAM environment variables associated with a PAM
+// handle. For example pam_env.so reads in certain environment variables
+// which then have to be set when spawning the users shell.
+//
+// Note that pam_getenvlist is used to fetch the list of PAM environment
+// variables and it is the responsibility of the caller to free that memory.
+// From http://man7.org/linux/man-pages/man3/pam_getenvlist.3.html:
+//
+//   It should be noted that this memory will never be free()'d by libpam.
+//   Once obtained by a call to pam_getenvlist, it is the responsibility
+//   of the calling application to free() this memory.
+func (p *PAM) Environment() []string {
+	// Get list of additional environment variables requested from PAM.
+	pam_envlist := C._pam_getenvlist(pamHandle, p.pamh)
+	defer C.free(unsafe.Pointer(pam_envlist))
+
+	// Find out how many environment variables exist and size the output
+	// slice. This is pushed to C to avoid doing pointer arithmetic in Go.
+	n := int(C._pam_envlist_len(pam_envlist))
+	env := make([]string, 0, n)
+
+	// Loop over all environment variables and convert them to a Go string.
+	for i := 0; i < n; i++ {
+		pam_env := C._pam_getenv(pam_envlist, C.int(i))
+		defer C.free(unsafe.Pointer(pam_env))
+
+		pam_env_size := C.int(C.strnlen(pam_env, C.size_t(maxEnvironmentVariableSize)))
+		env = append(env, C.GoStringN(pam_env, pam_env_size))
+	}
+
+	return env
+}
+
+// free will end the PAM transaction (which itself will free memory) and
+// then manually free any other memory allocated.
+func (p *PAM) free() {
+	// Only free memory one time to prevent double free bugs.
+	p.once.Do(func() {
+		// Terminate the PAM transaction.
+		retval := C._pam_end(pamHandle, p.pamh, p.retval)
+		if retval != C.PAM_SUCCESS {
+			log.Warnf("Failed to end PAM transaction: %v.\n", p.codeToError(retval))
+		}
+
+		// Release the memory allocated for the conversation function.
+		C.free(unsafe.Pointer(p.conv))
+
+		// Release strings that were allocated when opening the PAM context.
+		C.free(unsafe.Pointer(p.service_name))
+		C.free(unsafe.Pointer(p.login))
+	})
 }
 
 // writeStream will write to the output stream (stdout or stderr or
@@ -349,6 +406,9 @@ func (p *PAM) readStream(echo bool) (string, error) {
 
 // codeToError returns a human readable string from the PAM error.
 func (p *PAM) codeToError(returnValue C.int) error {
+	// If an error is being returned, free any memory that was allocated.
+	defer p.free()
+
 	// Error strings are not allocated on the heap, so memory does not need
 	// released.
 	err := C._pam_strerror(pamHandle, p.pamh, returnValue)

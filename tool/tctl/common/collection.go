@@ -443,6 +443,9 @@ func (c *connectorsCollection) writeText(w io.Writer) error {
 
 	if len(c.saml) > 0 {
 		_, err := io.WriteString(w, "\nSAML:\n")
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		sc := &samlCollection{connectors: c.saml}
 		err = sc.writeText(w)
 		if err != nil {
