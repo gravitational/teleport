@@ -28,3 +28,10 @@ export const Input = () => (
     <InputComp />
   </>
 );
+
+export const InputWithError = () => (
+  <>
+    <LabelInput hasError={true}>Label for Input</LabelInput>
+    <InputComp hasError={true} />
+  </>
+);

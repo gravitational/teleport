@@ -30,7 +30,7 @@ export const TagsStates = () => (
     alignItems="center"
   >
     <LabelState mr="4" kind="success">
-      Primary
+      Success
     </LabelState>
     <LabelState mr="4" kind="secondary">
       Secondary
@@ -53,7 +53,7 @@ export const TagsStatesShadowed = () => (
       alignItems="center"
     >
       <LabelState shadow mr="4" kind="success">
-        Primary
+        Success
       </LabelState>
       <LabelState shadow mr="4" kind="secondary">
         Secondary
@@ -73,7 +73,7 @@ export const TagsStatesShadowed = () => (
       mt={5}
     >
       <LabelState shadow mr="4" kind="success">
-        Primary
+        Success
       </LabelState>
       <LabelState shadow mr="4" kind="secondary">
         Secondary
