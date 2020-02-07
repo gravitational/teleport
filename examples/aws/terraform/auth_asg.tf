@@ -46,6 +46,7 @@ data "template_file" "auth_user_data" {
   vars = {
     region                   = var.region
     locks_table_name         = aws_dynamodb_table.locks.name
+    auth_server_addr         = aws_lb.auth.dns_name
     cluster_name             = var.cluster_name
     dynamo_table_name        = aws_dynamodb_table.teleport.name
     dynamo_events_table_name = aws_dynamodb_table.teleport_events.name
