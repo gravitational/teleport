@@ -35,7 +35,7 @@
 //
 // The s3manager package's Downloader provides concurrently downloading of Objects
 // from S3. The Downloader will write S3 Object content with an io.WriterAt.
-// Once the Downloader instance is created you can call Upload concurrently from
+// Once the Downloader instance is created you can call Download concurrently from
 // multiple goroutines safely.
 //
 //   // The session the S3 Downloader will use
@@ -56,12 +56,26 @@
 //       Key:    aws.String(myString),
 //   })
 //   if err != nil {
-//       return fmt.Errorf("failed to upload file, %v", err)
+//       return fmt.Errorf("failed to download file, %v", err)
 //   }
 //   fmt.Printf("file downloaded, %d bytes\n", n)
 //
 // See the s3manager package's Downloader type documentation for more information.
 // https://docs.aws.amazon.com/sdk-for-go/api/service/s3/s3manager/#Downloader
+//
+// Automatic URI cleaning
+//
+// Interacting with objects whose keys contain adjacent slashes (e.g. bucketname/foo//bar/objectname)
+// requires setting DisableRestProtocolURICleaning to true in the aws.Config struct
+// used by the service client.
+//
+//   svc := s3.New(sess, &aws.Config{
+//      	DisableRestProtocolURICleaning: aws.Bool(true),
+//   })
+//   out, err := svc.GetObject(&s3.GetObjectInput {
+//      	Bucket: aws.String("bucketname"),
+//       	Key: aws.String("//foo//bar//moo"),
+//   })
 //
 // Get Bucket Region
 //
