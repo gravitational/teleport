@@ -58,6 +58,8 @@ type Config struct {
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
 	UIDGenerator utils.UID
+	// Endpoint is an optional non-AWS endpoint
+	Endpoint string `json:"endpoint,omitempty"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -170,6 +172,11 @@ func New(cfg Config) (*Log, error) {
 	// from the YAML file:
 	if cfg.Region != "" {
 		sess.Config.Region = aws.String(cfg.Region)
+	}
+
+	// override the endpoint from the URI query parameter in the YAML file
+	if cfg.Endpoint != "" {
+		sess.Config.Endpoint = aws.String(cfg.Endpoint)
 	}
 
 	// create DynamoDB service:
