@@ -69,7 +69,7 @@ ignored = ["github.com/Sirupsen/logrus", "github.com/gravitational/license/gener
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
-  version = "1.12.17"
+  version = "1.28.11"
 
 [[constraint]]
   name = "go.etcd.io/etcd"
