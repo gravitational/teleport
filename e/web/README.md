@@ -16,23 +16,26 @@ mono-repository
 $ git clone git@github.com:gravitational/webapps.git
 ```
 
-Initialize the enterprise git sub-modules which creates
-the `e` directory inside the `/packages` with the contents of this repository.
-
+Initialize the enterprise git sub-modules.
 ```
  $ cd webapps
  $ make init-submodules
 ```
 
+This will create `webapps.e` directory inside `webapps/packages`.
 ```
-/webapps  <-- open-source public Webapps mono-repository
-  | / packages/
-    |- /e  <-- this repo
+webapps
+├── packages
+│   ├── ...
+│   ├── webapps.e   <-- this repo
+│   └── README.md
+└── ...
 
 ```
 
 ### Build with docker
 
+Go to the root directory of `webapps` monorepo and run the following:
 
 to build Teleport:
 ```
