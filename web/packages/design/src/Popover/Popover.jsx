@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,18 +45,6 @@ import ReactDOM from 'react-dom';
 import Transition from './Transition';
 import { ownerWindow, ownerDocument } from '../utils';
 import Modal from '../Modal';
-
-export const StyledPopover = styled.div`
-  max-width: calc(100% - 32px);
-  maxHeight: calc(100% - 32px);
-  min-height: 16px;
-  min-width: 16px;
-  outline: none;
-  overflowX: hidden;
-  overflowY: auto;
-  position: absolute;
-  ${ props => props.popoverCss && props.popoverCss(props) }
-`
 
 function getOffsetTop(rect, vertical) {
   let offset = 0;
@@ -110,8 +98,7 @@ function getAnchorEl(anchorEl) {
   return typeof anchorEl === 'function' ? anchorEl() : anchorEl;
 }
 
-class Popover extends React.Component {
-
+export default class Popover extends React.Component {
   handleGetOffsetTop = getOffsetTop;
 
   handleGetOffsetLeft = getOffsetLeft;
@@ -128,7 +115,7 @@ class Popover extends React.Component {
         }
 
         this.setPositioningStyles(this.paperRef);
-      }
+      };
     }
   }
 
@@ -162,7 +149,10 @@ class Popover extends React.Component {
     };
 
     // Get the transform origin point on the element itself
-    const transformOrigin = this.getTransformOrigin(elemRect, contentAnchorOffset);
+    const transformOrigin = this.getTransformOrigin(
+      elemRect,
+      contentAnchorOffset
+    );
 
     if (anchorReference === 'none') {
       return {
@@ -223,13 +213,19 @@ class Popover extends React.Component {
     const { anchorEl, anchorOrigin } = this.props;
 
     // If an anchor element wasn't provided, just use the parent body element of this Popover
-    const anchorElement = getAnchorEl(anchorEl) || ownerDocument(this.paperRef).body;
+    const anchorElement =
+      getAnchorEl(anchorEl) || ownerDocument(this.paperRef).body;
+
     const anchorRect = anchorElement.getBoundingClientRect();
-    const anchorVertical = contentAnchorOffset === 0 ? anchorOrigin.vertical : 'center';
+
+    const anchorVertical =
+      contentAnchorOffset === 0 ? anchorOrigin.vertical : 'center';
 
     return {
       top: anchorRect.top + this.handleGetOffsetTop(anchorRect, anchorVertical),
-      left: anchorRect.left + this.handleGetOffsetLeft(anchorRect, anchorOrigin.horizontal),
+      left:
+        anchorRect.left +
+        this.handleGetOffsetLeft(anchorRect, anchorOrigin.horizontal),
     };
   }
 
@@ -244,7 +240,9 @@ class Popover extends React.Component {
       if (contentAnchorEl && element.contains(contentAnchorEl)) {
         const scrollTop = getScrollParent(element, contentAnchorEl);
         contentAnchorOffset =
-          contentAnchorEl.offsetTop + contentAnchorEl.clientHeight / 2 - scrollTop || 0;
+          contentAnchorEl.offsetTop +
+            contentAnchorEl.clientHeight / 2 -
+            scrollTop || 0;
       }
     }
 
@@ -255,9 +253,19 @@ class Popover extends React.Component {
   // and taking the content anchor offset into account if in use
   getTransformOrigin(elemRect, contentAnchorOffset = 0) {
     const { transformOrigin } = this.props;
+
+    const vertical =
+      this.handleGetOffsetTop(elemRect, transformOrigin.vertical) +
+      contentAnchorOffset;
+
+    const horizontal = this.handleGetOffsetLeft(
+      elemRect,
+      transformOrigin.horizontal
+    );
+
     return {
-      vertical: this.handleGetOffsetTop(elemRect, transformOrigin.vertical) + contentAnchorOffset,
-      horizontal: this.handleGetOffsetLeft(elemRect, transformOrigin.horizontal),
+      vertical,
+      horizontal,
     };
   }
 
@@ -279,12 +287,12 @@ class Popover extends React.Component {
       ...other
     } = this.props;
 
-
     // If the container prop is provided, use that
     // If the anchorEl prop is provided, use its parent body element as the container
     // If neither are provided let the Modal take care of choosing the container
     const container =
-      containerProp || (anchorEl ? ownerDocument(getAnchorEl(anchorEl)).body : undefined);
+      containerProp ||
+      (anchorEl ? ownerDocument(getAnchorEl(anchorEl)).body : undefined);
 
     return (
       <Modal
@@ -293,9 +301,7 @@ class Popover extends React.Component {
         BackdropProps={{ invisible: true }}
         {...other}
       >
-        <Transition
-          onEntering={this.handleEntering}
-        >
+        <Transition onEntering={this.handleEntering}>
           <StyledPopover
             popoverCss={popoverCss}
             data-mui-test="Popover"
@@ -340,8 +346,10 @@ Popover.propTypes = {
       PropTypes.number,
       PropTypes.oneOf(['left', 'center', 'right']),
     ]).isRequired,
-    vertical: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf(['top', 'center', 'bottom'])])
-      .isRequired,
+    vertical: PropTypes.oneOfType([
+      PropTypes.number,
+      PropTypes.oneOf(['top', 'center', 'bottom']),
+    ]).isRequired,
   }),
   /**
    * This is the position that may be used
@@ -370,9 +378,7 @@ Popover.propTypes = {
    */
   container: PropTypes.oneOfType([PropTypes.object, PropTypes.func]),
   /**
-   * The elevation of the popover.
    */
-  elevation: PropTypes.number,
   /**
    * This function is called in order to retrieve the content anchor element.
    * It's the opposite of the `anchorEl` property.
@@ -430,15 +436,11 @@ Popover.propTypes = {
       PropTypes.number,
       PropTypes.oneOf(['left', 'center', 'right']),
     ]).isRequired,
-    vertical: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf(['top', 'center', 'bottom'])])
-      .isRequired,
+    vertical: PropTypes.oneOfType([
+      PropTypes.number,
+      PropTypes.oneOf(['top', 'center', 'bottom']),
+    ]).isRequired,
   }),
-
-
-  /**
-   * Properties applied to the `Transition` element.
-   */
-  TransitionProps: PropTypes.object,
 };
 
 Popover.defaultProps = {
@@ -447,7 +449,6 @@ Popover.defaultProps = {
     vertical: 'top',
     horizontal: 'left',
   },
-  elevation: 8,
   marginThreshold: 16,
   transformOrigin: {
     vertical: 'top',
@@ -455,4 +456,14 @@ Popover.defaultProps = {
   },
 };
 
-export default Popover;
+export const StyledPopover = styled.div`
+  max-width: calc(100% - 32px);
+  max-height: calc(100% - 32px);
+  min-height: 16px;
+  min-width: 16px;
+  outline: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  position: absolute;
+  ${props => props.popoverCss && props.popoverCss(props)}
+`;

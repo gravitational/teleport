@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,19 +21,8 @@ import { ownerDocument } from './../utils';
 import Portal from './Portal';
 import RootRef from './RootRef';
 
-function getHasTransition(props) {
-  return props.children ? props.children.props.hasOwnProperty('in') : false;
-}
-
-class Modal extends React.Component {
+export default class Modal extends React.Component {
   mounted = false;
-
-  constructor(props) {
-    super();
-    this.state = {
-      exited: !props.open,
-    };
-  }
 
   componentDidMount() {
     this.mounted = true;
@@ -53,30 +42,13 @@ class Modal extends React.Component {
 
   componentWillUnmount() {
     this.mounted = false;
-
-    if (
-      this.props.open ||
-      (getHasTransition(this.props) && !this.state.exited)
-    ) {
+    if (this.props.open) {
       this.handleClose();
     }
   }
 
-  static getDerivedStateFromProps(nextProps) {
-    if (nextProps.open) {
-      return {
-        exited: false,
-      };
-    }
-
-    return null;
-  }
-
   handleOpen = () => {
     const doc = ownerDocument(this.mountNode);
-    //const container = getContainer(this.props.container, doc.body);
-
-    //this.props.manager.add(this, container);
     doc.addEventListener('keydown', this.handleDocumentKeyDown);
     doc.addEventListener('focus', this.enforceFocus, true);
 
@@ -99,10 +71,6 @@ class Modal extends React.Component {
     this.restoreLastFocus();
   };
 
-  handleExited = () => {
-    this.setState({ exited: true });
-  };
-
   handleBackdropClick = event => {
     if (event.target !== event.currentTarget) {
       return;
@@ -117,11 +85,17 @@ class Modal extends React.Component {
     }
   };
 
+  handleRendered = () => {
+    if (this.props.onRendered) {
+      this.props.onRendered();
+    }
+  };
+
   handleDocumentKeyDown = event => {
     const ESC = 27;
 
     // Ignore events that have been `event.preventDefault()` marked.
-    if (event.which !== ESC || !this.isTopModal() || event.defaultPrevented) {
+    if (event.which !== ESC || event.defaultPrevented) {
       return;
     }
 
@@ -136,12 +110,7 @@ class Modal extends React.Component {
 
   enforceFocus = () => {
     // The Modal might not already be mounted.
-    if (
-      !this.isTopModal() ||
-      this.props.disableEnforceFocus ||
-      !this.mounted ||
-      !this.dialogRef
-    ) {
+    if (this.props.disableEnforceFocus || !this.mounted || !this.dialogRef) {
       return;
     }
 
@@ -197,10 +166,6 @@ class Modal extends React.Component {
     this.lastFocus = null;
   }
 
-  isTopModal() {
-    return true;
-  }
-
   render() {
     const {
       BackdropProps,
@@ -227,7 +192,7 @@ class Modal extends React.Component {
       >
         <StyledModal
           modalCss={modalCss}
-          data-mui-test="Modal"
+          data-testid="Modal"
           ref={this.handleModalRef}
         >
           {!hideBackdrop && (
@@ -244,10 +209,6 @@ class Modal extends React.Component {
 
 Modal.propTypes = {
   /**
-   * A backdrop component. This property enables custom backdrop rendering.
-   */
-
-  /**
    * Properties applied to the [`Backdrop`](/api/backdrop/) element.
    */
   BackdropProps: PropTypes.object,
@@ -255,11 +216,6 @@ Modal.propTypes = {
    * A single child content element.
    */
   children: PropTypes.element,
-
-  /**
-   * @ignore
-   */
-  className: PropTypes.string,
   /**
    * A node, component instance, or function that returns either.
    * The `container` will have the portal children appended to it.
@@ -304,17 +260,6 @@ Modal.propTypes = {
    */
   hideBackdrop: PropTypes.bool,
   /**
-   * Always keep the children in the DOM.
-   * This property can be useful in SEO situation or
-   * when you want to maximize the responsiveness of the Modal.
-   */
-  keepMounted: PropTypes.bool,
-  /**
-   * A modal manager used to track and manage the state of open
-   * Modals. This enables customizing how modals interact within a container.
-   */
-  manager: PropTypes.object,
-  /**
    * Callback fired when the backdrop is clicked.
    */
   onBackdropClick: PropTypes.func,
@@ -343,7 +288,6 @@ Modal.propTypes = {
 };
 
 Modal.defaultProps = {
-  BackdropComponent: Backdrop,
   disableAutoFocus: false,
   disableBackdropClick: false,
   disableEnforceFocus: false,
@@ -351,10 +295,7 @@ Modal.defaultProps = {
   disablePortal: false,
   disableRestoreFocus: false,
   hideBackdrop: false,
-  keepMounted: false,
 };
-
-export default Modal;
 
 function Backdrop(props) {
   const { invisible, ...rest } = props;

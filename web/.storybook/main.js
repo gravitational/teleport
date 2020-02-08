@@ -15,13 +15,21 @@ limitations under the License.
 */
 
 const path = require('path');
+const fs = require('fs');
 const createConfig = require('@gravitational/build/webpack/webpack.base');
 
 const webpackCfg = createConfig();
 
-module.exports = {
-  stories: ['../packages/**/*.story.(js|jsx|tsx)'],
+// include open source stories
+const stories = ['../packages/**/*.story.(js|jsx|tsx)'];
 
+// include enterprise stories if available (**/* pattern ignores dot dir names)
+if (fs.existsSync(path.join(__dirname, '/../packages/webapps.e/'))) {
+  stories.unshift('../packages/webapps.e/**/*.story.(js|jsx|tsx)');
+}
+
+module.exports = {
+  stories,
   webpackFinal: async (config, { configType }) => {
     // configType has a value of 'DEVELOPMENT' or 'PRODUCTION'
     // You can change the configuration based on that.

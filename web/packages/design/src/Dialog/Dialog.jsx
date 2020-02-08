@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,52 +15,17 @@ limitations under the License.
 */
 
 import React from 'react';
-import Modal from './../Modal';
+import PropTypes from 'prop-types';
 import styled from 'styled-components';
+import Modal from './../Modal';
 
-class Dialog extends React.Component {
-  handleBackdropClick = event => {
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-
-    if (this.props.onBackdropClick) {
-      this.props.onBackdropClick(event);
-    }
-
-    if (!this.props.disableBackdropClick && this.props.onClose) {
-      this.props.onClose(event, 'backdropClick');
-    }
-  };
-
+export default class Dialog extends React.Component {
   render() {
-    const {
-      children,
-      disableBackdropClick,
-      disableEscapeKeyDown,
-      onBackdropClick,
-      onClose,
-      onEscapeKeyDown,
-      open,
-      dialogCss,
-      ...other
-    } = this.props;
-
+    const { children, dialogCss, ...modalProps } = this.props;
     return (
-      <Modal
-        disableBackdropClick={disableBackdropClick}
-        disableEscapeKeyDown={disableEscapeKeyDown}
-        onBackdropClick={onBackdropClick}
-        onEscapeKeyDown={onEscapeKeyDown}
-        onClose={onClose}
-        open={open}
-        role="dialog"
-        {...other}
-      >
+      <Modal role="dialog" {...modalProps}>
         <ModalBox>
-          <DialogBox dialogCss={dialogCss}>
-            {children}
-          </DialogBox>
+          <DialogBox dialogCss={dialogCss}>{children}</DialogBox>
         </ModalBox>
       </Modal>
     );
@@ -70,8 +35,12 @@ class Dialog extends React.Component {
 Dialog.defaultProps = {
   disableBackdropClick: false,
   disableEscapeKeyDown: false,
-  fullScreen: false,
-  fullWidth: false,
+};
+
+Dialog.propTypes = {
+  ...Modal.propTypes,
+  disableBackdropClick: PropTypes.bool,
+  disableEscapeKeyDown: PropTypes.bool,
 };
 
 const ModalBox = styled.div`
@@ -84,22 +53,19 @@ const ModalBox = styled.div`
   opacity: 1;
   will-change: opacity;
   transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
-`
+`;
 
 const DialogBox = styled.div`
   padding: 32px;
   padding-top: 24px;
-  background: ${props => props.theme.colors.primary.main };
+  background: ${props => props.theme.colors.primary.main};
   color: ${props => props.theme.colors.text.primary};
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, .24);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
   display: flex;
   flex-direction: column;
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
-  ${props => props.dialogCss && props.dialogCss(props) }
-
-`
-
-export default Dialog;
+  ${props => props.dialogCss && props.dialogCss(props)}
+`;

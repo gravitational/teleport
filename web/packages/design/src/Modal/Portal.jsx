@@ -29,19 +29,24 @@ class Portal extends React.Component {
 
     // Only rerender if needed
     if (!this.props.disablePortal) {
-      this.forceUpdate(this.props.onRendered);
+      // Portal initializes the container and mounts it to the DOM during
+      // first render. No children are rendered at this time.
+      // ForceUpdate is called to render children elements inside
+      // the container after it gets mounted.
+      this.forceUpdate();
     }
   }
 
   componentDidUpdate(prevProps) {
-    if (prevProps.container !== this.props.container ||
-        prevProps.disablePortal !== this.props.disablePortal
+    if (
+      prevProps.container !== this.props.container ||
+      prevProps.disablePortal !== this.props.disablePortal
     ) {
       this.setMountNode(this.props.container);
 
       // Only rerender if needed
       if (!this.props.disablePortal) {
-        this.forceUpdate(this.props.onRendered);
+        this.forceUpdate();
       }
     }
   }
@@ -53,10 +58,9 @@ class Portal extends React.Component {
   setMountNode(container) {
     if (this.props.disablePortal) {
       this.mountNode = ReactDOM.findDOMNode(this).parentElement;
-      return;
+    } else {
+      this.mountNode = getContainer(container, getOwnerDocument(this).body);
     }
-
-    this.mountNode = getContainer(container, getOwnerDocument(this).body);
   }
 
   /**
@@ -73,7 +77,9 @@ class Portal extends React.Component {
       return children;
     }
 
-    return this.mountNode ? ReactDOM.createPortal(children, this.mountNode) : null;
+    return this.mountNode
+      ? ReactDOM.createPortal(children, this.mountNode)
+      : null;
   }
 }
 
@@ -94,10 +100,6 @@ Portal.propTypes = {
    * The children stay within it's parent DOM hierarchy.
    */
   disablePortal: PropTypes.bool,
-  /**
-   * Callback fired once the children has been mounted into the `container`.
-   */
-  onRendered: PropTypes.func,
 };
 
 Portal.defaultProps = {
