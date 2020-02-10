@@ -18,7 +18,8 @@ The Pluggable Authentication Modules (PAM) library abstracts a number of common
 authentication-related operations and provides a framework for dynamically loaded 
 modules that implement these operations in various ways.
 
-Terminology
+**Terminology**
+
 In PAM parlance, the application that uses PAM to authenticate a user is the server, 
 and is identified for configuration purposes by a service name, which is often (but 
 not necessarily) the program name.
