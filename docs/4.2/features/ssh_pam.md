@@ -73,15 +73,15 @@ very helpful if you're a large organization and want to create local user direct
 the fly. 
 
 
-Description
+### Description
 Added ability to read in PAM environment variables from PAM handle and pass environment
-variables to PAM module TELEPORT_USERNAME, TELEPORT_LOGIN, and TELEPORT_ROLES.
+variables to PAM module `TELEPORT_USERNAME`, `TELEPORT_LOGIN`, and `TELEPORT_ROLES`.
 
 Refactored launching of shell to call PAM first. This allows a PAM module to create 
 the user and home directory before attempting to launch a shell for said user.
 
 To do this the command passed to Teleport during re-exec has changed. Before the 
-Teleport master process would resolve the user fully (UID, GUID, supplementary groups,
+Teleport master process would resolve the user fully (`UID`, `GUID`, supplementary groups,
 shell, home directory) before re-launching itself to then launch a shell. However,
 if PAM is used to create the user on the fly and PAM has not been called yet, 
 this will fail.
@@ -91,17 +91,18 @@ Teleport master process now creates a payload with the minimum needed from *srv.
 and will then re-exec itself. The child process will call PAM and then attempt to 
 resolve the user (UID, GUID, supplementary groups, shell, home directory).
 
-Examples
-Using pam_exec.so
+### Examples
+**Using pam_exec.so**
+
 Using pam_exec.so is the easiest way to use the PAM stack to create a user if the
 user does not already exist. The advantage of using pam_exec.so is that it usually
 ships with the operating system. The downside is that it doesn't provide access to
- some additional environment variables that Teleport sets (see the pam_script.so 
- example for those) to use additional identity metadata in the user creation process.
+some additional environment variables that Teleport sets (see the pam_script.so
+example for those) to use additional identity metadata in the user creation process.
 
 You can either add pam_exec.so to your existing PAM stack for your application or 
 write a new one for Teleport. In this example we'll write a new one to simplify how
- to use pam_exec.so with Teleport.
+to use pam_exec.so with Teleport.
 
 Start by creating a file `/etc/pam.d/teleport` with the following contents.
 
@@ -110,12 +111,12 @@ account   required   pam_exec.so /etc/pam-exec.d/teleport_acct
 session   required   pam_motd.so
 ```
 
-Note the inclusion of pam_motd.so under the session facility. While pam_motd.so is
+Note the inclusion of `pam_motd.so` under the session facility. While pam_motd.so is
 not required for user creation, Teleport requires a module set for both the account
 and session facility to work.
 
-Next create the script that will be run by pam_exec.so like below. This script will
-check if the user passed in PAM_USER exists and if it does not, it will create it.
+Next create the script that will be run by `pam_exec.so` like below. This script will
+check if the user passed in `PAM_USER` exists and if it does not, it will create it.
 Any error from useradd will be written to /tmp/pam.error.
 
 ```bash
