@@ -97,8 +97,6 @@ teleport:
     prefix: 'teleport'
 ``` 
 
-
-
 ### Storage: IBM Cloud File Storage
 We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-storage) to store Teleport recorded sessions. 
 
