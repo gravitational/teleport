@@ -512,44 +512,12 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 	), nil
 }
 
-// NodeAddr is a full node address
-type NodeAddr struct {
-	// Addr is an address to dial
-	Addr string
-	// Namespace is the node namespace
-	Namespace string
-	// Cluster is the name of the target cluster
-	Cluster string
-}
-
-// String returns a user-friendly name
-func (n NodeAddr) String() string {
-	parts := []string{nodeName(n.Addr)}
-	if n.Cluster != "" {
-		parts = append(parts, "on cluster", n.Cluster)
-	}
-	return strings.Join(parts, " ")
-}
-
-// ProxyFormat returns the address in the format
-// used by the proxy subsystem
-func (n *NodeAddr) ProxyFormat() string {
-	parts := []string{n.Addr}
-	if n.Namespace != "" {
-		parts = append(parts, n.Namespace)
-	}
-	if n.Cluster != "" {
-		parts = append(parts, n.Cluster)
-	}
-	return strings.Join(parts, "@")
-}
-
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
-	log.Infof("Client=%v connecting to node=%v", proxy.clientAddr, nodeAddress)
+func (proxy *ProxyClient) ConnectToNode(ctx context.Context, params utils.ProxyParams, user string, quiet bool) (*NodeClient, error) {
+	log.Infof("Client=%v connecting with params %+v", proxy.clientAddr, params)
 	if len(proxy.teleportClient.JumpHosts) > 0 {
-		return proxy.PortForwardToNode(ctx, nodeAddress, user, quiet)
+		return proxy.PortForwardToNode(ctx, params, user, quiet)
 	}
 
 	// parse destination first:
@@ -557,7 +525,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress.Addr)
+	fakeAddr, err := utils.ParseAddr("tcp://" + params.HostPort())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -610,13 +578,13 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		}
 	}
 
-	err = proxySession.RequestSubsystem("proxy:" + nodeAddress.ProxyFormat())
+	err = proxySession.RequestSubsystem("proxy:" + params.Encode())
 	if err != nil {
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
 		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
-			nodeName(nodeAddress.Addr), serverErrorMsg)
+			nodeName(params.HostPort()), serverErrorMsg)
 	}
 	pipeNetConn := utils.NewPipeNetConn(
 		proxyReader,
@@ -630,11 +598,12 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		Auth:            []ssh.AuthMethod{proxy.authMethod},
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
-	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress.ProxyFormat(), sshConfig)
+	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, params.HostPort(), sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			proxySession.Close()
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
+			//return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
+			return nil, trace.Wrap(err)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -663,8 +632,8 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 
 // PortForwardToNode connects to the ssh server via Proxy
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
-	log.Infof("Client=%v jumping to node=%s", proxy.clientAddr, nodeAddress)
+func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, params utils.ProxyParams, user string, quiet bool) (*NodeClient, error) {
+	log.Infof("Client=%v jumping to node with params %+v", proxy.clientAddr, params)
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
@@ -684,9 +653,9 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		}
 	}
 
-	proxyConn, err := proxy.Client.Dial("tcp", nodeAddress.Addr)
+	proxyConn, err := proxy.Client.Dial("tcp", params.HostPort())
 	if err != nil {
-		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s", nodeAddress, err)
+		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s", params, err)
 	}
 
 	sshConfig := &ssh.ClientConfig{
@@ -694,11 +663,11 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		Auth:            []ssh.AuthMethod{proxy.authMethod},
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
-	conn, chans, reqs, err := newClientConn(ctx, proxyConn, nodeAddress.Addr, sshConfig)
+	conn, chans, reqs, err := newClientConn(ctx, proxyConn, params.HostPort(), sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			proxyConn.Close()
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, params)
 		}
 		return nil, trace.Wrap(err)
 	}

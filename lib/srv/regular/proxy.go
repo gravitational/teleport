@@ -61,58 +61,36 @@ type proxySubsys struct {
 //  "proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
 //  "proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
 //  "proxy:host:22@namespace@clustername"
+//
+// New in 4.XXX:
+//  - The "host" position may be occupied by a connection paramter string of the form `conn(<params>)`
+//    which provides additional parameters.  The only currently supported parameter is `uuid`, which
+//    allows a node to be addressed by its unique identifier rather than a potentially ambiguous hostname.
 func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*proxySubsys, error) {
 	log.Debugf("parse_proxy_subsys(%q)", request)
-	var (
-		clusterName  string
-		targetHost   string
-		targetPort   string
-		paramMessage = fmt.Sprintf("invalid format for proxy request: %q, expected 'proxy:host:port@cluster'", request)
-	)
 	const prefix = "proxy:"
 	// get rid of 'proxy:' prefix:
 	if strings.Index(request, prefix) != 0 {
-		return nil, trace.BadParameter(paramMessage)
+		return nil, trace.BadParameter("expected subsystem prefix %q", prefix)
 	}
 	requestBody := strings.TrimPrefix(request, prefix)
-	namespace := defaults.Namespace
-	var err error
-	parts := strings.Split(requestBody, "@")
-	switch {
-	case len(parts) == 0: // "proxy:"
-		return nil, trace.BadParameter(paramMessage)
-	case len(parts) == 1: // "proxy:host:22"
-		targetHost, targetPort, err = utils.SplitHostPort(parts[0])
-		if err != nil {
-			return nil, trace.BadParameter(paramMessage)
-		}
-	case len(parts) == 2: // "proxy:@clustername" or "proxy:host:22@clustername"
-		if parts[0] != "" {
-			targetHost, targetPort, err = utils.SplitHostPort(parts[0])
-			if err != nil {
-				return nil, trace.BadParameter(paramMessage)
-			}
-		}
-		clusterName = parts[1]
-		if clusterName == "" && targetHost == "" {
-			return nil, trace.BadParameter("invalid format for proxy request: missing cluster name or target host in %q", request)
-		}
-	case len(parts) >= 3: // "proxy:host:22@namespace@clustername"
-		clusterName = strings.Join(parts[2:], "@")
-		namespace = parts[1]
-		targetHost, targetPort, err = utils.SplitHostPort(parts[0])
-		if err != nil {
-			return nil, trace.BadParameter(paramMessage)
-		}
+	params, err := utils.ParseProxyParams(requestBody)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if params.Namespace == "" {
+		params.Namespace = defaults.Namespace
 	}
 
 	return newProxySubsys(proxySubsysConfig{
-		namespace:   namespace,
+		namespace:   params.Namespace,
 		srv:         srv,
 		ctx:         ctx,
-		host:        targetHost,
-		port:        targetPort,
-		clusterName: clusterName,
+		host:        params.Host,
+		port:        params.Port,
+		clusterName: params.Cluster,
+		nodeID:      params.NodeID,
 	})
 }
 
@@ -122,6 +100,7 @@ type proxySubsysConfig struct {
 	host        string
 	port        string
 	clusterName string
+	nodeID      string
 	srv         *Server
 	ctx         *srv.ServerContext
 }
@@ -221,7 +200,7 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 		}
 	}
 	// connecting to a specific host:
-	if t.host != "" {
+	if t.host != "" || t.nodeID != "" {
 		// no site given? use the 1st one:
 		if site == nil {
 			sites := tunnel.GetSites()
@@ -317,6 +296,16 @@ func (t *proxySubsys) proxyToHost(
 	var server services.Server
 	matches := 0
 	for i := range servers {
+		// If nodeId is supplied, we must unambiguously match
+		// one and only one server.
+		if t.nodeID != "" {
+			if servers[i].GetName() == t.nodeID {
+				server = servers[i]
+				matches = 1
+				break
+			}
+			continue
+		}
 		// If the server has connected over a reverse tunnel, match only on hostname.
 		if servers[i].GetUseTunnel() {
 			if t.host == servers[i].GetHostname() {
@@ -343,12 +332,20 @@ func (t *proxySubsys) proxyToHost(
 		}
 	}
 	if matches > 1 {
-		return trace.NotFound("err-server-is-ambiguous")
+		return trace.NotFound(teleport.ServerIsAmbiguous)
 	}
 
-	// Create a slice of principals that will be added into the host certificate.
-	// Here t.host is either an IP address or a DNS name as the user requested.
-	principals := []string{t.host}
+	if t.nodeID != "" && server == nil {
+		return trace.NotFound("unable to locate node with uuid %s", t.nodeID)
+	}
+
+	var principals []string
+
+	if t.host != "" {
+		// Create a slice of principals that will be added into the host certificate.
+		// Here t.host is either an IP address or a DNS name as the user requested.
+		principals = append(principals, t.host)
+	}
 
 	// Used to store the server ID (hostUUID.clusterName) of a Teleport node.
 	var serverID string

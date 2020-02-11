@@ -250,6 +250,196 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
+type ProxyParams struct {
+	Host      string
+	Port      string
+	Cluster   string
+	Namespace string
+	NodeID    string
+}
+
+// HostPort constructs a value of the form `<hostname>:<port>`.  If using UUID based
+// routing, this value is likely not actually resolvable since hostname is defined as
+// `<uuid>.<cluster>` in that case.
+func (p *ProxyParams) HostPort() string {
+	port := p.Port
+	if port == "" {
+		port = "0"
+	}
+	if p.NodeID != "" && p.Cluster != "" {
+		return fmt.Sprintf("%s.%s:%s", p.NodeID, p.Cluster, port)
+	}
+	return fmt.Sprintf("%s:%s", p.Host, port)
+}
+
+func (p *ProxyParams) Encode() string {
+	// Default to legacy encoding if NodeID is not set.
+	if p.NodeID == "" {
+		return p.legacyEncode()
+	}
+	cp := make(map[string][]string)
+	if p.Host != "" {
+		cp[paramHost] = []string{p.Host}
+	}
+	if p.Port != "" {
+		cp[paramPort] = []string{p.Host}
+	}
+	if p.Cluster != "" {
+		cp[paramCluster] = []string{p.Cluster}
+	}
+	if p.Namespace != "" {
+		cp[paramNamespace] = []string{p.Namespace}
+	}
+	if p.NodeID != "" {
+		cp[paramNodeID] = []string{p.NodeID}
+	}
+	return EncodeConnParams(cp)
+}
+
+func (p *ProxyParams) legacyEncode() string {
+	hostport := fmt.Sprintf("%s:%s", p.Host, p.Port)
+	parts := []string{hostport}
+	if p.Namespace != "" {
+		parts = append(parts, p.Namespace)
+	}
+	if p.Cluster != "" {
+		parts = append(parts, p.Cluster)
+	}
+	return strings.Join(parts, "@")
+}
+
+const (
+	paramHost      = "host"
+	paramPort      = "port"
+	paramCluster   = "cluster"
+	paramNamespace = "namespace"
+	paramNodeID    = "uuid"
+)
+
+func ParseProxyParams(request string) (ProxyParams, error) {
+	if !IsConnParams(request) {
+		return parseLegacyProxyParams(request)
+	}
+	raw, err := DecodeConnParams(request)
+	if err != nil {
+		return ProxyParams{}, trace.Wrap(err)
+	}
+	get := func(name string) (string, bool) {
+		if len(raw[name]) > 0 {
+			return raw[name][0], true
+		}
+		return "", false
+	}
+	var params ProxyParams
+	if host, ok := get(paramHost); ok {
+		params.Host = host
+	}
+	if port, ok := get(paramPort); ok {
+		params.Port = port
+	}
+	if cluster, ok := get(paramCluster); ok {
+		params.Cluster = cluster
+	}
+	if namespace, ok := get(paramNamespace); ok {
+		params.Namespace = namespace
+	}
+	if nodeID, ok := get(paramNodeID); ok {
+		params.NodeID = nodeID
+	}
+	hasHostPort := params.Host != "" && params.Port != ""
+	if !hasHostPort && params.Cluster == "" && params.NodeID == "" {
+		return ProxyParams{}, trace.BadParameter("proxy params must contain one of cluster, uuid, or host and port in %q", request)
+	}
+	return params, nil
+}
+
+func parseLegacyProxyParams(request string) (ProxyParams, error) {
+	var (
+		clusterName  string
+		namespace    string
+		targetHost   string
+		targetPort   string
+		paramMessage = fmt.Sprintf("invalid format for proxy request: %q, expected 'host:port@cluster'", request)
+	)
+	var err error
+	parts := strings.Split(request, "@")
+	switch {
+	case len(parts) == 0: // "proxy:"
+		return ProxyParams{}, trace.BadParameter(paramMessage)
+	case len(parts) == 1: // "proxy:host:22"
+		targetHost, targetPort, err = SplitHostPort(parts[0])
+		if err != nil {
+			return ProxyParams{}, trace.BadParameter(paramMessage)
+		}
+	case len(parts) == 2: // "proxy:@clustername" or "proxy:host:22@clustername"
+		if parts[0] != "" {
+			targetHost, targetPort, err = SplitHostPort(parts[0])
+			if err != nil {
+				return ProxyParams{}, trace.BadParameter(paramMessage)
+			}
+		}
+		clusterName = parts[1]
+		if clusterName == "" && targetHost == "" {
+			return ProxyParams{}, trace.BadParameter("invalid format for proxy request: missing cluster name or target host in %q", request)
+		}
+	case len(parts) >= 3: // "proxy:host:22@namespace@clustername"
+		clusterName = strings.Join(parts[2:], "@")
+		namespace = parts[1]
+		targetHost, targetPort, err = SplitHostPort(parts[0])
+		if err != nil {
+			return ProxyParams{}, trace.BadParameter(paramMessage)
+		}
+	}
+	return ProxyParams{
+		Host:      targetHost,
+		Port:      targetPort,
+		Cluster:   clusterName,
+		Namespace: namespace,
+	}, nil
+}
+
+// IsConnParams checks if the supplied string might be a
+// connection parameter string of the form `conn(<params>)`.
+// Strings of this kind are used in place of the standard hostname
+// argument when invoking some advanced features of the proxy subsystem.
+func IsConnParams(s string) bool {
+	return strings.HasPrefix(s, "conn(") &&
+		strings.HasSuffix(s, ")")
+}
+
+// DecodeConnParams attempts to decode the supplied string as a
+// connection parameter string of the form `conn(<params>)`.
+// Strings of this kind are used in place of the standard hostname
+// argument when invoking some advanced features of the proxy subsystem.
+func DecodeConnParams(s string) (map[string][]string, error) {
+	if !IsConnParams(s) {
+		return nil, trace.BadParameter("invalid conn params: %s", s)
+	}
+	qs := strings.TrimSuffix(
+		strings.TrimPrefix(s, "conn("),
+		")",
+	)
+	// Empty conn params is strange, but it is up to the caller
+	// to decide if this is an error or not.
+	if qs == "" {
+		return map[string][]string{}, nil
+	}
+	qp, err := url.ParseQuery(qs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return map[string][]string(qp), nil
+}
+
+// EncodeConnParams ecodes the supplied parameters as a
+// connection parameter string of the form `conn(<params>)`.
+// Strings of this kind are used in place of the standard hostname
+// argument when invoking some advanced features of the proxy subsystem.
+func EncodeConnParams(p map[string][]string) string {
+	qs := url.Values(p).Encode()
+	return fmt.Sprintf("conn(%s)", qs)
+}
+
 // ReadPath reads file contents
 func ReadPath(path string) ([]byte, error) {
 	if path == "" {

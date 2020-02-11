@@ -566,6 +566,10 @@ const (
 	// UseOfClosedNetworkConnection is a special string some parts of
 	// go standard lib are using that is the only way to identify some errors
 	UseOfClosedNetworkConnection = "use of closed network connection"
+
+	// ServerIsAmbiguous serves as an identifying error string indicating that
+	// the proxy subsystem found multiple nodes matching the specified hostname.
+	ServerIsAmbiguous = "err-server-is-ambiguous"
 )
 
 const (

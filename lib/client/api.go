@@ -148,6 +148,9 @@ type Config struct {
 	// port setting via -p flag, otherwise '0' is passed which means "use server default"
 	HostPort int
 
+	// HostUUID is the UUID of the target node.
+	HostUUID string
+
 	// JumpHosts if specified are interpreted in a similar way
 	// as -J flag in ssh - used to dial through
 	JumpHosts []utils.JumpHost
@@ -847,13 +850,27 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 	return tc.localAgent
 }
 
+// targetNode identifies a node either by uuid or host+port
+type targetNode struct {
+	host string
+	port string
+	uuid string
+}
+
+func (t targetNode) String() string {
+	if t.uuid != "" {
+		return t.uuid
+	}
+	return fmt.Sprintf("%s:%s", t.host, t.port)
+}
+
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
+func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]targetNode, error) {
 	var (
 		err    error
 		nodes  []services.Server
-		retval = make([]string, 0)
+		retval = make([]targetNode, 0)
 	)
 	if tc.Labels != nil && len(tc.Labels) > 0 {
 		nodes, err = proxy.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
@@ -861,10 +878,24 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 			return nil, trace.Wrap(err)
 		}
 		for i := 0; i < len(nodes); i++ {
-			retval = append(retval, nodes[i].GetAddr())
+			host, port, err := utils.SplitHostPort(nodes[i].GetAddr())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// TODO(fspmarshall): Transition to using UUID here once
+			// version compatibility allows it.
+			retval = append(retval, targetNode{host: host, port: port})
 		}
 	}
 	if len(nodes) == 0 {
+		if tc.HostUUID != "" {
+			target := targetNode{
+				uuid: tc.HostUUID,
+				port: strconv.Itoa(tc.HostPort),
+			}
+			retval = append(retval, target)
+			return retval, nil
+		}
 		// detect the common error when users use host:port address format
 		_, port, err := net.SplitHostPort(tc.Host)
 		// client has used host:port notation
@@ -873,8 +904,11 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 				"please use ssh subcommand with '--port=%v' flag instead of semicolon",
 				port)
 		}
-		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
-		retval = append(retval, addr)
+		target := targetNode{
+			host: tc.Host,
+			port: strconv.Itoa(tc.HostPort),
+		}
+		retval = append(retval, target)
 	}
 	return retval, nil
 }
@@ -943,16 +977,17 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
+	targets, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(nodeAddrs) == 0 {
+	if len(targets) == 0 {
 		return trace.BadParameter("no target host specified")
 	}
+	target := targets[0]
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
-		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
+		utils.ProxyParams{Host: target.host, Port: target.port, NodeID: target.uuid, Namespace: tc.Namespace, Cluster: siteInfo.Name},
 		tc.Config.HostLogin,
 		false)
 	if err != nil {
@@ -987,15 +1022,15 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 
 	// Issue "exec" request(s) to run on remote node(s).
 	if len(command) > 0 {
-		if len(nodeAddrs) > 1 {
+		if len(targets) > 1 {
 			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.")
 		}
-		return tc.runCommand(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
+		return tc.runCommand(ctx, siteInfo.Name, targets, proxyClient, command)
 	}
 
 	// Issue "shell" request to run single node.
-	if len(nodeAddrs) > 1 {
-		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
+	if len(targets) > 1 {
+		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", targets[0])
 	}
 	return tc.runShell(nodeClient, nil)
 }
@@ -1088,9 +1123,16 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	if node == nil {
 		return trace.NotFound(notFoundErrorMessage)
 	}
+	nodeHost, nodePort, err := utils.SplitHostPort(node.GetAddr())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// TODO(fspmarshall): Upgrade this to use node uuid instead once
+	// backwards-compatibility allows it.
 	// connect to server:
-	nc, err := proxyClient.ConnectToNode(ctx, NodeAddr{
-		Addr:      node.GetAddr(),
+	nc, err := proxyClient.ConnectToNode(ctx, utils.ProxyParams{
+		Host:      nodeHost,
+		Port:      nodePort,
 		Namespace: tc.Namespace,
 		Cluster:   tc.SiteName,
 	}, tc.Config.HostLogin, false)
@@ -1218,17 +1260,17 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	}
 
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
+	targets, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(nodeAddrs) == 0 {
+	if len(targets) == 0 {
 		return trace.BadParameter("no target host specified")
 	}
-
+	target := targets[0]
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
-		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: clusterInfo.Name},
+		utils.ProxyParams{Host: target.host, Port: target.port, NodeID: target.uuid, Namespace: tc.Namespace, Cluster: clusterInfo.Name},
 		tc.Config.HostLogin,
 		false)
 	if err != nil {
@@ -1280,8 +1322,12 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		nodeHost, nodePort, err := utils.SplitHostPort(addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return proxyClient.ConnectToNode(ctx,
-			NodeAddr{Addr: addr, Namespace: tc.Namespace, Cluster: siteInfo.Name},
+			utils.ProxyParams{Host: nodeHost, Port: nodePort, Namespace: tc.Namespace, Cluster: siteInfo.Name},
 			tc.HostLogin, false)
 	}
 
@@ -1424,11 +1470,11 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]services.Server, 
 
 // runCommand executes a given bash command on a bunch of remote nodes
 func (tc *TeleportClient) runCommand(
-	ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+	ctx context.Context, siteName string, targets []targetNode, proxyClient *ProxyClient, command []string) error {
 
-	resultsC := make(chan error, len(nodeAddresses))
-	for _, address := range nodeAddresses {
-		go func(address string) {
+	resultsC := make(chan error, len(targets))
+	for _, target := range targets {
+		go func(target targetNode) {
 			var (
 				err         error
 				nodeSession *NodeSession
@@ -1438,7 +1484,7 @@ func (tc *TeleportClient) runCommand(
 			}()
 			var nodeClient *NodeClient
 			nodeClient, err = proxyClient.ConnectToNode(ctx,
-				NodeAddr{Addr: address, Namespace: tc.Namespace, Cluster: siteName},
+				utils.ProxyParams{Host: target.host, Port: target.port, NodeID: target.uuid, Namespace: tc.Namespace, Cluster: siteName},
 				tc.Config.HostLogin, false)
 			if err != nil {
 				fmt.Fprintln(tc.Stderr, err)
@@ -1447,8 +1493,8 @@ func (tc *TeleportClient) runCommand(
 			defer nodeClient.Close()
 
 			// run the command on one node:
-			if len(nodeAddresses) > 1 {
-				fmt.Printf("Running command on %v:\n", address)
+			if len(targets) > 1 {
+				fmt.Printf("Running command on %v:\n", target)
 			}
 			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
 			if err != nil {
@@ -1470,10 +1516,10 @@ func (tc *TeleportClient) runCommand(
 					}
 				}
 			}
-		}(address)
+		}(target)
 	}
 	var lastError error
-	for range nodeAddresses {
+	for range targets {
 		if err := <-resultsC; err != nil {
 			lastError = err
 		}

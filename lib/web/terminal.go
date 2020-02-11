@@ -101,6 +101,8 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(fspmarshall): Remove host/port lookup & always use UUID based
+	// connection logic once compatibility allows.
 	hostName, hostPort, err := resolveServerHostPort(req.Server, servers)
 	if err != nil {
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
@@ -114,6 +116,7 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		ctx:          ctx,
 		hostName:     hostName,
 		hostPort:     hostPort,
+		hostUUID:     req.Server,
 		authProvider: authProvider,
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
@@ -140,6 +143,9 @@ type TerminalHandler struct {
 
 	// hostPort is the port of the server.
 	hostPort int
+
+	// hostUUID is the UUID of the server.
+	hostUUID string
 
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession *ssh.Session
@@ -259,6 +265,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	clientConfig.ParseProxyHost(t.params.ProxyHostPort)
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
+	clientConfig.HostUUID = t.hostUUID
 	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
 	clientConfig.ClientAddr = ws.Request().RemoteAddr
 
@@ -291,6 +298,14 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
 	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
+	// If we were using HostUUID to connect and the proxy request was rejected then
+	// fallback to the old connection style.
+	// TODO(fspmarshall): Remove this fallback when compatibility allows.
+	if err != nil && tc.HostUUID != "" && strings.Contains(err.Error(), "invalid format for proxy request") {
+		t.log.Warnf("Outated auth server, falling back to host/port connection strategy")
+		tc.HostUUID = ""
+		err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
+	}
 	if err != nil {
 		t.log.Warnf("Unable to stream terminal: %v.", err)
 		er := t.writeError(err, ws)

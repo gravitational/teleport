@@ -76,6 +76,8 @@ type CLIConf struct {
 	MinsToLive int32
 	// SSH Port on a remote SSH host
 	NodePort int32
+	// Interpret hostname as a node uuid.
+	HostIsUUID bool
 	// Login on a remote SSH host
 	NodeLogin string
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
@@ -227,6 +229,7 @@ func Run(args []string, underTest bool) {
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
+	ssh.Flag("as-uuid", "Interpret hostname as a node UUID").Short('U').BoolVar(&cf.HostIsUUID)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
@@ -823,7 +826,7 @@ func onSSH(cf *CLIConf) {
 		return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
 	})
 	if err != nil {
-		if strings.Contains(utils.UserMessageFromError(err), "err-server-is-ambiguous") {
+		if strings.Contains(utils.UserMessageFromError(err), teleport.ServerIsAmbiguous) {
 			allNodes, err := tc.ListAllNodes(cf.Context)
 			if err != nil {
 				utils.FatalError(err)
@@ -835,8 +838,8 @@ func onSSH(cf *CLIConf) {
 				}
 			}
 			fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
-			showNodes(nodes, false)
-			fmt.Fprintf(os.Stderr, "Hint: try using ip and/or port to disambiguate your target.\n")
+			showNodes(nodes, true)
+			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tctl ssh -U user@node-id)\n")
 			os.Exit(1)
 		}
 		// exit with the same exit status as the failed command:
@@ -944,7 +947,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 			cf.UserHost = parts[1]
 		}
 		// see if remote host is specified as a set of labels
-		if strings.Contains(cf.UserHost, "=") {
+		if strings.Contains(cf.UserHost, "=") && !utils.IsConnParams(cf.UserHost) {
 			labels, err = client.ParseLabelSpec(cf.UserHost)
 			if err != nil {
 				return nil, err
@@ -1056,7 +1059,11 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	if hostLogin != "" {
 		c.HostLogin = hostLogin
 	}
-	c.Host = cf.UserHost
+	if cf.HostIsUUID {
+		c.HostUUID = cf.UserHost
+	} else {
+		c.Host = cf.UserHost
+	}
 	c.HostPort = int(cf.NodePort)
 	c.Labels = labels
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
