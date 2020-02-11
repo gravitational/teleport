@@ -297,11 +297,10 @@ db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 $ tsh ssh --cluster=east root@db1.east
 ```
 
-
 !!! tip "Note"
 
     Trusted clusters work only one way. So, in the example above users from "east"
-	  cannot see or connect to the nodes in "main".
+    cannot see or connect to the nodes in "main".
 
 ### Disabling Trust
 
@@ -312,7 +311,6 @@ and set `enabled` to "false", then update it:
 ```bsh
 $ tctl create --force cluster.yaml
 ```
-
 
 ## How does it work?
 
