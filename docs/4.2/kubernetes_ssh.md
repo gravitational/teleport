@@ -227,3 +227,6 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
     For more information on integrating Teleport with Okta, please see the
     [Okta integration guide](ssh_okta.md).
+
+    For more information on integrating Teleport with Okta, please see the [Okta  integration guide](ssh_okta.md).
+
