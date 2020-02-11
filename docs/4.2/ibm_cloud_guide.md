@@ -32,16 +32,14 @@ This guide will cover how to setup, configure and run Teleport on IBM Cloud.
 
 IBM Services required to run Teleport in HA:
 
- - [IBM Cloud: Virtual Servers with Instance Groups](#)
- - [Storage: Database for etcd](#)
- - [Storage: IBM Cloud File Storage](#)
- - [Network Services: Load Balancing](#)
- - [Network Services: Cloud DNS](#)
+ - [IBM Cloud: Virtual Servers with Instance Groups](#ibm-cloud-virtual-servers-with-instance-groups)
+ - [Storage: Database for etcd](#storage-database-for-etcd)
+ - [Storage: IBM Cloud File Storage](#storage-ibm-cloud-file-storage)
+ - [Network Services: Cloud DNS](#network-ibm-cloud-dns-services)
  
 Other things needed:
 
  - [SSL Certificate](https://www.ibm.com/cloud/ssl-certificates)
-
 
 We recommend setting up Teleport in high availability mode (HA). In HA mode [etcd](https://etcd.io/)
 stores the state of the system and [IBM Cloud Storage](https://www.ibm.com/cloud/storage) 

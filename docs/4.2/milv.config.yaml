@@ -6,6 +6,7 @@ ignore-external: false
 white-list-internal:
   - "mailto:sales@gravitational.com"
   - "mailto:info@gravitational.com"
+  - "mailto:ben@gravitational.com"
 white-list-external:
   - "https://<proxy-host>:3080"
   - "https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a"
