@@ -266,7 +266,8 @@ Cluster state    | `dir`, `etcd`, `dynamodb` | Multi-server (HA) configuration i
 Audit Log Events | `dir`, `dynamodb`         | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions.
 Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` is used for the audit log.
 
-!!! tip "Note":
+!!! tip "Note"
+
     The reason Teleport designers split the audit log events and the recorded
     sessions into different back-ends is because of the nature of the data. A
     recorded session is a compressed binary stream (blob) while the event is a
@@ -278,7 +279,8 @@ Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` i
 The combination of DynamoDB + S3 is especially popular among AWS users because
 it allows them to run Teleport clusters completely devoid of local state.
 
-!!! tip "NOTE":
+!!! tip "NOTE"
+
     For high availability in production, a Teleport cluster can be
     serviced by multiple auth servers running in sync. Check [HA
     configuration](../admin-guide.md#high-availability) in the Admin Guide.

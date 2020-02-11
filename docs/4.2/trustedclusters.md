@@ -27,7 +27,8 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 * Enable/disable trust between clusters.
 * Establish permissions mapping between clusters using Teleport roles.
 
-!!! tip "Teleport Node Tunneling":
+!!! tip "Teleport Node Tunneling"
+
     If you have a large amount of devices on different networks, such as
     managed IoT devices or a couple of nodes on a different network you can utilize
     the [Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat).
@@ -89,7 +90,8 @@ This shared secret is called a "join token". There are two ways to create join
 tokens: to statically define them in a configuration file, or to create them on
 the fly using `tctl` tool.
 
-!!! tip "Important":
+!!! tip "Important"
+
     It is important to realize that join tokens are only used to establish the
     connection for the first time. The clusters will exchange certificates and
     won't be using the token to re-establish the connection in the future.
@@ -144,7 +146,8 @@ more complicated.
 
 ## RBAC
 
-!!! warning "Version Warning":
+!!! warning "Version Warning"
+
     The RBAC section is applicable only to Teleport Enterprise. The open source
     version does not support SSH roles.
 
@@ -295,9 +298,10 @@ $ tsh ssh --cluster=east root@db1.east
 ```
 
 
-!!! tip "Note":
+!!! tip "Note"
+
     Trusted clusters work only one way. So, in the example above users from "east"
-	cannot see or connect to the nodes in "main".
+	  cannot see or connect to the nodes in "main".
 
 ### Disabling Trust
 
