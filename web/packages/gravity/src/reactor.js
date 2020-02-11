@@ -14,38 +14,43 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Reactor } from 'nuclear-js'
+import { Reactor } from 'nuclear-js';
 
-const isDebug = process.env.NODE_ENV === 'development' && !process.env.NODE_ENV_TYPE === 'test';
+const isDebug =
+  process.env.NODE_ENV === 'development' &&
+  process.env.NODE_ENV_TYPE !== 'test';
 const CSS = 'color: blue';
 
 // reactor options
 const options = {
-  debug: isDebug
-}
+  debug: isDebug,
+};
 
 const logger = {
   dispatchStart(reactorState, actionType, payload) {
-    window.console.log(`%creactor.dispatch("${actionType}", `, CSS, payload, `)`);
+    window.console.log(
+      `%creactor.dispatch("${actionType}", `,
+      CSS,
+      payload,
+      `)`
+    );
   },
 
-  dispatchError: function (reactorState, error) {
-    window.console.debug('Dispatch error: ' + error)
+  dispatchError: function(reactorState, error) {
+    window.console.debug('Dispatch error: ' + error);
   },
 
   dispatchEnd(reactorState, state, dirtyStores) {
     const stateChanges = state.filter((val, key) => dirtyStores.contains(key));
-    window.console.log('%cupdated store -> ',
-      CSS,
-      stateChanges.toJS())
-  }
-}
+    window.console.log('%cupdated store -> ', CSS, stateChanges.toJS());
+  },
+};
 
 if (isDebug) {
-  options.logger = logger
+  options.logger = logger;
 }
 
-const reactor = new Reactor(options)
+const reactor = new Reactor(options);
 window.reactor = reactor;
 
-export default reactor
+export default reactor;

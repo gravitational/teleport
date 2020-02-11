@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,99 +22,102 @@ import { makeNodes } from './makeK8sNode';
 import makeK8sSecret from './makeK8sSecret';
 
 const k8s = {
-
-  getNamespaces(){
+  getNamespaces() {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(cfg.api.k8sNamespacePath, {siteId});
-    return api.get(url).then( json => json.items );
+    const url = generatePath(cfg.api.k8sNamespacePath, { siteId });
+    return api.get(url).then(onlyItems);
   },
 
-  saveConfigMap(namespace, name, data){
+  saveConfigMap(namespace, name, data) {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(
-      cfg.api.k8sConfigMapsByNamespacePath,
-      {siteId, namespace, name}
-    );
+    const url = generatePath(cfg.api.k8sConfigMapsByNamespacePath, {
+      siteId,
+      namespace,
+      name,
+    });
 
     return api.patch(url, data);
   },
 
-  createSecret(namespace, data){
+  createSecret(namespace, data) {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(
-      cfg.api.k8sSecretsPath,
-      {siteId, namespace}
-    );
+    const url = generatePath(cfg.api.k8sSecretsPath, { siteId, namespace });
 
     return api.post(url, data);
   },
 
-  saveSecret(namespace, name, data){
+  saveSecret(namespace, name, data) {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(
-      cfg.api.k8sSecretsPath,
-      {siteId, namespace, name}
-    );
+    const url = generatePath(cfg.api.k8sSecretsPath, {
+      siteId,
+      namespace,
+      name,
+    });
 
     return api.patch(url, data);
   },
 
-  getConfigMaps(){
+  getConfigMaps() {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(cfg.api.k8sConfigMapsPath, {siteId});
-    return api.get(url).then( json => json.items );
+    const url = generatePath(cfg.api.k8sConfigMapsPath, { siteId });
+    return api.get(url).then(onlyItems);
   },
 
-  getNodes(){
+  getNodes() {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(cfg.api.k8sNodesPath, {siteId});
+    const url = generatePath(cfg.api.k8sNodesPath, { siteId });
     return api.get(url).then(json => makeNodes(json.items));
   },
 
-  getJobs(namespace){
+  getJobs(namespace) {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(cfg.api.k8sJobsPath, {siteId, namespace});
-    return api.get(url).then( json => json.items );
+    const url = generatePath(cfg.api.k8sJobsPath, { siteId, namespace });
+    return api.get(url).then(onlyItems);
   },
 
-  getSecrets(namespace){
+  getSecrets(namespace) {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(cfg.api.k8sSecretsPath, {siteId, namespace});
-    return api.get(url)
-      .then( json => map(json.items, makeK8sSecret) )
-      .then( secrets => sortBy(secrets, ['created']).reverse() );
+    const url = generatePath(cfg.api.k8sSecretsPath, { siteId, namespace });
+    return api
+      .get(url)
+      .then(json => map(json.items, makeK8sSecret))
+      .then(secrets => sortBy(secrets, ['created']).reverse());
   },
 
-  getPods(namespace){
+  getPods(namespace) {
     const siteId = cfg.defaultSiteId;
     let url = cfg.api.k8sPodsPath;
-    if(namespace){
+    if (namespace) {
       url = cfg.api.k8sPodsByNamespacePath;
     }
 
-    api.get(generatePath(cfg.api.k8sSecretsPath, {siteId, namespace}));
+    api.get(generatePath(cfg.api.k8sSecretsPath, { siteId, namespace }));
 
-    url = generatePath(url, {siteId, namespace});
-    return api.get(url).then( json => json.items );
+    url = generatePath(url, { siteId, namespace });
+    return api.get(url).then(onlyItems);
   },
 
-  getServices(){
+  getServices() {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(cfg.api.k8sServicesPath, {siteId});
-    return api.get(url).then( json => json.items );
+    const url = generatePath(cfg.api.k8sServicesPath, { siteId });
+    return api.get(url).then(onlyItems);
   },
 
-  getDeployments(){
+  getDeployments() {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(cfg.api.k8sDelploymentsPath, {siteId});
-    return api.get(url).then( json => json.items );
+    const url = generatePath(cfg.api.k8sDelploymentsPath, { siteId });
+    return api.get(url).then(onlyItems);
   },
 
-  getDaemonSets(){
+  getDaemonSets() {
     const siteId = cfg.defaultSiteId;
-    const url = generatePath(cfg.api.k8sDaemonSetsPath, {siteId});
-    return api.get(url).then( json => json.items );
-  }
+    const url = generatePath(cfg.api.k8sDaemonSetsPath, { siteId });
+    return api.get(url).then(onlyItems);
+  },
+};
+
+function onlyItems(json) {
+  return json.items || [];
 }
 
 export default k8s;
