@@ -68,7 +68,7 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
-		RunAndExit()
+		RunAndExit(teleport.ExecSubCommand)
 		return
 	}
 
@@ -276,7 +276,7 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	}
 
 	// Create an exec.Cmd to execute through Teleport.
-	cmd, err := configureCommand(ctx)
+	cmd, err := ConfigureCommand(ctx)
 	c.Assert(err, check.IsNil)
 
 	// Create a context that will be used to signal that execution is complete.
