@@ -419,7 +419,7 @@ func onLogin(cf *CLIConf) {
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
 		// in case if nothing is specified, print current status
-		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "":
+		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
 			printProfiles(cf.Debug, profile, profiles)
 			return
 		// in case if parameters match, print current status
@@ -447,7 +447,7 @@ func onLogin(cf *CLIConf) {
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles are specified, treat this as a privilege escalation
 		// request for the same login session.
-		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "":
+		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
 			executeAccessRequest(cf)
 			return
 		// otherwise just passthrough to standard login
