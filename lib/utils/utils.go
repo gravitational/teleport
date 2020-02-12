@@ -266,10 +266,11 @@ func (p *ProxyParams) HostPort() string {
 	if port == "" {
 		port = "0"
 	}
+	host := p.Host
 	if p.NodeID != "" && p.Cluster != "" {
-		return fmt.Sprintf("%s.%s:%s", p.NodeID, p.Cluster, port)
+		host = fmt.Sprintf("%s.%s", p.NodeID, p.Cluster)
 	}
-	return fmt.Sprintf("%s:%s", p.Host, port)
+	return net.JoinHostPort(host, port)
 }
 
 func (p *ProxyParams) Encode() string {
