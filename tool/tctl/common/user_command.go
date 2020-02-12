@@ -48,11 +48,11 @@ type UserCommand struct {
 	// format is the output format, e.g. text or json
 	format string
 
-	userAdd            *kingpin.CmdClause
-	userUpdate         *kingpin.CmdClause
-	userList           *kingpin.CmdClause
-	userDelete         *kingpin.CmdClause
-	userChangePassword *kingpin.CmdClause
+	userAdd           *kingpin.CmdClause
+	userUpdate        *kingpin.CmdClause
+	userList          *kingpin.CmdClause
+	userDelete        *kingpin.CmdClause
+	userResetPassword *kingpin.CmdClause
 }
 
 // Initialize allows UserCommand to plug itself into the CLI parser
@@ -84,12 +84,12 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
 		Required().StringVar(&u.login)
 
-	u.userChangePassword = users.Command("reset", "Reset user password and generate a new token")
-	u.userChangePassword.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
-	u.userChangePassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
+	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token")
+	u.userResetPassword.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
+	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.ChangePasswordTokenTTL)).DurationVar(&u.ttl)
-	u.userChangePassword.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userResetPassword.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
@@ -103,16 +103,16 @@ func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 		err = u.List(client)
 	case u.userDelete.FullCommand():
 		err = u.Delete(client)
-	case u.userChangePassword.FullCommand():
-		err = u.ChangePassword(client)
+	case u.userResetPassword.FullCommand():
+		err = u.ResetPassword(client)
 	default:
 		return false, nil
 	}
 	return true, trace.Wrap(err)
 }
 
-// ChangePassword resets user password and generates a token to setup new password
-func (u *UserCommand) ChangePassword(client auth.ClientI) error {
+// ResetPassword resets user password and generates a token to setup new password
+func (u *UserCommand) ResetPassword(client auth.ClientI) error {
 	req := auth.CreateResetPasswordTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
@@ -123,17 +123,52 @@ func (u *UserCommand) ChangePassword(client auth.ClientI) error {
 		return err
 	}
 
+	err = u.PrintResetPasswordToken(token, u.format)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// PrintResetPasswordToken prints ResetPasswordToken
+func (u *UserCommand) PrintResetPasswordToken(token services.ResetPasswordToken, format string) error {
+	err := u.printResetPasswordToken(token,
+		format,
+		"Reset password token has been created and is valid for %v. Share this URL with the user to complete password reset process:\n%v\n\n",
+	)
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// PrintResetPasswordTokenAsInvite prints ResetPasswordToken as Invite
+func (u *UserCommand) PrintResetPasswordTokenAsInvite(token services.ResetPasswordToken, format string) error {
+	err := u.printResetPasswordToken(token,
+		format,
+		"Invite token has been created and is valid for %v. Share this URL with the user to complete user setup:\n%v\n\n")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (u *UserCommand) printResetPasswordToken(token services.ResetPasswordToken, format string, messageFormat string) error {
 	url, err := url.Parse(token.GetURL())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if u.format == teleport.Text {
+	if format == teleport.Text {
 		ttl := token.Expiry().Sub(time.Now().UTC()).Round(time.Second)
-		fmt.Printf("Reset password token has been created and is valid for %v. Share this URL with the user to complete password reset process:\n%v\n\n", ttl, url)
+		fmt.Printf(messageFormat, ttl, url)
 		fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
 	} else if u.format == teleport.JSON {
-		err = printTokenAsJSON(token)
+		err := printTokenAsJSON(token)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -174,9 +209,8 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 
 	user.SetTraits(traits)
 	user.AddRole(teleport.AdminRoleName)
-	err = client.UpsertUser(user)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
@@ -188,20 +222,9 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 		return err
 	}
 
-	url, err := url.Parse(token.GetURL())
+	err = u.PrintResetPasswordTokenAsInvite(token, u.format)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if u.format == teleport.Text {
-		ttl := token.Expiry().Sub(time.Now().UTC()).Round(time.Second)
-		fmt.Printf("Invite token has been created and is valid for %v. Share this URL with the user to complete user setup:\n%v\n\n", ttl, url)
-		fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
-	} else if u.format == teleport.JSON {
-		err = printTokenAsJSON(token)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return err
 	}
 
 	return nil
