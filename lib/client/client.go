@@ -602,8 +602,8 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, params utils.ProxyP
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			proxySession.Close()
-			//return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
-			return nil, trace.Wrap(err)
+			log.Errorf("Handshake failed: %v", err)
+			return nil, trace.AccessDenied(`access denied to %v connecting to %s`, user, params.HostPort())
 		}
 		return nil, trace.Wrap(err)
 	}

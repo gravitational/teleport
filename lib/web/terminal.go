@@ -101,8 +101,10 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(fspmarshall): Remove host/port lookup & always use UUID based
-	// connection logic once compatibility allows.
+	// DELETE IN: 5.0
+	//
+	// All proxies will support lookup by uuid, so host/port lookup
+	// and fallback can be dropped entirely.
 	hostName, hostPort, err := resolveServerHostPort(req.Server, servers)
 	if err != nil {
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
@@ -298,10 +300,12 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
 	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
-	// If we were using HostUUID to connect and the proxy request was rejected then
-	// fallback to the old connection style.
-	// TODO(fspmarshall): Remove this fallback when compatibility allows.
-	if err != nil && tc.HostUUID != "" && strings.Contains(err.Error(), "invalid format for proxy request") {
+
+	// DELETE IN: 5.0
+	//
+	// This fallback will be unnecessary once all proxies support lookup
+	// by uuid.
+	if err != nil && tc.HostUUID != "" && strings.Contains(err.Error(), teleport.InvalidProxyRequestFormat) {
 		t.log.Warnf("Outated auth server, falling back to host/port connection strategy")
 		tc.HostUUID = ""
 		err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)

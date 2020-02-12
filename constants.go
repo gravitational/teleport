@@ -567,6 +567,10 @@ const (
 	// go standard lib are using that is the only way to identify some errors
 	UseOfClosedNetworkConnection = "use of closed network connection"
 
+	// InvalidProxyRequestFormat is a standardized prefix used in errors originating
+	// from a malformed proxy subsystem request.
+	InvalidProxyRequestFormat = "invalid format for proxy request"
+
 	// ServerIsAmbiguous serves as an identifying error string indicating that
 	// the proxy subsystem found multiple nodes matching the specified hostname.
 	ServerIsAmbiguous = "err-server-is-ambiguous"

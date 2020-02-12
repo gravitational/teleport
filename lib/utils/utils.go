@@ -359,7 +359,7 @@ func parseLegacyProxyParams(request string) (ProxyParams, error) {
 		namespace    string
 		targetHost   string
 		targetPort   string
-		paramMessage = fmt.Sprintf("invalid format for proxy request: %q, expected 'host:port@cluster'", request)
+		paramMessage = fmt.Sprintf("%s: %q, expected 'host:port@cluster'", teleport.InvalidProxyRequestFormat, request)
 	)
 	var err error
 	parts := strings.Split(request, "@")
@@ -380,7 +380,7 @@ func parseLegacyProxyParams(request string) (ProxyParams, error) {
 		}
 		clusterName = parts[1]
 		if clusterName == "" && targetHost == "" {
-			return ProxyParams{}, trace.BadParameter("invalid format for proxy request: missing cluster name or target host in %q", request)
+			return ProxyParams{}, trace.BadParameter("%s: missing cluster name or target host in %q", teleport.InvalidProxyRequestFormat, request)
 		}
 	case len(parts) >= 3: // "proxy:host:22@namespace@clustername"
 		clusterName = strings.Join(parts[2:], "@")

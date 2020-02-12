@@ -861,7 +861,7 @@ func (t targetNode) String() string {
 	if t.uuid != "" {
 		return t.uuid
 	}
-	return fmt.Sprintf("%s:%s", t.host, t.port)
+	return net.JoinHostPort(t.host, t.port)
 }
 
 // getTargetNodes returns a list of node addresses this SSH command needs to

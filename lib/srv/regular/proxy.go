@@ -129,7 +129,7 @@ func (p *proxySubsysConfig) CheckAndSetDefaults() error {
 	if p.clusterName != "" && p.srv.proxyTun != nil {
 		_, err := p.srv.proxyTun.GetSite(p.clusterName)
 		if err != nil {
-			return trace.BadParameter("invalid format for proxy request: unknown cluster %q", p.clusterName)
+			return trace.BadParameter("%s: unknown cluster %q", teleport.InvalidProxyRequestFormat, p.clusterName)
 		}
 	}
 
