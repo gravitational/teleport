@@ -181,7 +181,7 @@ spec:
   # allow rules:
   allow:
     logins:
-    - '{{internal.logins}}'
+    - '{% raw %}{{internal.logins}}{% endraw %}'
     - root
     node_labels:
       '*': '*'
@@ -203,7 +203,7 @@ role only allows SSH logins as `root@host`.
 
 !!! note "Note"
 
-    Ignore `{{internal.logins}}` "allowed login" for now. It exists for
+    Ignore `{% raw %}{{internal.logins}}{% endraw %}` "allowed login" for now. It exists for
     compatibility purposes when upgrading existing open source Teleport
     clusters.
 

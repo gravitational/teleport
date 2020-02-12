@@ -24,10 +24,15 @@ markdown_extensions:
 extra_css: []
 plugins:
     - search:
-        separator: '[\s\-\.]+'
+        separator: '[\s\-\.]'
+    - markdownextradata: {
+    }
 extra_javascript: []
 extra:
     version: 4.2
+    teleport:
+        version: 4.2.2
+        golang: v1.13
 nav:
     - Documentation:
         - Introduction: index.md

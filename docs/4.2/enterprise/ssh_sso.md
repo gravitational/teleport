@@ -104,7 +104,7 @@ connect to Teleport nodes. To support this:
 
 * Use the SSO provider to create a field called _"unix_login"_ (you can use another name).
 * Make sure it's exposed as a claim via SAML/OIDC.
-* Update a Teleport SSH role to include `{{external.unix_login}}` variable into the list of allowed logins:
+* Update a Teleport SSH role to include `{% raw %}{{external.unix_login}}{% endraw %}` variable into the list of allowed logins:
 
 ```yaml
 kind: role
@@ -114,7 +114,7 @@ metadata:
 spec:
   allow:
     logins:
-    - '{{external.unix_login}}'
+    - '{% raw %}{{external.unix_login}}{% endraw %}'
     node_labels:
       '*': '*'
 ```
@@ -170,5 +170,3 @@ If something is not working, we recommend to:
 * Double-check the host names, tokens and TCP ports in a connector definition.
 * Look into Teleport's audit log for claim mapping problems. It is usually stored on the
   auth server in the `/var/lib/teleport/log` directory.
-
-

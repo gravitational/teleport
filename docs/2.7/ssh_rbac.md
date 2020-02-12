@@ -105,7 +105,7 @@ spec:
   allow:
     # logins array defines the OS logins a user is allowed to use.
     # a few special variables are supported here (see below)
-    logins: [root, '{{internal.logins}}']
+    logins: [root, '{% raw %}{{internal.logins}}{% endraw %}']
 
     # node labels that a user can connect to. The wildcard ('*') means "any node"
     node_labels:

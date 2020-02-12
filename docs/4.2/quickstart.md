@@ -39,7 +39,7 @@ You can also download `.deb` , `.rpm` , and `.pkg` files from
 [Downloads](https://gravitational.com/teleport/download/)
 
 ``` bash
-$ export version=v4.2.1
+$ export version=v{{ teleport.version }}
 $ export os=linux # 'darwin' 'linux' or 'windows'
 $ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
 # Automated way to retrieve the checksum, just append .sha256
