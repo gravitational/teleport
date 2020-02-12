@@ -47,7 +47,7 @@ To start using Teleport Enterprise, you will need to Download the binaries and t
 After downloading the binary tarball, run:
 
 ```bsh
-$ tar -xzf teleport-ent-binary-release.tar.gz
+$ tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-bin.tar.gz
 $ cd teleport-ent
 ```
 

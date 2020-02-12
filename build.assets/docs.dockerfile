@@ -1,4 +1,4 @@
-FROM docker.io/benarent/mkdocs-base:latest
+FROM quay.io/gravitational/mkdocs-base:1.0.3-alpha
 
 ARG UID
 ARG GID

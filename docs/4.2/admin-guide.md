@@ -11,13 +11,13 @@ Downloads](https://gravitational.com/teleport/download/) section on our web site
 and run:
 
 ```
-$ tar -xzf teleport-binary-release.tar.gz
+$ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
 $ sudo make install
 ```
 
 ### Installing from Source
 
-Gravitational Teleport is written in Go language. It requires Golang v1.13 or
+Gravitational Teleport is written in Go language. It requires Golang v{{ teleport.golang }} or
 newer.
 
 ``` bash
@@ -44,15 +44,15 @@ Example using v4.0.8 *(replace v4.0.8 with the version of Teleport you are using
 **Checking Checksum on Mac OS**
 
 ``` bash
-$ shasum -a 256 teleport-v4.0.8-darwin-amd64-bin.tar.gz
-0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+$ shasum -a 256 teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
+{{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 ```
 
 **Checking Checksum on Linux**
 
 ``` bash
 $ sha256sum teleport-v4.0.8-darwin-amd64-bin.tar.gz
-0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+{{ teleport.sha }} teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 ```
 
 **Checking Checksum on Automated Systems**
@@ -61,8 +61,8 @@ If you download Teleport via an automated system, you can programmatically
 obtain the checksum by adding `.sha256` to the binary.
 
 ``` bash
-$ curl https://get.gravitational.com/teleport-v4.0.8-darwin-amd64-bin.tar.gz.sha256
-0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+$ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz.sha256
+{{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 ```
 
 ## Definitions
