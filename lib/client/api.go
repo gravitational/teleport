@@ -1708,6 +1708,7 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	key.Cert = response.Cert
 	key.TLSCert = response.TLSCert
 	key.ProxyHost = webProxyHost
+	key.TrustedCA = response.HostSigners
 
 	// Check that a host certificate for at least one cluster was returned and
 	// extract the name of the current cluster from the first host certificate.
