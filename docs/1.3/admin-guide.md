@@ -49,7 +49,8 @@ The Teleport daemon supports the following commands:
 When experimenting you can quickly start `teleport` with verbose logging by typing 
 `teleport start -d`. 
 
-!!! danger "WARNING": 
+!!! danger "WARNING"
+
     Teleport stores data in `/var/lib/teleport`. Make sure that regular users do not 
     have access to this folder on the Auth server.
 
@@ -143,7 +144,8 @@ Let's cover some of these flags in more detail:
 Teleport uses YAML file format for configuration. A sample configuration file is shown
 below. By default it is stored in `/etc/teleport.yaml`
 
-!!! note "IMPORTANT": 
+!!! note "IMPORTANT"
+
     When editing YAML configuration, please pay attention to how your editor 
     handles white space. YAML requires consistent handling of tab characters.
 
@@ -765,7 +767,8 @@ tsh --proxy <proxy-addr> ssh --auth=google <server-addr>
 You should get a browser open a login window for you, where you will have to enter
 your Google credentials. Teleport will keep you logged in for the next 23 hours.
 
-!!! tip "Other Providers?": 
+!!! tip "Other Providers?"
+
     We have already received the requests to add support for other OpenID/OAuth2 providers 
     like Github. Teleport is an open source project and adding providers is not hard, your 
     contributions are welcome, just search the code for OIDC! :-)
@@ -829,7 +832,8 @@ The JSON file should be hosted on a domain you control and it should be accessib
 See the [official U2F specification](https://fidoalliance.org/specs/fido-u2f-v1.0-ps-20141009/fido-appid-and-facets-ps-20141009.html#processing-rules-for-appid-and-facetid-assertions)
 for the exact format of the JSON file.
 
-!!! warning "Warning": 
+!!! warning "Warning"
+
     The App ID must never change in the lifetime of the cluster. If the App ID
     changes, all existing U2F key registrations will become invalid and all users
     who use U2F as the second factor will need to re-register.
@@ -892,7 +896,8 @@ teleport:
 * Deploy several Auth servers connected to etcd backend.
 * Deploy several Proxy nodes that have `auth_servers` pointed to list of Auth servers to connect.
 
-!!! tip "NOTE": 
+!!! tip "NOTE"
+
     As new Auth servers will be added to the cluster and old servers will be decommissioned, node's and proxies will refresh the list of available auth servers refresh the cluster info and store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this file, if present, will take precedence over configuration file's values. You can simply remove the file so that the configuration file's values can take effect again.
 
 
@@ -907,7 +912,8 @@ documentation for more details.
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled.
 
-!!! tip "NOTE": 
+!!! tip "NOTE"
+
     It is not recommended to run Teleport in production with verbose logging
     as it generates substantial amount of data.
 

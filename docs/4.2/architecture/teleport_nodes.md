@@ -59,6 +59,7 @@ Learn more about this process in the [Auth
 Guide](teleport_auth.md#authentication-in-teleport).
 
 !!! warning "Single-Node Clusters are Clusters"
+
     Once a Node gets a signed certificate from the Node CA, the Node is considered a member of the cluster, even if that cluster has only one node.
 
 ## Connecting to Nodes
