@@ -64,7 +64,6 @@ class Menu extends React.Component {
       ...other
     } = this.props;
 
-
     return (
       <Popover
         popoverCss={popoverCss}

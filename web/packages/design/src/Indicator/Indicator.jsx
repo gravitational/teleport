@@ -17,8 +17,7 @@ limitations under the License.
 import React from "react";
 import styled from 'styled-components'
 import { Spinner as SpinnerIcon} from './../Icon';
-
-const DEFAULT_DELAY = "short";
+import PropTypes from 'prop-types';
 
 const DelayValueMap = {
   "none": 0,
@@ -31,7 +30,7 @@ class Indicator extends React.Component {
   constructor(props) {
     super(props);
     this._timer = null;
-    this._delay = props.delay || DEFAULT_DELAY;
+    this._delay = props.delay;
     this.state = {
       canDisplay: false
     }
@@ -59,6 +58,14 @@ class Indicator extends React.Component {
       <StyledSpinner {...this.props}/>
     )
   }
+}
+
+Indicator.propTypes = {
+  delay: PropTypes.oneOf(['none', 'short', 'long'])
+}
+
+Indicator.defaultProps = {
+  delay: "short"
 }
 
 const StyledSpinner = styled(SpinnerIcon)`

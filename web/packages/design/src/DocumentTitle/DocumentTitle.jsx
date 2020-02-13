@@ -40,25 +40,3 @@ export default class DocumentTitle extends React.Component {
     return this.props.children;
   }
 }
-
-export const withDocTitle = (title, component) => {
-
-  return class WithWindowTitle extends React.Component{
-
-    static displayName = `withDocTitleWrapper`
-
-    componentDidMount() {
-      this.setTitle(title);
-    }
-
-    setTitle(title) {
-      document.title = title;
-    }
-
-    render() {
-      return React.createElement(component, {
-        ...this.props,
-      });
-    }
-  }
-}

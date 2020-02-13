@@ -16,7 +16,6 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { storiesOf } from '@storybook/react';
 import Popover from './../Popover';
 import { ButtonPrimary, Box, Flex, Text } from '../';
 

@@ -81,16 +81,16 @@ export const IconExample = () => (
     }}
     open={true}
   >
-    <MenuItem>
-      <MenuItemIcon as={Icons.Apple} />
+    <MenuItem data-testid="item">
+      <MenuItemIcon data-testid="icon" as={Icons.Apple} />
       Test
     </MenuItem>
-    <MenuItem>
-      <MenuItemIcon as={Icons.Cash} />
+    <MenuItem data-testid="item">
+      <MenuItemIcon data-testid="icon" as={Icons.Cash} />
       Test
     </MenuItem>
-    <MenuItem>
-      <MenuItemIcon as={Icons.CircleArrowLeft} />
+    <MenuItem data-testid="item">
+      <MenuItemIcon data-testid="icon" as={Icons.CircleArrowLeft} />
       Test
     </MenuItem>
   </Menu>

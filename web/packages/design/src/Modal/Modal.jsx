@@ -299,7 +299,7 @@ Modal.defaultProps = {
 
 function Backdrop(props) {
   const { invisible, ...rest } = props;
-  return <StyledBackdrop aria-hidden="true" invisible={invisible} {...rest} />;
+  return <StyledBackdrop data-testid="backdrop" aria-hidden="true" invisible={invisible} {...rest} />;
 }
 
 const StyledBackdrop = styled.div`

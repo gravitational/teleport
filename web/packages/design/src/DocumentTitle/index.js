@@ -14,6 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import DocumentTitle, { withDocTitle } from './DocumentTitle';
+import DocumentTitle from './DocumentTitle';
 export default DocumentTitle;
-export { withDocTitle };
