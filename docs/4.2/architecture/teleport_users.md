@@ -90,7 +90,8 @@ External users are users stored elsewhere within an organization. Examples
 include Github, Active Directory (AD), OIDC, or any identity store with an
 OpenID/OAuth2 or SAML endpoint.
 
-!!! tip "Version Warning":
+!!! tip "Version Warning"
+
     External user storage is only supported in Teleport
     Enterprise. Please take a look at the [Teleport
     Enterprise](../enterprise/index.md) chapter for more information.
