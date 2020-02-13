@@ -36,17 +36,27 @@ See the comments in the default `values.yaml` and also the [Teleport documentati
 
 ## Installing the chart
 
-If you want to use a different version of Teleport, you should build and push the Docker images for the specified
-version to GCR:
+First, check whether there's already a tag for the version of Teleport you want to use in GCR:
 
-```
-$ cd examples/chart/teleport-demo/docker
+```bash
 $ gcloud auth login
+$ gcloud container images list-tags gcr.io/kubeadm-167321/teleport-ent --filter="tags:4.2.2" # replace 4.2.2 with the Teleport version you want
+DIGEST        TAGS                   TIMESTAMP
+e2ff7a110d2c  4.2.2                  2020-02-13T16:59:29
+```
+
+You can also list all avaliable tags with `gcloud container images list-tags gcr.io/kubeadm-167321/teleport-ent`.
+
+If there isn't already a tag for the version of Teleport you're looking to use, you can build and push the Docker images for the specified version to GCR:
+
+```bash
+$ cd examples/chart/teleport-demo/docker
 $ gcloud auth configure-docker
-$ ./build-all.sh 3.1.8
+$ ./build-all.sh 4.2.2 # replace 4.2.2 with the Teleport version you want to build and push
 ```
 
 Make sure that you have access to the key for sops encryption:
+
 ```bash
 $ gcloud auth application-default login
 $ gcloud config set project kubeadm-167321
@@ -69,26 +79,30 @@ personal access token rather than a password:
 $ git pull --recurse-submodules
 ```
 
-To install the chart with the release name `teleport` and Teleport version 3.1.8, run:
+To install the chart with the release name `teleportdemo` and Teleport version 4.2.2, run:
 
 ```bash
-$ helm secrets install --name teleport -f secrets/sops/teleport-demo/secrets.yaml ./ --set teleportVersion=3.1.8
+$ helm secrets install --name teleportdemo -f secrets/sops/teleport-demo/secrets.yaml ./ --set teleportVersion=4.2.2
 ```
 
 Once the chart is installed successfully, Helm will output a section titled NOTES containing the URL to access the main
 cluster's web UI, along with some example `tsh` commands based on your installation.
 
-You can show these notes again in future with the `helm status <releaseName>` command - e.g. `helm status teleport`
+You can show these notes again in future with the `helm status <releaseName>` command - e.g. `helm status teleportdemo`
 
 ## Deleting the chart
 
-If you named the chart `teleport`:
+If you named the chart `teleportdemo`:
 
 ```bash
-$ helm delete --purge teleport
+$ helm delete --purge teleportdemo
 ```
 
-Namespaces will automatically be deleted once the cluster is shut down.
+Namespaces will automatically be deleted once the cluster is shut down. If a deployment fails for some reason and you find you can't delete it with the command above, try skipping the post-delete hooks like this:
+
+```bash
+$ helm delete --purge --no-hooks teleportdemo
+```
 
 ## Recreating this without access to secrets
 
