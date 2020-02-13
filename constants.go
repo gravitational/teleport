@@ -597,8 +597,21 @@ const (
 )
 
 const (
-	// ExecSubCommand is the sub-command Teleport uses to re-exec itself.
+	// ExecSubCommand is the sub-command Teleport uses to re-exec itself for
+	// command execution (exec and shells).
 	ExecSubCommand = "exec"
+
+	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for port forwarding.
+	ForwardSubCommand = "forward"
+)
+
+const (
+	// ChanDirectTCPIP is a SSH channel of type "direct-tcpip".
+	ChanDirectTCPIP = "direct-tcpip"
+
+	// ChanSession is a SSH channel of type "session".
+	ChanSession = "session"
 )
 
 // RSAKeySize is the size of the RSA key.

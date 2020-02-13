@@ -614,7 +614,7 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 	switch channelType {
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
-	case "session":
+	case teleport.ChanSession:
 		ch, requests, err := nch.Accept()
 		if err != nil {
 			s.log.Warnf("Unable to accept channel: %v", err)
@@ -623,7 +623,7 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 		}
 		go s.handleSessionRequests(ch, requests)
 	// Channels of type "direct-tcpip" handles request for port forwarding.
-	case "direct-tcpip":
+	case teleport.ChanDirectTCPIP:
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
 			s.log.Errorf("Failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
@@ -644,9 +644,6 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 
 // handleDirectTCPIPRequest handles port forwarding requests.
 func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
-	srcAddr := fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
-	dstAddr := fmt.Sprintf("%v:%d", req.Host, req.Port)
-
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
 	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
@@ -657,29 +654,32 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 	}
 	ctx.Connection = s.serverConn
 	ctx.RemoteClient = s.remoteClient
+	ctx.ChannelType = teleport.ChanDirectTCPIP
+	ctx.SrcAddr = fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
+	ctx.DstAddr = fmt.Sprintf("%v:%d", req.Host, req.Port)
 	defer ctx.Close()
 
 	// Check if the role allows port forwarding for this user.
-	err = s.authHandlers.CheckPortForward(dstAddr, ctx)
+	err = s.authHandlers.CheckPortForward(ctx.DstAddr, ctx)
 	if err != nil {
 		ch.Stderr().Write([]byte(err.Error()))
 		return
 	}
 
-	s.log.Debugf("Opening direct-tcpip channel from %v to %v in context %v.", srcAddr, dstAddr, ctx.ID())
-	defer s.log.Debugf("Completing direct-tcpip request from %v to %v in context %v.", srcAddr, dstAddr, ctx.ID())
+	s.log.Debugf("Opening direct-tcpip channel from %v to %v in context %v.", ctx.SrcAddr, ctx.DstAddr, ctx.ID())
+	defer s.log.Debugf("Completing direct-tcpip request from %v to %v in context %v.", ctx.SrcAddr, ctx.DstAddr, ctx.ID())
 
 	// Create "direct-tcpip" channel from the remote host to the target host.
-	conn, err := s.remoteClient.Dial("tcp", dstAddr)
+	conn, err := s.remoteClient.Dial("tcp", ctx.DstAddr)
 	if err != nil {
-		ctx.Infof("Failed to connect to: %v: %v", dstAddr, err)
+		ctx.Infof("Failed to connect to: %v: %v", ctx.DstAddr, err)
 		return
 	}
 	defer conn.Close()
 
 	// Emit a port forwarding audit event.
 	s.EmitAuditEvent(events.PortForward, events.EventFields{
-		events.PortForwardAddr:    dstAddr,
+		events.PortForwardAddr:    ctx.DstAddr,
 		events.PortForwardSuccess: true,
 		events.EventLogin:         s.identityContext.Login,
 		events.EventUser:          s.identityContext.TeleportUser,
@@ -722,6 +722,7 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 	ctx.Connection = s.serverConn
 	ctx.RemoteClient = s.remoteClient
 	ctx.AddCloser(ch)
+	ctx.ChannelType = teleport.ChanSession
 	defer ctx.Close()
 
 	// Create a "session" channel on the remote host.
