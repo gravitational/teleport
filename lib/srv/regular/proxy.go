@@ -261,82 +261,66 @@ func (t *proxySubsys) proxyToHost(
 	// but failing to fetch the list of servers is also OK, we'll use standard
 	// network resolution (by IP or DNS)
 	//
-	var (
-		servers []services.Server
-		err     error
-	)
-	localCluster, _ := t.srv.authService.GetClusterName()
-	// going to "local" CA? lets use the caching 'auth service' directly and avoid
-	// hitting the reverse tunnel link (it can be offline if the CA is down)
-	if site.GetName() == localCluster.GetName() {
-		servers, err = t.srv.authService.GetNodes(t.namespace, services.SkipValidation())
-		if err != nil {
-			t.log.Warn(err)
-		}
-	} else {
-		// "remote" CA? use a reverse tunnel to talk to it:
-		siteClient, err := site.CachingAccessPoint()
-		if err != nil {
-			t.log.Warn(err)
-		} else {
-			servers, err = siteClient.GetNodes(t.namespace, services.SkipValidation())
-			if err != nil {
-				t.log.Warn(err)
-			}
-		}
+	servers, err := t.getNodes(site)
+	if err != nil {
+		t.log.Warn(err)
 	}
 
 	// if port is 0, it means the client wants us to figure out
 	// which port to use
 	specifiedPort := len(t.port) > 0 && t.port != "0"
-	ips, _ := net.LookupHost(t.host)
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, specifiedPort)
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server services.Server
-	matches := 0
-	for i := range servers {
-		// If nodeId is supplied, we must unambiguously match
-		// one and only one server.
-		if t.nodeID != "" {
+
+	if t.nodeID != "" {
+		// Attempt to unambiguously match a single server.
+		for i := range servers {
 			if servers[i].GetName() == t.nodeID {
 				server = servers[i]
-				matches = 1
 				break
 			}
-			continue
 		}
-		// If the server has connected over a reverse tunnel, match only on hostname.
-		if servers[i].GetUseTunnel() {
-			if t.host == servers[i].GetHostname() {
-				server = servers[i]
-				//break
-				matches++
+		// Unlike with hostname based resoltion, we cannot fallback to DNS if
+		// no match was found.
+		if server == nil {
+			return trace.NotFound("unable to locate node with uuid %s", t.nodeID)
+		}
+	} else {
+		// Attempt to match server by self-registered name/IP.  This method of
+		// resolution is potentially ambiguous so we must iterate the entire
+		// server list, even after the initial match is found.
+		ips, _ := net.LookupHost(t.host)
+		matches := 0
+		for i := range servers {
+			// If the server has connected over a reverse tunnel, match only on hostname.
+			if servers[i].GetUseTunnel() {
+				if t.host == servers[i].GetHostname() {
+					server = servers[i]
+					matches++
+				}
 				continue
 			}
-			continue
-		}
 
-		ip, port, err := net.SplitHostPort(servers[i].GetAddr())
-		if err != nil {
-			t.log.Errorf("Failed to parse address %q: %v.", servers[i].GetAddr(), err)
-			continue
-		}
-		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
-			if !specifiedPort || t.port == port {
-				server = servers[i]
-				//break
-				matches++
+			ip, port, err := net.SplitHostPort(servers[i].GetAddr())
+			if err != nil {
+				t.log.Errorf("Failed to parse address %q: %v.", servers[i].GetAddr(), err)
 				continue
 			}
+			if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
+				if !specifiedPort || t.port == port {
+					server = servers[i]
+					matches++
+					continue
+				}
+			}
 		}
-	}
-	if matches > 1 {
-		return trace.NotFound(teleport.ServerIsAmbiguous)
-	}
 
-	if t.nodeID != "" && server == nil {
-		return trace.NotFound("unable to locate node with uuid %s", t.nodeID)
+		// If we matched more than one server, then the target was ambiguous.
+		if matches > 1 {
+			return trace.NotFound(teleport.ServerIsAmbiguous)
+		}
 	}
 
 	var principals []string
@@ -417,6 +401,23 @@ func (t *proxySubsys) proxyToHost(
 	}()
 
 	return nil
+}
+
+func (t *proxySubsys) getNodes(site reversetunnel.RemoteSite) ([]services.Server, error) {
+	localCluster, _ := t.srv.authService.GetClusterName()
+	// going to "local" CA? lets use the caching 'auth service' directly and avoid
+	// hitting the reverse tunnel link (it can be offline if the CA is down)
+	if site.GetName() == localCluster.GetName() {
+		nodes, err := t.srv.authService.GetNodes(t.namespace, services.SkipValidation())
+		return nodes, trace.Wrap(err)
+	}
+	// "remote" CA? use a reverse tunnel to talk to it:
+	siteClient, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	nodes, err := siteClient.GetNodes(t.namespace, services.SkipValidation())
+	return nodes, trace.Wrap(err)
 }
 
 func (t *proxySubsys) close(err error) {
