@@ -235,6 +235,7 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 
 	// Generate a host certificate for node with role "node".
 	_, hostPub, err := keygen.GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
 	roles, err := teleport.ParseRoles("node")
 	c.Assert(err, check.IsNil)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
