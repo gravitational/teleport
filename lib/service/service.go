@@ -840,13 +840,16 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 			loggers = append(loggers, logger)
 		case dynamo.GetName():
 			hasNonFileLog = true
-			endpoint := uri.Query().Get(teleport.Endpoint)
-
-			logger, err := dynamoevents.New(dynamoevents.Config{
+			cfg := dynamoevents.Config{
 				Tablename: uri.Host,
-				Endpoint:  endpoint,
 				Region:    auditConfig.Region,
-			})
+			}
+			err = cfg.SetFromURL(uri)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			logger, err := dynamoevents.New(cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
