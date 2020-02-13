@@ -55,6 +55,9 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, error) {
 		CommonName:   "localhost",
 		Organization: []string{"localhost"},
 	}, nil, defaults.CATTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return tlsca.New(cert, key)
 }
 
