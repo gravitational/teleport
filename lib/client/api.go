@@ -1138,7 +1138,6 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 			return trace.Wrap(err)
 		}
 		if len(tmp) == 0 {
-			err = io.EOF
 			break
 		}
 		stream = append(stream, tmp...)
