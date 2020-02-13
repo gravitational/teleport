@@ -5,7 +5,6 @@
   var mkdocs_page_name = "{{ page.title }}";
   var mkdocs_page_input_path = "{{ page.url }}";
   var mkdocs_page_url = "{{ page.abs_url }}";
-  var base_url = '{{ base_url }}';
 
  // configure UI components
  window.grvConfig = window.grvConfig || {
@@ -18,6 +17,8 @@
 <script src="{{ path|url }}/src/prettify.js"></script>
 <script src="{{ path|url }}/src/prettify-yaml.js"></script>
 <script src="{{ path|url }}/src/docs.js"></script>
+
+<script>var base_url = '{{ base_url }}';</script>
 
 {%- for path in extra_javascript %}
 <script src="{{ path|url }}"></script>

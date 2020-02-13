@@ -9,7 +9,8 @@ like:
 * Developers must never SSH into production servers.
 * ... and many others.
 
-!!! warning "Version Warning":
+!!! warning "Version Warning"
+
     This guide requires a commercial edition of Teleport. The open source
     edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
@@ -33,7 +34,8 @@ section:
 
 ![Create APP](img/onelogin-saml-1.png)
 
-!!! tip "Important":
+!!! tip "Important"
+
     Make sure to pick `SAML Test Connector (SP)` and not `SAML Test Connector (IdP)`,
     because teleport only supports `SP` - service provider initiated SAML flows.
 
@@ -50,7 +52,8 @@ exposed as SAML attribute statements:
 ![Configure APP](img/onelogin-saml-3.png)
 ![Configure APP](img/onelogin-saml-4.png)
 
-!!! warning "Important":
+!!! warning "Important"
+
     Make sure to check `Include in SAML assertion` checkbox.
 
 Add users to the application:
@@ -90,7 +93,8 @@ To fill in the fields, open `SSO` tab:
 * `issuer` - use value from `Issuer URL field`, e.g. `https://app.onelogin.com/saml/metadata/123456`
 * `sso` - use the value from the value from field `SAML 2.0 Endpoint (HTTP)` but replace `http-post` with `http-redirect`, e.g. `https://mycompany.onelogin.com/trust/saml2/http-redirect/sso/123456`
 
-!!! tip "Important":
+!!! tip "Important"
+
     Make sure to replace `http-post` with `http-redirect`!
 
 * `cert` - download certificate, by clicking "view details link" and add to `cert` section
@@ -163,11 +167,12 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip":
+!!! tip "Tip"
+
     Teleport can use multiple SAML connectors. In this case a connector name
     can be passed via `tsh login --auth=connector_name`
 
-!!! note "IMPORTANT":
+!!! note "IMPORTANT"
     Teleport only supports sending party initiated flows for SAML 2.0. This
     means you can not initiate login from your identity provider, you have to
     initiate login from either the Teleport Web UI or CLI.

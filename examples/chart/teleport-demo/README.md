@@ -49,6 +49,7 @@ $ ./build-all.sh 3.1.8
 Make sure that you have access to the key for sops encryption:
 ```bash
 $ gcloud auth application-default login
+$ gcloud config set project kubeadm-167321
 $ gcloud kms keys list --location global --keyring teleport-sops
 NAME                                                                                          PURPOSE          LABELS  PRIMARY_ID  PRIMARY_STATE
 projects/kubeadm-167321/locations/global/keyRings/teleport-sops/cryptoKeys/teleport-sops-key  ENCRYPT_DECRYPT          1           ENABLED
@@ -61,7 +62,8 @@ $ gcloud container clusters get-credentials <cluster-name> --zone <zone> --proje
 $ ./gke-init.sh
 ```
 
-Make sure that you have updated the submodule containing the secrets:
+Make sure that you have updated the submodule containing the secrets. When prompted to authenticate, use a 
+personal access token rather than a password:
 
 ```bash
 $ git pull --recurse-submodules
