@@ -2038,7 +2038,7 @@ To make this work, the Teleport proxy server must be able to access a Kubernetes
 API endpoint. This can be done either by:
 
 * Deploying the proxy service inside a Kubernetes pod.
-* Deploying the proxy service outside Kubernetes adding a valid `kubeconfig` setting to the   configuration file as shown above.
+* Deploying the proxy service outside Kubernetes, adding a valid `kubeconfig` setting to the configuration file as shown above.
 
 When adding new local users you have to specify which Kubernetes groups they
 belong to:

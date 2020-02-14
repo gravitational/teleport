@@ -302,7 +302,6 @@ $ tsh ssh --cluster=east root@db1.east
     Trusted clusters work only one way. So, in the example above users from "east"
     cannot see or connect to the nodes in "main".
 
-
 ### Disabling Trust
 
 To temporarily disable trust between clusters, i.e. to disconnect the "east"
