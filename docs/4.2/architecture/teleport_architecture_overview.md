@@ -58,9 +58,9 @@ SSH. The Teleport Node service runs on a machine and is similar to the `sshd`
 daemon you may be familiar with. Users can log in to a Teleport Node with all
 of the following clients:
 
-* [OpenSSH: `ssh` ](../admin-guide.md#using-teleport-with-openssh)
-* [Teleport CLI client: `tsh ssh` ](../cli-docs.md#tsh-ssh)
-* [Teleport Proxy UI](teleport_proxy.md#web-to-ssh-proxy) accessed via a web browser.
+* [OpenSSH: `ssh` ](../admin-guide.md#using-teleport-with-openssh) (works on Linux, MacOS and Windows)
+* [Teleport CLI client: `tsh ssh` ](../cli-docs.md#tsh-ssh) (works on Linux and MacOS)
+* [Teleport Proxy UI](teleport_proxy.md#web-to-ssh-proxy) accessed via any modern web browser (including Safari on iOS and Chrome on Android)
 
 [**Teleport Auth**](teleport_auth.md) authenticates Users and Nodes, authorizes User
 access to Nodes, and acts as a CA by signing certificates issued to Users and
