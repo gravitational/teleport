@@ -35,7 +35,7 @@ managing access!
 
 ## Definitions
 
-Here are definitions of the key concepts you will use in teleport.
+Here are definitions of the key concepts you will use in Teleport.
 
 |Concept                  | Description
 |------------------|------------
@@ -143,7 +143,7 @@ generator. The password + 2nd factor are submitted to a proxy via HTTPS,
 therefore it is critical for a secure configuration of Teleport to install a
 proper HTTPS certificate on a proxy.
 
-!!! warning "Warning":
+!!! warning "Warning"
     Do not use self-signed SSL/HTTPS certificates in production!
 
 If the credentials are correct, the auth server generates and signs a new
@@ -168,7 +168,7 @@ If the node is located, the proxy establishes the connection between the client
 and the requested node. The destination node then begins recording the session,
 sending the session history to the auth server to be stored.
 
-!!! note "Note":
+!!! note "Note"
     Teleport may also be configured to have the session recording
     occur on the proxy, see [Audit Log](../admin-guide.md#audit-log) for more
     information.
@@ -236,7 +236,7 @@ You can learn more about `tctl` in the [Admin Manual](../admin-guide.md).
 
 * If you haven't already, read the [Quickstart Guide](../quickstart.md) to run a
 minimal setup of Teleport yourself.
-* Set up Teleport for your team with the [Admin Guide](../admin-guide.md)
+* Set up Teleport for your team with the [Admin Guide](../admin-guide.md).
 
 Read the rest of the Architecture Guides:
 

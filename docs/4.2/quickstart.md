@@ -132,7 +132,7 @@ open this URL in a web browser to complete the registration process.
 * If the machine where you ran these commands has a web browser installed, you
 should be able to open the URL and connect to Teleport Proxy right away.
 
-* If the are working on a remote machine, you may need to access the Teleport
+* If you are working on a remote machine, you may need to access the Teleport
 Proxy via the host machine and port `3080` in a web browser. One simple way to
 do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`.
 
@@ -280,14 +280,14 @@ $ echo "Awesome!"
 Congratulations! You've completed the Teleport Quickstart. In this guide you've
 learned how to install Teleport on a single-node and seen a few of the most
 practical features in action. When you're ready to learn how to set up Teleport
-for your team we recommend that you read our [Admin Guide](admin-guide.md) to
-get all the important details. The [Admin Guide](admin-guide.md) will lay out
-everything you need to safely run Teleport in production including SSL
+for your team, we recommend that you read our [Admin Guide](admin-guide.md) to
+get all the important details. This guide will lay out
+everything you need to safely run Teleport in production, including SSL
 certificates, security considerations, and YAML configuration.
 
 ### Guides
 
-If you like to learn by doing check out our collection step-by-step guides for
+If you like to learn by doing, check out our collection of step-by-step guides for
 common Teleport tasks.
 
 * [Install Teleport](installation.md)

@@ -2598,11 +2598,8 @@ Now you can see the monitoring information by visiting several endpoints:
 
 ## Getting Help
 
-If you need help please ask on our [forum](https://community.gravitational.com). If you're
-a paying customer, please open a tick via our control panel. 
+If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
-If you find a bug, please open an [issue on Github](https://github.com/gravitational/teleport/issues).
+For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
 
-For commercial support, custom features or to try our commercial edition,
-[Teleport Enterprise](enterprise/index.md), please reach out to us:
-`sales@gravitational.com` .
+For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
