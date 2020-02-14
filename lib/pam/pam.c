@@ -207,6 +207,18 @@ int _pam_close_session(void *handle, pam_handle_t *pamh, int flags)
     return (f)(pamh, flags);
 }
 
+char **_pam_getenvlist(void *handle, pam_handle_t *pamh)
+{
+    char **(*f)(pam_handle_t *);
+
+    f = dlsym(handle, "pam_getenvlist");
+    if (f == NULL) {
+        return NULL;
+    }
+
+    return (f)(pamh);
+}
+
 const char *_pam_strerror(void *handle, pam_handle_t *pamh, int errnum)
 {
     const char *(*f)(pam_handle_t *, int);
@@ -217,4 +229,23 @@ const char *_pam_strerror(void *handle, pam_handle_t *pamh, int errnum)
     }
 
     return (f)(pamh, errnum);
+}
+
+// _pam_envlist_len loops over the passed in list and returns its length.
+int _pam_envlist_len(char **pam_envlist)
+{
+    int n = 0;
+    char **pam_env;
+
+    for (pam_env = pam_envlist; *pam_env != NULL; ++pam_env) {
+        n = n + 1;
+    }
+
+    return n;
+}
+
+// _pam_getenv returns an PAM environment variable by index.
+char * _pam_getenv(char **pam_envlist, int index)
+{
+    return pam_envlist[index];
 }

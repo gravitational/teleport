@@ -39,6 +39,7 @@ type ServiceTestSuite struct {
 
 var _ = fmt.Printf
 var _ = check.Suite(&ServiceTestSuite{})
+var _ = testing.Verbose
 
 func (s *ServiceTestSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

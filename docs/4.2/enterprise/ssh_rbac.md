@@ -101,12 +101,12 @@ spec:
   allow:
     # logins array defines the OS/UNIX logins a user is allowed to use.
     # a few special variables are supported here (see below)
-    logins: [root, '{{internal.logins}}']
+    logins: [root, '{% raw %}{{internal.logins}}{% endraw %}']
     # if kubernetes integration is enabled, this setting configures which
     # kubernetes groups the users of this role will be assigned to.
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
-    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
+    kubernetes_groups: ["system:masters", "{% raw %}{{external.trait_name}}{% endraw %}"]]
 
     # list of node labels a user will be allowed to connect to:
     node_labels:
@@ -140,8 +140,8 @@ The following variables can be used with `logins` field:
 
 Variable                | Description
 ------------------------|--------------------------
-`{{internal.logins}}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
-`{{external.xyz}}`    | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim.
+`{% raw %}{{internal.logins}}{% endraw %} | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
+`{% raw %}{{external.xyz}}{% endraw %}`    | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim.
 
 Both variables above are there to deliver the same benefit: they allow Teleport
 administrators to define allowed OS logins via the user database, be it the
@@ -160,7 +160,7 @@ Assuming you have the following SAML assertion attribute in your response:
 ... you can use the following format in your role:
 ```
 logins:
-   - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
+   - '{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}'
 ```
 
 
@@ -215,7 +215,8 @@ spec:
       'workload': ['database', 'backup']
 ```
 
-!!! tip "Dynamic RBAC":
+!!! tip "Dynamic RBAC"
+
     Node labels can be dynamic, i.e. determined at runtime by an output
     of an executable. In this case, you can implement "permissions follow workload"
     policies (eg., any server where PostgreSQL is running becomes _automatically_

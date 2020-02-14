@@ -155,8 +155,6 @@ type Config struct {
 	Backend backend.Backend
 	// RetryPeriod is a period between cache retries on failures
 	RetryPeriod time.Duration
-	// ReloadPeriod is a period when cache performs full reload
-	ReloadPeriod time.Duration
 	// EventsC is a channel for event notifications,
 	// used in tests
 	EventsC chan CacheEvent
@@ -233,9 +231,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.RetryPeriod == 0 {
 		c.RetryPeriod = defaults.HighResPollingPeriod
-	}
-	if c.ReloadPeriod == 0 {
-		c.ReloadPeriod = defaults.LowResPollingPeriod
 	}
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache
@@ -331,10 +326,7 @@ func (c *Cache) update() {
 		return
 	}
 	for {
-		// Reload period is here to protect against
-		// unknown cache going out of sync problems
-		// that we did not predict.
-		err := c.fetchAndWatch(retry, time.After(c.ReloadPeriod))
+		err := c.fetchAndWatch(retry)
 		if err != nil {
 			c.setCacheState(err)
 			if !c.isClosed() {
@@ -438,7 +430,7 @@ func (c *Cache) notify(event CacheEvent) {
 //   we assume that this cache will eventually end up in a correct state
 //   potentially lagging behind the state of the database.
 //
-func (c *Cache) fetchAndWatch(retry utils.Retry, reloadC <-chan time.Time) error {
+func (c *Cache) fetchAndWatch(retry utils.Retry) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, services.Watch{
 		QueueSize:       c.QueueSize,
 		Name:            c.Component,
@@ -467,9 +459,6 @@ func (c *Cache) fetchAndWatch(retry utils.Retry, reloadC <-chan time.Time) error
 	select {
 	case <-watcher.Done():
 		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-	case <-reloadC:
-		c.Debugf("Triggering scheduled reload.")
-		return nil
 	case <-c.ctx.Done():
 		return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 	case event := <-watcher.Events():
@@ -488,9 +477,6 @@ func (c *Cache) fetchAndWatch(retry utils.Retry, reloadC <-chan time.Time) error
 		select {
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-		case <-reloadC:
-			c.Debugf("Triggering scheduled reload.")
-			return nil
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():

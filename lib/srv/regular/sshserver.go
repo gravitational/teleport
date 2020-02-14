@@ -815,13 +815,6 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 	}
 }
 
-const (
-	// ChanDirectTCPIP is a direct tcp ip channel
-	ChanDirectTCPIP = "direct-tcpip"
-	// ChanSession is a SSH session channel
-	ChanSession = "session"
-)
-
 // HandleNewChan is called when new channel is opened
 func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	identityContext, err := s.authHandlers.CreateIdentityContext(sconn)
@@ -835,7 +828,7 @@ func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 		switch channelType {
 		// Channels of type "direct-tcpip", for proxies, it's equivalent
 		// of teleport proxy: subsystem
-		case ChanDirectTCPIP:
+		case teleport.ChanDirectTCPIP:
 			req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 			if err != nil {
 				log.Errorf("Failed to parse request data: %v, err: %v.", string(nch.ExtraData()), err)
@@ -853,7 +846,7 @@ func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 		// Channels of type "session" handle requests that are involved in running
 		// commands on a server. In the case of proxy mode subsystem and agent
 		// forwarding requests occur over the "session" channel.
-		case ChanSession:
+		case teleport.ChanSession:
 			ch, requests, err := nch.Accept()
 			if err != nil {
 				log.Warnf("Unable to accept channel: %v.", err)
@@ -871,7 +864,7 @@ func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 	switch channelType {
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
-	case ChanSession:
+	case teleport.ChanSession:
 		ch, requests, err := nch.Accept()
 		if err != nil {
 			log.Warnf("Unable to accept channel: %v.", err)
@@ -880,7 +873,7 @@ func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 		}
 		go s.handleSessionRequests(wconn, sconn, identityContext, ch, requests)
 	// Channels of type "direct-tcpip" handles request for port forwarding.
-	case ChanDirectTCPIP:
+	case teleport.ChanDirectTCPIP:
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
 			log.Errorf("Failed to parse request data: %v, err: %v.", string(nch.ExtraData()), err)
@@ -900,94 +893,104 @@ func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 }
 
 // handleDirectTCPIPRequest handles port forwarding requests.
-func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
 	ctx, err := srv.NewServerContext(s, sconn, identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
-		ch.Stderr().Write([]byte("Unable to create connection context."))
+		log.Errorf("Unable to create connection context: %v.", err)
+		channel.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
 	ctx.Connection = wconn
 	ctx.IsTestStub = s.isTestStub
-	ctx.AddCloser(ch)
-	defer ctx.Debugf("direct-tcp closed")
+	ctx.AddCloser(channel)
+	ctx.ChannelType = teleport.ChanDirectTCPIP
+	ctx.SrcAddr = net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
+	ctx.DstAddr = net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
 	defer ctx.Close()
 
-	srcAddr := net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
-	dstAddr := net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
-
-	// check if the role allows port forwarding for this user
-	err = s.authHandlers.CheckPortForward(dstAddr, ctx)
+	// Check if the role allows port forwarding for this user.
+	err = s.authHandlers.CheckPortForward(ctx.DstAddr, ctx)
 	if err != nil {
-		ch.Stderr().Write([]byte(err.Error()))
+		channel.Stderr().Write([]byte(err.Error()))
 		return
 	}
 
-	ctx.Debugf("Opening direct-tcpip channel from %v to %v", srcAddr, dstAddr)
+	ctx.Debugf("Opening direct-tcpip channel from %v to %v.", ctx.SrcAddr, ctx.DstAddr)
+	defer ctx.Debugf("Closing direct-tcpip channel from %v to %v.", ctx.SrcAddr, ctx.DstAddr)
 
-	// If PAM is enabled check the account and open a session.
-	var pamContext *pam.PAM
-	if s.pamConfig != nil && s.pamConfig.Enabled {
-		// Note, stdout/stderr is discarded here, otherwise MOTD would be printed to
-		// the users screen during port forwarding.
-		pamContext, err = pam.Open(&pam.Config{
-			ServiceName: s.pamConfig.ServiceName,
-			Username:    ctx.Identity.Login,
-			Stdin:       ch,
-			Stderr:      ioutil.Discard,
-			Stdout:      ioutil.Discard,
-		})
-		if err != nil {
-			ctx.Errorf("Unable to open PAM context for direct-tcpip request: %v.", err)
-			ch.Stderr().Write([]byte(err.Error()))
-			return
+	// Create command to re-exec Teleport which will perform a net.Dial. The
+	// reason it's not done directly is because the PAM stack needs to be called
+	// from another process.
+	cmd, err := srv.ConfigureCommand(ctx)
+	if err != nil {
+		channel.Stderr().Write([]byte(err.Error()))
+	}
+
+	// Create a pipe for std{in,out} that will be used to transfer data between
+	// parent and child.
+	pr, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	pw, err := cmd.StdinPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Start the child process that will be used to make the actual connection
+	// to the target host.
+	err = cmd.Start()
+	if err != nil {
+		channel.Stderr().Write([]byte(err.Error()))
+		return
+	}
+
+	// Start copy routines that copy from channel to stdin pipe and from stdout
+	// pipe to channel.
+	errorCh := make(chan error, 2)
+	go func() {
+		defer pw.Close()
+		defer pr.Close()
+
+		_, err := io.Copy(pw, channel)
+		errorCh <- err
+	}()
+	go func() {
+		defer pw.Close()
+		defer pr.Close()
+
+		_, err := io.Copy(channel, pr)
+		errorCh <- err
+	}()
+
+	// Block until copy is complete and the child process is done executing.
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errorCh:
+			if err != nil && err != io.EOF {
+				log.Warnf("Connection problem in \"direct-tcpip\" channel: %v %T.", trace.DebugReport(err), err)
+			}
+		case <-s.ctx.Done():
+			break
 		}
-
-		ctx.Debugf("Opening PAM context for direct-tcpip request.")
 	}
-
-	conn, err := net.Dial("tcp", dstAddr)
+	err = cmd.Wait()
 	if err != nil {
-		ctx.Infof("Failed to connect to: %v: %v", dstAddr, err)
+		channel.Stderr().Write([]byte(err.Error()))
 		return
 	}
-	defer conn.Close()
 
-	// audit event:
+	// Emit a port forwarding event.
 	s.EmitAuditEvent(events.PortForward, events.EventFields{
-		events.PortForwardAddr:    dstAddr,
+		events.PortForwardAddr:    ctx.DstAddr,
 		events.PortForwardSuccess: true,
 		events.EventLogin:         ctx.Identity.Login,
 		events.EventUser:          ctx.Identity.TeleportUser,
 		events.LocalAddr:          sconn.LocalAddr().String(),
 		events.RemoteAddr:         sconn.RemoteAddr().String(),
 	})
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		io.Copy(ch, conn)
-		ch.Close()
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		io.Copy(conn, srv.NewTrackingReader(ctx, ch))
-		conn.Close()
-	}()
-	wg.Wait()
-
-	// If PAM is enabled, close the PAM context after port forwarding is complete.
-	if s.pamConfig != nil && s.pamConfig.Enabled {
-		err = pamContext.Close()
-		if err != nil {
-			ctx.Errorf("Unable to close PAM context for direct-tcpip request: %v.", err)
-			return
-		}
-		ctx.Debugf("Closing PAM context for direct-tcpip request.")
-	}
 }
 
 // handleSessionRequests handles out of band session requests once the session
@@ -1005,6 +1008,7 @@ func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, ide
 	ctx.Connection = conn
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(ch)
+	ctx.ChannelType = teleport.ChanSession
 	defer ctx.Close()
 
 	// Create a close context used to signal between the server and the

@@ -64,7 +64,6 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	// define global flags:
 	var ccf config.CommandLineFlags
 	var scpFlags scp.Flags
-	var execDebug bool
 
 	// define commands:
 	start := app.Command("start", "Starts the Teleport service.")
@@ -72,7 +71,8 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	dump := app.Command("configure", "Print the sample config file into stdout.")
 	ver := app.Command("version", "Print the version.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
-	exec := app.Command("exec", "Used internally by Teleport to re-exec itself.").Hidden()
+	exec := app.Command("exec", "Used internally by Teleport to re-exec itself to run a command.").Hidden()
+	forward := app.Command("forward", "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -140,9 +140,6 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	scpc.Flag("local-addr", "local address which accepted the request").StringVar(&scpFlags.LocalAddr)
 	scpc.Arg("target", "").StringsVar(&scpFlags.Target)
 
-	// Define flags for the "exec" subcommand.
-	exec.Flag("debug", "Debug mode").Short('d').Default("false").BoolVar(&execDebug)
-
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
 	if err != nil {
@@ -174,7 +171,9 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	case dump.FullCommand():
 		onConfigDump()
 	case exec.FullCommand():
-		err = onExec(execDebug)
+		err = onExec()
+	case forward.FullCommand():
+		err = onForward()
 	case ver.FullCommand():
 		utils.PrintVersion()
 	}
@@ -266,9 +265,17 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
 }
 
-// onExec will re-execute Teleport.
-func onExec(debug bool) error {
-	srv.RunCommand()
+// onExec is a subcommand used to re-execute Teleport for execution. Used for
+// "exec" or "shell" requests over a "session" channel on Teleport nodes.
+func onExec() error {
+	srv.RunAndExit(teleport.ExecSubCommand)
+	return nil
+}
+
+// onForward is a subcommand used to re-execute Teleport for port forwarding.
+// Used with "direct-tcpip" channel on Teleport nodes.
+func onForward() error {
+	srv.RunAndExit(teleport.ForwardSubCommand)
 	return nil
 }
 

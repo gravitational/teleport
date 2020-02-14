@@ -33,6 +33,7 @@ type TermSuite struct {
 }
 
 var _ = check.Suite(&TermSuite{})
+var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *TermSuite) SetUpSuite(c *check.C) {

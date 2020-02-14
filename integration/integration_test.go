@@ -64,8 +64,8 @@ import (
 )
 
 const (
-	HostID   = "00000000-0000-0000-0000-000000000000"
-	Site     = "local-site"
+	HostID = "00000000-0000-0000-0000-000000000000"
+	Site   = "local-site"
 
 	AllocatePortsNum = 400
 )
@@ -88,8 +88,9 @@ var _ = check.Suite(&IntSuite{})
 func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
-		srv.RunCommand()
+	if len(os.Args) == 2 &&
+		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+		srv.RunAndExit(os.Args[1])
 		return
 	}
 

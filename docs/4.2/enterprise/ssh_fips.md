@@ -35,7 +35,7 @@ Enterprise FIPS Binary.
 After downloading the binary tarball, run:
 
 ```bsh
-$ tar -xzf teleport-ent-v4.1.4-linux-amd64-fips-bin.tar.gz
+$ tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-fips-bin.tar.gz
 $ cd teleport-ent
 $ sudo ./install 
 # This will copy Teleport Enterprise to /usr/local/bin.

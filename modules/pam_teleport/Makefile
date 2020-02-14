@@ -5,9 +5,12 @@ UNAME := $(shell uname -s)
 PAM_POLICY_PATH = /etc/pam.d/
 
 # PAM_MODULE_PATH is determined by the OS.
-PAM_MODULE_PATH = /lib/x86_64-linux-gnu/security/
 ifeq ($(UNAME),Darwin)
     PAM_MODULE_PATH = /usr/local/lib/pam/
+else ifneq (,$(wildcard /etc/redhat-release))
+    PAM_MODULE_PATH = /lib64/security/
+else
+    PAM_MODULE_PATH = /lib/x86_64-linux-gnu/security/
 endif
 
 # LD and LD_FLAGS controls the linker and linker flags to use and are
@@ -24,8 +27,10 @@ all: pam_teleport.so
 install:
 	mkdir -p $(PAM_MODULE_PATH)
 	cp pam_teleport.so $(PAM_MODULE_PATH)
+	sudo cp policy/teleport-acct-echo $(PAM_POLICY_PATH)
 	sudo cp policy/teleport-acct-failure $(PAM_POLICY_PATH)
 	sudo cp policy/teleport-session-failure $(PAM_POLICY_PATH)
+	sudo cp policy/teleport-session-environment $(PAM_POLICY_PATH)
 	sudo cp policy/teleport-success $(PAM_POLICY_PATH)
 
 pam_teleport.so: pam_teleport.o

@@ -85,10 +85,11 @@
   revision = "1a2de0c21c94309923825da3df33a4381872c795"
 
 [[projects]]
-  digest = "1:b3d365f0c970ca096f9dff0bb7fb948fe14e97a29d60e61c2861919c8a484780"
+  digest = "1:93353de7c0f58d48f66f91c31a90cd95cdd79078b82c65ca652c23666bdd1426"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
+    "aws/arn",
     "aws/awserr",
     "aws/awsutil",
     "aws/client",
@@ -97,15 +98,27 @@
     "aws/credentials",
     "aws/credentials/ec2rolecreds",
     "aws/credentials/endpointcreds",
+    "aws/credentials/processcreds",
     "aws/credentials/stscreds",
+    "aws/crr",
+    "aws/csm",
     "aws/defaults",
     "aws/ec2metadata",
     "aws/endpoints",
     "aws/request",
     "aws/session",
     "aws/signer/v4",
+    "internal/ini",
+    "internal/s3err",
+    "internal/sdkio",
+    "internal/sdkmath",
+    "internal/sdkrand",
+    "internal/sdkuri",
     "internal/shareddefaults",
+    "internal/strings",
     "private/protocol",
+    "private/protocol/eventstream",
+    "private/protocol/eventstream/eventstreamapi",
     "private/protocol/json/jsonutil",
     "private/protocol/jsonrpc",
     "private/protocol/query",
@@ -117,13 +130,15 @@
     "service/dynamodb/dynamodbattribute",
     "service/dynamodbstreams",
     "service/s3",
+    "service/s3/internal/arn",
     "service/s3/s3iface",
     "service/s3/s3manager",
     "service/sts",
+    "service/sts/stsiface",
   ]
   pruneopts = "NUT"
-  revision = "a201bf33b18ad4ab54344e4bc26b87eb6ad37b8e"
-  version = "v1.12.25"
+  revision = "2590bc875c54c9fda225d8e4e56a9d28d90c6a47"
+  version = "v1.28.11"
 
 [[projects]]
   digest = "1:7c3ada35fd3864b6992936bfcf76ba0ebc1d5b1f25b80992a5efba6f71d916cb"
@@ -284,14 +299,6 @@
   ]
   pruneopts = "NUT"
   revision = "63c2a0d70943e942c829edd2d74dc2e6bb20112c"
-
-[[projects]]
-  digest = "1:a06a87e65f18e295737fc4b7090dfa5a176947aa8bc0932ceddeb41f04f86bd6"
-  name = "github.com/go-ini/ini"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "f280b3ba517bf5fc98922624f21fb0e7a92adaec"
-  version = "v1.30.3"
 
 [[projects]]
   branch = "master"
@@ -572,11 +579,11 @@
   version = "v0.0.1"
 
 [[projects]]
-  digest = "1:ac6d01547ec4f7f673311b4663909269bfb8249952de3279799289467837c3cc"
+  digest = "1:1f2aebae7e7c856562355ec0198d8ca2fa222fb05e5b1b66632a1fce39631885"
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "0b12d6b5"
+  revision = "c2b33e84"
 
 [[projects]]
   branch = "master"

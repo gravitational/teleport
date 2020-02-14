@@ -97,7 +97,8 @@ Subsequent `tsh ssh` commands will run without asking for credentials until the
 temporary certificate expires. By default, Teleport issues user certificates
 with a TTL (time to live) of 12 hours.
 
-!!! tip "Tip":
+!!! tip "Tip"
+
     It is recommended to always use [`tsh login`](cli-docs.md#tsh-login) before
     using any other `tsh` commands. This
     allows users to omit `--proxy` flag in subsequent tsh commands. For example
@@ -480,7 +481,8 @@ most of them can be mitigated.
    But again, if you use `tsh login` before `tsh ssh`, your Teleport username
    will be stored in `~/.tsh`.
 
-!!! tip "Tip":
+!!! tip "Tip"
+
     To avoid typing `tsh ssh user@host` when logging into servers,
     you can create a symlink `ssh -> tsh` and execute the symlink. It will
     behave exactly like a standard `ssh` command, i.e. `ssh login@host`. This is

@@ -1,0 +1,1 @@
+session     required    pam_teleport.so set_env foo=bar

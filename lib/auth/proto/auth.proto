@@ -146,6 +146,19 @@ message RequestID {
     string ID = 1 [(gogoproto.jsontag) = "id"];
 }
 
+// PingRequest is the input value for the Ping method.
+message PingRequest {
+    // Ping method currently takes no parameters
+}
+
+// PingResponse contains data about the teleport auth server.
+message PingResponse {
+    // ClusterName is the name of the teleport cluster.
+    string ClusterName = 1 [(gogoproto.jsontag) = "cluster_name"];
+    // ServerVersion is the version of the auth server.
+    string ServerVersion = 2 [(gogoproto.jsontag) = "server_version"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -172,4 +185,8 @@ service AuthService {
     rpc GetPluginData(services.PluginDataFilter) returns (PluginDataSeq);
     // UpdatePluginData updates a plugin's resource-specific datastore.
     rpc UpdatePluginData(services.PluginDataUpdateParams) returns (google.protobuf.Empty);
+    // Ping gets basic info about the auth server. This method is intended
+    // to mimic the behavior of the proxy's Ping method, and may be used by
+    // clients for verification or configuration on startup.
+    rpc Ping(PingRequest) returns (PingResponse);
 }
