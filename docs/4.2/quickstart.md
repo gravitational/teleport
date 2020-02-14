@@ -17,8 +17,8 @@ VM.
   make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
 
-* We recommend that you read the [Architecture Guide](architecture) before
-  working through this tutorial. If you'd like to dive right in though this is
+* We recommend that you read the [Architecture Guide](architecture/teleport_architecture_overview.md) 
+  before working through this tutorial. If you'd like to dive right in though this is
   the best place to start!
 
 This guide is only meant to demonstrate how to run teleport in a sandbox or demo
@@ -173,9 +173,8 @@ accessible IP.
 
     To resolve this error find your hostname with the `hostname` command and use that instead of `localhost` .
 
-    Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy.
+    Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.md#ssltls-for-teleport-proxy)
 
-<!-- More on TLS in Prod Guide -->
 
 ``` bash
 # here grav-00 is a resolvable hostname on the same network
