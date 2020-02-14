@@ -173,7 +173,7 @@ func (t *terminal) Run() error {
 	defer t.closeTTY()
 
 	// Create the command that will actually execute.
-	t.cmd, err = configureCommand(t.ctx)
+	t.cmd, err = ConfigureCommand(t.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
