@@ -52,7 +52,7 @@ $ shasum -a 256 teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 
 ``` bash
 $ sha256sum teleport-v4.0.8-darwin-amd64-bin.tar.gz
-{{ teleport.sha }} teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
+{{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 ```
 
 **Checking Checksum on Automated Systems**
