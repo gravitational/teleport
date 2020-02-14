@@ -146,14 +146,14 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{{external.username}}", ubuntu ]
+    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
     node_labels:
       access: relaxed
 ```
 
 * Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 * Developers can log in as `ubuntu` user
-* Notice `{{external.username}}` login. It configures Teleport to look at
+* Notice `{% raw %}{{external.username}}{% endraw %}` login. It configures Teleport to look at
   _"username"_ Okta claim and use that field as an allowed login for each user.
 * Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.

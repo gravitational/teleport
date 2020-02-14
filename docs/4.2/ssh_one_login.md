@@ -143,7 +143,7 @@ spec:
   options:
     max_session_ttl: "24h"
   allow:
-    logins: [ "{{external.username}}", ubuntu ]
+    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
     node_labels:
       access: relaxed
 ```
