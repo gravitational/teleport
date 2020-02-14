@@ -92,10 +92,10 @@ export default class Modal extends React.Component {
   };
 
   handleDocumentKeyDown = event => {
-    const ESC = 27;
+    const ESC = 'Escape';
 
     // Ignore events that have been `event.preventDefault()` marked.
-    if (event.which !== ESC || event.defaultPrevented) {
+    if (event.key !== ESC || event.defaultPrevented) {
       return;
     }
 
@@ -189,6 +189,7 @@ export default class Modal extends React.Component {
         container={container}
         disablePortal={disablePortal}
         onRendered={this.handleRendered}
+        data-testid="portal"
       >
         <StyledModal
           modalCss={modalCss}
@@ -210,6 +211,8 @@ export default class Modal extends React.Component {
 Modal.propTypes = {
   /**
    * Properties applied to the [`Backdrop`](/api/backdrop/) element.
+   *
+   * invisible: Boolean - allows backdrop to keep bg color of parent eg: popup menu
    */
   BackdropProps: PropTypes.object,
   /**

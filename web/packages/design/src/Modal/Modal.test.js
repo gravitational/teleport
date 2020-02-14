@@ -26,9 +26,8 @@ const renderModal = props => {
   );
 };
 
-const excapeKey = {
+const escapeKey = {
   key: 'Escape',
-  code: 27,
 };
 
 describe('design/Modal', () => {
@@ -62,7 +61,7 @@ describe('design/Modal', () => {
     });
 
     // handleDocumentKeyDown
-    fireEvent.keyDown(container, excapeKey);
+    fireEvent.keyDown(container, escapeKey);
     expect(mockFn).toHaveBeenCalled();
   });
 
@@ -78,7 +77,7 @@ describe('design/Modal', () => {
     expect(mockFn).toHaveBeenCalled();
 
     // handleDocumentKeyDown
-    fireEvent.keyDown(container, excapeKey);
+    fireEvent.keyDown(container, escapeKey);
     expect(mockFn).toHaveBeenCalled();
   });
 
@@ -110,7 +109,7 @@ describe('design/Modal', () => {
     });
 
     // handleDocumentKeyDown
-    fireEvent.keyDown(container, excapeKey);
+    fireEvent.keyDown(container, escapeKey);
     expect(mockFn).not.toHaveBeenCalled();
   });
 
@@ -124,14 +123,17 @@ describe('design/Modal', () => {
 
     expect(queryByTestId('Modal')).toBeNull();
 
-    fireEvent.keyDown(container, excapeKey);
+    fireEvent.keyDown(container, escapeKey);
     expect(mockFn).not.toHaveBeenCalled();
   });
-});
 
-// TODO
-//     disableEnforceFocus: false,
-//     disableAutoFocus
-//     disableRestoreFocus: false,
-//     BackdropProps???
-//     removing of focus event
+  test('respects backdropProps prop invisible', () => {
+    const { getByTestId } = renderModal({
+      BackdropProps: { invisible: true },
+    });
+
+    expect(getByTestId('backdrop')).toHaveStyle({
+      'background-color': 'transparent',
+    });
+  });
+});
