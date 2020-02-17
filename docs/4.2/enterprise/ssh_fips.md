@@ -21,6 +21,9 @@ government agencies.
 | [CM-08 Information System Component Inventory](https://nvd.nist.gov/800-53/Rev4/control/CM-8)  | Teleport maintains a live list of all nodes within a cluster. This node list can be queried by users (who see a subset they have access to) and administrators any time.|
 | [IA-03 Device Identification and Authentication](https://nvd.nist.gov/800-53/Rev4/control/IA-3)  | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
 | [SC-12 Cryptographic Key Establish and Management](https://nvd.nist.gov/800-53/Rev4/control/SC-12)  | Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue x509 and SSH certificates. SSH and x509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA and rotated automatically (a manual force rotation can also be performed).<br>Teleport Enterprise builds against a FIPS 140-2 compliant library (BoringCrypto) is available. <br>In addition, when Teleport Enterprise is in FedRAMP/FIPS 140-2 mode, Teleport will only start and use FIPS 140-2 compliant cryptography. |
+| [AC-2 Account Management](https://nvd.nist.gov/800-53/Rev4/control/AC-2) | Audit events are emitted in the auth server when a user is created, updated, deleted, locked or unlocked.  |
+| [AC-2 (12) Account Management](https://nvd.nist.gov/800-53/Rev4/control/AC-2) | At the close of a connection the total data transmitted and received is emitted to the Audit Log. |
+
 
 Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
 
@@ -32,7 +35,7 @@ Enterprise FIPS Binary.
 After downloading the binary tarball, run:
 
 ```bsh
-$ tar -xzf teleport-ent-v4.1.4-linux-amd64-fips-bin.tar.gz
+$ tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-fips-bin.tar.gz
 $ cd teleport-ent
 $ sudo ./install 
 # This will copy Teleport Enterprise to /usr/local/bin.
@@ -135,6 +138,11 @@ cryptographic module (BoringCrypto) and fails to start if it was not.
 
 * If recording proxy mode is selected, validation of host certificates should always happen.
 
+
+### FedRAMP Audit Log
+
+At the close of a connection (close of a *srv.ServerContext) the total data transmitted and received 
+is emitted to the Audit Log.
 
 ## What else does the Teleport FIPS binary enforce? 
 * Supporting configurable TLS versions. This is to ensure that only TLS 1.2 is supported in FedRAMP mode.

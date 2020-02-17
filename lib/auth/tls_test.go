@@ -60,6 +60,8 @@ type TLSSuite struct {
 }
 
 var _ = check.Suite(&TLSSuite{})
+var _ = testing.Verbose
+var _ = fmt.Printf
 
 func (s *TLSSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
@@ -1449,6 +1451,84 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 
 	// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
 	c.Assert(s.server.Auth().SetAccessRequestState(updateCtx, req.GetName(), services.RequestState_APPROVED), check.NotNil)
+}
+
+func (s *TLSSuite) TestPluginData(c *check.C) {
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+
+	// make sure we can parse the private and public key
+	privateKey, err := ssh.ParseRawPrivateKey(priv)
+	c.Assert(err, check.IsNil)
+
+	_, err = tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
+	c.Assert(err, check.IsNil)
+
+	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
+	c.Assert(err, check.IsNil)
+
+	user := "user1"
+	role := "some-role"
+	_, err = CreateUserRoleAndRequestable(s.server.Auth(), user, role)
+	c.Assert(err, check.IsNil)
+
+	testUser := TestUser(user)
+	testUser.TTL = time.Hour
+	userClient, err := s.server.NewClient(testUser)
+	c.Assert(err, check.IsNil)
+
+	req, err := services.NewAccessRequest(user, role)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(userClient.CreateAccessRequest(context.TODO(), req), check.IsNil)
+
+	plugin := "my-plugin"
+
+	err = s.server.Auth().UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
+		Kind:     services.KindAccessRequest,
+		Resource: req.GetName(),
+		Plugin:   plugin,
+		Set: map[string]string{
+			"foo": "bar",
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	data, err := s.server.Auth().GetPluginData(context.TODO(), services.PluginDataFilter{
+		Kind:     services.KindAccessRequest,
+		Resource: req.GetName(),
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(len(data), check.Equals, 1)
+
+	entry, ok := data[0].Entries()[plugin]
+	c.Assert(ok, check.Equals, true)
+	c.Assert(entry.Data, check.DeepEquals, map[string]string{"foo": "bar"})
+
+	err = s.server.Auth().UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
+		Kind:     services.KindAccessRequest,
+		Resource: req.GetName(),
+		Plugin:   plugin,
+		Set: map[string]string{
+			"foo":  "",
+			"spam": "eggs",
+		},
+		Expect: map[string]string{
+			"foo": "bar",
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	data, err = s.server.Auth().GetPluginData(context.TODO(), services.PluginDataFilter{
+		Kind:     services.KindAccessRequest,
+		Resource: req.GetName(),
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(len(data), check.Equals, 1)
+
+	entry, ok = data[0].Entries()[plugin]
+	c.Assert(ok, check.Equals, true)
+	c.Assert(entry.Data, check.DeepEquals, map[string]string{"spam": "eggs"})
 }
 
 // TestGenerateCerts tests edge cases around authorization of

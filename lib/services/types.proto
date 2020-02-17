@@ -427,6 +427,67 @@ message AccessRequestFilter {
     RequestState State = 3 [(gogoproto.jsontag) = "state"];
 }
 
+// PluginData stores a collection of values associated with a specific resource.
+message PluginDataV3  {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+    // Version is version
+    string Version = 3 [(gogoproto.jsontag) = "version"];
+    // Metadata is PluginData metadata
+    Metadata Metadata = 4 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata"];
+    // Spec is a PluginData specification
+    PluginDataSpecV3 Spec = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "spec"];
+}
+
+// PluginDataEntry wraps a mapping of arbitrary string values used by
+// plugins to store per-resource information.
+message PluginDataEntry {
+    // Data is a mapping of arbitrary string values.
+    map<string, string> Data = 1 [(gogoproto.jsontag) = "data,omitempty"];
+}
+
+// PluginData stores a collection of values associated with a specific resource.
+message PluginDataSpecV3 {
+    // Entries is a collection of PluginData values organized by plugin name.
+    map<string, PluginDataEntry> Entries = 1 [(gogoproto.jsontag) = "entries"];
+}
+
+// NOTE: PluginDataFilter and PluginDataUpdateParams currently only target AccessRequest resources
+// since those are the only resources currently managed via plugin.  Support for additional resource
+// kinds may be added in a backwards-compatible manner by adding a `Kind` field which defaults
+// to `access_request` if unspecified.
+
+// PluginDataFilter encodes filter params for plugin data.
+message PluginDataFilter {
+    // Kind is the kind of resource that the target plugin data
+    // is associated with.
+    string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+    // Resource matches a specific resource name if set.
+    string Resource = 2 [(gogoproto.jsontag) = "resource,omitempty"];
+    // Plugin matches a specific plugin name if set.
+    string Plugin = 3 [(gogoproto.jsontag) = "plugin,omitempty"];
+}
+
+// PluginDataUpdateParams encodes paramers for updating a PluginData field.
+message PluginDataUpdateParams {
+    // Kind is the kind of resource that the target plugin data
+    // is associated with.
+    string Kind = 1 [(gogoproto.jsontag) = "kind"];
+    // Resource indicates the name of the target resource.
+    string Resource = 2 [(gogoproto.jsontag) = "resource"];
+    // Plugin is the name of the plugin that owns the data.
+    string Plugin = 3 [(gogoproto.jsontag) = "plugin"];
+    // Set indicates the fields which should be set by this operation.
+    map<string, string> Set = 4 [(gogoproto.jsontag) = "set,omitempty"];
+    // Expect optionally indicates the expected state of fields prior to this update.
+    map<string, string> Expect = 5 [(gogoproto.jsontag) = "expect,omitempty"];
+}
+
 // RoleV3 represents role resource specification
 message RoleV3  {
     option (gogoproto.goproto_stringer) = false;

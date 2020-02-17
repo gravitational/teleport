@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -30,6 +31,8 @@ type LicenseSuite struct {
 }
 
 var _ = check.Suite(&LicenseSuite{})
+var _ = testing.Verbose
+var _ = fmt.Printf
 
 func (s *LicenseSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

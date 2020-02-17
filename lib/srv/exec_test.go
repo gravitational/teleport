@@ -68,7 +68,7 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
-		RunCommand()
+		RunAndExit(teleport.ExecSubCommand)
 		return
 	}
 
@@ -111,7 +111,8 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 
 	s.usr, _ = user.Current()
 	s.ctx = &ServerContext{
-		IsTestStub: true,
+		IsTestStub:  true,
+		ClusterName: "localhost",
 		srv: &fakeServer{
 			accessPoint: s.a,
 			auditLog:    &fakeLog{},
@@ -147,19 +148,21 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
 		fmt.Sprintf("USER=%s", s.usr.Username),
 		"SHELL=/bin/sh",
-		"SSH_TELEPORT_USER=galt",
+		"SSH_CLIENT=10.0.0.5 4817 3022",
+		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
+		"TERM=xterm",
+		fmt.Sprintf("SSH_TTY=%v", s.ctx.session.term.TTY().Name()),
+		"SSH_SESSION_ID=xxx",
 		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
 		"SSH_TELEPORT_HOST_UUID=00000000-0000-0000-0000-000000000000",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
-		"SSH_CLIENT=10.0.0.5 4817 3022",
-		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
-		fmt.Sprintf("SSH_TTY=%v", s.ctx.session.term.TTY().Name()),
-		"SSH_SESSION_ID=xxx",
-		"TERM=xterm",
+		"SSH_TELEPORT_USER=galt",
 	}
 
 	// Empty command (simple shell).
-	cmd, err := prepareCommand(s.ctx)
+	execCmd, err := s.ctx.ExecCommand()
+	c.Assert(err, check.IsNil)
+	cmd, err := buildCommand(execCmd, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -168,9 +171,10 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 
 	// Non-empty command (exec a prog).
-	s.ctx.IsTestStub = true
 	s.ctx.ExecRequest.SetCommand("ls -lh /etc")
-	cmd, err = prepareCommand(s.ctx)
+	execCmd, err = s.ctx.ExecCommand()
+	c.Assert(err, check.IsNil)
+	cmd, err = buildCommand(execCmd, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -180,7 +184,9 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 
 	// Command without args.
 	s.ctx.ExecRequest.SetCommand("top")
-	cmd, err = prepareCommand(s.ctx)
+	execCmd, err = s.ctx.ExecCommand()
+	c.Assert(err, check.IsNil)
+	cmd, err = buildCommand(execCmd, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
 	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "top"})
@@ -270,7 +276,7 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	}
 
 	// Create an exec.Cmd to execute through Teleport.
-	cmd, err := configureCommand(ctx)
+	cmd, err := ConfigureCommand(ctx)
 	c.Assert(err, check.IsNil)
 
 	// Create a context that will be used to signal that execution is complete.

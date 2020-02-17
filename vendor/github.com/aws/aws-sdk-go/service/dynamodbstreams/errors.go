@@ -2,6 +2,10 @@
 
 package dynamodbstreams
 
+import (
+	"github.com/aws/aws-sdk-go/private/protocol"
+)
+
 const (
 
 	// ErrCodeExpiredIteratorException for service response error code
@@ -52,3 +56,11 @@ const (
 	//    trimmed. This causes the iterator to access a record that no longer exists.
 	ErrCodeTrimmedDataAccessException = "TrimmedDataAccessException"
 )
+
+var exceptionFromCode = map[string]func(protocol.ResponseMetadata) error{
+	"ExpiredIteratorException":   newErrorExpiredIteratorException,
+	"InternalServerError":        newErrorInternalServerError,
+	"LimitExceededException":     newErrorLimitExceededException,
+	"ResourceNotFoundException":  newErrorResourceNotFoundException,
+	"TrimmedDataAccessException": newErrorTrimmedDataAccessException,
+}

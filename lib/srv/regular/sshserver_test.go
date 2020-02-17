@@ -24,6 +24,9 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/user"
 	"strconv"
@@ -86,8 +89,9 @@ var _ = Suite(&SrvSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
-	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
-		srv.RunCommand()
+	if len(os.Args) == 2 &&
+		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+		srv.RunAndExit(os.Args[1])
 		return
 	}
 
@@ -212,6 +216,42 @@ func (s *SrvSuite) TearDownTest(c *C) {
 	if s.srv != nil {
 		c.Assert(s.srv.Close(), IsNil)
 	}
+}
+
+// TestDirectTCPIP ensures that the server can create a "direct-tcpip"
+// channel to the target address. The "direct-tcpip" channel is what port
+// forwarding is built upon.
+func (s *SrvSuite) TestDirectTCPIP(c *C) {
+	// Startup a test server that will reply with "hello, world\n"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+	defer ts.Close()
+
+	// Extract the host:port the test HTTP server is running on.
+	u, err := url.Parse(ts.URL)
+	c.Assert(err, IsNil)
+
+	// Build a http.Client that will dial through the server to establish the
+	// connection. That's why a custom dialer is used and the dialer uses
+	// s.clt.Dial (which performs the "direct-tcpip" request).
+	httpClient := http.Client{
+		Transport: &http.Transport{
+			Dial: func(network string, addr string) (net.Conn, error) {
+				return s.clt.Dial("tcp", u.Host)
+			},
+		},
+	}
+
+	// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
+	resp, err := httpClient.Get(ts.URL)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	// Make sure the response is what was expected.
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Assert(body, DeepEquals, []byte("hello, world\n"))
 }
 
 func (s *SrvSuite) TestAdvertiseAddr(c *C) {

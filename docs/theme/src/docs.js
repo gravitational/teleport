@@ -11491,7 +11491,7 @@ var handleVerSelector = function handleVerSelector() {
   var viewingLatest = docVersions.length === 0 || docCurrentVer === docVersions[docVersions.length - 1];
   var curValue = '';
 
-  var product = "Gravity";
+  var product = "Teleport";
   if ((0, _jquery2.default)("#secondary-nav h2 a").attr('href').includes("teleport")) {
     product = "Teleport";
   }
@@ -11499,11 +11499,16 @@ var handleVerSelector = function handleVerSelector() {
   function getVerUrl(ver, isLatest) {
     // looks for version number and replaces it with new value
     // ex: http://host/docs/ver/1.2/review -> http://host/docs/ver/4.0
-    //var reg = new RegExp("\/ver\/([0-9|\.]+(?=\/.))");
+	//var reg = new RegExp("\/ver\/([0-9|\.]+(?=\/.))");
+	//https://gravitationaldocs/ver/3.0/co/teleport/docs/
+	//https://gravitational.com/teleport/docs/ver/4.1/intro/ 
+	//https://gravitational.com/teleport/docs/ver/3.1/intro/ 
+	// Note: this doesn't work well for older version swithching to new versions
     var reg = new RegExp("/ver/(.*)/");
-    var url = window.location.href.replace(reg, '');
-    var newPrefix = isLatest ? "" : "/ver/" + ver + "/";
-    return url.replace(window.mkdocs_page_url, newPrefix);
+	var url = window.location.href.replace(reg, '');
+	var newPrefix = isLatest ? "" : "/teleport/docs/ver/" + ver + "/";
+	return url.replace(window.mkdocs_page_url, newPrefix);
+
   }
 
   var $options = [];

@@ -65,7 +65,8 @@ GROUP ATTRIBUTE STATEMENTS
 
 ![Configure APP](img/okta-saml-3.png)
 
-!!! tip "Important":
+!!! tip "Important"
+
     Notice that we have set "NameID" to the email format and mapped the groups with
     a wildcard regex in the Group Attribute statements. We have also set the "Audience"
     and SSO URL to the same value.
@@ -144,14 +145,14 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{{external.username}}", ubuntu ]
+    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
     node_labels:
       access: relaxed
 ```
 
 * Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 * Developers can log in as `ubuntu` user
-* Notice `{{external.username}}` login. It configures Teleport to look at
+* Notice `{% raw %}{{external.username}}{% endraw %}` login. It configures Teleport to look at
   _"username"_ Okta claim and use that field as an allowed login for each user.
 * Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
@@ -175,11 +176,13 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip":
+!!! tip "Tip"
+
     Teleport can use multiple SAML connectors. In this case a connector name
     can be passed via `tsh login --auth=connector_name`
 
-!!! note "IMPORTANT":
+!!! note "IMPORTANT"
+
     Teleport only supports sending party initiated flows for SAML 2.0. This
     means you can not initiate login from your identity provider, you have to
     initiate login from either the Teleport Web UI or CLI.

@@ -17,8 +17,8 @@ VM.
   make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
 
-* We recommend that you read the [Architecture Guide](architecture) before
-  working through this tutorial. If you'd like to dive right in though this is
+* We recommend that you read the [Architecture Guide](architecture/teleport_architecture_overview.md) 
+  before working through this tutorial. If you'd like to dive right in though this is
   the best place to start!
 
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
@@ -29,17 +29,17 @@ Instead follow the [Admin Guide](admin-guide.md)**
 
 ## Step 1: Install Teleport
 
-This guide installs teleport v4.2.1 on the CLI. Previous versions are documented
+This guide installs teleport v{{ teleport.version }} on the CLI. Previous versions are documented
 in [Release History](https://gravitational.com/teleport/releases/). You can
 download pre-built binaries from our
 [Downloads](https://gravitational.com/teleport/download/) page or you can [build
-it from source](./installation/#installing-from-source).
+it from source](installation.md#installing-from-source).
 
 You can also download `.deb` , `.rpm` , and `.pkg` files from
 [Downloads](https://gravitational.com/teleport/download/).
 
 ``` bash
-$ export version=v4.2.1
+$ export version=v{{ teleport.version }}
 $ export os=linux # 'darwin' 'linux' or 'windows'
 $ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
 # Automated way to retrieve the checksum, just append .sha256
@@ -101,7 +101,8 @@ We've got Teleport running but there are no users recognized by Teleport Auth
 yet. Let's create one for your OS user. In this example the OS user is
 `teleport` and the hostname of the node is `grav-00` .
 
-!!! info "OS User Mappings":
+!!! info "OS User Mappings"
+
     The OS user `teleport` must exist! On Linux, if it
     does not already exist, create it with `adduser teleport`. If you do not have
     the permission to create new users on the VM, run `tctl users add teleport
@@ -136,7 +137,8 @@ should be able to open the URL and connect to Teleport Proxy right away.
 Proxy via the host machine and port `3080` in a web browser. One simple way to
 do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`.
 
-!!! warning "Warning":
+!!! warning "Warning" 
+
     We haven't provisioned any SSL certs for Teleport yet.
     Your browser will throw a warning: **Your connection is not private**. Click
     **Advanced**, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
@@ -162,7 +164,8 @@ Let's login using the `tsh` command line tool. Just as in the previous step, you
 will need to be able to resolve the **hostname** of the cluster to a network
 accessible IP.
 
-!!! warning "Warning":
+!!! warning "Warning"
+
     For the purposes of this quickstart we are using the
     `--insecure` flag which allows us to skip configuring the HTTP/TLS
     certificate for Teleport proxy.
@@ -171,9 +174,8 @@ accessible IP.
 
     To resolve this error find your hostname with the `hostname` command and use that instead of `localhost` .
 
-    Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy.
+    Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.md#ssltls-for-teleport-proxy)
 
-<!-- More on TLS in Prod Guide -->
 
 ``` bash
 # here grav-00 is a resolvable hostname on the same network

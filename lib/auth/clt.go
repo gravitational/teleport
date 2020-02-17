@@ -2601,6 +2601,48 @@ func (c *Client) SetAccessRequestState(ctx context.Context, reqID string, state 
 	return nil
 }
 
+// GetPluginData loads all plugin data matching the supplied filter.
+func (c *Client) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	seq, err := clt.GetPluginData(ctx, &filter)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	data := make([]services.PluginData, 0, len(seq.PluginData))
+	for _, d := range seq.PluginData {
+		data = append(data, d)
+	}
+	return data, nil
+}
+
+// UpdatePluginData updates a per-resource PluginData entry.
+func (c *Client) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := clt.UpdatePluginData(ctx, &params); err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// Ping gets basic info about the auth server.
+func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+	rsp, err := clt.Ping(ctx, &proto.PingRequest{})
+	if err != nil {
+		return proto.PingResponse{}, trail.FromGRPC(err)
+	}
+	return *rsp, nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -2822,4 +2864,7 @@ type ClientI interface {
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if sucessful.
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
+
+	// Ping gets basic info about the auth server.
+	Ping(ctx context.Context) (proto.PingResponse, error)
 }

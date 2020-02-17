@@ -9,7 +9,8 @@ like:
 * Developers must never SSH into production servers.
 * ... and many others.
 
-!!! warning "Version Warning":
+!!! warning "Version Warning"
+
     This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
     edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
@@ -151,7 +152,7 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{{external.username}}", ubuntu ]
+    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
     node_labels:
       access: relaxed
 ```

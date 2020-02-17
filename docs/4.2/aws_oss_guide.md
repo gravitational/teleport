@@ -100,7 +100,8 @@ Teleport setup, S3 will provide storage for recorded sessions.
 
 We recommend using Amazon S3 Standard.
 
-!!! tip "Tip":
+!!! tip "Tip"
+
     S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
     which is useful for customers deploying Teleport in regulated environments.
 
@@ -149,7 +150,8 @@ An example policy is shown below:
    ]
  }
 ```
-!!! note "Note":
+!!! note "Note"
+
     `example.s3.bucket` will need to be replaced with your bucket name.
 
 #### IAM for DynamoDB
@@ -177,7 +179,8 @@ An example policy is shown below:
     ]
 }
 ```
-!!! note "Note":
+!!! note "Note"
+
     `eu-west-1:123456789012:table/prod.teleport.auth` will need to be replaced with your DynamoDB instance.
 
 ### ACM 
@@ -262,7 +265,8 @@ Screenshot of where to put it in via AWS console.
 
 ![Config Instance Details](img/aws/adding-user-data.png)
 
-!!! note "Note":
+!!! note "Note"
+
     `TELEPORT_DOMAIN_NAME` and `TELEPORT_EXTERNAL_HOSTNAME` are more or less the
     same thing but we keep them separate just in case you want to use a load balancer
     on a different hostname.

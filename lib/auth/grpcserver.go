@@ -246,6 +246,58 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	return &empty.Empty{}, nil
 }
 
+// GetPluginData loads all plugin data matching the supplied filter.
+func (g *GRPCServer) GetPluginData(ctx context.Context, filter *services.PluginDataFilter) (*proto.PluginDataSeq, error) {
+	// TODO(fspmarshall): Implement rate-limiting to prevent misbehaving plugins from
+	// consuming too many server resources.
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	data, err := auth.AuthWithRoles.GetPluginData(ctx, *filter)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	var seq []*services.PluginDataV3
+	for _, rsc := range data {
+		d, ok := rsc.(*services.PluginDataV3)
+		if !ok {
+			err = trace.BadParameter("unexpected plugin data type %T", rsc)
+			return nil, trail.ToGRPC(err)
+		}
+		seq = append(seq, d)
+	}
+	return &proto.PluginDataSeq{
+		PluginData: seq,
+	}, nil
+}
+
+// UpdatePluginData updates a per-resource PluginData entry.
+func (g *GRPCServer) UpdatePluginData(ctx context.Context, params *services.PluginDataUpdateParams) (*empty.Empty, error) {
+	// TODO(fspmarshall): Implement rate-limiting to prevent misbehaving plugins from
+	// consuming too many server resources.
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.AuthWithRoles.UpdatePluginData(ctx, *params); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	rsp, err := auth.Ping(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &rsp, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles
