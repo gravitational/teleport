@@ -2595,62 +2595,62 @@ var fontWeights = {
 var typography_typography = {
   h1: {
     fontWeight: light,
-    fontSize: "34px",
+    fontSize: '34px',
     lineHeight: '56px'
   },
   h2: {
     fontWeight: light,
-    fontSize: "26px",
+    fontSize: '26px',
     lineHeight: '40px'
   },
   h3: {
     fontWeight: regular,
-    fontSize: "20px",
+    fontSize: '20px',
     lineHeight: '32px'
   },
   h4: {
     fontWeight: regular,
-    fontSize: "18px",
+    fontSize: '18px',
     lineHeight: '32px'
   },
   h5: {
     fontWeight: regular,
-    fontSize: "16px",
+    fontSize: '16px',
     lineHeight: '24px'
   },
   h6: {
     fontWeight: typography_bold,
-    fontSize: "14px",
+    fontSize: '14px',
     lineHeight: '24px'
   },
   body1: {
     fontWeight: regular,
-    fontSize: "14px",
+    fontSize: '14px',
     lineHeight: '24px'
   },
   body2: {
     fontWeight: regular,
-    fontSize: "12px",
+    fontSize: '12px',
     lineHeight: '16px'
   },
   paragraph: {
     fontWeight: light,
-    fontSize: "16px",
+    fontSize: '16px',
     lineHeight: '32px'
   },
   paragraph2: {
     fontWeight: light,
-    fontSize: "12px",
+    fontSize: '12px',
     lineHeight: '24px'
   },
   subtitle1: {
     fontWeight: regular,
-    fontSize: "14px",
+    fontSize: '14px',
     lineHeight: '24px'
   },
   subtitle2: {
     fontWeight: typography_bold,
-    fontSize: "10px",
+    fontSize: '10px',
     lineHeight: '16px'
   }
 };
@@ -2702,7 +2702,7 @@ var theme_colors = {
   },
   text: {
     // The most important text.
-    primary: 'rgba(255, 255, 255, 0.87)',
+    primary: 'rgba(255,255,255,0.87)',
     // Secondary text.
     secondary: 'rgba(255, 255, 255, 0.56)',
     // Disabled text have even lower visual prominence.
@@ -2721,7 +2721,7 @@ var theme_colors = {
     dark: red['A700']
   },
   action: {
-    active: "#FFFFFF",
+    active: '#FFFFFF',
     hover: 'rgba(255, 255, 255, 0.1)',
     hoverOpacity: 0.1,
     selected: 'rgba(255, 255, 255, 0.2)',
@@ -2821,11 +2821,11 @@ limitations under the License.
 
 
 
-var kindColors = function kindColors(props) {
-  var kindColor = props.kindColor,
+var Alert_kind = function kind(props) {
+  var kind = props.kind,
       theme = props.theme;
 
-  switch (kindColor) {
+  switch (kind) {
     case 'danger':
       return {
         background: theme.colors.danger,
@@ -2861,7 +2861,7 @@ var kindColors = function kindColors(props) {
 var Alert = styled_components_browser_esm["c" /* default */].div(_templateObject(), function (_ref) {
   var theme = _ref.theme;
   return theme.fontWeights.regular;
-}, index_esm["v" /* space */], kindColors, index_esm["y" /* width */], function (_ref2) {
+}, index_esm["v" /* space */], Alert_kind, index_esm["y" /* width */], function (_ref2) {
   var theme = _ref2.theme;
   return theme.colors.light;
 });
@@ -2869,29 +2869,29 @@ Alert.propTypes = Alert_objectSpread({
   kind: prop_types_default.a.oneOf(['danger', 'info', 'warning', 'success'])
 }, index_esm["e" /* color */].propTypes, {}, index_esm["v" /* space */].propTypes, {}, index_esm["y" /* width */].propTypes);
 Alert.defaultProps = {
-  kindColor: 'danger',
+  kind: 'danger',
   theme: src_theme
 };
 Alert.displayName = 'Alert';
 /* harmony default export */ var Alert_Alert = (Alert);
 var Alert_Danger = function Danger(props) {
   return react_default.a.createElement(Alert, _extends({
-    kindColor: "danger"
+    kind: "danger"
   }, props));
 };
 var Alert_Info = function Info(props) {
   return react_default.a.createElement(Alert, _extends({
-    kindColor: "info"
+    kind: "info"
   }, props));
 };
 var Alert_Warning = function Warning(props) {
   return react_default.a.createElement(Alert, _extends({
-    kindColor: "warning"
+    kind: "warning"
   }, props));
 };
 var Alert_Success = function Success(props) {
   return react_default.a.createElement(Alert, _extends({
-    kindColor: "success"
+    kind: "success"
   }, props));
 };
 // CONCATENATED MODULE: ../design/src/Alert/index.jsx
@@ -3625,12 +3625,6 @@ var ButtonOutlined_size = function size(props) {
         padding: '8px 8px'
       };
 
-    case 'medium':
-      return {
-        fontSize: "12px",
-        padding: '12px 32px'
-      };
-
     case 'large':
       return {
         fontSize: '14px',
@@ -3638,9 +3632,10 @@ var ButtonOutlined_size = function size(props) {
       };
 
     default:
+      // medium
       return {
-        fontSize: "10px",
-        padding: '12px 24px'
+        fontSize: "12px",
+        padding: '12px 32px'
       };
   }
 };
@@ -3812,10 +3807,10 @@ function CardSuccess(_ref) {
     mb: 3,
     fontSize: 64,
     color: "success"
-  }), react_default.a.createElement(src_Text, {
+  }), title && react_default.a.createElement(src_Text, {
     typography: "h1",
     mb: "3"
-  }, title), react_default.a.createElement(src_Text, {
+  }, title), children && react_default.a.createElement(src_Text, {
     typography: "paragraph"
   }, children));
 }
@@ -3844,12 +3839,6 @@ limitations under the License.
 /* harmony default export */ var src_CardSuccess = (CardSuccess);
 
 // CONCATENATED MODULE: ../design/src/DocumentTitle/DocumentTitle.jsx
-function DocumentTitle_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
-
-function DocumentTitle_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { DocumentTitle_ownKeys(source, true).forEach(function (key) { DocumentTitle_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { DocumentTitle_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
-
-function DocumentTitle_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
 function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -3929,40 +3918,6 @@ function (_React$Component) {
 }(react_default.a.Component);
 
 
-var DocumentTitle_withDocTitle = function withDocTitle(title, component) {
-  var _class, _temp;
-
-  return _temp = _class =
-  /*#__PURE__*/
-  function (_React$Component2) {
-    _inherits(WithWindowTitle, _React$Component2);
-
-    function WithWindowTitle() {
-      _classCallCheck(this, WithWindowTitle);
-
-      return _possibleConstructorReturn(this, _getPrototypeOf(WithWindowTitle).apply(this, arguments));
-    }
-
-    _createClass(WithWindowTitle, [{
-      key: "componentDidMount",
-      value: function componentDidMount() {
-        this.setTitle(title);
-      }
-    }, {
-      key: "setTitle",
-      value: function setTitle(title) {
-        document.title = title;
-      }
-    }, {
-      key: "render",
-      value: function render() {
-        return react_default.a.createElement(component, DocumentTitle_objectSpread({}, this.props));
-      }
-    }]);
-
-    return WithWindowTitle;
-  }(react_default.a.Component), DocumentTitle_defineProperty(_class, "displayName", "withDocTitleWrapper"), _temp;
-};
 // CONCATENATED MODULE: ../design/src/DocumentTitle/index.js
 /*
 Copyright 2019 Gravitational, Inc.
@@ -3981,7 +3936,6 @@ limitations under the License.
 */
 
 /* harmony default export */ var src_DocumentTitle = (DocumentTitle);
-
 // CONCATENATED MODULE: ../design/src/Indicator/Indicator.jsx
 function Indicator_templateObject() {
   var data = Indicator_taggedTemplateLiteral(["\n  ", "\n\n  animation: anim-rotate 2s infinite linear;\n  color: #fff;\n  display: inline-block;\n  margin: 16px;\n  opacity: .87;\n  text-shadow: 0 0 .25em rgba(255,255,255, .3);\n\n  @keyframes anim-rotate {\n    0% {\n      transform: rotate(0);\n    }\n    100% {\n      transform: rotate(360deg);\n    }\n  }\n"]);
@@ -4031,7 +3985,7 @@ limitations under the License.
 
 
 
-var DEFAULT_DELAY = "short";
+
 var DelayValueMap = {
   "none": 0,
   "short": 400,
@@ -4052,7 +4006,7 @@ function (_React$Component) {
 
     _this = Indicator_possibleConstructorReturn(this, Indicator_getPrototypeOf(Indicator).call(this, props));
     _this._timer = null;
-    _this._delay = props.delay || DEFAULT_DELAY;
+    _this._delay = props.delay;
     _this.state = {
       canDisplay: false
     };
@@ -4090,6 +4044,12 @@ function (_React$Component) {
   return Indicator;
 }(react_default.a.Component);
 
+Indicator_Indicator.propTypes = {
+  delay: prop_types_default.a.oneOf(['none', 'short', 'long'])
+};
+Indicator_Indicator.defaultProps = {
+  delay: "short"
+};
 var StyledSpinner = Object(styled_components_browser_esm["c" /* default */])(Spinner)(Indicator_templateObject(), function (_ref) {
   var _ref$fontSize = _ref.fontSize,
       fontSize = _ref$fontSize === void 0 ? "32px" : _ref$fontSize;
@@ -4223,6 +4183,7 @@ limitations under the License.
 
 
 
+
 var Label_kind = function kind(_ref) {
   var kind = _ref.kind,
       theme = _ref.theme;
@@ -4256,15 +4217,18 @@ var Label_kind = function kind(_ref) {
 };
 
 var Label_Label = styled_components_browser_esm["c" /* default */].div(Label_templateObject(), Label_kind, index_esm["v" /* space */]);
+Label_Label.propTypes = {
+  pagerPosition: prop_types_default.a.oneOf(['primary', 'secondary', 'warning', 'danger'])
+};
 /* harmony default export */ var src_Label_Label = (Label_Label);
 var Label_Primary = function Primary(props) {
   return react_default.a.createElement(Label_Label, Label_extends({
-    kind: "secondary"
+    kind: "primary"
   }, props));
 };
 var Label_Secondary = function Secondary(props) {
   return react_default.a.createElement(Label_Label, Label_extends({
-    kind: "primary"
+    kind: "secondary"
   }, props));
 };
 var Label_Warning = function Warning(props) {
@@ -5243,7 +5207,11 @@ function (_React$Component) {
       this.setMountNode(this.props.container); // Only rerender if needed
 
       if (!this.props.disablePortal) {
-        this.forceUpdate(this.props.onRendered);
+        // Portal initializes the container and mounts it to the DOM during
+        // first render. No children are rendered at this time.
+        // ForceUpdate is called to render children elements inside
+        // the container after it gets mounted.
+        this.forceUpdate();
       }
     }
   }, {
@@ -5253,7 +5221,7 @@ function (_React$Component) {
         this.setMountNode(this.props.container); // Only rerender if needed
 
         if (!this.props.disablePortal) {
-          this.forceUpdate(this.props.onRendered);
+          this.forceUpdate();
         }
       }
     }
@@ -5267,10 +5235,9 @@ function (_React$Component) {
     value: function setMountNode(container) {
       if (this.props.disablePortal) {
         this.mountNode = react_dom_default.a.findDOMNode(this).parentElement;
-        return;
+      } else {
+        this.mountNode = Portal_getContainer(container, getOwnerDocument(this).body);
       }
-
-      this.mountNode = Portal_getContainer(container, getOwnerDocument(this).body);
     }
     /**
      * @public
@@ -5312,12 +5279,7 @@ Portal_Portal.propTypes = {
    * Disable the portal behavior.
    * The children stay within it's parent DOM hierarchy.
    */
-  disablePortal: prop_types_default.a.bool,
-
-  /**
-   * Callback fired once the children has been mounted into the `container`.
-   */
-  onRendered: prop_types_default.a.func
+  disablePortal: prop_types_default.a.bool
 };
 Portal_Portal.defaultProps = {
   disablePortal: false
@@ -5489,7 +5451,7 @@ function Modal_setPrototypeOf(o, p) { Modal_setPrototypeOf = Object.setPrototype
 function Modal_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -5510,28 +5472,28 @@ limitations under the License.
 
 
 
-function getHasTransition(props) {
-  return props.children ? props.children.props.hasOwnProperty('in') : false;
-}
-
 var Modal_Modal =
 /*#__PURE__*/
 function (_React$Component) {
   Modal_inherits(Modal, _React$Component);
 
-  function Modal(props) {
+  function Modal() {
+    var _getPrototypeOf2;
+
     var _this;
 
     Modal_classCallCheck(this, Modal);
 
-    _this = Modal_possibleConstructorReturn(this, Modal_getPrototypeOf(Modal).call(this));
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+
+    _this = Modal_possibleConstructorReturn(this, (_getPrototypeOf2 = Modal_getPrototypeOf(Modal)).call.apply(_getPrototypeOf2, [this].concat(args)));
 
     Modal_defineProperty(Modal_assertThisInitialized(_this), "mounted", false);
 
     Modal_defineProperty(Modal_assertThisInitialized(_this), "handleOpen", function () {
-      var doc = ownerDocument(_this.mountNode); //const container = getContainer(this.props.container, doc.body);
-      //this.props.manager.add(this, container);
-
+      var doc = ownerDocument(_this.mountNode);
       doc.addEventListener('keydown', _this.handleDocumentKeyDown);
       doc.addEventListener('focus', _this.enforceFocus, true);
 
@@ -5555,12 +5517,6 @@ function (_React$Component) {
       _this.restoreLastFocus();
     });
 
-    Modal_defineProperty(Modal_assertThisInitialized(_this), "handleExited", function () {
-      _this.setState({
-        exited: true
-      });
-    });
-
     Modal_defineProperty(Modal_assertThisInitialized(_this), "handleBackdropClick", function (event) {
       if (event.target !== event.currentTarget) {
         return;
@@ -5575,10 +5531,16 @@ function (_React$Component) {
       }
     });
 
-    Modal_defineProperty(Modal_assertThisInitialized(_this), "handleDocumentKeyDown", function (event) {
-      var ESC = 27; // Ignore events that have been `event.preventDefault()` marked.
+    Modal_defineProperty(Modal_assertThisInitialized(_this), "handleRendered", function () {
+      if (_this.props.onRendered) {
+        _this.props.onRendered();
+      }
+    });
 
-      if (event.which !== ESC || !_this.isTopModal() || event.defaultPrevented) {
+    Modal_defineProperty(Modal_assertThisInitialized(_this), "handleDocumentKeyDown", function (event) {
+      var ESC = 'Escape'; // Ignore events that have been `event.preventDefault()` marked.
+
+      if (event.key !== ESC || event.defaultPrevented) {
         return;
       }
 
@@ -5593,7 +5555,7 @@ function (_React$Component) {
 
     Modal_defineProperty(Modal_assertThisInitialized(_this), "enforceFocus", function () {
       // The Modal might not already be mounted.
-      if (!_this.isTopModal() || _this.props.disableEnforceFocus || !_this.mounted || !_this.dialogRef) {
+      if (_this.props.disableEnforceFocus || !_this.mounted || !_this.dialogRef) {
         return;
       }
 
@@ -5616,9 +5578,6 @@ function (_React$Component) {
       _this.dialogRef = ref;
     });
 
-    _this.state = {
-      exited: !props.open
-    };
     return _this;
   }
 
@@ -5646,7 +5605,7 @@ function (_React$Component) {
     value: function componentWillUnmount() {
       this.mounted = false;
 
-      if (this.props.open || getHasTransition(this.props) && !this.state.exited) {
+      if (this.props.open) {
         this.handleClose();
       }
     }
@@ -5686,11 +5645,6 @@ function (_React$Component) {
       this.lastFocus = null;
     }
   }, {
-    key: "isTopModal",
-    value: function isTopModal() {
-      return true;
-    }
-  }, {
     key: "render",
     value: function render() {
       var _this$props = this.props,
@@ -5711,40 +5665,29 @@ function (_React$Component) {
         ref: this.handlePortalRef,
         container: container,
         disablePortal: disablePortal,
-        onRendered: this.handleRendered
+        onRendered: this.handleRendered,
+        "data-testid": "portal"
       }, react_default.a.createElement(StyledModal, {
         modalCss: modalCss,
-        "data-mui-test": "Modal",
+        "data-testid": "Modal",
         ref: this.handleModalRef
-      }, !hideBackdrop && react_default.a.createElement(Modal_Backdrop, Modal_extends({
+      }, !hideBackdrop && react_default.a.createElement(Backdrop, Modal_extends({
         onClick: this.handleBackdropClick
       }, BackdropProps)), react_default.a.createElement(Modal_RootRef, {
         rootRef: this.onRootRef
       }, react_default.a.cloneElement(children, childProps))));
-    }
-  }], [{
-    key: "getDerivedStateFromProps",
-    value: function getDerivedStateFromProps(nextProps) {
-      if (nextProps.open) {
-        return {
-          exited: false
-        };
-      }
-
-      return null;
     }
   }]);
 
   return Modal;
 }(react_default.a.Component);
 
+
 Modal_Modal.propTypes = {
   /**
-   * A backdrop component. This property enables custom backdrop rendering.
-   */
-
-  /**
    * Properties applied to the [`Backdrop`](/api/backdrop/) element.
+   *
+   * invisible: Boolean - allows backdrop to keep bg color of parent eg: popup menu
    */
   BackdropProps: prop_types_default.a.object,
 
@@ -5752,11 +5695,6 @@ Modal_Modal.propTypes = {
    * A single child content element.
    */
   children: prop_types_default.a.element,
-
-  /**
-   * @ignore
-   */
-  className: prop_types_default.a.string,
 
   /**
    * A node, component instance, or function that returns either.
@@ -5810,19 +5748,6 @@ Modal_Modal.propTypes = {
   hideBackdrop: prop_types_default.a.bool,
 
   /**
-   * Always keep the children in the DOM.
-   * This property can be useful in SEO situation or
-   * when you want to maximize the responsiveness of the Modal.
-   */
-  keepMounted: prop_types_default.a.bool,
-
-  /**
-   * A modal manager used to track and manage the state of open
-   * Modals. This enables customizing how modals interact within a container.
-   */
-  manager: prop_types_default.a.object,
-
-  /**
    * Callback fired when the backdrop is clicked.
    */
   onBackdropClick: prop_types_default.a.func,
@@ -5854,27 +5779,25 @@ Modal_Modal.propTypes = {
   open: prop_types_default.a.bool.isRequired
 };
 Modal_Modal.defaultProps = {
-  BackdropComponent: Modal_Backdrop,
   disableAutoFocus: false,
   disableBackdropClick: false,
   disableEnforceFocus: false,
   disableEscapeKeyDown: false,
   disablePortal: false,
   disableRestoreFocus: false,
-  hideBackdrop: false,
-  keepMounted: false
+  hideBackdrop: false
 };
-/* harmony default export */ var src_Modal_Modal = (Modal_Modal);
 
-var Modal_Backdrop = function Backdrop(props) {
+function Backdrop(props) {
   var invisible = props.invisible,
       rest = Modal_objectWithoutProperties(props, ["invisible"]);
 
   return react_default.a.createElement(StyledBackdrop, Modal_extends({
+    "data-testid": "backdrop",
     "aria-hidden": "true",
     invisible: invisible
   }, rest));
-};
+}
 
 var StyledBackdrop = styled_components_browser_esm["c" /* default */].div(Modal_templateObject(), function (props) {
   return props.invisible ? 'transparent' : "rgba(0, 0, 0, 0.5)";
@@ -5899,8 +5822,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var src_Modal = (src_Modal_Modal);
+/* harmony default export */ var src_Modal = (Modal_Modal);
 // CONCATENATED MODULE: ../design/src/Popover/Popover.jsx
+function Popover_templateObject() {
+  var data = Popover_taggedTemplateLiteral(["\n  max-width: calc(100% - 32px);\n  max-height: calc(100% - 32px);\n  min-height: 16px;\n  min-width: 16px;\n  outline: none;\n  overflow-x: hidden;\n  overflow-y: auto;\n  position: absolute;\n  ", "\n"]);
+
+  Popover_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function Popover_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
 function Popover_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { Popover_typeof = function _typeof(obj) { return typeof obj; }; } else { Popover_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return Popover_typeof(obj); }
 
 function Popover_extends() { Popover_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Popover_extends.apply(this, arguments); }
@@ -5927,20 +5862,8 @@ function Popover_setPrototypeOf(o, p) { Popover_setPrototypeOf = Object.setProto
 
 function Popover_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
-function Popover_templateObject() {
-  var data = Popover_taggedTemplateLiteral(["\n  max-width: calc(100% - 32px);\n  maxHeight: calc(100% - 32px);\n  min-height: 16px;\n  min-width: 16px;\n  outline: none;\n  overflowX: hidden;\n  overflowY: auto;\n  position: absolute;\n  ", "\n"]);
-
-  Popover_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function Popover_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -5985,9 +5908,6 @@ SOFTWARE.
 
 
 
-var StyledPopover = styled_components_browser_esm["c" /* default */].div(Popover_templateObject(), function (props) {
-  return props.popoverCss && props.popoverCss(props);
-});
 
 function getOffsetTop(rect, vertical) {
   var offset = 0;
@@ -6214,9 +6134,11 @@ function (_React$Component) {
     value: function getTransformOrigin(elemRect) {
       var contentAnchorOffset = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
       var transformOrigin = this.props.transformOrigin;
+      var vertical = this.handleGetOffsetTop(elemRect, transformOrigin.vertical) + contentAnchorOffset;
+      var horizontal = this.handleGetOffsetLeft(elemRect, transformOrigin.horizontal);
       return {
-        vertical: this.handleGetOffsetTop(elemRect, transformOrigin.vertical) + contentAnchorOffset,
-        horizontal: this.handleGetOffsetLeft(elemRect, transformOrigin.horizontal)
+        vertical: vertical,
+        horizontal: horizontal
       };
     }
   }, {
@@ -6256,6 +6178,7 @@ function (_React$Component) {
 
   return Popover;
 }(react_default.a.Component);
+
 
 Popover_Popover.propTypes = {
   /**
@@ -6319,9 +6242,7 @@ Popover_Popover.propTypes = {
   container: prop_types_default.a.oneOfType([prop_types_default.a.object, prop_types_default.a.func]),
 
   /**
-   * The elevation of the popover.
    */
-  elevation: prop_types_default.a.number,
 
   /**
    * This function is called in order to retrieve the content anchor element.
@@ -6387,12 +6308,7 @@ Popover_Popover.propTypes = {
   transformOrigin: prop_types_default.a.shape({
     horizontal: prop_types_default.a.oneOfType([prop_types_default.a.number, prop_types_default.a.oneOf(['left', 'center', 'right'])]).isRequired,
     vertical: prop_types_default.a.oneOfType([prop_types_default.a.number, prop_types_default.a.oneOf(['top', 'center', 'bottom'])]).isRequired
-  }),
-
-  /**
-   * Properties applied to the `Transition` element.
-   */
-  TransitionProps: prop_types_default.a.object
+  })
 };
 Popover_Popover.defaultProps = {
   anchorReference: 'anchorEl',
@@ -6400,14 +6316,15 @@ Popover_Popover.defaultProps = {
     vertical: 'top',
     horizontal: 'left'
   },
-  elevation: 8,
   marginThreshold: 16,
   transformOrigin: {
     vertical: 'top',
     horizontal: 'left'
   }
 };
-/* harmony default export */ var src_Popover_Popover = (Popover_Popover);
+var StyledPopover = styled_components_browser_esm["c" /* default */].div(Popover_templateObject(), function (props) {
+  return props.popoverCss && props.popoverCss(props);
+});
 // CONCATENATED MODULE: ../design/src/Popover/index.js
 /*
 Copyright 2019 Gravitational, Inc.
@@ -6425,7 +6342,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var src_Popover = (src_Popover_Popover);
+/* harmony default export */ var src_Popover = (Popover_Popover);
 
 // CONCATENATED MODULE: ../design/src/Menu/MenuList.jsx
 function MenuList_templateObject() {
@@ -6889,6 +6806,7 @@ limitations under the License.
 
 
 
+
 function CardError(_ref) {
   var children = _ref.children;
   return react_default.a.createElement(src_Card, {
@@ -6914,15 +6832,13 @@ var CardError_Header = function Header(props) {
 var CardError_Content = function Content(_ref2) {
   var _ref2$message = _ref2.message,
       message = _ref2$message === void 0 ? '' : _ref2$message,
-      desc = _ref2.desc;
-  var $desc = desc ? react_default.a.createElement(src_Text, {
-    typography: "body2"
-  }, desc) : null;
+      _ref2$desc = _ref2.desc,
+      desc = _ref2$desc === void 0 ? null : _ref2$desc;
   var $errMessage = message ? react_default.a.createElement(src_Alert, {
     mt: 2,
     mb: 4
   }, message) : null;
-  return react_default.a.createElement("div", null, $errMessage, " ", $desc);
+  return react_default.a.createElement(react_default.a.Fragment, null, $errMessage, " ", desc);
 };
 
 var CardError_NotFound = function NotFound(_ref3) {
@@ -6933,7 +6849,7 @@ var CardError_NotFound = function NotFound(_ref3) {
 };
 var CardError_AccessDenied = function AccessDenied(_ref4) {
   var message = _ref4.message;
-  return react_default.a.createElement(CardError, null, react_default.a.createElement(CardError_Header, null, "Access denied"), react_default.a.createElement(CardError_Content, {
+  return react_default.a.createElement(CardError, null, react_default.a.createElement(CardError_Header, null, "Access Denied"), react_default.a.createElement(CardError_Content, {
     message: message
   }));
 };
@@ -6953,10 +6869,14 @@ var CardError_Offline = function Offline(_ref6) {
     }, message)
   }));
 };
+CardError_Offline.propTypes = {
+  title: prop_types_default.a.string.isRequired,
+  message: prop_types_default.a.string
+};
 var CardError_LoginFailed = function LoginFailed(_ref7) {
   var message = _ref7.message,
       loginUrl = _ref7.loginUrl;
-  return react_default.a.createElement(CardError, null, react_default.a.createElement(CardError_Header, null, "Login unsuccessful"), react_default.a.createElement(CardError_Content, {
+  return react_default.a.createElement(CardError, null, react_default.a.createElement(CardError_Header, null, "Login Unsuccessful"), react_default.a.createElement(CardError_Content, {
     message: message,
     desc: react_default.a.createElement(src_Text, {
       typography: "paragraph"
@@ -6964,6 +6884,10 @@ var CardError_LoginFailed = function LoginFailed(_ref7) {
       href: loginUrl
     }, "Please try again"), ", if the problem persists, contact your system administrator.")
   }));
+};
+CardError_LoginFailed.propTypes = {
+  message: prop_types_default.a.string,
+  loginUrl: prop_types_default.a.string.isRequired
 };
 var HyperLink = styled_components_browser_esm["c" /* default */].a(CardError_templateObject(), function (_ref8) {
   var theme = _ref8.theme;
@@ -7124,8 +7048,8 @@ var cfg = {
     login: '/web/login',
     loginFailed: '/web/msg/error/login_failed',
     loginSuccess: '/web/msg/info/login_success',
-    userInvite: '/web/newuser/:token',
-    userReset: '/web/reset/:token'
+    userInvite: '/web/invite/:tokenId',
+    userReset: '/web/reset/:tokenId'
   },
   api: {
     clustersPath: '/v1/webapi/sites',
@@ -7135,14 +7059,12 @@ var cfg = {
     sessionPath: '/v1/webapi/sessions',
     userContextPath: '/v1/webapi/sites/:clusterId/context',
     userStatusPath: '/v1/webapi/user/status',
-    invitePath: '/v1/webapi/users/invites/:token',
+    passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     userTokenInviteDonePath: '/v1/webapi/users',
     changeUserPasswordPath: '/v1/webapi/users/password',
-    u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',
-    u2fCreateUserPath: '/v1/webapi/u2f/users',
+    u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:tokenId',
     u2fSessionChallengePath: '/v1/webapi/u2f/signrequest',
     u2fChangePassChallengePath: '/v1/webapi/u2f/password/changerequest',
-    u2fChangePassPath: '/v1/webapi/u2f/password',
     u2fSessionPath: '/v1/webapi/u2f/sessions',
     nodesPath: '/v1/webapi/sites/:clusterId/nodes',
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
@@ -7228,9 +7150,9 @@ var cfg = {
       clusterId: clusterId
     });
   },
-  getInviteUrl: function getInviteUrl(token) {
-    return Object(react_router["f" /* generatePath */])(cfg.api.invitePath, {
-      token: token
+  getPasswordTokenUrl: function getPasswordTokenUrl(tokenId) {
+    return Object(react_router["f" /* generatePath */])(cfg.api.passwordTokenPath, {
+      tokenId: tokenId
     });
   },
   getClusterRoute: function getClusterRoute(clusterId) {
@@ -7304,9 +7226,9 @@ var cfg = {
       clusterId: clusterId
     });
   },
-  getU2fCreateUserChallengeUrl: function getU2fCreateUserChallengeUrl(inviteToken) {
+  getU2fCreateUserChallengeUrl: function getU2fCreateUserChallengeUrl(tokenId) {
     return Object(react_router["f" /* generatePath */])(cfg.api.u2fCreateUserChallengePath, {
-      inviteToken: inviteToken
+      tokenId: tokenId
     });
   },
   getScpUrl: function getScpUrl(_ref8) {
@@ -7585,9 +7507,6 @@ limitations under the License.
 
 
 function withState(mapState) {
-  var hooks = hooks ? hooks : function () {
-    return {};
-  };
   return function wrapWithHook(WrappedComponent) {
     function WithState(props, context) {
       var propsFromMapState = mapState(props, context);
@@ -7631,8 +7550,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-/*eslint no-console: "off"*/
 var Logger =
 /*#__PURE__*/
 function () {
@@ -7647,7 +7564,7 @@ function () {
   logger_createClass(Logger, [{
     key: "log",
     value: function log() {
-      var _console;
+      var _window$console;
 
       var level = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'log';
 
@@ -7655,7 +7572,7 @@ function () {
         args[_key - 1] = arguments[_key];
       }
 
-      (_console = console)[level].apply(_console, ["%c[".concat(this.name, "]"), "color: blue;"].concat(args));
+      (_window$console = window.console)[level].apply(_window$console, ["%c[".concat(this.name, "]"), "color: blue;"].concat(args));
     }
   }, {
     key: "trace",
@@ -7697,7 +7614,6 @@ function () {
 
   return Logger;
 }();
-
 /* harmony default export */ var logger = ({
   create: function create() {
     for (var _len6 = arguments.length, args = new Array(_len6), _key6 = 0; _key6 < _len6; _key6++) {
@@ -7740,60 +7656,73 @@ limitations under the License.
 
 
 var useAttempt_logger = logger.create('shared/hooks/useState');
-var defaultAttempt = {
+var defaultState = {
   isProcessing: false,
   isFailed: false,
   isSuccess: false,
   message: ''
 };
 function useAttempt(initialState) {
-  initialState = initialState || defaultAttempt;
+  initialState = initialState || defaultState;
 
-  var _useState = Object(react["useState"])(initialState),
-      _useState2 = _slicedToArray(_useState, 2),
-      attempt = _useState2[0],
-      change = _useState2[1];
+  var _React$useState = react_default.a.useState(initialState),
+      _React$useState2 = _slicedToArray(_React$useState, 2),
+      attempt = _React$useState2[0],
+      setState = _React$useState2[1];
 
-  var actions = {
-    "do": function _do(fn) {
-      var _this = this;
-
-      try {
-        this.start();
-        return fn().then(function () {
-          _this.stop();
-        })["catch"](function (err) {
-          _this.error(err);
-
-          throw err;
-        });
-      } catch (err) {
-        this.error(err);
-      }
-    },
-    stop: function stop(message) {
-      change(useAttempt_objectSpread({}, defaultAttempt, {
-        isSuccess: true,
-        message: message
-      }));
-    },
-    start: function start() {
-      change(useAttempt_objectSpread({}, defaultAttempt, {
-        isProcessing: true
-      }));
-    },
-    clear: function clear() {
-      change(useAttempt_objectSpread({}, defaultAttempt));
-    },
-    error: function error(err) {
-      useAttempt_logger.error('attempt', err);
-      change(useAttempt_objectSpread({}, defaultAttempt, {
-        isFailed: true,
-        message: err.message
-      }));
-    }
-  };
+  var actions = react_default.a.useMemo(function () {
+    return makeActions(setState);
+  }, [setState]);
   return [attempt, actions];
+}
+
+function makeActions(setState) {
+  function stop(message) {
+    setState(useAttempt_objectSpread({}, defaultState, {
+      isSuccess: true,
+      message: message
+    }));
+  }
+
+  function start() {
+    setState(useAttempt_objectSpread({}, defaultState, {
+      isProcessing: true
+    }));
+  }
+
+  function clear() {
+    setState(useAttempt_objectSpread({}, defaultState));
+  }
+
+  function error(err) {
+    useAttempt_logger.error('attempt', err);
+    setState(useAttempt_objectSpread({}, defaultState, {
+      isFailed: true,
+      message: err.message
+    }));
+  }
+
+  function run(fn) {
+    try {
+      start();
+      return fn().then(function () {
+        stop();
+      })["catch"](function (err) {
+        error(err);
+        throw err;
+      });
+    } catch (err) {
+      error(err);
+    }
+  }
+
+  return {
+    "do": run,
+    stop: stop,
+    start: start,
+    clear: clear,
+    error: error
+  };
 }
 // CONCATENATED MODULE: ../shared/hooks/index.js
 /*
@@ -8083,44 +8012,7 @@ limitations under the License.
 
 /* harmony default export */ var services_api = (api_api);
 
-// CONCATENATED MODULE: ./src/services/enums.js
-/*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-var AuthProviderTypeEnum = {
-  OIDC: 'oidc',
-  SAML: 'saml',
-  GITHUB: 'github'
-};
-var RestRespCodeEnum = {
-  FORBIDDEN: 403
-};
-var Auth2faTypeEnum = {
-  UTF: 'u2f',
-  OTP: 'otp',
-  DISABLED: 'off'
-};
-var AuthTypeEnum = {
-  LOCAL: 'local',
-  SSO: 'sso'
-};
-var UserTokenTypeEnum = {
-  RESET: 'reset',
-  INVITE: 'invite'
-};
-// CONCATENATED MODULE: ./src/services/auth/makeUserToken.js
+// CONCATENATED MODULE: ./src/services/auth/makePasswordToken.js
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -8136,16 +8028,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-function makeUserToken(json) {
+function makePasswordToken(json) {
   json = json || {};
   return {
-    token: json.token,
-    qrCode: json.qr_code,
-    userName: json.user,
-    accountId: json.account_id,
-    isInvite: json.type === UserTokenTypeEnum.INVITE,
-    isReset: json.type === UserTokenTypeEnum.RESET
+    tokenId: json.tokenId,
+    qrCode: json.qrCode,
+    user: json.user
   };
 }
 // CONCATENATED MODULE: ./src/services/auth/auth.js
@@ -8170,12 +8058,6 @@ limitations under the License.
 
 
 var auth = {
-  fetchToken: function fetchToken(tokenId) {
-    var path = config.getInviteUrl(tokenId);
-    return services_api.get(path).then(function (json) {
-      return makeUserToken(json);
-    });
-  },
   login: function login(userId, password, token) {
     var data = {
       user: userId,
@@ -8213,21 +8095,17 @@ var auth = {
       return promise;
     });
   },
-  registerWithU2F: function registerWithU2F(password, tokenId) {
+  fetchPasswordToken: function fetchPasswordToken(tokenId) {
+    var path = config.getPasswordTokenUrl(tokenId);
+    return services_api.get(path).then(makePasswordToken);
+  },
+  resetPasswordWithU2f: function resetPasswordWithU2f(tokenId, password) {
     return auth._getU2FRegisterRes(tokenId).then(function (u2fRes) {
-      return auth._finishRegistration(config.api.userTokenInviteDonePath, tokenId, password, null, u2fRes);
+      return auth._resetPassword(tokenId, password, null, u2fRes);
     });
   },
-  registerWith2FA: function registerWith2FA(password, hotpToken, tokenId) {
-    return auth._finishRegistration(config.api.userTokenInviteDonePath, tokenId, password, hotpToken);
-  },
-  resetPasswordWithU2F: function resetPasswordWithU2F(password, tokenId) {
-    return auth._getU2FRegisterRes(tokenId).then(function (u2fRes) {
-      return auth._finishRegistration(config.api.userTokenResetDonePath, tokenId, password, null, u2fRes);
-    });
-  },
-  resetPasswordWith2FA: function resetPasswordWith2FA(password, hotpToken, tokenId) {
-    return this._finishRegistration(config.api.userTokenResetDonePath, tokenId, password, hotpToken);
+  resetPassword: function resetPassword(tokenId, password, hotpToken) {
+    return this._resetPassword(tokenId, password, hotpToken);
   },
   changePassword: function changePassword(oldPass, newPass, token) {
     var data = {
@@ -8265,20 +8143,17 @@ var auth = {
       });
     });
   },
-  _finishRegistration: function _finishRegistration(url, tokenId, psw, hotpToken, u2fResponse) {
+  _resetPassword: function _resetPassword(tokenId, psw, hotpToken, u2fResponse) {
     var request = {
-      //  'password': window.btoa(psw),
-      //  'second_factor_token': hotpToken,
+      password: window.btoa(psw),
+      second_factor_token: hotpToken,
       token: tokenId,
-      u2f_register_response: u2fResponse,
-      // remote below props after refactoring signup APIs.
-      invite_token: tokenId,
-      pass: window.btoa(psw)
+      u2f_register_response: u2fResponse
     };
-    return services_api.post(url, request, false);
+    return services_api.put(config.getPasswordTokenUrl(), request, false);
   },
-  _getU2FRegisterRes: function _getU2FRegisterRes(tokenID) {
-    return services_api.get(config.getU2fCreateUserChallengeUrl(tokenID)).then(function (data) {
+  _getU2FRegisterRes: function _getU2FRegisterRes(tokenId) {
+    return services_api.get(config.getU2fCreateUserChallengeUrl(tokenId)).then(function (data) {
       return new Promise(function (resolve, reject) {
         window.u2f.register(data.appId, [data], [], function (res) {
           if (res.errorCode) {
@@ -8374,8 +8249,6 @@ function () {
 
     Validation_defineProperty(this, "valid", true);
 
-    Validation_defineProperty(this, "values", {});
-
     // store subscribers
     this._subs = [];
   } // adds a callback to the list of subscribers
@@ -8404,10 +8277,6 @@ function () {
 
       if (Object(lodash["isObject"])(result)) {
         isValid = result.valid;
-
-        if (result.name) {
-          this.results.values[name] = result;
-        }
       } else {
         Validation_logger.error("rule should return a valid object");
       }
@@ -8418,7 +8287,6 @@ function () {
     key: "reset",
     value: function reset() {
       this.valid = true;
-      this.values = {};
       this.validating = false;
     }
   }, {
@@ -8624,28 +8492,28 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-var enums_AuthProviderTypeEnum = {
+var AuthProviderTypeEnum = {
   OIDC: 'oidc',
   SAML: 'saml',
   GITHUB: 'github'
 };
-var enums_RestRespCodeEnum = {
+var RestRespCodeEnum = {
   FORBIDDEN: 403
 };
-var enums_Auth2faTypeEnum = {
+var Auth2faTypeEnum = {
   UTF: 'u2f',
   OTP: 'otp',
   DISABLED: 'off'
 };
-var enums_AuthTypeEnum = {
+var AuthTypeEnum = {
   LOCAL: 'local',
   SSO: 'sso'
 };
 function isU2f(auth2faType) {
-  return auth2faType === enums_Auth2faTypeEnum.UTF;
+  return auth2faType === Auth2faTypeEnum.UTF;
 }
 function isOtp(auth2fType) {
-  return auth2fType === enums_Auth2faTypeEnum.OTP;
+  return auth2fType === Auth2faTypeEnum.OTP;
 }
 // CONCATENATED MODULE: ../shared/components/FormInvite/TwoFaInfo.jsx
 function TwoFaInfo_templateObject() {
@@ -8685,7 +8553,7 @@ function TwoFAData(props) {
       qr = props.qr;
   var imgSrc = "data:image/png;base64,".concat(qr);
 
-  if (auth2faType === enums_Auth2faTypeEnum.OTP) {
+  if (auth2faType === Auth2faTypeEnum.OTP) {
     return react_default.a.createElement("div", null, react_default.a.createElement(src_Text, {
       typography: "paragraph2",
       mb: 3
@@ -8696,7 +8564,7 @@ function TwoFAData(props) {
     }));
   }
 
-  if (auth2faType === enums_Auth2faTypeEnum.UTF) {
+  if (auth2faType === Auth2faTypeEnum.UTF) {
     return react_default.a.createElement("div", null, react_default.a.createElement(src_Text, {
       typography: "h5",
       mb: "2"
@@ -8842,6 +8710,7 @@ function FormInvite(props) {
       attempt = props.attempt,
       user = props.user,
       qr = props.qr,
+      title = props.title,
       submitBtnText = props.submitBtnText;
 
   var _React$useState = react_default.a.useState(''),
@@ -8861,10 +8730,11 @@ function FormInvite(props) {
 
   var otpEnabled = isOtp(auth2faType);
   var u2fEnabled = isU2f(auth2faType);
+  var secondFactorEnabled = otpEnabled || u2fEnabled;
   var isProcessing = attempt.isProcessing,
       isFailed = attempt.isFailed,
       message = attempt.message;
-  var boxWidth = (otpEnabled ? 720 : 464) + 'px';
+  var boxWidth = (secondFactorEnabled ? 720 : 464) + 'px';
 
   function onBtnClick(e, validator) {
     e.preventDefault();
@@ -8891,7 +8761,12 @@ function FormInvite(props) {
     }, react_default.a.createElement(src_Flex, null, react_default.a.createElement(src_Box, {
       flex: "3",
       p: "6"
-    }, isFailed && react_default.a.createElement(ErrorMessage, {
+    }, react_default.a.createElement(src_Text, {
+      typography: "h2",
+      mb: 3,
+      textAlign: "center",
+      color: "light"
+    }, title), isFailed && react_default.a.createElement(ErrorMessage, {
       message: message
     }), react_default.a.createElement(src_Text, {
       typography: "h4",
@@ -8917,7 +8792,7 @@ function FormInvite(props) {
         return setPasswordConfirmed(e.target.value);
       },
       type: "password",
-      placeholder: "Password"
+      placeholder: "Confirm Password"
     }), otpEnabled && react_default.a.createElement(src_Flex, {
       flexDirection: "row"
     }, react_default.a.createElement(components_FieldInput, {
@@ -8950,7 +8825,7 @@ function FormInvite(props) {
       typography: "paragraph2",
       width: "100%",
       textAlign: "center"
-    }, "Insert your U2F key and press the button on the key")), otpEnabled && react_default.a.createElement(src_Box, {
+    }, "Insert your U2F key and press the button on the key")), secondFactorEnabled && react_default.a.createElement(src_Box, {
       flex: "1",
       bg: "primary.main",
       p: "6"
@@ -9130,7 +9005,7 @@ function Invite_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(a
 function Invite_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -9152,15 +9027,16 @@ limitations under the License.
 
 
 
+
 var Invite_logger = logger.create('components/Invite');
-function Base(props) {
-  var onSubmit = props.onSubmit,
-      onSubmitWithU2f = props.onSubmitWithU2f,
-      submitBtnText = props.submitBtnText,
-      title = props.title,
+function Invite(props) {
+  var _props$passwordResetM = props.passwordResetMode,
+      passwordResetMode = _props$passwordResetM === void 0 ? false : _props$passwordResetM,
       auth2faType = props.auth2faType,
       fetchAttempt = props.fetchAttempt,
-      userToken = props.userToken,
+      onSubmit = props.onSubmit,
+      onSubmitWithU2f = props.onSubmitWithU2f,
+      passwordToken = props.passwordToken,
       submitAttempt = props.submitAttempt;
 
   if (fetchAttempt.isFailed) {
@@ -9171,22 +9047,23 @@ function Base(props) {
     return null;
   }
 
-  var userName = userToken.userName,
-      qrCode = userToken.qrCode;
+  var user = passwordToken.user,
+      qrCode = passwordToken.qrCode;
+  var title = passwordResetMode ? 'Reset Password' : 'Welcome to Teleport';
+  var submitBtnText = passwordResetMode ? 'Change Password' : 'Create Account';
   return react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(components_LogoHero, null), react_default.a.createElement(components_FormInvite, {
     submitBtnText: submitBtnText,
     title: title,
-    user: userName,
+    user: user,
     qr: qrCode,
     auth2faType: auth2faType,
     attempt: submitAttempt,
-    userToken: userToken,
     onSubmitWithU2f: onSubmitWithU2f,
     onSubmit: onSubmit
   }));
 }
 
-function Invite_mapState(props) {
+function Invite_mapState() {
   var _useAttempt = useAttempt(),
       _useAttempt2 = Invite_slicedToArray(_useAttempt, 2),
       fetchAttempt = _useAttempt2[0],
@@ -9194,20 +9071,23 @@ function Invite_mapState(props) {
 
   var _React$useState = react_default.a.useState(),
       _React$useState2 = Invite_slicedToArray(_React$useState, 2),
-      userToken = _React$useState2[0],
-      setUserToken = _React$useState2[1];
+      passwordToken = _React$useState2[0],
+      setPswToken = _React$useState2[1];
 
   var _useAttempt3 = useAttempt(),
       _useAttempt4 = Invite_slicedToArray(_useAttempt3, 2),
       submitAttempt = _useAttempt4[0],
       submitAttemptActions = _useAttempt4[1];
 
-  var tokenId = props.tokenId,
-      auth2faType = props.auth2faType;
+  var auth2faType = config.getAuth2faType();
+
+  var _useParams = Object(react_router["i" /* useParams */])(),
+      tokenId = _useParams.tokenId;
+
   react_default.a.useEffect(function () {
     fetchAttemptActions["do"](function () {
-      return props.onFetch(tokenId).then(function (userToken) {
-        return setUserToken(userToken);
+      return services_auth.fetchPasswordToken(tokenId).then(function (resetToken) {
+        return setPswToken(resetToken);
       });
     });
   }, []);
@@ -9221,58 +9101,37 @@ function Invite_mapState(props) {
     submitAttemptActions.error(err);
   }
 
-  function onSubmit(password, token) {
+  function onSubmit(password, otpToken) {
     submitAttemptActions.start();
-    props.onSubmit(password, token, tokenId).then(redirect)["catch"](handleSubmitError);
+    services_auth.resetPassword(tokenId, password, otpToken).then(redirect)["catch"](handleSubmitError);
   }
 
   function onSubmitWithU2f(password) {
     submitAttemptActions.start();
-    props.onSubmitWithU2f(password, tokenId).then(redirect)["catch"](handleSubmitError);
+    services_auth.resetPasswordWithU2f(tokenId, password).then(redirect)["catch"](handleSubmitError);
   }
 
   return {
-    fetchAttempt: fetchAttempt,
-    submitAttempt: submitAttempt,
     auth2faType: auth2faType,
-    onSubmitWithU2f: onSubmitWithU2f,
+    fetchAttempt: fetchAttempt,
     onSubmit: onSubmit,
-    tokenId: tokenId,
-    userToken: userToken
+    onSubmitWithU2f: onSubmitWithU2f,
+    passwordToken: passwordToken,
+    submitAttempt: submitAttempt,
+    tokenId: tokenId
   };
 }
 
-function mapInviteState(props) {
-  var tokenId = props.match.params.token;
-  return {
-    tokenId: tokenId,
-    auth2faType: config.getAuth2faType(),
-    onFetch: services_auth.fetchToken.bind(services_auth),
-    onSubmitWithU2f: services_auth.registerWithU2F.bind(services_auth),
-    onSubmit: services_auth.registerWith2FA.bind(services_auth),
-    submitBtnText: 'Create Account'
-  };
-}
-
-function mapResetState(props) {
-  var tokenId = props.match.params.token;
-  return {
-    tokenId: tokenId,
-    auth2faType: config.getAuth2faType(),
-    onFetch: services_auth.fetchToken.bind(services_auth),
-    onSubmitWithU2f: services_auth.resetPasswordWithU2F.bind(services_auth),
-    onSubmit: services_auth.resetPasswordWith2FA.bind(services_auth),
-    submitBtnText: 'Change Password'
-  };
-}
-
-var BaseWithState = withState(Invite_mapState)(Base);
-var Invite = withState(mapInviteState)(BaseWithState);
-var PasswordReset = withState(mapResetState)(BaseWithState);
-
+var InviteWithState = withState(Invite_mapState)(Invite);
+/* harmony default export */ var Invite_Invite = (InviteWithState);
+var Invite_ResetPassword = function ResetPassword() {
+  return react_default.a.createElement(InviteWithState, {
+    passwordResetMode: true
+  });
+};
 // CONCATENATED MODULE: ./src/components/Invite/index.js
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -9287,6 +9146,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/* harmony default export */ var components_Invite = (Invite_Invite);
 
 // CONCATENATED MODULE: ./src/components/CatchError/CatchError.jsx
 function CatchError_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { CatchError_typeof = function _typeof(obj) { return typeof obj; }; } else { CatchError_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return CatchError_typeof(obj); }
@@ -9475,11 +9335,11 @@ function guessProviderType(name, ssoType) {
     return 'google';
   }
 
-  if (name.indexOf('github') !== -1 || ssoType === enums_AuthProviderTypeEnum.GITHUB) {
+  if (name.indexOf('github') !== -1 || ssoType === AuthProviderTypeEnum.GITHUB) {
     return 'github';
   }
 
-  if (ssoType === enums_AuthProviderTypeEnum.OIDC) {
+  if (ssoType === AuthProviderTypeEnum.OIDC) {
     return 'openid';
   }
 
@@ -10895,7 +10755,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var defaultState = {
+var storeDialogs_defaultState = {
   isDownloadOpen: false,
   isUploadOpen: false
 };
@@ -10921,21 +10781,21 @@ function (_Store) {
   storeDialogs_createClass(StoreDialogs, [{
     key: "openUpload",
     value: function openUpload(tabId) {
-      return this.setState(storeDialogs_defineProperty({}, tabId, storeDialogs_objectSpread({}, defaultState, {
+      return this.setState(storeDialogs_defineProperty({}, tabId, storeDialogs_objectSpread({}, storeDialogs_defaultState, {
         isUploadOpen: true
       })));
     }
   }, {
     key: "openDownload",
     value: function openDownload(tabId) {
-      return this.setState(storeDialogs_defineProperty({}, tabId, storeDialogs_objectSpread({}, defaultState, {
+      return this.setState(storeDialogs_defineProperty({}, tabId, storeDialogs_objectSpread({}, storeDialogs_defaultState, {
         isDownloadOpen: true
       })));
     }
   }, {
     key: "getState",
     value: function getState(tabId) {
-      return this.state[tabId] || defaultState;
+      return this.state[tabId] || storeDialogs_defaultState;
     }
   }, {
     key: "close",
@@ -17094,6 +16954,17 @@ function (_Store) {
       return this.state;
     }
   }, {
+    key: "getClusterOptions",
+    value: function getClusterOptions() {
+      return this.state.map(function (cluster) {
+        return {
+          value: cluster.clusterId,
+          url: cluster.url,
+          label: cluster.clusterId
+        };
+      });
+    }
+  }, {
     key: "fetchClusters",
     value: function fetchClusters() {
       var _this2 = this;
@@ -18386,7 +18257,9 @@ function () {
           clusterId = _ref.clusterId;
       config.setClusterId(clusterId);
       this.initStores();
-      return this.storeUser.fetchUser().then(function () {
+      var fetchClustersPromise = this.storeClusters.fetchClusters();
+      var fetchUsersPromise = this.storeUser.fetchUser();
+      return Promise.all([fetchClustersPromise, fetchUsersPromise]).then(function () {
         var activator = new Activator(features);
         activator.onload({
           context: _this
@@ -18955,8 +18828,8 @@ limitations under the License.
 
 
 /**
-* Sort indicator used by SortHeaderCell
-*/
+ * Sort indicator used by SortHeaderCell
+ */
 
 var SortTypes = {
   ASC: 'ASC',
@@ -19041,12 +18914,12 @@ function (_React$Component) {
   }, {
     key: "render",
     value: function render() {
-      /* eslint-disable no-unused-vars */
+      /* eslint-disable @typescript-eslint/no-unused-vars */
       var _this$props = this.props,
           data = _this$props.data,
           children = _this$props.children,
           rest = Table_objectWithoutProperties(_this$props, ["data", "children"]);
-      /* eslint-enable no-unused-vars */
+      /* eslint-enable @typescript-eslint/no-unused-vars */
 
 
       var columns = [];
@@ -19096,7 +18969,7 @@ function (_React$Component2) {
   Table_createClass(Column, [{
     key: "render",
     value: function render() {
-      throw new Error("Component Column should never render");
+      throw new Error('Component Column should never render');
     }
   }]);
 
@@ -19187,9 +19060,9 @@ function (_React$Component3) {
 
       return react_default.a.createElement(Table_Cell, props, react_default.a.createElement("a", {
         onClick: this.onSortChange
-      }, title), react_default.a.createElement(Table_SortIndicator, {
+      }, title, react_default.a.createElement(Table_SortIndicator, {
         sortDir: sortDir
-      }));
+      })));
     }
   }]);
 
@@ -19213,11 +19086,11 @@ function (_React$Component4) {
       var _this$props3 = this.props,
           children = _this$props3.children,
           title = _this$props3.title;
-      var noResults = title || "No Results Found";
+      var noResults = title || 'No Results Found';
       return react_default.a.createElement(StyledEmptyIndicator, null, react_default.a.createElement(src_Text, {
         typography: "h1",
         color: "text.primary"
-      }, noResults), react_default.a.createElement(src_Text, {
+      }, noResults), children && react_default.a.createElement(src_Text, {
         typography: "paragraph",
         mt: "3",
         color: "text.primary"
@@ -19261,14 +19134,18 @@ limitations under the License.
 
 
 
+
 function Pager(props) {
-  var startFrom = props.startFrom,
-      endAt = props.endAt,
-      totalRows = props.totalRows,
+  var _props$startFrom = props.startFrom,
+      startFrom = _props$startFrom === void 0 ? 0 : _props$startFrom,
+      _props$endAt = props.endAt,
+      endAt = _props$endAt === void 0 ? 0 : _props$endAt,
+      _props$totalRows = props.totalRows,
+      totalRows = _props$totalRows === void 0 ? 0 : _props$totalRows,
       onPrev = props.onPrev,
       onNext = props.onNext;
-  var isPrevDisabled = startFrom === 0;
-  var isNextDisabled = endAt === totalRows;
+  var isPrevDisabled = totalRows === 0 || startFrom === 0;
+  var isNextDisabled = totalRows === 0 || endAt === totalRows;
   return react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(src_Text, {
     typography: "body2",
     color: "primary.contrastText"
@@ -19286,6 +19163,13 @@ function Pager(props) {
     fontSize: "3"
   }))));
 }
+Pager.propTypes = {
+  startFrom: prop_types_default.a.number.isRequired,
+  endAt: prop_types_default.a.number.isRequired,
+  totalRows: prop_types_default.a.number.isRequired,
+  onPrev: prop_types_default.a.func.isRequired,
+  onNext: prop_types_default.a.func.isRequired
+};
 var StyledButtons = styled_components_browser_esm["c" /* default */].div(Pager_templateObject(), function (props) {
   return props.theme.colors.primary.main;
 }, src_Icon, src_Icon);
@@ -19437,7 +19321,8 @@ limitations under the License.
 
 
 
-function PagedTable(props) {
+
+function TablePaged(props) {
   var pageSize = props.pageSize,
       data = props.data,
       pagerPosition = props.pagerPosition,
@@ -19468,6 +19353,9 @@ function PagedTable(props) {
     borderBottomLeftRadius: "3"
   }, react_default.a.createElement(Paged_Pager, pagedState)));
 }
+TablePaged.propTypes = {
+  pagerPosition: prop_types_default.a.oneOf(['top', 'bottom'])
+};
 var StyledPanel = styled_components_browser_esm["c" /* default */].nav(Paged_templateObject(), function (props) {
   return props.theme.colors.primary.light;
 }, system_borderRadius);
@@ -19490,7 +19378,7 @@ limitations under the License.
 
 
 
-/* harmony default export */ var Paged = (PagedTable);
+/* harmony default export */ var Paged = (TablePaged);
 
 // CONCATENATED MODULE: ./src/dashboard/components/Clusters/ClusterList/ClusterActionMenu/ClusterActionMenu.jsx
 function ClusterActionMenu_extends() { ClusterActionMenu_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return ClusterActionMenu_extends.apply(this, arguments); }
@@ -19681,7 +19569,7 @@ function ClusterTile(_ref) {
       return;
     }
 
-    window.open(services_history.ensureBaseUrl(url), '_blank');
+    services_history.push(url);
   }
 
   var statusText = "STATUS: ".concat(status).toUpperCase();
@@ -19879,6 +19767,7 @@ limitations under the License.
 
 
 
+
 function TableView(_ref) {
   var clusters = _ref.clusters,
       _ref$pageSize = _ref.pageSize,
@@ -19989,9 +19878,8 @@ function TableView_ActionCell(_ref5) {
   return react_default.a.createElement(Table_Cell, {
     align: "right"
   }, react_default.a.createElement(Button_ButtonSecondary, {
-    as: "a",
-    target: "_blank",
-    href: url,
+    as: NavLink,
+    to: url,
     size: "small",
     width: "90px",
     children: "view"
@@ -20700,7 +20588,7 @@ function TopBar_mapState() {
   };
 }
 
-/* harmony default export */ var TopBar_TopBar = (withState(TopBar_mapState)(TopBar_DashboardTopNav));
+/* harmony default export */ var TopBar = (withState(TopBar_mapState)(TopBar_DashboardTopNav));
 // CONCATENATED MODULE: ./src/dashboard/components/TopBar/index.js
 /*
 Copyright 2019 Gravitational, Inc.
@@ -20718,7 +20606,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var components_TopBar = (TopBar_TopBar);
+/* harmony default export */ var components_TopBar = (TopBar);
 // CONCATENATED MODULE: ./src/dashboard/components/Dashboard.jsx
 function Dashboard_templateObject2() {
   var data = Dashboard_taggedTemplateLiteral(["\n  align-items: center;\n  justify-content: center;\n"]);
@@ -22478,15 +22366,18 @@ ace_default.a.define('ace/mode/grv_bpf_highlight_rules', ['require', 'exports', 
   function createTokens() {
     if (arguments.length === 3) {
       return ['grv_date.comment', 'grv_space.text', 'grv_path.string'];
-    }
+    } // file
+
 
     if (arguments.length === 4) {
       return ['grv_date.comment', 'grv_space.text', 'grv_path.string', 'grv_space.text'];
-    }
+    } // network
+
 
     if (arguments.length === 5) {
       return ['grv_date.comment', 'grv_space.text', 'grv_path.string', 'grv_space.text', 'grv_cmd.keyword'];
-    }
+    } // command
+
 
     return ['grv_date.comment', 'grv_space.text', 'grv_path.string', 'grv_space.text', 'grv_cmd.keyword', 'grv_space.text', 'grv_space.text'];
   }
@@ -23532,11 +23423,11 @@ var src_Teleport = function Teleport(_ref) {
   }), react_default.a.createElement(Router_Route, {
     title: "Invite",
     path: config.routes.userInvite,
-    component: Invite
+    component: components_Invite
   }), react_default.a.createElement(Router_Route, {
     title: "Password Reset",
     path: config.routes.userReset,
-    component: PasswordReset
+    component: Invite_ResetPassword
   }), react_default.a.createElement(Router_Route, {
     path: config.routes.app,
     render: function render() {
@@ -24354,7 +24245,7 @@ limitations under the License.
 /* harmony default export */ var components_TextEditor = (components_TextEditor_TextEditor);
 // CONCATENATED MODULE: ../design/src/Dialog/Dialog.jsx
 function Dialog_templateObject2() {
-  var data = Dialog_taggedTemplateLiteral(["\n  padding: 32px;\n  padding-top: 24px;\n  background: ", ";\n  color: ", ";\n  border-radius: 8px;\n  box-shadow: 0 8px 32px rgba(0, 0, 0, .24);\n  display: flex;\n  flex-direction: column;\n  position: relative;\n  overflow-y: auto;\n  max-height: calc(100% - 96px);\n  ", "\n\n"]);
+  var data = Dialog_taggedTemplateLiteral(["\n  padding: 32px;\n  padding-top: 24px;\n  background: ", ";\n  color: ", ";\n  border-radius: 8px;\n  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);\n  display: flex;\n  flex-direction: column;\n  position: relative;\n  overflow-y: auto;\n  max-height: calc(100% - 96px);\n  ", "\n"]);
 
   Dialog_templateObject2 = function _templateObject2() {
     return data;
@@ -24375,6 +24266,12 @@ function Dialog_templateObject() {
 
 function Dialog_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
 
+function Dialog_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
+
+function Dialog_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { Dialog_ownKeys(source, true).forEach(function (key) { Dialog_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { Dialog_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
+
+function Dialog_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
 function Dialog_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { Dialog_typeof = function _typeof(obj) { return typeof obj; }; } else { Dialog_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return Dialog_typeof(obj); }
 
 function Dialog_extends() { Dialog_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Dialog_extends.apply(this, arguments); }
@@ -24391,18 +24288,16 @@ function Dialog_createClass(Constructor, protoProps, staticProps) { if (protoPro
 
 function Dialog_possibleConstructorReturn(self, call) { if (call && (Dialog_typeof(call) === "object" || typeof call === "function")) { return call; } return Dialog_assertThisInitialized(self); }
 
-function Dialog_getPrototypeOf(o) { Dialog_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return Dialog_getPrototypeOf(o); }
-
 function Dialog_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function Dialog_getPrototypeOf(o) { Dialog_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return Dialog_getPrototypeOf(o); }
 
 function Dialog_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) Dialog_setPrototypeOf(subClass, superClass); }
 
 function Dialog_setPrototypeOf(o, p) { Dialog_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return Dialog_setPrototypeOf(o, p); }
 
-function Dialog_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24420,39 +24315,16 @@ limitations under the License.
 
 
 
+
 var Dialog_Dialog =
 /*#__PURE__*/
 function (_React$Component) {
   Dialog_inherits(Dialog, _React$Component);
 
   function Dialog() {
-    var _getPrototypeOf2;
-
-    var _this;
-
     Dialog_classCallCheck(this, Dialog);
 
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    _this = Dialog_possibleConstructorReturn(this, (_getPrototypeOf2 = Dialog_getPrototypeOf(Dialog)).call.apply(_getPrototypeOf2, [this].concat(args)));
-
-    Dialog_defineProperty(Dialog_assertThisInitialized(_this), "handleBackdropClick", function (event) {
-      if (event.target !== event.currentTarget) {
-        return;
-      }
-
-      if (_this.props.onBackdropClick) {
-        _this.props.onBackdropClick(event);
-      }
-
-      if (!_this.props.disableBackdropClick && _this.props.onClose) {
-        _this.props.onClose(event, 'backdropClick');
-      }
-    });
-
-    return _this;
+    return Dialog_possibleConstructorReturn(this, Dialog_getPrototypeOf(Dialog).apply(this, arguments));
   }
 
   Dialog_createClass(Dialog, [{
@@ -24460,24 +24332,13 @@ function (_React$Component) {
     value: function render() {
       var _this$props = this.props,
           children = _this$props.children,
-          disableBackdropClick = _this$props.disableBackdropClick,
-          disableEscapeKeyDown = _this$props.disableEscapeKeyDown,
-          onBackdropClick = _this$props.onBackdropClick,
-          onClose = _this$props.onClose,
-          onEscapeKeyDown = _this$props.onEscapeKeyDown,
-          open = _this$props.open,
           dialogCss = _this$props.dialogCss,
-          other = Dialog_objectWithoutProperties(_this$props, ["children", "disableBackdropClick", "disableEscapeKeyDown", "onBackdropClick", "onClose", "onEscapeKeyDown", "open", "dialogCss"]);
+          modalProps = Dialog_objectWithoutProperties(_this$props, ["children", "dialogCss"]);
 
       return react_default.a.createElement(src_Modal, Dialog_extends({
-        disableBackdropClick: disableBackdropClick,
-        disableEscapeKeyDown: disableEscapeKeyDown,
-        onBackdropClick: onBackdropClick,
-        onEscapeKeyDown: onEscapeKeyDown,
-        onClose: onClose,
-        open: open,
         role: "dialog"
-      }, other), react_default.a.createElement(ModalBox, null, react_default.a.createElement(DialogBox, {
+      }, modalProps), react_default.a.createElement(ModalBox, null, react_default.a.createElement(DialogBox, {
+        "data-testid": "dialogbox",
         dialogCss: dialogCss
       }, children)));
     }
@@ -24486,12 +24347,15 @@ function (_React$Component) {
   return Dialog;
 }(react_default.a.Component);
 
+
 Dialog_Dialog.defaultProps = {
-  disableBackdropClick: false,
-  disableEscapeKeyDown: false,
-  fullScreen: false,
-  fullWidth: false
+  disableBackdropClick: true,
+  disableEscapeKeyDown: true
 };
+Dialog_Dialog.propTypes = Dialog_objectSpread({}, src_Modal.propTypes, {
+  children: prop_types_default.a.node,
+  dialogCss: prop_types_default.a.func
+});
 var ModalBox = styled_components_browser_esm["c" /* default */].div(Dialog_templateObject());
 var DialogBox = styled_components_browser_esm["c" /* default */].div(Dialog_templateObject2(), function (props) {
   return props.theme.colors.primary.main;
@@ -24500,7 +24364,6 @@ var DialogBox = styled_components_browser_esm["c" /* default */].div(Dialog_temp
 }, function (props) {
   return props.dialogCss && props.dialogCss(props);
 });
-/* harmony default export */ var src_Dialog_Dialog = (Dialog_Dialog);
 // CONCATENATED MODULE: ../design/src/Dialog/DialogTitle.jsx
 function DialogTitle_extends() { DialogTitle_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return DialogTitle_extends.apply(this, arguments); }
 
@@ -24673,7 +24536,7 @@ limitations under the License.
 
 
 
-/* harmony default export */ var src_Dialog = (src_Dialog_Dialog);
+/* harmony default export */ var src_Dialog = (Dialog_Dialog);
 
 // CONCATENATED MODULE: ./src/cluster/components/Audit/EventDialog/EventDialog.jsx
 /*
@@ -25777,7 +25640,7 @@ limitations under the License.
 
 
 
-function PagedTable_PagedTable(props) {
+function PagedTable(props) {
   var pageSize = props.pageSize,
       data = props.data,
       rest = PagedTable_objectWithoutProperties(props, ["pageSize", "data"]);
@@ -25836,7 +25699,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var NodeList_Table = (PagedTable_PagedTable);
+/* harmony default export */ var NodeList_Table = (PagedTable);
 // CONCATENATED MODULE: ./src/cluster/components/Nodes/MenuLogin/MenuLogin.jsx
 function MenuLogin_templateObject5() {
   var data = MenuLogin_taggedTemplateLiteral(["\n  background: ", ";\n  border: 1px solid ", ";\n  border-radius: 4px;\n  box-sizing: border-box;\n  color: #263238;\n  height: 32px;\n  outline: none;\n\n  &:focus {\n    background: ", ";\n    border 1px solid ", ";\n    box-shadow: inset 0 1px 3px rgba(0, 0, 0, .24);\n  }\n\n  ::placeholder {\n    color: ", ";\n  }\n\n  ", "\n"]);
@@ -26905,18 +26768,6 @@ SideNavItemIcon.defaultProps = {
 };
 /* harmony default export */ var SideNav_SideNavItemIcon = (SideNavItemIcon);
 // CONCATENATED MODULE: ./src/cluster/components/SideNav/SideNav.jsx
-function SideNav_SideNav_templateObject() {
-  var data = SideNav_SideNav_taggedTemplateLiteral(["\n  &:active {\n    border-left-color: transparent;\n    color: ", ";\n  }\n\n  > span {\n    line-height: 1.4;\n    text-overflow: ellipsis;\n    overflow: hidden;\n  }\n"]);
-
-  SideNav_SideNav_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function SideNav_SideNav_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -26939,12 +26790,8 @@ limitations under the License.
 
 
 
-
-
 function ClusterSideNav(_ref) {
-  var items = _ref.items,
-      version = _ref.version,
-      homeUrl = _ref.homeUrl;
+  var items = _ref.items;
   var $items = items.map(function (item, index) {
     return react_default.a.createElement(SideNav_SideNavItem, {
       key: index,
@@ -26955,36 +26802,15 @@ function ClusterSideNav(_ref) {
       as: item.Icon
     }), item.title);
   });
-  return react_default.a.createElement(src_SideNav, null, react_default.a.createElement(StyledLogoItem, {
-    py: "2",
-    pl: "5",
-    as: react_router_dom["a" /* Link */],
-    to: homeUrl
-  }, react_default.a.createElement(src_Image, {
-    src: teleport_logo_default.a,
-    maxHeight: "40px",
-    maxWidth: "120px",
-    mr: "3"
-  }), react_default.a.createElement("span", {
-    title: version
-  }, version)), react_default.a.createElement("div", {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'auto'
-    }
-  }, $items));
+  return react_default.a.createElement(src_SideNav, null, $items);
 }
-var StyledLogoItem = Object(styled_components_browser_esm["c" /* default */])(SideNav_SideNavItem)(SideNav_SideNav_templateObject(), function (_ref2) {
-  var theme = _ref2.theme;
-  return theme.colors.text.primary;
-});
 /* harmony default export */ var components_SideNav_SideNav = (withState(function () {
   var items = useStoreNav().getSideItems();
   var version = useStoreUser().state.version;
   return {
     version: version,
     items: items,
+    clusterName: config.clusterName,
     homeUrl: config.getClusterRoute()
   };
 })(ClusterSideNav));
@@ -27006,7 +26832,7 @@ limitations under the License.
 */
 
 /* harmony default export */ var components_SideNav = (components_SideNav_SideNav);
-// CONCATENATED MODULE: ./src/cluster/components/TopBar/TopBar.jsx
+// CONCATENATED MODULE: ./src/components/TopBar/TopBar.jsx
 function TopBar_TopBar_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { TopBar_TopBar_typeof = function _typeof(obj) { return typeof obj; }; } else { TopBar_TopBar_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return TopBar_TopBar_typeof(obj); }
 
 function TopBar_TopBar_extends() { TopBar_TopBar_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return TopBar_TopBar_extends.apply(this, arguments); }
@@ -27029,21 +26855,6 @@ function TopBar_TopBar_setPrototypeOf(o, p) { TopBar_TopBar_setPrototypeOf = Obj
 
 function TopBar_TopBar_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 
 
 
@@ -27052,23 +26863,25 @@ limitations under the License.
 
 
 
-var TopBar_TopBar_TopBar =
+
+
+var TopBar_TopBar_DashboardTopNav =
 /*#__PURE__*/
 function (_React$Component) {
-  TopBar_TopBar_inherits(TopBar, _React$Component);
+  TopBar_TopBar_inherits(DashboardTopNav, _React$Component);
 
-  function TopBar() {
+  function DashboardTopNav() {
     var _getPrototypeOf2;
 
     var _this;
 
-    TopBar_TopBar_classCallCheck(this, TopBar);
+    TopBar_TopBar_classCallCheck(this, DashboardTopNav);
 
     for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
       args[_key] = arguments[_key];
     }
 
-    _this = TopBar_TopBar_possibleConstructorReturn(this, (_getPrototypeOf2 = TopBar_TopBar_getPrototypeOf(TopBar)).call.apply(_getPrototypeOf2, [this].concat(args)));
+    _this = TopBar_TopBar_possibleConstructorReturn(this, (_getPrototypeOf2 = TopBar_TopBar_getPrototypeOf(DashboardTopNav)).call.apply(_getPrototypeOf2, [this].concat(args)));
 
     TopBar_TopBar_defineProperty(TopBar_TopBar_assertThisInitialized(_this), "state", {
       open: false
@@ -27106,17 +26919,18 @@ function (_React$Component) {
     return _this;
   }
 
-  TopBar_TopBar_createClass(TopBar, [{
+  TopBar_TopBar_createClass(DashboardTopNav, [{
     key: "render",
     value: function render() {
       var _this2 = this;
 
       var _this$props = this.props,
           username = _this$props.username,
-          navItems = _this$props.navItems,
+          version = _this$props.version,
+          topMenuItems = _this$props.topMenuItems,
           pl = _this$props.pl;
       var open = this.state.open;
-      var $items = navItems.map(function (item, index) {
+      var $userMenuItems = topMenuItems.map(function (item, index) {
         return react_default.a.createElement(Menu_MenuItem, TopBar_TopBar_extends({}, _this2.menuItemProps, {
           key: index,
           to: item.to
@@ -27126,19 +26940,24 @@ function (_React$Component) {
         }), item.title);
       });
       return react_default.a.createElement(src_TopNav, {
-        pl: pl,
         height: "72px",
-        bg: "transparent"
-      }, react_default.a.createElement(src_Flex, {
-        alignItems: "center"
-      }, react_default.a.createElement(src_Text, {
-        mr: "4",
-        typography: "body2",
-        color: "text.primary"
-      }, "https://localhost/web"), react_default.a.createElement(src_ButtonOutlined, {
-        width: "120px",
-        size: "small"
-      }, "View Info")), react_default.a.createElement(src_Flex, {
+        pl: pl,
+        style: {
+          zIndex: '1',
+          boxShadow: '0 4px 16px rgba(0,0,0,.24)'
+        }
+      }, react_default.a.createElement(TopNav_TopNavItem, {
+        pr: "5",
+        as: react_router_dom["a" /* Link */],
+        to: config.routes.app
+      }, react_default.a.createElement(src_Image, {
+        src: teleport_logo_default.a,
+        mx: "3",
+        maxHeight: "40px",
+        maxWidth: "160px"
+      }), react_default.a.createElement("span", {
+        title: version
+      }, version)), react_default.a.createElement(src_Flex, {
         ml: "auto",
         height: "100%"
       }, react_default.a.createElement(TopNav_TopNavUserMenu, {
@@ -27147,7 +26966,7 @@ function (_React$Component) {
         onShow: this.onShowMenu,
         onClose: this.onCloseMenu,
         user: username
-      }, $items, react_default.a.createElement(Menu_MenuItem, null, react_default.a.createElement(Button_ButtonPrimary, {
+      }, $userMenuItems, react_default.a.createElement(Menu_MenuItem, null, react_default.a.createElement(Button_ButtonPrimary, {
         my: 3,
         block: true,
         onClick: this.onLogout
@@ -27155,7 +26974,7 @@ function (_React$Component) {
     }
   }]);
 
-  return TopBar;
+  return DashboardTopNav;
 }(react_default.a.Component);
 
 var TopBar_TopBar_menuListCss = function menuListCss() {
@@ -27163,10 +26982,13 @@ var TopBar_TopBar_menuListCss = function menuListCss() {
 };
 
 function TopBar_TopBar_mapState() {
-  var navItems = useStoreNav().getTopMenuItems();
-  var username = useStoreUser().state.username;
+  var topMenuItems = useStoreNav().getTopMenuItems();
+  var _useStoreUser$state = useStoreUser().state,
+      username = _useStoreUser$state.username,
+      version = _useStoreUser$state.version;
   return {
-    navItems: navItems,
+    topMenuItems: topMenuItems,
+    version: version,
     username: username,
     onLogout: function onLogout() {
       return services_session.logout();
@@ -27174,8 +26996,8 @@ function TopBar_TopBar_mapState() {
   };
 }
 
-/* harmony default export */ var components_TopBar_TopBar = (withState(TopBar_TopBar_mapState)(TopBar_TopBar_TopBar));
-// CONCATENATED MODULE: ./src/cluster/components/TopBar/index.js
+/* harmony default export */ var TopBar_TopBar = (withState(TopBar_TopBar_mapState)(TopBar_TopBar_DashboardTopNav));
+// CONCATENATED MODULE: ./src/components/TopBar/index.js
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -27192,137 +27014,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var cluster_components_TopBar = (components_TopBar_TopBar);
-// CONCATENATED MODULE: ./src/cluster/components/Layout/Layout.jsx
-function Layout_Layout_templateObject5() {
-  var data = components_Layout_Layout_taggedTemplateLiteral(["\n  display: flex;\n  flex-direction: column;\n  width: 100%\n"]);
-
-  Layout_Layout_templateObject5 = function _templateObject5() {
-    return data;
-  };
-
-  return data;
-}
-
-function components_Layout_Layout_templateObject4() {
-  var data = components_Layout_Layout_taggedTemplateLiteral(["\n  position: absolute;\n  width: 100%;\n  height: 100%;\n  display: flex;\n"]);
-
-  components_Layout_Layout_templateObject4 = function _templateObject4() {
-    return data;
-  };
-
-  return data;
-}
-
-function components_Layout_Layout_templateObject3() {
-  var data = components_Layout_Layout_taggedTemplateLiteral(["\n  overflow: auto;\n  width: 100%;\n  height: 100%;\n  flex-direction: column;\n\n  /*\n    This hack adds space to the bottom.\n    Directly assigning padding-bottom does not work as flex container ignores this child padding.\n    Directly assigning margin-bottom impacts the scrollbar area by pushing it up as well.\n    It works in all major browsers.\n  */\n  ::after { content: ' '; padding-bottom: 24px; }\n"]);
-
-  components_Layout_Layout_templateObject3 = function _templateObject3() {
-    return data;
-  };
-
-  return data;
-}
-
-function Layout_Layout_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
-
-function Layout_Layout_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { Layout_Layout_ownKeys(source, true).forEach(function (key) { Layout_Layout_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { Layout_Layout_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
-
-function Layout_Layout_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function components_Layout_Layout_templateObject2() {
-  var data = components_Layout_Layout_taggedTemplateLiteral(["\n  flex-shrink: 0;\n"]);
-
-  components_Layout_Layout_templateObject2 = function _templateObject2() {
-    return data;
-  };
-
-  return data;
-}
-
-function components_Layout_Layout_templateObject() {
-  var data = components_Layout_Layout_taggedTemplateLiteral(["\n  flex-shrink: 0;\n"]);
-
-  components_Layout_Layout_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function components_Layout_Layout_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-/**
- * Header
- */
-
-var Layout_Layout_FeatureHeader = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(components_Layout_Layout_templateObject());
-Layout_Layout_FeatureHeader.defaultProps = {
-  mt: 2,
-  mb: 4
-};
-/**
- * Header Title
- */
-
-var components_Layout_Layout_FeatureHeaderTitle = Object(styled_components_browser_esm["c" /* default */])(src_Text)(components_Layout_Layout_templateObject2());
-components_Layout_Layout_FeatureHeaderTitle.defaultProps = Layout_Layout_objectSpread({}, src_Text.defaultProps, {
-  as: 'h1',
-  typography: 'h1'
-});
-/**
- * Feature Box (container)
- */
-
-var Layout_Layout_FeatureBox = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(components_Layout_Layout_templateObject3());
-Layout_Layout_FeatureBox.defaultProps = {
-  px: 6
-};
-/**
- * Layout
- */
-
-var Layout_Layout_AppVerticalSplit = styled_components_browser_esm["c" /* default */].div(components_Layout_Layout_templateObject4());
-var Layout_Layout_AppHorizontalSplit = styled_components_browser_esm["c" /* default */].div(Layout_Layout_templateObject5());
-
-// CONCATENATED MODULE: ./src/cluster/components/Layout/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
+/* harmony default export */ var src_components_TopBar = (TopBar_TopBar);
 // CONCATENATED MODULE: ./src/cluster/components/Cluster.jsx
-function Cluster_templateObject() {
+function Cluster_templateObject3() {
   var data = Cluster_taggedTemplateLiteral(["\n  align-items: center;\n  justify-content: center;\n"]);
+
+  Cluster_templateObject3 = function _templateObject3() {
+    return data;
+  };
+
+  return data;
+}
+
+function Cluster_templateObject2() {
+  var data = Cluster_taggedTemplateLiteral(["\n  display: flex;\n  flex-direction: column;\n  width: 100%;\n  height: 100%;\n  position: absolute;\n"]);
+
+  Cluster_templateObject2 = function _templateObject2() {
+    return data;
+  };
+
+  return data;
+}
+
+function Cluster_templateObject() {
+  var data = Cluster_taggedTemplateLiteral(["\n  width: 100%;\n  height: 100%;\n  display: flex;\n  flex: 1;\n"]);
 
   Cluster_templateObject = function _templateObject() {
     return data;
@@ -27356,7 +27071,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 
 
 
@@ -27413,15 +27127,15 @@ function Cluster_Cluster(props) {
       component: component
     });
   });
-  return react_default.a.createElement(Layout_Layout_AppVerticalSplit, null, react_default.a.createElement(components_SideNav, null), react_default.a.createElement(Layout_Layout_AppHorizontalSplit, null, react_default.a.createElement(cluster_components_TopBar, {
-    pl: "6"
-  }), react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Redirect, {
+  return react_default.a.createElement(HorizontalSplit, null, react_default.a.createElement(src_components_TopBar, null), react_default.a.createElement(VerticalSplit, null, react_default.a.createElement(components_SideNav, null), react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Redirect, {
     exact: true,
     from: config.routes.cluster,
     to: config.routes.clusterNodes
   }), $features)));
 }
-var Cluster_StyledIndicator = Object(styled_components_browser_esm["c" /* default */])(Layout_Layout_AppVerticalSplit)(Cluster_templateObject());
+var VerticalSplit = styled_components_browser_esm["c" /* default */].div(Cluster_templateObject());
+var HorizontalSplit = styled_components_browser_esm["c" /* default */].div(Cluster_templateObject2());
+var Cluster_StyledIndicator = Object(styled_components_browser_esm["c" /* default */])(HorizontalSplit)(Cluster_templateObject3());
 // CONCATENATED MODULE: ./src/cluster/CommunityCluster.jsx
 function CommunityCluster_slicedToArray(arr, i) { return CommunityCluster_arrayWithHoles(arr) || CommunityCluster_iterableToArrayLimit(arr, i) || CommunityCluster_nonIterableRest(); }
 
