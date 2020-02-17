@@ -176,5 +176,3 @@ applications into multiple environments _at the same time_:
 * Multiple cloud regions
 * Colocation 
 * Private enterprise clouds located behind firewalls
-
-test
