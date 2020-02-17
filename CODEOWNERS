@@ -9,8 +9,8 @@
 /vagrant/ @webvictim @russjones
 
 # Product.
-*.md @benarent
-/docs/ @benarent
+*.md @benarent @webvictim
+/docs/ @benarent @webvictim
 
 # Backend Engineering.
 /e/ @klizhentas @russjones @fspmarshall @webvictim
