@@ -18,12 +18,13 @@ import React from 'react';
 import Menu from 'design/Menu';
 import { ButtonIcon } from 'design';
 import { Ellipsis } from 'design/Icon';
+import PropTypes from 'prop-types';
 
 class ActionMenu extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      open: Boolean(props.open),
+      open: props.open,
       anchorEl: null,
     };
   }
@@ -41,11 +42,12 @@ class ActionMenu extends React.Component {
     const { open } = this.state;
     const { children, buttonIconProps, menuProps } = this.props;
     return (
-      <React.Fragment>
+      <>
         <ButtonIcon
           {...buttonIconProps}
           setRef={e => (this.anchorEl = e)}
           onClick={this.onOpen}
+          data-testid="button"
         >
           <Ellipsis />
         </ButtonIcon>
@@ -66,7 +68,7 @@ class ActionMenu extends React.Component {
         >
           {open && this.renderItems(children)}
         </Menu>
-      </React.Fragment>
+      </>
     );
   }
 
@@ -90,9 +92,23 @@ class ActionMenu extends React.Component {
   }
 }
 
+ActionMenu.propTypes = {
+  /** displays menu */
+  open: PropTypes.bool,
+
+  /** the list of items for menu */
+  children: PropTypes.node,
+
+  /** wrap in style object to provide inline css to position button */
+  buttonIconProps: PropTypes.object
+}
+
+ActionMenu.defaultProps = {
+  open: false
+}
+
 const menuListCss = () => `
   min-width: 100px;
-
 `;
 
 export default ActionMenu;

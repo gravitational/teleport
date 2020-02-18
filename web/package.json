@@ -5,9 +5,9 @@
   "license": "Apache-2.0",
   "scripts": {
     "storybook": "start-storybook -p 9002 -c .storybook",
-    "test": "jest --runInBand",
+    "test": "jest",
     "test-coverage": "jest --coverage && scripts/print-coverage-link.sh",
-    "tdd": "jest packages --watch --runInBand",
+    "tdd": "jest packages --watch",
     "start-force": "yarn workspace @gravitational/force run start",
     "start-gravity": "yarn workspace @gravitational/gravity run start",
     "start-teleport": "yarn workspace @gravitational/teleport run start",

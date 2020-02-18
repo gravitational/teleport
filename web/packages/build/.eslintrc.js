@@ -91,6 +91,7 @@ module.exports = {
     'jest/no-hooks': 0,
     'jest/prefer-strict-equal': 0,
     'jest/prefer-inline-snapshots': 0,
+    'jest/require-top-level-describe': 0,
     'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
   },
   settings: {
