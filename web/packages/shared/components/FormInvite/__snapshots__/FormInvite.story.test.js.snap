@@ -56,8 +56,8 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all .3s;
-  transition: all .3s;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   background: #00BFA5;
   color: #FFFFFF;
@@ -69,7 +69,7 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
 }
 
 .c12:active {
-  opacity: .56;
+  opacity: 0.56;
 }
 
 .c12::-moz-focus-inner {
@@ -117,8 +117,8 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all .3s;
-  transition: all .3s;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   background: #222C59;
   color: #FFFFFF;
@@ -129,7 +129,7 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
 }
 
 .c10:active {
-  opacity: .56;
+  opacity: 0.56;
 }
 
 .c10::-moz-focus-inner {
@@ -474,8 +474,8 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all .3s;
-  transition: all .3s;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   background: #00BFA5;
   color: #FFFFFF;
@@ -487,7 +487,7 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
 }
 
 .c13:active {
-  opacity: .56;
+  opacity: 0.56;
 }
 
 .c13::-moz-focus-inner {
@@ -535,8 +535,8 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all .3s;
-  transition: all .3s;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   background: #222C59;
   color: #FFFFFF;
@@ -547,7 +547,7 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
 }
 
 .c11:active {
-  opacity: .56;
+  opacity: 0.56;
 }
 
 .c11::-moz-focus-inner {
@@ -868,8 +868,8 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all .3s;
-  transition: all .3s;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   background: #00BFA5;
   color: #FFFFFF;
@@ -881,7 +881,7 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
 }
 
 .c8:active {
-  opacity: .56;
+  opacity: 0.56;
 }
 
 .c8::-moz-focus-inner {
@@ -1176,8 +1176,8 @@ exports[`shared/components/Invite.story story.off 1`] = `
   -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all .3s;
-  transition: all .3s;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   background: #00BFA5;
   color: #FFFFFF;
@@ -1189,7 +1189,7 @@ exports[`shared/components/Invite.story story.off 1`] = `
 }
 
 .c8:active {
-  opacity: .56;
+  opacity: 0.56;
 }
 
 .c8::-moz-focus-inner {

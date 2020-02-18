@@ -19,28 +19,33 @@ import styled from 'styled-components';
 import Button from 'design/Button';
 import { fade } from 'design/theme/utils/colorManipulator';
 import Icon from 'design/Icon';
-import { pickSsoIcon } from './utils';
-
-const TypeEnum = {
-  MICROSOFT: 'microsoft',
-  GITHUB: 'github',
-  BITBUCKET: 'bitbucket',
-  GOOGLE: 'google',
-};
+import { TypeEnum, pickSsoIcon } from './utils';
+import PropTypes from 'prop-types';
 
 const ButtonSso = props => {
   const { ssoType, ...rest } = props;
-  const { color, Icon } = pickSsoIcon(ssoType);
+  const { color, Icon, type } = pickSsoIcon(ssoType);
   return (
     <StyledButton color={color} block {...rest}>
       {Boolean(Icon) && (
         <IconBox>
-          <Icon />
+          <Icon data-testid="icon" />
         </IconBox>
       )}
-      {props.children}
+      {type}
     </StyledButton>
   );
+};
+
+ButtonSso.propTypes = {
+  /**
+   * ssoType specifies single sign on service type defined in TypeEnum
+   */
+  ssoType: PropTypes.string,
+};
+
+ButtonSso.defaultProps = {
+  ssoType: 'unknown',
 };
 
 const StyledButton = styled(Button)`

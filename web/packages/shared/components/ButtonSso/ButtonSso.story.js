@@ -20,20 +20,10 @@ import ButtonSso, { TypeEnum } from './ButtonSso';
 
 storiesOf('Shared/ButtonSso', module).add('color', () => (
   <div style={{ width: '300px' }}>
-    <ButtonSso mt={3} ssoType={TypeEnum.MICROSOFT}>
-      Microsoft
-    </ButtonSso>
-    <ButtonSso mt={3} ssoType={TypeEnum.GITHUB}>
-      Github
-    </ButtonSso>
-    <ButtonSso mt={3} ssoType={TypeEnum.GOOGLE}>
-      Google
-    </ButtonSso>
-    <ButtonSso mt={3} ssoType={TypeEnum.BITBUCKET}>
-      Bitbucket
-    </ButtonSso>
-    <ButtonSso mt={3} ssoType="unknown">
-      Unkown SSO
-    </ButtonSso>
+    <ButtonSso mt={3} ssoType={TypeEnum.MICROSOFT} />
+    <ButtonSso mt={3} ssoType={TypeEnum.GITHUB} />
+    <ButtonSso mt={3} ssoType={TypeEnum.GOOGLE} />
+    <ButtonSso mt={3} ssoType={TypeEnum.BITBUCKET} />
+    <ButtonSso mt={3} ssoType="unknown" />
   </div>
 ));

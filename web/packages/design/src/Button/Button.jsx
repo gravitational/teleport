@@ -15,18 +15,18 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components'
-import PropTypes from 'prop-types'
+import styled from 'styled-components';
+import PropTypes from 'prop-types';
 import { space, width, height } from 'design/system';
 import defaultTheme from 'design/theme';
 
-const Button = ({ children, setRef, ...props}) => {
+const Button = ({ children, setRef, ...props }) => {
   return (
     <StyledButton {...props} ref={setRef}>
       {children}
     </StyledButton>
-  )
-}
+  );
+};
 
 const size = props => {
   switch (props.size) {
@@ -34,23 +34,23 @@ const size = props => {
       return {
         fontSize: '10px',
         minHeight: '24px',
-        padding: '0px 16px'
-      }
+        padding: '0px 16px',
+      };
     case 'large':
       return {
         minHeight: '48px',
         fontSize: '14px',
-        padding: '0px 48px'
-      }
+        padding: '0px 48px',
+      };
     default:
       // medium
       return {
         minHeight: '40px',
         fontSize: `12px`,
-        padding: '0px 32px'
-      }
+        padding: '0px 32px',
+      };
   }
-}
+};
 
 const themedStyles = props => {
   const { colors } = props.theme;
@@ -58,9 +58,9 @@ const themedStyles = props => {
     color: colors.secondary.contrastText,
     '&:disabled': {
       background: colors.action.disabledBackground,
-      color: colors.action.disabled
+      color: colors.action.disabled,
     },
-  }
+  };
 
   return {
     ...kinds(props),
@@ -69,45 +69,48 @@ const themedStyles = props => {
     ...space(props),
     ...width(props),
     ...block(props),
-    ...height(props)
-  }
-}
+    ...height(props),
+  };
+};
 
 const kinds = props => {
   const { kind, theme } = props;
-  switch(kind){
+  switch (kind) {
     case 'secondary':
-      return  {
+      return {
         background: theme.colors.primary.light,
 
         '&:hover, &:focus': {
           background: theme.colors.primary.lighter,
-        }
+        },
       };
     case 'warning':
       return {
         background: theme.colors.error.dark,
         '&:hover, &:focus': {
-          background: theme.colors.error.main
-        }
+          background: theme.colors.error.main,
+        },
       };
     case 'primary':
     default:
       return {
         background: theme.colors.secondary.main,
         '&:hover, &:focus': {
-          background: theme.colors.secondary.light
+          background: theme.colors.secondary.light,
         },
         '&:active': {
           background: theme.colors.secondary.dark,
         },
-      }
+      };
   }
-}
+};
 
-const block = props => (props.block ? {
-  width: '100%'
-} : null)
+const block = props =>
+  props.block
+    ? {
+        width: '100%',
+      }
+    : null;
 
 const StyledButton = styled.button`
   line-height: 1.5;
@@ -126,10 +129,10 @@ const StyledButton = styled.button`
   text-align: center;
   text-decoration: none;
   text-transform: uppercase;
-  transition: all .3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   &:active {
-    opacity: .56;
+    opacity: 0.56;
   }
 
   // remove dotted Firefox outline
@@ -138,23 +141,43 @@ const StyledButton = styled.button`
   }
 
   ${themedStyles}
-`
+`;
 
 Button.propTypes = {
+  /**
+   * block specifies if an element's display is set to block or not.
+   * Set to true to set display to block.
+   */
   block: PropTypes.bool,
-  secondary: PropTypes.bool,
+
+  /**
+   * kind specifies the styling a button takes.
+   * Select from primary (default), secondary, warning.
+   */
+  kind: PropTypes.string,
+
+  /**
+   * size specifies the size of button.
+   * Select from small, medium (default), large
+   */
+  size: PropTypes.string,
+
+  /**
+   * styled-system
+   */
   ...space.propTypes,
-  ...height.propTypes
-}
+  ...height.propTypes,
+};
 
 Button.defaultProps = {
   size: 'medium',
-  theme: defaultTheme
-}
+  theme: defaultTheme,
+  kind: 'primary',
+};
 
-Button.displayName = 'Button'
+Button.displayName = 'Button';
 
 export default Button;
-export const ButtonPrimary = props => <Button kind="primary" {...props} />
-export const ButtonSecondary = props => <Button kind="secondary" {...props} />
-export const ButtonWarning = props => <Button kind="warning" {...props} />
+export const ButtonPrimary = props => <Button kind="primary" {...props} />;
+export const ButtonSecondary = props => <Button kind="secondary" {...props} />;
+export const ButtonWarning = props => <Button kind="warning" {...props} />;

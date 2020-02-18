@@ -101,8 +101,7 @@ export function useValidation() {
 }
 
 /**
- * useRule registeres with validation context and runs validation function
- * after validation has been requested
+ * useRule subscribes to validation requests upon which executes validate() callback
  */
 export function useRule(validate) {
   if (typeof validate !== 'function') {

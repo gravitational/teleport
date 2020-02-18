@@ -17,7 +17,7 @@ limitations under the License.
 import * as Icons from 'design/Icon';
 import { AuthProviderTypeEnum } from '../../services/enums';
 
-const TypeEnum = {
+export const TypeEnum = {
   MICROSOFT: 'microsoft',
   GITHUB: 'github',
   BITBUCKET: 'bitbucket',
@@ -27,38 +27,38 @@ const TypeEnum = {
 export function pickSsoIcon(type) {
   switch (type) {
     case TypeEnum.MICROSOFT:
-      return { color: '#2672ec', Icon: Icons.Windows };
+      return { color: '#2672ec', Icon: Icons.Windows, type };
     case TypeEnum.GITHUB:
-      return { color: '#444444', Icon: Icons.Github };
+      return { color: '#444444', Icon: Icons.Github, type };
     case TypeEnum.BITBUCKET:
-      return { color: '#205081', Icon: Icons.BitBucket };
+      return { color: '#205081', Icon: Icons.BitBucket, type };
     case TypeEnum.GOOGLE:
-      return { color: '#dd4b39', Icon: Icons.Google };
+      return { color: '#dd4b39', Icon: Icons.Google, type };
     default:
-      return { color: '#f7931e', Icon: Icons.OpenID };
+      return { color: '#f7931e', Icon: Icons.OpenID, type: 'unknown sso' };
   }
 }
 
 export function guessProviderType(name, ssoType) {
   name = name.toLowerCase();
 
-  if (name.indexOf('microsoft') !== -1) {
-    return 'microsoft';
+  if (name.indexOf(TypeEnum.MICROSOFT) !== -1) {
+    return TypeEnum.MICROSOFT;
   }
 
-  if (name.indexOf('bitbucket') !== -1) {
-    return 'bitbucket';
+  if (name.indexOf(TypeEnum.BITBUCKET) !== -1) {
+    return TypeEnum.BITBUCKET;
   }
 
-  if (name.indexOf('google') !== -1) {
-    return 'google';
+  if (name.indexOf(TypeEnum.GOOGLE) !== -1) {
+    return TypeEnum.GOOGLE;
   }
 
   if (
-    name.indexOf('github') !== -1 ||
+    name.indexOf(TypeEnum.GITHUB) !== -1 ||
     ssoType === AuthProviderTypeEnum.GITHUB
   ) {
-    return 'github';
+    return TypeEnum.GITHUB;
   }
 
   if (ssoType === AuthProviderTypeEnum.OIDC) {

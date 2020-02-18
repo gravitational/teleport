@@ -14,7 +14,7 @@ You can make production builds locally or you can use Docker to do that.
 ### Setup Prettier on VSCode
 
 1. Install plugin: https://github.com/prettier/prettier-vscode
-1. Go to Command Palette: CMD/CTRL + SHIFT + P
+1. Go to Command Palette: CMD/CTRL + SHIFT + P (or F1)
 1. Type `open settings`
 1. Select `Open Settings (JSON)`
 1. Include the below snippet and save:
@@ -22,9 +22,19 @@ You can make production builds locally or you can use Docker to do that.
 ```
 // Set the default
 "editor.formatOnSave": false,
+"prettier.configPath": ".prettierrc",
 // Enable per-language
 "[javascript]": {
     "editor.formatOnSave": true
+}
+"[html]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+},
+"[javascriptreact]": {
+    "editor.tabSize": 2,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
 }
 ```
 
