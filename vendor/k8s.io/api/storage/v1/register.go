@@ -46,6 +46,12 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&StorageClass{},
 		&StorageClassList{},
+
+		&VolumeAttachment{},
+		&VolumeAttachmentList{},
+
+		&CSINode{},
+		&CSINodeList{},
 	)
 
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
