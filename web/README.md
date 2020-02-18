@@ -19,23 +19,29 @@ You can make production builds locally or you can use Docker to do that.
 1. Select `Open Settings (JSON)`
 1. Include the below snippet and save:
 
-```
-// Set the default
+```js
+
+// Autoformat on save
 "editor.formatOnSave": false,
+
+// Specify prettier configuration file
 "prettier.configPath": ".prettierrc",
-// Enable per-language
+
 "[javascript]": {
     "editor.formatOnSave": true
-}
-"[html]": {
-    "editor.tabSize": 2,
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
 },
+
 "[javascriptreact]": {
     "editor.tabSize": 2,
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode"
+},
+
+"[html]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
 }
+
 ```
 
 ### Local Build
