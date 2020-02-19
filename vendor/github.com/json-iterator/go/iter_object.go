@@ -2,7 +2,7 @@ package jsoniter
 
 import (
 	"fmt"
-	"unicode"
+	"strings"
 )
 
 // ReadObject read one field from object.
@@ -60,7 +60,7 @@ func (iter *Iterator) readFieldHash() int64 {
 			if b == '\\' {
 				iter.head = i
 				for _, b := range iter.readStringSlowPath() {
-					if 'A' <= b && b <= 'Z' {
+					if 'A' <= b && b <= 'Z' && !iter.cfg.caseSensitive {
 						b += 'a' - 'A'
 					}
 					hash ^= int64(b)
@@ -82,7 +82,7 @@ func (iter *Iterator) readFieldHash() int64 {
 				}
 				return hash
 			}
-			if 'A' <= b && b <= 'Z' {
+			if 'A' <= b && b <= 'Z' && !iter.cfg.caseSensitive {
 				b += 'a' - 'A'
 			}
 			hash ^= int64(b)
@@ -95,10 +95,13 @@ func (iter *Iterator) readFieldHash() int64 {
 	}
 }
 
-func calcHash(str string) int64 {
+func calcHash(str string, caseSensitive bool) int64 {
+	if !caseSensitive {
+		str = strings.ToLower(str)
+	}
 	hash := int64(0x811c9dc5)
-	for _, b := range str {
-		hash ^= int64(unicode.ToLower(b))
+	for _, b := range []byte(str) {
+		hash ^= int64(b)
 		hash *= 0x1000193
 	}
 	return int64(hash)
@@ -109,6 +112,9 @@ func (iter *Iterator) ReadObjectCB(callback func(*Iterator, string) bool) bool {
 	c := iter.nextToken()
 	var field string
 	if c == '{' {
+		if !iter.incrementDepth() {
+			return false
+		}
 		c = iter.nextToken()
 		if c == '"' {
 			iter.unreadByte()
@@ -118,6 +124,7 @@ func (iter *Iterator) ReadObjectCB(callback func(*Iterator, string) bool) bool {
 				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 			}
 			if !callback(iter, field) {
+				iter.decrementDepth()
 				return false
 			}
 			c = iter.nextToken()
@@ -128,20 +135,23 @@ func (iter *Iterator) ReadObjectCB(callback func(*Iterator, string) bool) bool {
 					iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 				}
 				if !callback(iter, field) {
+					iter.decrementDepth()
 					return false
 				}
 				c = iter.nextToken()
 			}
 			if c != '}' {
 				iter.ReportError("ReadObjectCB", `object not ended with }`)
+				iter.decrementDepth()
 				return false
 			}
-			return true
+			return iter.decrementDepth()
 		}
 		if c == '}' {
-			return true
+			return iter.decrementDepth()
 		}
 		iter.ReportError("ReadObjectCB", `expect " after }, but found `+string([]byte{c}))
+		iter.decrementDepth()
 		return false
 	}
 	if c == 'n' {
@@ -156,15 +166,20 @@ func (iter *Iterator) ReadObjectCB(callback func(*Iterator, string) bool) bool {
 func (iter *Iterator) ReadMapCB(callback func(*Iterator, string) bool) bool {
 	c := iter.nextToken()
 	if c == '{' {
+		if !iter.incrementDepth() {
+			return false
+		}
 		c = iter.nextToken()
 		if c == '"' {
 			iter.unreadByte()
 			field := iter.ReadString()
 			if iter.nextToken() != ':' {
 				iter.ReportError("ReadMapCB", "expect : after object field, but found "+string([]byte{c}))
+				iter.decrementDepth()
 				return false
 			}
 			if !callback(iter, field) {
+				iter.decrementDepth()
 				return false
 			}
 			c = iter.nextToken()
@@ -172,23 +187,27 @@ func (iter *Iterator) ReadMapCB(callback func(*Iterator, string) bool) bool {
 				field = iter.ReadString()
 				if iter.nextToken() != ':' {
 					iter.ReportError("ReadMapCB", "expect : after object field, but found "+string([]byte{c}))
+					iter.decrementDepth()
 					return false
 				}
 				if !callback(iter, field) {
+					iter.decrementDepth()
 					return false
 				}
 				c = iter.nextToken()
 			}
 			if c != '}' {
 				iter.ReportError("ReadMapCB", `object not ended with }`)
+				iter.decrementDepth()
 				return false
 			}
-			return true
+			return iter.decrementDepth()
 		}
 		if c == '}' {
-			return true
+			return iter.decrementDepth()
 		}
 		iter.ReportError("ReadMapCB", `expect " after }, but found `+string([]byte{c}))
+		iter.decrementDepth()
 		return false
 	}
 	if c == 'n' {
