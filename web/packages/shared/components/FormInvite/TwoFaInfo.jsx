@@ -29,11 +29,12 @@ export default function TwoFAData(props) {
     return (
       <div>
         <Text typography="paragraph2" mb={3}>
-        Scan the bar code with Google Authenticator to generate a two factor token.
+          Scan the bar code with Google Authenticator to generate a two factor
+          token.
         </Text>
-        <img width="152" src={imgSrc} border="8"/>
+        <img width="152" src={imgSrc} border="8" />
       </div>
-    )
+    );
   }
 
   if (auth2faType === Auth2faTypeEnum.UTF) {
@@ -43,21 +44,23 @@ export default function TwoFAData(props) {
           Insert your U2F key
         </Text>
         <Box color="text.primary">
-        <Text typography="paragraph2" mb={3}>
+          <Text typography="paragraph2" mb={3}>
             Press the button on the U2F key after you press the sign up button
           </Text>
           <Text typography="paragraph2" mb={3}>
-            <StyledLink target="_blank" href={U2F_HELP_URL}>Learn more</StyledLink> about U2F 2-Step Verification.
+            <StyledLink target="_blank" href={U2F_HELP_URL}>
+              Learn more
+            </StyledLink>{' '}
+            about U2F 2-Step Verification.
           </Text>
         </Box>
       </div>
-    )
+    );
   }
 
   return null;
 }
 
-
 const StyledLink = styled.a`
-  color: ${props => props.theme.colors.light };
-`
+  color: ${props => props.theme.colors.light};
+`;

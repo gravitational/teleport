@@ -21,26 +21,23 @@ import { Card, Text } from 'design';
 export default function Expired() {
   return (
     <Card width="540px" color="text.onLight" p={6} bg="light" mt={6} mx="auto">
-      <Text typography="h1"
-        textAlign="center"
-        fontSize={8} color="text"
-        mb={3} >
+      <Text typography="h1" textAlign="center" fontSize={8} color="text" mb={3}>
         Invitation Code Expired
       </Text>
       <Text typography="paragraph" mb="2">
-        It appears that your invite code isn't valid anymore.
-        Please contact your account administrator and request another invite.
+        It appears that your invite code isn't valid anymore. Please contact
+        your account administrator and request another invite.
       </Text>
       <Text typography="paragraph">
-        If you believe this is an issue with the product,
-        please create a <GithubLink> GitHub issue</GithubLink>.
+        If you believe this is an issue with the product, please create a
+        <GithubLink> GitHub issue</GithubLink>.
       </Text>
     </Card>
   );
 }
 
 const GithubLink = styled.a.attrs({
-  href: 'https://github.com/gravitational/teleport/issues/new'
+  href: 'https://github.com/gravitational/teleport/issues/new',
 })`
   color: ${props => props.theme.colors.link};
   &:visted {

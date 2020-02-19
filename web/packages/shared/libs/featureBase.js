@@ -23,29 +23,27 @@ const StatusEnum = {
   READY: 'ready',
   PROCESSING: 'processing',
   FAILED: 'failed',
-  UNINITIALIZED :'uninitialized',
-  DISABLED: 'disabled'
-}
+  UNINITIALIZED: 'uninitialized',
+  DISABLED: 'disabled',
+};
 
 export default class FeatureBase extends Store {
-
   state = {
     statusText: '',
-    status: StatusEnum.UNINITIALIZED
-  }
+    status: StatusEnum.UNINITIALIZED,
+  };
 
-  onload() {
-  }
+  onload() {}
 
   setProcessing() {
-    this.setState({ status:  StatusEnum.PROCESSING})
+    this.setState({ status: StatusEnum.PROCESSING });
   }
 
   setReady() {
-    this.setState({ status: StatusEnum.READY })
+    this.setState({ status: StatusEnum.READY });
   }
 
-  setDisabled(){
+  setDisabled() {
     this.setState({ status: StatusEnum.DISABLED });
   }
 
@@ -53,11 +51,11 @@ export default class FeatureBase extends Store {
     logger.error(err);
     this.setState({
       status: StatusEnum.FAILED,
-      statusText: err.message
-    })
+      statusText: err.message,
+    });
   }
 
-  isReady(){
+  isReady() {
     return this.state.status === StatusEnum.READY;
   }
 
@@ -76,7 +74,6 @@ export default class FeatureBase extends Store {
 
 // Activator invokes methods on a group of features.
 export class Activator {
-
   constructor(features) {
     this.features = features || [];
   }
@@ -90,7 +87,7 @@ export class Activator {
   _invokeOnload(f, ...props) {
     try {
       f.onload(...props);
-    } catch(err) {
+    } catch (err) {
       logger.error('failed to invoke feature onload()', err);
     }
   }

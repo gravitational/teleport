@@ -17,8 +17,4 @@ limitations under the License.
 import Store from './store';
 import useStore from './useStore';
 
-export {
-  Store,
-  useStore
-}
-
+export { Store, useStore };

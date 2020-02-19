@@ -100,12 +100,12 @@ ActionMenu.propTypes = {
   children: PropTypes.node,
 
   /** wrap in style object to provide inline css to position button */
-  buttonIconProps: PropTypes.object
-}
+  buttonIconProps: PropTypes.object,
+};
 
 ActionMenu.defaultProps = {
-  open: false
-}
+  open: false,
+};
 
 const menuListCss = () => `
   min-width: 100px;

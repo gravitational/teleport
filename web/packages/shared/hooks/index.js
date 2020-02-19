@@ -16,11 +16,5 @@ limitations under the License.
 
 import { useState, useRef, useEffect } from 'react';
 import withState from './withState';
-import useAttempt from './useAttempt'
-export {
-  useRef,
-  useAttempt,
-  useState,
-  withState,
-  useEffect
-}
+import useAttempt from './useAttempt';
+export { useRef, useAttempt, useState, withState, useEffect };

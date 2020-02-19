@@ -17,59 +17,59 @@ limitations under the License.
 const requiredField = message => value => () => {
   return {
     valid: !!value,
-    message: !value ? message : ''
-  }
-}
+    message: !value ? message : '',
+  };
+};
 
 const requiredToken = value => () => {
   if (value.length === 0) {
     return {
       valid: false,
       message: 'Token is required',
-    }
+    };
   }
 
   return {
-    valid: true
-  }
-}
+    valid: true,
+  };
+};
 
 const requiredPassword = value => () => {
   if (value.length < 6) {
     return {
       valid: false,
       message: 'Enter at least 6 characters',
-    }
+    };
   }
 
   return {
-    valid: true
-  }
-}
+    valid: true,
+  };
+};
 
 const requiredConfirmedPassword = password => confirmedPassword => () => {
   if (!confirmedPassword) {
     return {
       valid: false,
       message: 'Please confirm your password',
-    }
+    };
   }
 
   if (confirmedPassword !== password) {
     return {
       valid: false,
       message: 'Password does not match',
-    }
+    };
   }
 
   return {
-    valid: true
-  }
-}
+    valid: true,
+  };
+};
 
 export {
   requiredToken,
   requiredPassword,
   requiredConfirmedPassword,
-  requiredField
-}
+  requiredField,
+};

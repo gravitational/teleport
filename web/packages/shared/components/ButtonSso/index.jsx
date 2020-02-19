@@ -16,6 +16,4 @@ limitations under the License.
 
 import ButtonSso, { TypeEnum, pickSsoIcon } from './ButtonSso';
 export default ButtonSso;
-export {
-  pickSsoIcon, TypeEnum
-}
+export { pickSsoIcon, TypeEnum };

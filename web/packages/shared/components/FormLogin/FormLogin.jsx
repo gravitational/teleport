@@ -16,14 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import {
-  Card,
-  Box,
-  Text,
-  Flex,
-  ButtonLink,
-  ButtonPrimary,
-} from 'design';
+import { Card, Box, Text, Flex, ButtonLink, ButtonPrimary } from 'design';
 import * as Alerts from 'design/Alert';
 import { isU2f, isOtp } from './../../services/enums';
 import SsoButtonList from './SsoButtons';

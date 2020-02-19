@@ -17,6 +17,4 @@ limitations under the License.
 import FormInvite from './FormInvite';
 import Expired from './Expired';
 export default FormInvite;
-export {
-  Expired
-}
+export { Expired };
