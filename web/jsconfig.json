@@ -1,26 +1,19 @@
 {
-    "compilerOptions": {
-      "jsx": "react",
-      "allowSyntheticDefaultImports": true,
-      "baseUrl": ".",
-      "paths": {
-        "shared/*": ["packages/shared/*"],
-        "design/*": ["packages/design/src/*"],
-        "design": ["packages/design/src/"],
-        "teleport/*": ["packages/teleport/src/*"],
-        "gravity/*": ["packages/gravity/src/*"],
-        "e-gravity/*": ["packages/webapps.e/gravity/src/*"],
-        "e-teleport/*": ["packages/webapps.e/teleport/src/*"],
-        "e-shared/*": ["packages/webapps.e/shared/src/*"]
-      }
-    },
-    "include": [
-      "packages"
-    ],
-    "exclude": [
-      "**/node_modules/*",
-      "**/dist/*",
-      "node_modules",
-      "dist"
-    ]
-  }
+  "compilerOptions": {
+    "jsx": "react",
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "shared/*": ["packages/shared/*"],
+      "design/*": ["packages/design/src/*"],
+      "design": ["packages/design/src/"],
+      "teleport/*": ["packages/teleport/src/*"],
+      "gravity/*": ["packages/gravity/src/*"],
+      "e-gravity/*": ["packages/webapps.e/gravity/src/*"],
+      "e-teleport/*": ["packages/webapps.e/teleport/src/*"],
+      "e-shared/*": ["packages/webapps.e/shared/src/*"]
+    }
+  },
+  "include": ["packages"],
+  "exclude": ["**/node_modules/*", "**/dist/*", "node_modules", "dist"]
+}
