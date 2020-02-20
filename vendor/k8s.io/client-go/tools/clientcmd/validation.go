@@ -185,9 +185,10 @@ func validateClusterInfo(clusterName string, clusterInfo clientcmdapi.Cluster) [
 	}
 	if len(clusterInfo.CertificateAuthority) != 0 {
 		clientCertCA, err := os.Open(clusterInfo.CertificateAuthority)
-		defer clientCertCA.Close()
 		if err != nil {
 			validationErrors = append(validationErrors, fmt.Errorf("unable to read certificate-authority %v for %v due to %v", clusterInfo.CertificateAuthority, clusterName, err))
+		} else {
+			defer clientCertCA.Close()
 		}
 	}
 
@@ -223,16 +224,35 @@ func validateAuthInfo(authInfoName string, authInfo clientcmdapi.AuthInfo) []err
 
 		if len(authInfo.ClientCertificate) != 0 {
 			clientCertFile, err := os.Open(authInfo.ClientCertificate)
-			defer clientCertFile.Close()
 			if err != nil {
 				validationErrors = append(validationErrors, fmt.Errorf("unable to read client-cert %v for %v due to %v", authInfo.ClientCertificate, authInfoName, err))
+			} else {
+				defer clientCertFile.Close()
 			}
 		}
 		if len(authInfo.ClientKey) != 0 {
 			clientKeyFile, err := os.Open(authInfo.ClientKey)
-			defer clientKeyFile.Close()
 			if err != nil {
 				validationErrors = append(validationErrors, fmt.Errorf("unable to read client-key %v for %v due to %v", authInfo.ClientKey, authInfoName, err))
+			} else {
+				defer clientKeyFile.Close()
+			}
+		}
+	}
+
+	if authInfo.Exec != nil {
+		if authInfo.AuthProvider != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("authProvider cannot be provided in combination with an exec plugin for %s", authInfoName))
+		}
+		if len(authInfo.Exec.Command) == 0 {
+			validationErrors = append(validationErrors, fmt.Errorf("command must be specified for %v to use exec authentication plugin", authInfoName))
+		}
+		if len(authInfo.Exec.APIVersion) == 0 {
+			validationErrors = append(validationErrors, fmt.Errorf("apiVersion must be specified for %v to use exec authentication plugin", authInfoName))
+		}
+		for _, v := range authInfo.Exec.Env {
+			if len(v.Name) == 0 {
+				validationErrors = append(validationErrors, fmt.Errorf("env variable name must be specified for %v to use exec authentication plugin", authInfoName))
 			}
 		}
 	}
@@ -252,6 +272,10 @@ func validateAuthInfo(authInfoName string, authInfo clientcmdapi.AuthInfo) []err
 // validateContext looks for errors in the context.  It is not transitive, so errors in the reference authInfo or cluster configs are not included in this return
 func validateContext(contextName string, context clientcmdapi.Context, config clientcmdapi.Config) []error {
 	validationErrors := make([]error, 0)
+
+	if len(contextName) == 0 {
+		validationErrors = append(validationErrors, fmt.Errorf("empty context name for %#v is not allowed", context))
+	}
 
 	if len(context.AuthInfo) == 0 {
 		validationErrors = append(validationErrors, fmt.Errorf("user was not specified for context %q", contextName))

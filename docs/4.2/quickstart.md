@@ -17,8 +17,8 @@ VM.
   make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
 
-* We recommend that you read the [Architecture Guide](architecture) before
-  working through this tutorial. If you'd like to dive right in though this is
+* We recommend that you read the [Architecture Guide](architecture/teleport_architecture_overview.md) 
+  before working through this tutorial. If you'd like to dive right in though this is
   the best place to start!
 
 This guide is only meant to demonstrate how to run teleport in a sandbox or demo
@@ -29,7 +29,7 @@ Instead follow the [Admin Guide](admin-guide.md))**
 
 ## Step 1: Install Teleport
 
-This guide installs teleport v4.2.1 on the CLI. Previous versions are documented
+This guide installs teleport v{{ teleport.version }} on the CLI. Previous versions are documented
 in [Release History](https://gravitational.com/teleport/releases/). You can
 download pre-built binaries from our
 [Downloads](https://gravitational.com/teleport/download/) page or you can [build
@@ -39,7 +39,7 @@ You can also download `.deb` , `.rpm` , and `.pkg` files from
 [Downloads](https://gravitational.com/teleport/download/)
 
 ``` bash
-$ export version=v4.2.1
+$ export version=v{{ teleport.version }}
 $ export os=linux # 'darwin' 'linux' or 'windows'
 $ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
 # Automated way to retrieve the checksum, just append .sha256
@@ -173,9 +173,8 @@ accessible IP.
 
     To resolve this error find your hostname with the `hostname` command and use that instead of `localhost` .
 
-    Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy.
+    Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.md#ssltls-for-teleport-proxy)
 
-<!-- More on TLS in Prod Guide -->
 
 ``` bash
 # here grav-00 is a resolvable hostname on the same network
