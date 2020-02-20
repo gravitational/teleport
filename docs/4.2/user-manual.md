@@ -320,6 +320,9 @@ $ tsh ssh -J proxy.example.com telenode
 
 Known limits:
 
+* Only one jump host is supported (`-J` supports chaining that Teleport does not utilise)
+and tsh will return with error in case of two jumphosts: `-J` proxy-1.example.com,proxy-2.example.com
+will not work.
 * Only one jump host is supported (`-J` supports chaining that Teleport does not utilise) and `tsh` will return with error in the case of two jumphosts, i.e. `-J proxy-1.example.com,proxy-2.example.com` will not work.
 * When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh profile and port forwarding is used instead of the existing Teleport proxy subsystem.
 
@@ -506,13 +509,6 @@ below:
 Host db
     Port 3022
     ProxyJump proxy.example.com:3023
-
-# When connecting to a node behind a trusted cluster named "remote-cluster",
-# the name of the trusted cluster must be appended to the proxy subsystem
-# after '@':
-Host *.remote-cluster.example.com
-   Port 3022
-   ProxyJump proxy.example.com:3023@remote-cluster
 ```
 
 The configuration above is all you need to `ssh root@db` if there's an
