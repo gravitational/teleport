@@ -19,8 +19,8 @@ import Icon from '../Icon';
 import { space, borderRadius } from 'design/system';
 
 export const StyledTable = styled.table`
-  background: ${props => props.theme.colors.primary.light };
-  box-shadow: 0 8px 32px rgba(0, 0, 0, .24);
+  background: ${props => props.theme.colors.primary.light};
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
   border-collapse: collapse;
   border-spacing: 0;
   border-radius: 8px;
@@ -38,8 +38,8 @@ export const StyledTable = styled.table`
   }
 
   & > thead > tr > th {
-    background: ${props => props.theme.colors.primary.main };
-    color: rgba(255, 255, 255, .56);
+    background: ${props => props.theme.colors.primary.main};
+    color: rgba(255, 255, 255, 0.56);
     cursor: pointer;
     font-size: 10px;
     font-weight: 600;
@@ -58,7 +58,7 @@ export const StyledTable = styled.table`
 `;
 
 export const StyledEmptyIndicator = styled.div`
-  background: ${props => props.theme.colors.primary.main };
+  background: ${props => props.theme.colors.primary.main};
   border-radius: 4px;
   box-sizing: border-box;
   margin: 48px auto;
@@ -67,6 +67,6 @@ export const StyledEmptyIndicator = styled.div`
   text-align: center;
 
   a {
-    color: ${props => props.theme.colors.link };
+    color: ${props => props.theme.colors.link};
   }
-`
+`;

@@ -17,10 +17,10 @@ limitations under the License.
 import styled from 'styled-components';
 import { Box } from 'design';
 
-const DialogFooter = styled(Box)``
+const DialogFooter = styled(Box)``;
 
 DialogFooter.defaultProps = {
   ...Box.defaultProps,
-}
+};
 
 export default DialogFooter;

@@ -19,36 +19,34 @@ import styled from 'styled-components';
 import { space } from 'design/system';
 import PropTypes from 'prop-types';
 
-const kind = ({kind, theme}) => {
-  if (kind === "secondary") {
+const kind = ({ kind, theme }) => {
+  if (kind === 'secondary') {
     return {
       backgroundColor: theme.colors.primary.dark,
-      color: theme.colors.text.primary
-    }
+      color: theme.colors.text.primary,
+    };
   }
 
-  if (kind === "warning") {
+  if (kind === 'warning') {
     return {
       backgroundColor: theme.colors.warning,
-      color: theme.colors.primary.contrastText
-    }
+      color: theme.colors.primary.contrastText,
+    };
   }
 
-  if (kind === "danger") {
+  if (kind === 'danger') {
     return {
       backgroundColor: theme.colors.danger,
-      color: theme.colors.primary.contrastText
-    }
+      color: theme.colors.primary.contrastText,
+    };
   }
 
   // default is primary
   return {
     backgroundColor: theme.colors.secondary.main,
-    color: theme.colors.text.secondary.contrastText
-  }
-}
-
-
+    color: theme.colors.text.secondary.contrastText,
+  };
+};
 
 const Label = styled.div`
   box-sizing: border-box;
@@ -67,11 +65,11 @@ const Label = styled.div`
 `;
 
 Label.propTypes = {
-  pagerPosition: PropTypes.oneOf(['primary', 'secondary', 'warning', 'danger'])
-}
+  pagerPosition: PropTypes.oneOf(['primary', 'secondary', 'warning', 'danger']),
+};
 
 export default Label;
-export const Primary = props => <Label kind="primary" {...props} />
-export const Secondary = props => <Label kind="secondary" {...props} />
-export const Warning = props => <Label kind="warning" {...props} />
-export const Danger = props => <Label kind="danger" {...props} />
+export const Primary = props => <Label kind="primary" {...props} />;
+export const Secondary = props => <Label kind="secondary" {...props} />;
+export const Warning = props => <Label kind="warning" {...props} />;
+export const Danger = props => <Label kind="danger" {...props} />;

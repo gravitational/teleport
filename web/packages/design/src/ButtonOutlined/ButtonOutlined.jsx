@@ -15,38 +15,38 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components'
+import styled from 'styled-components';
 import { space, width } from 'design/system';
 import defaultTheme from 'design/theme';
 
-const ButtonOutlined = ({ children, setRef, ...props}) => {
+const ButtonOutlined = ({ children, setRef, ...props }) => {
   return (
     <StyledButton {...props} ref={setRef}>
       <span>{children}</span>
     </StyledButton>
-  )
-}
+  );
+};
 
 const size = props => {
   switch (props.size) {
     case 'small':
       return {
         fontSize: '10px',
-        padding: '8px 8px'
-      }
+        padding: '8px 8px',
+      };
     case 'large':
       return {
         fontSize: '14px',
-        padding: '20px 40px'
-      }
+        padding: '20px 40px',
+      };
     default:
       // medium
       return {
         fontSize: `12px`,
-        padding: '12px 32px'
-      }
+        padding: '12px 32px',
+      };
   }
-}
+};
 
 const themedStyles = props => {
   const { colors } = props.theme;
@@ -54,9 +54,9 @@ const themedStyles = props => {
     color: colors.secondary.contrastText,
     '&:disabled': {
       background: colors.action.disabledBackground,
-      color: colors.action.disabled
+      color: colors.action.disabled,
     },
-  }
+  };
 
   return {
     ...kinds(props),
@@ -64,39 +64,42 @@ const themedStyles = props => {
     ...size(props),
     ...space(props),
     ...width(props),
-    ...block(props)
-  }
-}
+    ...block(props),
+  };
+};
 
 const kinds = props => {
   const { kind, theme } = props;
-  switch(kind){
+  switch (kind) {
     case 'primary':
       return {
         borderColor: theme.colors.secondary.main,
         color: theme.colors.secondary.light,
         '&:hover, &:focus': {
-          borderColor: theme.colors.secondary.light
+          borderColor: theme.colors.secondary.light,
         },
         '&:active': {
           borderColor: theme.colors.secondary.dark,
         },
-      }
+      };
     default:
       return {
         borderColor: theme.colors.text.primary,
         color: theme.colors.text.primary,
         '&:hover, &:focus': {
           borderColor: theme.colors.light,
-          color: theme.colors.light
-        }
-    }
+          color: theme.colors.light,
+        },
+      };
   }
-}
+};
 
-const block = props => (props.block ? {
-  width: '100%'
-} : null)
+const block = props =>
+  props.block
+    ? {
+        width: '100%',
+      }
+    : null;
 
 const StyledButton = styled.button`
   border-radius: 4px;
@@ -130,18 +133,20 @@ const StyledButton = styled.button`
   ${themedStyles}
   ${kinds}
   ${block}
-`
+`;
 
 ButtonOutlined.propTypes = {
   ...space.propTypes,
-}
+};
 
 ButtonOutlined.defaultProps = {
   size: 'medium',
-  theme: defaultTheme
-}
+  theme: defaultTheme,
+};
 
-ButtonOutlined.displayName = 'ButtonOutlined'
+ButtonOutlined.displayName = 'ButtonOutlined';
 
 export default ButtonOutlined;
-export const OutlinedPrimary = props => <ButtonOutlined kind="primary" {...props} />
+export const OutlinedPrimary = props => (
+  <ButtonOutlined kind="primary" {...props} />
+);

@@ -198,9 +198,11 @@ class EmptyIndicator extends React.Component {
         <Text typography="h1" color="text.primary">
           {noResults}
         </Text>
-        {children && <Text typography="paragraph" mt="3" color="text.primary">
-          {children}
-        </Text>}
+        {children && (
+          <Text typography="paragraph" mt="3" color="text.primary">
+            {children}
+          </Text>
+        )}
       </StyledEmptyIndicator>
     );
   }

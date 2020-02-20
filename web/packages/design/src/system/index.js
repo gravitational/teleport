@@ -39,7 +39,7 @@ import {
   space,
   textAlign,
   width,
-} from 'styled-system'
+} from 'styled-system';
 
 import typography from './typography';
 import borderRadius from './borderRadius';
@@ -71,4 +71,4 @@ export {
   textAlign,
   typography,
   width,
-}
+};

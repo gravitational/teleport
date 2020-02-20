@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import Dialog from 'design/Dialog';
 
-function DialogConfirmation(props){
+function DialogConfirmation(props) {
   const { children, open, onClose, dialogCss } = props;
   return (
     <Dialog
@@ -28,7 +28,7 @@ function DialogConfirmation(props){
     >
       {children}
     </Dialog>
-  )
+  );
 }
 
 export default DialogConfirmation;

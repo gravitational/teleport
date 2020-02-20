@@ -20,38 +20,38 @@ export const borderTopLeftRadius = style({
   prop: 'borderTopLeftRadius',
   key: 'radii',
   transformValue: px,
-})
+});
 
 export const borderTopRightRadius = style({
   prop: 'borderTopRightRadius',
   key: 'radii',
   transformValue: px,
-})
+});
 
 export const borderRadiusBottomRight = style({
   prop: 'borderBottomRightRadius',
   key: 'radii',
   transformValue: px,
-})
+});
 
 export const borderBottomLeftRadius = style({
   prop: 'borderBottomLeftRadius',
   key: 'radii',
   transformValue: px,
-})
+});
 
-export const borderRadius= style({
+export const borderRadius = style({
   prop: 'borderRadius',
   key: 'radii',
   transformValue: px,
-})
+});
 
 const combined = compose(
   borderRadius,
   borderTopLeftRadius,
   borderTopRightRadius,
   borderRadiusBottomRight,
-  borderBottomLeftRadius,
-)
+  borderBottomLeftRadius
+);
 
 export default combined;

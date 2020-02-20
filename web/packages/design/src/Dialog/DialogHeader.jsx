@@ -19,12 +19,17 @@ import Flex from './../Flex';
 import styled from 'styled-components';
 import { typography } from 'design/system';
 
-export default function DialogHeader(props){
+export default function DialogHeader(props) {
   return (
-    <StyledDialogHeader minHeight="32px" mb="3" alignItems="center" {...props} />
-  )
+    <StyledDialogHeader
+      minHeight="32px"
+      mb="3"
+      alignItems="center"
+      {...props}
+    />
+  );
 }
 
 const StyledDialogHeader = styled(Flex)`
   ${typography}
-`
+`;

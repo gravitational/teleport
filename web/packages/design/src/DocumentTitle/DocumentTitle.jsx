@@ -17,7 +17,6 @@ limitations under the License.
 import React from 'react';
 
 export default class DocumentTitle extends React.Component {
-
   componentDidUpdate(prevProps) {
     if (prevProps.title !== this.props.title) {
       this.setTitle(this.props.title);

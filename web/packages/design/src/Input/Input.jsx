@@ -14,19 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import styled from 'styled-components'
-import PropTypes from 'prop-types'
-import { space, width, color, height } from 'styled-system'
+import styled from 'styled-components';
+import PropTypes from 'prop-types';
+import { space, width, color, height } from 'styled-system';
 
-function error({ hasError, theme }){
-  if(!hasError){
+function error({ hasError, theme }) {
+  if (!hasError) {
     return;
   }
 
   return {
     border: `2px solid ${theme.colors.error.main}`,
-    padding: '10px 14px'
-  }
+    padding: '10px 14px',
+  };
 }
 
 const Input = styled.input`
@@ -51,18 +51,18 @@ const Input = styled.input`
   }
 
   ${color} ${space} ${width} ${height} ${error};
-`
+`;
 
-Input.displayName = 'Input'
+Input.displayName = 'Input';
 
 Input.propTypes = {
   placeholder: PropTypes.string,
   hasError: PropTypes.bool,
-}
+};
 
 Input.defaultProps = {
   bg: 'light',
   color: 'text.onLight',
-}
+};
 
 export default Input;

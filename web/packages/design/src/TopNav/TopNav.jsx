@@ -17,11 +17,15 @@ limitations under the License.
 import React from 'react';
 import Flex from 'design/Flex';
 
-export default function TopNav(props){
+export default function TopNav(props) {
   return (
-    <Flex flex="0 0 auto" as="nav" bg="primary.main" flexDirection="row" alignItems="center"
+    <Flex
+      flex="0 0 auto"
+      as="nav"
+      bg="primary.main"
+      flexDirection="row"
+      alignItems="center"
       {...props}
     />
-  )
+  );
 }
-

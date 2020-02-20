@@ -25,7 +25,9 @@ export default class Dialog extends React.Component {
     return (
       <Modal role="dialog" {...modalProps}>
         <ModalBox>
-          <DialogBox data-testid="dialogbox" dialogCss={dialogCss}>{children}</DialogBox>
+          <DialogBox data-testid="dialogbox" dialogCss={dialogCss}>
+            {children}
+          </DialogBox>
         </ModalBox>
       </Modal>
     );

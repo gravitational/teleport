@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import styled from 'styled-components'
+import styled from 'styled-components';
 import { space, width, maxWidth, height, maxHeight } from 'design/system';
 
 /**
@@ -24,7 +24,8 @@ const TopNavItem = styled.button`
   align-items: center;
   background: none;
   border: none;
-  color: ${props => props.active ? props.theme.colors.light : 'rgba(255, 255, 255, .56)'};
+  color: ${props =>
+    props.active ? props.theme.colors.light : 'rgba(255, 255, 255, .56)'};
   cursor: pointer;
   display: inline-flex;
   font-size: 11px;
@@ -38,7 +39,10 @@ const TopNavItem = styled.button`
   text-transform: uppercase;
 
   &:hover, &:focus {
-    background:  ${props => props.active ? props.theme.colors.primary.light : 'rgba(255, 255, 255, .06)'};
+    background:  ${props =>
+      props.active
+        ? props.theme.colors.primary.light
+        : 'rgba(255, 255, 255, .06)'};
   }
 
   &.active{
@@ -61,7 +65,7 @@ const TopNavItem = styled.button`
   ${maxWidth}
   ${height}
   ${maxHeight}
-`
+`;
 
 TopNavItem.displayName = 'TopNavItem';
 

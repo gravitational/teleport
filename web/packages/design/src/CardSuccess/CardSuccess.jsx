@@ -15,24 +15,28 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Card, Text} from 'design';
+import { Card, Text } from 'design';
 import { CircleCheck } from 'design/Icon';
 
 export default function CardSuccess({ title, children }) {
   return (
     <Card width="540px" p={7} my={4} mx="auto" textAlign="center">
-      <CircleCheck mb={3} fontSize={64} color="success"/>
-      {title && <Text typography="h1" mb="3">{title}</Text> }
-      {children && <Text typography="paragraph">{children}</Text> }
+      <CircleCheck mb={3} fontSize={64} color="success" />
+      {title && (
+        <Text typography="h1" mb="3">
+          {title}
+        </Text>
+      )}
+      {children && <Text typography="paragraph">{children}</Text>}
     </Card>
-  )
+  );
 }
 
 export function CardSuccessLogin() {
   return (
     <CardSuccess title="Login Successful">
-      You have successfully signed into your account.
-      You can close this window and continue using the product.
+      You have successfully signed into your account. You can close this window
+      and continue using the product.
     </CardSuccess>
-  )
+  );
 }

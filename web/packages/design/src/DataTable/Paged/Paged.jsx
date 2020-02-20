@@ -58,8 +58,8 @@ export default function TablePaged(props) {
 }
 
 TablePaged.propTypes = {
-  pagerPosition: PropTypes.oneOf(['top', 'bottom'])
-}
+  pagerPosition: PropTypes.oneOf(['top', 'bottom']),
+};
 
 export const StyledPanel = styled.nav`
   padding: 16px;

@@ -23,35 +23,38 @@ const kinds = ({ theme, kind, shadow }) => {
   // default is primary
   const styles = {
     background: theme.colors.secondary.main,
-    color: theme.colors.text.secondary.contrastText
+    color: theme.colors.text.secondary.contrastText,
+  };
+
+  if (kind === 'secondary') {
+    styles.background = theme.colors.primary.dark;
+    styles.color = theme.colors.text.primary;
   }
 
-  if (kind === "secondary") {
-    styles.background = theme.colors.primary.dark,
-    styles.color = theme.colors.text.primary
-  }
-
-  if (kind === "warning") {
+  if (kind === 'warning') {
     styles.background = theme.colors.warning;
     styles.color = theme.colors.primary.contrastText;
   }
 
-  if (kind === "danger") {
+  if (kind === 'danger') {
     styles.background = theme.colors.danger;
     styles.color = theme.colors.primary.contrastText;
   }
 
-  if (kind === "success") {
+  if (kind === 'success') {
     styles.background = theme.colors.success;
     styles.color = theme.colors.primary.contrastText;
   }
 
-  if(shadow) {
-    styles.boxShadow = `0 0 8px ${fade(styles.background, .24)}, 0 4px 16px ${fade(styles.background, .56)}`;
+  if (shadow) {
+    styles.boxShadow = `
+    0 0 8px ${fade(styles.background, 0.24)}, 
+    0 4px 16px ${fade(styles.background, 0.56)}
+    `;
   }
 
   return styles;
-}
+};
 
 const LabelState = styled.span`
   border-radius: 100px;
@@ -67,17 +70,17 @@ const LabelState = styled.span`
   ${kinds}
   ${width}
   ${color}
-`
+`;
 LabelState.defaultProps = {
   fontSize: 0,
   px: 3,
   color: 'light',
   fontWeight: 'bold',
-  shadow: false
-}
+  shadow: false,
+};
 
 export default LabelState;
-export const StateDanger = props => <LabelState kind="danger" {...props} />
-export const StateInfo = props => <LabelState kind="secondary" {...props} />
-export const StateWarning = props => <LabelState kind="warning" {...props} />
-export const StateSuccess = props => <LabelState kind="success" {...props} />
+export const StateDanger = props => <LabelState kind="danger" {...props} />;
+export const StateInfo = props => <LabelState kind="secondary" {...props} />;
+export const StateWarning = props => <LabelState kind="warning" {...props} />;
+export const StateSuccess = props => <LabelState kind="success" {...props} />;

@@ -17,13 +17,12 @@ limitations under the License.
 import styled from 'styled-components';
 import { Flex } from 'design';
 
-const DialogContent = styled(Flex)`
-`
+const DialogContent = styled(Flex)``;
 DialogContent.defaultProps = {
   ...Flex.defaultProps,
-  mb: "5",
-  flex: "1",
-  flexDirection: "column"
-}
+  mb: '5',
+  flex: '1',
+  flexDirection: 'column',
+};
 
 export default DialogContent;

@@ -14,34 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
-import styled from 'styled-components'
-import { Spinner as SpinnerIcon} from './../Icon';
+import React from 'react';
+import styled from 'styled-components';
+import { Spinner as SpinnerIcon } from './../Icon';
 import PropTypes from 'prop-types';
 
 const DelayValueMap = {
-  "none": 0,
-  "short": 400, // 0.4s;
-  "long": 600,  // 0.6s;
-}
+  none: 0,
+  short: 400, // 0.4s;
+  long: 600, // 0.6s;
+};
 
 class Indicator extends React.Component {
-
   constructor(props) {
     super(props);
     this._timer = null;
     this._delay = props.delay;
     this.state = {
-      canDisplay: false
-    }
+      canDisplay: false,
+    };
   }
 
   componentDidMount() {
     let timeoutValue = DelayValueMap[this._delay];
     this._timer = setTimeout(() => {
       this.setState({
-        canDisplay: true
-      })
+        canDisplay: true,
+      });
     }, timeoutValue);
   }
 
@@ -54,22 +53,20 @@ class Indicator extends React.Component {
       return null;
     }
 
-    return (
-      <StyledSpinner {...this.props}/>
-    )
+    return <StyledSpinner {...this.props} />;
   }
 }
 
 Indicator.propTypes = {
-  delay: PropTypes.oneOf(['none', 'short', 'long'])
-}
+  delay: PropTypes.oneOf(['none', 'short', 'long']),
+};
 
 Indicator.defaultProps = {
-  delay: "short"
-}
+  delay: 'short',
+};
 
 const StyledSpinner = styled(SpinnerIcon)`
-  ${({fontSize="32px"}) => `
+  ${({ fontSize = '32px' }) => `
     font-size: ${fontSize};
     height: ${fontSize};
     width: ${fontSize};
@@ -79,8 +76,8 @@ const StyledSpinner = styled(SpinnerIcon)`
   color: #fff;
   display: inline-block;
   margin: 16px;
-  opacity: .87;
-  text-shadow: 0 0 .25em rgba(255,255,255, .3);
+  opacity: 0.87;
+  text-shadow: 0 0 0.25em rgba(255, 255, 255, 0.3);
 
   @keyframes anim-rotate {
     0% {

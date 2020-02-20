@@ -27,7 +27,6 @@ const POSITION = {
 };
 
 class Menu extends React.Component {
-
   getContentAnchorEl = () => {
     if (this.menuListRef.selectedItemRef) {
       return ReactDOM.findDOMNode(this.menuListRef.selectedItemRef);
@@ -45,7 +44,11 @@ class Menu extends React.Component {
 
     // Let's ignore that piece of logic if users are already overriding the width
     // of the menu.
-    if (menuList && element.clientHeight < menuList.clientHeight && !menuList.style.width) {
+    if (
+      menuList &&
+      element.clientHeight < menuList.clientHeight &&
+      !menuList.style.width
+    ) {
       const size = `${getScrollbarSize()}px`;
       menuList.style['paddingRight'] = size;
       menuList.style.width = `calc(100% + ${size})`;
@@ -57,12 +60,7 @@ class Menu extends React.Component {
   };
 
   render() {
-    const {
-      children,
-      popoverCss,
-      menuListCss,
-      ...other
-    } = this.props;
+    const { children, popoverCss, menuListCss, ...other } = this.props;
 
     return (
       <Popover

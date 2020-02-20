@@ -16,10 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import Icon, {
-  CircleArrowLeft,
-  CircleArrowRight,
-} from 'design/Icon';
+import Icon, { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 import { Text } from 'design';
 import PropTypes from 'prop-types';
 
@@ -55,8 +52,8 @@ Pager.propTypes = {
   endAt: PropTypes.number.isRequired,
   totalRows: PropTypes.number.isRequired,
   onPrev: PropTypes.func.isRequired,
-  onNext: PropTypes.func.isRequired
-}
+  onNext: PropTypes.func.isRequired,
+};
 
 export const StyledButtons = styled.div`
   button {

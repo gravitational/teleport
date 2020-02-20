@@ -16,92 +16,99 @@ limitations under the License.
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import styled from 'styled-components'
+import styled from 'styled-components';
 import { Text, Alert, Card } from 'design';
 
-export default function CardError({children}) {
+export default function CardError({ children }) {
   return (
     <Card
-      color='text.onLight'
-      bg='light'
-      width='540px'
-      mx='auto'
+      color="text.onLight"
+      bg="light"
+      width="540px"
+      mx="auto"
       my={6}
       p={5}
       children={children}
     />
-  )
+  );
 }
 
-const Header = props =>  (
-  <Text typography="h1" mb={3} textAlign="center" children={props.children}/>
-)
+const Header = props => (
+  <Text typography="h1" mb={3} textAlign="center" children={props.children} />
+);
 
-const Content = ({ message='', desc=null }) => {
-  const $errMessage = message ? <Alert mt={2} mb={4}>{ message }</Alert> : null;
+const Content = ({ message = '', desc = null }) => {
+  const $errMessage = message ? (
+    <Alert mt={2} mb={4}>
+      {message}
+    </Alert>
+  ) : null;
   return (
     <>
       {$errMessage} {desc}
     </>
   );
-}
+};
 
 export const NotFound = ({ message }) => (
   <CardError>
     <Header>404 Not Found</Header>
-    <Content message={message}/>
+    <Content message={message} />
   </CardError>
-)
+);
 
-export const AccessDenied = ({ message}) => (
+export const AccessDenied = ({ message }) => (
   <CardError>
     <Header>Access Denied</Header>
-    <Content message={message}/>
+    <Content message={message} />
   </CardError>
-)
+);
 
-export const Failed = ({message}) => (
+export const Failed = ({ message }) => (
   <CardError>
     <Header>Internal Error</Header>
-    <Content message={message}/>
+    <Content message={message} />
   </CardError>
-)
+);
 
-export const Offline = ({message, title}) => (
+export const Offline = ({ message, title }) => (
   <CardError>
     <Header>{title}</Header>
     <Content
-      desc={(
+      desc={
         <Text typography="paragraph" textAlign="center">
           {message}
         </Text>
-      )}/>
+      }
+    />
   </CardError>
-)
+);
 
 Offline.propTypes = {
   title: PropTypes.string.isRequired,
   message: PropTypes.string,
-}
+};
 
 export const LoginFailed = ({ message, loginUrl }) => (
   <CardError>
     <Header>Login Unsuccessful</Header>
     <Content
       message={message}
-      desc={(
+      desc={
         <Text typography="paragraph">
-          <HyperLink href={loginUrl}>Please try again</HyperLink>, if the problem persists, contact your system administrator.
+          <HyperLink href={loginUrl}>Please try again</HyperLink>, if the
+          problem persists, contact your system administrator.
         </Text>
-      )}/>
+      }
+    />
   </CardError>
-)
+);
 
 LoginFailed.propTypes = {
   message: PropTypes.string,
-  loginUrl: PropTypes.string.isRequired
-}
+  loginUrl: PropTypes.string.isRequired,
+};
 
 const HyperLink = styled.a`
   color: ${({ theme }) => theme.colors.link};
-`
+`;

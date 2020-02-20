@@ -15,20 +15,18 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components'
+import styled from 'styled-components';
 import defaultTheme from 'design/theme';
 
-function Link({ ...props }){
-  return (
-    <StyledButtonLink {...props} />
-  )
+function Link({ ...props }) {
+  return <StyledButtonLink {...props} />;
 }
 
 Link.defaultProps = {
-  theme: defaultTheme
-}
+  theme: defaultTheme,
+};
 
-Link.displayName = 'Link'
+Link.displayName = 'Link';
 
 const StyledButtonLink = styled.a`
   color: ${({ theme }) => theme.colors.link};
@@ -37,9 +35,10 @@ const StyledButtonLink = styled.a`
   text-decoration: underline;
   text-transform: none;
 
-  &:hover, &:focus {
-    background: ${ ({theme}) => theme.colors.primary.light}
+  &:hover,
+  &:focus {
+    background: ${({ theme }) => theme.colors.primary.light};
   }
-`
+`;
 
 export default Link;
