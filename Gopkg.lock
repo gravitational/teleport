@@ -916,25 +916,26 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d53159fbd36af90d2d9a48a68342e09e944a6171a6389be69fd4277d02781994"
+  digest = "1:f9f37cb4b357338ff776d835a380337207e519843512d6d21987454c869629f0"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
     "blowfish",
+    "chacha20",
     "curve25519",
     "ed25519",
     "ed25519/internal/edwards25519",
-    "internal/chacha20",
     "internal/subtle",
     "nacl/secretbox",
     "poly1305",
     "salsa20/salsa",
     "ssh",
     "ssh/agent",
+    "ssh/internal/bcrypt_pbkdf",
     "ssh/terminal",
   ]
   pruneopts = "NUT"
-  revision = "3d3f9f413869b949e48070b5bc593aa22cc2b8f2"
+  revision = "bac4c82f69751a6dd76e702d54b3ceb88adab236"
 
 [[projects]]
   branch = "master"
@@ -972,14 +973,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8cac879720b683f6e1c14fa63076f5b5538ff95fd8f43028940ad396d81b5bee"
+  digest = "1:7864e7e170bbb40aab1897695942d4b504adb4850122550c4d8cc57b6e4e8615"
   name = "golang.org/x/sys"
   packages = [
+    "cpu",
     "unix",
     "windows",
   ]
   pruneopts = "NUT"
-  revision = "1d206c9fa8975fb4cf00df1dc8bf3283dc24ba0e"
+  revision = "cb0a6d8edb6c3528b01a0be84a5fe513dbf880a6"
 
 [[projects]]
   digest = "1:28675596ba760768a08ebfc0872bf8188a30c6b31f056b791e06e94e3c40c81a"
@@ -1073,14 +1075,6 @@
   pruneopts = "NUT"
   revision = "6eaf6f47437a6b4e2153a190160ef39a92c7eceb"
   version = "v1.23.0"
-
-[[projects]]
-  digest = "1:22b2dee6f30bc8601f087449a2a819df8388e54e9547349c658f14d8f8c590f2"
-  name = "gopkg.in/alecthomas/kingpin.v2"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
-  version = "v2.2.6"
 
 [[projects]]
   digest = "1:67ae56e0579de0f16006ee42cc42daaaacefcfd36324ba00540f62fe42fc64df"
@@ -1353,7 +1347,6 @@
     "google.golang.org/grpc/keepalive",
     "google.golang.org/grpc/peer",
     "google.golang.org/grpc/status",
-    "gopkg.in/alecthomas/kingpin.v2",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",
     "k8s.io/api/certificates/v1beta1",
