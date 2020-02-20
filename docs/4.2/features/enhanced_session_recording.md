@@ -2,13 +2,13 @@
 
 Teleport standard session recordings only capture what is echoed to a terminal. 
 This has inherent advantages, for example because no input is captured, Teleport
-session recordings typically do not contain passwords that were ended into a terminal.
+session recordings typically do not contain passwords that were entered into a terminal.
 
-The disadvantages is that session recordings can by bypassed using several techniques.
+The disadvantage is that session recordings can by bypassed using several techniques:
 
 - **Obfuscation**. For example, even though the command ` echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain 
 `curl http://www.example.com`, when decoded, that is what is run.
-- **Shell scripts**. For example if a user uploads and executes a script, the commands 
+- **Shell scripts**. For example, if a user uploads and executes a script, the commands 
 run within the script are not captured, simply the output.
 - **Terminal controls**. Terminals support a wide variety of controls including the 
 ability for users to disable terminal echo. This is frequently used when requesting
@@ -24,7 +24,7 @@ ingest and perform monitoring/alerting on.
 
 # Requirements:
 
-## 1. Check / Patch Kernel.
+## 1. Check / Patch Kernel
 Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or above) as 
 well as kernel headers. 
 
@@ -191,7 +191,7 @@ echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify 
 Follow our [installation instructions](../installation.md) to install Teleport Auth, Proxy 
 and Nodes. 
 
-Setup the Teleport node with this `etc/teleport.yaml` see our [configuration file setup](../admin-guide.md#configuration) for more instructions. 
+Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../admin-guide.md#configuration) for more instructions. 
 
 
 ```yaml
@@ -227,9 +227,9 @@ ssh_service:
     cgroup_path: /cgroup2
 ```
 
-## 4. Test by logging into node via Teleport.
+## 4. Test by logging into node via Teleport
 
-**Session wih Enhanced Session Recording will be marked as 'true' in the logs.**
+**Session with Enhanced Session Recording will be marked as 'true' in the logs.**
 
 ```json
 {
@@ -283,7 +283,7 @@ be a JSON log for each command and network request.
 {"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
 ```
 
-Formatted, the resulting data will look like. 
+Formatted, the resulting data will look like this: 
 ```json 
 { 
   "argv":[ 
