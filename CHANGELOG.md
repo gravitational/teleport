@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.2.3
+
+This release of Teleport contains bug and security fixes.
+
+* Mitigated [CVE-2020-9283](https://groups.google.com/forum/#!msg/golang-announce/3L45YRc91SY/ywEPcKLnGQAJ) by updating golang.org/x/crypto.
+* Fixed PAM integration to support user creation upon login. [#3317](https://github.com/gravitational/teleport/pull/3317) [#3346](//github.com/gravitational/teleport/pull/3346)
+* Improved Teleport performance on large IoT clusters. [#3227](https://github.com/gravitational/teleport/issues/3227)
+* Added support for PluginData to Teleport plugins. [#3286](https://github.com/gravitational/teleport/issues/3286) [#3298](https://github.com/gravitational/teleport/issues/3298)
+
 ## 4.2.2
 
 This release of Teleport contains bug fixes and improvements.
@@ -36,6 +45,12 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](https://gravitational.com/teleport/docs/ver/4.2/trustedclusters/).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](https://gravitational.com/teleport/docs/ver/4.2/enterprise/ssh_fips/).
+
+## 4.1.9
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2020-9283](https://groups.google.com/forum/#!msg/golang-announce/3L45YRc91SY/ywEPcKLnGQAJ) by updating golang.org/x/crypto.
 
 ## 4.1.8
 
@@ -110,6 +125,12 @@ This is a major Teleport release with a focus on stability and bug fixes.
 * tsh status does not show correct cluster name. [#2671](https://github.com/gravitational/teleport/issues/2671)
 * Teleport truncates MOTD with PAM. [#2477](https://github.com/gravitational/teleport/issues/2477)
 * Miscellaneous fixes around error handling and reporting.
+
+## 4.0.15
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2020-9283](https://groups.google.com/forum/#!msg/golang-announce/3L45YRc91SY/ywEPcKLnGQAJ) by updating golang.org/x/crypto.
 
 ## 4.0.14
 
