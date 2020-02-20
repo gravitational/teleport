@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.2.3-beta.1
+VERSION=4.2.3
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 
