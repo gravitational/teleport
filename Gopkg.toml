@@ -181,16 +181,20 @@ ignored = ["github.com/Sirupsen/logrus", "github.com/gravitational/license/gener
   name = "github.com/gravitational/license"
   version = "0.0.6"
 
+[[constraint]]
+  name = "gopkg.in/yaml.v2"
+  version = "v2.2.8"
+
 [[override]]
   name = "k8s.io/api"
-  branch = "release-1.9"
+  version = "v0.17.3"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  branch = "release-1.9"
+  version = "v0.17.3"
 
 [[constraint]]
-  version = "6.0.0"
+  version = "v0.17.3"
   name = "k8s.io/client-go"
 
 [[constraint]]
@@ -213,3 +217,8 @@ ignored = ["github.com/Sirupsen/logrus", "github.com/gravitational/license/gener
   name = "github.com/iovisor/gobpf"
   source = "github.com/gravitational/gobpf"
   version = "=v0.0.1"
+
+[[override]]
+  name = "github.com/json-iterator/go"
+  version = "v1.1.9"
+
