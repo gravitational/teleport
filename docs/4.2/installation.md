@@ -1,6 +1,6 @@
 # Installation
 
-Teleport core service [`teleport`](cli-docs.md#teleport) and admin tools [`tctl`](cli-docs.md#tctl) has been designed to run on **Linux** and **Mac** operating systems. 
+Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems. 
 
 The Teleport client [`tsh`](cli-docs.md#tsh) and Web UI are available for **Linux, Mac**
 and **Windows** operating systems. Our examples install Teleport v{{ teleport.version }} but you can 
@@ -140,7 +140,7 @@ latest requirements.
 
 If you don't already have Golang installed you can [see installation
 instructions here](https://golang.org/doc/install). If you are new to Go there
-are a few quick set up things to note.
+are a few quick set up things to note:
 
 - Go installs all dependencies _for all projects_ in a single directory
   determined by the `$GOPATH` variable. The default directory is
@@ -163,7 +163,7 @@ $ sudo mkdir -p /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 
-If the build succeeds the binaries `teleport, tsh`, and `tctl` are now in the
+If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the
 directory `$GOPATH/src/github.com/gravitational/teleport/build`
 
 <!--Notes on what to do if the build does not succeed, troubleshooting-->
