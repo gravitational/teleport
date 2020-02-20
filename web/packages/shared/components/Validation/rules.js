@@ -22,7 +22,7 @@ const requiredField = message => value => () => {
 };
 
 const requiredToken = value => () => {
-  if (value.length === 0) {
+  if (!value || value.length === 0) {
     return {
       valid: false,
       message: 'Token is required',
@@ -35,7 +35,7 @@ const requiredToken = value => () => {
 };
 
 const requiredPassword = value => () => {
-  if (value.length < 6) {
+  if (!value || value.length < 6) {
     return {
       valid: false,
       message: 'Enter at least 6 characters',

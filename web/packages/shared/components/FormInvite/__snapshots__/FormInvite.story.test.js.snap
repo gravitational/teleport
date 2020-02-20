@@ -1126,7 +1126,8 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
             >
               Learn more
             </a>
-             about U2F 2-Step Verification.
+             
+            about U2F 2-Step Verification.
           </div>
         </div>
       </div>

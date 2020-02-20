@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import Validator from './Validation';
+import React from 'react';
+import Validator, { Validation, useValidation } from './Validation';
+import { render, fireEvent } from 'design/utils/testing';
 import Logger from '../../libs/logger';
 
 jest.mock('../../libs/logger', () => {
@@ -23,7 +25,7 @@ jest.mock('../../libs/logger', () => {
   };
 });
 
-test('validation class methods: sub, unsub, validate', () => {
+test('methods of Validator: sub, unsub, validate', () => {
   const mockCb1 = jest.fn();
   const mockCb2 = jest.fn();
   const validator = new Validator();
@@ -46,7 +48,7 @@ test('validation class methods: sub, unsub, validate', () => {
   expect(mockCb2).toHaveBeenCalledTimes(0);
 });
 
-test('validation class methods: addResult, reset', () => {
+test('methods of Validator: addResult, reset', () => {
   const validator = new Validator();
 
   // test addResult for nil object
@@ -76,4 +78,43 @@ test('validation class methods: addResult, reset', () => {
   // test addResult with correct object with "valid" prop reset to true
   validator.addResult(resultObj);
   expect(validator.valid).toBe(true);
+});
+
+test('render Validation w/ non-func children', () => {
+  let mockFn = null;
+
+  // access validator by using context (useValidation)
+  const TestButton = prop => {
+    const validator = useValidation();
+
+    mockFn = jest.fn(() => validator.validate());
+
+    return <button onClick={mockFn}>{prop.children}</button>;
+  };
+
+  const { getByText } = render(
+    <Validation>
+      <TestButton>hello</TestButton>
+    </Validation>
+  );
+
+  fireEvent.click(getByText(/hello/i));
+  expect(mockFn).toHaveBeenCalledTimes(1);
+  expect(mockFn).toHaveReturnedWith(true);
+});
+
+test('render Validation with function children', () => {
+  const mockFn = jest.fn(validator => validator.validate());
+
+  const { getByText } = render(
+    <Validation>
+      {({ validator }) => (
+        <button onClick={() => mockFn(validator)}>hello</button>
+      )}
+    </Validation>
+  );
+
+  fireEvent.click(getByText(/hello/i));
+  expect(mockFn).toHaveBeenCalledTimes(1);
+  expect(mockFn).toHaveReturnedWith(true);
 });
