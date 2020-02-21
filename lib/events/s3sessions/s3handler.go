@@ -174,7 +174,7 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 		Key:    aws.String(path),
 		Body:   reader,
 	}
-	if l.Config.DisableServerSideEncryption {
+	if !l.Config.DisableServerSideEncryption {
 		uploadInput.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
 	}
 	_, err = l.uploader.UploadWithContext(ctx, uploadInput)
