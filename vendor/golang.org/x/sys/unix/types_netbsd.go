@@ -33,6 +33,7 @@ package unix
 #include <sys/signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/sysctl.h>
 #include <sys/time.h>
 #include <sys/uio.h>
@@ -67,14 +68,14 @@ struct sockaddr_any {
 */
 import "C"
 
-// Machine characteristics; for internal use.
+// Machine characteristics
 
 const (
-	sizeofPtr      = C.sizeofPtr
-	sizeofShort    = C.sizeof_short
-	sizeofInt      = C.sizeof_int
-	sizeofLong     = C.sizeof_long
-	sizeofLongLong = C.sizeof_longlong
+	SizeofPtr      = C.sizeofPtr
+	SizeofShort    = C.sizeof_short
+	SizeofInt      = C.sizeof_int
+	SizeofLong     = C.sizeof_long
+	SizeofLongLong = C.sizeof_longlong
 )
 
 // Basic types
@@ -106,6 +107,8 @@ type Stat_t C.struct_stat
 
 type Statfs_t C.struct_statfs
 
+type Statvfs_t C.struct_statvfs
+
 type Flock_t C.struct_flock
 
 type Dirent C.struct_dirent
@@ -116,6 +119,13 @@ type Fsid C.fsid_t
 
 const (
 	PathMax = C.PATH_MAX
+)
+
+// Fstatvfs/Statvfs flags
+
+const (
+	ST_WAIT   = C.ST_WAIT
+	ST_NOWAIT = C.ST_NOWAIT
 )
 
 // Advice to Fadvise
@@ -248,10 +258,13 @@ type Termios C.struct_termios
 
 type Winsize C.struct_winsize
 
+type Ptmget C.struct_ptmget
+
 // fchmodat-like syscalls.
 
 const (
 	AT_FDCWD            = C.AT_FDCWD
+	AT_SYMLINK_FOLLOW   = C.AT_SYMLINK_FOLLOW
 	AT_SYMLINK_NOFOLLOW = C.AT_SYMLINK_NOFOLLOW
 )
 
@@ -279,3 +292,9 @@ type Sysctlnode C.struct_sysctlnode
 // Uname
 
 type Utsname C.struct_utsname
+
+// Clockinfo
+
+const SizeofClockinfo = C.sizeof_struct_clockinfo
+
+type Clockinfo C.struct_clockinfo
