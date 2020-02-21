@@ -199,7 +199,7 @@ spec:
     # kubernetes groups the users of this role will be assigned to.
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
-    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
+    kubernetes_groups: ["system:masters", "{% raw %}{{external.trait_name}}{% endraw %}"]]
 ```
 
 To add `kubernetes_groups` setting to an existing Teleport role, you can either
@@ -215,7 +215,7 @@ $ tctl create -f admin.yaml
 
 !!! tip "Advanced Usage"
 
-    `{{ external.trait_name }}` example is shown to demonstrate how to fetch
+    `{% raw %}{{ external.trait_name }}{% endraw %}` example is shown to demonstrate how to fetch
     the Kubernetes groups dynamically from Okta during login. In this case, you
     need to define Kubernetes group membership in Okta (as a trait) and use
     that trait name in the Teleport role.
@@ -227,3 +227,6 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
     For more information on integrating Teleport with Okta, please see the
     [Okta integration guide](ssh_okta.md).
+
+    For more information on integrating Teleport with Okta, please see the [Okta  integration guide](ssh_okta.md).
+

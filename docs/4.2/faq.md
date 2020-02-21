@@ -97,5 +97,5 @@ information contains the following:
 This allows Teleport Pro to print a warning if users are exceeding the usage limits
 of their license. The reporting library code is [on Github](https://github.com/gravitational/reporting).
 
-Reach out to `sales@gravitational.com` if you have questions about commercial
+Reach out to `sales@gravitational.com` if you have questions about the commercial
 edition of Teleport.
