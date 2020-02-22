@@ -20,8 +20,13 @@ import { render, fireEvent } from 'design/utils/testing';
 import Logger from '../../libs/logger';
 
 jest.mock('../../libs/logger', () => {
+  const mockLogger = {
+    error: jest.fn(),
+    warn: jest.fn(),
+  };
+
   return {
-    create: jest.fn(() => ({ error: jest.fn() })),
+    create: jest.fn(() => mockLogger),
   };
 });
 
@@ -54,7 +59,7 @@ test('methods of Validator: addResult, reset', () => {
   // test addResult for nil object
   const result = null;
   validator.addResult(result);
-  expect(Logger.create).toHaveBeenCalledTimes(1);
+  expect(Logger.create().error).toHaveBeenCalledTimes(1);
 
   // test addResult for boolean
   validator.addResult(true);
