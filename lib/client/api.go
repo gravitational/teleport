@@ -1411,6 +1411,17 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 	return proxyClient.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
 }
 
+// ListAllNodes is the same as ListNodes except that it ignores labels.
+func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]services.Server, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	return proxyClient.FindServersByLabels(ctx, tc.Namespace, nil)
+}
+
 // runCommand executes a given bash command on a bunch of remote nodes
 func (tc *TeleportClient) runCommand(
 	ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {

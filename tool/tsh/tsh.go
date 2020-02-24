@@ -650,7 +650,38 @@ func onListNodes(cf *CLIConf) {
 		return nodes[i].GetHostname() < nodes[j].GetHostname()
 	})
 
-	switch cf.Verbose {
+	showNodes(nodes, cf.Verbose)
+}
+
+func executeAccessRequest(cf *CLIConf) {
+	if cf.DesiredRoles == "" {
+		utils.FatalError(trace.BadParameter("one or more roles must be specified"))
+	}
+	roles := strings.Split(cf.DesiredRoles, ",")
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	if cf.Username == "" {
+		cf.Username = tc.Username
+	}
+	req, err := services.NewAccessRequest(cf.Username, roles...)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
+	if err := getRequestApproval(cf, tc, req); err != nil {
+		utils.FatalError(err)
+	}
+	fmt.Fprintf(os.Stderr, "Approval received, getting updated certificates...\n\n")
+	if err := reissueWithRequests(cf, tc, req.GetName()); err != nil {
+		utils.FatalError(err)
+	}
+	onStatus(cf)
+}
+
+func showNodes(nodes []services.Server, verbose bool) {
+	switch verbose {
 	// In verbose mode, print everything on a single line and include the Node
 	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
 	case true:
@@ -687,33 +718,6 @@ func onListNodes(cf *CLIConf) {
 		}
 		fmt.Println(t.AsBuffer().String())
 	}
-}
-
-func executeAccessRequest(cf *CLIConf) {
-	if cf.DesiredRoles == "" {
-		utils.FatalError(trace.BadParameter("one or more roles must be specified"))
-	}
-	roles := strings.Split(cf.DesiredRoles, ",")
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		utils.FatalError(err)
-	}
-	if cf.Username == "" {
-		cf.Username = tc.Username
-	}
-	req, err := services.NewAccessRequest(cf.Username, roles...)
-	if err != nil {
-		utils.FatalError(err)
-	}
-	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
-	if err := getRequestApproval(cf, tc, req); err != nil {
-		utils.FatalError(err)
-	}
-	fmt.Fprintf(os.Stderr, "Approval received, getting updated certificates...\n\n")
-	if err := reissueWithRequests(cf, tc, req.GetName()); err != nil {
-		utils.FatalError(err)
-	}
-	onStatus(cf)
 }
 
 // chunkLabels breaks labels into sized chunks. Used to improve readability
@@ -783,6 +787,24 @@ func onSSH(cf *CLIConf) {
 		return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
 	})
 	if err != nil {
+		if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
+			allNodes, err := tc.ListAllNodes(cf.Context)
+			if err != nil {
+				utils.FatalError(err)
+			}
+			var nodes []services.Server
+			for _, node := range allNodes {
+				if node.GetHostname() == tc.Host {
+					nodes = append(nodes, node)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
+			showNodes(nodes, true)
+			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
+			fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
+			fmt.Fprintf(os.Stderr, "\n")
+			os.Exit(1)
+		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))

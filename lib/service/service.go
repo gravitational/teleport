@@ -555,6 +555,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
+	if uuid.Parse(cfg.HostUUID) == nil {
+		log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
+	}
+
 	// if user started auth and another service (without providing the auth address for
 	// that service, the address of the in-process auth will be used
 	if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
