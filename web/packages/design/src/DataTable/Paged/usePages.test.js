@@ -15,7 +15,7 @@
  */
 
 import { usePages } from '.';
-import renderHook, { act } from 'design/utils/render-hook';
+import renderHook, { act } from 'design/utils/renderHook';
 
 describe('design/DataTable usePages hook', () => {
   let pager = null;

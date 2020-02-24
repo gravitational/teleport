@@ -26,7 +26,7 @@ jest.mock('../../libs/logger', () => {
   };
 
   return {
-    create: jest.fn(() => mockLogger),
+    create: () => mockLogger,
   };
 });
 
@@ -43,8 +43,7 @@ test('methods of Validator: sub, unsub, validate', () => {
   expect(validator.validate()).toEqual(true);
   expect(mockCb1).toHaveBeenCalledTimes(1);
   expect(mockCb2).toHaveBeenCalledTimes(1);
-  mockCb1.mockClear();
-  mockCb2.mockClear();
+  jest.clearAllMocks();
 
   // test unsubscribe method removes correct cb
   validator.unsubscribe(mockCb2);
@@ -85,41 +84,39 @@ test('methods of Validator: addResult, reset', () => {
   expect(validator.valid).toBe(true);
 });
 
-test('render Validation w/ non-func children', () => {
-  let mockFn = null;
-
-  // access validator by using context (useValidation)
-  const TestButton = prop => {
-    const validator = useValidation();
-
-    mockFn = jest.fn(() => validator.validate());
-
-    return <button onClick={mockFn}>{prop.children}</button>;
+test('trigger validation via useValidation hook', () => {
+  let validator = null;
+  const Button = () => {
+    validator = useValidation();
+    return <button role="button" onClick={() => validator.validate()} />;
   };
 
-  const { getByText } = render(
+  const { getByRole } = render(
     <Validation>
-      <TestButton>hello</TestButton>
+      <Button />
     </Validation>
   );
-
-  fireEvent.click(getByText(/hello/i));
-  expect(mockFn).toHaveBeenCalledTimes(1);
-  expect(mockFn).toHaveReturnedWith(true);
+  fireEvent.click(getByRole('button'));
+  expect(validator.validating).toBe(true);
 });
 
-test('render Validation with function children', () => {
-  const mockFn = jest.fn(validator => validator.validate());
-
-  const { getByText } = render(
+test('trigger validation via render function', () => {
+  let validator = null;
+  const Component = () => (
     <Validation>
-      {({ validator }) => (
-        <button onClick={() => mockFn(validator)}>hello</button>
+      {props => (
+        <button
+          role="button"
+          onClick={() => {
+            validator = props.validator;
+            validator.validate();
+          }}
+        />
       )}
     </Validation>
   );
 
-  fireEvent.click(getByText(/hello/i));
-  expect(mockFn).toHaveBeenCalledTimes(1);
-  expect(mockFn).toHaveReturnedWith(true);
+  const { getByRole } = render(<Component />);
+  fireEvent.click(getByRole('button'));
+  expect(validator.validating).toBe(true);
 });

@@ -27,9 +27,9 @@ describe('requiredField', () => {
 
   test.each`
     input                | expected
-    ${'not empty value'} | ${{ message: '', valid: true }}
-    ${''}                | ${{ message: errMsg, valid: false }}
-    ${null}              | ${{ message: errMsg, valid: false }}
+    ${'not empty value'} | ${{ valid: true, message: '' }}
+    ${''}                | ${{ valid: false, message: errMsg }}
+    ${null}              | ${{ valid: false, message: errMsg }}
   `('test input with: $input', ({ input, expected }) => {
     expect(validator(input)()).toEqual(expected);
   });
@@ -41,8 +41,8 @@ describe('requiredToken', () => {
   test.each`
     token           | expected
     ${'some token'} | ${{ valid: true }}
-    ${''}           | ${{ message: errMsg, valid: false }}
-    ${null}         | ${{ message: errMsg, valid: false }}
+    ${''}           | ${{ valid: false, message: errMsg }}
+    ${null}         | ${{ valid: false, message: errMsg }}
   `('test token value with: $token', ({ token, expected }) => {
     expect(requiredToken(token)()).toEqual(expected);
   });
@@ -54,8 +54,8 @@ describe('requiredPassword', () => {
   test.each`
     password            | expected
     ${'valid password'} | ${{ valid: true }}
-    ${''}               | ${{ message: errMsg, valid: false }}
-    ${null}             | ${{ message: errMsg, valid: false }}
+    ${''}               | ${{ valid: false, message: errMsg }}
+    ${null}             | ${{ valid: false, message: errMsg }}
   `('test password value with: $password', ({ password, expected }) => {
     expect(requiredPassword(password)()).toEqual(expected);
   });

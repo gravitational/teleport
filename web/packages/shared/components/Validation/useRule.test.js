@@ -18,49 +18,44 @@ import React from 'react';
 import Validation, { useRule } from '.';
 import { render, fireEvent, wait, screen } from 'design/utils/testing';
 
-test('useRule', async () => {
+test('basic usage', async () => {
   let results;
   await wait(() => {
-    results = render(
-      <TestValidation value="" rule={required} isVisible={true} />
-    );
+    results = render(<Component value="" rule={required} />);
   });
 
-  // tests initial run of useRule hook, returns valid set to true
-  expect(results.container.firstChild.textContent).toBe('Valid');
+  // expect no errors when not validating
+  expect(results.container.firstChild.textContent).toBe('valid');
 
-  // tests that triggering validator, runs the rule cb
-  // which tests successful subscription to onValidate (that calls rule cb)
+  // trigger validation and expect errors
   fireEvent.click(screen.getByRole('button'));
   expect(results.container.firstChild.textContent).toBe(
     'this field is required'
   );
 
   // rerender component with proper value and expect no errors
-  // tests that rule cb is called which proves that there is one instance of Validator
-  results.rerender(
-    <TestValidation value="mama" rule={required} isVisible={true} />
-  );
-  expect(results.container.firstChild.textContent).toBe('Valid');
+  results.rerender(<Component value="123" rule={required} />);
+  expect(results.container.firstChild.textContent).toBe('valid');
 
-  // test unmount unsubscribes onValidate
+  // verify that useRule properly unsubscribes from validation context
+  const cb = jest.fn();
+  const rule = () => () => cb();
   results.unmount();
-  results.rerender(
-    <TestValidation value="mama" rule={required} isVisible={false} />
-  );
+  results.rerender(<Component value="123" rule={rule} />);
+  results.rerender(<Component visible={false} />);
+
   fireEvent.click(screen.getByRole('button'));
-  expect(results.container.firstChild.textContent).toBe('');
+  expect(cb).not.toHaveBeenCalled();
 });
 
 // Component to setup Validation context
-function TestValidation(props) {
+function Component(props) {
+  const { value, rule, visible = true } = props;
   return (
     <Validation>
       {({ validator }) => (
         <>
-          {props.isVisible ? (
-            <TestUseRule value={props.value} rule={props.rule} />
-          ) : null}
+          {visible && <ValueBox value={value} rule={rule} />}
           <button role="button" onClick={() => validator.validate()} />
         </>
       )}
@@ -69,17 +64,17 @@ function TestValidation(props) {
 }
 
 // Component to test useRule
-function TestUseRule({ value, rule }) {
+function ValueBox({ value, rule }) {
   const results = useRule(rule(value));
   return (
     <>
-      {results.valid && 'Valid'}
+      {results.valid && 'valid'}
       {!results.valid && results.message}
     </>
   );
 }
 
-// a rule to use for useRule
+// sample rule
 const required = value => () => {
   return {
     valid: !!value,
