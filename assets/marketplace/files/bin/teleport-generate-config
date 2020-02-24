@@ -17,12 +17,6 @@ LOCAL_HOSTNAME=${LOCAL_HOSTNAME//./-}
 # Source variables from user-data
 source /etc/teleport.d/conf
 
-# Set host UUID so auth server picks it up, as each auth server's
-# logs are stored in individual folder /var/lib/teleport/log/<host_uuid>/
-# and it will be easy to log forwarders to locate them on every auth server
-# note though, that host_uuid MUST be unique, otherwise all sorts of unintended
-# things will happen.
-echo ${LOCAL_HOSTNAME} > /var/lib/teleport/host_uuid
 chown -R teleport:adm /var/lib/teleport
 touch /etc/teleport.yaml
 chmod 664 /etc/teleport.yaml
