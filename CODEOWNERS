@@ -1,0 +1,26 @@
+# Default owners for items not matched below.
+* @klizhentas @russjones
+
+# Release Engineering.
+/assets/ @webvictim @russjones
+/build.assets/ @webvictim @russjones
+/docker/ @webvictim @russjones
+/examples/ @webvictim @russjones
+/vagrant/ @webvictim @russjones
+
+# Product.
+*.md @benarent @webvictim
+/docs/ @benarent @webvictim
+
+# Backend Engineering.
+/e/ @klizhentas @russjones @fspmarshall @webvictim
+/fixtures/ @klizhentas @russjones @fspmarshall @webvictim
+/integration/ @klizhentas @russjones @fspmarshall @webvictim
+/lib/ @klizhentas @russjones @fspmarshall @webvictim
+/modules/ @klizhentas @russjones @fspmarshall @webvictim
+/tool/ @klizhentas @russjones @fspmarshall @webvictim
+/vendor/ @klizhentas @russjones @fspmarshall @webvictim
+
+# Frontend Engineering.
+/lib/web/ @alex-kovoy @russjones @fspmarshall @webvictim
+/web/ @alex-kovoy

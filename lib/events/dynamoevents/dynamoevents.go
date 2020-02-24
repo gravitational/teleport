@@ -58,6 +58,17 @@ type Config struct {
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
 	UIDGenerator utils.UID
+	// Endpoint is an optional non-AWS endpoint
+	Endpoint string `json:"endpoint,omitempty"`
+}
+
+// SetFromURL sets values on the Config from the supplied URI
+func (cfg *Config) SetFromURL(in *url.URL) error {
+	if endpoint := in.Query().Get(teleport.Endpoint); endpoint != "" {
+		cfg.Endpoint = endpoint
+	}
+
+	return nil
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -170,6 +181,12 @@ func New(cfg Config) (*Log, error) {
 	// from the YAML file:
 	if cfg.Region != "" {
 		sess.Config.Region = aws.String(cfg.Region)
+	}
+
+	// Override the service endpoint using the "endpoint" query parameter from
+	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
+	if cfg.Endpoint != "" {
+		sess.Config.Endpoint = aws.String(cfg.Endpoint)
 	}
 
 	// create DynamoDB service:

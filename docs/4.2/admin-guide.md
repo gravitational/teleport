@@ -11,13 +11,13 @@ Downloads](https://gravitational.com/teleport/download/) section on our web site
 and run:
 
 ```
-$ tar -xzf teleport-binary-release.tar.gz
+$ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
 $ sudo make install
 ```
 
 ### Installing from Source
 
-Gravitational Teleport is written in Go language. It requires Golang v1.13 or
+Gravitational Teleport is written in Go language. It requires Golang v{{ teleport.golang }} or
 newer.
 
 ``` bash
@@ -44,15 +44,15 @@ Example using v4.0.8 *(replace v4.0.8 with the version of Teleport you are using
 **Checking Checksum on Mac OS**
 
 ``` bash
-$ shasum -a 256 teleport-v4.0.8-darwin-amd64-bin.tar.gz
-0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+$ shasum -a 256 teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
+{{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 ```
 
 **Checking Checksum on Linux**
 
 ``` bash
 $ sha256sum teleport-v4.0.8-darwin-amd64-bin.tar.gz
-0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+{{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 ```
 
 **Checking Checksum on Automated Systems**
@@ -61,8 +61,8 @@ If you download Teleport via an automated system, you can programmatically
 obtain the checksum by adding `.sha256` to the binary.
 
 ``` bash
-$ curl https://get.gravitational.com/teleport-v4.0.8-darwin-amd64-bin.tar.gz.sha256
-0826a17b440ac20d4c38ade3d0a5eb1c62a00c4d5eb88e60b5ea627d426aaed2  teleport-v4.0.8-darwin-amd64-bin.tar.gz
+$ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz.sha256
+{{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 ```
 
 ## Definitions
@@ -2038,8 +2038,7 @@ To make this work, the Teleport proxy server must be able to access a Kubernetes
 API endpoint. This can be done either by:
 
 * Deploying the proxy service inside a Kubernetes pod.
-* Deploying the proxy service outside Kubernetes adding a valid `kubeconfig`
-  setting to the configuration file as shown above.
+* Deploying the proxy service outside Kubernetes, adding a valid `kubeconfig` setting to the configuration file as shown above.
 
 When adding new local users you have to specify which Kubernetes groups they
 belong to:
@@ -2071,14 +2070,10 @@ Kubernetes API endpoint determined by the `<cluster>` argument to [`tsh
 login`](cli-docs.md#tsh-login) .
 
 * There are three Teleport/Kubernetes clusters: "main", "east" and "west". These
-
   are the names set in `cluster_name` setting in their configuration files.
-
 * The clusters "east" and "west" are trusted clusters for "main".
 * Users always authenticate against "main" but use their certificates to access
-
   SSH nodes and Kubernetes API in all three clusters.
-
 * The DNS name of the main proxy server is "main.example.com"
 
 In this scenario, users usually login using this command:
@@ -2269,10 +2264,8 @@ that as shown above. To configure Teleport to use DynamoDB:
 * Make sure you have AWS access key and a secret key which give you access to
   DynamoDB account. If you're using (as recommended) an IAM role for this, the
   policy with necessary permissions is listed below.
-
 * Configure all Teleport Auth servers to use DynamoDB back-end in the "storage"
   section of `teleport.yaml` as shown below.
-
 * Deploy several auth servers connected to DynamoDB storage back-end.
 * Deploy several proxy nodes.
 * Make sure that all Teleport nodes have `auth_servers` configuration setting
@@ -2300,13 +2293,11 @@ teleport:
   with your own settings.  Teleport will create the table automatically.
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
-
 * Audit log settings above are optional. If specified, Teleport will store the
   audit log in DynamoDB and the session recordings **must** be stored in an S3
   bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file system for the audit log, i.e.
 `/var/lib/teleport/log` on an auth server.
-
 * If DynamoDB is used for the audit log, the logged events will be stored with a
   TTL of 1 year. Currently this TTL is not configurable.
 
@@ -2373,11 +2364,9 @@ high availability. Firestore back-end supports two types of Teleport data:
 
 Firestore cannot store the recorded sessions. You are advised to use GCP Storage for
 that as shown above. To configure Teleport to use Firestore:
-.
 
 * Configure all Teleport Auth servers to use Firestore back-end in the "storage"
   section of `teleport.yaml` as shown below.
-
 * Deploy several auth servers connected to Firestore storage back-end.
 * Deploy several proxy nodes.
 * Make sure that all Teleport nodes have `auth_servers` configuration setting
@@ -2454,6 +2443,7 @@ As an extra precaution you might want to backup your application prior to upgrad
 
     Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
     two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
+   
     [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
 
 ### Backup Before Upgrading
@@ -2619,11 +2609,8 @@ Now you can see the monitoring information by visiting several endpoints:
 
 ## Getting Help
 
-If you need help please ask on our [forum](https://community.gravitational.com). If you're
-a paying customer, please open a tick via our control panel. 
+If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
-If you find a bug, please open an [issue on Github](https://github.com/gravitational/teleport/issues).
+For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
 
-For commercial support, custom features or to try our commercial edition,
-[Teleport Enterprise](enterprise/index.md), please reach out to us:
-`sales@gravitational.com` .
+For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).

@@ -306,7 +306,7 @@ EOF
             systemctl start teleport-get-cert.timer
 
             systemctl enable teleport-renew-cert.service teleport-renew-cert.timer
-            systemctl start --no-block teleport-get-cert.timer
+            systemctl start --no-block teleport-renew-cert.timer
 
             systemctl enable teleport-check-cert.service teleport-check-cert.timer
             systemctl start --no-block teleport-check-cert.timer
