@@ -1132,13 +1132,12 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 
 	// read the stream into a buffer:
 	var stream []byte
-	for err == nil {
+	for {
 		tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if len(tmp) == 0 {
-			err = io.EOF
 			break
 		}
 		stream = append(stream, tmp...)
