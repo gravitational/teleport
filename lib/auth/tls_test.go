@@ -409,6 +409,97 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+// TestRotateInPlace tests that rotating in place allows old clients to continue to function.
+func (s *TLSSuite) TestRotateInPlace(c *check.C) {
+	var ok bool
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Hour))
+	s.server.Auth().SetClock(clock)
+
+	// create proxy client
+	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	c.Assert(err, check.IsNil)
+
+	// client works before rotation is initiated
+	_, err = proxy.GetNodes(defaults.Namespace, services.SkipValidation())
+	c.Assert(err, check.IsNil)
+
+	// starts rotation
+	s.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
+	gracePeriod := time.Hour
+	err = s.server.Auth().RotateCertAuthority(RotateRequest{
+		Type:        services.HostCA,
+		GracePeriod: &gracePeriod,
+		Mode:        services.RotationModeAuto,
+		InPlace:     true,
+	})
+	c.Assert(err, check.IsNil)
+
+	// advance rotation by clock
+	clock.Advance(gracePeriod/3 + time.Minute)
+	err = s.server.Auth().autoRotateCertAuthorities()
+	c.Assert(err, check.IsNil)
+
+	ca, err := s.server.Auth().GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(ca.GetRotation().Phase, check.Equals, services.RotationPhaseUpdateClients)
+
+	// old clients should work
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
+	c.Assert(err, check.IsNil)
+
+	// new clients work as well
+	newProxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	c.Assert(err, check.IsNil)
+
+	// advance rotation by clock
+	clock.Advance((gracePeriod*2)/3 + time.Minute)
+	err = s.server.Auth().autoRotateCertAuthorities()
+	c.Assert(err, check.IsNil)
+
+	ca, err = s.server.Auth().GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(ca.GetRotation().Phase, check.Equals, services.RotationPhaseUpdateServers)
+
+	// old clients should work
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
+	c.Assert(err, check.IsNil)
+
+	// new clients work as well
+	newProxy, err = s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	c.Assert(err, check.IsNil)
+
+	_, err = newProxy.GetNodes(defaults.Namespace, services.SkipValidation())
+	c.Assert(err, check.IsNil)
+
+	// complete rotation - advance rotation by clock
+	clock.Advance(gracePeriod/3 + time.Minute)
+	err = s.server.Auth().autoRotateCertAuthorities()
+	ca, err = s.server.Auth().GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(ca.GetRotation().Phase, check.Equals, services.RotationPhaseStandby)
+	c.Assert(err, check.IsNil)
+
+	// old clients should still work.  This is the only difference between rotation
+	// in place and normal rotation, which should fail at this point.
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
+	c.Assert(err, check.IsNil)
+
+	// new clients work
+	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace, services.SkipValidation())
+	c.Assert(err, check.IsNil)
+}
+
 // TestAutoFallback tests local automatic rotation fallback,
 // when user intervenes with rollback and rotation gets switched
 // to manual mode

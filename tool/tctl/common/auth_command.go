@@ -43,6 +43,7 @@ type AuthCommand struct {
 	rotateType        string
 	rotateManualMode  bool
 	rotateTargetPhase string
+	rotateInPlace     bool
 
 	authGenerate *kingpin.CmdClause
 	authExport   *kingpin.CmdClause
@@ -77,6 +78,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
+	a.authRotate.Flag("in-place", "Rotate 'in place', persisting existing CAs").BoolVar(&a.rotateInPlace)
 	a.authRotate.Flag("type", "Certificate authority to rotate, rotates both host and user CA by default").StringVar(&a.rotateType)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(services.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
 }
@@ -259,6 +261,7 @@ func (a *AuthCommand) RotateCertAuthority(client auth.ClientI) error {
 		Type:        services.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
 		TargetPhase: a.rotateTargetPhase,
+		InPlace:     a.rotateInPlace,
 	}
 	if a.rotateManualMode {
 		req.Mode = services.RotationModeManual
