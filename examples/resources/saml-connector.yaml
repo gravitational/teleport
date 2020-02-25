@@ -1,4 +1,4 @@
-# 
+#
 # Example resource for a SAML connector
 # This connector can be used for SAML endpoints like Okta
 #
@@ -8,17 +8,18 @@ metadata:
   # the name of the connector
   name: new_saml_connector
 spec:
-  # display allows to set the caption of the "login" button
-  # in the Web interface
-  display: "Login with SSO"
-  # acs is the Assertion Consumer Service URL. This should be the address of
-  # the Teleport proxy that your identity provider will communicate with.
-  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
+  # connector display name that will be appended to the title of "Login with"
+  # button on the cluster login screen so it will say "Login with Okta"
+  display: Okta
+  # SAML provider will make a callback to this URL after successful authentication
+  # cluster-url is the address the cluster UI is reachable at
+  acs: https://<cluster-url>/portalapi/v1/saml/callback
   attributes_to_roles:
     - {name: "groups", value: "okta-admin", roles: ["admin"]}
     - {name: "groups", value: "okta-dev", roles: ["dev"]}
   # Note that the entire XML document is indented by 4 spaces. This is
   # required because the pipe symbol indicates what follows is raw text.
+  # Below is an Example. Replace with your XML
   entity_descriptor: |
     <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://www.example.com/00000000000000000000">
       <md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
