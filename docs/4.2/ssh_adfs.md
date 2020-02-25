@@ -128,25 +128,9 @@ This role declares:
 Next, create a SAML connector [resource](admin-guide.md#resources):
 
 ```yaml
-kind: saml
-version: v2
-metadata:
-  name: "adfs"
-spec:
-  # display allows to set the caption of the "login" button
-  # in the Web interface
-  display: "MS Active Directory"
-  provider: "adfs"
-  acs: "https://localhost:3080/v1/webapi/saml/acs"
-  entity_descriptor_url: "https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml"
-  attributes_to_roles:
-    - name: "http://schemas.xmlsoap.org/claims/Group"
-      value: "teleadmins"
-      roles: ["admins"]
-    - name: "http://schemas.xmlsoap.org/claims/Group"
-      value: "teleusers"
-      roles: ["users"]
+{!examples/resources/adfs-connector.yaml!}
 ```
+
 
 The `acs` field should match the value you set in ADFS earlier and you can
 obtain the `entity_descriptor_url` from ADFS under _"ADFS -> Service -> Endpoints -> Metadata"_.
