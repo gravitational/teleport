@@ -10,7 +10,9 @@ like:
 * Developers must never SSH into production servers.
 * ... and many others.
 
-!!! warning "Version Warning":
+!!! warning "Version Warning"
+
+
     This guide requires a commercial edition of Teleport. The open source
     edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.

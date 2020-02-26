@@ -76,7 +76,7 @@ metadata:
 spec:
   # display allows to set the caption of the "login" button
   # in the Web interface
-  display: "Login with Okta SSO"
+  display: "Okta"
 
   acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
   attributes_to_roles:
@@ -152,6 +152,17 @@ SAML and OIDC types:
 * [SSH Authentication with OneLogin](../ssh_one_login.md)
 * [SSH Authentication with ADFS](../ssh_adfs.md)
 * [SSH Authentication with OAuth2 / OpenID Connect](../oidc.md)
+
+## SSO Customization 
+
+| Provider | YAML | Example |
+|----------|------|---------|
+| Github |`display: Github`|![github](../img/teleport-sso/github.png)|
+| Microsoft |`display: Microsoft`|![microsoft](../img/teleport-sso/microsoft.png)|
+| Google |`display: Google`|![google](../img/teleport-sso/google.png)|
+| BitBucket | `display: Bitbucket` | ![bitbucket](../img/teleport-sso/bitbucket.png)|
+| OpenID | `display: OpenID` | ![bitbucket](../img/teleport-sso/openId.png)|
+| Custom Provider | `display: Homegrown SSO` | ![bitbucket](../img/teleport-sso/custom-content.png)|
 
 ## Troubleshooting
 

@@ -60,36 +60,9 @@ from the identity provider then mapping the value to either to `admin` role or
 the `user` role depending on the value returned for `group` within the claims.
 
 ```yaml
-# oidc-connector.yaml
-kind: oidc
-version: v2
-metadata:
-  name: "example-oidc-connector"
-spec:
-  # display allows to set the caption of the "login" button
-  # in the Web interface
-  display: "Login with Example"
-  issuer_url: "https://oidc.example.com"
-  client_id: "xxxxxxxx.example.com"
-  client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
-  redirect_url: "https://teleport-proxy.example.com:3080/v1/webapi/oidc/callback"
-
-  # scope instructs Teleport to query for 'group' scope to retrieve
-  # user's group membership
-  scope: ["group"]
-
-  # once Teleport retrieves the user's groups, this section configures
-  # the mapping from groups to Teleport roles
-  claims_to_roles:
-     - { claim: "group", value: "admin", roles: ["admin"] }
-     - { claim: "group", value: "user", roles: ["user"] }
-     # note that wildcards can also be used. the next line instructs Teleport
-     # to assign "admin" role to any user who has the OIDC claim that begins with "admin":
-     - { claim: "group", value: "admin*", roles: ["admin"] }
-     # regular expressions with capture are also supported. the next line instructs Teleport
-     # to assign users to roles `admin-1` if his OIDC "group" claim equals 'ssh_admin_1':
-     - { claim: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
+{!examples/resources/oidc-connector.yaml!}
 ```
+
 
 Create the connector:
 
