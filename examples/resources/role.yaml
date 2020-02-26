@@ -16,6 +16,12 @@ spec:
     # forward_agent turns on/off SSH agent forwarding
     forward_agent: true
 
+    cert_format: standard
+
+    enhanced_recording:
+    - command
+    - network
+
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
   allow:

@@ -15,39 +15,9 @@ spec:
       '*': '*'
     rules:
     - resources:
-      - role
+      - '*'
       verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
-    - resources:
-      - auth_connector
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
-    - resources:
-      - session
-      verbs:
-      - list
-      - read
-    - resources:
-      - trusted_cluster
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
-    - resources:
-      - event
-      verbs:
-      - list
-      - read
+      - '*'
   deny:
     logins: null
   options:

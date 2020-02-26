@@ -9,7 +9,7 @@ spec:
     value: <gsuite-group-email>
   client_id: <GSUITE_CLIENT_ID>.apps.googleusercontent.com
   client_secret: <OAUTH_CLIENT_SECRET>
-  display: G Suite Group
+  display: Google
   google_admin_email: <GSUITE_EMAIL>
   google_service_account_uri: file:///var/lib/teleport/gsuite-creds.json
   issuer_url: https://accounts.google.com

@@ -15,8 +15,10 @@ spec:
       environment: staging
     rules:
     - resources:
-      - auth_connector
+      - role
       verbs:
+      - list
+      - create
       - read
     - resources:
       - session
@@ -26,10 +28,27 @@ spec:
     - resources:
       - trusted_cluster
       verbs:
+      - connect
       - list
       - read
   deny:
     logins: null
+    rules:
+    - resources:
+      - role
+      verbs:
+        - update
+        - delete
+    - resources:
+      - auth_connector
+      verbs:
+      - '*'
+    - resources:
+      - trusted_cluster
+      verbs:
+      - create
+      - update
+      - delete
   options:
     cert_format: standard
     enhanced_recording:
@@ -39,4 +58,3 @@ spec:
     max_session_ttl: 30h0m0s
     port_forwarding: true
 version: v3
-
