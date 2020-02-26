@@ -1,6 +1,6 @@
 # Enhanced Session Recording
 
-Teleport standard session recordings only capture what is echoed to a terminal. 
+Teleport [standard session recordings](https://gravitational.com/teleport/docs/architecture/teleport_nodes/#session-recording) only capture what is echoed to a terminal. 
 This has inherent advantages, for example because no input is captured, Teleport
 session recordings typically do not contain passwords that were entered into a terminal.
 
@@ -22,11 +22,17 @@ ingest and perform monitoring/alerting on.
     Enhanced Session Recording requires all parts of the Teleport system to be running
     4.2+. 
 
+
 # Requirements:
 
 ## 1. Check / Patch Kernel
 Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or above) as 
 well as kernel headers. 
+
+!!! tip
+
+    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](https://gravitational.com/teleport/docs/architecture/teleport_auth/#audit-log) for more details. 
+    
 
 You can check your kernel version using the `uname` command. The output should look 
 something like the following.
