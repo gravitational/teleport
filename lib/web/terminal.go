@@ -101,7 +101,7 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 5.0:
+	// DELETE IN: 5.0
 	//
 	// All proxies will support lookup by uuid, so host/port lookup
 	// and fallback can be dropped entirely.
