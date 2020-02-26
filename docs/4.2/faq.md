@@ -35,7 +35,7 @@ it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluste
 option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr` 
 in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat)
 
-### What's Teleport scalability and hardware recommendations?
+### What are Teleport's scalability and hardware recommendations?
 
 We recommend setting up Teleport with a [High Availability configuration](admin-guide.md#high-availability). Below is our
 recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please 
@@ -97,5 +97,5 @@ information contains the following:
 This allows Teleport Pro to print a warning if users are exceeding the usage limits
 of their license. The reporting library code is [on Github](https://github.com/gravitational/reporting).
 
-Reach out to `sales@gravitational.com` if you have questions about commercial
+Reach out to `sales@gravitational.com` if you have questions about the commercial
 edition of Teleport.

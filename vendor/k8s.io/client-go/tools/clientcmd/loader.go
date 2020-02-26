@@ -27,8 +27,8 @@ import (
 	goruntime "runtime"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/imdario/mergo"
+	"k8s.io/klog"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -111,7 +111,7 @@ func (g *ClientConfigGetter) IsDefaultConfig(config *restclient.Config) bool {
 // ClientConfigLoadingRules is an ExplicitPath and string slice of specific locations that are used for merging together a Config
 // Callers can put the chain together however they want, but we'd recommend:
 // EnvVarPathFiles if set (a list of files if set) OR the HomeDirectoryPath
-// ExplicitPath is special, because if a user specifically requests a certain file be used and error is reported if thie file is not present
+// ExplicitPath is special, because if a user specifically requests a certain file be used and error is reported if this file is not present
 type ClientConfigLoadingRules struct {
 	ExplicitPath string
 	Precedence   []string
@@ -127,6 +127,10 @@ type ClientConfigLoadingRules struct {
 	// DefaultClientConfig is an optional field indicating what rules to use to calculate a default configuration.
 	// This should match the overrides passed in to ClientConfig loader.
 	DefaultClientConfig ClientConfig
+
+	// WarnIfAllMissing indicates whether the configuration files pointed by KUBECONFIG environment variable are present or not.
+	// In case of missing files, it warns the user about the missing files.
+	WarnIfAllMissing bool
 }
 
 // ClientConfigLoadingRules implements the ClientConfigLoader interface.
@@ -136,18 +140,23 @@ var _ ClientConfigLoader = &ClientConfigLoadingRules{}
 // use this constructor
 func NewDefaultClientConfigLoadingRules() *ClientConfigLoadingRules {
 	chain := []string{}
+	warnIfAllMissing := false
 
 	envVarFiles := os.Getenv(RecommendedConfigPathEnvVar)
 	if len(envVarFiles) != 0 {
-		chain = append(chain, filepath.SplitList(envVarFiles)...)
+		fileList := filepath.SplitList(envVarFiles)
+		// prevent the same path load multiple times
+		chain = append(chain, deduplicate(fileList)...)
+		warnIfAllMissing = true
 
 	} else {
 		chain = append(chain, RecommendedHomeFile)
 	}
 
 	return &ClientConfigLoadingRules{
-		Precedence:     chain,
-		MigrationRules: currentMigrationRules(),
+		Precedence:       chain,
+		MigrationRules:   currentMigrationRules(),
+		WarnIfAllMissing: warnIfAllMissing,
 	}
 }
 
@@ -170,6 +179,7 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 	}
 
 	errlist := []error{}
+	missingList := []string{}
 
 	kubeConfigFiles := []string{}
 
@@ -193,23 +203,31 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 		}
 
 		config, err := LoadFromFile(filename)
+
 		if os.IsNotExist(err) {
 			// skip missing files
+			// Add to the missing list to produce a warning
+			missingList = append(missingList, filename)
 			continue
 		}
+
 		if err != nil {
-			errlist = append(errlist, fmt.Errorf("Error loading config file \"%s\": %v", filename, err))
+			errlist = append(errlist, fmt.Errorf("error loading config file \"%s\": %v", filename, err))
 			continue
 		}
 
 		kubeconfigs = append(kubeconfigs, config)
 	}
 
+	if rules.WarnIfAllMissing && len(missingList) > 0 && len(kubeconfigs) == 0 {
+		klog.Warningf("Config not found: %s", strings.Join(missingList, ", "))
+	}
+
 	// first merge all of our maps
 	mapConfig := clientcmdapi.NewConfig()
 
 	for _, kubeconfig := range kubeconfigs {
-		mergo.Merge(mapConfig, kubeconfig)
+		mergo.MergeWithOverwrite(mapConfig, kubeconfig)
 	}
 
 	// merge all of the struct values in the reverse order so that priority is given correctly
@@ -217,14 +235,14 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 	nonMapConfig := clientcmdapi.NewConfig()
 	for i := len(kubeconfigs) - 1; i >= 0; i-- {
 		kubeconfig := kubeconfigs[i]
-		mergo.Merge(nonMapConfig, kubeconfig)
+		mergo.MergeWithOverwrite(nonMapConfig, kubeconfig)
 	}
 
 	// since values are overwritten, but maps values are not, we can merge the non-map config on top of the map config and
 	// get the values we expect.
 	config := clientcmdapi.NewConfig()
-	mergo.Merge(config, mapConfig)
-	mergo.Merge(config, nonMapConfig)
+	mergo.MergeWithOverwrite(config, mapConfig)
+	mergo.MergeWithOverwrite(config, nonMapConfig)
 
 	if rules.ResolvePaths() {
 		if err := ResolveLocalPaths(config); err != nil {
@@ -354,7 +372,7 @@ func LoadFromFile(filename string) (*clientcmdapi.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	glog.V(6).Infoln("Config loaded from file", filename)
+	klog.V(6).Infoln("Config loaded from file: ", filename)
 
 	// set LocationOfOrigin on every Cluster, User, and Context
 	for key, obj := range config.AuthInfos {
@@ -420,7 +438,7 @@ func WriteToFile(config clientcmdapi.Config, filename string) error {
 
 func lockFile(filename string) error {
 	// TODO: find a way to do this with actual file locks. Will
-	// probably need seperate solution for windows and linux.
+	// probably need separate solution for windows and Linux.
 
 	// Make sure the dir exists before we try to create a lock file.
 	dir := filepath.Dir(filename)
@@ -465,7 +483,7 @@ func ResolveLocalPaths(config *clientcmdapi.Config) error {
 		}
 		base, err := filepath.Abs(filepath.Dir(cluster.LocationOfOrigin))
 		if err != nil {
-			return fmt.Errorf("Could not determine the absolute path of config file %s: %v", cluster.LocationOfOrigin, err)
+			return fmt.Errorf("could not determine the absolute path of config file %s: %v", cluster.LocationOfOrigin, err)
 		}
 
 		if err := ResolvePaths(GetClusterFileReferences(cluster), base); err != nil {
@@ -478,7 +496,7 @@ func ResolveLocalPaths(config *clientcmdapi.Config) error {
 		}
 		base, err := filepath.Abs(filepath.Dir(authInfo.LocationOfOrigin))
 		if err != nil {
-			return fmt.Errorf("Could not determine the absolute path of config file %s: %v", authInfo.LocationOfOrigin, err)
+			return fmt.Errorf("could not determine the absolute path of config file %s: %v", authInfo.LocationOfOrigin, err)
 		}
 
 		if err := ResolvePaths(GetAuthInfoFileReferences(authInfo), base); err != nil {
@@ -557,7 +575,12 @@ func GetClusterFileReferences(cluster *clientcmdapi.Cluster) []*string {
 }
 
 func GetAuthInfoFileReferences(authInfo *clientcmdapi.AuthInfo) []*string {
-	return []*string{&authInfo.ClientCertificate, &authInfo.ClientKey, &authInfo.TokenFile}
+	s := []*string{&authInfo.ClientCertificate, &authInfo.ClientKey, &authInfo.TokenFile}
+	// Only resolve exec command if it isn't PATH based.
+	if authInfo.Exec != nil && strings.ContainsRune(authInfo.Exec.Command, filepath.Separator) {
+		s = append(s, &authInfo.Exec.Command)
+	}
+	return s
 }
 
 // ResolvePaths updates the given refs to be absolute paths, relative to the given base directory
@@ -609,4 +632,18 @@ func MakeRelative(path, base string) (string, error) {
 		return rel, nil
 	}
 	return path, nil
+}
+
+// deduplicate removes any duplicated values and returns a new slice, keeping the order unchanged
+func deduplicate(s []string) []string {
+	encountered := map[string]bool{}
+	ret := make([]string, 0)
+	for i := range s {
+		if encountered[s[i]] {
+			continue
+		}
+		encountered[s[i]] = true
+		ret = append(ret, s[i])
+	}
+	return ret
 }

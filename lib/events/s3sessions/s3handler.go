@@ -166,13 +166,18 @@ func (l *Handler) Close() error {
 // Upload uploads object to S3 bucket, reads the contents of the object from reader
 // and returns the target S3 bucket path in case of successful upload.
 func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	var err error
 	path := l.path(sessionID)
-	_, err := l.uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket:               aws.String(l.Bucket),
-		Key:                  aws.String(path),
-		Body:                 reader,
-		ServerSideEncryption: aws.String(s3.ServerSideEncryptionAwsKms),
-	})
+
+	uploadInput := &s3manager.UploadInput{
+		Bucket: aws.String(l.Bucket),
+		Key:    aws.String(path),
+		Body:   reader,
+	}
+	if !l.Config.DisableServerSideEncryption {
+		uploadInput.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
+	}
+	_, err = l.uploader.UploadWithContext(ctx, uploadInput)
 	if err != nil {
 		return "", ConvertS3Error(err)
 	}

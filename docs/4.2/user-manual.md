@@ -3,9 +3,9 @@
 This User Manual covers usage of the Teleport client tool, `tsh`. In this
 document you will learn how to:
 
-* Log into interactive shell on remote cluster nodes.
+* Log into an interactive shell on remote cluster nodes.
 * Copy files to and from cluster nodes.
-* Connect to SSH clusters behind firewalls without any open ports using SSH
+* Connect to SSH clusters behind firewalls without any open ports, using SSH
   reverse tunnels.
 * Explore a cluster and execute commands on specific nodes in a cluster.
 * Share interactive shell sessions with colleagues or join someone else's
@@ -57,8 +57,8 @@ identity will have to be passed as `--user` flag, while the node login will be
 passed as `login@host`, using syntax compatible with traditional `ssh`.
 
 ```bash
-# Authenticate against the "work" cluster as joe and then login into the node
-# as root:
+# Authenticate against the "work" cluster as joe and then
+# log into the node as root:
 $ tsh ssh --proxy=work.example.com --user=joe root@node
 ```
 [CLI Docs - tsh ssh](cli-docs.md#tsh-ssh)
@@ -92,7 +92,7 @@ The login command retrieves a user's certificate and stores it in `~/.tsh`
 directory as well as in the [ssh
 agent](https://en.wikipedia.org/wiki/Ssh-agent), if there is one running.
 
-This allows you authenticate just once, maybe at the beginning of the day.
+This allows you to authenticate just once, maybe at the beginning of the day.
 Subsequent `tsh ssh` commands will run without asking for credentials until the
 temporary certificate expires. By default, Teleport issues user certificates
 with a TTL (time to live) of 12 hours.
@@ -236,7 +236,7 @@ graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ## Interactive Shell
 
 To launch an interactive shell on a remote node or to execute a command, use
-`tsh ssh`
+`tsh ssh`.
 
 `tsh` tries to mimic the `ssh` experience as much as possible, so it supports
 the most popular `ssh` flags like `-p`, `-l` or `-L`. For example, if you have
@@ -270,19 +270,17 @@ specified via `--proxy` flag as shown:
 tsh --proxy=proxy.example.com:5000,5001 <subcommand>
 ```
 
-This means _use port `5000` for HTTPS and `5001` for SSH_
+This means _use port `5000` for HTTPS and `5001` for SSH_.
 
 ### Port Forwarding
 
-`tsh ssh` supports OpenSSH `-L` flag which allows forwarding incoming
+`tsh ssh` supports the OpenSSH `-L` flag which forwards incoming
 connections from localhost to the specified remote host:port. The syntax of `-L`
-flag is:
+flag is as follows, where "bind_ip" defaults to `127.0.0.1`:
 
 ```bash
 -L [bind_ip]:listen_port:remote_host:remote_port
 ```
-
-where "bind_ip" defaults to `127.0.0.1`.
 
 Example:
 
@@ -295,7 +293,7 @@ open a listening socket on `localhost:5000` and will forward all incoming
 connections to `web.remote:80` via this SSH tunnel.
 
 It is often convenient to establish port forwarding, execute a local command
-which uses such connection and disconnect. You can do this with the `--local`
+which uses the connection, and then disconnect. You can do this with the `--local`
 flag.
 
 Example:
@@ -316,15 +314,17 @@ This command:
 
 While implementing ProxyJump for Teleport, we have extended the feature to `tsh`.
 
-`$ tsh ssh -J proxy.example.com telenode`
+```bash
+$ tsh ssh -J proxy.example.com telenode
+```
 
 Known limits:
-- Only one jump host is supported (`-J` supports chaining that Teleport does not utilise)
+
+* Only one jump host is supported (`-J` supports chaining that Teleport does not utilise)
 and tsh will return with error in case of two jumphosts: `-J` proxy-1.example.com,proxy-2.example.com
 will not work.
-
-- When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh
-profile and port forwarding is used instead of the existing Teleport proxy subsystem.
+* Only one jump host is supported (`-J` supports chaining that Teleport does not utilise) and `tsh` will return with error in the case of two jumphosts, i.e. `-J proxy-1.example.com,proxy-2.example.com` will not work.
+* When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh profile and port forwarding is used instead of the existing Teleport proxy subsystem.
 
 
 ### Resolving Node Names
@@ -392,7 +392,7 @@ it makes sense to ask another team member for help. Traditionally, this could be
 done by letting them know which node you're on, having them SSH in, start a
 terminal multiplexer like `screen` and join a session there.
 
-Teleport makes this a bit more convenient. Let's log into a server named "luna"
+Teleport makes this more convenient. Let's log into a server named "luna"
 and ask Teleport for our current session status:
 
 ```bash
@@ -405,26 +405,24 @@ Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
 Now you can invite another user account to the "work" cluster. You can share the
-URL for access through a web browser. Or you can share the session ID and she
+URL for access through a web browser, or you can share the session ID and she
 can join you through her terminal by typing:
 
 ```bash
-$ tsh join 7645d523-60cb-436d-b732-99c5df14b7c4
+$ tsh join <session_ID>
 ```
 
 ## Connecting to SSH Clusters behind Firewalls
 
 Teleport supports creating clusters of servers located behind firewalls
 **without any open listening TCP ports**.  This works by creating reverse SSH
-tunnels from behind-firewall environments into a Teleport proxy you have access
-to. This feature is called "Trusted Clusters".
+tunnels from behind-firewall environments into a Teleport proxy you have access to.
 
-This chapter explains how to a user may connect to a trusted cluster. Refer to
-[the admin manual](admin-guide.md#trusted-clusters) to learn how a trusted cluster
-can be configured.
+This feature is called ["Trusted Clusters"](https://gravitational.com/teleport/docs/trustedclusters/). Refer to
+[the admin manual](admin-guide.md#trusted-clusters) to learn how a trusted cluster can be configured.
 
 Assuming the "work" Teleport proxy server is configured with a few trusted
-clusters, a user may use `tsh clusters` command to see a list of them:
+clusters, a user may use the `tsh clusters` command to see a list of all clusters on the server:
 
 ```bash
 $ tsh --proxy=work clusters
@@ -436,8 +434,7 @@ production       offline
 ```
 [CLI Docs - tsh clusters](cli-docs.md#tsh-clusters)
 
-Now you can use `--cluster` flag with any `tsh` command. For example, to list
-SSH nodes that are members of the "production" cluster, simply do:
+Now you can use the `--cluster` flag with any `tsh` command. For example, to list SSH nodes that are members of the "production" cluster, simply do:
 
 ```bash
 $ tsh --proxy=work ls --cluster=production
@@ -453,16 +450,16 @@ Similarly, if you want to SSH into `db-1` inside the "production" cluster:
 $ tsh --proxy=work ssh --cluster=production db-1
 ```
 
-This is possible even if nodes of the "production" cluster are located behind a
+This is possible even if nodes in the "production" cluster are located behind a
 firewall without open ports. This works because the "production" cluster
-establishes a reverse SSH tunnel back into "work" proxy and this tunnels is used
+establishes a reverse SSH tunnel back into "work" proxy, and this tunnel is used
 to establish inbound SSH connections.
 
 ## Web UI
 
 Teleport proxy serves the web UI on `https://proxyhost:3080`. The UI allows you
-to see the list of online nodes in a cluster, open a web-based Terminal to them,
-see recorded sessions and replay them. You can also join other users in active
+to see the list of online nodes in a cluster, open a web-based terminal to them,
+see recorded sessions, and replay them. You can also join other users in active
 sessions.
 
 ## Using OpenSSH Client
@@ -494,11 +491,11 @@ Teleport is built using standard SSH constructs: keys, certificates and
 protocols. This means that a Teleport system is 100% compatible with both
 OpenSSH clients and servers.
 
-For a OpenSSH client (`ssh`) to work with a Teleport proxy, two conditions must
+For an OpenSSH client (`ssh`) to work with a Teleport proxy, two conditions must
 be met:
 
 1. `ssh` must be configured to connect through a Teleport proxy.
-2. `ssh` needs to be given the SSH certificate issued by `tsh login` command.
+2. `ssh` needs to be given the SSH certificate issued by the `tsh login` command.
 
 ### SSH Proxy Configuration
 
@@ -512,13 +509,6 @@ below:
 Host db
     Port 3022
     ProxyJump proxy.example.com:3023
-
-# When connecting to a node behind a trusted cluster named "remote-cluster",
-# the name of the trusted cluster must be appended to the proxy subsystem
-# after '@':
-Host *.remote-cluster.example.com
-   Port 3022
-   ProxyJump proxy.example.com:3023@remote-cluster
 ```
 
 The configuration above is all you need to `ssh root@db` if there's an
@@ -530,7 +520,9 @@ If there is no ssh-agent available, the certificate must be passed to the OpenSS
 
 When proxy is in ["Recording mode"](https://gravitational.com/blog/how-to-record-ssh-sessions/) the following will happen with SSH:
 
-`$ ssh -J user@teleport.proxy:3023 -p 3022 user@target -F ./forward.config`
+```bash
+$ ssh -J user@teleport.proxy:3023 -p 3022 user@target -F ./forward.config
+```
 
 Where `forward.config` enables agent forwarding:
 
@@ -546,7 +538,7 @@ the certificate must be passed to `ssh` via `IdentityFile` option (see `man
 ssh_config`). Consider this example: the Teleport user "joe" wants to login into
 the proxy named "lab.example.com".
 
-He executes [`tsh login`](cli-docs.md#tsh-login) command:
+He executes the [`tsh login`](cli-docs.md#tsh-login) command:
 
 ```bash
 $ tsh --proxy=lab.example.com login --user=joe
@@ -579,9 +571,8 @@ want to reset it to a clean state by deleting temporary keys and other data from
 
 ## Getting Help
 
-Please open an [issue on
-Github](https://github.com/gravitational/teleport/issues). Alternatively, you
-can reach through the contact form on our [website](https://gravitational.com/).
+If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
-For commercial support, custom features or to try our [Enterprise edition of
-Teleport](enterprise/index.md), please reach out to us: `sales@gravitational.com`.
+For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
+
+For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
