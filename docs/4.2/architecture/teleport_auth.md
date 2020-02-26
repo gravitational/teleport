@@ -202,6 +202,8 @@ events and submit them to the auth server. The events recorded include:
 * session IDs
 
 !!! warning "Compatibility Warning":
+
+
     Because all SSH events like `exec` or `session_start` are reported by the
     Teleport node service, they will not be logged if you are using OpenSSH
     `sshd` daemon on your nodes.
@@ -215,6 +217,8 @@ Teleport users are encouraged to export the events into external, long term
 storage.
 
 !!! info "Deployment Considerations":
+
+
     If multiple Teleport auth servers are used
     to service the same cluster (HA mode) a network file system must be used for
     `/var/lib/teleport/log` to allow them to combine all audit events into the
