@@ -1,0 +1,16 @@
+kind: saml
+version: v2
+metadata:
+  name: OneLogin
+spec:
+  acs: https://<cluster-url>/v1/webapi/saml/acs
+  attributes_to_roles:
+    - {name: "groups", value: "admin", roles: ["admin"]}
+    - {name: "groups", value: "dev", roles: ["dev"]}
+  display: OneLogin
+  issuer: https://app.onelogin.com/saml/metadata/123456
+  sso: https://mycompany.onelogin.com/trust/saml2/http-redirect/sso/123456
+  cert: |
+    -----BEGIN CERTIFICATE-----
+    ... do not forget to indent the value
+    -----END CERTIFICATE-----

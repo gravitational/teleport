@@ -66,23 +66,7 @@ Now, create a SAML connector [resource](admin-guide.md#resources).
 Write down this template as `onelogin-connector.yaml`:
 
 ```yaml
-kind: saml
-version: v2
-metadata:
-  name: OneLogin
-  namespace: default
-spec:
-  acs: https://teleport.example.com/v1/webapi/saml/acs
-  attributes_to_roles:
-    - {name: "groups", value: "admin", roles: ["admin"]}
-    - {name: "groups", value: "dev", roles: ["dev"]}
-  display: OneLogin
-  issuer: https://app.onelogin.com/saml/metadata/123456
-  sso: https://mycompany.onelogin.com/trust/saml2/http-redirect/sso/123456
-  cert: |
-    -----BEGIN CERTIFICATE-----
-    ... do not forget to indent the value
-    -----END CERTIFICATE-----
+{!examples/resources/onelogin-connector.yaml!}
 ```
 
 To fill in the fields, open `SSO` tab:
@@ -95,7 +79,7 @@ To fill in the fields, open `SSO` tab:
 
 !!! tip "Important"
 
-    Make sure to replace `http-post` with `http-redirect`!
+    Make sure to replace `http-post` with `http-redirect`.
 
 * `cert` - download certificate, by clicking "view details link" and add to `cert` section
 
@@ -114,7 +98,7 @@ root and is capable of administrating the cluster and non-privileged dev.
 
 ```yaml
 kind: role
-version: v3"
+version: v3
 metadata:
   name: admin
 spec:
