@@ -143,9 +143,30 @@ export default function LoginForm(props) {
 }
 
 LoginForm.propTypes = {
+  /**
+   * authProviders is an array of Single Sign On (SSO) Providers.
+   * eg: github, google, bitbucket, microsoft, unknown, etc.
+   *
+   * enums are defined in shared/ButtonSso/utils.js
+   */
+  authProviders: PropTypes.array,
+
+  /**
+   * auth2faType defines login type.
+   * eg: u2f, otp, off (disabled).
+   *
+   * enums are defined in shared/services/enums.js
+   */
   auth2faType: PropTypes.string,
+
+  /**
+   * attempt contains props that indicate login processing status.
+   *
+   * fmt: {isFailed: bool, isProcessing: bool, message: string}
+   */
+  attempt: PropTypes.object.isRequired,
+
   onLoginWithU2f: PropTypes.func.isRequired,
   onLogin: PropTypes.func.isRequired,
   onLoginWithSso: PropTypes.func.isRequired,
-  attempt: PropTypes.object.isRequired,
 };
