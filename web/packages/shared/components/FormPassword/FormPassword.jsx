@@ -48,10 +48,12 @@ function FormPassword(props) {
 
     return onChangePass(oldPass, newPass, token);
   }
+
   function resetForm() {
     setOldPass('');
     setNewPass('');
     setNewPassConfirmed('');
+    setToken('');
   }
 
   function onSubmit(e, validator) {
@@ -61,7 +63,16 @@ function FormPassword(props) {
     }
 
     validator.reset();
-    attemptActions.do(() => submit().then(() => resetForm()));
+
+    attemptActions.start();
+    submit()
+      .then(() => {
+        attemptActions.stop();
+        resetForm();
+      })
+      .catch(err => {
+        attemptActions.error(err);
+      });
   }
 
   return (
@@ -122,6 +133,14 @@ function FormPassword(props) {
 FormPassword.propTypes = {
   onChangePass: PropTypes.func.isRequired,
   onChangePassWithU2f: PropTypes.func.isRequired,
+
+  /**
+   * auth2faType defines login type.
+   * eg: u2f, otp, off (disabled).
+   *
+   * enums are defined in shared/services/enums.js
+   */
+  auth2faType: PropTypes.string,
 };
 
 function Status({ attempt, u2f }) {

@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import Logger from 'shared/libs/logger';
-const logger = Logger.create('shared/hooks/useState');
+const logger = Logger.create('shared/hooks/useAttempt');
 
 const defaultState = {
   isProcessing: false,
