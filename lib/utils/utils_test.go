@@ -500,3 +500,10 @@ func (s *UtilsSuite) TestReadToken(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(tok, check.Equals, "shmoken")
 }
+
+// TestStringsSet makes sure that nil slice returns empty set (less error prone)
+func (s *UtilsSuite) TestStringsSet(c *check.C) {
+	out := StringsSet(nil)
+	c.Assert(out, check.HasLen, 0)
+	c.Assert(out, check.NotNil)
+}

@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"bytes"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -26,7 +25,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -192,7 +190,7 @@ func (*TeleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte, opts
 	return nil, trace.BadParameter("SAML connector resource version %v is not supported", h.Version)
 }
 
-// MarshalUser marshals SAML connector into JSON
+// MarshalSAMLConnector marshals SAML connector into JSON
 func (*TeleportSAMLConnectorMarshaler) MarshalSAMLConnector(c SAMLConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := collectOptions(opts)
 	if err != nil {
@@ -505,50 +503,6 @@ func (o *SAMLConnectorV2) MapAttributes(assertionInfo saml2.AssertionInfo) []str
 		}
 	}
 	return utils.Deduplicate(roles)
-}
-
-// executeSAMLStringTemplate takes a raw template string and a map of
-// assertions to execute a template and generate output. Because the data
-// structure used to execute the template is a map, the format of the raw
-// string is expected to be {{index . "key"}}. See
-// https://golang.org/pkg/text/template/ for more details.
-func executeSAMLStringTemplate(raw string, assertion map[string]string) (string, error) {
-	tmpl, err := template.New("dynamic-roles").Parse(raw)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var buf bytes.Buffer
-	err = tmpl.Execute(&buf, assertion)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return buf.String(), nil
-}
-
-// executeSAMLStringTemplate takes raw template strings and a map of
-// assertions to execute templates and generate a slice of output. Because the
-// data structure used to execute the template is a map, the format of each raw
-// string is expected to be {{index . "key"}}. See
-// https://golang.org/pkg/text/template/ for more details.
-func executeSAMLSliceTemplate(raw []string, assertion map[string]string) ([]string, error) {
-	var sl []string
-
-	for _, v := range raw {
-		tmpl, err := template.New("dynamic-roles").Parse(v)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, assertion)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		sl = append(sl, buf.String())
-	}
-
-	return sl, nil
 }
 
 // GetServiceProvider initialises service provider spec from settings

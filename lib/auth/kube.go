@@ -98,7 +98,7 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 
 	// extract and encode the kubernetes groups of the authenticated
 	// user in the newly issued certificate
-	kubernetesGroups, err := roles.CheckKubeGroups(0)
+	kubernetesGroups, kubernetesUsers, err := roles.CheckKubeGroupsAndUsers(0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,6 +129,7 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		// otherwise proxies can generate certs for any user.
 		Usage:            []string{teleport.UsageKubeOnly},
 		KubernetesGroups: kubernetesGroups,
+		KubernetesUsers:  kubernetesUsers,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
