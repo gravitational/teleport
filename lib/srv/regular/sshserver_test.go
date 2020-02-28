@@ -732,6 +732,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 
 	stdout := &bytes.Buffer{}
 	reader, err := se3.StdoutPipe()
+	c.Assert(err, IsNil)
 	done := make(chan struct{})
 	go func() {
 		io.Copy(stdout, reader)
