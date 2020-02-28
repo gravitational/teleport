@@ -121,6 +121,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
+	c.Assert(err, IsNil)
 	s.testServer = authServer
 
 	// create proxy client used in some tests
