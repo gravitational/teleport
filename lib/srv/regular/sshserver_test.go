@@ -376,9 +376,6 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, IsNil)
-
-	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	c.Assert(err, IsNil)
 	c.Assert(client.Close(), IsNil)
 
 	// now remove OS user from valid principals
