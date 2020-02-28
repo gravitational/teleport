@@ -8,6 +8,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/reporting/types"
 	check "gopkg.in/check.v1"
@@ -27,10 +28,16 @@ func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 	backend, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: directory})
 	c.Assert(err, check.IsNil)
 
+	clusterID := "test"
+	anonymizer, err := utils.NewHMACAnonymizer(clusterID)
+	c.Assert(err, check.IsNil)
+
 	s.enforcer, err = NewEnforcer(context.Background(), EnforcerConfig{
 		Backend:        backend,
 		LicenseKeyPair: fixtures.TestLicenseKeyPair(c),
 		NoStart:        true,
+		Anonymizer:     anonymizer,
+		ClusterID:      clusterID,
 	})
 	c.Assert(err, check.IsNil)
 }

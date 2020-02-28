@@ -2,15 +2,13 @@ package auth
 
 import (
 	"context"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/e/lib/pro"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/reporting/types"
 	check "gopkg.in/check.v1"
@@ -19,66 +17,51 @@ import (
 func TestAPI(t *testing.T) { check.TestingT(t) }
 
 type APISuite struct {
-	apiServer *httptest.Server
-	enforcer  *pro.Enforcer
+	enforcer *pro.Enforcer
+	server   *auth.TestTLSServer
+	dataDir  string
 }
 
 var _ = check.Suite(&APISuite{})
 
+func (s *APISuite) TearDownSuite(c *check.C) {
+	if s.server != nil {
+		s.server.Close()
+	}
+}
+
 func (s *APISuite) SetUpSuite(c *check.C) {
-	directory := c.MkDir()
+	s.dataDir = c.MkDir()
+	InitPlugin()
 
-	backend, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: directory})
-	c.Assert(err, check.IsNil)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "localhost",
+	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir: s.dataDir,
 	})
 	c.Assert(err, check.IsNil)
-
-	authServer, err := auth.NewAuthServer(&auth.InitConfig{
-		Backend:     backend,
-		ClusterName: clusterName,
-	})
+	s.server, err = testAuthServer.NewTestTLSServer()
 	c.Assert(err, check.IsNil)
 
-	// set cluster config
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
-	})
-	c.Assert(err, check.IsNil)
-
-	err = authServer.SetClusterConfig(clusterConfig)
-	c.Assert(err, check.IsNil)
-
-	err = authServer.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
-
-	authorizer, err := auth.NewRoleAuthorizer(clusterName.GetName(), clusterConfig, teleport.RoleAdmin)
+	clusterID := "test"
+	anonymizer, err := utils.NewHMACAnonymizer(clusterID)
 	c.Assert(err, check.IsNil)
 
 	s.enforcer, err = pro.NewEnforcer(context.Background(), pro.EnforcerConfig{
-		Backend:        backend,
+		Backend:        s.server.AuthServer.Backend,
 		LicenseKeyPair: fixtures.TestLicenseKeyPair(c),
+		Anonymizer:     anonymizer,
 		NoStart:        true,
+		ClusterID:      clusterID,
 	})
 	c.Assert(err, check.IsNil)
 
-	InitPlugin()
 	SetEnforcer(s.enforcer)
-
-	apiServer := auth.NewAPIServer(&auth.APIConfig{
-		AuthServer: authServer,
-		Authorizer: authorizer,
-	})
-	s.apiServer = httptest.NewServer(apiServer)
 }
 
 func (s *APISuite) TestHeartbeat(c *check.C) {
-	httpClient, err := auth.NewClient(s.apiServer.URL, nil)
+	authClient, err := s.server.NewClient(auth.TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	client, err := NewClient(httpClient)
+	client, err := NewClient(authClient)
 	c.Assert(err, check.IsNil)
 
 	heartbeat := types.NewHeartbeat()

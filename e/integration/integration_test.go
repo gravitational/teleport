@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -49,10 +50,10 @@ func (s *IntSuite) init(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	backend, err := lite.NewWithConfig(s.ctx, lite.Config{
-		Path:  c.MkDir(),
+		Path: c.MkDir(),
 	})
 	c.Assert(err, check.IsNil)
-	
+
 	server := &services.ServerV2{}
 	server.SetNamespace(ClusterID)
 
@@ -60,7 +61,7 @@ func (s *IntSuite) init(c *check.C) {
 	namespace.SetName(ClusterID)
 
 	presence := local.NewPresenceService(backend)
-	presence.UpsertNamespace(*namespace)	
+	presence.UpsertNamespace(*namespace)
 	presence.UpsertNode(server)
 
 	s.enforcer, err = pro.NewEnforcer(s.ctx, pro.EnforcerConfig{
@@ -77,12 +78,17 @@ func (s *IntSuite) init(c *check.C) {
 // TestReporting checks that the usage duration is getting reset if Teleport
 // can successfully contact Houston.
 func (s *IntSuite) TestReporting(c *check.C) {
+	targetHost := "localhost:10000"
+	_, err := net.Dial("tcp", targetHost)
+	if err != nil {
+		c.Skip("Warning: %v is not up, skipping test")
+	}
 	// Make sure we're using the correct Houston endpoint
-	os.Setenv(constants.APIHostEnvVar, "localhost:10000")
+	os.Setenv(constants.APIHostEnvVar, targetHost)
 	s.init(c)
 	s.enforcer.RecordUsage(s.ctx, 30*time.Minute)
 
-	err := s.enforcer.ReportUsage(s.ctx)
+	err = s.enforcer.ReportUsage(s.ctx)
 	c.Assert(err, check.IsNil)
 
 	record, err := s.enforcer.GetUsageRecord(s.ctx)

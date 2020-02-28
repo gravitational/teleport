@@ -75,7 +75,7 @@ func (p *enterpriseModules) RolesFromLogins(logins []string) []string {
 // extracted from the connector
 //
 // For Enterprise edition "logins" are used as role names so traits are empty
-func (p *enterpriseModules) TraitsFromLogins(logins []string, kubeGroups []string) map[string][]string {
+func (p *enterpriseModules) TraitsFromLogins(logins []string, kubeGroups []string, kubeUsers []string) map[string][]string {
 	return nil
 }
 
