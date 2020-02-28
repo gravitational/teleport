@@ -1233,9 +1233,3 @@ func waitForSites(s reversetunnel.Server, count int) error {
 		}
 	}
 }
-
-func removeNL(v string) string {
-	v = strings.Replace(v, "\r", "", -1)
-	v = strings.Replace(v, "\n", "", -1)
-	return v
-}
