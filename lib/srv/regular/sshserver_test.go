@@ -66,7 +66,6 @@ type SrvSuite struct {
 	up          *upack
 	signer      ssh.Signer
 	user        string
-	testUser    string
 	freePorts   utils.PortList
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
@@ -392,7 +391,7 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
-	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	_, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 }
 

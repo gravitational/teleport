@@ -452,7 +452,7 @@ func (t *proxySubsys) doHandshake(clientAddr net.Addr, clientConn io.ReadWriter,
 		} else {
 			// send a JSON payload sandwitched between 'teleport proxy signature' and 0x00:
 			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
-			n, err = serverConn.Write([]byte(payload))
+			_, err = serverConn.Write([]byte(payload))
 			if err != nil {
 				t.log.Error(err)
 			}
