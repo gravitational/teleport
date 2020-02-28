@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -107,6 +108,9 @@ func Run(commands []CLICommand) {
 	// parse CLI commands+flags:
 	selectedCmd, err := app.Parse(os.Args[1:])
 	if err != nil {
+		if strings.Contains(err.Error(), "unknown long flag") {
+			err = trace.Wrap(err, "make sure role used in flag has a corresponding Teleport role in RBAC, an example RBAC role can be seen here: %q", "https://gravitational.com/teleport/docs/enterprise/ssh_rbac/#roles")
+		}
 		utils.FatalError(err)
 	}
 
