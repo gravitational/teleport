@@ -1,7 +1,6 @@
 # Using Teleport with Pluggable Authentication Modules (PAM)
 
-Teleport SSH daemon can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). T
-This allows Teleport to create user sessions using PAM session profiles.
+Teleport SSH daemon can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create user sessions using PAM session profiles.
 
 Teleport only supports the `account` and `session` stack. The `auth` PAM module is
 currently not supported with Teleport.
@@ -9,7 +8,9 @@ currently not supported with Teleport.
 
 ## Introduction to  Pluggable Authentication Modules
 
-Pluggable Authentication Modules (PAM) was started in ..X.. So it could Y. 
+Pluggable Authentication Modules (PAM) goes way to to 1995, when Sun Microsystems
+implemented a generic authentication framework for Solaris. Since then most GNU/Linux 
+distributions have adopted PAM. 
 
 ```bash
 $ man pam
@@ -64,8 +65,142 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 The file `/etc/motd` is normally displayed by login(1) after a user has logged in 
 but before the  shell is run.  It is generally used for important system-wide announcements.
 
-This feature ca
-...
+This feature can help you inform users that activity on the node is  being audited 
+and recorded. 
+
+### Example Node with PAM turned Off
+```yaml
+teleport:
+  nodename: graviton-node-1
+  auth_token: hello
+  auth_servers:
+  - 10.2.1.230:5070
+  data_dir: /var/lib/teleport
+proxy_service:
+  enabled: "no"
+auth_service:
+  enabled: "no"
+ssh_service:
+  enabled: "yes"
+  # configures PAM integration. see below for more details.
+  pam:
+     enabled: no
+```
+![Teleport SSH without MOTD](../img/motd/teleport-no-MOTD.png)
+
+### Example with PAM enabled
+```yaml
+teleport:
+  nodename: graviton-node-1
+  auth_token: hello
+  auth_servers:
+  - 10.2.1.230:5070
+  data_dir: /var/lib/teleport
+proxy_service:
+  enabled: "no"
+auth_service:
+  enabled: "no"
+ssh_service:
+  enabled: "yes"
+  # configures PAM integration. see below for more details.
+  pam:
+     enabled: yes
+```
+![Teleport SSH with MOTD](../img/motd/teleport-with-MOTD.png)
+
+When PAM is enabeld it'll use the default `sshd` config file. This can differ per 
+distro, below is an example default sshd config from a Debian 9 machine. 
+
+```bash
+$ cat /etc/pam.d/sshd
+# PAM configuration for the Secure Shell service
+
+# Standard Un*x authentication.
+@include common-auth
+
+# Disallow non-root logins when /etc/nologin exists.
+account    required     pam_nologin.so
+
+# Uncomment and edit /etc/security/access.conf if you need to set complex
+# access limits that are hard to express in sshd_config.
+# account  required     pam_access.so
+
+# Standard Un*x authorization.
+@include common-account
+
+# SELinux needs to be the first session rule.  This ensures that any
+# lingering context has been cleared.  Without this it is possible that a
+# module could execute code in the wrong domain.
+session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_selinux.so close
+
+# Set the loginuid process attribute.
+session    required     pam_loginuid.so
+
+# Create a new session keyring.
+session    optional     pam_keyinit.so force revoke
+
+# Standard Un*x session setup and teardown.
+@include common-session
+
+# Print the message of the day upon successful login.
+# This includes a dynamically generated part from /run/motd.dynamic
+# and a static (admin-editable) part from /etc/motd.
+session    optional     pam_motd.so  motd=/run/motd.dynamic
+session    optional     pam_motd.so noupdate
+
+# Print the status of the user's mailbox upon successful login.
+session    optional     pam_mail.so standard noenv # [1]
+
+# Set up user limits from /etc/security/limits.conf.
+session    required     pam_limits.so
+
+# Read environment variables from /etc/environment and
+# /etc/security/pam_env.conf.
+session    required     pam_env.so # [1]
+# In Debian 4.0 (etch), locale-related environment variables were moved to
+# /etc/default/locale, so read that as well.
+session    required     pam_env.so user_readenv=1 envfile=/etc/default/locale
+
+# SELinux needs to intervene at login time to ensure that the process starts
+# in the proper default security context.  Only sessions which are intended
+# to run in the user's context should be run after this.
+session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_selinux.so open
+
+# Standard Un*x password updating.
+@include common-password
+```
+
+The default SSHD will call two pam_mod files, one Dynamic. That prints the machine 
+info, and a static MOTD that can be set by an admin.  
+
+```
+session    optional     pam_motd.so  motd=/run/motd.dynamic
+session    optional     pam_motd.so noupdate
+```
+
+Below, we show the default admin MOTD.
+
+```bash
+$ cat /etc/motd
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+```
+
+I've updated this to provide a message to users of Teleport, so they know they are 
+being audited. 
+
+```bash
+$ nano /etc/motd
+WARNING: All activity on this node is being recorded by Teleport
+```
+
+![Teleport SSH with updated MOTD](../img/motd/teleport-with-updated-MOTD.png)
+
 
 ## Creating local users to Teleport
 
@@ -73,37 +208,23 @@ Teleport 4.3 introduced the ability to create local (UNIX) users on login. This 
 very helpful if you're a large organization and want to create local user directors on
 the fly. 
 
+Teleport added ability to read in PAM environment variables from PAM handle and pass environment variables to PAM module `TELEPORT_USERNAME`, `TELEPORT_LOGIN`, and `TELEPORT_ROLES`.
 
-### Description
-Added ability to read in PAM environment variables from PAM handle and pass environment
-variables to PAM module `TELEPORT_USERNAME`, `TELEPORT_LOGIN`, and `TELEPORT_ROLES`.
-
-Refactored launching of shell to call PAM first. This allows a PAM module to create 
-the user and home directory before attempting to launch a shell for said user.
-
-To do this the command passed to Teleport during re-exec has changed. Before the 
-Teleport master process would resolve the user fully (`UID`, `GUID`, supplementary groups,
-shell, home directory) before re-launching itself to then launch a shell. However,
-if PAM is used to create the user on the fly and PAM has not been called yet, 
-this will fail.
-
-Instead that work has now been pushed to occur in the child process. This means the
-Teleport master process now creates a payload with the minimum needed from *srv.ServerContext
-and will then re-exec itself. The child process will call PAM and then attempt to 
-resolve the user (UID, GUID, supplementary groups, shell, home directory).
+This PAM module to creates the user and home directory before attempting to launch 
+a shell for said user.
 
 ### Examples
 **Using pam_exec.so**
 
-Using pam_exec.so is the easiest way to use the PAM stack to create a user if the
-user does not already exist. The advantage of using pam_exec.so is that it usually
+Using `pam_exec.so` is the easiest way to use the PAM stack to create a user if the
+user does not already exist. The advantage of using `pam_exec.so` is that it usually
 ships with the operating system. The downside is that it doesn't provide access to
-some additional environment variables that Teleport sets (see the pam_script.so
+some additional environment variables that Teleport sets (see the `pam_script.so`
 example for those) to use additional identity metadata in the user creation process.
 
-You can either add pam_exec.so to your existing PAM stack for your application or 
+You can either add `pam_exec.so` to your existing PAM stack for your application or 
 write a new one for Teleport. In this example we'll write a new one to simplify how
-to use pam_exec.so with Teleport.
+to use `pam_exec.so` with Teleport.
 
 Start by creating a file `/etc/pam.d/teleport` with the following contents.
 
@@ -112,13 +233,13 @@ account   required   pam_exec.so /etc/pam-exec.d/teleport_acct
 session   required   pam_motd.so
 ```
 
-Note the inclusion of `pam_motd.so` under the session facility. While pam_motd.so is
+Note the inclusion of `pam_motd.so` under the session facility. While `pam_motd.so` is
 not required for user creation, Teleport requires a module set for both the account
 and session facility to work.
 
 Next create the script that will be run by `pam_exec.so` like below. This script will
 check if the user passed in `PAM_USER` exists and if it does not, it will create it.
-Any error from useradd will be written to /tmp/pam.error.
+Any error from useradd will be written to `/tmp/pam.error`.
 
 ```bash
 mkdir -p /etc/pam-exec.d
@@ -130,8 +251,8 @@ EOF
 chmod +x /etc/pam-exec.d/teleport_acct
 ```
 
-Next update /etc/teleport.yaml to call the above PAM stack by both enabling PAM 
-and setting the service_name.
+Next update `/etc/teleport.yaml` to call the above PAM stack by both enabling PAM 
+and setting the `service_name`.
 
 ```yaml
 ssh_service:
@@ -143,15 +264,16 @@ ssh_service:
 Now attempting to login as an existing user should result in the creation of the user 
 and successful login.
 
-Using `pam_script.so`
-If more advanced functionality is needed pam_script.so is a good choice. It typically 
+### Using `pam_script.so`
+
+If more advanced functionality is needed `pam_script.so` is a good choice. It typically 
 has to be installed from packages but richer scripts with more identity information 
 from Teleport can be used during the process of user creation.
 
 To start install `pam_script.so`. On Debian based systems this would be 
 `apt-get install libpam-script` and on RHEL based systems yum install pam-script.
 
-You can either add pam_script.so to your existing PAM stack for your application 
+You can either add `pam_script.so` to your existing PAM stack for your application 
 or write a new one for Teleport. In this example we'll write a new one to simplify 
 how to use `pam_script.so` with Teleport.
 
@@ -162,14 +284,15 @@ account   required   pam_script.so
 session   required   pam_motd.so
 ```
 
-Note the inclusion of `pam_motd.so` under the session facility. While pam_motd.so 
-is not required for user creation, Teleport requires a module set for both the account
-and session facility to work.
+!!! Note
+
+      The inclusion of `pam_motd.so` under the session facility. While pam_motd.so 
+      is not required for user creation, Teleport requires a module set for both the account and session facility to work.
 
 Next create the script that will be run by pam_script.so like below. This script 
-will check if the user passed in TELEPORT_LOGIN exists and if it does not, it will
+will check if the user passed in `TELEPORT_LOGIN` exists and if it does not, it will
 create it. Any error from useradd will be written to `/tmp/pam.error`. Note the 
-additional environment variables TELEPORT_USERNAME, TELEPORT_ROLES, and TELEPORT_LOGIN.
+additional environment variables `TELEPORT_USERNAME`, `TELEPORT_ROLES`, and `TELEPORT_LOGIN`.
 These can be used to write richer scripts that may change the system in other 
 ways based off identity information.
 
@@ -196,5 +319,3 @@ ssh_service:
 
 Now attempting to login as an existing user should result in the creation of the
 user and successful login.
-
-
