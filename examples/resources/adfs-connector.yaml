@@ -3,22 +3,26 @@
 kind: saml
 version: v2
 metadata:
-  name: "adfs_connector"
+  name: adfs_connector
 spec:
   # display allows to set the caption of the "login" button
   # in the Web interface
-  display: "Login with SSO"
+  # Using the work 'Microsoft' will show the windows symbol in the UI. 
+  display: Microsoft
 
   # "adfs" provider setting tells Teleport that this SAML connector uses ADFS
   # as a provider
-  provider: "adfs"
+  provider: adfs
 
   # entity_descriptor XML can either be copied into connector or fetched from a URL
   entity_descriptor: |
     <EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
     ...
     </md:EntityDescriptor>
-  entity_descriptor_url: "https://example.com"
+  # entity_descriptor_url is commented out, as only one is required to setup adfs.
+  # if you're running Teleport in FIPS mode entity_descriptor_url with Azure AD may 
+  # fail 
+  #entity_descriptor_url: "https://example.com"
 
   # issuer typically comes from the "entity_descriptor" but can be overridden here
   issuer: "foo"
@@ -30,11 +34,11 @@ spec:
     ...
     -----END RSA PRIVATE KEY-----
 
-  acs: "https://teleport-proxy.example.com:3080/v1/webapi/saml/acs"
+  acs: "https://<cluster-url>.example.com:3080/v1/webapi/saml/acs"
   # if "service_provider_issuer" is not set, comes from "acs"
-  service_provider_issuer: "https://teleport-proxy.example.com:3080/v1/webapi/saml/acs"
+  service_provider_issuer: "https://<cluster-url>.example.com:3080/v1/webapi/saml/acs"
   # if "audience" is not set, comes from "acs"
-  audience: "https://teleport-proxy.example.com:3080/v1/webapi/saml/acs"
+  audience: "https://<cluster-url>.example.com:3080/v1/webapi/saml/acs"
 
   # if "signing_key_pair" is not set, teleport will generate a self signed
   # signing key pair
@@ -50,8 +54,8 @@ spec:
 
   attributes_to_roles:
     - name: "http://schemas.xmlsoap.org/claims/Group"
-      value: "teleadmins"
-      roles: ["admins"]
+      value: "Administrators"
+      roles: ["admin"]
     - name: "http://schemas.xmlsoap.org/claims/Group"
-      value: "teleusers"
-      roles: ["users"]
+      value: "Users"
+      roles: ["user"]

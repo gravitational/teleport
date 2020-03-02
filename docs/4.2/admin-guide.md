@@ -2047,6 +2047,10 @@ belong to:
 $ tctl users add joe --k8s-groups="system:masters"
 ```
 
+!!! tip "NOTE"
+
+    The above command is for the Teleport OSS version. Teleport Enterprise customers manage `k8s-groups` through RBAC.
+
 If using Teleport Community SSO with Github, Kubernetes groups can be assigned
 to Github teams with a Teleport connector. See example above in [Github OAuth
 2.0 Example](#github-oauth-20) for more information on how to setup Github SSO

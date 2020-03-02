@@ -14,7 +14,8 @@ theme:
     custom_dir: 'theme/'
     include_search_page: true
 markdown_extensions:
-  - markdown_include.include
+  - markdown_include.include:
+      base_path: '../'
   - admonition
   - def_list
   - footnotes

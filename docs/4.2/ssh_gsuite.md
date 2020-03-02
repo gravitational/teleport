@@ -85,26 +85,7 @@ Now, create a OIDC connector [resource](admin-guide.md#resources).
 Write down this template as `gsuite-connector.yaml`:
 
 ```yaml
-kind: oidc
-metadata:
-  name: gsuite
-spec:
-  claims_to_roles:
-  - claim: groups
-    roles:
-    - admin
-    value: dev@practice.io
-  client_id: GSUITE_CLIENT_ID.apps.googleusercontent.com
-  client_secret: OAUTH_CLIENT_SECRET
-  display: G Suite Group
-  google_admin_email: GSUITE_EMAIL
-  google_service_account_uri: file:///var/lib/teleport/gsuite-creds.json
-  issuer_url: https://accounts.google.com
-  redirect_url: https://TELEPORT_PROXY:3080/v1/webapi/oidc/callback
-  scope:
-  - openid
-  - email
-version: v2
+{!examples/resources/gsuite-connector.yaml!}
 ```
 
 Create the connector using `tctl` tool:

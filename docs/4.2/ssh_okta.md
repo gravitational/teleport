@@ -50,17 +50,13 @@ statements (special signed metadata exposed via a SAML XML response).
 GENERAL
 
 - Single sign on URL `https://teleport-proxy.example.com:3080/v1/webapi/saml/acs`
-
 - Audience URI (SP Entity ID)`https://teleport-proxy.example.com:3080/v1/webapi/saml/acs`
-
 - Name ID format `EmailAddress`
-
 - Application username `Okta username`
 
 GROUP ATTRIBUTE STATEMENTS
 
 - Name: `groups` | Name format: `Unspecified`
-
 -  Filter: `Matches regex` |  `.*`
 
 ![Configure APP](img/okta-saml-3.png)
@@ -96,7 +92,7 @@ metadata:
 spec:
   # display allows to set the caption of the "login" button
   # in the Web interface
-  display: "Login with Okta SSO"
+  display: "Okta SSO"
 
   acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
   attributes_to_roles:
@@ -105,6 +101,7 @@ spec:
   entity_descriptor: |
     <paste SAML XML contents here>
 ```
+
 
 Create the connector using `tctl` tool:
 

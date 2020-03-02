@@ -11,11 +11,11 @@ spec:
   # this field allows to create tunnels that are disabled, but can be enabled later.
   # this is the only field that can be changed later.
   enabled: true
-  # the token expected by the "main" cluster:
+  # the token expected by the "root" cluster:
   token: secret-token-to-add-new-clusters
   # the address in 'host:port' form of the reverse tunnel listening port on the
-  # "master" proxy server:
-  tunnel_addr: proxy.main:3024
+  # "root" proxy server:
+  tunnel_addr: <root-cluster-url>:3024
   # the address in 'host:port' form of the web listening port on the
-  # "master" proxy server:
-  web_proxy_addr: proxy.main:3080
+  # "root" proxy server:
+  web_proxy_addr: <root-cluster-url>:3080

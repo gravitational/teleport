@@ -1,0 +1,31 @@
+#
+# Example: Default Admin Role
+#
+kind: role
+metadata:
+  name: admin
+spec:
+  allow:
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    logins:
+    - '{{internal.logins}}'
+    - root
+    node_labels:
+      '*': '*'
+    rules:
+    - resources:
+      - '*'
+      verbs:
+      - '*'
+  deny:
+    logins: null
+  options:
+    cert_format: standard
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: true
+    max_session_ttl: 30h0m0s
+    port_forwarding: true
+version: v3

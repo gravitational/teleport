@@ -347,10 +347,8 @@ There are three common types of problems Teleport administrators can run into wh
 trust between two clusters:
 
 * **HTTPS configuration**: when the main cluster uses a self-signed or invalid HTTPS certificate.
-
 * **Connectivity problems**: when a trusting cluster "east" does not show up in
   `tsh clusters` output on "main".
-
 * **Access problems**: when users from "main" get "access denied" error messages
   trying to connect to nodes on "east".
 
