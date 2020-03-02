@@ -663,7 +663,7 @@ tsh --proxy <proxy-addr> ssh <hostname>
 
 ## Adding and Deleting Users
 
-This section covers internal user identities, i.e.user accounts created and
+This section covers internal user identities, i.e. user accounts created and
 stored in Teleport's internal storage. Most production users of Teleport use
 _external_ users via [Github](#github-oauth-20) or [Okta](ssh_okta) or any other
 SSO provider (Teleport Enterprise supports any SAML or OIDC compliant identity
