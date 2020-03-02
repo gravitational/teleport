@@ -15,7 +15,8 @@ limitations under the License.
 */
 
 import React from 'react';
-import SideNav, { SideNavItem } from '../SideNav';
+import SideNav, { SideNavItem, SideNavItemIcon } from './index';
+import * as Icons from '../Icon';
 
 export default {
   title: 'Design/SideNav',
@@ -26,5 +27,22 @@ export const Sample = () => (
     <SideNavItem>Item 1</SideNavItem>
     <SideNavItem>Item 2</SideNavItem>
     <SideNavItem>Item 3</SideNavItem>
+  </SideNav>
+);
+
+export const SampleWithIcons = () => (
+  <SideNav static>
+    <SideNavItem>
+      <SideNavItemIcon as={Icons.Apple} />
+      Item 1
+    </SideNavItem>
+    <SideNavItem>
+      <SideNavItemIcon as={Icons.Cash} />
+      Item 2
+    </SideNavItem>
+    <SideNavItem>
+      <SideNavItemIcon as={Icons.Windows} />
+      Item 3
+    </SideNavItem>
   </SideNav>
 );
