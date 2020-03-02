@@ -214,7 +214,7 @@ howdy
 
 _Note: The `tsh` client always requires the `--proxy` flag_
 
-You command prompt may not look different, but you are now in a new SSH session
+Your command prompt may not look different, but you are now in a new SSH session
 which has been authenticated by Teleport!
 
 Try a few things to get familiar with recorded sessions:

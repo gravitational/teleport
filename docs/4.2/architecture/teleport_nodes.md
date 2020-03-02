@@ -6,7 +6,7 @@
 
 ## The Node Service
 
-A regular node becomes a Teleport Node when the node joins a cluster with an
+A regular node becomes a Teleport Node when the node joins a cluster with a
 "join" token. Read about how nodes are issued certificates in the
 [Auth Guide](teleport_auth.md#issuing-node-certificates).
 
@@ -19,7 +19,7 @@ and remote command execution on the node, similar to the function of OpenSSH's
 
 ![Node Service ping API](../img/node_service_api.svg)
 
-All cluster Nodes keep the Auth Server updated with their status with periodic
+All cluster Nodes keep the Auth Server updated on their status with periodic
 ping messages. They report their IP addresses and values of their assigned
 labels. Nodes can access the list of all Nodes in their cluster via the
 [Auth Server API](teleport_auth.md#auth-api).
