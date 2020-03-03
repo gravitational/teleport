@@ -9,7 +9,6 @@ copyright: Gravitational Inc, 2016-20
 site_dir: ../build/docs/4.2
 docs_dir: "4.2"
 
-
 theme:
     name: null
     custom_dir: 'theme/'
@@ -46,6 +45,7 @@ nav:
         - FAQ: faq.md
     - Teleport Features: 
         - Enhanced Session Recording: features/enhanced_session_recording.md
+        - Using Teleport with PAM: features/ssh_pam.md
     - Infrastructure Guides:
         - AWS: aws_oss_guide.md
         - GCP: gcp_guide.md

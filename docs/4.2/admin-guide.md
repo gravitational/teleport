@@ -1762,7 +1762,7 @@ Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/
 
 ## PAM Integration
 
-Teleport SSH daemon can be configured to integrate with
+Teleport node service can be configured to integrate with
 [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create
 user sessions using PAM session profiles.
 
