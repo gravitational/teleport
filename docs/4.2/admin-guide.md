@@ -663,7 +663,7 @@ tsh --proxy <proxy-addr> ssh <hostname>
 
 ## Adding and Deleting Users
 
-This section covers internal user identities, i.e.user accounts created and
+This section covers internal user identities, i.e. user accounts created and
 stored in Teleport's internal storage. Most production users of Teleport use
 _external_ users via [Github](#github-oauth-20) or [Okta](ssh_okta) or any other
 SSO provider (Teleport Enterprise supports any SAML or OIDC compliant identity
@@ -1057,7 +1057,7 @@ the audit log:
 3. **Optional: Enhanced Session Recording** 
 
 Refer to the ["Audit Log" chapter in the Teleport
-Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit Log and
+Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit log and
 session recording are designed.
 
 ### SSH Events
@@ -1066,7 +1066,7 @@ Teleport supports multiple storage back-ends for storing the SSH events. The
 section below uses the `dir` backend as an example. `dir` backend uses the local
 filesystem of an auth server using the configurable `data_dir` directory.
 
-For highly available (HA) configuration users can refer to
+For highly available (HA) configuration, users can refer to our 
 [DynamoDB](#using-dynamodb) or [etcd](#using-etcd) chapters on how to configure
 the SSH events and recorded sessions to be stored on network storage. It is even
 possible to store the audit log in multiple places at the same time, see

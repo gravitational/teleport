@@ -20,9 +20,9 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
 
 ## RBAC
 
-Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to user's. An example of an RBAC policy might be:  _"admins can do anything, 
+Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to users. An example of an RBAC policy might be:  _"admins can do anything, 
 developers must never touch production servers, and interns can only SSH into
-staging servers as guests"_
+staging servers as guests".
 
 ### How does it work?
 
@@ -31,7 +31,7 @@ edition of Teleport automatically assigns every user to the built-in "admin"
 role, but Teleport Enterprise allows administrators to define their own
 roles with far greater control over user permissions.
 
-Lets assume a company is using Active Directory to authenticate users and place
+Let's assume a company is using Active Directory to authenticate users and place
 them into groups. A typical enterprise deployment of Teleport in this scenario
 would look like this:
 
@@ -41,7 +41,7 @@ would look like this:
    "developers", "admins", "contractors", etc.
 3. The Teleport administrator will have to define Teleport Roles. For
    example: "users", "developers" and "admins".
-4. The last step will be to define mappings from the Active Directory groups (claims). 
+4. The last step will be to define mappings from the Active Directory groups (claims) 
    to the Teleport Roles so every Teleport user will be assigned a role based 
    on the group membership.
 
@@ -74,7 +74,7 @@ $ tsh login
 Teleport can be configured with a certificate TTL to determine how often a user needs to log in.
 
 `tsh login` will print a URL into the console, which will open an SSO login
-prompt, along with the 2FA, as enforced by the SSO provider. If user supplies
+prompt, along with the 2FA, as enforced by the SSO provider. If a user supplies
 valid credentials, Teleport will issue an SSH certificate.
 
 Moreover, SSO can be used in combination with role-based access control (RBAC)
@@ -84,7 +84,7 @@ See the [SSO for SSH](ssh_sso.md) chapter for more details.
 
 !!! tip "Contact Information"
 
-    For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact for on our [website](http://gravitational.com/demo)
+    For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact form on our [website](http://gravitational.com/demo).
 
 
 ## FedRAMP/FIPS 
@@ -153,7 +153,7 @@ spec:
 ```
 
 **Admin Role**
-This role lets the admin approve the contractors request. 
+This role lets the admin approve the contractor's request. 
 ```yaml
 kind: role
 metadata:
@@ -205,6 +205,6 @@ Assuming approval, `tsh` will automatically manage a certificate re-issued with 
 
 ### Other features of Approval Workflows.
  
- - Roles can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
+ - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
  - Approved requests have no affect on Teleport's behavior outside of allowing additional roles on re-issue. This has the nice effect of making requests "compatible" with older versions of Teleport, since only the issuing Auth Server needs any particular knowledge of the feature. 
  
