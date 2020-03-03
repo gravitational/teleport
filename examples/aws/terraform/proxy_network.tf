@@ -202,7 +202,7 @@ resource "aws_lb_target_group" "proxy_web_acm" {
   name     = "${var.cluster_name}-proxy-web"
   port     = 3080
   vpc_id   = aws_vpc.teleport.id
-  protocol = "HTTP"
+  protocol = "HTTPS"
   count    = var.use_acm ? 1 : 0
 
   health_check {
