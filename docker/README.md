@@ -29,7 +29,7 @@ This will start two Teleport clusters:
 ### Stopping
 
 ```bash
-$ make stop
+$ make down
 ```
 
 ### SSH
