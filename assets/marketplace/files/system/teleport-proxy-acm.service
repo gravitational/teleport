@@ -12,7 +12,7 @@ RestartSec=5
 RuntimeDirectory=teleport
 EnvironmentFile=/etc/teleport.d/conf
 ExecStartPre=/usr/bin/teleport-ssm-get-token
-ExecStart=/usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid --insecure-no-tls
+ExecStart=/usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/teleport/teleport.pid
 LimitNOFILE=65536
