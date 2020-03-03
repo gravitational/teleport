@@ -592,6 +592,90 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 	}
 }
 
+// TestUUIDBasedProxy verifies that attempts to proxy to nodes using ambiguous
+// hostnames fails with the correct error, and that proxying by UUID succeeds.
+func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
+	var err error
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	t := s.newTeleport(c, nil, true)
+	defer t.Stop(true)
+
+	site := t.GetSiteAPI(Site)
+
+	// addNode adds a node to the teleport instance, returning its uuid.
+	// All nodes added this way have the same hostname.
+	addNode := func() (string, error) {
+		nodeSSHPort := s.getPorts(1)[0]
+		tconf := service.MakeDefaultConfig()
+
+		tconf.Hostname = Host
+
+		tconf.SSH.Enabled = true
+		tconf.SSH.Addr.Addr = net.JoinHostPort(t.Hostname, fmt.Sprintf("%v", nodeSSHPort))
+
+		node, err := t.StartNode(tconf)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		ident, err := node.GetIdentity(teleport.RoleNode)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		return ident.ID.HostID()
+	}
+
+	// add two nodes with the same hostname.
+	uuid1, err := addNode()
+	c.Assert(err, check.IsNil)
+
+	uuid2, err := addNode()
+	c.Assert(err, check.IsNil)
+
+	// wait up to 10 seconds for supplied node names to show up.
+	waitForNodes := func(site auth.ClientI, nodes ...string) error {
+		tickCh := time.Tick(500 * time.Millisecond)
+		stopCh := time.After(10 * time.Second)
+	Outer:
+		for _, nodeName := range nodes {
+			for {
+				select {
+				case <-tickCh:
+					nodesInSite, err := site.GetNodes(defaults.Namespace, services.SkipValidation())
+					if err != nil && !trace.IsNotFound(err) {
+						return trace.Wrap(err)
+					}
+					for _, node := range nodesInSite {
+						if node.GetName() == nodeName {
+							continue Outer
+						}
+					}
+				case <-stopCh:
+					return trace.BadParameter("waited 10s, did find node %s", nodeName)
+				}
+			}
+		}
+		return nil
+	}
+
+	err = waitForNodes(site, uuid1, uuid2)
+	c.Assert(err, check.IsNil)
+
+	// attempting to run a command by hostname should generate NodeIsAmbiguous error.
+	_, err = runCommand(t, []string{"echo", "Hello there!"}, ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host}, 1)
+	c.Assert(err, check.NotNil)
+	if !strings.Contains(err.Error(), teleport.NodeIsAmbiguous) {
+		c.Errorf("Expected %s, got %s", teleport.NodeIsAmbiguous, err.Error())
+	}
+
+	// attempting to run a command by uuid should succeed.
+	_, err = runCommand(t, []string{"echo", "Hello there!"}, ClientConfig{Login: s.me.Username, Cluster: Site, Host: uuid1}, 1)
+	c.Assert(err, check.IsNil)
+}
+
 // TestInteractive covers SSH into shell and joining the same session from another client
 func (s *IntSuite) TestInteractive(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
