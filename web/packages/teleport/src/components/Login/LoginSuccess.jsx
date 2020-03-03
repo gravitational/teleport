@@ -20,9 +20,9 @@ import LogoHero from './../LogoHero';
 
 export default function LoginSuccess() {
   return (
-    <React.Fragment>
+    <>
       <LogoHero />
       <CardSuccessLogin />
-    </React.Fragment>
-  )
+    </>
+  );
 }
