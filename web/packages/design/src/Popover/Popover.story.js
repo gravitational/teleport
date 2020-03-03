@@ -140,7 +140,7 @@ class SimplePopover extends React.Component {
             anchorEl={anchorEl}
             onClose={this.handleClose}
           >
-            <Box bg="white" color="black" p={5}>
+            <Box bg="white" color="black" p={5} data-testid="content">
               The content of the Popover.
             </Box>
           </Popover>
@@ -190,6 +190,7 @@ class MouseOverPopover extends React.Component {
             aria-owns={open ? 'mouse-over-popover' : undefined}
             onMouseEnter={this.handlePopoverOpen}
             onMouseLeave={this.handlePopoverClose}
+            data-testid="text"
           >
             Hover with a Popover.
           </Text>
@@ -208,7 +209,9 @@ class MouseOverPopover extends React.Component {
             horizontal: 'center',
           }}
         >
-          <StyledOnHover p={1}>Sample popover text. (tooltip)</StyledOnHover>
+          <StyledOnHover p={1} data-testid="content">
+            Sample popover text. (tooltip)
+          </StyledOnHover>
         </Popover>
       </Flex>
     );
