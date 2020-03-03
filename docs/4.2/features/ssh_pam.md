@@ -3,12 +3,12 @@
 Teleport SSH daemon can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create user sessions using PAM session profiles.
 
 Teleport only supports the `account` and `session` stack. The `auth` PAM module is
-currently not supported with Teleport.
+not currently supported with Teleport.
 
 
-## Introduction to  Pluggable Authentication Modules
+## Introduction to Pluggable Authentication Modules
 
-Pluggable Authentication Modules (PAM) goes way to to 1995, when Sun Microsystems
+Pluggable Authentication Modules (PAM) date back to 1995 when Sun Microsystems
 implemented a generic authentication framework for Solaris. Since then most GNU/Linux 
 distributions have adopted PAM. 
 
@@ -26,11 +26,11 @@ and is identified for configuration purposes by a service name, which is often (
 not necessarily) the program name.
 
 The user requesting authentication is called the applicant, while the user (usually, root)
-charged with verifying his identity and granting him the requested credentials is 
+charged with verifying his identity and granting them the requested credentials is 
 called the arbitrator.
 
 The sequence of operations the server goes through to authenticate a user and perform
-whatever task he requested is a PAM transaction; the context within which the server 
+whatever task their requested is a PAM transaction; the context within which the server 
 performs the requested task is called a session.
 
 The functionality embodied by PAM is divided into six primitives grouped into four 
@@ -55,7 +55,7 @@ teleport:
 
 Please note that most Linux distributions come with a number of PAM services in
 `/etc/pam.d` and Teleport will try to use `sshd` by default, which will be
-removed if you uninstall `openssh-server` package. We recommend creating your
+removed if you uninstall the `openssh-server` package. We recommend creating your
 own PAM service file like `/etc/pam.d/teleport` and specifying it as
 `service_name` above.
 
@@ -63,9 +63,9 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 ## Setting Message of the Day (motd) with Teleport
 
 The file `/etc/motd` is normally displayed by login(1) after a user has logged in 
-but before the  shell is run.  It is generally used for important system-wide announcements.
+but before the shell is run. It is generally used for important system-wide announcements.
 
-This feature can help you inform users that activity on the node is  being audited 
+This feature can help you inform users that activity on the node is being audited 
 and recorded. 
 
 ### Example Node with PAM turned Off
@@ -108,7 +108,7 @@ ssh_service:
 ```
 ![Teleport SSH with MOTD](../img/motd/teleport-with-MOTD.png)
 
-When PAM is enabeld it'll use the default `sshd` config file. This can differ per 
+When PAM is enabled it will use the default `sshd` config file. This can differ per 
 distro, below is an example default sshd config from a Debian 9 machine. 
 
 ```bash
@@ -266,12 +266,17 @@ and successful login.
 
 ### Using `pam_script.so`
 
-If more advanced functionality is needed `pam_script.so` is a good choice. It typically 
-has to be installed from packages but richer scripts with more identity information 
-from Teleport can be used during the process of user creation.
+If more advanced functionality is needed, `pam_script.so` is a good choice. It typically 
+has to be installed from packages, but enables the use of richer scripts with more 
+identity information from Teleport to be used during the process of user creation.
 
-To start install `pam_script.so`. On Debian based systems this would be 
-`apt-get install libpam-script` and on RHEL based systems yum install pam-script.
+### Install pam_script.so.
+
+!!! Tip
+
+    Debian-based systems: `apt-get install libpam-script`
+    RHEL-based systems: `yum install pam-script`
+
 
 You can either add `pam_script.so` to your existing PAM stack for your application 
 or write a new one for Teleport. In this example we'll write a new one to simplify 
