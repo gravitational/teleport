@@ -1,6 +1,6 @@
 # Using Teleport with Pluggable Authentication Modules (PAM)
 
-Teleport SSH daemon can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create user sessions using PAM session profiles.
+Teleport's node service can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create user sessions using PAM session profiles.
 
 Teleport only supports the `account` and `session` stack. The `auth` PAM module is
 not currently supported with Teleport.
@@ -15,6 +15,7 @@ distributions have adopted PAM.
 ```bash
 $ man pam
 ```
+
 The Pluggable Authentication Modules (PAM) library abstracts a number of common 
 authentication-related operations and provides a framework for dynamically loaded 
 modules that implement these operations in various ways.
@@ -68,7 +69,8 @@ but before the shell is run. It is generally used for important system-wide anno
 This feature can help you inform users that activity on the node is being audited 
 and recorded. 
 
-### Example Node with PAM turned Off
+### Example node with PAM turned off
+
 ```yaml
 teleport:
   nodename: graviton-node-1
@@ -77,18 +79,19 @@ teleport:
   - 10.2.1.230:5070
   data_dir: /var/lib/teleport
 proxy_service:
-  enabled: "no"
+  enabled: false
 auth_service:
-  enabled: "no"
+  enabled: false
 ssh_service:
-  enabled: "yes"
+  enabled: true
   # configures PAM integration. see below for more details.
   pam:
-     enabled: no
+     enabled: false
 ```
+
 ![Teleport SSH without MOTD](../img/motd/teleport-no-MOTD.png)
 
-### Example with PAM enabled
+### Example node with PAM enabled
 ```yaml
 teleport:
   nodename: graviton-node-1
@@ -97,15 +100,16 @@ teleport:
   - 10.2.1.230:5070
   data_dir: /var/lib/teleport
 proxy_service:
-  enabled: "no"
+  enabled: false
 auth_service:
-  enabled: "no"
+  enabled: false
 ssh_service:
-  enabled: "yes"
+  enabled: true
   # configures PAM integration. see below for more details.
   pam:
-     enabled: yes
+     enabled: true
 ```
+
 ![Teleport SSH with MOTD](../img/motd/teleport-with-MOTD.png)
 
 When PAM is enabled it will use the default `sshd` config file. This can differ per 
@@ -170,7 +174,7 @@ session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_
 @include common-password
 ```
 
-The default SSHD will call two pam_mod files, one Dynamic. That prints the machine 
+The default `sshd` will call two `pam_motd` files, one dynamic. That prints the machine 
 info, and a static MOTD that can be set by an admin.  
 
 ```
@@ -195,22 +199,23 @@ I've updated this to provide a message to users of Teleport, so they know they a
 being audited. 
 
 ```bash
-$ nano /etc/motd
+$ cat /etc/motd
 WARNING: All activity on this node is being recorded by Teleport
 ```
 
 ![Teleport SSH with updated MOTD](../img/motd/teleport-with-updated-MOTD.png)
 
 
-## Creating local users to Teleport
+## Creating local users with Teleport
 
 Teleport 4.3 introduced the ability to create local (UNIX) users on login. This is
-very helpful if you're a large organization and want to create local user directors on
-the fly. 
+very helpful if you're a large organization and want to provision local users and home
+directories on the fly.
 
-Teleport added ability to read in PAM environment variables from PAM handle and pass environment variables to PAM module `TELEPORT_USERNAME`, `TELEPORT_LOGIN`, and `TELEPORT_ROLES`.
+Teleport added the ability to read in PAM environment variables from PAM handle and pass
+environment variables to PAM modules: `TELEPORT_USERNAME`, `TELEPORT_LOGIN`, and `TELEPORT_ROLES`.
 
-This PAM module to creates the user and home directory before attempting to launch 
+This PAM module creates the user and home directory before attempting to launch 
 a shell for said user.
 
 ### Examples
@@ -222,22 +227,24 @@ ships with the operating system. The downside is that it doesn't provide access 
 some additional environment variables that Teleport sets (see the `pam_script.so`
 example for those) to use additional identity metadata in the user creation process.
 
-You can either add `pam_exec.so` to your existing PAM stack for your application or 
-write a new one for Teleport. In this example we'll write a new one to simplify how
+You can either add `pam_exec.so` to the existing PAM stack for your application or 
+write a new one for Teleport. In this example, we'll write a new one to simplify how
 to use `pam_exec.so` with Teleport.
 
-Start by creating a file `/etc/pam.d/teleport` with the following contents.
+Start by creating a file `/etc/pam.d/teleport` with the following contents:
 
 ```bash
 account   required   pam_exec.so /etc/pam-exec.d/teleport_acct
 session   required   pam_motd.so
 ```
 
-Note the inclusion of `pam_motd.so` under the session facility. While `pam_motd.so` is
-not required for user creation, Teleport requires a module set for both the account
-and session facility to work.
+!!! Note
 
-Next create the script that will be run by `pam_exec.so` like below. This script will
+      Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
+      not required for user creation, Teleport requires at least one module to be set under both
+      the `account` and `session` facilities for it to work.
+
+Next, create the script that will be run by `pam_exec.so` like below. This script will
 check if the user passed in `PAM_USER` exists and if it does not, it will create it.
 Any error from useradd will be written to `/tmp/pam.error`.
 
@@ -251,8 +258,8 @@ EOF
 chmod +x /etc/pam-exec.d/teleport_acct
 ```
 
-Next update `/etc/teleport.yaml` to call the above PAM stack by both enabling PAM 
-and setting the `service_name`.
+Next, update `/etc/teleport.yaml` to call the above PAM stack by both enabling PAM 
+and setting the `service_name`:
 
 ```yaml
 ssh_service:
@@ -262,7 +269,7 @@ ssh_service:
 ```
 
 Now attempting to login as an existing user should result in the creation of the user 
-and successful login.
+and a successful login.
 
 ### Using `pam_script.so`
 
@@ -270,16 +277,15 @@ If more advanced functionality is needed, `pam_script.so` is a good choice. It t
 has to be installed from packages, but enables the use of richer scripts with more 
 identity information from Teleport to be used during the process of user creation.
 
-### Install pam_script.so.
+### Install pam_script.so
 
 !!! Tip
 
     Debian-based systems: `apt-get install libpam-script`
     RHEL-based systems: `yum install pam-script`
 
-
-You can either add `pam_script.so` to your existing PAM stack for your application 
-or write a new one for Teleport. In this example we'll write a new one to simplify 
+You can either add `pam_script.so` to the existing PAM stack for your application 
+or write a new one for Teleport. In this example, we'll write a new one to simplify 
 how to use `pam_script.so` with Teleport.
 
 Start by creating a file `/etc/pam.d/teleport` with the following contents.
@@ -291,15 +297,16 @@ session   required   pam_motd.so
 
 !!! Note
 
-      The inclusion of `pam_motd.so` under the session facility. While pam_motd.so 
-      is not required for user creation, Teleport requires a module set for both the account and session facility to work.
+      Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
+      not required for user creation, Teleport requires at least one module to be set under both
+      the `account` and `session` facilities for it to work.
 
-Next create the script that will be run by pam_script.so like below. This script 
+Next, create the script that will be run by pam_script.so like below. This script 
 will check if the user passed in `TELEPORT_LOGIN` exists and if it does not, it will
 create it. Any error from useradd will be written to `/tmp/pam.error`. Note the 
 additional environment variables `TELEPORT_USERNAME`, `TELEPORT_ROLES`, and `TELEPORT_LOGIN`.
-These can be used to write richer scripts that may change the system in other 
-ways based off identity information.
+These can be used to write richer scripts that may change the system in other ways
+based on identity information.
 
 ```bash
 mkdir -p /etc/pam-script.d
@@ -312,7 +319,7 @@ EOF
 chmod +x /etc/pam-script.d/teleport_acct
 ```
 
-Next update `/etc/teleport.yaml` to call the above PAM stack by both enabling PAM and 
+Next, update `/etc/teleport.yaml` to call the above PAM stack by both enabling PAM and 
 setting the service_name.
 
 ```yaml
@@ -323,4 +330,4 @@ ssh_service:
 ```
 
 Now attempting to login as an existing user should result in the creation of the
-user and successful login.
+user and a successful login.
