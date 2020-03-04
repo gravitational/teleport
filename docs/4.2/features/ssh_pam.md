@@ -215,6 +215,14 @@ directories on the fly.
 Teleport added the ability to read in PAM environment variables from PAM handle and pass
 environment variables to PAM modules: `TELEPORT_USERNAME`, `TELEPORT_LOGIN`, and `TELEPORT_ROLES`.
 
+Here are some details on the contents of these environment variables which will be set by Teleport:
+
+`TELEPORT_USERNAME`: The Teleport username of the user who is logging into the node. This is usually an email address (such as `user@example.com`) if using SAML/OIDC identities with Teleport Enterprise, or a more standard `exampleuser` if using local Teleport users.
+
+`TELEPORT_LOGIN`: The name of the Linux/UNIX principal which the Teleport user is logging into the Teleport node as - for example `root`, `developer`, `ubuntu`, `ec2-user` or similar.
+
+`TELEPORT_ROLES`: A space-separated list of Teleport roles which the Teleport user has - for example: `developer tester admin`.
+
 This PAM module creates the user and home directory before attempting to launch 
 a shell for said user.
 
