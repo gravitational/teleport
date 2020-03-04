@@ -54,14 +54,19 @@ $ sudo teleport start
 In a production environment Teleport must run as root. But to play, just do `chown $USER /var/lib/teleport` 
 and run it under `$USER`, in this case you will not be able to login as someone else though.
 
-If you wish to deploy Teleport inside a Docker container:
+## Docker
 
+### Deploy Teleport
+If you wish to deploy Teleport inside a Docker container:
 ```
 # This command will pull the Teleport container image for version 4.2.0
 # Replace 4.2.0 with the version you need:
 $ docker pull quay.io/gravitational/teleport:4.2.0
 ```
 View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
+
+### For Local Testing and Development
+Follow instructions at [docker/README](docker/README.md)
 
 ## Building Teleport
 

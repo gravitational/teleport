@@ -1,6 +1,6 @@
 # The base image (buildbox:latest) is built by running `make -C build.assets` 
 # from the base repo directory $GOPATH/gravitational.com/teleport
-FROM teleport-buildbox:latest
+FROM teleport-buildbox:go1.13.2
 RUN apt-get update
 # DEBUG=1 is needed for the Web UI to be loaded from static assets instead 
 # of the binary
