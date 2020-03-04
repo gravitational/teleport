@@ -125,6 +125,26 @@ func (s *AddrTestSuite) TestParseDefaults(c *C) {
 	c.Assert(addr.IsEmpty(), Equals, false)
 }
 
+func (s *AddrTestSuite) TestForceLoopback(c *C) {
+	testCases := []struct {
+		before, after string
+	}{
+		{"localhost", "127.0.0.1"},
+		{"0.0.0.0", "127.0.0.1"},
+		{"127.0.0.1", "127.0.0.1"},
+		{"localhost:123", "127.0.0.1:123"},
+		{"localhost.example.com:456", "localhost.example.com:456"},
+		{"[::]:789", "[::1]:789"},
+		{"::", "::1"},
+		{"", ""},
+	}
+	for _, tc := range testCases {
+		c.Logf("Force loopback test case: %+v", tc)
+		addr := ForceLoopback(tc.before)
+		c.Assert(addr, Equals, tc.after)
+	}
+}
+
 func (s *AddrTestSuite) TestReplaceLocalhost(c *C) {
 	var result string
 	result = ReplaceLocalhost("10.10.1.1", "192.168.1.100:399")
