@@ -2157,6 +2157,10 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 	if err != nil {
 		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
 	}
+	hostKeyCallback, err := ctx.HostKeyCallback()
+	if err != nil {
+		return nil, trace.BadParameter("failed to get client SSH host key callback: %v", err)
+	}
 
 	config := &client.Config{
 		Username:         ctx.user,
@@ -2165,7 +2169,7 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		TLS:              tlsConfig,
 		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		DefaultPrincipal: cert.ValidPrincipals[0],
-		HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
+		HostKeyCallback:  hostKeyCallback,
 	}
 
 	return config, nil

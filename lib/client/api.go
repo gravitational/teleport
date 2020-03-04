@@ -1576,6 +1576,10 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
 	}
 
+	// make sure that loopback-like addresses are normalized
+	// to 127.0.0.1 (required for certificate validation).
+	sshProxyAddr = utils.ForceLoopback(sshProxyAddr)
+
 	// helper to create a ProxyClient struct
 	makeProxyClient := func(sshClient *ssh.Client, m ssh.AuthMethod) *ProxyClient {
 		return &ProxyClient{

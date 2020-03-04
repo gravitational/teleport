@@ -264,7 +264,9 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	clientConfig.Stderr = stream
 	clientConfig.Stdin = stream
 	clientConfig.SiteName = t.params.Cluster
-	clientConfig.ParseProxyHost(t.params.ProxyHostPort)
+	if err := clientConfig.ParseProxyHost(t.params.ProxyHostPort); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
 	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}

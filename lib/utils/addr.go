@@ -312,6 +312,39 @@ func IsLocalhost(host string) bool {
 	return ip.IsLoopback() || ip.IsUnspecified()
 }
 
+// ForceLoopback converts `0.0.0.0` and `localhost` addresses to `127.0.0.1`,
+// preserving suffix (e.g. `localhost:22` -> `127.0.0.1:22`).  This function is
+// used to normalize local proxy connections since we allow proxy certificates
+// to contain `127.0.0.1`, but not `0.0.0.0` or `localhost`.
+func ForceLoopback(addr string) string {
+	// split host and port if appropriate
+	var host, port string
+	if ip := net.ParseIP(addr); ip != nil {
+		host = ip.String()
+	} else if h, p, err := net.SplitHostPort(addr); err == nil {
+		host, port = h, p
+	} else {
+		host = addr
+	}
+
+	// apply host substitutions
+	switch host {
+	case `localhost`, `0.0.0.0`:
+		host = `127.0.0.1`
+	case `::`:
+		host = `::1`
+	default:
+		// return original unmodified address
+		return addr
+	}
+
+	// re-join port if it exists
+	if port != "" {
+		return net.JoinHostPort(host, port)
+	}
+	return host
+}
+
 // IsLoopback returns 'true' if a given hostname resolves to local
 // host's loopback interface
 func IsLoopback(host string) bool {
