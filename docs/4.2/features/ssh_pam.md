@@ -303,7 +303,7 @@ session   required   pam_motd.so
 
 Next, create the script that will be run by pam_script.so like below. This script 
 will check if the user passed in `TELEPORT_LOGIN` exists and if it does not, it will
-create it. Any error from useradd will be written to `/tmp/pam.error`. Note the 
+create it. Any error from `useradd` will be written to `/tmp/pam.error`. Note the 
 additional environment variables `TELEPORT_USERNAME`, `TELEPORT_ROLES`, and `TELEPORT_LOGIN`.
 These can be used to write richer scripts that may change the system in other ways
 based on identity information.
