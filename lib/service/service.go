@@ -1719,6 +1719,8 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
+		// all proxies need to be dialable on loopback
+		addrs = append(addrs, *utils.MustParseAddr(`127.0.0.1`))
 		// Automatically add wildcards for every proxy public address for k8s SNI routing
 		if process.Config.Proxy.Kube.Enabled {
 			for _, publicAddr := range utils.JoinAddrSlices(process.Config.Proxy.PublicAddrs, process.Config.Proxy.Kube.PublicAddrs) {

@@ -1460,12 +1460,18 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 
+	sshProxyAddr := tc.Config.SSHProxyAddr
+
+	// make sure that loopback-like addresses are normalized
+	// to 127.0.0.1 (required for certificate validation).
+	sshProxyAddr = utils.ForceLoopback(sshProxyAddr)
+
 	// helper to create a ProxyClient struct
 	makeProxyClient := func(sshClient *ssh.Client, m ssh.AuthMethod) *ProxyClient {
 		return &ProxyClient{
 			teleportClient:  tc,
 			Client:          sshClient,
-			proxyAddress:    tc.Config.SSHProxyAddr,
+			proxyAddress:    sshProxyAddr,
 			proxyPrincipal:  proxyPrincipal,
 			hostKeyCallback: sshConfig.HostKeyCallback,
 			authMethod:      m,
@@ -1474,14 +1480,14 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			clientAddr:      tc.ClientAddr,
 		}
 	}
-	successMsg := fmt.Sprintf("Successful auth with proxy %v", tc.Config.SSHProxyAddr)
+	successMsg := fmt.Sprintf("Successful auth with proxy %v", sshProxyAddr)
 	// try to authenticate using every non interactive auth method we have:
 	for i, m := range tc.authMethods() {
-		log.Infof("Connecting proxy=%v login='%v' method=%d", tc.Config.SSHProxyAddr, sshConfig.User, i)
+		log.Infof("Connecting proxy=%v login='%v' method=%d", sshProxyAddr, sshConfig.User, i)
 		var sshClient *ssh.Client
 
 		sshConfig.Auth = []ssh.AuthMethod{m}
-		sshClient, err = ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
+		sshClient, err = ssh.Dial("tcp", sshProxyAddr, sshConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -183,19 +184,15 @@ func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	return clt, nil
 }
 
-// ClientTLSConfig returns client TLS authentication associated
-// with the web session context
-func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, error) {
-	var certPool *x509.CertPool
+// getCertAuthorities gets all certificate authorities, or the certificate authorities for
+// a specific cluster if clusterName is supplied.
+func (c *SessionContext) getCertAuthorities(clusterName ...string) ([]services.CertAuthority, error) {
 	if len(clusterName) == 0 {
 		certAuthorities, err := c.parent.proxyClient.GetCertAuthorities(services.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		certPool, err = services.CertPoolFromCertAuthorities(certAuthorities)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return certAuthorities, nil
 	} else {
 		certAuthority, err := c.parent.proxyClient.GetCertAuthority(services.CertAuthID{
 			Type:       services.HostCA,
@@ -204,12 +201,26 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		certPool, err = services.CertPool(certAuthority)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return []services.CertAuthority{certAuthority}, nil
 	}
+}
 
+// ClientTLSConfig returns client TLS authentication associated
+// with the web session context
+func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, error) {
+	cas, err := c.getCertAuthorities(clusterName...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var certPool *x509.CertPool
+	if len(cas) == 1 {
+		certPool, err = services.CertPool(cas[0])
+	} else {
+		certPool, err = services.CertPoolFromCertAuthorities(cas)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	tlsConfig := utils.TLSConfig(c.parent.cipherSuites)
 	tlsCert, err := tls.X509KeyPair(c.sess.GetTLSCert(), c.sess.GetPriv())
 	if err != nil {
@@ -219,6 +230,22 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(c.parent.clusterName)
 	return tlsConfig, nil
+}
+
+func (c *SessionContext) HostKeyCallback(clusterName ...string) (ssh.HostKeyCallback, error) {
+	cas, err := c.getCertAuthorities(clusterName...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var pubKeys []ssh.PublicKey
+	for _, ca := range cas {
+		checkers, err := ca.Checkers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		pubKeys = append(pubKeys, checkers...)
+	}
+	return sshutils.NewHostKeyCallback(pubKeys), nil
 }
 
 func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (auth.ClientI, error) {
