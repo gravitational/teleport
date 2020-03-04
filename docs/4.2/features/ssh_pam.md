@@ -40,7 +40,7 @@ management.
 
 Teleport currently supports account management and session management.
 
-## Setting up PAM on a Linux Machine running Teleport. 
+## Setting up PAM on a Linux Machine running Teleport
 
 To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
 
