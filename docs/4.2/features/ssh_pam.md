@@ -49,7 +49,7 @@ teleport:
    ssh_service:
       pam:
          # "no" by default
-         enabled: yes
+         enabled: true
          # use /etc/pam.d/sshd configuration (the default)
          service_name: "sshd"
 ```
@@ -246,7 +246,7 @@ session   required   pam_motd.so
 
 Next, create the script that will be run by `pam_exec.so` like below. This script will
 check if the user passed in `PAM_USER` exists and if it does not, it will create it.
-Any error from useradd will be written to `/tmp/pam.error`.
+Any error from `useradd` will be written to `/tmp/pam.error`.
 
 ```bash
 mkdir -p /etc/pam-exec.d
@@ -264,7 +264,7 @@ and setting the `service_name`:
 ```yaml
 ssh_service:
    pam:
-     enabled: yes
+     enabled: true
      service_name: "teleport"
 ```
 
@@ -325,7 +325,7 @@ setting the service_name.
 ```yaml
 ssh_service:
    pam:
-     enabled: yes
+     enabled: true
      service_name: "teleport"
 ```
 
