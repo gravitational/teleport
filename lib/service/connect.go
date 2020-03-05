@@ -600,11 +600,12 @@ type rotationStatus struct {
 	ca services.CertAuthority
 }
 
-// checkPrincipals returns a boolean that indicates the host certificate
+// checkServerIdentity returns a boolean that indicates the host certificate
 // needs to be regenerated.
-func checkPrincipals(conn *Connector, additionalPrincipals []string, dnsNames []string) bool {
+func checkServerIdentity(conn *Connector, additionalPrincipals []string, dnsNames []string) bool {
 	var principalsChanged bool
 	var dnsNamesChanged bool
+	var oldCertFormat bool
 
 	// Remove 0.0.0.0 (meaning advertise_ip has not) if it exists in the list of
 	// principals. The 0.0.0.0 values tells the auth server to "guess" the nodes
@@ -627,8 +628,13 @@ func checkPrincipals(conn *Connector, additionalPrincipals []string, dnsNames []
 		log.Debugf("Rotation in progress, adding %v to x590 DNS names in SAN %v.",
 			dnsNames, conn.ServerIdentity.XCert.DNSNames)
 	}
+	// Older certificates did not necessarily include node id in the principal list.
+	if id, err := conn.ServerIdentity.ID.HostID(); err == nil && !conn.ServerIdentity.HasPrincipals([]string{id}) {
+		oldCertFormat = true
+		log.Debugf("Rotation in progress, certificate does not include host id: %s", id)
+	}
 
-	return principalsChanged || dnsNamesChanged
+	return principalsChanged || dnsNamesChanged || oldCertFormat
 }
 
 // rotate is called to check if rotation should be triggered.
@@ -643,7 +649,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 	// Check if any of the SSH principals or TLS DNS names have changed and the
 	// host credentials need to be regenerated.
-	regenerateCertificate := checkPrincipals(conn, additionalPrincipals, dnsNames)
+	regenerateCertificate := checkServerIdentity(conn, additionalPrincipals, dnsNames)
 
 	// If the local state matches remote state and neither principals or DNS
 	// names changed, nothing to do. CA is in sync.
