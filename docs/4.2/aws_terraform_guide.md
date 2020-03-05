@@ -262,7 +262,7 @@ shared storage. [The desired size of the ASG is configured here](https://github.
 - 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each part of the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/monitor_asg.tf#L12)
 - 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances.
 
-[The instance types used for each ASG can be configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/vars.tf#L23-L44)
+[The instance types used for each ASG can be configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/vars.tf#L23-L45)
 
 If you don't wish to set up a node or the monitoring services, you can set the `desired_size` and `min_size` for the ASG
 to `0` and Terraform won't provision it.
