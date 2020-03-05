@@ -52,4 +52,3 @@ files:
     config:
       white-list-internal:
         - "#fedrampfips"
-
