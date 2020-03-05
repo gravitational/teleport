@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.2.4
+
+This release of Teleport contains bug fixes.
+
+* Fixed issue where Teleport could connect to the wrong node and added support to connect via UUID. [#2396](https://github.com/gravitational/teleport/issues/2396)
+* Fixed issue where `tsh login` would fail to output identity when using the `--out` parameter. [#3339](https://github.com/gravitational/teleport/issues/3339)
+
 ## 4.2.3
 
 This release of Teleport contains bug and security fixes.
