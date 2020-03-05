@@ -19,7 +19,9 @@ the ports to the other parts.
 ```bash
 # Set variables for Terraform
 
-# Region to run in - we currently have AMIs in us-east-1, us-east-2, us-west-2 and eu-west-1
+# Region to run in - we currently have AMIs in the following regions:
+# ap-south-1,ap-northeast-2,ap-southeast-1,ap-southeast-2,ap-northeast-1,ca-central-1,eu-central-1,eu-west-1,eu-west-2
+# sa-east-1,us-east-1,us-east-2,us-west-1,us-west-2
 export TF_VAR_region="us-west-2"
 
 # Cluster name is a unique cluster name to use, should be unique and not contain spaces or other special characters
@@ -31,7 +33,7 @@ export TF_VAR_cluster_name="teleport.example.com"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-export TF_VAR_ami_name="gravitational-teleport-ami-ent-4.1.0"
+export TF_VAR_ami_name="gravitational-teleport-ami-ent-4.2.3"
 
 # AWS SSH key name to provision in installed instances, should be available in the region
 export TF_VAR_key_name="example"

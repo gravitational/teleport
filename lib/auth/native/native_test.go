@@ -120,7 +120,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			"",
 			"example.com",
 			teleport.Roles{teleport.RoleNode},
-			[]string{"11111111-1111-1111-1111-111111111111.example.com"},
+			[]string{"11111111-1111-1111-1111-111111111111.example.com", "11111111-1111-1111-1111-111111111111"},
 		},
 		// 2 - dual principals
 		{
@@ -128,7 +128,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			"proxy",
 			"example.com",
 			teleport.Roles{teleport.RoleProxy},
-			[]string{"22222222-2222-2222-2222-222222222222.example.com", "proxy.example.com", "proxy"},
+			[]string{"22222222-2222-2222-2222-222222222222.example.com", "22222222-2222-2222-2222-222222222222", "proxy.example.com", "proxy"},
 		},
 		// 3 - deduplicate principals
 		{

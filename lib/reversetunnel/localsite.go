@@ -153,6 +153,10 @@ func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if len(authServers) < 1 {
+		return nil, trace.ConnectionProblem(nil, "no auth servers available")
+	}
+
 	// try and dial to one of them, as soon as we are successful, return the net.Conn
 	for _, authServer := range authServers {
 		conn, err = net.DialTimeout("tcp", authServer.GetAddr(), defaults.DefaultDialTimeout)
