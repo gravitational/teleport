@@ -1793,7 +1793,7 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 
 	// Validate serverID field in event matches server ID from x509 identity. This
 	// check makes sure nodes can only submit events for themselves.
-	serverID, err := getServerID(r)
+	serverID, err := s.getServerID(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1824,7 +1824,7 @@ func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *htt
 
 	// Validate serverID field in event matches server ID from x509 identity. This
 	// check makes sure nodes can only submit events for themselves.
-	serverID, err := getServerID(r)
+	serverID, err := s.getServerID(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1885,7 +1885,7 @@ func (s *APIServer) uploadSessionRecording(auth ClientI, w http.ResponseWriter, 
 	// Validate namespace and serverID fields in the archive match namespace and
 	// serverID of the authenticated client. This check makes sure nodes can
 	// only submit recordings for themselves.
-	serverID, err := getServerID(r)
+	serverID, err := s.getServerID(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2368,18 +2368,18 @@ func (s *APIServer) processKubeCSR(auth ClientI, w http.ResponseWriter, r *http.
 }
 
 // getServerID returns the ID of the connected client.
-func getServerID(r *http.Request) (string, error) {
+func (s *APIServer) getServerID(r *http.Request) (string, error) {
 	role, ok := r.Context().Value(ContextUser).(BuiltinRole)
 	if !ok {
 		return "", trace.BadParameter("invalid role %T", r.Context().Value(ContextUser))
 	}
 
-	parts := strings.Split(role.Username, ".")
-	if len(parts) == 0 {
-		return "", trace.BadParameter("invalid username: %v", role.Username)
+	clusterName, err := s.AuthServer.GetDomainName()
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
-	return parts[0], nil
+	return strings.TrimSuffix(role.Username, "."+clusterName), nil
 }
 
 func message(msg string) map[string]interface{} {
