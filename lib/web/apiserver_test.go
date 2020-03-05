@@ -162,9 +162,10 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleNode},
+		HostID:               hostID,
+		NodeName:             s.server.ClusterName(),
+		Roles:                teleport.Roles{teleport.RoleNode},
+		AdditionalPrincipals: []string{`127.0.0.1`},
 	})
 	c.Assert(err, IsNil)
 
