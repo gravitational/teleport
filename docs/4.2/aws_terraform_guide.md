@@ -1,10 +1,14 @@
 # Running Teleport Enterprise in a high-availiability configuration on AWS
 
-This guide is designed to accompany our reference Terraform code (https://github.com/gravitational/teleport/tree/master/examples/aws/terraform) and describe how to use and administrate the resulting Teleport deployment.
+This guide is designed to accompany our reference Terraform code (https://github.com/gravitational/teleport/tree/master/examples/aws/terraform)
+and describe how to use and administrate the resulting Teleport deployment.
+
+[TOC]
 
 ## Prerequisites
 
-Our code requires Terraform 0.12+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have `terraform` installed and available on your path.
+Our code requires Terraform 0.12+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
+`terraform` installed and available on your path.
 
 ```bash
 $ terraform version
@@ -34,11 +38,10 @@ $ cat ~/.aws/config
 region = us-east-1
 ```
 
-As a result, you should be able to run a command like `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*`
-to list available EC2 images matching a pattern. If you get an "access denied" or similar message, you will need
-to grant additional permissions to the AWS IAM user that your `aws_access_key_id` and `aws_secret_access_key` refers to.
+As a result, you should be able to run a command like `aws ec2 describe-instances` to list running EC2 instances.
+If you get an "access denied", "403 Forbidden" or similar message, you will need to grant additional permissions to the
+AWS IAM user that your `aws_access_key_id` and `aws_secret_access_key` refers to.
 
-# TODO(gus): detailed explanation of IAM permissions needed
 
 ## AWS Services required to run Teleport in HA
 
@@ -97,11 +100,17 @@ reference code.
 
 ## Set up variables
 
-Terraform modules use variables to pass in input. You can do this on the command line to `terraform plan`,
-by editing the `vars.tf` file or the way we do it - by setting environment variables.
+Terraform modules use variables to pass in input. You can do this in a few ways:
 
-Any environment variable starting with `TF_VAR_` is automatically stripped down, so `TF_VAR_test_variable` becomes
-`test_variable` to Terraform.
+- on the command line to `terraform apply`
+- by editing the `vars.tf` file
+- by setting environment variables
+
+For this guide, we are going to make extensive use of environment variables. This is because it makes it easier for us
+to reference values from our configuration when running Teleport commands.
+
+Any set environment variable starting with `TF_VAR_` is automatically processed and stripped down by Terraform, so
+`TF_VAR_test_variable` becomes `test_variable`.
 
 We maintain an up-to-date list of the variables and what they do in the README.md file under [the
 `examples/aws/terraform` section of the Teleport repo](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/README.md)
@@ -114,18 +123,17 @@ Things you will need to decide on:
 !!! note "How to set"
     `export TF_VAR_region="us-west-2"`
 
-The AWS region to run in, pick from the supported list in the README
+The AWS region to run in. You should pick from the supported list as detailed in the [README](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/README.md).
 
 
 ### cluster_name
 
 !!! note "How to set"
-    `export TF_VAR_cluster_name="teleport.example.com"`
+    `export TF_VAR_cluster_name="example-cluster"`
 
-The cluster name is the Teleport cluster name to use. This should be unique, and not contain spaces or other special characters.
-This will appear in the web UI for your cluster and cannot be changed after creation without rebuilding your
-cluster from scratch, so choose carefully. A good example might be `teleport.domain.com` where `domain.com`
-is your company domain.
+The cluster name is the internal Teleport cluster name to use. This should be unique, and not contain spaces, dots (.)
+or other special characters. This will appear in the web UI for your cluster and cannot be changed after creation
+without rebuilding your cluster from scratch, so choose carefully.
 
 
 ### ami_name
@@ -134,8 +142,9 @@ is your company domain.
     `export TF_VAR_ami_name="gravitational-teleport-ami-ent-4.2.3"`
 
 Gravitational automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
-release a new version of Teleport. The AMIs follow the format: `gravitational-teleport-ami-<type>-<version>`
+release a new version of Teleport. The AMI names follow the format: `gravitational-teleport-ami-<type>-<version>`
 where `<type>` is either `oss` or `ent` (Enterprise) and `version` is the version of Teleport e.g. `4.2.3`.
+
 FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix.
 
 The AWS account ID which publishes these AMIs is `126027368216`. You can list the available AMIs with
@@ -165,9 +174,11 @@ specify in the `region` variable, and you will need a copy of this keypair to co
 !!! note "How to set"
     `export TF_VAR_license_path="/home/user/teleport-license.pem"`
 
-The full local path to your Teleport license file, which customers can download from [the Gravitational dashboard](https://dashboard.gravitational.com/)
-This license will be copied into AWS SSM and automatically added to Teleport auth nodes in order to enable
-Teleport Enterprise/Pro functionality.
+The full local path to your Teleport license file, which customers can download from
+[the Gravitational dashboard](https://dashboard.gravitational.com/) This license will be copied into AWS SSM and
+automatically added to Teleport auth nodes in order to enable Teleport Enterprise/Pro functionality.
+
+OSS users can provide any valid file here - it isn't used by the auth server in a Teleport OSS install.
 
 
 ### route53_zone
@@ -176,8 +187,18 @@ Teleport Enterprise/Pro functionality.
     `export TF_VAR_route53_zone="example.com"`
 
 Our Terraform setup requires you to have your domain provisioned in AWS Route 53 - it will automatically add
-DNS records for `route53_domain` as set up below. You can list these with `aws route53 list-hosted-zones` - 
-you should should use the appropriate "Name" field here.
+DNS records for [`route53_domain`](#route53_domain) as set up below. You can list these with this command:
+
+```bash
+$ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output text
+[
+    "example.com.",
+    "testing.net.",
+    "subdomain.wow.org."
+]
+```
+
+You should use the appropriate domain without the trailing dot.
 
 
 ### route53_domain
@@ -185,14 +206,16 @@ you should should use the appropriate "Name" field here.
 !!! note "How to set"
     `export TF_VAR_route53_domain="teleport.example.com"`
 
-A subdomain to set up as a CNAME to the Teleport load balancer for web access. We generally advise that this should be
-the same as the `cluster_name` picked above.
+A subdomain to set up as a CNAME to the Teleport load balancer for web access. This will be the public-facing domain
+that people use to connect to your Teleport cluster, so choose wisely.
+
+This must be a subdomain of the domain you chose for [`route53_zone`](#route53_zone) above.
 
 
 ### s3_bucket_name
 
 !!! note "How to set"
-    `export TF_VAR_s3_bucket_name="teleport.example.com"`
+    `export TF_VAR_s3_bucket_name="example-cluster"`
 
 The Terraform example also provisions an S3 bucket to hold certificates provisioned by LetsEncrypt and distribute these
 to EC2 instances. This can be any S3-compatible name, and will be generated in the same region as set above.
@@ -214,12 +237,12 @@ useful information. We recommend a generic ops/support email address which the t
 
 We deploy Grafana along with every Terraform deployment and automatically make stats on cluster usage available.
 This variable sets up the password for the Grafana `admin` user. The Grafana web UI is served on the same subdomain
-as specified above in `route53_domain` on port 8443. 
+as specified above in [`route53_domain`](#route53_domain) on port 8443.
 
-With the variables set in this example, it would be available on https://cluster.example.com:8443
+With the variables set in this example, it would be available on https://teleport.example.com:8443
 
-If you do not change this from the default (`CHANGE_THIS_VALUE`), then it will be set to a random value and written to AWS
-SSM as `grafana_pass` - you will need to query this value from SSM.
+If you do not change this from the default (`CHANGE_THIS_VALUE`), then it will be set to a random value for security.
+As such, we recommend setting this to a known value.
 
 
 ### use_acm
@@ -228,7 +251,9 @@ SSM as `grafana_pass` - you will need to query this value from SSM.
     `export TF_VAR_use_acm="false"`
 
 If set to the string `"false"`, Terraform will use [LetsEncrypt](https://letsencrypt.org/) to provision the public-facing
-web UI certificate for the Teleport cluster (`route53_subdomain` - so https://teleport.example.com in this example). This uses an [AWS network load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html) to load-balance connections to the Teleport cluster's web UI, and its SSL termination is handled by Teleport itself.
+web UI certificate for the Teleport cluster ([`route53_subdomain`](#route53_subdomain) - so https://teleport.example.com in this example).
+This uses an [AWS network load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
+to load-balance connections to the Teleport cluster's web UI, and its SSL termination is handled by Teleport itself.
 
 If set to the string `"true"`, Terraform will use [AWS ACM](https://aws.amazon.com/certificate-manager/) to
 provision the public-facing web UI certificate for the cluster. This uses an [AWS application load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) to load-balance connections to the Teleport cluster's web UI, and its SSL termination is handled by the load balancer.
@@ -242,14 +267,17 @@ with this command: `terraform import aws_acm_certificate.cert <certificate_arn>`
 
 Our reference deployment will provision the following instances for your cluster by default:
 
-- 2 x m4.large Teleport auth instances in an ASG, behind an internal network load balancer, configured using DynamoDB
-for shared storage ([the desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/auth_asg.tf#L11))
-- 2 x m4.large Teleport proxy instances in an ASG, behind a public-facing load balancer (NLB for LetsEncrypt, ALB for ACM) ([the desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/proxy_asg.tf#L12))
-- 1 x m4.large Teleport node instance in an ASG ([the desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/node_asg.tf#L10))
-- 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each part of the cluster ([the desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/monitor_asg.tf#L12))
-- 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances
+- 2 x m4.large Teleport auth instances in an ASG, behind an internal network load balancer, configured using DynamoDB for
+shared storage. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/auth_asg.tf#L11)
+- 2 x m4.large Teleport proxy instances in an ASG, behind a public-facing load balancer - NLB for LetsEncrypt, ALB for ACM. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/proxy_asg.tf#L12)
+- 1 x m4.large Teleport node instance in an ASG. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/node_asg.tf#L10)
+- 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each part of the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/monitor_asg.tf#L12)
+- 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances.
 
 [The instance types used for each ASG can be configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/vars.tf#L23-L44)
+
+If you don't wish to set up a node or the monitoring services, you can set the `desired_size` and `min_size` for the ASG
+to `0` and Terraform won't provision it.
 
 
 ### Cluster state database storage
@@ -257,7 +285,7 @@ for shared storage ([the desired size of the ASG is configured here](https://git
 The reference Terraform deployment sets Teleport up to store its cluster state database in DynamoDB. The name of the
 table for cluster state will be the same as the cluster name configured in the [`cluster_name`](#cluster_name) variable above.
 
-In our example, the DynamoDB table would be called `teleport.example.com`.
+In our example, the DynamoDB table would be called `example-cluster`.
 
 More information about how Teleport works with DynamoDB can be found in our [DynamoDB Admin Guide](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
 
@@ -268,7 +296,7 @@ The reference Terraform deployment sets Teleport up to store cluster audit logs 
 audit event storage will be the same as the cluster name configured in the [`cluster_name`](#cluster_name) variable above
 with `-events` appended to the end.
 
-In our example, the DynamoDB table would be called `teleport.example.com-events`.
+In our example, the DynamoDB table would be called `example-cluster-events`.
 
 More information about how Teleport works with DynamoDB can be found in our [DynamoDB Admin Guide](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
 
@@ -276,7 +304,7 @@ More information about how Teleport works with DynamoDB can be found in our [Dyn
 ### Recorded session storage
 
 The reference Terraform deployment sets Teleport up to store recorded session logs in the same S3 bucket configured in
-the [`s3_bucket_name`](#s3_bucket_name) variable, under the `records` directory. In our example this would be `s3://teleport.example.com/records`
+the [`s3_bucket_name`](#s3_bucket_name) variable, under the `records` directory. In our example this would be `s3://example-cluster/records`
 
 !!! tip "Tip"
 
@@ -293,27 +321,77 @@ Teleport's web interface will be available on port 443 - https://teleport.exampl
 Teleport's proxy SSH interface will be available on port 3023 (this is the default port used when connecting with the
 `tsh` client)
 
+## Deploying with Terraform
 
-## Technical details
+Once you have set values for and exported all the variables detailed above, you should run `terraform plan` to validate the
+configuration.
 
-### Ports exposed by the Teleport deployment
+```bash
+$ terraform plan
+Refreshing Terraform state in-memory prior to plan...
+The refreshed state will be used to calculate this plan, but will not be
+persisted to local or remote state storage.
 
-443 - HTTPS access to the Teleport web UI
-3023 - Used for SSH access to the Teleport proxy server
-3024 - Used for inbound tunnel connections from Teleport [trusted clusters](trustedclusters.md)
-3025 - Used for nodes to connect to the Teleport cluster. This is exposed via an internal load balancer inside the VPC
-where Teleport is deployed
+data.template_file.monitor_user_data: Refreshing state...
+data.aws_kms_alias.ssm: Refreshing state...
+data.aws_caller_identity.current: Refreshing state...
+data.aws_ami.base: Refreshing state...
+data.aws_availability_zones.available: Refreshing state...
+data.aws_route53_zone.proxy: Refreshing state...
+data.aws_region.current: Refreshing state...
+
+------------------------------------------------------------------------
+
+An execution plan has been generated and is shown below.
+Resource actions are indicated with the following symbols:
+  + create
+ <= read (data resources)
+
+Terraform will perform the following actions:
+  <output trimmed>
+
+Plan: 121 to add, 0 to change, 0 to destroy.
+
+------------------------------------------------------------------------
+
+Note: You didn't specify an "-out" parameter to save this plan, so Terraform
+can't guarantee that exactly these actions will be performed if
+"terraform apply" is subsequently run.
+```
+
+This looks good (no errors produced by Terraform) so we can run `terraform apply`:
+
+```bash
+$ terraform apply
+  <output trimmed>
+
+Plan: 121 to add, 0 to change, 0 to destroy.
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: 
+```
+
+Entering `yes` here will start the Terraform deployment. It takes around 8-10 minutes to deploy in full.
+
+#### Destroy/shutdown
+
+If you need to tear down a running deployment for any reason, you can run `terraform destroy`.
 
 
 ## Accessing the cluster after Terraform setup
 
-Once the Terraform setup is finished, your Teleport cluster's web UI should be available on https://<route53_domain>
+Once the Terraform setup is finished, your Teleport cluster's web UI should be available on
+https://[route53_domain](#route53_domain) - this is https://teleport.example.com in our example.
+
 
 ### Adding an admin user to the Teleport cluster
 
 To add users to the Teleport cluster, you will need to connect to a Teleport auth server via SSH and run the `tctl` command.
 
-1. Use the AWS cli to get the IP of the bastion server:
+1 - Use the AWS cli to get the IP of the bastion server:
 
 ```bash
 $ export BASTION_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=bastion" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)
@@ -321,7 +399,7 @@ $ echo ${BASTION_IP}
 1.2.3.4
 ```
 
-2. Use the AWS cli to get the IP of an auth server:
+2 - Use the AWS cli to get the IP of an auth server:
 
 ```bash
 $ export AUTH_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[0].Instances[*].PrivateIpAddress" --output text)
@@ -329,8 +407,8 @@ $ echo ${AUTH_IP}
 172.31.0.196
 ```
 
-3. Use both these values to SSH into the auth server (make sure that the AWS keypair that you specified in the
-`key_name`[#key_name] variable is available in the current directory):
+3 - Use both these values to SSH into the auth server (make sure that the AWS keypair that you specified in the
+[`key_name`](#key_name) variable is available in the current directory):
 
 ```bash
 $ ssh -i ${TF_VAR_key_name}.pem -J ec2-user@${BASTION_IP} ec2-user@${AUTH_IP}
@@ -354,7 +432,7 @@ Run "sudo yum update" to apply all updates.
 [ec2-user@ip-172-31-0-196 ~]$ 
 ```
 
-4. Use the `tctl` command to create an admin user for Teleport:
+4 - Use the `tctl` command to create an admin user for Teleport:
 
 ```bash
 [ec2-user@ip-172-31-0-196 ~]$ sudo tctl users add teleport-admin --roles=admin
@@ -365,27 +443,337 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users 
 When the user 'teleport-admin' activates their account, they will be assigned roles [admin]
 ```
 
-5. Click the link to launch the Teleport web UI and finish setting up your user. You will need to scan the QR
+5 - Click the link to launch the Teleport web UI and finish setting up your user. You will need to scan the QR
 code with an TOTP-compatible app like Google Authenticator or Authy. You will also set a password for the
 `teleportadmin` user on this page.
 
 Once this user is successfully configured, you should be logged into the Teleport web UI.
 
 
-### Teleport service names
+## Restarting/checking Teleport services
 
+### LetsEncrypt
 
-TODO(gus)
+!!! note
+    You are using LetsEncrypt if your `use_acm` variable is set to `"false"`.
 
+#### Auth service
 
-### Adding EC2 instances to your Teleport cluster
+```bash
+$ systemctl status teleport-auth.service
+● teleport-auth.service - Teleport Auth Service
+   Loaded: loaded (/etc/systemd/system/teleport-auth.service; enabled; vendor preset: disabled)
+   Active: active (running) since Thu 2020-03-05 16:45:18 UTC; 4h 14min ago
+ Main PID: 3766 (teleport)
+   CGroup: /system.slice/teleport-auth.service
+           └─3766 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+
+Mar 05 17:54:58 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc0012802f0 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 05:54:58.846233666 +0000 UTC []}. common_name:teleport-admin dns_name...
+Mar 05 18:04:39 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc00155d200 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 06:04:39.844777551 +0000 UTC []}. common_name:teleport-admin dns_name...
+```
+
+You can get detailed logs for the Teleport auth servers using the `journalctl` command:
+
+```bash
+$ journalctl -u teleport-auth.service
+```
+
+Remember that there is more than one auth server in an HA deployment. You should use this command to get the IP addresses
+of each auth server that you'll need to connect to:
+
+```bash
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+172.31.0.196
+172.31.1.78
+```
+
+#### Proxy service
+
+```bash
+$ systemctl status teleport-proxy.service
+● teleport-proxy.service - Teleport Proxy Service
+   Loaded: loaded (/etc/systemd/system/teleport-proxy.service; enabled; vendor preset: disabled)
+   Active: active (running) since Thu 2020-03-05 17:14:37 UTC; 3h 47min ago
+  Process: 4502 ExecStartPre=/usr/bin/teleport-ssm-get-token (code=exited, status=0/SUCCESS)
+ Main PID: 4514 (teleport)
+   CGroup: /system.slice/teleport-proxy.service
+           └─4514 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+
+Mar 05 20:58:25 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3024->172.31.2.143:1577: read: connection reset by peer
+Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3023->172.31.2.143:38011: read: connection reset by peer
+```
+
+You can get detailed logs for the Teleport proxy service using the `journalctl` command:
+
+```bash
+$ journalctl -u teleport-proxy.service
+```
+
+Remember that there is more than one proxy instance in an HA deployment. You should use this command to get the IP addresses
+of each auth instance that you'll need to connect to:
+
+```bash
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+172.31.2.109
+172.31.3.215
+```
+
+#### Node service
+
+```bash
+$ systemctl status teleport-node.service
+● teleport-node.service - Teleport SSH Node Service
+   Loaded: loaded (/etc/systemd/system/teleport-node.service; enabled; vendor preset: disabled)
+   Active: active (running) since Thu 2020-03-05 17:18:25 UTC; 3h 44min ago
+  Process: 4444 ExecStartPre=/usr/bin/teleport-ssm-get-token (code=exited, status=0/SUCCESS)
+ Main PID: 4456 (teleport)
+   CGroup: /system.slice/teleport-node.service
+           └─4456 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+
+Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Creating directory /var/lib/teleport/log/upload/sessions. ser...o:1630
+Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Setting directory /var/lib/teleport/log/upload/sessions owner...o:1639
+```
+
+You can get detailed logs for the Teleport node service using the `journalctl` command:
+
+```bash
+$ journalctl -u teleport-node.service
+```
+
+### ACM
+
+!!! note
+    You are using ACM if your `use_acm` variable is set to `"true"`.
+
+When using ACM, the service name for the proxy is different (`teleport-proxy-acm.service` vs `teleport-proxy.service`).
+
+#### Auth service
+
+```bash
+$ systemctl status teleport-auth.service
+● teleport-auth.service - Teleport Auth Service
+   Loaded: loaded (/etc/systemd/system/teleport-auth.service; enabled; vendor preset: disabled)
+   Active: active (running) since Thu 2020-03-05 16:45:18 UTC; 4h 14min ago
+ Main PID: 3766 (teleport)
+   CGroup: /system.slice/teleport-auth.service
+           └─3766 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+
+Mar 05 17:54:58 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc0012802f0 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 05:54:58.846233666 +0000 UTC []}. common_name:teleport-admin dns_name...
+Mar 05 18:04:39 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc00155d200 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 06:04:39.844777551 +0000 UTC []}. common_name:teleport-admin dns_name...
+```
+
+You can get detailed logs for the Teleport auth server using the `journalctl` command:
+
+```bash
+$ journalctl -u teleport-auth.service
+```
+
+Remember that there is more than one auth instance in an HA deployment. You should use this command to get the IP addresses
+of each auth instance that you'll need to connect to:
+
+```bash
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+172.31.0.196
+172.31.1.78
+```
+
+#### Proxy service (ACM)
+
+```bash
+$ systemctl status teleport-proxy-acm.service
+● teleport-proxy-acm.service - Teleport Proxy Service (ACM)
+   Loaded: loaded (/etc/systemd/system/teleport-proxy-acm.service; enabled; vendor preset: disabled)
+   Active: active (running) since Thu 2020-03-05 17:14:37 UTC; 3h 47min ago
+  Process: 4502 ExecStartPre=/usr/bin/teleport-ssm-get-token (code=exited, status=0/SUCCESS)
+ Main PID: 4514 (teleport)
+   CGroup: /system.slice/teleport-proxy-acm.service
+           └─4514 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+
+Mar 05 20:58:25 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3024->172.31.2.143:1577: read: connection reset by peer
+Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3023->172.31.2.143:38011: read: connection reset by peer
+```
+
+You can get detailed logs for the Teleport proxy service using the `journalctl` command:
+
+```bash
+$ journalctl -u teleport-proxy-acm.service
+```
+
+Remember that there is more than one proxy instance in an HA deployment. You should use this command to get the IP addresses
+of each auth instance that you'll need to connect to:
+
+```bash
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+172.31.2.109
+172.31.3.215
+```
+
+#### Node service
+
+```bash
+$ systemctl status teleport-node.service
+● teleport-node.service - Teleport SSH Node Service
+   Loaded: loaded (/etc/systemd/system/teleport-node.service; enabled; vendor preset: disabled)
+   Active: active (running) since Thu 2020-03-05 17:18:25 UTC; 3h 44min ago
+  Process: 4444 ExecStartPre=/usr/bin/teleport-ssm-get-token (code=exited, status=0/SUCCESS)
+ Main PID: 4456 (teleport)
+   CGroup: /system.slice/teleport-node.service
+           └─4456 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+
+Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Creating directory /var/lib/teleport/log/upload/sessions. ser...o:1630
+Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Setting directory /var/lib/teleport/log/upload/sessions owner...o:1639
+```
+
+You can get detailed logs for the Teleport node service using the `journalctl` command:
+
+```bash
+$ journalctl -u teleport-node.service
+```
+
+## Adding EC2 instances to your Teleport cluster
 Customers run many workloads within EC2 and depending on how you work there are many
 ways to integrate Teleport onto your servers. We recommend looking at our [Admin manual](https://gravitational.com/teleport/docs/admin-guide/#installing).
 
-In short, to add new nodes / EC2 servers that you can "SSH into" you'll need to
-- [Install the Teleport Binary on the Server](admin-guide.md#installing)
-- [Run Teleport - we recommend using systemd](admin-guide.md#systemd-unit-file)
-- [Set the correct settings in /etc/teleport.yaml](admin-guide.md#configuration-file)
-- [Add EC2 nodes to the Teleport cluster](admin-guide.md#adding-nodes-to-the-cluster)
+To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
-The hostname to use with `auth_servers` in your Teleport config file can be found with this command:
+- [Install the Teleport binary on the Server](admin-guide.md#installing)
+
+- [Run Teleport - we recommend using systemd](admin-guide.md#systemd-unit-file)
+
+- [Set the correct settings in /etc/teleport.yaml](admin-guide.md#configuration-file)
+
+- [Add nodes to the Teleport cluster](admin-guide.md#adding-nodes-to-the-cluster)
+
+
+### Getting the CA pin hash
+
+You can use this command to get the CA pin hash for your Teleport cluster:
+
+```bash
+$ aws ssm get-parameter --name "/teleport/${TF_VAR_cluster_name}/ca-pin-hash" --query "Parameter.Value" --output text
+sha256:d021ef54aaf8633c4e15c5cc59479fb2f19b1bbc5432bb95213ee047000689dd
+```
+
+You should use this so that nodes can validate the auth server's identity when joining your cluster.
+
+
+### Getting the node join token
+
+You can use this command to get a join token for your Teleport cluster:
+
+```bash
+$ aws ssm get-parameter --name "/teleport/${TF_VAR_cluster_name}/tokens/node" --query "Parameter.Value" --output text
+AQICAHgLq8feq4riNouuw8Wxs5EEPlS2qKIVE5Z/qEo1i6mqfwGX3dW56SdoS6PinTWbZL1RAAAAgzCBgAYJKoZIhvcNAQcGoHMwcQIBADBsBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDNdu5TxaT8gyJx63eAIBEIA/JEpX2Vte90UmufIzZzvBQcQaKgWr95aN9xZYMEjWbAiNitxkvZgb98FgFn8d9GNwKQgDGfUYDbzsX8EqTtx9
+```
+
+You should use this so that nodes can validate the auth server's identity when joining your cluster.
+
+You can also generate a node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](admin-guide.md#adding-nodes-to-the-cluster).
+
+
+### Joining nodes via the Teleport auth server
+
+To join Teleport nodes in the same VPC via the auth server, you can find the hostname for the auth load balancer with
+this command:
+
+```bash
+$ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-auth" --query "LoadBalancers[*].DNSName" --output text
+example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com
+```
+
+With this method, the nodes should be configured like so:
+
+```yaml
+auth_servers:
+  - example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com:3025
+```
+
+
+### Joining nodes via Teleport IoT/node tunnelling
+
+To join Teleport nodes from outside the same VPC, you will either need to investigate VPC peering/gateways (out of scope
+for this document) or join your nodes using [Teleport's node tunnelling](admin-guide.md#adding-a-node-located-behind-nat) functionality.
+
+With this method, you can join the nodes using the public facing proxy address - `teleport.example.com:443` for our
+example.
+
+```yaml
+auth_servers:
+  - teleport.example.com:443
+```
+
+
+### Trusted clusters
+
+To add a trusted cluster, you'll need the hostname of the proxy load balancer. You can get it using this command:
+
+```bash
+$ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text 
+example-cluster-proxy-7c97b76593d6bf21.elb.us-east-1.amazonaws.com
+```
+
+In this example, the `tunnel_addr` and `web_proxy_addr` in the trusted cluster configuration should be set up like this:
+
+```yaml
+spec:
+  tunnel_addr: example-cluster-proxy-7c97b76593d6bf21.elb.us-east-1.amazonaws.com:3024
+  web_proxy_addr: teleport.example.com:443
+```
+
+You can generate a token for adding the trusted cluster via the `tctl` command line tool after
+connecting to an auth server. Follow the instructions in our [trusted cluster guide](https://gravitational.com/teleport/docs/trustedclusters/#dynamic-join-tokens).
+
+
+## Some quick commands
+
+Here's a bash script that you can use to quickly connect to instances:
+
+```bash
+#!/bin/bash
+if [[ "$1" != "" ]]; then
+    INSTANCE_TYPE=$1
+else
+    INSTANCE_TYPE="auth"
+fi
+if [[ "$2" != "" ]]; then
+    INSTANCE_ID=$2
+else
+    INSTANCE_ID="0"
+fi
+
+export BASTION_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=bastion" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)
+echo "Bastion IP: ${BASTION_IP}"
+
+if [[ "${INSTANCE_TYPE}" == "auth" ]]; then
+    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
+    echo "Auth ${INSTANCE_ID} IP: ${SERVER_IP}"
+elif [[ "${INSTANCE_TYPE}" == "proxy" ]]; then
+    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=proxy" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
+    echo "Proxy ${INSTANCE_ID} IP: ${SERVER_IP}"
+elif [[ "${INSTANCE_TYPE}" == "node" ]]; then
+    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=node" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text)
+    echo "Node IP: ${SERVER_IP}"
+fi
+
+echo "Keypair name: ${TF_VAR_key_name}"
+ssh -i ${TF_VAR_key_name}.pem -J ec2-user@${BASTION_IP} ec2-user@${SERVER_IP}
+```
+
+Save this as `connect.sh`, run `chmod +x connect.sh` to make it executable, then use it like so:
+
+```bash
+# connect to the first auth server
+$ ./connect.sh auth 0
+
+# connect to the second auth server
+$ ./connect.sh auth 1
+
+# connect to the first proxy server
+$ ./connect.sh proxy 0
+
+# connect to the second proxy server
+$ ./connect.sh proxy 1
+
+# connect to the node
+$ ./connect.sh node
+```
