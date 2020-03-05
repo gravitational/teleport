@@ -116,6 +116,16 @@ message GetUsersRequest {
     bool WithSecrets = 1 [(gogoproto.jsontag) = "with_secrets"];
 }
 
+// UploadSessionRecordingRequest
+message UploadSessionRecordingRequest {
+    // Namespace
+    string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
+    // SID
+    string SID = 2 [(gogoproto.jsontag) = "sid"];	
+    // EventData
+    bytes EventData = 3 [(gogoproto.jsontag) = "event_data"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -130,4 +140,6 @@ service AuthService {
     rpc GetUser(GetUserRequest) returns (services.UserV2);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream services.UserV2);
+    // UploadSessionRecording
+    rpc UploadSessionRecording(stream UploadSessionRecordingRequest) returns (google.protobuf.Empty);
 }

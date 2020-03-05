@@ -17,7 +17,10 @@ limitations under the License.
 package auth
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -25,7 +28,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -182,6 +187,71 @@ func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthServi
 			return trail.ToGRPC(err)
 		}
 	}
+	return nil
+}
+
+func (g *GRPCServer) UploadSessionRecording(stream proto.AuthService_UploadSessionRecordingServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	fmt.Printf("--> UploadSessionRecording: Entering stream.\n")
+
+	var sid string
+	var namespace string
+	var buffer bytes.Buffer
+
+	for {
+		request, err := stream.Recv()
+		//fmt.Printf("--> UploadSessionRecording: stream.Recv(): %v.\n", err)
+		if err == io.EOF {
+			//fmt.Printf("--> got eof!.\n")
+			//reader, writer := io.Pipe()
+			//tw := tar.NewWriter(writer)
+			//go func() {
+			//	hdr := &tar.Header{
+			//		Name: fmt.Sprintf("%v.events", sid),
+			//		Mode: 0600,
+			//		Size: int64(buffer.Len()),
+			//	}
+			//	err = tw.WriteHeader(hdr)
+			//	if err != nil {
+			//		fmt.Printf("--> Failed to write header: %v.\n", err)
+			//	}
+			//	_, err = tw.Write(buffer.Bytes())
+			//	if err != nil {
+			//		fmt.Printf("--> Failed to write body: %v.\n", err)
+			//	}
+			//	err = tw.Close()
+			//	if err != nil {
+			//		fmt.Printf("--> Failed to close: %v.\n", err)
+			//	}
+			//}()
+
+			//fmt.Printf("--> UploadSessionRecording: Uploading!\n")
+			//if err = auth.UploadSessionRecording(events.SessionRecording{
+			//	SessionID: session.ID(sid),
+			//	Namespace: namespace,
+			//	Recording: reader,
+			//}); err != nil {
+			//	return trail.ToGRPC(err)
+			//}
+			return nil
+		}
+		if err != nil {
+			return trail.ToGRPC(err)
+		}
+
+		sid = request.GetSID()
+		namespace = request.GetNamespace()
+		fmt.Printf("--> got: %v.\n", string(request.GetEventData()))
+		_, err = buffer.Write(request.GetEventData())
+		if err != nil {
+			return trail.ToGRPC(err)
+		}
+	}
+
 	return nil
 }
 

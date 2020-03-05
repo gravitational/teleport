@@ -21,12 +21,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	//"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -2000,6 +2001,12 @@ func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *htt
 	return message("ok"), nil
 }
 
+var pool = sync.Pool{
+	New: func() interface{} {
+		return &bytes.Buffer{}
+	},
+}
+
 // HTTP POST /:version/sessions/:id/recording
 func (s *APIServer) uploadSessionRecording(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var files form.Files
@@ -2028,34 +2035,107 @@ func (s *APIServer) uploadSessionRecording(auth ClientI, w http.ResponseWriter, 
 		return nil, trace.Wrap(err)
 	}
 
-	// Make a copy of the archive because it needs to be read twice: once to
-	// validate it and then again to upload it.
-	var buf bytes.Buffer
-	recording := io.TeeReader(files[0], &buf)
-
-	// Validate namespace and serverID fields in the archive match namespace and
-	// serverID of the authenticated client. This check makes sure nodes can
-	// only submit recordings for themselves.
-	serverID, err := getServerID(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = events.ValidateArchive(recording, serverID)
-	if err != nil {
-		log.Warnf("Rejecting session recording from %v: %v. System may be under attack, a "+
-			"node is attempting to submit events for an identity other than its own.",
-			serverID, err)
-		return nil, trace.BadParameter("failed to validate archive")
-	}
-
 	if err = auth.UploadSessionRecording(events.SessionRecording{
 		SessionID: session.ID(sid),
 		Namespace: namespace,
-		Recording: &buf,
+		Recording: files[0],
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
+
+	//// Make a copy of the archive because it needs to be read twice: once to
+	//// validate it and then again to upload it.
+	//var buf bytes.Buffer
+	//recording := io.TeeReader(files[0], buf)
+
+	//// Validate namespace and serverID fields in the archive match namespace and
+	//// serverID of the authenticated client. This check makes sure nodes can
+	//// only submit recordings for themselves.
+	//serverID, err := getServerID(r)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//err = events.ValidateArchive(recording, serverID)
+	//if err != nil {
+	//	log.Warnf("Rejecting session recording from %v: %v. System may be under attack, a "+
+	//		"node is attempting to submit events for an identity other than its own.",
+	//		serverID, err)
+	//	return nil, trace.BadParameter("failed to validate archive")
+	//}
+
+	//if err = auth.UploadSessionRecording(events.SessionRecording{
+	//	SessionID: session.ID(sid),
+	//	Namespace: namespace,
+	//	Recording: &buf,
+	//}); err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//return message("ok"), nil
+
+	//buf := pool.Get().(*bytes.Buffer)
+	//buf.Reset()
+	//defer pool.Put(buf)
+
+	//_, err = buf.ReadFrom(files[0])
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//r1 := bytes.NewReader(buf.Bytes())
+	//r2 := bytes.NewReader(buf.Bytes())
+
+	//// Validate namespace and serverID fields in the archive match namespace and
+	//// serverID of the authenticated client. This check makes sure nodes can
+	//// only submit recordings for themselves.
+	//serverID, err := getServerID(r)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//err = events.ValidateArchive(r1, serverID)
+	//if err != nil {
+	//	log.Warnf("Rejecting session recording from %v: %v. System may be under attack, a "+
+	//		"node is attempting to submit events for an identity other than its own.",
+	//		serverID, err)
+	//	return nil, trace.BadParameter("failed to validate archive")
+	//}
+
+	//if err = auth.UploadSessionRecording(events.SessionRecording{
+	//	SessionID: session.ID(sid),
+	//	Namespace: namespace,
+	//	Recording: r2,
+	//}); err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//return message("ok"), nil
+
+	//// Make a copy of the archive because it needs to be read twice: once to
+	//// validate it and then again to upload it.
+	//var buf bytes.Buffer
+	//recording := io.TeeReader(files[0], &buf)
+
+	//// Validate namespace and serverID fields in the archive match namespace and
+	//// serverID of the authenticated client. This check makes sure nodes can
+	//// only submit recordings for themselves.
+	//serverID, err := getServerID(r)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//err = events.ValidateArchive(recording, serverID)
+	//if err != nil {
+	//	log.Warnf("Rejecting session recording from %v: %v. System may be under attack, a "+
+	//		"node is attempting to submit events for an identity other than its own.",
+	//		serverID, err)
+	//	return nil, trace.BadParameter("failed to validate archive")
+	//}
+
+	//if err = auth.UploadSessionRecording(events.SessionRecording{
+	//	SessionID: session.ID(sid),
+	//	Namespace: namespace,
+	//	Recording: &buf,
+	//}); err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//return message("ok"), nil
 }
 
 // HTTP GET /:version/sessions/:id/stream?offset=x&bytes=y

@@ -19,9 +19,9 @@ package events
 import (
 	"archive/tar"
 	"bufio"
-	"compress/gzip"
+	//"compress/gzip"
 	"io"
-	"io/ioutil"
+	//"io/ioutil"
 	"strings"
 	"time"
 
@@ -85,31 +85,46 @@ func ValidateArchive(reader io.Reader, serverID string) error {
 
 		// Skip over any file in the archive that doesn't contain session events.
 		if !strings.HasSuffix(header.Name, eventsSuffix) {
-			_, err = io.Copy(ioutil.Discard, tarball)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+			//_, err = io.Copy(ioutil.Discard, tarball)
+			//if err != nil {
+			//	return trace.Wrap(err)
+			//}
 			continue
 		}
 
-		zip, err := gzip.NewReader(tarball)
-		if err != nil {
+		////zip, err := gzip.NewReader(tarball)
+		////if err != nil {
+		////	return trace.Wrap(err)
+		////}
+		////defer zip.Close()
+
+		count := 0
+		scanner := bufio.NewScanner(tarball)
+		for scanner.Scan() {
+			count = count + 1
+		}
+		if err := scanner.Err(); err != nil {
 			return trace.Wrap(err)
 		}
-		defer zip.Close()
 
-		scanner := bufio.NewScanner(zip)
-		for scanner.Scan() {
-			var f EventFields
-			err := utils.FastUnmarshal(scanner.Bytes(), &f)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			err = ValidateEvent(f, serverID)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
+		//zip, err := gzip.NewReader(tarball)
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
+		//defer zip.Close()
+
+		//scanner := bufio.NewScanner(zip)
+		//for scanner.Scan() {
+		//	var f EventFields
+		//	err := utils.FastUnmarshal(scanner.Bytes(), &f)
+		//	if err != nil {
+		//		return trace.Wrap(err)
+		//	}
+		//	err = ValidateEvent(f, serverID)
+		//	if err != nil {
+		//		return trace.Wrap(err)
+		//	}
+		//}
 		if err := scanner.Err(); err != nil {
 			return trace.Wrap(err)
 		}

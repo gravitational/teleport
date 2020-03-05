@@ -17,7 +17,10 @@ limitations under the License.
 package auth
 
 import (
+	"archive/tar"
+	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"encoding/hex"
@@ -2093,20 +2096,91 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 
 // UploadSessionRecording uploads session recording to the audit server
 func (c *Client) UploadSessionRecording(r events.SessionRecording) error {
-	file := roundtrip.File{
-		Name:     "recording",
-		Filename: "recording",
-		Reader:   r.Recording,
-	}
-	values := url.Values{
-		"sid":       []string{string(r.SessionID)},
-		"namespace": []string{r.Namespace},
-	}
-	_, err := c.PostForm(c.Endpoint("namespaces", r.Namespace, "sessions", string(r.SessionID), "recording"), values, file)
+	fmt.Printf("--> Starting stream!\n")
+	clt, err := c.grpc()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	events := [][]byte{}
+
+	tarball := tar.NewReader(r.Recording)
+	for {
+		header, err := tarball.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Printf("--> Found: %v.\n", header.Name)
+
+		// Skip over any file in the archive that doesn't contain session events.
+		if !strings.HasSuffix(header.Name, "events.gz") {
+			//_, err = io.Copy(ioutil.Discard, tarball)
+			//if err != nil {
+			//	return trace.Wrap(err)
+			//}
+			continue
+		}
+
+		zip, err := gzip.NewReader(tarball)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer zip.Close()
+
+		scanner := bufio.NewScanner(zip)
+		for scanner.Scan() {
+			fmt.Printf("--> Writing: %v.\n", string(scanner.Bytes()))
+			events = append(events, scanner.Bytes())
+		}
+		if err := scanner.Err(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream, err := clt.UploadSessionRecording(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, e := range events {
+		err = stream.Send(&proto.UploadSessionRecordingRequest{
+			Namespace: "default",
+			SID:       "123",
+			EventData: e,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	err = stream.CloseSend()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("--> Closed stream.\n")
+
 	return nil
+
+	//file := roundtrip.File{
+	//	Name:     "recording",
+	//	Filename: "recording",
+	//	Reader:   r.Recording,
+	//}
+	//values := url.Values{
+	//	"sid":       []string{string(r.SessionID)},
+	//	"namespace": []string{r.Namespace},
+	//}
+	//_, err := c.PostForm(c.Endpoint("namespaces", r.Namespace, "sessions", string(r.SessionID), "recording"), values, file)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//return nil
 }
 
 // Returns events that happen during a session sorted by time

@@ -19,9 +19,10 @@ package client
 import (
 	"bytes"
 	"context"
-	"io"
+	"fmt"
+	//"io"
 	"io/ioutil"
-	"strings"
+	//"strings"
 	"time"
 
 	"github.com/codahale/hdrhistogram"
@@ -58,6 +59,7 @@ type BenchmarkResult struct {
 // to benchmark spec. It returns benchmark result when completed.
 // This is a blocking function that can be cancelled via context argument.
 func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*BenchmarkResult, error) {
+	fmt.Printf("--> Enter %v.\n", bench.Threads)
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
@@ -79,32 +81,38 @@ func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*Benc
 			receiveC:    requestC,
 			sendC:       responseC,
 		}
+		fmt.Printf("--> bench.Command: %v.\n", bench.Command)
 		go thread.run()
 	}
 
 	// producer goroutine
 	go func() {
-		interval := time.Duration(float64(1) / float64(bench.Rate) * float64(time.Second))
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				// notice how we start the timer regardless of whether any goroutine can process it
-				// this is to account for coordinated omission,
-				// http://psy-lob-saw.blogspot.com/2015/03/fixing-ycsb-coordinated-omission.html
-				measure := &benchMeasure{
-					Start: time.Now(),
-				}
-				select {
-				case requestC <- measure:
-				case <-ctx.Done():
-					return
-				}
-			case <-ctx.Done():
-				return
-			}
+		measure := &benchMeasure{
+			Start: time.Now(),
 		}
+		requestC <- measure
+
+		//interval := time.Duration(float64(1) / float64(bench.Rate) * float64(time.Second))
+		//ticker := time.NewTicker(interval)
+		//defer ticker.Stop()
+		//for {
+		//	select {
+		//	case <-ticker.C:
+		//		// notice how we start the timer regardless of whether any goroutine can process it
+		//		// this is to account for coordinated omission,
+		//		// http://psy-lob-saw.blogspot.com/2015/03/fixing-ycsb-coordinated-omission.html
+		//		measure := &benchMeasure{
+		//			Start: time.Now(),
+		//		}
+		//		select {
+		//		case requestC <- measure:
+		//		case <-ctx.Done():
+		//			return
+		//		}
+		//	case <-ctx.Done():
+		//		return
+		//	}
+		//}
 	}()
 
 	var result BenchmarkResult
@@ -165,37 +173,53 @@ type benchmarkThread struct {
 }
 
 func (b *benchmarkThread) execute(measure *benchMeasure) {
-	if !b.interactive {
-		// do not use parent context that will cancel in flight requests
-		// because we give test some time to gracefully wrap up
-		// the in-flight connections to avoid extra errors
-		measure.Error = b.client.SSH(context.TODO(), nil, false)
-		measure.End = time.Now()
-		b.sendMeasure(measure)
-		return
-	}
-	config := b.client.Config
-	client, err := NewClient(&config)
-	reader, writer := io.Pipe()
-	client.Stdin = reader
-	out := &bytes.Buffer{}
-	client.Stdout = out
-	client.Stderr = out
-	if err != nil {
-		measure.Error = err
-		measure.End = time.Now()
-		b.sendMeasure(measure)
-		return
-	}
-	done := make(chan bool)
-	go func() {
-		measure.Error = b.client.SSH(b.ctx, nil, false)
-		measure.End = time.Now()
-		b.sendMeasure(measure)
-		close(done)
-	}()
-	writer.Write([]byte(strings.Join(b.command, " ") + "\r\nexit\r\n"))
-	<-done
+	b.client.Interactive = true
+	//if !b.interactive {
+	// do not use parent context that will cancel in flight requests
+	// because we give test some time to gracefully wrap up
+	// the in-flight connections to avoid extra errors
+	//measure.Error = b.client.SSH(context.TODO(), nil, false)
+	measure.Error = b.client.SSH(context.TODO(), []string{"cat", "/home/rjones/file.txt"}, false)
+	measure.End = time.Now()
+	b.sendMeasure(measure)
+	return
+	//}
+
+	//if !b.interactive {
+	//	// do not use parent context that will cancel in flight requests
+	//	// because we give test some time to gracefully wrap up
+	//	// the in-flight connections to avoid extra errors
+	//	measure.Error = b.client.SSH(context.TODO(), nil, false)
+	//	measure.End = time.Now()
+	//	b.sendMeasure(measure)
+	//	return
+	//}
+	//config := b.client.Config
+	//client, err := NewClient(&config)
+	//reader, writer := io.Pipe()
+	//client.Stdin = reader
+	//out := &bytes.Buffer{}
+	//client.Stdout = out
+	//client.Stderr = out
+	//if err != nil {
+	//	measure.Error = err
+	//	measure.End = time.Now()
+	//	b.sendMeasure(measure)
+	//	return
+	//}
+	//done := make(chan bool)
+	//go func() {
+	//	measure.Error = b.client.SSH(b.ctx, nil, false)
+	//	measure.End = time.Now()
+	//	b.sendMeasure(measure)
+	//	close(done)
+	//}()
+	//fmt.Printf("--> Submitting: %v.\n", b.command)
+	////writer.Write([]byte("\r\n\r\n" + strings.Join(b.command, " ") + "\r\n\r\nexit\r\n"))
+
+	//writer.Write([]byte("\a" + strings.Join(b.command, " ") + "\n\r\a"))
+	//writer.Write([]byte("\aexit\r\n\a"))
+	//<-done
 }
 
 func (b *benchmarkThread) sendMeasure(measure *benchMeasure) {
