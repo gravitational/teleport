@@ -1,6 +1,6 @@
 # Running Teleport Enterprise in HA mode on AWS
 
-This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform)
+This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami)
 and describe how to use and administrate the resulting Teleport deployment.
 
 [TOC]
@@ -17,8 +17,8 @@ $ terraform version
 Terraform v0.12.20
 ```
 
-You will also require the `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS
-and MacOS Homebrew as the `awscli` package. 
+You will also require the `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS from [https://aws.amazon.com/cli/](https://aws.amazon.com/cli/)
+and MacOS Homebrew as the `awscli` package using `brew 
 
 When possible, installing via a package is always preferable. If you can't find a package available for
 your distribution, you can install `python3` and `pip`, then use these to install `awscli` using `pip3 install awscli`
@@ -459,7 +459,7 @@ When the user 'teleport-admin' activates their account, they will be assigned ro
 
 5 - Click the link to launch the Teleport web UI and finish setting up your user. You will need to scan the QR
 code with an TOTP-compatible app like Google Authenticator or Authy. You will also set a password for the
-`teleportadmin` user on this page.
+`teleport-admin` user on this page.
 
 Once this user is successfully configured, you should be logged into the Teleport web UI.
 
@@ -651,11 +651,8 @@ ways to integrate Teleport onto your servers. We recommend looking at our [Admin
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
 - [Install the Teleport binary on the Server](admin-guide.md#installing)
-
 - [Run Teleport - we recommend using systemd](admin-guide.md#systemd-unit-file)
-
 - [Set the correct settings in /etc/teleport.yaml](admin-guide.md#configuration-file)
-
 - [Add nodes to the Teleport cluster](admin-guide.md#adding-nodes-to-the-cluster)
 
 

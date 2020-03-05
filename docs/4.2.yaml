@@ -21,6 +21,7 @@ markdown_extensions:
   - footnotes
   - toc:
       marker: '[TOC]'
+      toc_depth: 2
 extra_css: []
 plugins:
     - search:
