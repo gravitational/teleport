@@ -1,6 +1,6 @@
 # Running Teleport Enterprise in HA mode on AWS
 
-This guide is designed to accompany our reference Terraform code (https://github.com/gravitational/teleport/tree/master/examples/aws/terraform)
+This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform)
 and describe how to use and administrate the resulting Teleport deployment.
 
 [TOC]
@@ -11,6 +11,8 @@ Our code requires Terraform 0.12+. You can [download Terraform here](https://www
 `terraform` installed and available on your path.
 
 ```bash
+$ which terraform
+/usr/local/bin/terraform
 $ terraform version
 Terraform v0.12.20
 ```
@@ -41,6 +43,20 @@ region = us-east-1
 As a result, you should be able to run a command like `aws ec2 describe-instances` to list running EC2 instances.
 If you get an "access denied", "403 Forbidden" or similar message, you will need to grant additional permissions to the
 AWS IAM user that your `aws_access_key_id` and `aws_secret_access_key` refers to.
+
+As a general rule, we assume that any user running Terraform has administrator-level permissions for the following
+AWS services:
+
+- [EC2](https://aws.amazon.com/ec2/)
+- [S3](https://aws.amazon.com/s3/)
+- [Route 53](https://aws.amazon.com/route53/)
+- [DynamoDB](https://aws.amazon.com/dynamodb/)
+- [Elastic Load Balancing](https://aws.amazon.com/elasticloadbalancing/)
+- [IAM](https://aws.amazon.com/iam/)
+- [SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
+
+The Terraform deployment itself will create new IAM roles to be used by Teleport instances which only have limited
+permission scopes for AWS services, however the initial setup must be done by a user with a high level of permissions.
 
 
 ## Get the Terraform code
