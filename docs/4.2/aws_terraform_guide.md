@@ -1,4 +1,4 @@
-# Running Teleport Enterprise in a high-availiability configuration on AWS
+# Running Teleport Enterprise in HA mode on AWS
 
 This guide is designed to accompany our reference Terraform code (https://github.com/gravitational/teleport/tree/master/examples/aws/terraform)
 and describe how to use and administrate the resulting Teleport deployment.
