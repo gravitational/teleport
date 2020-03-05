@@ -26,6 +26,9 @@ white-list-external:
   - "http://127.0.0.1:3000/debug/pprof"
   - "https://app.onelogin.com/saml/metadata/123456"
   - "https://en.wikipedia.org/wiki/Shebang_(Unix"
+  - "https://teleport.example.com:8443"
+  - "https://teleport.example.com"
+  - "https://[route53_domain](#route53_domain"
 black-list:
   - "./architecture/teleport_architecture.md"
   - "./quickstart__archive.md"
@@ -37,7 +40,16 @@ files:
         - "#ec2-autoscale"
         - "#acm"
         - "#single-oss-teleport-amis-manual-gui-setup"
+  - path: "./aws_terraform_guide.md"
+    config:
+      white-list-internal:
+        - "#cluster_name"
+        - "#key_name"
+        - "#route53_domain"
+        - "#route53_zone"
+        - "#s3_bucket_name"
   - path: "./enterprise/index.md"
     config:
       white-list-internal:
         - "#fedrampfips"
+

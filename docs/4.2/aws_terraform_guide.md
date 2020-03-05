@@ -43,18 +43,6 @@ If you get an "access denied", "403 Forbidden" or similar message, you will need
 AWS IAM user that your `aws_access_key_id` and `aws_secret_access_key` refers to.
 
 
-## AWS Services required to run Teleport in HA
-
-- [EC2 / Autoscale](#ec2-autoscale)
-- [DynamoDB](#dynamodb)
-- [S3](#s3://)
-- [Route53](#route53)
-- [NLB](#nlb-network-load-balancer)
-- [IAM](#iam)
-- [ACM](#acm)
-- [SSM](#aws-systems-manager-parameter-store)
-
-
 ## Get the Terraform code
 
 Firstly, you'll need to clone the Teleport repo to get the Terraform code available on your system.
@@ -251,7 +239,7 @@ As such, we recommend setting this to a known value.
     `export TF_VAR_use_acm="false"`
 
 If set to the string `"false"`, Terraform will use [LetsEncrypt](https://letsencrypt.org/) to provision the public-facing
-web UI certificate for the Teleport cluster ([`route53_subdomain`](#route53_subdomain) - so https://teleport.example.com in this example).
+web UI certificate for the Teleport cluster ([`route53_domain`](#route53_domain) - so https://teleport.example.com in this example).
 This uses an [AWS network load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
 to load-balance connections to the Teleport cluster's web UI, and its SSL termination is handled by Teleport itself.
 
@@ -314,7 +302,7 @@ the [`s3_bucket_name`](#s3_bucket_name) variable, under the `records` directory.
 ### Cluster domain
 
 The reference Terraform deployment sets the Teleport cluster up to be available on a domain defined in Route53, referenced
-by the `route53_domain`[#route53_domain] variable. In our example this would be `teleport.example.com`
+by the [`route53_domain`](#route53_domain) variable. In our example this would be `teleport.example.com`
 
 Teleport's web interface will be available on port 443 - https://teleport.example.com
 
