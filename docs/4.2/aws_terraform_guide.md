@@ -179,8 +179,10 @@ specify in the `region` variable, and you will need a copy of this keypair to co
     `export TF_VAR_license_path="/home/user/teleport-license.pem"`
 
 The full local path to your Teleport license file, which customers can download from
-[the Gravitational dashboard](https://dashboard.gravitational.com/) This license will be copied into AWS SSM and
-automatically added to Teleport auth nodes in order to enable Teleport Enterprise/Pro functionality.
+[the Gravitational dashboard](https://dashboard.gravitational.com/)
+
+This license will be copied into AWS SSM and automatically added to Teleport auth nodes in order to enable
+Teleport Enterprise/Pro functionality.
 
 OSS users can provide any valid file here - it isn't used by the auth server in a Teleport OSS install.
 
@@ -224,6 +226,8 @@ This must be a subdomain of the domain you chose for [`route53_zone`](#route53_z
 The Terraform example also provisions an S3 bucket to hold certificates provisioned by LetsEncrypt and distribute these
 to EC2 instances. This can be any S3-compatible name, and will be generated in the same region as set above.
 
+This bucket is still provisioned when using ACM, as it is also used to store Teleport session logs.
+
 
 ### email
 
@@ -239,14 +243,15 @@ useful information. We recommend a generic ops/support email address which the t
 !!! note "How to set"
     `export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"`
 
-We deploy Grafana along with every Terraform deployment and automatically make stats on cluster usage available.
-This variable sets up the password for the Grafana `admin` user. The Grafana web UI is served on the same subdomain
-as specified above in [`route53_domain`](#route53_domain) on port 8443.
+We deploy Grafana along with every Terraform deployment and automatically make stats on cluster usage available in
+a custom dashboard. This variable sets up the password for the Grafana `admin` user. The Grafana web UI is served
+on the same subdomain as specified above in [`route53_domain`](#route53_domain) on port 8443.
 
 With the variables set in this example, it would be available on https://teleport.example.com:8443
 
-If you do not change this from the default (`CHANGE_THIS_VALUE`), then it will be set to a random value for security.
-As such, we recommend setting this to a known value.
+If you do not change this from the default (`CHANGE_THIS_VALUE`), then it will be set to a random value for security
+and you will need to log into the monitoring instance to discover this manually. As such, we recommend setting this
+to a known value at the outset.
 
 
 ### use_acm
@@ -271,12 +276,13 @@ with this command: `terraform import aws_acm_certificate.cert <certificate_arn>`
 
 Our reference deployment will provision the following instances for your cluster by default:
 
-- 2 x m4.large Teleport auth instances in an ASG, behind an internal network load balancer, configured using DynamoDB for
+- 2 x m4.large Teleport **auth** instances in an ASG, behind an internal network load balancer, configured using DynamoDB for
 shared storage. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/auth_asg.tf#L11)
-- 2 x m4.large Teleport proxy instances in an ASG, behind a public-facing load balancer - NLB for LetsEncrypt, ALB for ACM. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/proxy_asg.tf#L12)
-- 1 x m4.large Teleport node instance in an ASG. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/node_asg.tf#L10)
-- 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each part of the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/monitor_asg.tf#L12)
-- 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances.
+- 2 x m4.large Teleport **proxy** instances in an ASG, behind a public-facing load balancer - NLB for LetsEncrypt, ALB for ACM. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/proxy_asg.tf#L12)
+- 1 x m4.large Teleport **node** instance in an ASG. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/node_asg.tf#L10)
+- 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each service in the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/monitor_asg.tf#L12)
+- 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances. This is done
+to avoid exposing each instance to the internet directly.
 
 [The instance types used for each ASG can be configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/vars.tf#L23-L45)
 
@@ -313,7 +319,9 @@ the [`s3_bucket_name`](#s3_bucket_name) variable, under the `records` directory.
 !!! tip "Tip"
 
     S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
-    which is useful for customers deploying Teleport in regulated environments.
+    which is useful for customers deploying Teleport in regulated environments. Configuration of object lock is out of
+    the scope of this guide.
+
 
 ### Cluster domain
 
@@ -322,8 +330,9 @@ by the [`route53_domain`](#route53_domain) variable. In our example this would b
 
 Teleport's web interface will be available on port 443 - https://teleport.example.com
 
-Teleport's proxy SSH interface will be available on port 3023 (this is the default port used when connecting with the
-`tsh` client)
+Teleport's proxy SSH interface will be available on port 3023 - this is the default port used when connecting with the
+`tsh` client and will not require any additional configuration.
+
 
 ## Deploying with Terraform
 
@@ -380,7 +389,8 @@ Do you want to perform these actions?
 
 Entering `yes` here will start the Terraform deployment. It takes around 8-10 minutes to deploy in full.
 
-#### Destroy/shutdown
+
+#### Destroy/shutdown a Terraform deployment
 
 If you need to tear down a running deployment for any reason, you can run `terraform destroy`.
 
@@ -411,8 +421,8 @@ $ echo ${AUTH_IP}
 172.31.0.196
 ```
 
-3 - Use both these values to SSH into the auth server (make sure that the AWS keypair that you specified in the
-[`key_name`](#key_name) variable is available in the current directory):
+3 - Use both these values to SSH into the auth server. Make sure that the AWS keypair that you specified in the
+[`key_name`](#key_name) variable is available in the current directory, or update the `-i` parameter to point to it:
 
 ```bash
 $ ssh -i ${TF_VAR_key_name}.pem -J ec2-user@${BASTION_IP} ec2-user@${AUTH_IP}
@@ -433,7 +443,7 @@ Last login: Tue Mar  3 18:57:12 2020 from 1.2.3.5
 https://aws.amazon.com/amazon-linux-2/
 1 package(s) needed for security, out of 6 available
 Run "sudo yum update" to apply all updates.
-[ec2-user@ip-172-31-0-196 ~]$ 
+[ec2-user@ip-172-31-0-196 ~]$
 ```
 
 4 - Use the `tctl` command to create an admin user for Teleport:
