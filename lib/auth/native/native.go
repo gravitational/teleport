@@ -330,6 +330,7 @@ func BuildPrincipals(hostID string, nodeName string, clusterName string, roles t
 	// always include the hostID, this is what teleport uses internally to find nodes
 	principals := []string{
 		fmt.Sprintf("%v.%v", hostID, clusterName),
+		hostID,
 	}
 
 	// nodeName is the DNS name, this is for OpenSSH interoperability
