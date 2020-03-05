@@ -9,7 +9,7 @@ resource "aws_autoscaling_group" "monitor" {
   min_size                  = 1
   health_check_grace_period = 300
   health_check_type         = "EC2"
-  desired_capacity          = 0
+  desired_capacity          = 1
   force_delete              = false
   launch_configuration      = aws_launch_configuration.monitor.name
   vpc_zone_identifier       = [aws_subnet.public[0].id]
