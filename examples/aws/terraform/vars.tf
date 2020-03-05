@@ -38,6 +38,12 @@ variable "node_instance_type" {
   default = "t2.medium"
 }
 
+// Instance types used for monitor auto scale groups
+variable "monitor_instance_type" {
+  type    = string
+  default = "m4.large"
+}
+
 // SSH key name to provision instances withx
 variable "key_name" {
   type = string
@@ -127,12 +133,6 @@ variable "telegraf_version" {
 variable "grafana_version" {
   type    = string
   default = "4.6.3"
-}
-
-// Instance types used for proxy auto scale groups
-variable "monitor_instance_type" {
-  type    = string
-  default = "m4.large"
 }
 
 // Password for grafana admin user
