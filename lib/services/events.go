@@ -36,6 +36,10 @@ type Watch struct {
 
 	// MetricComponent is used for reporting
 	MetricComponent string
+
+	// NoCache indicates that watcher should be
+	// created directly against backend.
+	NoCache bool
 }
 
 // WatchKind specifies resource kind to watch

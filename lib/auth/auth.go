@@ -1317,11 +1317,13 @@ func (s *AuthServer) DeleteWebSession(user string, id string) error {
 	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }
 
-// NewWatcher returns a new event watcher. In case of an auth server
-// this watcher will return events as seen by the auth server's
-// in memory cache, not the backend.
+// NewWatcher returns a new event watcher.
 func (a *AuthServer) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
-	return a.GetCache().NewWatcher(ctx, watch)
+	if watch.NoCache {
+		return a.AuthServices.NewWatcher(ctx, watch)
+	} else {
+		return a.GetCache().NewWatcher(ctx, watch)
+	}
 }
 
 func (a *AuthServer) DeleteRole(name string) error {

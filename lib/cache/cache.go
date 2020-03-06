@@ -305,6 +305,9 @@ func New(config Config) (*Cache, error) {
 // to handle subscribers connected to the in-memory caches
 // instead of reading from the backend.
 func (c *Cache) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+	if watch.NoCache {
+		c.Warnf("Cache preference not respected: %+v", watch)
+	}
 	return c.eventsCache.NewWatcher(ctx, watch)
 }
 
@@ -436,6 +439,7 @@ func (c *Cache) fetchAndWatch(retry utils.Retry) error {
 		Name:            c.Component,
 		Kinds:           c.watchKinds(),
 		MetricComponent: c.MetricComponent,
+		NoCache:         true,
 	})
 	if err != nil {
 		c.notify(CacheEvent{Type: WatcherFailed})

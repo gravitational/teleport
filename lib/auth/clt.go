@@ -813,7 +813,9 @@ func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services
 		return nil, trace.Wrap(err)
 	}
 	cancelCtx, cancel := context.WithCancel(ctx)
-	var protoWatch proto.Watch
+	protoWatch := proto.Watch{
+		NoCache: watch.NoCache,
+	}
 	for _, kind := range watch.Kinds {
 		protoWatch.Kinds = append(protoWatch.Kinds, proto.WatchKind{
 			Name:        kind.Name,

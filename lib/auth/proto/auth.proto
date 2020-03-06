@@ -62,6 +62,8 @@ message Event {
 message Watch {
     // Kinds specifies object kinds to watch
     repeated WatchKind Kinds = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "kinds,omitempty"];
+    // NoCache indicates that watcher should be created directly against the backend.
+    bool NoCache = 2 [(gogoproto.jsontag) = "no_cache,omitempty"];
 }
 
 // WatchKind specifies resource kind to watch
