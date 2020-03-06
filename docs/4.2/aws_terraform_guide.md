@@ -334,10 +334,30 @@ In our example this would be `s3://example-cluster/records`
 The reference Terraform deployment sets the Teleport cluster up to be available on a domain defined in Route53, referenced
 by the [`route53_domain`](#route53_domain) variable. In our example this would be `teleport.example.com`
 
-Teleport's web interface will be available on port 443 - https://teleport.example.com
+Teleport's web interface will be available on port 443 - https://teleport.example.com - this is via a configured CNAME
+to the AWS load balancer.
 
-Teleport's proxy SSH interface will be available on port 3023 - this is the default port used when connecting with the
-`tsh` client and will not require any additional configuration.
+Teleport's proxy SSH interface will be available via a network load balancer with an AWS-controlled hostname on port 3023.
+This is the default port used when connecting with the `tsh` client and will not require any additional configuration.
+
+Teleport's tunnel interface will be available via the same network load balancer with an AWS-controlled hostname on port
+3024. This allows trusted clusters and nodes connected via node tunnelling to access the cluster.
+
+You can get the hostname of the proxy/tunnel network load balancer if needed with this command:
+
+```bash
+$ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text 
+example-cluster-proxy-7c97b76593d6bf21.elb.us-east-1.amazonaws.com
+```
+
+Teleport's auth server interface will be available via an internal load balancer with an AWS-controlled hostname on port 3025.
+
+You can get the hostname of the internal auth load balancer if needed with this command:
+
+```bash
+$ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-auth" --query "LoadBalancers[*].DNSName" --output text
+example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com
+```
 
 
 ## Deploying with Terraform
