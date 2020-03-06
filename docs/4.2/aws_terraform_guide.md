@@ -343,7 +343,7 @@ This is the default port used when connecting with the `tsh` client and will not
 Teleport's tunnel interface will be available via the same network load balancer with an AWS-controlled hostname on port
 3024. This allows trusted clusters and nodes connected via node tunnelling to access the cluster.
 
-You can get the hostname of the proxy/tunnel network load balancer if needed with this command:
+After deploying, you can get the hostname of the proxy/tunnel network load balancer if needed with this command:
 
 ```bash
 $ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text 
@@ -352,7 +352,7 @@ example-cluster-proxy-7c97b76593d6bf21.elb.us-east-1.amazonaws.com
 
 Teleport's auth server interface will be available via an internal load balancer with an AWS-controlled hostname on port 3025.
 
-You can get the hostname of the internal auth load balancer if needed with this command:
+After deploying, you can get the hostname of the internal auth load balancer if needed with this command:
 
 ```bash
 $ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-auth" --query "LoadBalancers[*].DNSName" --output text
