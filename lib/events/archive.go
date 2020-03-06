@@ -18,7 +18,12 @@ package events
 
 import (
 	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	//"fmt"
 	"io"
+	"io/ioutil"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/session"
 
@@ -72,10 +77,38 @@ func writeSessionArchive(index *sessionIndex, tarball *tar.Writer, writer *io.Pi
 			writer.CloseWithError(err)
 			return trace.Wrap(err)
 		}
-		if err := writeTarFile(tarball, header, reader); err != nil {
+
+		var r io.ReadCloser
+		if strings.HasSuffix(header.Name, ".gz") {
+			//fmt.Printf("--> writeSessionArchive: Found gzip: %v.\n", header.Name)
+			zreader, err := gzip.NewReader(reader)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer zreader.Close()
+
+			b, err := ioutil.ReadAll(zreader)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			header.Size = int64(len(b))
+
+			//fmt.Printf("--> writeSessionArchive: Content: %v.\n", string(b))
+
+			r = ioutil.NopCloser(bytes.NewBuffer(b))
+		} else {
+			r = reader
+		}
+
+		if err := writeTarFile(tarball, header, r); err != nil {
 			writer.CloseWithError(err)
 			return trace.Wrap(err)
 		}
+
+		//if err := writeTarFile(tarball, header, reader); err != nil {
+		//	writer.CloseWithError(err)
+		//	return trace.Wrap(err)
+		//}
 	}
 
 	return nil

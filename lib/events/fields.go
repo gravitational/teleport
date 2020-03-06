@@ -19,7 +19,8 @@ package events
 import (
 	"archive/tar"
 	"bufio"
-	"compress/gzip"
+	//"compress/gzip"
+	//"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -92,14 +93,17 @@ func ValidateArchive(reader io.Reader, serverID string) error {
 			continue
 		}
 
-		zip, err := gzip.NewReader(tarball)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer zip.Close()
+		//fmt.Printf("--> ValidateArchive: %v.\n", header.Name)
 
-		scanner := bufio.NewScanner(zip)
+		//zip, err := gzip.NewReader(tarball)
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
+		//defer zip.Close()
+
+		scanner := bufio.NewScanner(tarball)
 		for scanner.Scan() {
+			//fmt.Printf("--> ValidateArchive: Scanning: %v.\n", string(scanner.Bytes()))
 			var f EventFields
 			err := utils.FastUnmarshal(scanner.Bytes(), &f)
 			if err != nil {
