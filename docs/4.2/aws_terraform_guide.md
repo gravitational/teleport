@@ -124,16 +124,14 @@ Things you will need to decide on:
 
 ### region
 
-!!! note "How to set"
-    `export TF_VAR_region="us-west-2"`
+Setting `export TF_VAR_region="us-west-2"`
 
 The AWS region to run in. You should pick from the supported list as detailed in the [README](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/README.md).
 
 
 ### cluster_name
 
-!!! note "How to set"
-    `export TF_VAR_cluster_name="example-cluster"`
+Setting `export TF_VAR_cluster_name="example-cluster"`
 
 The cluster name is the internal Teleport cluster name to use. This should be unique, and not contain spaces, dots (.)
 or other special characters. This will appear in the web UI for your cluster and cannot be changed after creation
@@ -142,8 +140,7 @@ without rebuilding your cluster from scratch, so choose carefully.
 
 ### ami_name
 
-!!! note "How to set"
-    `export TF_VAR_ami_name="gravitational-teleport-ami-ent-4.2.3"`
+Setting `export TF_VAR_ami_name="gravitational-teleport-ami-ent-4.2.3"`
 
 Gravitational automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
 release a new version of Teleport. The AMI names follow the format: `gravitational-teleport-ami-<type>-<version>`
@@ -154,20 +151,20 @@ FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default)
 The AWS account ID which publishes these AMIs is `126027368216`. You can list the available AMIs with
 the example `awscli` commands below. The output is in JSON format by default.
 
-!!! tip "List OSS AMIs"
+!!! tip "List Gravitational AMIs"
+    OSS AMIs<br>
     `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'`
 
-!!! tip "List Enterprise AMIs"
+    Enterprise AMIs<br>
     `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'`
 
-!!! tip "List Enterprise FIPS 140-2 AMIs"
+    List Enterprise FIPS 140-2 AMIs<br>
     `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*-fips'`
 
 
 ### key_name
 
-!!! note "How to set"
-     `export TF_VAR_key_name="exampleuser"`
+Setting `export TF_VAR_key_name="exampleuser"`
 
 The AWS keypair name to use when deploying EC2 instances. This must exist in the same region as you
 specify in the `region` variable, and you will need a copy of this keypair to connect to the deployed EC2 instances.
@@ -175,8 +172,7 @@ specify in the `region` variable, and you will need a copy of this keypair to co
 
 ### license_path
 
-!!! note "How to set"
-    `export TF_VAR_license_path="/home/user/teleport-license.pem"`
+Setting `export TF_VAR_license_path="/home/user/teleport-license.pem"`
 
 The full local path to your Teleport license file, which customers can download from
 [the Gravitational dashboard](https://dashboard.gravitational.com/)
@@ -189,8 +185,7 @@ OSS users can provide any valid file here - it isn't used by the auth server in 
 
 ### route53_zone
 
-!!! note "How to set"
-    `export TF_VAR_route53_zone="example.com"`
+Setting `export TF_VAR_route53_zone="example.com"`
 
 Our Terraform setup requires you to have your domain provisioned in AWS Route 53 - it will automatically add
 DNS records for [`route53_domain`](#route53_domain) as set up below. You can list these with this command:
@@ -209,8 +204,7 @@ You should use the appropriate domain without the trailing dot.
 
 ### route53_domain
 
-!!! note "How to set"
-    `export TF_VAR_route53_domain="teleport.example.com"`
+Setting `export TF_VAR_route53_domain="teleport.example.com"`
 
 A subdomain to set up as a CNAME to the Teleport load balancer for web access. This will be the public-facing domain
 that people use to connect to your Teleport cluster, so choose wisely.
@@ -220,8 +214,7 @@ This must be a subdomain of the domain you chose for [`route53_zone`](#route53_z
 
 ### s3_bucket_name
 
-!!! note "How to set"
-    `export TF_VAR_s3_bucket_name="example-cluster"`
+Setting `export TF_VAR_s3_bucket_name="example-cluster"`
 
 The Terraform example also provisions an S3 bucket to hold certificates provisioned by LetsEncrypt and distribute these
 to EC2 instances. This can be any S3-compatible name, and will be generated in the same region as set above.
@@ -231,8 +224,7 @@ This bucket is still provisioned when using ACM, as it is also used to store Tel
 
 ### email
 
-!!! note "How to set"
-    `export TF_VAR_email="support@example.com"`
+Setting `export TF_VAR_email="support@example.com"`
 
 LetsEncrypt requires an email address for every certificate registered which can be used to send notifications and
 useful information. We recommend a generic ops/support email address which the team deploying Teleport has access to.
@@ -240,8 +232,7 @@ useful information. We recommend a generic ops/support email address which the t
 
 ### grafana_pass
 
-!!! note "How to set"
-    `export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"`
+Setting `export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"`
 
 We deploy Grafana along with every Terraform deployment and automatically make stats on cluster usage available in
 a custom dashboard. This variable sets up the password for the Grafana `admin` user. The Grafana web UI is served
@@ -256,8 +247,7 @@ to a known value at the outset.
 
 ### use_acm
 
-!!! note "How to set"
-    `export TF_VAR_use_acm="false"`
+Setting `export TF_VAR_use_acm="false"`
 
 If set to the string `"false"`, Terraform will use [LetsEncrypt](https://letsencrypt.org/) to provision the public-facing
 web UI certificate for the Teleport cluster ([`route53_domain`](#route53_domain) - so https://teleport.example.com in this example).
