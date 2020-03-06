@@ -2379,6 +2379,14 @@ func (s *APIServer) getServerID(r *http.Request) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
+	// The username extracted from the node's identity (x.509 certificate)
+	// is expected to consist of "<server-id>.<cluster-name>" so strip the
+	// cluster name suffix to get the server id.
+	//
+	// Note that as of right now Teleport expects server id to be a uuid4
+	// but older Gravity clusters used to override it with strings like
+	// "192_168_1_1.<cluster-name>" so this code can't rely on it being
+	// uuid4 to account for clusters upgraded from older versions.
 	return strings.TrimSuffix(role.Username, "."+clusterName), nil
 }
 
