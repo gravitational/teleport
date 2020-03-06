@@ -61,6 +61,6 @@ type WebConfigAuthSettings struct {
 	SecondFactor string `json:"second_factor,omitempty"`
 	// Providers contains a list of configured auth providers
 	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
-	// LocalAuth enables/disables local logins
+	// LocalAuth is a flag that enables local authentication
 	LocalAuth bool `json:"localAuth,omitempty"`
 }
