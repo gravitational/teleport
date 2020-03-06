@@ -12,8 +12,6 @@ if [[ "" != "${TWO}" ]]; then
     GCPROJECT=${TWO}
     shift
 fi
-echo "${VERSION} version"
-echo "${GCPROJECT} project"
 
 docker pull quay.io/gravitational/debian-grande:buster
 echo "docker build --pull \
