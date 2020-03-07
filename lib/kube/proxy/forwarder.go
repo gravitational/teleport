@@ -221,7 +221,8 @@ func (f *Forwarder) Close() error {
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
 	auth.AuthContext
-	kubeGroups    []string
+	kubeGroups    map[string]struct{}
+	kubeUsers     map[string]struct{}
 	cluster       cluster
 	clusterConfig services.ClusterConfig
 	// clientIdleTimeout sets information on client idle timeout
@@ -234,13 +235,13 @@ type authContext struct {
 }
 
 func (c authContext) String() string {
-	return fmt.Sprintf("user: %v, groups: %v, cluster: %v", c.User.GetName(), c.kubeGroups, c.cluster.GetName())
+	return fmt.Sprintf("user: %v, users: %v, groups: %v, cluster: %v", c.User.GetName(), c.kubeUsers, c.kubeGroups, c.cluster.GetName())
 }
 
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
-	return fmt.Sprintf("%v:%v:%v:%v", c.cluster.GetName(), c.User.GetName(), c.kubeGroups, c.disconnectExpiredCert.UTC().Unix())
+	return fmt.Sprintf("%v:%v:%v:%v:%v", c.cluster.GetName(), c.User.GetName(), c.kubeUsers, c.kubeGroups, c.disconnectExpiredCert.UTC().Unix())
 }
 
 // cluster represents cluster information, name of the cluster
@@ -357,9 +358,15 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
 	// check signing TTL and return a list of allowed logins
-	kubeGroups, err := roles.CheckKubeGroups(sessionTTL)
+	kubeGroups, kubeUsers, err := roles.CheckKubeGroupsAndUsers(sessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// By default, if no kubernetes_users is set (which will be a majority),
+	// user will impersonate themselves, which is the backwards-compatible behavior.
+	if len(kubeUsers) == 0 {
+		kubeUsers = append(kubeUsers, ctx.User.GetName())
 	}
 
 	// KubeSystemAuthenticated is a builtin group that allows
@@ -376,7 +383,6 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 		return nil, trace.Wrap(err)
 	}
 	if ctx.Identity.RouteToCluster != "" {
-		f.Debugf("Client certificate of %v has requested routing to a cluster: %v.", ctx.User.GetName(), ctx.Identity.RouteToCluster)
 		targetCluster, err = f.Tunnel.GetSite(ctx.Identity.RouteToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -411,7 +417,8 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 		clientIdleTimeout: roles.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
 		AuthContext:       ctx,
-		kubeGroups:        kubeGroups,
+		kubeGroups:        utils.StringsSet(kubeGroups),
+		kubeUsers:         utils.StringsSet(kubeUsers),
 		clusterConfig:     clusterConfig,
 		cluster: cluster{
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -634,11 +641,21 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 	return nil, nil
 }
 
+const (
+	// ImpersonateHeaderPrefix is K8s impersonation prefix for impersonation feature:
+	// https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation
+	ImpersonateHeaderPrefix = "Impersonate-"
+	// ImpersonateUserHeader is impersonation header for users
+	ImpersonateUserHeader = "Impersonate-User"
+	// ImpersonateGroupHeader is K8s impersonation header for user
+	ImpersonateGroupHeader = "Impersonate-Group"
+	// ImpersonationRequestDeniedMessage is access denied message for impersonation
+	ImpersonationRequestDeniedMessage = "impersonation request has been denied"
+)
+
 func (f *Forwarder) setupForwardingHeaders(ctx *authContext, sess *clusterSession, req *http.Request) error {
-	for header := range req.Header {
-		if strings.HasPrefix(header, "Impersonate-") {
-			return trace.AccessDenied("impersonation request has been denied")
-		}
+	if err := setupImpersonationHeaders(f.Entry, ctx, req.Header, f.creds.cfg.BearerToken); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Setup scheme, override target URL to the destination address
@@ -652,16 +669,89 @@ func (f *Forwarder) setupForwardingHeaders(ctx *authContext, sess *clusterSessio
 	req.Header.Add("X-Forwarded-Host", req.Host)
 	req.Header.Add("X-Forwarded-Path", req.URL.Path)
 
-	if !ctx.cluster.isRemote {
-		req.Header.Add("Impersonate-User", ctx.User.GetName())
-		f.Debugf("Impersonate User: %v", ctx.User)
-		for _, group := range ctx.kubeGroups {
-			req.Header.Add("Impersonate-Group", group)
-			f.Debugf("Impersonate Group: %v", group)
+	return nil
+}
+
+// setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
+func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers http.Header, bearerToken string) error {
+	var impersonateUser string
+	var impersonateGroups []string
+	for header, values := range headers {
+		if !strings.HasPrefix(header, "Impersonate-") {
+			continue
 		}
-		if f.creds.cfg.BearerToken != "" {
-			f.Debugf("Using Bearer Token Auth")
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", f.creds.cfg.BearerToken))
+		switch header {
+		case ImpersonateUserHeader:
+			if impersonateUser != "" {
+				return trace.AccessDenied("%v, user already specified to %q", ImpersonationRequestDeniedMessage, impersonateUser)
+			}
+			if len(values) == 0 || len(values) > 1 {
+				return trace.AccessDenied("%v, invalid user header %q", ImpersonationRequestDeniedMessage, values)
+			}
+			impersonateUser = values[0]
+			if _, ok := ctx.kubeUsers[impersonateUser]; !ok {
+				return trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
+			}
+		case ImpersonateGroupHeader:
+			for _, group := range values {
+				if _, ok := ctx.kubeGroups[group]; !ok {
+					return trace.AccessDenied("%v, group header %q value is not allowed in roles", ImpersonationRequestDeniedMessage, group)
+				}
+				impersonateGroups = append(impersonateGroups, group)
+			}
+		default:
+			return trace.AccessDenied("%v, unsupported impersonation header %q", ImpersonationRequestDeniedMessage, header)
+		}
+	}
+
+	impersonateGroups = utils.Deduplicate(impersonateGroups)
+
+	// By default, if no kubernetes_users is set (which will be a majority),
+	// user will impersonate themselves, which is the backwards-compatible behavior.
+	//
+	// As long as at least one `kubernetes_users` is set, the forwarder will start
+	// limiting the list of users allowed by the client to impersonate.
+	//
+	// If the users' role set does not include actual user name, it will be rejected,
+	// otherwise there will be no way to exclude the user from the list).
+	//
+	// If the `kuberentes_users` role set includes only one user
+	// (quite frequently that's the real intent), teleport will default to it,
+	// otherwise it will refuse to select.
+	//
+	// This will enable the use case when `kubernetes_users` has just one field to
+	// link the user identity with the IAM role, for example `IAM#{{external.email}}`
+	//
+	if impersonateUser == "" {
+		switch len(ctx.kubeUsers) {
+		// this is currently not possible as kube users have at least one
+		// user (user name), but in case if someone breaks it, catch here
+		case 0:
+			return trace.AccessDenied("assumed at least one user to be present")
+		// if there is deterministic choice, make it to improve user experience
+		case 1:
+			for user := range ctx.kubeUsers {
+				impersonateUser = user
+				break
+			}
+		default:
+			return trace.AccessDenied(
+				"please select a user to impersonate, refusing to select a user due to several kuberenetes_users set up for this user")
+		}
+	}
+	if len(impersonateGroups) == 0 {
+		for group := range ctx.kubeGroups {
+			impersonateGroups = append(impersonateGroups, group)
+		}
+	}
+
+	if !ctx.cluster.isRemote {
+		headers.Add("Impersonate-User", impersonateUser)
+		for _, group := range impersonateGroups {
+			headers.Add("Impersonate-Group", group)
+		}
+		if bearerToken != "" {
+			headers.Set("Authorization", fmt.Sprintf("Bearer %v", bearerToken))
 		}
 	}
 	return nil
@@ -993,7 +1083,7 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
 	csr := &x509.CertificateRequest{
 		Subject: pkix.Name{
 			CommonName:   ctx.User.GetName(),
-			Organization: ctx.kubeGroups,
+			Organization: utils.StringsSliceFromSet(ctx.kubeGroups),
 		},
 	}
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
