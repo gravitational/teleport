@@ -445,6 +445,10 @@ const (
 	// allowed kubernetes groups
 	TraitKubeGroups = "kubernetes_groups"
 
+	// TraitKubeUsers is the name the role variable used to store
+	// allowed kubernetes users
+	TraitKubeUsers = "kubernetes_users"
+
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"

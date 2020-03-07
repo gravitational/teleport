@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"math/big"
 	"net"
@@ -77,6 +78,8 @@ type Identity struct {
 	Principals []string
 	// KubernetesGroups is a list of Kubernetes groups allowed
 	KubernetesGroups []string
+	// KubernetesUsers is a list of Kubernetes users allowed
+	KubernetesUsers []string
 	// Expires specifies whenever the session will expire
 	Expires time.Time
 	// RouteToCluster specifies the target cluster
@@ -97,6 +100,21 @@ func (i *Identity) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Custom ranges are taken from this article
+//
+// https://serverfault.com/questions/551477/is-there-reserved-oid-space-for-internal-enterprise-cas
+//
+// http://oid-info.com/get/1.3.9999
+//
+
+// KubeUsersASN1ExtensionOID is an extension ID used when encoding/decoding
+// license payload into certificates
+var KubeUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 1}
+
+// KubeGroupsASN1ExtensionOID is an extension ID used when encoding/decoding
+// license payload into certificates
+var KubeGroupsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 2}
+
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
 	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
@@ -110,37 +128,82 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	subject.Organization = append([]string{}, id.Groups...)
 	subject.OrganizationalUnit = append([]string{}, id.Usage...)
 	subject.Locality = append([]string{}, id.Principals...)
+
+	// DELETE IN (5.0.0)
+	// Groups are marshaled to both ASN1 extension
+	// and old Province section, for backwards-compatibility,
+	// however begin migration to ASN1 extensions in the future
+	// for this and other properties
 	subject.Province = append([]string{}, id.KubernetesGroups...)
 	subject.StreetAddress = []string{id.RouteToCluster}
 	subject.PostalCode = []string{string(rawTraits)}
+
+	for i := range id.KubernetesUsers {
+		kubeUser := id.KubernetesUsers[i]
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  KubeUsersASN1ExtensionOID,
+				Value: kubeUser,
+			})
+	}
+
+	for i := range id.KubernetesGroups {
+		kubeGroup := id.KubernetesGroups[i]
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  KubeGroupsASN1ExtensionOID,
+				Value: kubeGroup,
+			})
+	}
 
 	return subject, nil
 }
 
 // FromSubject returns identity from subject name
 func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
-	i := &Identity{
-		Username:         subject.CommonName,
-		Groups:           subject.Organization,
-		Usage:            subject.OrganizationalUnit,
-		Principals:       subject.Locality,
-		KubernetesGroups: subject.Province,
-		Expires:          expires,
+	id := &Identity{
+		Username:   subject.CommonName,
+		Groups:     subject.Organization,
+		Usage:      subject.OrganizationalUnit,
+		Principals: subject.Locality,
+		Expires:    expires,
 	}
 	if len(subject.StreetAddress) > 0 {
-		i.RouteToCluster = subject.StreetAddress[0]
+		id.RouteToCluster = subject.StreetAddress[0]
 	}
 	if len(subject.PostalCode) > 0 {
-		err := wrappers.UnmarshalTraits([]byte(subject.PostalCode[0]), &i.Traits)
+		err := wrappers.UnmarshalTraits([]byte(subject.PostalCode[0]), &id.Traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if err := i.CheckAndSetDefaults(); err != nil {
+	for _, attr := range subject.Names {
+		switch {
+		case attr.Type.Equal(KubeUsersASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.KubernetesUsers = append(id.KubernetesUsers, val)
+			}
+		case attr.Type.Equal(KubeGroupsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.KubernetesGroups = append(id.KubernetesGroups, val)
+			}
+		}
+	}
+
+	// DELETE IN(5.0.0): This logic is using Province field
+	// from subject in case if Kubernetes groups were not populated
+	// from ASN1 extension, after 5.0 Province field will be ignored
+	if len(id.KubernetesGroups) == 0 {
+		id.KubernetesGroups = subject.Province
+	}
+
+	if err := id.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return i, nil
+	return id, nil
 }
 
 // CertificateRequest is a X.509 signing certificate request

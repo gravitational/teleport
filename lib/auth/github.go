@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -289,8 +289,11 @@ type createUserParams struct {
 	// logins is the list of *nix logins.
 	logins []string
 
-	// kubeGroups is the list of Kubernetes this user belongs to.
+	// kubeGroups is the list of Kubernetes groups this user belongs to.
 	kubeGroups []string
+
+	// kubeUsers is the list of Kubernetes users this user belongs to.
+	kubeUsers []string
 
 	// roles is the list of roles this user is assigned to.
 	roles []string
@@ -309,14 +312,14 @@ func (s *AuthServer) calculateGithubUser(connector services.GithubConnector, cla
 	}
 
 	// Calculate logins, kubegroups, roles, and traits.
-	p.logins, p.kubeGroups = connector.MapClaims(*claims)
+	p.logins, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
 	if len(p.logins) == 0 {
 		return nil, trace.BadParameter(
 			"user %q does not belong to any teams configured in %q connector",
 			claims.Username, connector.GetName())
 	}
 	p.roles = modules.GetModules().RolesFromLogins(p.logins)
-	p.traits = modules.GetModules().TraitsFromLogins(p.logins, p.kubeGroups)
+	p.traits = modules.GetModules().TraitsFromLogins(p.logins, p.kubeGroups, p.kubeUsers)
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.roles, s.Access, p.traits)
