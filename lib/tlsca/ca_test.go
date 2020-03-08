@@ -71,3 +71,42 @@ func (s *TLSCASuite) TestPrincipals(c *check.C) {
 	}
 	c.Assert(certIPs, check.DeepEquals, ips)
 }
+
+// TestKubeExtensions test ASN1 subject kubernetes extensions
+func (s *TLSCASuite) TestKubeExtensions(c *check.C) {
+	ca, err := New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	c.Assert(err, check.IsNil)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	c.Assert(err, check.IsNil)
+
+	expires := s.clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username: "alice@example.com",
+		Groups:   []string{"admin"},
+		// Generate a certificate restricted for
+		// use against a kubernetes endpoint, and not the API server endpoint
+		// otherwise proxies can generate certs for any user.
+		Usage:            []string{teleport.UsageKubeOnly},
+		KubernetesGroups: []string{"system:masters", "admin"},
+		KubernetesUsers:  []string{"IAM#alice@example.com"},
+		Expires:          expires,
+	}
+
+	subj, err := identity.Subject()
+	c.Assert(err, check.IsNil)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     s.clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	c.Assert(err, check.IsNil)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	c.Assert(err, check.IsNil)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	c.Assert(err, check.IsNil)
+	fixtures.DeepCompare(c, out, &identity)
+}
