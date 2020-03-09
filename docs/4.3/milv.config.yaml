@@ -1,0 +1,54 @@
+request-repeats: 3
+timeout: 5
+allow-redirect: true
+allow-code-blocks: false
+ignore-external: false
+white-list-internal:
+  - "mailto:sales@gravitational.com"
+  - "mailto:info@gravitational.com"
+  - "mailto:ben@gravitational.com"
+white-list-external:
+  - "https://<proxy-host>:3080"
+  - "https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a"
+  - "https://proxy.example.com:3080/v1/webapi/oidc/callback"
+  - "https://[HOST]:3080/web/sessions"
+  - "https://proxyhost:3080"
+  - "https://localhost:3080/v1/webapi/saml/acs"
+  - "http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"
+  - "http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname\"_"
+  - "http://schemas.xmlsoap.org/claims/Group"
+  - "https://teleport.example.com:3080/v1/webapi/oidc/callback"
+  - "https://teleport.example.com/v1/webapi/saml/acs"
+  - "https://teleport-proxy.example.com:3080/v1/webapi/saml/acs"
+  - "http://127.0.0.1:3000/metrics"
+  - "http://127.0.0.1:3000/healthz"
+  - "http://127.0.0.1:3000/readyz"
+  - "http://127.0.0.1:3000/debug/pprof"
+  - "https://app.onelogin.com/saml/metadata/123456"
+  - "https://en.wikipedia.org/wiki/Shebang_(Unix"
+  - "https://teleport.example.com:8443"
+  - "https://teleport.example.com"
+  - "https://[route53_domain](#route53_domain"
+black-list:
+  - "./architecture/teleport_architecture.md"
+  - "./quickstart__archive.md"
+files:
+  - path: "./aws_oss_guide.md"
+    config:
+      white-list-internal:
+        - "#teleport-aws-tips-tricks"
+        - "#ec2-autoscale"
+        - "#acm"
+        - "#single-oss-teleport-amis-manual-gui-setup"
+  - path: "./aws_terraform_guide.md"
+    config:
+      white-list-internal:
+        - "#cluster_name"
+        - "#key_name"
+        - "#route53_domain"
+        - "#route53_zone"
+        - "#s3_bucket_name"
+  - path: "./enterprise/index.md"
+    config:
+      white-list-internal:
+        - "#fedrampfips"
