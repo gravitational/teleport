@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-ONE=$1
 TWO=$2
 VERSION=3.2.0
 if [[ "$1" != "" ]]; then
@@ -12,10 +11,6 @@ if [[ "" != "${TWO}" ]]; then
     GCPROJECT=${TWO}
     shift
 fi
-echo "${VERSION} version"
-echo "${GCPROJECT} project"
-
-
 for f in *; do
     if [[ -d $f ]]; then
         pushd $f
