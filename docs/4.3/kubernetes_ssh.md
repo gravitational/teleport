@@ -188,7 +188,6 @@ Teleport will log the audit record and record the session.
 
     For more information on integrating Teleport with Github SSO, please see the [Github section in the Admin Manual](admin-guide.md#github-oauth-20).
 
-
 ### Okta Auth
 
 With Okta (or any other SAML/OIDC/Active Directory provider), you must update

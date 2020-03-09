@@ -184,7 +184,6 @@ SAML and OIDC types:
 * [SSH Authentication with ADFS](../ssh_adfs.md)
 * [SSH Authentication with OAuth2 / OpenID Connect](../oidc.md)
 
-
 ## SSO Customization 
 
 | Provider | YAML | Example |
