@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -189,18 +190,8 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	header.Add(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
 	header.Add(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
 
-	// impersonation for remote clusters is handled by remote proxies
-	if !s.authCtx.cluster.isRemote {
-		header.Add("Impersonate-User", s.authCtx.User.GetName())
-		log.Debugf("Impersonate User: %v", s.authCtx.User)
-		for _, group := range s.authCtx.kubeGroups {
-			header.Add("Impersonate-Group", group)
-			log.Debugf("Impersonate Group: %v", group)
-		}
-		if s.bearerToken != "" {
-			log.Debugf("Using Bearer Token Auth")
-			header.Set("Authorization", fmt.Sprintf("Bearer %v", s.bearerToken))
-		}
+	if err := setupImpersonationHeaders(log.StandardLogger(), &s.authCtx, header, s.bearerToken); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var (

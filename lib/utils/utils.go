@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -178,11 +179,24 @@ func ParseAdvertiseAddr(advertiseIP string) (string, string, error) {
 	return host, port, nil
 }
 
+// StringsSliceFromSet returns a sorted strings slice from set
+func StringsSliceFromSet(in map[string]struct{}) []string {
+	if in == nil {
+		return nil
+	}
+	out := make([]string, 0, len(in))
+	for key := range in {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // StringsSet creates set of string (map[string]struct{})
 // from a list of strings
 func StringsSet(in []string) map[string]struct{} {
 	if in == nil {
-		return nil
+		return map[string]struct{}{}
 	}
 	out := make(map[string]struct{})
 	for _, v := range in {
