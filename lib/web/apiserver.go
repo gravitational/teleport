@@ -658,9 +658,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	authSettings := ui.WebConfigAuthSettings{
-		Providers:    authProviders,
-		SecondFactor: secondFactor,
-		LocalAuth:    clsCfg.GetLocalAuth(),
+		Providers:        authProviders,
+		SecondFactor:     secondFactor,
+		LocalAuthEnabled: clsCfg.GetLocalAuth(),
 	}
 
 	webCfg := ui.WebConfig{
