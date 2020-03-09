@@ -1,6 +1,10 @@
 # Production Guide
 
+<<<<<<< HEAD
 This guide provides more in-depth details for running Teleport in Production.
+=======
+This guide provides more in-depth details for running Teleport in Production. 
+>>>>>>> Base fork for 4.3 docs
 
 <!-- TODO: Minimal Config example -->
 
@@ -132,8 +136,13 @@ use them to add nodes.
 ### SSL/TLS for Teleport Proxy
 
 TLS stands for Transport Layer Security (TLS), and its now-deprecated predecessor,
+<<<<<<< HEAD
 Secure Sockets Layer (SSL).  Teleport requires TLS authentication to ensure that
 communication between nodes, clients and web proxy remains secure and comes from
+=======
+Secure Sockets Layer (SSL).  Teleport requires TLS authentication to ensure that 
+communication between nodes, clients and web proxy remains secure and comes from 
+>>>>>>> Base fork for 4.3 docs
 a trusted source.
 
 During our [quickstart](quickstart.md) guide we skip over setting up TLS so that you can quickly try Teleport.
@@ -156,7 +165,11 @@ https_key_file: /path/to/certs/privkey.pem
 https_cert_file: /path/to/certs/fullchain.pem
 ```
 
+<<<<<<< HEAD
 If you already have a certificate these should be uploaded to the Teleport Proxy and
+=======
+If you already have a certificate these should be uploaded to the Teleport Proxy and 
+>>>>>>> Base fork for 4.3 docs
 can be set via `https_key_file` and `https_cert_file`. Make sure any certificates
 files uploaded contain a full certificate chain, complete with any intermediate
 certificates required - this [guide](https://www.digicert.com/ssl-support/pem-ssl-creation.htm) may help.
@@ -179,6 +192,7 @@ proxy_service:
     https_cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
+<<<<<<< HEAD
 When setting up on Teleport on AWS or GCP, we recommend leveraging their certificate
 managers.
 
@@ -187,6 +201,16 @@ managers.
 
 When setting up Teleport with a Cloud Provider, it can be common to terminate
 TLS at the load balancer, then use an autoscaling group for the proxy nodes. When
+=======
+When setting up on Teleport on AWS or GCP, we recommend leveraging their certificate 
+managers. 
+
+- [ACM](https://gravitational.com/teleport/docs/aws_oss_guide/#acm) on AWS 
+- [Google-managed SSL certificates](https://cloud.google.com/load-balancing/docs/ssl-certificates) on GCP
+
+When setting up Teleport with a Cloud Provider, it can be common to terminate 
+TLS at the load balancer, then use an autoscaling group for the proxy nodes. When 
+>>>>>>> Base fork for 4.3 docs
 setting up the proxy nodes start Teleport with:
 
 `teleport start --insecure --roles=proxy --config=/etc/teleport.yaml`

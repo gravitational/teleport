@@ -1,9 +1,16 @@
 # Installation
 
+<<<<<<< HEAD
 Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems.
 
 The Teleport client [`tsh`](cli-docs.md#tsh) and Web UI are available for **Linux, Mac**
 and **Windows** operating systems. Our examples install Teleport v{{ teleport.version }} but you can
+=======
+Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems. 
+
+The Teleport client [`tsh`](cli-docs.md#tsh) and Web UI are available for **Linux, Mac**
+and **Windows** operating systems. Our examples install Teleport v{{ teleport.version }} but you can 
+>>>>>>> Base fork for 4.3 docs
 install any version listed in our [Release History](https://gravitational.com/teleport/releases/).
 
 **Table of Contents**
@@ -166,4 +173,8 @@ $ sudo chown $USER /var/lib/teleport
 If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the
 directory `$GOPATH/src/github.com/gravitational/teleport/build`
 
+<<<<<<< HEAD
 <!--Notes on what to do if the build does not succeed, troubleshooting-->
+=======
+<!--Notes on what to do if the build does not succeed, troubleshooting-->
+>>>>>>> Base fork for 4.3 docs

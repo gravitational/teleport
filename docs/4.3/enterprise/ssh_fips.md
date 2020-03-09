@@ -1,6 +1,10 @@
 # FedRAMP / FIPS
 With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
+<<<<<<< HEAD
 the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
+=======
+the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high 
+>>>>>>> Base fork for 4.3 docs
 level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP certified.
 
 **Table of Contents**
@@ -9,7 +13,11 @@ level overview of how Teleport FIPS mode works and how it can help your company 
 
 ### Obtain FedRAMP certification with Teleport
 Teleport includes new FedRAMP and FIPS 140-2 features to support companies that sell into
+<<<<<<< HEAD
 government agencies.
+=======
+government agencies. 
+>>>>>>> Base fork for 4.3 docs
 
 | Control  | Teleport Features |
 |----------|---------------------|
@@ -28,19 +36,32 @@ government agencies.
 Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
 
 # Setup
+<<<<<<< HEAD
 Customers can follow our [Enterprise Quickstart](quickstart-enterprise.md) for basic
 instructions on how to setup Teleport Enterprise. You'll need to start with the Teleport
 Enterprise FIPS Binary.
+=======
+Customers can follow our [Enterprise Quickstart](quickstart-enterprise.md) for basic 
+instructions on how to setup Teleport Enterprise. You'll need to start with the Teleport 
+Enterprise FIPS Binary. 
+>>>>>>> Base fork for 4.3 docs
 
 After downloading the binary tarball, run:
 
 ```bsh
 $ tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-fips-bin.tar.gz
 $ cd teleport-ent
+<<<<<<< HEAD
 $ sudo ./install
 # This will copy Teleport Enterprise to /usr/local/bin.
 ```
 ## Configuration
+=======
+$ sudo ./install 
+# This will copy Teleport Enterprise to /usr/local/bin.
+```
+## Configuration 
+>>>>>>> Base fork for 4.3 docs
 
 ### Teleport Auth Server
 Now, save the following configuration file as `/etc/teleport.yaml` on the auth server.
@@ -68,6 +89,7 @@ auth_service:
   # this token is used to establish trust with other Teleport clusters
   - trusted_cluster:TaZff3DLbpsMZmIMhvEr7kulOgegjg7yyQNTS0q6UFWfsJ9N6rxVBjg6t7nw
 
+<<<<<<< HEAD
   # To Support FIPS local_auth needs to be turned off and a SSO connector is
   # required to log into Teleport.
   authentication:
@@ -76,6 +98,16 @@ auth_service:
     type: saml
 
   # If using Proxy Mode, Teleport requires host key checks.
+=======
+  # To Support FIPS local_auth needs to be turned off and a SSO connector is 
+  # required to log into Teleport. 
+  authentication:
+    # local_auth needs to be set to false in FIPS mode. 
+    local_auth: false
+    type: saml
+
+  # If using Proxy Mode, Teleport requires host key checks. 
+>>>>>>> Base fork for 4.3 docs
   # This setting needs is required to start in Teleport in FIPS mode
   proxy_checks_host_keys: true
 
@@ -86,7 +118,11 @@ ssh_service:
 
 ### Teleport Node
 
+<<<<<<< HEAD
 Save the following configuration file as `/etc/teleport.yaml` on the node server.
+=======
+Save the following configuration file as `/etc/teleport.yaml` on the node server. 
+>>>>>>> Base fork for 4.3 docs
 ```yaml
 teleport:
   auth_token: zw6C82kq7VEUSJeSDzuldWsxakql6jrTYmphxRQOlrATTGbLQoaIwEBo48o9
@@ -106,7 +142,11 @@ proxy_service:
 ### Systemd Unit File
 
 Next, download the systemd service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd/fips)
+<<<<<<< HEAD
 on Github and save it as `/etc/systemd/system/teleport.service` on both servers.
+=======
+on Github and save it as `/etc/systemd/system/teleport.service` on both servers. 
+>>>>>>> Base fork for 4.3 docs
 
 ```bsh
 # run this on both servers:
@@ -118,8 +158,13 @@ $ sudo systemctl enable teleport
 
 When using `teleport start --fips`, Teleport will start in FIPS mode.
 
+<<<<<<< HEAD
 In FIPS mode, Teleport will configure the TLS and SSH servers with FIPS-compliant cryptographic algorithms. If non-compliant algorithms are chosen, Teleport will fail to start. Teleport will
 configure the TLS and SSH servers with FIPS compliant cryptographic algorithms.
+=======
+In FIPS mode, Teleport will configure the TLS and SSH servers with FIPS-compliant cryptographic algorithms. If non-compliant algorithms are chosen, Teleport will fail to start. Teleport will 
+configure the TLS and SSH servers with FIPS compliant cryptographic algorithms. 
+>>>>>>> Base fork for 4.3 docs
 In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to start.
 In addition, Teleport checks if the binary was compiled against an approved
 cryptographic module (BoringCrypto) and fails to start if it was not.
@@ -128,7 +173,11 @@ cryptographic module (BoringCrypto) and fails to start if it was not.
 
 * Be useful when running commands like `ps aux` to note that Teleport is running in FedRAMP enforcing mode.
 
+<<<<<<< HEAD
 * If no ciphersuites are provided, Teleport will set the default ciphersuites to be FIPS 140-2 compliant.
+=======
+* If no ciphersuites are provided, Teleport will set the default ciphersuites to be FIPS 140-2 compliant. 
+>>>>>>> Base fork for 4.3 docs
 
 * If ciphersuites are provided in the Teleport configuration, Teleport will validate that they are FIPS 140-2 compliant.
 
@@ -141,6 +190,7 @@ cryptographic module (BoringCrypto) and fails to start if it was not.
 
 ### FedRAMP Audit Log
 
+<<<<<<< HEAD
 At the close of a connection (close of a *srv.ServerContext) the total data transmitted and received
 is emitted to the Audit Log.
 
@@ -149,3 +199,13 @@ is emitted to the Audit Log.
 * Removes all uses of non-compliant algorithms like NaCl and replace with compliant algorithms like AES-GCM.
 * Teleport is complied  with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/Certificate/2964)
 * User and host certificates (and host keys for recording proxy mode) should only be 2048-bit RSA. For a certificate, the signer should also be.
+=======
+At the close of a connection (close of a *srv.ServerContext) the total data transmitted and received 
+is emitted to the Audit Log.
+
+## What else does the Teleport FIPS binary enforce? 
+* Supporting configurable TLS versions. This is to ensure that only TLS 1.2 is supported in FedRAMP mode.
+* Removes all uses of non-compliant algorithms like NaCl and replace with compliant algorithms like AES-GCM.
+* Teleport is complied  with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/Certificate/2964)
+* User and host certificates (and host keys for recording proxy mode) should only be 2048-bit RSA. For a certificate, the signer should also be.
+>>>>>>> Base fork for 4.3 docs

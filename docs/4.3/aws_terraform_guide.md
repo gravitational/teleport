@@ -318,7 +318,11 @@ More information about how Teleport works with DynamoDB can be found in our [Dyn
 ### Recorded session storage
 
 The reference Terraform deployment sets Teleport up to store recorded session logs in the same S3 bucket configured in
+<<<<<<< HEAD
 the [`s3_bucket_name`](#s3_bucket_name) variable, under the `records` directory.
+=======
+the [`s3_bucket_name`](#s3_bucket_name) variable, under the `records` directory. 
+>>>>>>> Base fork for 4.3 docs
 
 In our example this would be `s3://example-cluster/records`
 
@@ -346,7 +350,11 @@ Teleport's tunnel interface will be available via the same network load balancer
 After deploying, you can get the hostname of the proxy/tunnel network load balancer if needed with this command:
 
 ```bash
+<<<<<<< HEAD
 $ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text
+=======
+$ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text 
+>>>>>>> Base fork for 4.3 docs
 example-cluster-proxy-7c97b76593d6bf21.elb.us-east-1.amazonaws.com
 ```
 
@@ -410,7 +418,11 @@ Do you want to perform these actions?
   Terraform will perform the actions described above.
   Only 'yes' will be accepted to approve.
 
+<<<<<<< HEAD
   Enter a value:
+=======
+  Enter a value: 
+>>>>>>> Base fork for 4.3 docs
 ```
 
 Entering `yes` here will start the Terraform deployment. It takes around 8-10 minutes to deploy in full.
@@ -515,12 +527,21 @@ Enter your OTP token:
   https://gravitational.com/teleport/docs/enterprise
 
 $ tsh ls
+<<<<<<< HEAD
 Node Name                    Address           Labels
 ---------------------------- ----------------- ------
 ip-172-31-11-69-ec2-internal 172.31.11.69:3022
 
 $ tsh ssh root@ip-172-31-11-69-ec2-internal
 [root@ip-172-31-11-69 ~]#
+=======
+Node Name                    Address           Labels 
+---------------------------- ----------------- ------ 
+ip-172-31-11-69-ec2-internal 172.31.11.69:3022        
+
+$ tsh ssh root@ip-172-31-11-69-ec2-internal
+[root@ip-172-31-11-69 ~]# 
+>>>>>>> Base fork for 4.3 docs
 ```
 
 
@@ -783,7 +804,11 @@ auth_servers:
 To add a trusted cluster, you'll need the hostname of the proxy load balancer. You can get it using this command:
 
 ```bash
+<<<<<<< HEAD
 $ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text
+=======
+$ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text 
+>>>>>>> Base fork for 4.3 docs
 example-cluster-proxy-7c97b76593d6bf21.elb.us-east-1.amazonaws.com
 ```
 

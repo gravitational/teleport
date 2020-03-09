@@ -71,8 +71,13 @@ to generate a `kubeconfig` file for the Teleport proxy service.
 
 ## Impersonation
 
+<<<<<<< HEAD
 The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
 using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
+=======
+The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group 
+using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation). 
+>>>>>>> Base fork for 4.3 docs
 
 If Teleport is running inside the cluster using a Kubernetes `ServiceAccount`, here's an example of the permissions that
 the `ServiceAccount` will need to be able to use impersonation (change `teleport-serviceaccount` to the name of the
@@ -129,12 +134,15 @@ configured. In this guide we'll look at two common configurations:
   In this case, we'll need to map users' groups that come from Okta to Kubernetes
   groups.
 
+<<<<<<< HEAD
 ## Kubernetes Groups and Users
 
 Teleport provides support for Kubernetes Group `kubernetes_groups: ["system:masters"]`
 and Kubernetes Users, using `kubernetes_users: ['barent', 'jane']`. If a Kubernetes
 user isn't set the user will impersonate themselves.
 
+=======
+>>>>>>> Base fork for 4.3 docs
 ### Github Auth
 
 When configuring Teleport to authenticate against Github, you have to create a
@@ -165,9 +173,12 @@ spec:
         - root
       # list of Kubernetes groups this Github team is allowed to connect to
       kubernetes_groups: ["system:masters"]
+<<<<<<< HEAD
       # Optional: If not set, users will impersonate themselves.
       # kubernetes_users: ['barent']
 
+=======
+>>>>>>> Base fork for 4.3 docs
 ```
 To obtain client ID and client secret from Github, please follow [Github documentation](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) on how to create and register an OAuth app. Be sure to set the "Authorization callback URL" to the same value as redirect_url in the resource spec.
 
@@ -188,7 +199,10 @@ Teleport will log the audit record and record the session.
 
     For more information on integrating Teleport with Github SSO, please see the [Github section in the Admin Manual](admin-guide.md#github-oauth-20).
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> Base fork for 4.3 docs
 ### Okta Auth
 
 With Okta (or any other SAML/OIDC/Active Directory provider), you must update
@@ -230,9 +244,12 @@ $ tctl create -f admin.yaml
     need to define Kubernetes group membership in Okta (as a trait) and use
     that trait name in the Teleport role.
 
+<<<<<<< HEAD
     Teleport 4.3 has an option to extract the local part from an email claim. This can be helpful
     since some operating systems don't support the @ symbol. This means by using `logins: ['{% raw %}{{email.local(external.email)}}{% endraw %}']` the resulting output will be `dave.smith` if the email was dave.smith@acme.com.
 
+=======
+>>>>>>> Base fork for 4.3 docs
 Once this is complete, when users execute `tsh login` and go through the usual Okta login
 sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
@@ -241,3 +258,8 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
     For more information on integrating Teleport with Okta, please see the
     [Okta integration guide](ssh_okta.md).
 
+<<<<<<< HEAD
+=======
+    For more information on integrating Teleport with Okta, please see the [Okta  integration guide](ssh_okta.md).
+
+>>>>>>> Base fork for 4.3 docs

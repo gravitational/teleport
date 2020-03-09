@@ -34,7 +34,11 @@ $ sudo mkdir -p /var/lib/teleport
 
 ### Teleport Checksum
 
+<<<<<<< HEAD
 Gravitational Teleport provides a checksum from the
+=======
+Gravitational Teleport provides a checksum from the 
+>>>>>>> Base fork for 4.3 docs
 [Downloads](https://gravitational.com/teleport/download/) page. This can be
 used to verify the integrity of our binary.
 
@@ -236,7 +240,11 @@ teleport:
         max_users: 250
 
     # Logging configuration. Possible output values to disk via '/var/lib/teleport/teleport.log',
+<<<<<<< HEAD
     # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
+=======
+    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN 
+>>>>>>> Base fork for 4.3 docs
     # and ERROR (default).
     log:
         output: /var/lib/teleport/teleport.log
@@ -255,7 +263,11 @@ teleport:
         audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name', 'firestore://events_table_name', 'stdout://']
 
         # Use this setting to configure teleport to store the recorded sessions in
+<<<<<<< HEAD
         # an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using Amazon S3"
+=======
+        # an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using Amazon S3" 
+>>>>>>> Base fork for 4.3 docs
         # chapter for more information.
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
@@ -312,7 +324,11 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', 'saml' and 'false' for Enterprise.
+<<<<<<< HEAD
         # 'false' is required for FedRAMP / FIPS, see
+=======
+        # 'false' is required for FedRAMP / FIPS, see 
+>>>>>>> Base fork for 4.3 docs
         #  https://gravitational.com/teleport/docs/enterprise/ssh_fips#teleport-auth-server
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
@@ -422,10 +438,17 @@ ssh_service:
     # set to false, can be set true here or as a command line flag.
     permit_user_env: false
 
+<<<<<<< HEAD
     # Enhanced Session Recording was introduced with Teleport 4.2. For more details
     # see
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value:
+=======
+    # Enhanced Session Recording was introduced with Teleport 4.2. For more details 
+    # see 
+    enhanced_recording:
+       # Enable or disable enhanced auditing for this node. Default value: 
+>>>>>>> Base fork for 4.3 docs
        # false.
        enabled: true
 
@@ -434,11 +457,19 @@ ssh_service:
 
        # disk_buffer_size is optional with default value of 128 pages.
        disk_buffer_size: 128
+<<<<<<< HEAD
 
        # network_buffer_size is optional with default value of 8 pages.
        network_buffer_size: 8
 
        # Controls where cgroupv2 hierarchy is mounted. Default value:
+=======
+       
+       # network_buffer_size is optional with default value of 8 pages.
+       network_buffer_size: 8
+
+       # Controls where cgroupv2 hierarchy is mounted. Default value: 
+>>>>>>> Base fork for 4.3 docs
        # /cgroup2.
        cgroup_path: /cgroup2
 
@@ -533,7 +564,11 @@ command. Teleport also supports second factor authentication (2FA) for the local
 connector. There are three possible values (types) of 2FA:
 
   + `otp` is the default. It implements [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+<<<<<<< HEAD
      standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator)
+=======
+     standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) 
+>>>>>>> Base fork for 4.3 docs
      or [Authy](https://www.authy.com/) or any other TOTP client.
 
   + `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
@@ -603,7 +638,11 @@ start using U2F:
 
 * For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
 
+<<<<<<< HEAD
 * For web-based logins you have to use Google Chrome and Firefox 67 or greater, are the only
+=======
+* For web-based logins you have to use Google Chrome and Firefox 67 or greater, are the only 
+>>>>>>> Base fork for 4.3 docs
    supported U2F browsers at this time.
 
 ``` yaml
@@ -656,8 +695,13 @@ tsh --proxy <proxy-addr> ssh <hostname>
 ```
 
 !!! tip "Version Warning"
+<<<<<<< HEAD
 
     External user identities are only supported in [Teleport Enterprise](enterprise/index.md).
+=======
+  
+    External user identities are only supported in [Teleport Enterprise](enterprise/index.md). 
+>>>>>>> Base fork for 4.3 docs
 
     Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
 
@@ -948,12 +992,20 @@ setting up a [Trusted Cluster](trustedclusters.md) if you have workloads split
 across different networks / clouds.
 
 Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
+<<<<<<< HEAD
 useful for IoT applications or for managing a couple of servers in a different network.
+=======
+useful for IoT applications or for managing a couple of servers in a different network.  
+>>>>>>> Base fork for 4.3 docs
 
 Similar to [Adding Nodes to Cluster](#adding-nodes-to-the-cluster), use `tctl` to
 create a single-use token for a node, but this time you'll replace the auth server IP with
 the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy#adding-nodes-to-the-cluster
+<<<<<<< HEAD
 web endpoint `teleport.example.com`.
+=======
+web endpoint `teleport.example.com`.  
+>>>>>>> Base fork for 4.3 docs
 
 ```bash
 $ sudo tctl nodes add
@@ -974,8 +1026,13 @@ In addition to specifying a custom nodename, Teleport also allows for the
 application of arbitrary key:value pairs to each node, called labels. There are
 two kinds of labels:
 
+<<<<<<< HEAD
 1. `static labels` do not change over time, while [ `teleport` ](cli-docs.md#teleport)
     process is running.  Examples of static labels are physical location of nodes,
+=======
+1. `static labels` do not change over time, while [ `teleport` ](cli-docs.md#teleport) 
+    process is running.  Examples of static labels are physical location of nodes, 
+>>>>>>> Base fork for 4.3 docs
     name of the environment (staging vs production), etc.
 
 2. `dynamic labels` also known as "label commands" allow to generate labels at
@@ -1047,14 +1104,22 @@ command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+'"]
 Teleport logs every SSH event into its audit log. There are two components of
 the audit log:
 
+<<<<<<< HEAD
 1. **SSH Events:** Teleport logs events like successful user logins along with
+=======
+1. **SSH Events:** Teleport logs events like successful user logins along with 
+>>>>>>> Base fork for 4.3 docs
    the metadata like remote IP address, time and the session ID.
 
 2. **Recorded Sessions:** Every SSH shell session is recorded and can be
    replayed later. The recording is done by the nodes themselves, by default,
    but can be configured to be done by the proxy.
 
+<<<<<<< HEAD
 3. **Optional: Enhanced Session Recording**
+=======
+3. **Optional: Enhanced Session Recording** 
+>>>>>>> Base fork for 4.3 docs
 
 Refer to the ["Audit Log" chapter in the Teleport
 Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit log and
@@ -1066,7 +1131,11 @@ Teleport supports multiple storage back-ends for storing the SSH events. The
 section below uses the `dir` backend as an example. `dir` backend uses the local
 filesystem of an auth server using the configurable `data_dir` directory.
 
+<<<<<<< HEAD
 For highly available (HA) configuration, users can refer to our
+=======
+For highly available (HA) configuration, users can refer to our 
+>>>>>>> Base fork for 4.3 docs
 [DynamoDB](#using-dynamodb) or [etcd](#using-etcd) chapters on how to configure
 the SSH events and recorded sessions to be stored on network storage. It is even
 possible to store the audit log in multiple places at the same time, see
@@ -1266,6 +1335,7 @@ $ tsh login --proxy=proxy.example.com joe
 $ ssh-add -L
 ```
 
+<<<<<<< HEAD
 !!! warning "GNOME Keyring SSH Agent and GPG Agent"
 
     It is well-known that Gnome Keyring SSH agent, used by many popular Linux
@@ -1274,6 +1344,13 @@ $ ssh-add -L
     Alternatively, you can disable SSH agent integration entirely using
     `--no-use-local-ssh-agent` flag or `TELEPORT_USE_LOCAL_SSH_AGENT=false`
     environment variable with `tsh`.
+=======
+!!! warning "GNOME Keyring SSH Agent"
+
+    It is well-known that Gnome Keyring SSH
+    agent, used by many popular Linux desktops like Ubuntu, does not support SSH
+    certificates. We recommend using the `ssh-agent` command from `openssh-client` package.
+>>>>>>> Base fork for 4.3 docs
 
 ### OpenSSH Rate Limiting
 
@@ -1709,7 +1786,11 @@ spec:
 
 To obtain client ID and client secret, please follow Github documentation on how
 to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
+<<<<<<< HEAD
 Be sure to set the "Authorization callback URL" to the same value as `redirect_url` in
+=======
+Be sure to set the "Authorization callback URL" to the same value as `redirect_url` in 
+>>>>>>> Base fork for 4.3 docs
 the resource spec.
 
 Finally, create the connector using [ `tctl` ](cli-docs.md#tctl)
@@ -1789,7 +1870,11 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 
 !!! tip "Note"
 
+<<<<<<< HEAD
     Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport.
+=======
+    Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport. 
+>>>>>>> Base fork for 4.3 docs
 
 ## Using Teleport with OpenSSH
 
@@ -2149,7 +2234,11 @@ Teleport will handle its own SSL on top of that with its own certificates.
 !!! tip "NOTE"
 
     If you terminate TLS with your own certificate at a load
+<<<<<<< HEAD
     balancer you'll need to Teleport with `--insecure-no-tls`
+=======
+    balancer you'll need to Teleport with `--insecure`
+>>>>>>> Base fork for 4.3 docs
 
 If your load balancer supports health checks, configure it to hit the
 `/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the
@@ -2159,7 +2248,11 @@ proxy is running without problems.
 
     As the new auth servers get added to the cluster and the old
     servers get decommissioned, nodes and proxies will refresh the list of
+<<<<<<< HEAD
     available auth servers and store it in their local cache
+=======
+    available auth servers and store it in their local cache 
+>>>>>>> Base fork for 4.3 docs
     `/var/lib/teleport/authservers.json` - the values from the cache file will take
     precedence over the configuration file.
 
@@ -2342,7 +2435,11 @@ teleport:
     Architecture documentation.
 
 
+<<<<<<< HEAD
 GCP object storage can only be used as a storage for the recorded sessions. GCP Storage
+=======
+GCP object storage can only be used as a storage for the recorded sessions. GCP Storage 
+>>>>>>> Base fork for 4.3 docs
 cannot store the audit log or the cluster state. Below is an example of how to
 configure a Teleport auth server to store the recorded sessions in an GCP bucket.
 
@@ -2377,8 +2474,13 @@ that as shown above. To configure Teleport to use Firestore:
 * Deploy several auth servers connected to Firestore storage back-end.
 * Deploy several proxy nodes.
 * Make sure that all Teleport nodes have `auth_servers` configuration setting
+<<<<<<< HEAD
   populated with the auth servers or use a load balancer for the auth servers in
   high availability mode.
+=======
+  populated with the auth servers or use a load balancer for the auth servers in 
+  high availability mode. 
+>>>>>>> Base fork for 4.3 docs
 
 ```yaml
 teleport:
@@ -2441,7 +2543,11 @@ clients, etc), the following rules apply:
   means you must not attempt to upgrade from 3.3 straight to 3.5. You must
   upgrade to 3.4 first.
 
+<<<<<<< HEAD
 * Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
+=======
+* Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins 
+>>>>>>> Base fork for 4.3 docs
   may not be compatible
 
 As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before upgrading](#backup-before-upgrading).
@@ -2450,7 +2556,11 @@ As an extra precaution you might want to backup your application prior to upgrad
 
     Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
     two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
+<<<<<<< HEAD
 
+=======
+   
+>>>>>>> Base fork for 4.3 docs
     [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
 
 ### Backup Before Upgrading
@@ -2488,11 +2598,19 @@ When upgrading multiple clusters:
 
 ## Backing Up Teleport
 
+<<<<<<< HEAD
 As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature set works best for local and etcd, it's currently experimental
 for AWS/GCP.
 
 Using `tctl get all` will backup.
+=======
+As of version v4.1 you can now quickly export a collection of resources from 
+Teleport. This feature set works best for local and etcd, it's currently experimental
+for AWS/GCP. 
+
+Using `tctl get all` will backup. 
+>>>>>>> Base fork for 4.3 docs
 
 - Users
 - Certificate Authorities
@@ -2503,7 +2621,11 @@ Using `tctl get all` will backup.
     - OIDC [Teleport Enterprise]
     - Roles [Teleport Enterprise]
 
+<<<<<<< HEAD
 When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly.
+=======
+When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly. 
+>>>>>>> Base fork for 4.3 docs
 
 **Example of backing up and restoring a cluster.**
 
@@ -2620,4 +2742,8 @@ If you need help, please ask on our [community forum](https://community.gravitat
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
 
+<<<<<<< HEAD
 For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
+=======
+For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
+>>>>>>> Base fork for 4.3 docs
