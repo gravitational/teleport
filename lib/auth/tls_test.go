@@ -882,7 +882,7 @@ func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(s.server.Identity.ID.HostUUID))
+		clt, err := s.server.NewClient(TestServerID(serverID))
 		c.Assert(err, check.IsNil)
 
 		sessionID := session.NewID()
@@ -978,7 +978,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(s.server.Identity.ID.HostUUID))
+		clt, err := s.server.NewClient(TestServerID(serverID))
 		c.Assert(err, check.IsNil)
 
 		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
