@@ -272,6 +272,11 @@ type Role interface {
 	// SetKubeGroups sets kubernetes groups for allow or deny condition.
 	SetKubeGroups(RoleConditionType, []string)
 
+	// GetKubeUsers returns kubernetes users to impersonate
+	GetKubeUsers(RoleConditionType) []string
+	// SetKubeUsers sets kubernetes users to impersonate for allow or deny condition.
+	SetKubeUsers(RoleConditionType, []string)
+
 	// GetAccessRequestConditions gets allow/deny conditions for access requests.
 	GetAccessRequestConditions(RoleConditionType) AccessRequestConditions
 	// SetAccessRequestConditions sets allow/deny conditions for access requests.
@@ -323,6 +328,21 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		}
 		r.SetKubeGroups(condition, utils.Deduplicate(outKubeGroups))
 
+		// apply templates to kubernetes users
+		inKubeUsers := r.GetKubeUsers(condition)
+		var outKubeUsers []string
+		for _, user := range inKubeUsers {
+			variableValues, err := applyValueTraits(user, traits)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					log.Debugf("Skipping kube user %v: %v.", user, err)
+				}
+				continue
+			}
+			outKubeUsers = append(outKubeUsers, variableValues...)
+		}
+		r.SetKubeUsers(condition, utils.Deduplicate(outKubeUsers))
+
 		inLabels := r.GetNodeLabels(condition)
 		// to avoid unnecessary allocations
 		if inLabels != nil {
@@ -362,9 +382,8 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 // mapped list of values otherwise, the function guarantees to return
 // at least one value in case if return value is nil
 func applyValueTraits(val string, traits map[string][]string) ([]string, error) {
-	// Extract the variablePrefix and variableName from the role variable.
-	variablePrefix, variableName, err := parse.IsRoleVariable(val)
-
+	// Extract the variable from the role variable.
+	variable, err := parse.RoleVariable(val)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -373,19 +392,21 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 	}
 
 	// For internal traits, only internal.logins and internal.kubernetes_groups is supported at the moment.
-	if variablePrefix == teleport.TraitInternalPrefix {
-		if variableName != teleport.TraitLogins && variableName != teleport.TraitKubeGroups {
-			return nil, trace.BadParameter("unsupported variable %q", variableName)
+	if variable.Namespace() == teleport.TraitInternalPrefix {
+		if variable.Name() != teleport.TraitLogins && variable.Name() != teleport.TraitKubeGroups && variable.Name() != teleport.TraitKubeUsers {
+			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
 	}
 
 	// If the variable is not found in the traits, skip it.
-	variableValues, ok := traits[variableName]
-	if !ok || len(variableValues) == 0 {
-		return nil, trace.NotFound("variable %q not found in traits", variableName)
+	interpolated, err := variable.Interpolate(traits)
+	if trace.IsNotFound(err) || len(interpolated) == 0 {
+		return nil, trace.NotFound("variable %q not found in traits", variable.Name())
 	}
-
-	return append([]string{}, variableValues...), nil
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return interpolated, nil
 }
 
 // GetVersion returns resource version
@@ -527,6 +548,25 @@ func (r *RoleV3) SetKubeGroups(rct RoleConditionType, groups []string) {
 	}
 }
 
+// GetKubeUsers returns kubernetes users
+func (r *RoleV3) GetKubeUsers(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.KubeUsers
+	}
+	return r.Spec.Deny.KubeUsers
+}
+
+// SetKubeUsers sets kubernetes user for allow or deny condition.
+func (r *RoleV3) SetKubeUsers(rct RoleConditionType, users []string) {
+	lcopy := utils.CopyStrings(users)
+
+	if rct == Allow {
+		r.Spec.Allow.KubeUsers = lcopy
+	} else {
+		r.Spec.Deny.KubeUsers = lcopy
+	}
+}
+
 // GetAccessRequestConditions gets conditions for access requests.
 func (r *RoleV3) GetAccessRequestConditions(rct RoleConditionType) AccessRequestConditions {
 	cond := r.Spec.Deny.Request
@@ -647,7 +687,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	for _, condition := range []RoleConditionType{Allow, Deny} {
 		for _, login := range r.GetLogins(condition) {
 			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
-				_, _, err := parse.IsRoleVariable(login)
+				_, err := parse.RoleVariable(login)
 				if err != nil {
 					return trace.BadParameter("invalid login found: %v", login)
 				}
@@ -1285,9 +1325,9 @@ type AccessChecker interface {
 	// returns a combined list of allowed logins.
 	CheckLoginDuration(ttl time.Duration) ([]string, error)
 
-	// CheckKubeGroups check if role can login into kubernetes
-	// and returns a combined list of allowed groups
-	CheckKubeGroups(ttl time.Duration) ([]string, error)
+	// CheckKubeGroupsAndUsers check if role can login into kubernetes
+	// and returns two lists of combined allowed groups and users
+	CheckKubeGroupsAndUsers(ttl time.Duration) (groups []string, users []string, err error)
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -1626,31 +1666,39 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	return disconnect
 }
 
-// CheckKubeGroups check if role can login into kubernetes
-// and returns a combined list of allowed groups
-func (set RoleSet) CheckKubeGroups(ttl time.Duration) ([]string, error) {
-	groups := make(map[string]bool)
+// CheckKubeGroupsAndUsers check if role can login into kubernetes
+// and returns two lists of allowed groups and users
+func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration) ([]string, []string, error) {
+	groups := make(map[string]struct{})
+	users := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
 			matchedTTL = true
 			for _, group := range role.GetKubeGroups(Allow) {
-				groups[group] = true
+				groups[group] = struct{}{}
+			}
+			for _, user := range role.GetKubeUsers(Allow) {
+				users[user] = struct{}{}
 			}
 		}
 	}
+	for _, role := range set {
+		for _, group := range role.GetKubeGroups(Deny) {
+			delete(groups, group)
+		}
+		for _, user := range role.GetKubeUsers(Deny) {
+			delete(users, user)
+		}
+	}
 	if !matchedTTL {
-		return nil, trace.AccessDenied("this user cannot request kubernetes access for %v", ttl)
+		return nil, nil, trace.AccessDenied("this user cannot request kubernetes access for %v", ttl)
 	}
-	if len(groups) == 0 {
-		return nil, trace.AccessDenied("this user cannot request kubernetes access, has no assigned groups")
+	if len(groups) == 0 && len(users) == 0 {
+		return nil, nil, trace.AccessDenied("this user cannot request kubernetes access, has no assigned groups or users")
 	}
-	out := make([]string, 0, len(groups))
-	for group := range groups {
-		out = append(out, group)
-	}
-	return out, nil
+	return utils.StringsSliceFromSet(groups), utils.StringsSliceFromSet(users), nil
 }
 
 // CheckLoginDuration checks if role set can login up to given duration and

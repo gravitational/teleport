@@ -261,6 +261,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (IdentityGetter, error) {
 			Username:         identity.Username,
 			Principals:       identity.Principals,
 			KubernetesGroups: identity.KubernetesGroups,
+			KubernetesUsers:  identity.KubernetesUsers,
 			RemoteRoles:      identity.Groups,
 			Identity:         *identity,
 		}, nil

@@ -21,6 +21,7 @@ markdown_extensions:
   - footnotes
   - toc:
       marker: '[TOC]'
+      toc_depth: 2
 extra_css: []
 plugins:
     - search:
@@ -48,6 +49,7 @@ nav:
         - Using Teleport with PAM: features/ssh_pam.md
     - Infrastructure Guides:
         - AWS: aws_oss_guide.md
+        - AWS HA with Terraform: aws_terraform_guide.md
         - GCP: gcp_guide.md
         - IBM: ibm_cloud_guide.md
         - Kubernetes Guide: kubernetes_ssh.md
