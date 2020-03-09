@@ -1,0 +1,1578 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`auth2faType: otp rendering 1`] = `
+.c1 {
+  box-sizing: border-box;
+  padding: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 200px;
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: #FFFFFF;
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 100%;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8::-moz-focus-inner {
+  border: 0;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #373F64;
+}
+
+.c8:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #00BFA5;
+  color: #FFFFFF;
+  min-height: 48px;
+  font-size: 14px;
+  padding: 0px 48px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.c10:active {
+  opacity: 0.56;
+}
+
+.c10::-moz-focus-inner {
+  border: 0;
+}
+
+.c10:hover,
+.c10:focus {
+  background: #00EAC3;
+}
+
+.c10:active {
+  background: #26A69A;
+}
+
+.c10:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  -webkit-text-decoration: underline;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c9:hover,
+.c9:focus {
+  background: #222C59;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 32px;
+  margin-bottom: 32px;
+  width: 456px;
+  background-color: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c5 {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 12px 16px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #FFFFFF;
+}
+
+.c5::-ms-clear {
+  display: none;
+}
+
+.c5::-webkit-input-placeholder {
+  opacity: 0.24;
+}
+
+.c5::-moz-placeholder {
+  opacity: 0.24;
+}
+
+.c5:-ms-input-placeholder {
+  opacity: 0.24;
+}
+
+.c5::placeholder {
+  opacity: 0.24;
+}
+
+.c4 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 26px;
+  line-height: 40px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c6 {
+  box-sizing: border-box;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-direction: row;
+  -ms-flex-direction: row;
+  flex-direction: row;
+}
+
+<form
+  class="c0"
+  width="456px"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+      color="light"
+    >
+      Custom Title
+    </div>
+    <div
+      class="c3"
+    >
+      <label
+        class="c4"
+        font-size="0"
+      >
+        Username
+      </label>
+      <input
+        autocomplete="off"
+        class="c5"
+        color="text.onLight"
+        placeholder="User name"
+        value=""
+      />
+    </div>
+    <div
+      class="c3"
+    >
+      <label
+        class="c4"
+        font-size="0"
+      >
+        Password
+      </label>
+      <input
+        autocomplete="off"
+        class="c5"
+        color="text.onLight"
+        placeholder="Password"
+        type="password"
+        value=""
+      />
+    </div>
+    <div
+      class="c6"
+    >
+      <div
+        class="c7"
+        width="200px"
+      >
+        <label
+          class="c4"
+          font-size="0"
+        >
+          Two factor token
+        </label>
+        <input
+          autocomplete="off"
+          class="c5"
+          color="text.onLight"
+          placeholder="123 456"
+          value=""
+        />
+      </div>
+      <a
+        class="c8 c9"
+        href="https://support.google.com/accounts/answer/1066447?co=GENIE.Platform%3DiOS&hl=en&oco=0"
+        kind="secondary"
+        rel="noreferrer"
+        target="_blank"
+        width="100%"
+      >
+        Download Google Authenticator
+      </a>
+    </div>
+    <button
+      class="c10"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      LOGIN
+    </button>
+  </div>
+</form>
+`;
+
+exports[`auth2faType: u2f rendering 1`] = `
+.c1 {
+  box-sizing: border-box;
+  padding: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c6 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #00BFA5;
+  color: #FFFFFF;
+  min-height: 48px;
+  font-size: 14px;
+  padding: 0px 48px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.c6:active {
+  opacity: 0.56;
+}
+
+.c6::-moz-focus-inner {
+  border: 0;
+}
+
+.c6:hover,
+.c6:focus {
+  background: #00EAC3;
+}
+
+.c6:active {
+  background: #26A69A;
+}
+
+.c6:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 32px;
+  margin-bottom: 32px;
+  width: 456px;
+  background-color: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c5 {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 12px 16px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #FFFFFF;
+}
+
+.c5::-ms-clear {
+  display: none;
+}
+
+.c5::-webkit-input-placeholder {
+  opacity: 0.24;
+}
+
+.c5::-moz-placeholder {
+  opacity: 0.24;
+}
+
+.c5:-ms-input-placeholder {
+  opacity: 0.24;
+}
+
+.c5::placeholder {
+  opacity: 0.24;
+}
+
+.c4 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 26px;
+  line-height: 40px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+  margin: 0px;
+  text-align: center;
+}
+
+<form
+  class="c0"
+  width="456px"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+      color="light"
+    >
+      Welcome!
+    </div>
+    <div
+      class="c3"
+    >
+      <label
+        class="c4"
+        font-size="0"
+      >
+        Username
+      </label>
+      <input
+        autocomplete="off"
+        class="c5"
+        color="text.onLight"
+        placeholder="User name"
+        value=""
+      />
+    </div>
+    <div
+      class="c3"
+    >
+      <label
+        class="c4"
+        font-size="0"
+      >
+        Password
+      </label>
+      <input
+        autocomplete="off"
+        class="c5"
+        color="text.onLight"
+        placeholder="Password"
+        type="password"
+        value=""
+      />
+    </div>
+    <button
+      class="c6"
+      disabled=""
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      LOGIN
+    </button>
+    <div
+      class="c7"
+      width="100%"
+    >
+      Insert your U2F key and press the button on the key
+    </div>
+  </div>
+</form>
+`;
+
+exports[`nonrendering of SSO providers w/ local auth disabled and no providers 1`] = `
+.c1 {
+  box-sizing: border-box;
+  padding: 40px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 32px;
+  margin-bottom: 32px;
+  width: 456px;
+  background-color: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 26px;
+  line-height: 40px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+<form
+  class="c0"
+  width="456px"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+      color="light"
+    >
+      Welcome!
+    </div>
+  </div>
+</form>
+`;
+
+exports[`nonrendering of user/pass/otp/login elements w/ local auth disabled 1`] = `
+.c1 {
+  box-sizing: border-box;
+  padding: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  background-color: #1B234A;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  padding-bottom: 32px;
+  padding-top: 8px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c6 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #00BFA5;
+  color: #FFFFFF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 32px;
+  margin-top: 32px;
+  width: 100%;
+}
+
+.c6:active {
+  opacity: 0.56;
+}
+
+.c6::-moz-focus-inner {
+  border: 0;
+}
+
+.c6:hover,
+.c6:focus {
+  background: #00EAC3;
+}
+
+.c6:active {
+  background: #26A69A;
+}
+
+.c6:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 32px;
+  margin-bottom: 32px;
+  width: 456px;
+  background-color: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 26px;
+  line-height: 40px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c5 {
+  background-color: #444444;
+  display: block;
+  width: 100%;
+  height: 48px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.c5:hover,
+.c5:focus {
+  background: rgba(68,68,68,0.4);
+}
+
+.c5 .c8 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c10 {
+  background-color: #dd4b39;
+  display: block;
+  width: 100%;
+  height: 48px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.c10:hover,
+.c10:focus {
+  background: rgba(221,75,57,0.4);
+}
+
+.c10 .c8 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c11 .c8 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c12 .c8 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c13 .c8 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c7 {
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  font-size: 24px;
+  text-align: center;
+  border-right: 1px solid rgba(0,0,0,0.12);
+}
+
+<form
+  class="c0"
+  width="456px"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+      color="light"
+    >
+      Welcome!
+    </div>
+  </div>
+  <footer
+    class="c3"
+  >
+    <div
+      class="c4"
+    >
+      <button
+        class="c5 c6"
+        color="#444444"
+        kind="primary"
+      >
+        <div
+          class="c7"
+        >
+          <span
+            class="icon icon-github  c8 c9"
+            color="light"
+            data-testid="icon"
+          />
+        </div>
+        github
+      </button>
+      <button
+        class="c10 c6"
+        color="#dd4b39"
+        kind="primary"
+      >
+        <div
+          class="c7"
+        >
+          <span
+            class="icon icon-google-plus  c8 c9"
+            color="light"
+            data-testid="icon"
+          />
+        </div>
+        google
+      </button>
+    </div>
+  </footer>
+</form>
+`;
+
+exports[`server error rendering 1`] = `
+.c3 {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  border-radius: 8px;
+  box-sizing: border-box;
+  box-shadow: 0 0 2px rgba(0,0,0,.12),0 2px 2px rgba(0,0,0,.24);
+  font-weight: 400;
+  font-size: 16px;
+  margin: 0 0 16px 0;
+  min-height: 48px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-all;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c3 a {
+  color: #FFFFFF;
+}
+
+.c1 {
+  box-sizing: border-box;
+  padding: 40px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #00BFA5;
+  color: #FFFFFF;
+  min-height: 48px;
+  font-size: 14px;
+  padding: 0px 48px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7::-moz-focus-inner {
+  border: 0;
+}
+
+.c7:hover,
+.c7:focus {
+  background: #00EAC3;
+}
+
+.c7:active {
+  background: #26A69A;
+}
+
+.c7:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 32px;
+  margin-bottom: 32px;
+  width: 456px;
+  background-color: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c6 {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 12px 16px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #FFFFFF;
+}
+
+.c6::-ms-clear {
+  display: none;
+}
+
+.c6::-webkit-input-placeholder {
+  opacity: 0.24;
+}
+
+.c6::-moz-placeholder {
+  opacity: 0.24;
+}
+
+.c6:-ms-input-placeholder {
+  opacity: 0.24;
+}
+
+.c6::placeholder {
+  opacity: 0.24;
+}
+
+.c5 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 26px;
+  line-height: 40px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+<form
+  class="c0"
+  width="456px"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+      color="light"
+    >
+      Welcome!
+    </div>
+    <div
+      class="c3"
+      kind="danger"
+    >
+       
+      invalid credentials with looooooooooooooooooooooooooooooooong text
+       
+    </div>
+    <div
+      class="c4"
+    >
+      <label
+        class="c5"
+        font-size="0"
+      >
+        Username
+      </label>
+      <input
+        autocomplete="off"
+        class="c6"
+        color="text.onLight"
+        placeholder="User name"
+        value=""
+      />
+    </div>
+    <div
+      class="c4"
+    >
+      <label
+        class="c5"
+        font-size="0"
+      >
+        Password
+      </label>
+      <input
+        autocomplete="off"
+        class="c6"
+        color="text.onLight"
+        placeholder="Password"
+        type="password"
+        value=""
+      />
+    </div>
+    <button
+      class="c7"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      LOGIN
+    </button>
+  </div>
+</form>
+`;
+
+exports[`sso providers rendering 1`] = `
+.c1 {
+  box-sizing: border-box;
+  padding: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  background-color: #1B234A;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  padding-bottom: 32px;
+  padding-top: 8px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c6 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #00BFA5;
+  color: #FFFFFF;
+  min-height: 48px;
+  font-size: 14px;
+  padding: 0px 48px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.c6:active {
+  opacity: 0.56;
+}
+
+.c6::-moz-focus-inner {
+  border: 0;
+}
+
+.c6:hover,
+.c6:focus {
+  background: #00EAC3;
+}
+
+.c6:active {
+  background: #26A69A;
+}
+
+.c6:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #00BFA5;
+  color: #FFFFFF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 32px;
+  margin-top: 32px;
+  width: 100%;
+}
+
+.c10:active {
+  opacity: 0.56;
+}
+
+.c10::-moz-focus-inner {
+  border: 0;
+}
+
+.c10:hover,
+.c10:focus {
+  background: #00EAC3;
+}
+
+.c10:active {
+  background: #26A69A;
+}
+
+.c10:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 32px;
+  margin-bottom: 32px;
+  width: 456px;
+  background-color: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c5 {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 12px 16px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #FFFFFF;
+}
+
+.c5::-ms-clear {
+  display: none;
+}
+
+.c5::-webkit-input-placeholder {
+  opacity: 0.24;
+}
+
+.c5::-moz-placeholder {
+  opacity: 0.24;
+}
+
+.c5:-ms-input-placeholder {
+  opacity: 0.24;
+}
+
+.c5::placeholder {
+  opacity: 0.24;
+}
+
+.c4 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 26px;
+  line-height: 40px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c9 {
+  background-color: #444444;
+  display: block;
+  width: 100%;
+  height: 48px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.c9:hover,
+.c9:focus {
+  background: rgba(68,68,68,0.4);
+}
+
+.c9 .c12 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c14 {
+  background-color: #dd4b39;
+  display: block;
+  width: 100%;
+  height: 48px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.c14:hover,
+.c14:focus {
+  background: rgba(221,75,57,0.4);
+}
+
+.c14 .c12 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c15 {
+  background-color: #205081;
+  display: block;
+  width: 100%;
+  height: 48px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.c15:hover,
+.c15:focus {
+  background: rgba(32,80,129,0.4);
+}
+
+.c15 .c12 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c16 {
+  background-color: #f7931e;
+  display: block;
+  width: 100%;
+  height: 48px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.c16:hover,
+.c16:focus {
+  background: rgba(247,147,30,0.4);
+}
+
+.c16 .c12 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c17 {
+  background-color: #2672ec;
+  display: block;
+  width: 100%;
+  height: 48px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.c17:hover,
+.c17:focus {
+  background: rgba(38,114,236,0.4);
+}
+
+.c17 .c12 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c11 {
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  font-size: 24px;
+  text-align: center;
+  border-right: 1px solid rgba(0,0,0,0.12);
+}
+
+<form
+  class="c0"
+  width="456px"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+      color="light"
+    >
+      Welcome!
+    </div>
+    <div
+      class="c3"
+    >
+      <label
+        class="c4"
+        font-size="0"
+      >
+        Username
+      </label>
+      <input
+        autocomplete="off"
+        class="c5"
+        color="text.onLight"
+        placeholder="User name"
+        value=""
+      />
+    </div>
+    <div
+      class="c3"
+    >
+      <label
+        class="c4"
+        font-size="0"
+      >
+        Password
+      </label>
+      <input
+        autocomplete="off"
+        class="c5"
+        color="text.onLight"
+        placeholder="Password"
+        type="password"
+        value=""
+      />
+    </div>
+    <button
+      class="c6"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      LOGIN
+    </button>
+  </div>
+  <footer
+    class="c7"
+  >
+    <div
+      class="c8"
+    >
+      <button
+        class="c9 c10"
+        color="#444444"
+        kind="primary"
+      >
+        <div
+          class="c11"
+        >
+          <span
+            class="icon icon-github  c12 c13"
+            color="light"
+            data-testid="icon"
+          />
+        </div>
+        github
+      </button>
+      <button
+        class="c14 c10"
+        color="#dd4b39"
+        kind="primary"
+      >
+        <div
+          class="c11"
+        >
+          <span
+            class="icon icon-google-plus  c12 c13"
+            color="light"
+            data-testid="icon"
+          />
+        </div>
+        google
+      </button>
+      <button
+        class="c15 c10"
+        color="#205081"
+        kind="primary"
+      >
+        <div
+          class="c11"
+        >
+          <span
+            class="icon icon-bitbucket  c12 c13"
+            color="light"
+            data-testid="icon"
+          />
+        </div>
+        bitbucket
+      </button>
+      <button
+        class="c16 c10"
+        color="#f7931e"
+        kind="primary"
+      >
+        <div
+          class="c11"
+        >
+          <span
+            class="icon icon-openid  c12 c13"
+            color="light"
+            data-testid="icon"
+          />
+        </div>
+        unknown sso
+      </button>
+      <button
+        class="c17 c10"
+        color="#2672ec"
+        kind="primary"
+      >
+        <div
+          class="c11"
+        >
+          <span
+            class="icon icon-windows  c12 c13"
+            color="light"
+            data-testid="icon"
+          />
+        </div>
+        microsoft
+      </button>
+    </div>
+  </footer>
+</form>
+`;

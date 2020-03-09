@@ -20,7 +20,9 @@ import { merge } from 'lodash';
 const cfg = {
   baseUrl: window.location.origin,
 
-  auth: {},
+  auth: {
+    localAuthEnabled: true,
+  },
 
   canJoinSessions: true,
 
@@ -100,6 +102,10 @@ const cfg = {
 
   getAuth2faType() {
     return cfg.auth ? cfg.auth.second_factor : null;
+  },
+
+  getLocalAuthFlag() {
+    return cfg.auth.localAuthEnabled;
   },
 
   getSsoUrl(providerUrl, providerName, redirect) {

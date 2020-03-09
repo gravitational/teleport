@@ -39,6 +39,7 @@ export class Login extends React.Component {
     const { attempt, logoSrc } = this.props;
     const authProviders = cfg.getAuthProviders();
     const auth2faType = cfg.getAuth2faType();
+    const isLocalAuthEnabled = cfg.getLocalAuthFlag();
 
     return (
       <>
@@ -47,6 +48,7 @@ export class Login extends React.Component {
           title={'Sign into Teleport'}
           authProviders={authProviders}
           auth2faType={auth2faType}
+          isLocalAuthEnabled={isLocalAuthEnabled}
           onLoginWithSso={this.onLoginWithSso}
           onLoginWithU2f={this.onLoginWithU2f}
           onLogin={this.onLogin}

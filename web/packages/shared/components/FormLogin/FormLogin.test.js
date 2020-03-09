@@ -39,8 +39,6 @@ test('login with auth2faType: disabled with ssoProviders', () => {
     />
   );
 
-  expect(getByText('titleText')).toBeInTheDocument();
-
   // fill form
   fireEvent.change(getByPlaceholderText(/user name/i), {
     target: { value: 'username' },
@@ -164,4 +162,28 @@ test('attempt object with prop isFailing and error message', () => {
   );
 
   expect(getByText('errMsg')).toBeInTheDocument();
+});
+
+test('login with SSO providers', () => {
+  const onLogin = jest.fn();
+  const onLoginWithSso = jest.fn();
+  const onLoginWithU2f = jest.fn();
+
+  const { getByText } = render(
+    <FormLogin
+      authProviders={[
+        { name: 'github', type: '', url: '' },
+        { name: 'google', type: '', url: '' },
+      ]}
+      attempt={{ isFailed: false, isProcessing: false, message: '' }}
+      onLogin={onLogin}
+      onLoginWithSso={onLoginWithSso}
+      onLoginWithU2f={onLoginWithU2f}
+    />
+  );
+
+  fireEvent.click(getByText(/github/i));
+  expect(onLoginWithSso).toHaveBeenCalledTimes(1);
+  expect(onLogin).not.toHaveBeenCalled();
+  expect(onLoginWithU2f).not.toHaveBeenCalled();
 });
