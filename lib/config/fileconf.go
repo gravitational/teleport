@@ -290,8 +290,6 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	p.ListenAddress = conf.Proxy.SSHAddr.Addr
 	p.WebAddr = conf.Proxy.WebAddr.Addr
 	p.TunAddr = conf.Proxy.ReverseTunnelListenAddr.Addr
-	//p.CertFile = "/var/lib/teleport/webproxy_cert.pem"
-	//p.KeyFile = "/var/lib/teleport/webproxy_key.pem"
 
 	fc = &FileConfig{
 		Global: g,
