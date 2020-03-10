@@ -254,6 +254,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.AuthServers = []string{fmt.Sprintf("%s:%d", defaults.Localhost, defaults.AuthListenPort)}
+	g.DataDir = defaults.DataDir
 
 	// sample SSH config:
 	var s SSH
@@ -281,7 +282,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
 	a.EnabledFlag = "yes"
 	a.StaticTokens = []StaticToken{"proxy,node:cluster-join-token"}
-	a.SessionRecording = services.RecordAtNode
+	a.LicenseFile = "/path/to/license-if-using-teleport-enterprise.pem"
 
 	// sample proxy config:
 	var p Proxy
@@ -289,8 +290,8 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	p.ListenAddress = conf.Proxy.SSHAddr.Addr
 	p.WebAddr = conf.Proxy.WebAddr.Addr
 	p.TunAddr = conf.Proxy.ReverseTunnelListenAddr.Addr
-	p.CertFile = "/var/lib/teleport/webproxy_cert.pem"
-	p.KeyFile = "/var/lib/teleport/webproxy_key.pem"
+	//p.CertFile = "/var/lib/teleport/webproxy_cert.pem"
+	//p.KeyFile = "/var/lib/teleport/webproxy_key.pem"
 
 	fc = &FileConfig{
 		Global: g,
