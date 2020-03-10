@@ -250,13 +250,10 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	var g Global
 	g.NodeName = conf.Hostname
 	g.AuthToken = "cluster-join-token"
+	g.CAPin = "sha256:ca-pin-hash-goes-here"
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
-	g.AuthServers = []string{defaults.AuthListenAddr().Addr}
-	g.Limits.MaxConnections = defaults.LimiterMaxConnections
-	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
-	g.DataDir = defaults.DataDir
-	g.PIDFile = "/var/run/teleport.pid"
+	g.AuthServers = []string{fmt.Sprintf("%s:%d", defaults.Localhost, defaults.AuthListenPort)}
 
 	// sample SSH config:
 	var s SSH
@@ -506,7 +503,7 @@ type Auth struct {
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
 
 	// SessionRecording determines where the session is recorded: node, proxy, or off.
-	SessionRecording string `yaml:"session_recording"`
+	SessionRecording string `yaml:"session_recording,omitempty"`
 
 	// ProxyChecksHostKeys is used when the proxy is in recording mode and
 	// determines if the proxy will check the host key of the client or not.
@@ -548,11 +545,11 @@ type Auth struct {
 	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 
 	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
-	ClientIdleTimeout services.Duration `yaml:"client_idle_timeout"`
+	ClientIdleTimeout services.Duration `yaml:"client_idle_timeout,omitempty"`
 
 	// DisconnectExpiredCert provides disconnect expired certificate setting -
 	// if true, connections with expired client certificates will get disconnected
-	DisconnectExpiredCert services.Bool `yaml:"disconnect_expired_cert"`
+	DisconnectExpiredCert services.Bool `yaml:"disconnect_expired_cert,omitempty"`
 
 	// KubeconfigFile is an optional path to kubeconfig file,
 	// if specified, teleport will use API server address and
@@ -565,7 +562,7 @@ type Auth struct {
 
 	// KeepAliveCountMax set the number of keep-alive messages that can be
 	// missed before the server disconnects the client.
-	KeepAliveCountMax int64 `yaml:"keep_alive_count_max"`
+	KeepAliveCountMax int64 `yaml:"keep_alive_count_max,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
