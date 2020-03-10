@@ -395,6 +395,9 @@ Most of this guide has been designed for OSS Teleport. Most of this guide also a
 with a few extra notes around adding a license and getting the correct binary. If you would
 like help setting up Teleport Enterprise on AWS, please mail us at info@gravitational.com
 
+# Running Teleport in HA on AWS
+We have a [guide for setting up Teleport in an HA configuration on AWS](aws_terraform_guide.md).
+
 # Teleport AWS Tips & Tricks
 
 ### Generating labels from AWS tags
