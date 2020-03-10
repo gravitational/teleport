@@ -3,7 +3,7 @@ import { values, keyBy } from 'lodash';
 import { withState, useAttempt } from 'shared/hooks';
 import Roles from 'e-shared/components/Roles';
 import service from 'e-teleport/cluster/services/resources';
-import { useStoreUser } from 'teleport/teleport';
+import { useStoreUser } from 'teleport/teleportContext';
 
 export default withState(() => {
   const [roles, setRoles] = React.useState([]);

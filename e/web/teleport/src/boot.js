@@ -18,7 +18,7 @@ import ReactDOM from 'react-dom';
 import React from 'react';
 import { Route } from 'shared/components/Router';
 import history from 'teleport/services/history';
-import Teleport from 'teleport';
+import Teleport from 'teleport/Teleport';
 import cfg from 'teleport/config';
 import EntepriseCluster from './cluster';
 
