@@ -15,22 +15,15 @@
  */
 
 import React from 'react';
-import Dialog from './Dialog';
-import { render } from 'design/utils/testing';
+import DialogConfirmation from './DialogConfirmation';
+import { render, fireEvent } from 'design/utils/testing';
 
-const testCss = {
-  'background-color': '#fff',
-  color: '#000',
-};
+test('onClose is respected', () => {
+  const onClose = jest.fn();
+  const { container } = render(
+    <DialogConfirmation open={true} onClose={onClose} />
+  );
 
-describe('design/Dialog', () => {
-  it('respects dialogCss prop', () => {
-    const { getByTestId } = render(
-      <Dialog open={true} dialogCss={() => testCss}>
-        <div>hello</div>
-      </Dialog>
-    );
-
-    expect(getByTestId('dialogbox')).toHaveStyle({ ...testCss });
-  });
+  fireEvent.keyDown(container, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledTimes(1);
 });

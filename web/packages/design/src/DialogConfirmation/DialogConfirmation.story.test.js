@@ -15,22 +15,11 @@
  */
 
 import React from 'react';
-import Dialog from './Dialog';
+import { Confirmation } from './DialogConfirmation.story';
 import { render } from 'design/utils/testing';
 
-const testCss = {
-  'background-color': '#fff',
-  color: '#000',
-};
+test('rendering', () => {
+  const { container } = render(<Confirmation />);
 
-describe('design/Dialog', () => {
-  it('respects dialogCss prop', () => {
-    const { getByTestId } = render(
-      <Dialog open={true} dialogCss={() => testCss}>
-        <div>hello</div>
-      </Dialog>
-    );
-
-    expect(getByTestId('dialogbox')).toHaveStyle({ ...testCss });
-  });
+  expect(container.firstChild).toMatchSnapshot();
 });

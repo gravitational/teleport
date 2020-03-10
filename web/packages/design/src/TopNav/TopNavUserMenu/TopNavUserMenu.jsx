@@ -58,7 +58,7 @@ class TopNavUserMenu extends React.Component {
 
     const anchorEl = open ? this.btnRef : null;
     return (
-      <React.Fragment>
+      <>
         <TopNavItem
           ml="auto"
           maxWidth="250px"
@@ -80,7 +80,7 @@ class TopNavUserMenu extends React.Component {
         >
           {children}
         </Menu>
-      </React.Fragment>
+      </>
     );
   }
 }

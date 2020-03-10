@@ -15,22 +15,21 @@
  */
 
 import React from 'react';
-import Dialog from './Dialog';
-import { render } from 'design/utils/testing';
+import TopNavUserMenu from './TopNavUserMenu';
+import { render, fireEvent } from 'design/utils/testing';
 
-const testCss = {
-  'background-color': '#fff',
-  color: '#000',
-};
+test('onShow and onClose fn prop is respected', () => {
+  const onShow = jest.fn();
+  const onClose = jest.fn();
+  const { container, rerender } = render(
+    <TopNavUserMenu open={false} onShow={onShow} onClose={onClose} />
+  );
 
-describe('design/Dialog', () => {
-  it('respects dialogCss prop', () => {
-    const { getByTestId } = render(
-      <Dialog open={true} dialogCss={() => testCss}>
-        <div>hello</div>
-      </Dialog>
-    );
+  fireEvent.click(container.firstChild);
+  expect(onShow).toHaveBeenCalledTimes(1);
 
-    expect(getByTestId('dialogbox')).toHaveStyle({ ...testCss });
-  });
+  rerender(<TopNavUserMenu open={true} onShow={onShow} onClose={onClose} />);
+
+  fireEvent.keyDown(container, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledTimes(1);
 });
