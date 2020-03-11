@@ -5,6 +5,7 @@ labels: "type: bug"
 ---
 
 ### Description
+
 **What happened**:
 
 **What you expected to happen**:
@@ -14,9 +15,9 @@ labels: "type: bug"
 ### Environment
 - Teleport version (use `teleport version`):
 - Tsh version (use `tsh version`):
-- OS (e.g. from /etc/os-release):
+- OS (e.g. from `/etc/os-release`):
 
-- Where are you running Teleport? (e.g. AWS, GCP, Dedicated Hardware)
+- Where are you running Teleport? (e.g. AWS, GCP, Dedicated Hardware):
 
 **Browser environment**
 
@@ -26,5 +27,5 @@ labels: "type: bug"
 
 **Relevant Debug Logs If Applicable**
 
-- tsh --debug
-- teleport --debug
+- `tsh --debug`
+- `teleport --debug`
