@@ -54,6 +54,11 @@ module.exports = {
     '@typescript-eslint/no-var-requires': 0,
     '@typescript-eslint/camelcase': 0,
     '@typescript-eslint/class-name-casing': 0,
+    '@typescript-eslint/no-explicit-any': 0,
+    '@typescript-eslint/explicit-function-return-type': 0,
+    '@typescript-eslint/explicit-member-accessibility': 0,
+    '@typescript-eslint/prefer-interface': 0,
+
     // </TODO>
     'comma-dangle': 0,
     'no-mixed-spaces-and-tabs': 0,

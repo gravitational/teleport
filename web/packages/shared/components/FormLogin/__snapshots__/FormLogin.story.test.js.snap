@@ -59,10 +59,6 @@ exports[`auth2faType: otp rendering 1`] = `
   opacity: 0.56;
 }
 
-.c8::-moz-focus-inner {
-  border: 0;
-}
-
 .c8:hover,
 .c8:focus {
   background: #373F64;
@@ -115,10 +111,6 @@ exports[`auth2faType: otp rendering 1`] = `
 
 .c10:active {
   opacity: 0.56;
-}
-
-.c10::-moz-focus-inner {
-  border: 0;
 }
 
 .c10:hover,
@@ -377,10 +369,6 @@ exports[`auth2faType: u2f rendering 1`] = `
 
 .c6:active {
   opacity: 0.56;
-}
-
-.c6::-moz-focus-inner {
-  border: 0;
 }
 
 .c6:hover,
@@ -657,10 +645,6 @@ exports[`nonrendering of user/pass/otp/login elements w/ local auth disabled 1`]
   opacity: 0.56;
 }
 
-.c6::-moz-focus-inner {
-  border: 0;
-}
-
 .c6:hover,
 .c6:focus {
   background: #00EAC3;
@@ -925,10 +909,6 @@ exports[`server error rendering 1`] = `
   opacity: 0.56;
 }
 
-.c7::-moz-focus-inner {
-  border: 0;
-}
-
 .c7:hover,
 .c7:focus {
   background: #00EAC3;
@@ -1153,10 +1133,6 @@ exports[`sso providers rendering 1`] = `
   opacity: 0.56;
 }
 
-.c6::-moz-focus-inner {
-  border: 0;
-}
-
 .c6:hover,
 .c6:focus {
   background: #00EAC3;
@@ -1212,10 +1188,6 @@ exports[`sso providers rendering 1`] = `
 
 .c10:active {
   opacity: 0.56;
-}
-
-.c10::-moz-focus-inner {
-  border: 0;
 }
 
 .c10:hover,

@@ -19,7 +19,7 @@ import { NavLink } from 'react-router-dom';
 import { withState } from 'shared/hooks';
 import { SideNav, SideNavItem } from 'design';
 import SideNavItemIcon from 'design/SideNav/SideNavItemIcon';
-import { useStoreUser, useStoreNav } from 'teleport/teleport';
+import { useStoreUser, useStoreNav } from 'teleport/teleportContextProvider';
 import cfg from 'teleport/config';
 
 export function ClusterSideNav({ items }) {

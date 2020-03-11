@@ -28,7 +28,7 @@ export default function FieldSelect({
   maxMenuHeight,
   placeholder,
   isSearchable = false,
-  isMulti,
+  isMulti = false,
   isSimpleValue,
   clearable = false,
   ...styles

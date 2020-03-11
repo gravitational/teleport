@@ -29,7 +29,7 @@ export default function Tabs({
   ...styledProps
 }) {
   const $items = items
-    .filter(i => i.type === 'terminal')
+    .filter(i => i.kind !== 'blank')
     .map(i => {
       const { title, url, id, sid } = i;
       const active = id === activeTab;

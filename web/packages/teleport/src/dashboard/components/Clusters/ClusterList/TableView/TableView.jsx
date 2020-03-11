@@ -27,8 +27,6 @@ import {
 import { ButtonSecondary, Text } from 'design';
 import { NavLink } from 'shared/components/Router';
 
-import Status from './../ClusterStatus';
-
 function TableView({ clusters, pageSize = 500 }) {
   const [sortDir, setSortDir] = React.useState({
     clusterId: SortTypes.ASC,
@@ -52,17 +50,6 @@ function TableView({ clusters, pageSize = 500 }) {
 
   return (
     <TablePaged data={data} pageSize={pageSize}>
-      <Column
-        columnKey="status"
-        header={
-          <SortHeaderCell
-            sortDir={sortDir.status}
-            onSortChange={onSortChange}
-            title="Status"
-          />
-        }
-        cell={<StatusCell />}
-      />
       <Column
         columnKey="clusterId"
         header={
@@ -124,15 +111,6 @@ export function NameCell({ rowIndex, data }) {
 function ConnectedCell({ rowIndex, data }) {
   const { connectedText } = data[rowIndex];
   return <Cell>{connectedText}</Cell>;
-}
-
-function StatusCell({ rowIndex, data }) {
-  const { status } = data[rowIndex];
-  return (
-    <Cell>
-      <Status ml="3" status={status} />
-    </Cell>
-  );
 }
 
 function ActionCell({ rowIndex, data }) {

@@ -55,7 +55,8 @@ const fromProps = props => {
   };
 };
 
-const ButtonIcon = ({ children, setRef, ...rest }) => {
+const ButtonIcon = props => {
+  const { children, setRef, ...rest } = props;
   return (
     <StyledButtonIcon ref={setRef} {...rest}>
       {children}

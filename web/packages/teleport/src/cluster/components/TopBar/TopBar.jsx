@@ -21,7 +21,7 @@ import { MenuItemIcon, MenuItem } from 'design/Menu/';
 import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
 import { Flex, ButtonOutlined, ButtonPrimary, TopNav, Text } from 'design';
 import session from 'teleport/services/session';
-import { useStoreUser, useStoreNav } from 'teleport/teleport';
+import { useStoreUser, useStoreNav } from 'teleport/teleportContextProvider';
 
 export class TopBar extends React.Component {
   state = {

@@ -16,12 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import {
-  Box,
-  Text,
-  ButtonPrimary,
-  ButtonSecondary,
-} from 'design';
+import { Box, Text, ButtonPrimary, ButtonSecondary } from 'design';
 import * as Alerts from 'design/Alert';
 import { useAttempt, withState } from 'shared/hooks';
 import Dialog, {
@@ -87,7 +82,7 @@ export function UserEditDialog(props) {
                 User: {userId}
               </Text>
               <FieldSelect
-                maxMenuHeight="200"
+                maxMenuHeight={200}
                 placeholder="Click to select a role"
                 isSearchable
                 isMulti

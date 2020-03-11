@@ -88,7 +88,7 @@ export function UserInviteDialog(props) {
                   <FieldSelect
                     label="Assign a role"
                     rule={isRequired}
-                    maxMenuHeight="200"
+                    maxMenuHeight={200}
                     placeholder="Click to select a role"
                     isSearchable
                     isMulti

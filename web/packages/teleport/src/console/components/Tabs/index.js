@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { withState } from 'shared/hooks';
-import { useParties } from 'teleport/console/useConsoleContext';
+import { useParties } from 'teleport/console/consoleContextProvider';
 import Tabs from './Tabs';
 
 export default withState(() => {

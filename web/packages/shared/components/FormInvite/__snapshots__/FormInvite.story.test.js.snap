@@ -72,10 +72,6 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   opacity: 0.56;
 }
 
-.c12::-moz-focus-inner {
-  border: 0;
-}
-
 .c12:hover,
 .c12:focus {
   background: #00EAC3;
@@ -130,10 +126,6 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
 
 .c10:active {
   opacity: 0.56;
-}
-
-.c10::-moz-focus-inner {
-  border: 0;
 }
 
 .c10:hover,
@@ -490,10 +482,6 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   opacity: 0.56;
 }
 
-.c13::-moz-focus-inner {
-  border: 0;
-}
-
 .c13:hover,
 .c13:focus {
   background: #00EAC3;
@@ -548,10 +536,6 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
 
 .c11:active {
   opacity: 0.56;
-}
-
-.c11::-moz-focus-inner {
-  border: 0;
 }
 
 .c11:hover,
@@ -884,10 +868,6 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   opacity: 0.56;
 }
 
-.c8::-moz-focus-inner {
-  border: 0;
-}
-
 .c8:hover,
 .c8:focus {
   background: #00EAC3;
@@ -1191,10 +1171,6 @@ exports[`shared/components/Invite.story story.off 1`] = `
 
 .c8:active {
   opacity: 0.56;
-}
-
-.c8::-moz-focus-inner {
-  border: 0;
 }
 
 .c8:hover,

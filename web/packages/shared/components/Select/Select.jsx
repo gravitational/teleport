@@ -16,12 +16,27 @@ limitations under the License.
 
 import React from 'react';
 import ReactSelect from 'react-select';
+import ReactSelectAsync from 'react-select/async';
 import styled from 'styled-components';
 
 export default function Select({ hasError, ...props }) {
   return (
     <StyledSelect hasError={hasError}>
       <ReactSelect
+        className="react-select-container"
+        classNamePrefix="react-select"
+        clearable={false}
+        placeholder="Select..."
+        {...props}
+      />
+    </StyledSelect>
+  );
+}
+
+export function SelectAsync({ hasError, ...props }) {
+  return (
+    <StyledSelect hasError={hasError}>
+      <ReactSelectAsync
         className="react-select-container"
         classNamePrefix="react-select"
         clearable={false}

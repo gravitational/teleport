@@ -15,13 +15,14 @@
   "license": "Apache-2.0",
   "repository": {
     "type" : "git",
-    "url" : "https://github.com/gravitational/webapps/webapps.git"
+    "url" : "https://github.com/gravitational/webapps/webapps.git",
+    "directory": "packages/force"
+
   },
   "dependencies": {
+    "cross-env": "5.0.5",
     "@gravitational/shared": "1.0.0",
-    "@gravitational/design": "1.0.0"
-  },
-  "devDependencies": {
+    "@gravitational/design": "1.0.0",
     "@gravitational/build": "^1.0.0"
   }
 }

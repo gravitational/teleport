@@ -58,6 +58,14 @@ const GlobalStyle = createGlobalStyle`
       ::-webkit-scrollbar-corner {
         background: rgba(0,0,0,0.5);
       }
+
+      // remove dotted Firefox outline
+      button {
+        ::-moz-focus-inner {
+          border: 0;
+        }
+      }
+
     `;
   }}
 `;

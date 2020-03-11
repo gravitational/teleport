@@ -36,22 +36,25 @@ const Switch = props => (
   </RouterDOM.Switch>
 );
 
-const Route = ({ component: Component, title, ...rest }) => (
-  <RouterDOM.Route
-    render={props => {
-      if (!title) {
-        return <Component {...props} />;
-      }
+const Route = props => {
+  const { component: Component, title = '', ...rest } = props;
+  return (
+    <RouterDOM.Route
+      render={props => {
+        if (!title) {
+          return <Component {...props} />;
+        }
 
-      return (
-        <DocumentTitle title={title}>
-          <Component {...props} />
-        </DocumentTitle>
-      );
-    }}
-    {...rest}
-  />
-);
+        return (
+          <DocumentTitle title={title}>
+            <Component {...props} />
+          </DocumentTitle>
+        );
+      }}
+      {...rest}
+    />
+  );
+};
 
 const NavLink = RouterDOM.NavLink;
 const Redirect = RouterDOM.Redirect;

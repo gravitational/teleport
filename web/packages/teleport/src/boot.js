@@ -18,7 +18,7 @@ import ReactDOM from 'react-dom';
 import React from 'react';
 import { Route } from 'shared/components/Router';
 import history from 'teleport/services/history';
-import Root from './index';
+import Index from './index';
 import CommunityCluster from './cluster';
 import cfg from './config';
 
@@ -29,8 +29,8 @@ cfg.init(window.GRV_CONFIG);
 history.init();
 
 ReactDOM.render(
-  <Root history={history.original()}>
+  <Index history={history.original()}>
     <Route path={cfg.routes.cluster} component={CommunityCluster} />
-  </Root>,
+  </Index>,
   document.getElementById('app')
 );

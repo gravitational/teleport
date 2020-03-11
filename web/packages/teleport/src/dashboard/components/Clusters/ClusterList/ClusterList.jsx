@@ -1,19 +1,28 @@
+/*
+Copyright 2019-2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 import React from 'react';
 import { sortBy } from 'lodash';
 import isMatch from 'design/utils/match';
 import CardEmpty from 'teleport/components/CardEmpty';
-import GridView from './GridView';
+
 import TableView from './TableView';
-import { ModeEnum } from './../SwitchMode';
 
 export default function ClustersList(props) {
-  const {
-    clusters,
-    filter = '',
-    mode,
-    pageSizeGrid = 20,
-    pageSizeTable = 500,
-  } = props;
+  const { clusters, filter = '', pageSizeTable = 500 } = props;
   const filtered = sortAndFilter(clusters, filter);
 
   if (filtered.length === 0 && !!filter) {
@@ -22,16 +31,7 @@ export default function ClustersList(props) {
     );
   }
 
-  return (
-    <>
-      {mode === ModeEnum.GRID && (
-        <GridView clusters={filtered} pageSize={pageSizeGrid} />
-      )}
-      {mode === ModeEnum.TABLE && (
-        <TableView clusters={filtered} pageSize={pageSizeTable} />
-      )}
-    </>
-  );
+  return <TableView clusters={filtered} pageSize={pageSizeTable} />;
 }
 
 function sortAndFilter(clusters, searchValue) {

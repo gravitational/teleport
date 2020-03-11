@@ -21,11 +21,11 @@ const createConfig = require('@gravitational/build/webpack/webpack.base');
 const webpackCfg = createConfig();
 
 // include open source stories
-const stories = ['../packages/**/*.story.(js|jsx|tsx)'];
+const stories = ['../packages/**/*.story.(js|jsx|ts|tsx)'];
 
 // include enterprise stories if available (**/* pattern ignores dot dir names)
 if (fs.existsSync(path.join(__dirname, '/../packages/webapps.e/'))) {
-  stories.unshift('../packages/webapps.e/**/*.story.(js|jsx|tsx)');
+  stories.unshift('../packages/webapps.e/**/*.story.(js|jsx|ts|tsx)');
 }
 
 module.exports = {

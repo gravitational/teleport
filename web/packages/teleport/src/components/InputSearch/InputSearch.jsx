@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import React from 'react';
-import ReactDOM from 'react-dom';
 import { debounce } from 'lodash';
 import styled from 'styled-components';
 import { height, space, color } from 'design/system';
@@ -47,16 +46,6 @@ class InputSearch extends React.Component {
     this.setState({ value: e.target.value });
     this.debouncedNotify();
   };
-
-  componentDidMount() {
-    // set cursor
-    const $input = ReactDOM.findDOMNode(this);
-    if ($input) {
-      const length = $input.value.length;
-      $input.selectionEnd = length;
-      $input.selectionStart = length;
-    }
-  }
 
   render() {
     const { autoFocus = false, ...rest } = this.props;

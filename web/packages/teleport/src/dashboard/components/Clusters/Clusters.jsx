@@ -18,7 +18,7 @@ import React from 'react';
 import { withState } from 'shared/hooks';
 import { Flex } from 'design';
 import AjaxPoller from 'teleport/components/AjaxPoller';
-import { useStoreClusters } from 'teleport/teleport';
+import { useStoreClusters } from 'teleport/teleportContextProvider';
 import InputSearch from 'teleport/components/InputSearch';
 import {
   FeatureBox,
@@ -26,7 +26,6 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/dashboard/components/Layout';
 import ClusterList from './ClusterList';
-import SwitchMode, { ModeEnum } from './SwitchMode';
 
 const POLL_INTERVAL = 4000; // every 4 sec
 
@@ -38,23 +37,20 @@ export function Clusters(props) {
     setSearchValue(value);
   }
 
-  const [viewMode, setViewMode] = React.useState(ModeEnum.GRID);
-  function onChangeMode(value) {
-    setViewMode(value);
-  }
-
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
-        <Flex width="400px" alignItems="center">
+        <Flex alignItems="center" flex="1">
           <FeatureHeaderTitle mr="5">Clusters</FeatureHeaderTitle>
-          <InputSearch bg="primary.light" autoFocus onChange={onSearchChange} />
-        </Flex>
-        <Flex pl="3" flex="1" justifyContent="center">
-          <SwitchMode mr="400px" mode={viewMode} onChange={onChangeMode} />
+          <InputSearch
+            ml="auto"
+            height="30px"
+            bg="primary.light"
+            onChange={onSearchChange}
+          />
         </Flex>
       </FeatureHeader>
-      <ClusterList mode={viewMode} clusters={clusters} filter={searchValue} />
+      <ClusterList clusters={clusters} filter={searchValue} />
       <AjaxPoller time={POLL_INTERVAL} onFetch={onRefresh} />
     </FeatureBox>
   );

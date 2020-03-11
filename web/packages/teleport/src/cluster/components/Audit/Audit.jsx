@@ -50,7 +50,7 @@ export default function Audit() {
         />
       </FeatureHeader>
       <Switch>
-        <Route title="System Events" path={eventsRoute}>
+        <Route title="Events" path={eventsRoute}>
           <AuditEvents range={range} />
         </Route>
         <Route

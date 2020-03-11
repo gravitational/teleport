@@ -135,11 +135,6 @@ const StyledButton = styled.button`
     opacity: 0.56;
   }
 
-  // remove dotted Firefox outline
-  ::-moz-focus-inner {
-    border: 0;
-  }
-
   ${themedStyles}
 `;
 

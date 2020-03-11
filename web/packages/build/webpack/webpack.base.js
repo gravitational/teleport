@@ -37,7 +37,7 @@ module.exports = function createConfig() {
     },
 
     entry: {
-      app: ['./src/boot.js'],
+      app: ['./src/boot'],
     },
 
     output: {

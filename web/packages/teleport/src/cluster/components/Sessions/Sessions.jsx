@@ -23,7 +23,10 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { useStoreSessions, useStoreNodes } from 'teleport/teleport';
+import {
+  useStoreSessions,
+  useStoreNodes,
+} from 'teleport/teleportContextProvider';
 import SessionList from './SessionList';
 
 const POLLING_INTERVAL = 3000; // every 3 sec

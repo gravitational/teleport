@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import Tabs from './Tabs';
-import { TestLayout } from './../Console.story';
+import { TestLayout } from './../../Console.story';
 
 storiesOf('TeleportConsole', module).add('Tabs', () => {
   const items = [

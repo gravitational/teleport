@@ -14,5 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Select from './Select';
+import Select, { SelectAsync } from './Select';
 export default Select;
+export { SelectAsync };
