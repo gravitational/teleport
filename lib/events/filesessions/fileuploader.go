@@ -103,10 +103,22 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 		return "", trace.ConvertSystemError(err)
 	}
 	defer f.Close()
+
 	_, err = io.Copy(f, reader)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	// If the upload context was canceled, clear out the session recording.
+	select {
+	case <-ctx.Done():
+		err = os.Remove(path)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	default:
+	}
+
 	return fmt.Sprintf("%v://%v", teleport.SchemeFile, path), nil
 }
 

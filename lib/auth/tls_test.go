@@ -899,7 +899,7 @@ func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(s.server.Identity.ID.HostUUID))
+		clt, err := s.server.NewClient(TestServerID(serverID))
 		c.Assert(err, check.IsNil)
 
 		sessionID := session.NewID()
@@ -924,6 +924,14 @@ func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
 			Recording: recording,
 		})
 		c.Assert(err != nil, check.Equals, tt.outError)
+
+		_, err = os.Stat(filepath.Join(s.dataDir, s.server.ClusterName(), events.SessionLogsDir,
+			defaults.Namespace, fmt.Sprintf("%v-0.events.gz", sess.ID.String())))
+		if tt.outError {
+			c.Assert(os.IsNotExist(err), check.Equals, true)
+		} else {
+			c.Assert(err, check.IsNil)
+		}
 	}
 }
 
@@ -995,7 +1003,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(s.server.Identity.ID.HostUUID))
+		clt, err := s.server.NewClient(TestServerID(serverID))
 		c.Assert(err, check.IsNil)
 
 		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)

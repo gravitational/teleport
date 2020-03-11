@@ -303,6 +303,8 @@ func (l *AuditLog) WaitForDelivery(context.Context) error {
 
 // SessionRecording is a recording of a live session
 type SessionRecording struct {
+	// CancelContext is used to cancel upload of a session.
+	CancelContext context.Context
 	// Namespace is a session namespace
 	Namespace string
 	// SessionID is a session ID
@@ -322,6 +324,11 @@ func (l *SessionRecording) CheckAndSetDefaults() error {
 	if l.Namespace == "" {
 		l.Namespace = defaults.Namespace
 	}
+	// If no cancellation was set (older client) set one that does not expire.
+	if l.CancelContext == nil {
+		l.CancelContext = context.Background()
+	}
+
 	return nil
 }
 
@@ -335,13 +342,27 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	// This function runs on the Auth Server. If no upload handler is defined
 	// (for example, not going to S3) then unarchive it to Auth Server disk.
 	if l.UploadHandler == nil {
-		err := utils.Extract(r.Recording, filepath.Join(l.DataDir, l.ServerID, SessionLogsDir, r.Namespace))
-		return trace.Wrap(err)
+		var errs []error
+
+		// Extract the tarball to disk.
+		extractPath := filepath.Join(l.DataDir, l.ServerID, SessionLogsDir, r.Namespace)
+		err := utils.Extract(r.Recording, extractPath)
+		errs = append(errs, err)
+
+		// If the upload context was canceled, clear out the session recording.
+		select {
+		case <-r.CancelContext.Done():
+			err := removeFiles(extractPath, r.SessionID)
+			errs = append(errs, err)
+		default:
+		}
+
+		return trace.NewAggregate(errs...)
 	}
 
 	// Upload session recording to endpoint defined in file configuration. Like S3.
 	start := time.Now()
-	url, err := l.UploadHandler.Upload(context.TODO(), r.SessionID, r.Recording)
+	url, err := l.UploadHandler.Upload(r.CancelContext, r.SessionID, r.Recording)
 	if err != nil {
 		l.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": r.SessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
 		return trace.Wrap(err)
