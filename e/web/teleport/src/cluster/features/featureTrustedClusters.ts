@@ -1,21 +1,11 @@
 import * as Icons from 'design/Icon';
 import { FeatureBase } from 'teleport/components/withFeature';
 import TrustedClusters from 'e-teleport/cluster/components/TrustedClusters';
+import Ctx from 'teleport/teleportContext';
 import cfg from 'e-teleport/config';
 
-export function makeNavItem(to) {
-  return {
-    title: 'Trusted Clusters',
-    Icon: Icons.Link,
-    to,
-  };
-}
-
 export default class FeatureTrustedClusters extends FeatureBase {
-  constructor() {
-    super();
-    this.Component = TrustedClusters;
-  }
+  Component = TrustedClusters;
 
   getRoute() {
     return {
@@ -25,13 +15,16 @@ export default class FeatureTrustedClusters extends FeatureBase {
     };
   }
 
-  onload({ context }) {
+  onload(context: Ctx) {
     if (!context.isTrustedClustersEnabled()) {
       this.setDisabled();
       return;
     }
 
-    const navItem = makeNavItem(cfg.getTrustedClustersRoute());
-    context.storeNav.addSideItem(navItem);
+    context.storeNav.addSideItem({
+      title: 'Trusted Clusters',
+      Icon: Icons.Link,
+      to: cfg.getTrustedClustersRoute(),
+    });
   }
 }

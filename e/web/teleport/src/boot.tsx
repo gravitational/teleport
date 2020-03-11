@@ -18,19 +18,19 @@ import ReactDOM from 'react-dom';
 import React from 'react';
 import { Route } from 'shared/components/Router';
 import history from 'teleport/services/history';
-import Teleport from 'teleport/Teleport';
+import Index from 'teleport/index';
 import cfg from 'teleport/config';
 import EntepriseCluster from './cluster';
 
 // apply configuration received from the server
-cfg.init(window.GRV_CONFIG);
+cfg.init(window['GRV_CONFIG']);
 
 // use browser history
 history.init();
 
 ReactDOM.render(
-  <Teleport history={history.original()} cfg={cfg}>
+  <Index history={history.original()}>
     <Route path={cfg.routes.cluster} component={EntepriseCluster} />
-  </Teleport>,
+  </Index>,
   document.getElementById('app')
 );

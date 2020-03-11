@@ -1,21 +1,11 @@
 import * as Icons from 'design/Icon';
 import { FeatureBase } from 'teleport/components/withFeature';
+import Ctx from 'teleport/teleportContext';
 import AuthConnectors from 'e-teleport/cluster/components/AuthConnectors';
 import cfg from 'e-teleport/config';
 
-export function makeNavItem(to) {
-  return {
-    title: 'Auth Connectors',
-    Icon: Icons.Lock,
-    to,
-  };
-}
-
 class FeatureAuthConnectors extends FeatureBase {
-  constructor() {
-    super();
-    this.Component = AuthConnectors;
-  }
+  Component = AuthConnectors;
 
   getRoute() {
     return {
@@ -25,14 +15,18 @@ class FeatureAuthConnectors extends FeatureBase {
     };
   }
 
-  onload({ context }) {
+  onload(context: Ctx) {
     if (!context.isAuthConnectorEnabled()) {
       this.setDisabled();
       return;
     }
 
-    const navItem = makeNavItem(cfg.getAuthConnectorsRoute());
-    context.storeNav.addSideItem(navItem);
+    context.storeNav.addSideItem({
+      title: 'Auth Connectors',
+      Icon: Icons.Lock,
+      to: cfg.getAuthConnectorsRoute(),
+    });
+
     this.setReady();
   }
 }

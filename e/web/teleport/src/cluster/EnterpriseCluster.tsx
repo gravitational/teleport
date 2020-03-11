@@ -24,7 +24,7 @@ import FeatureAuthConnectors from 'e-teleport/cluster/features/featureAuthConnec
 import FeatureRoles from 'e-teleport/cluster/features/featureRoles';
 import FeatureTrustedClusters from 'e-teleport/cluster/features/featureTrustedClusters';
 import Cluster from 'teleport/cluster/components/Cluster';
-import { useTeleport } from 'teleport/teleportContext';
+import { useTeleport } from 'teleport/teleportContextProvider';
 
 function mapState(props) {
   const { clusterId } = props.match.params;

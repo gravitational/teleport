@@ -2,7 +2,7 @@ import React from 'react';
 import { withState, useAttempt } from 'shared/hooks';
 import AuthConnectors from 'e-shared/components/AuthConnectors';
 import service from 'e-teleport/cluster/services/resources';
-import { useStoreUser } from 'teleport/teleportContext';
+import { useStoreUser } from 'teleport/teleportContextProvider';
 
 export default withState(() => {
   const [connectors, setConnectors] = React.useState([]);

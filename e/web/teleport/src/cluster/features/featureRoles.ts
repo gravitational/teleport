@@ -1,21 +1,11 @@
 import * as Icons from 'design/Icon';
 import { FeatureBase } from 'teleport/components/withFeature';
+import Ctx from 'teleport/teleportContext';
 import Roles from 'e-teleport/cluster/components/Roles';
 import cfg from 'e-teleport/config';
 
-export function makeNavItem(to) {
-  return {
-    title: 'Roles',
-    Icon: Icons.ClipboardUser,
-    to,
-  };
-}
-
 export default class FeatureRoles extends FeatureBase {
-  constructor() {
-    super();
-    this.Component = Roles;
-  }
+  Component = Roles;
 
   getRoute() {
     return {
@@ -25,13 +15,16 @@ export default class FeatureRoles extends FeatureBase {
     };
   }
 
-  onload({ context }) {
+  onload(context: Ctx) {
     if (!context.isRolesEnabled()) {
       this.setDisabled();
       return;
     }
 
-    const navItem = makeNavItem(cfg.getRolesRoute());
-    context.storeNav.addSideItem(navItem);
+    context.storeNav.addSideItem({
+      title: 'Roles',
+      Icon: Icons.ClipboardUser,
+      to: cfg.getRolesRoute(),
+    });
   }
 }

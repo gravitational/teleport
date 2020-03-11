@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAttempt } from 'shared/hooks';
 import service from 'e-teleport/cluster/services/resources';
-import { useStoreUser } from 'teleport/teleportContext';
+import { useStoreUser } from 'teleport/teleportContextProvider';
 
 export default function useTrustedClusters() {
   const [trustedClusters, setTrustedClusters] = React.useState([]);
