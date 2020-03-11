@@ -29,6 +29,15 @@ Examples:
   to using that label in addition to its name.`
 
 	sampleConfComment = `#
-# Sample Teleport configuration file.
+# Sample Teleport configuration file
+# Creates a single proxy, auth and node server.
+#
+# Things to update:
+#  1. ca_pin: Obtain the CA pin hash for joining more nodes by running 'tctl status'
+#     on the auth server once Teleport is running.
+#  2. cluster-join-token: Update to a more secure static token. For more details,
+#     see https://gravitational.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster
+#  3. license-if-using-teleport-enterprise.pem: If you are an Enterprise customer,
+#     obtain this from https://dashboard.gravitational.com/web/
 #`
 )
