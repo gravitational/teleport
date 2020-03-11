@@ -10,12 +10,11 @@ labels: "type: question"
   Useful Links:
   - Documentation: https://gravitational.com/teleport/docs/
 
-  If you're and OSS user and have a general question please as in our community. 
-   - Teleport Community: https://community.gravitational.com/c/teleport
+  - If you're an OSS user and have a general question, please ask in our community forum: https://community.gravitational.com/c/teleport
 
-  For Pro and Enterprise Users please open a ticket on our https://dashboard.gravitational.com/web/
+  - For Pro and Enterprise users, please open a ticket via the Enterprise support portal: https://dashboard.gravitational.com/web/
 
-  Before opening a new issue, please search existing issues https://github.com/gravitational/teleport/issues
+  Before opening a new issue, please search existing issues: https://github.com/gravitational/teleport/issues
 -->
 
 ## Summary
