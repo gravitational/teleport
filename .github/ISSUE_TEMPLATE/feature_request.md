@@ -4,10 +4,10 @@ about: Suggest a new idea for the project.
 labels: "type: feature request"
 ---
 ### Feature Request
-Describe with as much detail as possible what you like this feature to be. 
+Describe in as much detail as possible what feature you would like to see added and how it should work. 
 
 ### Motivation
-Describe why we should work on this feature request. 
+Describe why we should work on this feature request.
 
 ### Who's it for?
 OSS User, Pro, Enterprise
