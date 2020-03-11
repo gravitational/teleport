@@ -5,10 +5,10 @@ labels: "type: documentation"
 ---
 
 ## Summary
-Describe the missing documentation. If it's a new feature, link to the Feature ticket.
+Describe the missing documentation. If it's a new feature, link to the feature ticket.
 
 ### Audience
-Outline who this is for. e.g. CLI Docs, New User and Power users 
+Outline who this is for. e.g. CLI docs, new users, power users 
 
 ### Location
-Should this docs update be a new guide, or an addition to the admin.yaml. 
+Should this docs update be a new guide, or an addition to an existing guide? 
