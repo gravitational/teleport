@@ -188,6 +188,10 @@ const (
 	// UploaderConcurrentUploads is a default number of concurrent
 	UploaderConcurrentUploads = 10
 
+	// ConcurrentStreams is the number of concurrent session upload streams
+	// that Auth Server supports.
+	ConcurrentStreams = 4
+
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5

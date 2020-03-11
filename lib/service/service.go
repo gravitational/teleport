@@ -1054,6 +1054,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
+		Context:       process.ExitContext(),
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
 		LimiterConfig: cfg.Auth.Limiter,

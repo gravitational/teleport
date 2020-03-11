@@ -2528,25 +2528,30 @@ func (s *APIServer) processKubeCSR(auth ClientI, w http.ResponseWriter, r *http.
 
 // getServerID returns the ID of the connected client.
 func (s *APIServer) getServerID(r *http.Request) (string, error) {
-	role, ok := r.Context().Value(ContextUser).(BuiltinRole)
-	if !ok {
-		return "", trace.BadParameter("invalid role %T", r.Context().Value(ContextUser))
-	}
-
 	clusterName, err := s.AuthServer.GetDomainName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	// The username extracted from the node's identity (x.509 certificate)
-	// is expected to consist of "<server-id>.<cluster-name>" so strip the
-	// cluster name suffix to get the server id.
-	//
-	// Note that as of right now Teleport expects server id to be a uuid4
-	// but older Gravity clusters used to override it with strings like
-	// "192_168_1_1.<cluster-name>" so this code can't rely on it being
-	// uuid4 to account for clusters upgraded from older versions.
-	return strings.TrimSuffix(role.Username, "."+clusterName), nil
+	role, ok := r.Context().Value(ContextUser).(BuiltinRole)
+	if !ok {
+		return "", trace.BadParameter("invalid role %T", r.Context().Value(ContextUser))
+	}
+
+	return extractServerID(role.Username, clusterName), nil
+}
+
+// extractServerID extracts the identity from the full name. The username
+// extracted from the node's identity (x.509 certificate) is expected to
+// consist of "<server-id>.<cluster-name>" so strip the cluster name suffix
+// to get the server id.
+//
+// Note that as of right now Teleport expects server id to be a UUID4 but
+// older Gravity clusters used to override it with strings like
+// "192_168_1_1.<cluster-name>" so this code can't rely on it being
+// UUID4 to account for clusters upgraded from older versions.
+func extractServerID(fullName string, clusterName string) string {
+	return strings.TrimSuffix(fullName, "."+clusterName)
 }
 
 func message(msg string) map[string]interface{} {

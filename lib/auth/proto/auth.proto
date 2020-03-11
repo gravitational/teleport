@@ -159,6 +159,33 @@ message PingResponse {
     string ServerVersion = 2 [(gogoproto.jsontag) = "server_version"];
 }
 
+// SessionChunk is a chunk of the session recording.
+message SessionChunk {
+    // Namespace is the namespace the session is occuring in.
+    string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
+    // SessionID is the UUID for the session.
+    string SessionID = 2 [(gogoproto.jsontag) = "session_id"];
+    // Type is the type of chunk being transmitted.
+    int64 Type = 3 [(gogoproto.jsontag) = "type"];
+    // FileName is the name of the file being transmitted.
+    string FileName = 4 [(gogoproto.jsontag) = "name"];
+    // FileSize is the size of the file in bytes.
+    int64 FileSize = 5 [(gogoproto.jsontag) = "file_size"];
+    // Data is the raw data being transmitted.
+    bytes Data = 6 [(gogoproto.jsontag) = "payload"];
+}
+
+// StreamSessionResponse is used to respond to StreamSessionRecording. It is
+// used to return an error if a chunk within the stream is not able to be
+// processed.
+message StreamSessionResponse {
+    // Success is true if all chunks were successfully processed.
+    bool Success = 1 [(gogoproto.jsontag) = "success"];
+    // Message is any error message that needs to be returned if the stream
+    // was not successfully processed.
+    string Message = 2 [(gogoproto.jsontag) = "message"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -189,4 +216,9 @@ service AuthService {
     // to mimic the behavior of the proxy's Ping method, and may be used by
     // clients for verification or configuration on startup.
     rpc Ping(PingRequest) returns (PingResponse);
+    // StreamSessionRecording allows nodes to stream a session recording to
+    // the Auth Server.
+    rpc StreamSessionRecording(stream SessionChunk) returns (StreamSessionResponse);
 }
+
+

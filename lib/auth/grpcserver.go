@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -44,6 +45,9 @@ type GRPCServer struct {
 	httpHandler http.Handler
 	// grpcHandler is golang GRPC handler
 	grpcHandler *grpc.Server
+
+	// manager is used to create and control streams.
+	manager *events.StreamManager
 }
 
 // SendKeepAlives allows node to send a stream of keep alive requests
@@ -298,6 +302,33 @@ func (g *GRPCServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 	return &rsp, nil
 }
 
+func (g *GRPCServer) StreamSessionRecording(stream proto.AuthService_StreamSessionRecordingServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// Extract identity of server from x509 certificate.
+	serverID, err := g.getServerID(auth)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create a new stream and process events in a non-blocking manner.
+	sb, err := g.manager.ProcessStream(serverID, auth, stream)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// Block until processing of the stream is complete.
+	err = sb.Wait()
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	return nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles
@@ -333,8 +364,18 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	}, nil
 }
 
+// getServerID returns the ID of the connected client.
+func (s *GRPCServer) getServerID(r *grpcContext) (string, error) {
+	clusterName, err := s.AuthServer.GetDomainName()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return extractServerID(r.AuthContext.Identity.Username, clusterName), nil
+}
+
 // NewGRPCServer returns a new instance of GRPC server
-func NewGRPCServer(cfg APIConfig) http.Handler {
+func NewGRPCServer(ctx context.Context, cfg APIConfig) http.Handler {
 	authServer := &GRPCServer{
 		APIConfig: cfg,
 		Entry: logrus.WithFields(logrus.Fields{
@@ -342,6 +383,7 @@ func NewGRPCServer(cfg APIConfig) http.Handler {
 		}),
 		httpHandler: NewAPIServer(&cfg),
 		grpcHandler: grpc.NewServer(),
+		manager:     events.NewStreamManger(ctx),
 	}
 	proto.RegisterAuthServiceServer(authServer.grpcHandler, authServer)
 	return authServer

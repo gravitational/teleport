@@ -50,6 +50,8 @@ type TLSServerConfig struct {
 	// AcceptedUsage restricts authentication
 	// to a subset of certificates based on the metadata
 	AcceptedUsage []string
+	// Context is used to signal the process is shutting down.
+	Context context.Context
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -103,7 +105,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		AccessPoint:   cfg.AccessPoint,
 		AcceptedUsage: cfg.AcceptedUsage,
 	}
-	authMiddleware.Wrap(NewGRPCServer(cfg.APIConfig))
+	authMiddleware.Wrap(NewGRPCServer(cfg.Context, cfg.APIConfig))
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given

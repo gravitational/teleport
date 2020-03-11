@@ -926,6 +926,14 @@ func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
 			Recording: recording,
 		})
 		c.Assert(err != nil, check.Equals, tt.outError)
+
+		_, err = os.Stat(filepath.Join(s.dataDir, s.server.ClusterName(), events.SessionLogsDir,
+			defaults.Namespace, fmt.Sprintf("%v-0.events.gz", sess.ID.String())))
+		if tt.outError {
+			c.Assert(os.IsNotExist(err), check.Equals, true)
+		} else {
+			c.Assert(err, check.IsNil)
+		}
 	}
 }
 
