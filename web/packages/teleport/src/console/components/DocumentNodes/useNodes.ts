@@ -23,14 +23,18 @@ import { Node } from 'teleport/services/nodes';
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();
   const [attempt, attemptActions] = useAttempt({ isSuccess: true });
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [logins, setLogins] = useState<string[]>([]);
+  const [state, setState] = useState<{ nodes: Node[]; logins: string[] }>({
+    nodes: [],
+    logins: [],
+  });
 
   useEffect(() => {
     attemptActions.do(() => {
       return consoleCtx.fetchNodes(clusterId).then(({ nodes, logins }) => {
-        setLogins(logins);
-        setNodes(nodes);
+        setState({
+          logins,
+          nodes,
+        });
       });
     });
   }, [clusterId]);
@@ -52,18 +56,18 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
       clusterId,
     });
 
-    consoleCtx.navigateTo({ url });
+    consoleCtx.navigateTo({ url }, true);
   }
 
   function getNodeSshLogins(serverId: string) {
-    return logins.map(login => ({
+    return state.logins.map(login => ({
       login,
       url: consoleCtx.getSshDocumentUrl({ serverId, login, clusterId }),
     }));
   }
 
   return {
-    nodes,
+    nodes: state.nodes,
     attempt,
     createSshSession,
     changeCluster,

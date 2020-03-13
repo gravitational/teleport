@@ -37,7 +37,7 @@ export default function useSshSession(doc: DocumentSsh) {
     function initTty(session: Session) {
       const tty = ctx.createTty(session);
 
-      // susbscribe to tty events to handle connect/disconnects events
+      // subscribe to tty events to handle connect/disconnects events
       tty.on(TermEventEnum.CLOSE, () => handleTtyDisconnect(ctx, doc.id));
       tty.on(TermEventEnum.CONN_CLOSE, () => handleTtyDisconnect(ctx, doc.id));
       tty.on('open', () => handleTtyConnect(ctx, session, doc.id));

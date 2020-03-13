@@ -45,22 +45,15 @@ export default class ConsoleContext {
     });
   }
 
-  ensureActiveDoc(url: string) {
-    const doc = this.storeDocs.state.items.find(i => i.url === url);
-    if (doc) {
-      this.storeDocs.state.active = doc.id;
-    }
-
-    return doc;
+  getActiveDocId(url: string) {
+    const doc = this.storeDocs.findByUrl(url);
+    return doc ? doc.id : -1;
   }
 
   closeDocument(id: number) {
     const nextId = this.storeDocs.getNext(id);
     const items = this.storeDocs.filter(id);
-    this.storeDocs.setState({
-      items,
-      active: -1,
-    });
+    this.storeDocs.setState({ items });
 
     return this.storeDocs.find(nextId);
   }

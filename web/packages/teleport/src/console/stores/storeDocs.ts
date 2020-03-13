@@ -18,26 +18,22 @@ import { Store } from 'shared/libs/stores';
 import { Document, DocumentSsh } from './types';
 
 interface State {
-  active: number;
   items: Document[];
 }
 
 export default class StoreDocs extends Store<State> {
   state: State = {
     items: [],
-    active: -1,
   };
 
-  add(doc: Document, makeActive = false) {
+  add(doc: Document) {
     const item = {
       ...doc,
       id: Math.floor(Math.random() * 100000),
     };
 
-    const active = makeActive ? item.id : this.state.active;
     this.setState({
       items: [...this.state.items, item],
-      active,
     });
 
     return item;
@@ -85,6 +81,10 @@ export default class StoreDocs extends Store<State> {
     return this.state.items.find(i => i.id === id);
   }
 
+  findByUrl(url: string) {
+    return this.state.items.find(i => i.url === url);
+  }
+
   getNodeDocuments() {
     return this.state.items.filter(doc => doc.kind === 'nodes');
   }
@@ -97,9 +97,5 @@ export default class StoreDocs extends Store<State> {
 
   getDocuments(): Document[] {
     return this.state.items;
-  }
-
-  getActive(): Document {
-    return this.state.items.find(item => item.id === this.state.active);
   }
 }

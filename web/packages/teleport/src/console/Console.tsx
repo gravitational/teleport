@@ -29,7 +29,7 @@ import DocumentSsh from './components/DocumentSsh';
 import DocumentNodes from './components/DocumentNodes';
 import DocumentBlank from './components/DocumentBlank';
 
-const POLL_INTERVAL = 3000; // every 3 sec
+const POLL_INTERVAL = 5000; // every 5 sec
 
 export default function Console() {
   const consoleCtx = useConsoleContext();
@@ -44,23 +44,21 @@ export default function Console() {
   // find the document which matches current URL
   const storeDocs = useStoreDocs();
   const hasSshSessions = storeDocs.getSshDocuments().length > 0;
-  const activeDoc = consoleCtx.ensureActiveDoc(pathname);
+  const activeDocId = consoleCtx.getActiveDocId(pathname);
 
   React.useEffect(() => {
-    if (activeDoc) {
+    if (activeDocId !== -1) {
       return;
     }
 
-    // create document based on URL request
+    // when no document matches current URL that means we need to
+    // create one base on URL parameters.
     if (sshRouteMatch) {
-      const doc = consoleCtx.addSshDocument(sshRouteMatch.params);
-      consoleCtx.navigateTo(doc);
+      consoleCtx.addSshDocument(sshRouteMatch.params);
     } else if (joinSshRouteMatch) {
-      const doc = consoleCtx.addSshDocument(joinSshRouteMatch.params);
-      consoleCtx.navigateTo(doc);
+      consoleCtx.addSshDocument(joinSshRouteMatch.params);
     } else if (nodesRouteMatch) {
-      const doc = consoleCtx.addNodeDocument(clusterId);
-      consoleCtx.navigateTo(doc);
+      consoleCtx.addNodeDocument(clusterId);
     }
   }, [pathname]);
 
@@ -87,9 +85,10 @@ export default function Console() {
   }
 
   const disableNewTab = storeDocs.getNodeDocuments().length > 0;
-  const active = storeDocs.state.active;
   const documents = storeDocs.getDocuments();
-  const $docs = documents.map(doc => renderDocument(doc, doc.id === active));
+  const $docs = documents.map(doc => (
+    <MemoizedDocument doc={doc} visible={doc.id === activeDocId} key={doc.id} />
+  ));
 
   return (
     <StyledConsole>
@@ -99,7 +98,7 @@ export default function Console() {
           items={documents}
           onClose={onCloseTab}
           onSelect={onSelectTab}
-          activeTab={active}
+          activeTab={activeDocId}
         />
         <ActionBar
           clusterId={clusterId}
@@ -116,19 +115,26 @@ export default function Console() {
   );
 }
 
-function renderDocument(doc: stores.Document, visible: boolean) {
-  const props = {
+/**
+ * Ensures that document is not getting re-rendered if it's invisible
+ */
+function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
+  const { doc, visible } = props;
+  const $doc = React.useMemo(() => renderDocument(doc, visible), [
     visible,
-    key: doc.id,
-  };
+    doc,
+  ]);
+  return $doc;
+}
 
+function renderDocument(doc: stores.Document, visible: boolean) {
   switch (doc.kind) {
     case 'terminal':
-      return <DocumentSsh doc={doc} {...props} />;
+      return <DocumentSsh doc={doc} visible={visible} />;
     case 'nodes':
-      return <DocumentNodes doc={doc} {...props} />;
+      return <DocumentNodes doc={doc} visible={visible} />;
     default:
-      return <DocumentBlank doc={doc} {...props} />;
+      return <DocumentBlank doc={doc} visible={visible} />;
   }
 }
 

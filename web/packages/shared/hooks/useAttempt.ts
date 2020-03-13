@@ -54,7 +54,7 @@ function makeActions(setState) {
     setState({ ...defaultState, isFailed: true, message: err.message });
   }
 
-  function run(fn) {
+  function run(fn: Callback) {
     try {
       start();
       return fn()
@@ -81,11 +81,11 @@ function makeActions(setState) {
 
 type AttemptState = typeof defaultState;
 type AttemptActions = {
-  do: (fn: CbWithPromise) => Promise<any>;
+  do: (fn: Callback) => Promise<any>;
   stop: (message?: string) => void;
   start: () => void;
   clear: () => void;
   error: (err: Error) => void;
 };
 
-type CbWithPromise = (fn: any) => Promise<any>;
+type Callback = (fn?: any) => Promise<any>;

@@ -30,8 +30,8 @@ export default function DocumentBlank(props: PropTypes) {
   const consoleCtx = useConsoleContext();
 
   function onClick() {
-    const addedDoc = consoleCtx.addNodeDocument(doc.clusterId);
-    consoleCtx.navigateTo(addedDoc, true);
+    const url = consoleCtx.getNodeDocumentUrl(doc.clusterId);
+    consoleCtx.navigateTo({ url }, true);
   }
 
   return (

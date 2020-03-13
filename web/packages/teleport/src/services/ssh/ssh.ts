@@ -45,7 +45,7 @@ const service = {
     // To retrieve a hostname, we are fetching all cluster nodes.
     // TODO: optimize it by adding hostname attribute to the session (backend)
     return Promise.all([
-      api.get(cfg.getTerminalSessionUrl({ sid })),
+      api.get(cfg.getTerminalSessionUrl({ sid, clusterId })),
       api.get(cfg.getClusterNodesUrl(clusterId)),
     ]).then(response => {
       const [sessionJson, serversJson] = response;
