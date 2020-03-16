@@ -90,7 +90,7 @@ function handleTtyConnect(
   docId: number
 ) {
   const { hostname, login, sid, clusterId } = session;
-  const url = cfg.getConsoleSessionRoute({ sid, clusterId });
+  const url = cfg.getSshSessionRoute({ sid, clusterId });
   ctx.updateSshDocument(docId, {
     title: `${login}@${hostname}`,
     status: 'connected',
@@ -98,7 +98,7 @@ function handleTtyConnect(
     ...session,
   });
 
-  ctx.navigateTo({ url }, true);
+  ctx.gotoTab({ url });
 }
 
 function handleTtyDisconnect(ctx: ConsoleContext, docId: number) {

@@ -17,24 +17,42 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 
-// A wrapper to execute hooks during renderer process
-function TestHook(props) {
-  // trigger hooks and assessing its results to props.current
-  props.result.current = props.hooksCb();
-  return null;
-}
-
-export default function renderHook(hooksCb) {
+export default function renderHook<T extends (...args: any) => any>(
+  hooks: T,
+  options?: Options
+) {
   const result = {
-    current: null,
+    current: null as ReturnType<T>,
   };
+
   act(() => {
-    // passes hooksCb to component and expect this
-    // component to pass back hooks execution results via results.results
-    create(<TestHook hooksCb={hooksCb} result={result} />);
+    const Wrapper = options?.wrapper || DefaultWrapper;
+
+    // passes hooksCb to component and expect this component to execute the hook
+    // and assign the return values to results.current
+    create(
+      <Wrapper>
+        <TestHook hooksCb={hooks} result={result} />{' '}
+      </Wrapper>
+    );
   });
   // return hooks results only
   return result;
 }
 
 export { act };
+
+// A wrapper to execute hooks during renderer process
+function TestHook(props: any) {
+  // trigger hooks and assessing its results to props.current
+  props.result.current = props.hooksCb();
+  return null;
+}
+
+function DefaultWrapper(props) {
+  return props.children;
+}
+
+type Options = {
+  wrapper?: React.ComponentType;
+};

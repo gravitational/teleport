@@ -146,16 +146,19 @@ const cfg = {
     });
   },
 
-  getConsoleConnectRoute({ clusterId, login, serverId, sid }: UrlParams) {
+  getSshConnectRoute({ clusterId, login, serverId }: UrlParams) {
     clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.consoleConnect, {
       clusterId,
       serverId,
       login,
-      sid,
     });
   },
 
+  getSshSessionRoute({ clusterId, sid }: UrlParams) {
+    clusterId = clusterId || cfg.clusterName;
+    return generatePath(cfg.routes.consoleSession, { clusterId, sid });
+  },
   getAuditEventsRoute(clusterId: string) {
     clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.clusterAuditEvents, { clusterId });
@@ -178,11 +181,6 @@ const cfg = {
   getConsoleRoute(clusterId: string) {
     clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.console, { clusterId });
-  },
-
-  getConsoleSessionRoute({ clusterId, sid }: UrlParams) {
-    clusterId = clusterId || cfg.clusterName;
-    return generatePath(cfg.routes.consoleSession, { clusterId, sid });
   },
 
   getSessionAuditRoute({ clusterId, sid }: UrlParams) {

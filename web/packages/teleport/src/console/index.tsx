@@ -19,6 +19,8 @@ import Console from './Console';
 import ConsoleContext from './consoleContext';
 import ConsoleContextProvider from './consoleContextProvider';
 
+// Main entry point to Console where it initializes ContextProvider with the
+// instance of ConsoleContext.
 export default function Index() {
   const [ctx] = React.useState(() => {
     return new ConsoleContext();

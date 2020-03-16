@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { StoreParties, StoreDocs, DocumentSsh } from './stores';
+import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 import Logger from 'shared/libs/logger';
 import session from 'teleport/services/session';
 import history from 'teleport/services/history';
@@ -30,7 +30,8 @@ import serviceUser from 'teleport/services/user';
 const logger = Logger.create('teleport/console');
 
 /**
- * A main controller which manages the console global state
+ * Console Context is used by components to access shared state and also to communicate
+ * with other services.
  */
 export default class ConsoleContext {
   storeDocs = new StoreDocs();
@@ -50,24 +51,15 @@ export default class ConsoleContext {
     return doc ? doc.id : -1;
   }
 
-  closeDocument(id: number) {
+  removeDocument(id: number) {
     const nextId = this.storeDocs.getNext(id);
     const items = this.storeDocs.filter(id);
     this.storeDocs.setState({ items });
-
     return this.storeDocs.find(nextId);
   }
 
   updateSshDocument(id: number, partial: Partial<DocumentSsh>) {
     this.storeDocs.update(id, partial);
-  }
-
-  navigateTo({ url }: { url: string }, replace = false) {
-    if (replace) {
-      history.replace(url);
-    } else {
-      history.push(url);
-    }
   }
 
   addNodeDocument(clusterId = cfg.proxyCluster) {
@@ -109,10 +101,9 @@ export default class ConsoleContext {
   }
 
   getSshDocumentUrl(sshParams: UrlSshParams) {
-    const { sid, clusterId } = sshParams;
-    return sid
-      ? cfg.getConsoleSessionRoute({ clusterId, sid })
-      : cfg.getConsoleConnectRoute(sshParams);
+    return sshParams.sid
+      ? cfg.getSshSessionRoute(sshParams)
+      : cfg.getSshConnectRoute(sshParams);
   }
 
   refreshParties() {
@@ -198,6 +189,24 @@ export default class ConsoleContext {
 
     const addressResolver = new TtyAddressResolver(ttyConfig);
     return new Tty(addressResolver);
+  }
+
+  gotoNodeTab(clusterId: string) {
+    const url = this.getNodeDocumentUrl(clusterId);
+    this.gotoTab({ url });
+  }
+
+  gotoTab({ url }: { url: string }, replace = true) {
+    if (replace) {
+      history.replace(url);
+    } else {
+      history.push(url);
+    }
+  }
+
+  closeTab(doc: Document) {
+    const next = this.removeDocument(doc.id);
+    this.gotoTab(next);
   }
 }
 

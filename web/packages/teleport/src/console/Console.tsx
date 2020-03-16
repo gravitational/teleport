@@ -15,12 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import { useRouteMatch, useParams, useLocation } from 'react-router';
 import styled from 'styled-components';
-import cfg, { UrlSshParams } from 'teleport/config';
 import { Flex } from 'design';
 import AjaxPoller from 'teleport/components/AjaxPoller';
-import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
+import { useConsoleContext } from './consoleContextProvider';
 import * as stores from './stores/types';
 import { colors } from './components/colors';
 import Tabs from './components/Tabs';
@@ -28,52 +26,26 @@ import ActionBar from './components/ActionBar';
 import DocumentSsh from './components/DocumentSsh';
 import DocumentNodes from './components/DocumentNodes';
 import DocumentBlank from './components/DocumentBlank';
+import useRouting from './useRouting';
 
 const POLL_INTERVAL = 5000; // every 5 sec
 
 export default function Console() {
   const consoleCtx = useConsoleContext();
-  const { pathname } = useLocation();
-  const { clusterId } = useParams<{ clusterId: string }>();
-  const sshRouteMatch = useRouteMatch<UrlSshParams>(cfg.routes.consoleConnect);
-  const nodesRouteMatch = useRouteMatch(cfg.routes.consoleNodes);
-  const joinSshRouteMatch = useRouteMatch<UrlSshParams>(
-    cfg.routes.consoleSession
-  );
-
-  // find the document which matches current URL
-  const storeDocs = useStoreDocs();
+  const { clusterId, activeDocId } = useRouting(consoleCtx);
+  const storeDocs = consoleCtx.storeDocs;
   const hasSshSessions = storeDocs.getSshDocuments().length > 0;
-  const activeDocId = consoleCtx.getActiveDocId(pathname);
 
-  React.useEffect(() => {
-    if (activeDocId !== -1) {
-      return;
-    }
-
-    // when no document matches current URL that means we need to
-    // create one base on URL parameters.
-    if (sshRouteMatch) {
-      consoleCtx.addSshDocument(sshRouteMatch.params);
-    } else if (joinSshRouteMatch) {
-      consoleCtx.addSshDocument(joinSshRouteMatch.params);
-    } else if (nodesRouteMatch) {
-      consoleCtx.addNodeDocument(clusterId);
-    }
-  }, [pathname]);
-
-  function onSelectTab(doc: stores.Document) {
-    consoleCtx.navigateTo(doc);
+  function onTabClick(doc: stores.Document) {
+    consoleCtx.gotoTab(doc);
   }
 
-  function onCloseTab(doc: stores.Document) {
-    const next = consoleCtx.closeDocument(doc.id);
-    consoleCtx.navigateTo(next);
+  function onTabClose(doc: stores.Document) {
+    consoleCtx.closeTab(doc);
   }
 
-  function onNewTab() {
-    const doc = consoleCtx.addNodeDocument(clusterId);
-    consoleCtx.navigateTo(doc);
+  function onTabNew() {
+    consoleCtx.gotoNodeTab(clusterId);
   }
 
   function onRefresh() {
@@ -96,14 +68,14 @@ export default function Console() {
         <Tabs
           flex="1"
           items={documents}
-          onClose={onCloseTab}
-          onSelect={onSelectTab}
+          onClose={onTabClose}
+          onSelect={onTabClick}
           activeTab={activeDocId}
         />
         <ActionBar
           clusterId={clusterId}
           disableAddTab={disableNewTab}
-          onNew={onNewTab}
+          onNew={onTabNew}
           onLogout={onLogout}
         />
       </Flex>
@@ -120,22 +92,16 @@ export default function Console() {
  */
 function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
   const { doc, visible } = props;
-  const $doc = React.useMemo(() => renderDocument(doc, visible), [
-    visible,
-    doc,
-  ]);
-  return $doc;
-}
-
-function renderDocument(doc: stores.Document, visible: boolean) {
-  switch (doc.kind) {
-    case 'terminal':
-      return <DocumentSsh doc={doc} visible={visible} />;
-    case 'nodes':
-      return <DocumentNodes doc={doc} visible={visible} />;
-    default:
-      return <DocumentBlank doc={doc} visible={visible} />;
-  }
+  return React.useMemo(() => {
+    switch (doc.kind) {
+      case 'terminal':
+        return <DocumentSsh doc={doc} visible={visible} />;
+      case 'nodes':
+        return <DocumentNodes doc={doc} visible={visible} />;
+      default:
+        return <DocumentBlank doc={doc} visible={visible} />;
+    }
+  }, [visible, doc]);
 }
 
 const StyledConsole = styled.div`

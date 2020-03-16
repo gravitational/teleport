@@ -45,7 +45,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
       login,
       clusterId,
     });
-    consoleCtx.navigateTo({ url });
+    consoleCtx.gotoTab({ url });
   }
 
   function changeCluster(value: string) {
@@ -56,7 +56,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
       clusterId,
     });
 
-    consoleCtx.navigateTo({ url }, true);
+    consoleCtx.gotoTab({ url });
   }
 
   function getNodeSshLogins(serverId: string) {

@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
     "jsx": "preserve",
     // Base directory to resolve non-relative module names (project root)
     "baseUrl": ".",
@@ -18,7 +19,7 @@
     "allowJs": true,
     // Disable source maps
     "sourceMap": false,
-    // Only do type-checking, leave trasformation to Babel.
+    // Only do type-checking, leave transformation to Babel.
     "noEmit": true,
     // Target ES6
     "target": "ESNext",

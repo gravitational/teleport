@@ -27,11 +27,10 @@ type PropTypes = {
 
 export default function DocumentBlank(props: PropTypes) {
   const { visible, doc } = props;
-  const consoleCtx = useConsoleContext();
+  const ctx = useConsoleContext();
 
   function onClick() {
-    const url = consoleCtx.getNodeDocumentUrl(doc.clusterId);
-    consoleCtx.navigateTo({ url }, true);
+    ctx.gotoNodeTab(doc.clusterId);
   }
 
   return (

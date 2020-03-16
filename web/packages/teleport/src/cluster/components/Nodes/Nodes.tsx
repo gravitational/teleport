@@ -26,6 +26,7 @@ import {
 import { useStoreUser, useStoreNodes } from 'teleport/teleportContextProvider';
 import NodeList from 'teleport/components/NodeList';
 import { Node } from 'teleport/services/nodes';
+import history from 'teleport/services/history';
 
 const POLLING_INTERVAL = 10000; // every 10 sec
 
@@ -37,13 +38,13 @@ type NodesProps = {
 
 export function Nodes({ nodes, logins, onFetch }: NodesProps) {
   function onLoginMenuSelect(login: string, serverId: string) {
-    const url = cfg.getConsoleConnectRoute({ login, serverId });
-    window.open(url);
+    const url = cfg.getSshConnectRoute({ login, serverId });
+    history.push(url);
   }
 
   function onLoginMenuOpen(serverId: string) {
     return logins.map(login => {
-      const url = cfg.getConsoleConnectRoute({
+      const url = cfg.getSshConnectRoute({
         serverId,
         login,
       });

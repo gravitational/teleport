@@ -21,7 +21,7 @@ import cfg from 'teleport/config';
 
 export default function ActionCell({ rowIndex, data }) {
   const { sid } = data[rowIndex];
-  const url = cfg.getConsoleSessionRoute({ sid });
+  const url = cfg.getSshSessionRoute({ sid });
   return (
     <Cell align="right">
       <ButtonPrimary
