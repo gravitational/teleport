@@ -108,7 +108,7 @@ by the system's SSH agent if it is running.
 2. If the correct credentials were offered, the Auth Server will generate a
    signed certificate and return it to the client. For users certificates are
    stored in `~/.tsh` by default. If the client uses the [Web
-   UI](./proxy/#web-ui-to-ssh) the signed certificate is associated with a
+   UI](teleport_proxy.md/#connecting-to-a-node) the signed certificate is associated with a
    secure websocket session.
 
 In addition to user's identity, user certificates also contain user roles and
