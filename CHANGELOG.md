@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.2.5
+
+This release of Teleport contains multiple bug fixes.
+
+* Added support for custom OIDC prompts. [#3409](https://github.com/gravitational/teleport/pull/3409)
+* Added support for `kubernetes_users` in roles. [#3409](https://github.com/gravitational/teleport/pull/3404)
+* Added support for extended variable interpolation. [#3409](https://github.com/gravitational/teleport/pull/3404)
+* Added SameSite attribute to CSRF cookie. [#3441](https://github.com/gravitational/teleport/pull/3441)
+
 ## 4.2.4
 
 This release of Teleport contains bug fixes.
