@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.6
+
+This release of Teleport contains a bug fix.
+
+* Fixed a regression in certificate reissuance that could cause nodes to not start. [#3449](https://github.com/gravitational/teleport/pull/3449)
+
 ## 4.2.5
 
 This release of Teleport contains multiple bug fixes.
