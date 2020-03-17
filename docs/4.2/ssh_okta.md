@@ -8,7 +8,8 @@ like:
 * Only members of "DBA" group can SSH into machines running PostgreSQL.
 * Developers must never SSH into production servers.
 
-!!! warning "Version Warning":
+!!! warning "Version Warning"
+
     This guide requires a commercial edition of Teleport. The open source
     edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.

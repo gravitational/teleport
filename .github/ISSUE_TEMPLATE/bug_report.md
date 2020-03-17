@@ -1,4 +1,10 @@
-Have a question? Please use [Our Forum](https://community.gravitational.com)
+---
+name: Bug Report 🐛
+about: Something isn't working as expected? Here is the right place to report.
+labels: "type: bug"
+---
+
+### Description
 
 **What happened**:
 
@@ -6,10 +12,12 @@ Have a question? Please use [Our Forum](https://community.gravitational.com)
 
 **How to reproduce it (as minimally and precisely as possible)**:
 
-**Environment**:
+### Environment
 - Teleport version (use `teleport version`):
 - Tsh version (use `tsh version`):
-- OS (e.g. from /etc/os-release):
+- OS (e.g. from `/etc/os-release`):
+
+- Where are you running Teleport? (e.g. AWS, GCP, Dedicated Hardware):
 
 **Browser environment**
 
@@ -19,5 +27,5 @@ Have a question? Please use [Our Forum](https://community.gravitational.com)
 
 **Relevant Debug Logs If Applicable**
 
-- tsh --debug
-- teleport --debug
+- `tsh --debug`
+- `teleport --debug`

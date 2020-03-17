@@ -87,7 +87,7 @@ teleport:
 
 When creating the Bucket we would recommend setting it up as `Dual-region` and with 
 `Standard` storage class. Provide access using a `Uniform` access control with a Google-managed
-key. 
+key or you must set `Storage Legacy Bucket Reader` permissions for a service account. 
 
 When setting up `audit_session_uri` use `gs://` session prefix.
 
@@ -111,8 +111,12 @@ record is sufficient.
 ### Access: Service accounts 
 
 The Authentication server will need to read and write to Firestore.  For this it'll need 
-the correct permission via Server Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
-
+the correct permission via Service Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
+The Service Account will require the following roles:
+- Cloud Datastore Index Admin
+- Cloud Datastore User
+- Storage Object Creator
+- Storage Object Viewer
 
 ![Service Account](img/gcp/gcp-permissions.png)
 
