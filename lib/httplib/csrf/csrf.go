@@ -123,9 +123,12 @@ func compareTokens(a, b []byte) bool {
 // save stores encoded CSRF token in the session cookie.
 func save(encodedToken string, w http.ResponseWriter) string {
 	cookie := &http.Cookie{
-		Name:     CookieName,
-		Value:    encodedToken,
-		MaxAge:   defaultMaxAge,
+		Name:   CookieName,
+		Value:  encodedToken,
+		MaxAge: defaultMaxAge,
+		// Set SameSite to none so browsers preserve gravitational CSRF cookie
+		// while processing SSO providers redirects.
+		SameSite: http.SameSiteNoneMode,
 		HttpOnly: true,
 		Secure:   true,
 		Path:     "/",

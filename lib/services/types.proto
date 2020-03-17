@@ -566,6 +566,9 @@ message RoleConditions {
 	repeated string KubeGroups = 5 [(gogoproto.jsontag) = "kubernetes_groups,omitempty"];
 
     AccessRequestConditions Request = 6 [(gogoproto.jsontag) = "request,omitempty"];
+
+	// KubeUsers is an optional kubernetes users to impersonate
+	repeated string KubeUsers = 7 [(gogoproto.jsontag) = "kubernetes_users,omitempty"];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on access-requests.

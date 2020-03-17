@@ -147,15 +147,17 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 		return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q", u.Username, u.ClusterName)
 	}
 	// Set "logins" trait and "kubernetes_groups" for the remote user. This allows Teleport to work by
-	// passing exact logins and kubernetes groups to the remote cluster. Note that claims (OIDC/SAML)
+	// passing exact logins, kubernetes groups and users to the remote cluster. Note that claims (OIDC/SAML)
 	// are not passed, but rather the exact logins, this is done to prevent
 	// leaking too much of identity to the remote cluster, and instead of focus
 	// on main cluster's interpretation of this identity
 	traits := map[string][]string{
 		teleport.TraitLogins:     u.Principals,
 		teleport.TraitKubeGroups: u.KubernetesGroups,
+		teleport.TraitKubeUsers:  u.KubernetesUsers,
 	}
-	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.", u.RemoteRoles, u.Username, roleNames, traits)
+	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
+		u.RemoteRoles, u.Username, roleNames, traits)
 	checker, err := services.FetchRoles(roleNames, a.access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -588,6 +590,9 @@ type RemoteUser struct {
 
 	// KubernetesGroups is a list of Kubernetes groups
 	KubernetesGroups []string `json:"kubernetes_groups"`
+
+	// KubernetesUsers is a list of Kubernetes users
+	KubernetesUsers []string `json:"kubernetes_users"`
 
 	// Identity is source x509 used to build this role
 	Identity tlsca.Identity

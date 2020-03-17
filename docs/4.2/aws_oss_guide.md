@@ -73,6 +73,7 @@ to specify `New Image` from the streaming options. DynamoDB back-end supports tw
 types of Teleport data:
 
 * Cluster state
+* Audit log events
 
 See [DynamoDB Admin Guide for more information](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
 
@@ -150,6 +151,7 @@ An example policy is shown below:
    ]
  }
 ```
+
 !!! note "Note"
 
     `example.s3.bucket` will need to be replaced with your bucket name.
@@ -218,17 +220,17 @@ this as a starting point, but then look at the more advanced sections.
 
 - Obtain a SSL/TLS Certificate using ACM.
 
-Prerequisites setup.
-
-1. Generate and issue a certificate in [ACM](https://console.aws.amazon.com/acm/home?#)
-for `teleport.acmeinc.com`, use email or DNS validation as appropriate and make sure
-it’s approved successfully.
+!!! TIP "Prerequisites setup"
+    
+    Generate and issue a certificate in [ACM](https://console.aws.amazon.com/acm/home?#)
+    for `teleport.acmeinc.com`, use email or DNS validation as appropriate and make sure
+    it’s approved successfully.
 
 #### Step 1: Subscribe to Teleport Community Edition
 Subscribe to the Teleport Community Edition on the [AWS Marketplace](https://aws.amazon.com/marketplace/pp/B07FYTZB9B).
 
 1. Select 'Continue to Subscribe'
-2. Review the Terms and Conditions, and click `Continue to Configuration'
+2. Review the Terms and Conditions, and click 'Continue to Configuration'
 3. Configure this software. Keep options as set, you might want to change region
 to be in the same place as the rest of your infrastructure. Click Continue to Launch
 4. _Launch this software_ Under Choose Action, select Launch through EC2.
@@ -299,9 +301,11 @@ assuming it's set when the server starts.
 1. We are going to use `tctl` command to create a user for Teleport. The first step
 is to SSH into the newly created OSS Teleport box.
 
-`ssh -i id_rsa ec2-user@52.87.213.96`
+```bash
+$ ssh -i id_rsa ec2-user@52.87.213.96
+# Replace with IP given available from the EC2 instance list.
+```
 
-^ Replace with IP given available from the EC2 instance list.
 
 ```xml
 ➜  ~ ssh -i id_rsa ec2-user@52.87.213.96
@@ -346,12 +350,9 @@ Teleport install.
 
 To reconfigure any of this, or to do it on a running instance:
 
-1. Make the appropriate changes to /etc/teleport.d/conf
-
+1. Make the appropriate changes to `/etc/teleport.d/conf`
 * `rm -f /etc/teleport.yaml`
-
 * `systemctl restart teleport-generate-config.service`
-
 * `systemctl restart teleport-acm.service`
 
 
@@ -364,7 +365,7 @@ We are currently working on an updated CloudFormation guide but you can start wi
 we expect customers to deploy within an already existing VPC.
 
 ## Deploying with Terraform
-To deploy Teleport in AWS using Terraform look at our [AWS Guide](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami).
+To deploy Teleport in AWS using Terraform look at our [Terraform based provisioning example (Amazon single AMI)](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami).
 
 
 ### Installing Teleport to EC2 Server
@@ -372,9 +373,13 @@ Customers run many workloads within EC2 and depending on how you work there are 
 ways to integrate Teleport onto your servers. We recommend looking at our [Admin manual](https://gravitational.com/teleport/docs/admin-guide/#installing).
 
 In short, to add new nodes / EC2 servers that you can "SSH into" you'll need to
+
 1. [Install the Teleport Binary on the Server](https://gravitational.com/teleport/docs/admin-guide/#installing)
+
 - [Run Teleport, we recommend using SystemD](https://gravitational.com/teleport/docs/admin-guide/#systemd-unit-file)
+
 - [Set the correct settings in /etc/teleport.yaml](https://gravitational.com/teleport/docs/admin-guide/#configuration-file)
+
 - [Add EC2 nodes to the Teleport cluster](https://gravitational.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
 
 ## Using Teleport with EKS
@@ -393,7 +398,10 @@ To upgrade to a newer version of Teleport:
 # Running Teleport Enterprise on AWS
 Most of this guide has been designed for OSS Teleport. Most of this guide also applies to Teleport Enterprise
 with a few extra notes around adding a license and getting the correct binary. If you would
-like help setting up Teleport Enterprise on AWS, please mail us at info@gravitational.com
+like help setting up Teleport Enterprise on AWS, please mail us at <a href="mailto:info@gravitational.com">info@gravitational.com</a>
+
+# Running Teleport in HA on AWS
+We have a [guide for setting up Teleport in a high availability configuration on AWS](aws_terraform_guide.md).
 
 # Teleport AWS Tips & Tricks
 
