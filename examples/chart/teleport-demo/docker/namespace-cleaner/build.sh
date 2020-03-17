@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-ONE=$1
 TWO=$2
 VERSION=3.2.0
 if [[ "$1" != "" ]]; then
@@ -8,7 +7,7 @@ if [[ "$1" != "" ]]; then
     shift
 fi
 GCPROJECT=kubeadm-167321
-if [[ "" != "${TWO}" ]]; then
+if [[ "${TWO}" != "" ]]; then
     GCPROJECT=${TWO}
     shift
 fi
@@ -22,4 +21,3 @@ docker build --pull \
     . 
 docker push gcr.io/${GCPROJECT}/namespace-cleaner:${VERSION}
 docker push gcr.io/${GCPROJECT}/namespace-cleaner:latest
-
