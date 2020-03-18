@@ -7,7 +7,7 @@ if [[ "$1" != "" ]]; then
     shift
 fi
 GCPROJECT=kubeadm-167321
-if [[ "" != "${TWO}" ]]; then
+if [[ "${TWO}" != "" ]]; then
     GCPROJECT=${TWO}
     shift
 fi
