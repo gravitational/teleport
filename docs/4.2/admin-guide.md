@@ -176,7 +176,7 @@ of them is configurable.
 #### tsh
 | Full path                 | Purpose                                                                                                                                                                                                                                |
 |---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `~/.tsh` | Stores temporary SSH certificates, stores user environment variables for reading when `permit_user_env: true`, and cache data such as proxy and user names from last logins. |
+| `~/.tsh` | Temporary store for Proxy Address, Username, SSH certificates and user environment variables when reading `permit_user_env: trues`. |
 
 ## Configuration
 
