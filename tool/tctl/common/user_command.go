@@ -56,10 +56,12 @@ type UserCommand struct {
 
 // Initialize allows UserCommand to plug itself into the CLI parser
 func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Config) {
+	const helpPrefix string = "[Teleport DB users only]"
+
 	u.config = config
 	users := app.Command("users", "Manage user accounts")
 
-	u.userAdd = users.Command("add", "Generate a user invitation token")
+	u.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix)
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&u.allowedLogins)
@@ -76,14 +78,14 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userUpdate.Flag("set-roles", "Roles to assign to this user").
 		Default("").StringVar(&u.roles)
 
-	u.userList = users.Command("ls", "List all user accounts")
+	u.userList = users.Command("ls", "List all user accounts "+helpPrefix)
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 
 	u.userDelete = users.Command("rm", "Deletes user accounts").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
 		Required().StringVar(&u.login)
 
-	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token")
+	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token "+helpPrefix)
 	u.userResetPassword.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
@@ -134,7 +136,7 @@ func (u *UserCommand) ResetPassword(client auth.ClientI) error {
 func (u *UserCommand) PrintResetPasswordToken(token services.ResetPasswordToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
-		"Reset password token has been created and is valid for %v. Share this URL with the user to complete password reset process:\n%v\n\n",
+		"User %v has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
 	)
 
 	if err != nil {
@@ -148,7 +150,7 @@ func (u *UserCommand) PrintResetPasswordToken(token services.ResetPasswordToken,
 func (u *UserCommand) PrintResetPasswordTokenAsInvite(token services.ResetPasswordToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
-		"Invite token has been created and is valid for %v. Share this URL with the user to complete user setup:\n%v\n\n")
+		"User %v has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -164,7 +166,7 @@ func (u *UserCommand) printResetPasswordToken(token services.ResetPasswordToken,
 
 	if format == teleport.Text {
 		ttl := token.Expiry().Sub(time.Now().UTC()).Round(time.Second)
-		fmt.Printf(messageFormat, ttl, url)
+		fmt.Printf(messageFormat, token.GetUser(), ttl, url)
 		fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
 	} else if u.format == teleport.JSON {
 		err := printTokenAsJSON(token)
