@@ -27,11 +27,13 @@ import DocumentSsh from './components/DocumentSsh';
 import DocumentNodes from './components/DocumentNodes';
 import DocumentBlank from './components/DocumentBlank';
 import useRouting from './useRouting';
+import useOnExitConfirmation from './useOnExitConfirmation';
 
 const POLL_INTERVAL = 5000; // every 5 sec
 
 export default function Console() {
   const consoleCtx = useConsoleContext();
+  const { verifyAndConfirm } = useOnExitConfirmation(consoleCtx);
   const { clusterId, activeDocId } = useRouting(consoleCtx);
   const storeDocs = consoleCtx.storeDocs;
   const hasSshSessions = storeDocs.getSshDocuments().length > 0;
@@ -41,7 +43,9 @@ export default function Console() {
   }
 
   function onTabClose(doc: stores.Document) {
-    consoleCtx.closeTab(doc);
+    if (verifyAndConfirm(doc)) {
+      consoleCtx.closeTab(doc);
+    }
   }
 
   function onTabNew() {

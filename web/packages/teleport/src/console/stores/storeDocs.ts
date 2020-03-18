@@ -28,8 +28,9 @@ export default class StoreDocs extends Store<State> {
 
   add(doc: Document) {
     const item = {
-      ...doc,
       id: Math.floor(Math.random() * 100000),
+      created: new Date(),
+      ...doc,
     };
 
     this.setState({
