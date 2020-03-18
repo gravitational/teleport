@@ -208,7 +208,7 @@ WARNING: All activity on this node is being recorded by Teleport
 
 ## Creating local users with Teleport
 
-Teleport 4.3 introduced the ability to create local (UNIX) users on login. This is
+Teleport 4.2.3 introduced the ability to create local (UNIX) users on login. This is
 very helpful if you're a large organization and want to provision local users and home
 directories on the fly.
 
