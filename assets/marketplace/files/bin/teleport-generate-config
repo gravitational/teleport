@@ -259,7 +259,7 @@ auth_service:
   enabled: yes
   keep_alive_interval: 1m
   keep_alive_count_max: 3
-  listen_addr: 0.0.0.0:3025  
+  listen_addr: 0.0.0.0:3025
   authentication:
     ${AUTHENTICATION_STANZA}
 
