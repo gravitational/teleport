@@ -68,6 +68,8 @@ proxy_service:
 auth_service:
   enabled: yes
   public_addr: ${TELEPORT_AUTH_SERVER_LB}:3025
+  keep_alive_interval: 1m
+  keep_alive_count_max: 3
   listen_addr: 0.0.0.0:3025
   authentication:
     ${AUTHENTICATION_STANZA}
@@ -255,6 +257,8 @@ teleport:
 
 auth_service:
   enabled: yes
+  keep_alive_interval: 1m
+  keep_alive_count_max: 3
   listen_addr: 0.0.0.0:3025
   authentication:
     ${AUTHENTICATION_STANZA}
