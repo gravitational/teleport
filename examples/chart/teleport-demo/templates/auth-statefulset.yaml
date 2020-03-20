@@ -26,7 +26,7 @@ spec:
       containers:
       - name: auth
         namespace: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}
-        image: "{{ .Values.auth.image.repository }}:{{ tpl .Values.auth.image.tag . }}"
+        image: "{{ tpl .Values.auth.image.repository . }}:{{ tpl .Values.auth.image.tag . }}"
         imagePullPolicy: {{ .Values.auth.image.pullPolicy }}
         args:
 {{- if .Values.extraArgs }}
@@ -79,7 +79,7 @@ spec:
 {{- end }}
 # sidecar
       - name: sidecar
-        image: "{{ .Values.sidecar.image.repository }}:{{ tpl .Values.sidecar.image.tag . }}"
+        image: "{{ tpl .Values.sidecar.image.repository . }}:{{ tpl .Values.sidecar.image.tag . }}"
         imagePullPolicy: {{ .Values.sidecar.image.pullPolicy }}
 {{- if .Values.sidecar.command }}
         command: {{ .Values.sidecar.command }}
@@ -190,7 +190,7 @@ spec:
     spec:
       containers:
       - name: auth
-        image: "{{ $root.Values.auth.image.repository }}:{{ tpl $root.Values.auth.image.tag $root }}"
+        image: "{{ tpl $root.Values.auth.image.repository $root }}:{{ tpl $root.Values.auth.image.tag $root }}"
         imagePullPolicy: {{ $root.Values.auth.image.pullPolicy }}
         args:
 {{- if $root.Values.extraArgs }}
@@ -243,7 +243,7 @@ spec:
 {{- end }}
 # sidecar
       - name: sidecar
-        image: "{{ $root.Values.sidecar.image.repository }}:{{ tpl $root.Values.sidecar.image.tag $root }}"
+        image: "{{ tpl $root.Values.sidecar.image.repository $root }}:{{ tpl $root.Values.sidecar.image.tag $root }}"
         imagePullPolicy: {{ $root.Values.sidecar.image.pullPolicy }}
 {{- if $root.Values.sidecar.command }}
         command: {{ $root.Values.sidecar.command }}

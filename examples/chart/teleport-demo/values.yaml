@@ -1,6 +1,7 @@
 ## override these on the helm command line with things like --set teleportVersion=4.2.0
 # teleport version to deploy (must be a valid tag on https://quay.io/repository/gravitational/teleport-ent?tab=tags)
 teleportVersion: 4.2.0
+gcProjectName: linen-hook-268019
 # name of the 'main' cluster which will be set up and configured - this will also the cluster's namespace
 # DNS will be set up for <clusterName>.<clusterDomain>
 mainClusterName: main
@@ -11,6 +12,10 @@ extraClusterNames:
 - east
 # number of nodes to start in each cluster
 nodesPerCluster: 2
+
+# create node user settings, will create a user with the node name (eastuser, produser,...)
+createNodeUser: true
+createAdminNodeUser: true
 
 ### Auth0
 auth0:
@@ -23,9 +28,9 @@ auth0:
   claims_to_roles:
   - claim: roles
     value: gravitational/admins
-    roles: ["clusteradmin"]
+    roles: ["admin"]
   - claim: roles
-    value: gravitational/devc
+    value: gravitational/clusteradmins
     roles: ["clusteradmin"]
 
 # kubernetes group mappings
@@ -135,7 +140,7 @@ config:
 # Teleport container image
 auth:
   image:
-    repository: gcr.io/kubeadm-167321/teleport-ent
+    repository: "gcr.io/{{ .Values.gcProjectName }}/teleport-ent"
     tag: "{{ .Values.teleportVersion }}"
     pullPolicy: Always
     # Optionally specify an array of imagePullSecrets.
@@ -148,7 +153,7 @@ auth:
 # Handles trusted cluster/node token generation
 sidecar:
   image:
-    repository: gcr.io/kubeadm-167321/teleport-sidecar
+    repository: gcr.io/{{ .Values.gcProjectName }}/teleport-sidecar
     tag: "{{ .Values.teleportVersion }}"
     pullPolicy: Always
     pullSecrets:
@@ -157,7 +162,7 @@ sidecar:
 # Teleport node container image
 node:
   image:
-    repository: gcr.io/kubeadm-167321/teleport-ent
+    repository: gcr.io/{{ .Values.gcProjectName }}/teleport-ent
     tag: "{{ .Values.teleportVersion }}"
     pullPolicy: Always
     pullSecrets:
@@ -167,7 +172,7 @@ node:
 # Used to generate A records for LoadBalancer IP addresses within a Cloudflare-managed domain
 cloudflareagent:
   image:
-    repository: gcr.io/kubeadm-167321/cloudflare-agent
+    repository: gcr.io/{{ .Values.gcProjectName }}/cloudflare-agent
     tag: "{{ .Values.teleportVersion }}"
     pullPolicy: Always
     pullSecrets:
@@ -176,7 +181,7 @@ cloudflareagent:
 # Namespace cleaner image (runs when a release is deleted to remove the namespaces it created)
 namespacecleaner:
   image:
-    repository: gcr.io/kubeadm-167321/namespace-cleaner
+    repository: gcr.io/{{ .Values.gcProjectName }}/namespace-cleaner
     tag: "{{ .Values.teleportVersion }}"
     pullPolicy: Always
     pullSecrets:

@@ -9,3 +9,16 @@ fi
 if [ -f /etc/teleport/clusteradmin-role.yaml ]; then
     ${TCTL} create -f /etc/teleport/clusteradmin-role.yaml
 fi
+#  add node role if it exists
+if [ -f /etc/teleport/node-role.yaml ]; then
+    ${TCTL} create -f /etc/teleport/node-role.yaml
+fi
+NODE_ROLES=/etc/teleport/*-node-role.yaml
+#  add node role if it exists
+for f in $NODE_ROLES
+do
+if [ -e "$f" ]; then
+	# add all the *-node-role files
+    ${TCTL} create -f $f
+fi
+done

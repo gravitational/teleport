@@ -5,6 +5,21 @@ echo "ROLE: ${ROLE}"
 echo "ARGS: $@"
 echo "---"
 
+CREATENODEUSER=/tmp/createnodeuser.sh
+CONFIGURED_NODEUSER=/etc/teleport/createnodeuser.sh
+if [ -f "$CREATENODEUSER" ]; then
+    echo "User create already done"
+else
+if [ -f "$CONFIGURED_NODEUSER" ]; then
+   cp $CONFIGURED_NODEUSER $CREATENODEUSER
+   chmod +x $CREATENODEUSER
+   $CREATENODEUSER
+
+
+fi
+
+fi
+
 # copy read only config version to /tmp for editing
 cp /etc/teleport/teleport.yaml /tmp/teleport.yaml
 

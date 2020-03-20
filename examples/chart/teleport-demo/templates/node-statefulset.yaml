@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
       - name: {{ template "teleport.fullname" . }}-{{ .Values.mainClusterName }}-node
-        image: "{{ .Values.node.image.repository }}:{{ tpl .Values.node.image.tag . }}"
+        image: "{{ tpl .Values.node.image.repository . }}:{{ tpl .Values.node.image.tag . }}"
         imagePullPolicy: {{ .Values.node.image.pullPolicy }}
         args:
 {{- if .Values.extraArgs }}
@@ -142,7 +142,7 @@ spec:
     spec:
       containers:
       - name: {{ template "teleport.fullname" $root }}--{{ . }}-node
-        image: "{{ $root.Values.node.image.repository }}:{{ tpl $root.Values.node.image.tag $root }}"
+        image: "{{ tpl $root.Values.node.image.repository $root }}:{{ tpl $root.Values.node.image.tag $root }}"
         imagePullPolicy: {{ $root.Values.node.image.pullPolicy }}
         args:
 {{- if $root.Values.extraArgs }}

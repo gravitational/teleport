@@ -67,6 +67,20 @@ data:
 
       claims_to_roles:
       {{ toYaml .Values.auth0.claims_to_roles | indent 6 | trim }}
+{{- if not (eq (index .Values.extraClusterNames 0) "") -}}
+{{- $root := . -}}
+{{- range .Values.extraClusterNames }}
+      - claim: roles
+        roles:
+        - {{ . }}role
+        value: gravitational/{{ . }}-role
+      - claim: roles
+        roles:
+        - {{ . }}adminrole
+        value: gravitational/{{ . }}-admin-role
+{{- end -}}
+{{- end }}
+    
 
   admin-role.yaml: |
     kind: role
@@ -129,6 +143,89 @@ data:
         forward_agent: true
         max_session_ttl: 12h0m0s
         port_forwarding: true
+
+# make a role for each cluster to give access these clusters
+{{- if not (eq (index .Values.extraClusterNames 0) "") -}}
+{{- $root := . -}}
+{{- range .Values.extraClusterNames }}
+
+  {{ . }}-node-role.yaml: |
+    kind: role
+    version: v3
+    metadata:
+      name: {{ . }}role
+    spec:
+      allow:
+        logins: [{{ . }}user]
+        kubernetes_groups: {{$root.Values.kubernetes_groups.clusteradmin_role }}
+        node_labels:
+          'tier': '{{ . }}'
+        request:
+          roles:
+          - {{ . }}adminrole          
+        rules:
+        - resources:
+          - role
+          verbs:
+          - list
+          - read
+        - resources:
+          - session
+          verbs:
+          - list
+          - read
+        - resources:
+          - trusted_cluster
+          verbs:
+          - list
+          - read
+      deny: {}
+      options:
+        forward_agent: true
+        max_session_ttl: 12h0m0s
+        port_forwarding: false
+
+  {{ . }}admin-node-role.yaml: |
+    kind: role
+    version: v3
+    metadata:
+      name: {{ . }}adminrole
+    spec:
+      allow:
+        logins: [{{ . }}adminuser]
+        kubernetes_groups: {{$root.Values.kubernetes_groups.clusteradmin_role }}
+        node_labels:
+          'tier': '{{ . }}'
+        rules:
+        - resources:
+          - role
+          verbs:
+          - list
+          - read
+        - resources:
+          - session
+          verbs:
+          - list
+          - read
+        - resources:
+          - trusted_cluster
+          verbs:
+          - list
+          - read
+        - resources:
+          - access_request
+          verbs:
+          - list
+          - read
+          - update
+          - delete            
+      deny: {}
+      options:
+        forward_agent: true
+        max_session_ttl: 12h0m0s
+        port_forwarding: false        
+{{- end -}}
+{{- end }}
 
 {{- if not (eq (index .Values.extraClusterNames 0) "") -}}
 {{- $root := . -}}
@@ -202,6 +299,10 @@ data:
         local: ["admin"]
       - remote: "clusteradmin"
         local: ["clusteradmin"]
+      - remote: "{{ . }}role"
+        local: ["{{ . }}role"]
+      - remote: "{{ . }}adminrole"
+        local: ["{{ . }}adminrole"]
       {{- end }}
   oidc.yaml: |
     kind: oidc
@@ -219,6 +320,95 @@ data:
 
       claims_to_roles:
       {{ toYaml $root.Values.auth0.claims_to_roles | indent 6 | trim }}
+      - claim: roles
+        roles:
+        - {{ . }}role
+        value: gravitational/{{ . }}-role
+
+{{- if $root.Values.createNodeUser }}
+  createnodeuser.sh: |
+    #!/bin/bash
+    #  create node user
+    adduser --disabled-password --gecos "" {{ . }}user
+{{- end }}
+
+
+  node-role.yaml: |
+    kind: role
+    version: v3
+    metadata:
+      name: {{ . }}role
+    spec:
+      allow:
+        logins: [{{ . }}user]
+        kubernetes_groups: {{$root.Values.kubernetes_groups.clusteradmin_role }}
+        node_labels:
+          'tier': '{{ . }}'
+        request:
+          roles:
+          - {{ . }}adminrole          
+        rules:
+        - resources:
+          - role
+          verbs:
+          - list
+          - read
+        - resources:
+          - session
+          verbs:
+          - list
+          - read
+        - resources:
+          - trusted_cluster
+          verbs:
+          - list
+          - read
+      deny: {}
+      options:
+        forward_agent: true
+        max_session_ttl: 12h0m0s
+        port_forwarding: false
+
+  admin-node-role.yaml: |
+    kind: role
+    version: v3
+    metadata:
+      name: {{ . }}adminrole
+    spec:
+      allow:
+        logins: [{{ . }}adminuser]
+        kubernetes_groups: {{$root.Values.kubernetes_groups.clusteradmin_role }}
+        node_labels:
+          'tier': '{{ . }}'
+        rules:
+        - resources:
+          - role
+          verbs:
+          - list
+          - read
+        - resources:
+          - session
+          verbs:
+          - list
+          - read
+        - resources:
+          - trusted_cluster
+          verbs:
+          - list
+          - read
+        - resources:
+          - access_request
+          verbs:
+          - list
+          - read
+          - update
+          - delete            
+      deny: {}
+      options:
+        forward_agent: true
+        max_session_ttl: 12h0m0s
+        port_forwarding: false
+        
 
   admin-role.yaml: |
     kind: role

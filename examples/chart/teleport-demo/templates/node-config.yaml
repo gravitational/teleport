@@ -70,6 +70,7 @@ data:
       enabled: yes
       {{- if $root.Values.teleportLabels.node.static }}
       labels:
+        tier: {{ . }}
       {{- range $key, $value := $root.Values.teleportLabels.node.static }}
         {{ $key }}: {{ $value }}
       {{- end }}
@@ -81,5 +82,19 @@ data:
 
     proxy_service:
       enabled: no
+
+
+{{- if $root.Values.createNodeUser }}
+  createnodeuser.sh: |
+    #!/bin/bash
+    #  create node user
+    adduser --disabled-password --gecos "" {{ . }}user
+    {{- if $root.Values.createAdminNodeUser }}
+    adduser --disabled-password --gecos "" {{ . }}adminuser
+    echo "{{ . }}adminuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    {{- end }}
+      
+    {{- end }}
+      
 {{- end -}}
 {{- end }}
