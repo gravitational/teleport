@@ -20,6 +20,7 @@ package web
 
 import (
 	"compress/gzip"
+	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -280,6 +281,30 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/web", http.StatusFound)
 			return
+		}
+
+		// check proxy and auth node versions (breaking change from v5).
+		// If there is a mismatch with the current proxy client, redirect users to an error page to update proxy.
+		//
+		// TODO remove this block after shipping v4.3
+		if strings.HasPrefix(r.URL.Path, "/web/newuser") {
+			res, err := h.auth.Ping(context.TODO())
+			if err != nil {
+				log.WithError(err).Debugf("Could not ping auth server")
+			} else {
+				proxyVersion := strings.Index(teleport.Version, "4.")
+				authVersion := strings.Index(res.GetServerVersion(), "5.")
+
+				if authVersion == 0 && proxyVersion == 0 {
+					message := "There is a version mismatch between your proxy and auth services. Please upgrade your proxy service to version 5.0.0 or higher."
+					pathToError := url.URL{
+						Path:     "/web/msg/error",
+						RawQuery: url.Values{"details": []string{message}}.Encode(),
+					}
+					http.Redirect(w, r, pathToError.String(), http.StatusFound)
+					return
+				}
+			}
 		}
 
 		// serve Web UI:
