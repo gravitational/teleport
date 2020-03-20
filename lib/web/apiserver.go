@@ -286,7 +286,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		// check proxy and auth node versions (breaking change from v5).
 		// If there is a mismatch with the current proxy client, redirect users to an error page to update proxy.
 		//
-		// TODO remove this block after shipping v4.3
+		// DELETE IN 5.0: this block only serves to notify users of v4.3+ to upgrade to v5.0.0
 		if strings.HasPrefix(r.URL.Path, "/web/newuser") {
 			res, err := h.auth.Ping(context.TODO())
 			if err != nil {
