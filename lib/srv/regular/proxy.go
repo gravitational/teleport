@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -313,14 +314,26 @@ func (t *proxySubsys) proxyToHost(
 	ips, _ := net.LookupHost(t.host)
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, specifiedPort)
 
+	// check if hostname is a valid uuid.  If it is, we will preferentially match
+	// by node ID over node hostname.
+	hostIsUUID := uuid.Parse(t.host) != nil
+
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server services.Server
+	matches := 0
 	for i := range servers {
+		// If the host parameter is a UUID and it matches the Node ID,
+		// treat this as an unambiguous match.
+		if hostIsUUID && servers[i].GetName() == t.host {
+			server = servers[i]
+			matches = 1
+			break
+		}
 		// If the server has connected over a reverse tunnel, match only on hostname.
 		if servers[i].GetUseTunnel() {
 			if t.host == servers[i].GetHostname() {
 				server = servers[i]
-				break
+				matches++
 			}
 			continue
 		}
@@ -333,9 +346,27 @@ func (t *proxySubsys) proxyToHost(
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
 			if !specifiedPort || t.port == port {
 				server = servers[i]
-				break
+				matches++
+				continue
 			}
 		}
+	}
+
+	// if we matched more than one server, then the target was ambiguous.
+	if matches > 1 {
+		return trace.NotFound(teleport.NodeIsAmbiguous)
+	}
+
+	// If we matched zero nodes but hostname is a UUID then it isn't sane
+	// to fallback to dns based resolution.  This has the unfortunate
+	// consequence of preventing users from calling OpenSSH nodes which
+	// happen to use hostnames which are also valid UUIDs.  This restriction
+	// is necessary in order to protect users attempting to connect to a
+	// node by UUID from being re-routed to an unintended target if the node
+	// is offline.  This restriction can be lifted if we decide to move to
+	// explicit UUID based resoltion in the future.
+	if hostIsUUID && matches < 1 {
+		return trace.NotFound("unable to locate node matching uuid-like target %s", t.host)
 	}
 
 	// Create a slice of principals that will be added into the host certificate.

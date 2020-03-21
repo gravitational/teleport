@@ -445,6 +445,10 @@ const (
 	// allowed kubernetes groups
 	TraitKubeGroups = "kubernetes_groups"
 
+	// TraitKubeUsers is the name the role variable used to store
+	// allowed kubernetes users
+	TraitKubeUsers = "kubernetes_users"
+
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
@@ -566,6 +570,10 @@ const (
 	// UseOfClosedNetworkConnection is a special string some parts of
 	// go standard lib are using that is the only way to identify some errors
 	UseOfClosedNetworkConnection = "use of closed network connection"
+
+	// NodeIsAmbiguous serves as an identifying error string indicating that
+	// the proxy subsystem found multiple nodes matching the specified hostname.
+	NodeIsAmbiguous = "err-node-is-ambiguous"
 )
 
 const (

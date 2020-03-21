@@ -9,7 +9,6 @@ copyright: Gravitational Inc, 2016-20
 site_dir: ../build/docs/4.2
 docs_dir: "4.2"
 
-
 theme:
     name: null
     custom_dir: 'theme/'
@@ -32,9 +31,9 @@ extra_javascript: []
 extra:
     version: 4.2
     teleport:
-        version: 4.2.2
+        version: 4.2.3
         golang: 1.13
-        sha: ab3828386563c956adc16dc5d746bbb8dd70ac4d82767549bb80a73568a8fb39
+        sha: 1c14362c9ba10f28088c7228b357dc6a70072d3d4afaa5510c70a8734068684c
 nav:
     - Documentation:
         - Introduction: index.md
@@ -46,8 +45,10 @@ nav:
         - FAQ: faq.md
     - Teleport Features: 
         - Enhanced Session Recording: features/enhanced_session_recording.md
+        - Using Teleport with PAM: features/ssh_pam.md
     - Infrastructure Guides:
         - AWS: aws_oss_guide.md
+        - AWS HA with Terraform: aws_terraform_guide.md
         - GCP: gcp_guide.md
         - IBM: ibm_cloud_guide.md
         - Kubernetes Guide: kubernetes_ssh.md

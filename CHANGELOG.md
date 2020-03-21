@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.2.6
+
+This release of Teleport contains a bug fix.
+
+* Fixed a regression in certificate reissuance that could cause nodes to not start. [#3449](https://github.com/gravitational/teleport/pull/3449)
+
+## 4.2.5
+
+This release of Teleport contains multiple bug fixes.
+
+* Added support for custom OIDC prompts. [#3409](https://github.com/gravitational/teleport/pull/3409)
+* Added support for `kubernetes_users` in roles. [#3409](https://github.com/gravitational/teleport/pull/3404)
+* Added support for extended variable interpolation. [#3409](https://github.com/gravitational/teleport/pull/3404)
+* Added SameSite attribute to CSRF cookie. [#3441](https://github.com/gravitational/teleport/pull/3441)
+
+## 4.2.4
+
+This release of Teleport contains bug fixes.
+
+* Fixed issue where Teleport could connect to the wrong node and added support to connect via UUID. [#2396](https://github.com/gravitational/teleport/issues/2396)
+* Fixed issue where `tsh login` would fail to output identity when using the `--out` parameter. [#3339](https://github.com/gravitational/teleport/issues/3339)
+
 ## 4.2.3
 
 This release of Teleport contains bug and security fixes.

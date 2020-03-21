@@ -600,9 +600,9 @@ type rotationStatus struct {
 	ca services.CertAuthority
 }
 
-// checkPrincipals returns a boolean that indicates the host certificate
+// checkServerIdentity returns a boolean that indicates the host certificate
 // needs to be regenerated.
-func checkPrincipals(conn *Connector, additionalPrincipals []string, dnsNames []string) bool {
+func checkServerIdentity(conn *Connector, additionalPrincipals []string, dnsNames []string) bool {
 	var principalsChanged bool
 	var dnsNamesChanged bool
 
@@ -643,7 +643,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 	// Check if any of the SSH principals or TLS DNS names have changed and the
 	// host credentials need to be regenerated.
-	regenerateCertificate := checkPrincipals(conn, additionalPrincipals, dnsNames)
+	regenerateCertificate := checkServerIdentity(conn, additionalPrincipals, dnsNames)
 
 	// If the local state matches remote state and neither principals or DNS
 	// names changed, nothing to do. CA is in sync.

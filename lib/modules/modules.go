@@ -44,7 +44,7 @@ type Modules interface {
 	RolesFromLogins([]string) []string
 	// TraitsFromLogins returns traits for external user based on the logins
 	// and kubernetes groups extracted from the connector
-	TraitsFromLogins([]string, []string) map[string][]string
+	TraitsFromLogins(logins []string, kubeGroups []string, kubeUsers []string) map[string][]string
 	// SupportsKubernetes returns true if this cluster supports kubernetes
 	SupportsKubernetes() bool
 	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
@@ -107,10 +107,11 @@ func (p *defaultModules) RolesFromLogins(logins []string) []string {
 // extracted from the connector
 //
 // By default logins are treated as allowed logins user traits.
-func (p *defaultModules) TraitsFromLogins(logins []string, kubeGroups []string) map[string][]string {
+func (p *defaultModules) TraitsFromLogins(logins []string, kubeGroups, kubeUsers []string) map[string][]string {
 	return map[string][]string{
 		teleport.TraitLogins:     logins,
 		teleport.TraitKubeGroups: kubeGroups,
+		teleport.TraitKubeUsers:  kubeUsers,
 	}
 }
 

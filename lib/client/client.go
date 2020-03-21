@@ -544,6 +544,28 @@ func (n *NodeAddr) ProxyFormat() string {
 	return strings.Join(parts, "@")
 }
 
+// requestSubsystem sends a subsystem request on the session. If the passed
+// in context is canceled first, unblocks.
+func requestSubsystem(ctx context.Context, session *ssh.Session, name string) error {
+	errCh := make(chan error)
+
+	go func() {
+		er := session.RequestSubsystem(name)
+		errCh <- er
+	}()
+
+	select {
+	case err := <-errCh:
+		return trace.Wrap(err)
+	case <-ctx.Done():
+		err := session.Close()
+		if err != nil {
+			log.Debugf("Failed to close session: %v.", err)
+		}
+		return trace.Wrap(ctx.Err())
+	}
+}
+
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
@@ -610,8 +632,14 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		}
 	}
 
-	err = proxySession.RequestSubsystem("proxy:" + nodeAddress.ProxyFormat())
+	err = requestSubsystem(ctx, proxySession, "proxy:"+nodeAddress.ProxyFormat())
 	if err != nil {
+		// If the user pressed Ctrl-C, no need to try and read the error from
+		// the proxy, return an error right away.
+		if trace.Unwrap(err) == context.Canceled {
+			return nil, trace.Wrap(err)
+		}
+
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
 		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)

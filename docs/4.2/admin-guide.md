@@ -51,7 +51,7 @@ $ shasum -a 256 teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 **Checking Checksum on Linux**
 
 ``` bash
-$ sha256sum teleport-v4.0.8-darwin-amd64-bin.tar.gz
+$ sha256sum teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 {{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 ```
 
@@ -73,15 +73,15 @@ document will be referring to:
 
 |Concept   | Description
 |----------|------------
-|Node      | Synonym to "server" or "computer", something one can "SSH to". A node must be running the [ `teleport` ](cli-docs.md#teleport) daemon with "node" role/service turned on.
+|Node      | Synonym to "server" or "computer", something one can "SSH to". A node must be running the [`teleport`](cli-docs.md#teleport) daemon with "node" role/service turned on.
 |Certificate Authority (CA) | A pair of public/private keys Teleport uses to manage access. A CA can sign a public key of a user or node, establishing their cluster membership.
 |Teleport Cluster | A Teleport Auth Service contains two CAs. One is used to sign user keys and the other signs node keys. A collection of nodes connected to the same CA is called a "cluster".
-|Cluster Name | Every Teleport cluster must have a name. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated.**IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created.
+|Cluster Name | Every Teleport cluster must have a name. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created.
 |Trusted Cluster | Teleport Auth Service can allow 3rd party users or nodes to connect if their public keys are signed by a trusted CA. A "trusted cluster" is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file.
 
 ## Teleport Daemon
 
-The Teleport daemon is called [ `teleport` ](cli-docs.md#teleport) and it supports
+The Teleport daemon is called [`teleport`](cli-docs.md#teleport) and it supports
 the following commands:
 
 |Command     | Description
@@ -92,8 +92,8 @@ the following commands:
 |status      | Shows the status of a Teleport connection. This command is only available from inside of an active SSH session.
 |help        | Shows help.
 
-When experimenting, you can quickly start [ `teleport` ](cli-docs.md#teleport)
-with verbose logging by typing [ `teleport start -d` ](cli-docs.md#teleport-start)
+When experimenting, you can quickly start [`teleport`](cli-docs.md#teleport)
+with verbose logging by typing [`teleport start -d`](cli-docs.md#teleport-start)
 .
 
 !!! danger "WARNING"
@@ -162,6 +162,7 @@ numbers.
 
 ### Filesystem Layout
 
+#### A Teleport node
 By default, a Teleport node has the following files present. The location of all
 of them is configurable.
 
@@ -172,11 +173,16 @@ of them is configurable.
 | `/usr/local/bin/tctl` | Teleport admin tool. It is only needed for auth servers.|
 | `/var/lib/teleport` | Teleport data directory. Nodes keep their keys and certificates there. Auth servers store the audit log and the cluster keys there, but the audit log storage can be further configured via `auth_service` section in the config file.|
 
+#### tsh
+| Full path                 | Purpose                                                                                                                                                                                                                                |
+|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `~/.tsh` | Temporary store for Proxy Address, Username, SSH certificates and user environment variables when reading `permit_user_env: trues`. |
+
 ## Configuration
 
 You should use a [configuration file](#configuration-file) to configure the
-[ `teleport` ](cli-docs.md#teleport) daemon. For simple experimentation, you can
-use command line flags with the [ `teleport start` ](cli-docs.md#teleport-start)
+[`teleport`](cli-docs.md#teleport) daemon. For simple experimentation, you can
+use command line flags with the [`teleport start`](cli-docs.md#teleport-start)
 command. Read about all the allowed flags in the [CLI
 Docs](cli-docs.md#teleport-start) or run `teleport start --help`
 
@@ -369,11 +375,10 @@ auth_service:
     # certificates expire in the middle of an active SSH session. (default is 'no')
     disconnect_expired_cert: no
 
-    # Determines the interval at which Teleport will send keep-alive messages. The
-    # default value mirrors sshd at 15 minutes.  keep_alive_count_max is the number
-    # of missed keep-alive messages before the server tears down the connection to the
-    # client.
-    keep_alive_interval: 15
+    # Determines the interval at which Teleport will send keep-alive messages.
+    # keep_alive_count_max is the number of missed keep-alive messages before
+    # the server tears down the connection to the client.
+    keep_alive_interval: 5m
     keep_alive_count_max: 3
 
     # License file to start auth server with. Note that this setting is ignored
@@ -522,13 +527,13 @@ following use cases:
 ## Authentication
 
 Teleport uses the concept of "authentication connectors" to authenticate users
-when they execute [ `tsh login` ](cli-docs.md#tsh-login) command. There are three
+when they execute [`tsh login`](cli-docs.md#tsh-login) command. There are three
 types of authentication connectors:
 
 ### Local Connector
 
 Local authentication is used to authenticate against a local Teleport user
-database. This database is managed by [ `tctl users` ](cli-docs.md#tctl-users-add)
+database. This database is managed by [`tctl users`](cli-docs.md#tctl-users-add)
 command. Teleport also supports second factor authentication (2FA) for the local
 connector. There are three possible values (types) of 2FA:
 
@@ -663,7 +668,7 @@ tsh --proxy <proxy-addr> ssh <hostname>
 
 ## Adding and Deleting Users
 
-This section covers internal user identities, i.e.user accounts created and
+This section covers internal user identities, i.e. user accounts created and
 stored in Teleport's internal storage. Most production users of Teleport use
 _external_ users via [Github](#github-oauth-20) or [Okta](ssh_okta) or any other
 SSO provider (Teleport Enterprise supports any SAML or OIDC compliant identity
@@ -681,9 +686,9 @@ Let's look at this table:
 |bob    | bob      | Teleport user 'bob' can login into member nodes only as OS user 'bob'
 |ross   |          | If no OS login is specified, it defaults to the same name as the Teleport user.
 
-To add a new user to Teleport, you have to use the [ `tctl` ](cli-docs.md#tctl)
+To add a new user to Teleport, you have to use the [`tctl`](cli-docs.md#tctl)
 tool on the same node where the auth server is running, i.e.
-[ `teleport` ](cli-docs.md#teleport) was started with `--roles=auth` .
+[`teleport`](cli-docs.md#teleport) was started with `--roles=auth` .
 
 ``` bsh
 $ tctl users add joe joe,root
@@ -734,7 +739,7 @@ $ tctl users rm joe
 ## Editing Users
 
 Users entries can be manipulated using the generic [resource
-commands](#resources) via [ `tctl` ](cli-docs.md#tctl) . For example, to see the
+commands](#resources) via [`tctl`](cli-docs.md#tctl) . For example, to see the
 full list of user records, an administrator can execute:
 
 ``` yaml
@@ -799,7 +804,7 @@ A more secure way to add nodes to a cluster is to generate tokens as they are
 needed. Such token can be used multiple times until its time to live (TTL)
 expires.
 
-Use the [ `tctl` ](cli-docs.md#tctl) tool to register a new invitation token (or
+Use the [`tctl`](cli-docs.md#tctl) tool to register a new invitation token (or
 it can also generate a new token for you). In the following example a new token
 is created with a TTL of 5 minutes:
 
@@ -808,7 +813,7 @@ $ tctl nodes add --ttl=5m --roles=node,proxy --token=secret-value
 The invite token: secret-value
 ```
 
-If `--token` is not provided, [ `tctl` ](cli-docs.md#tctl) will generate one:
+If `--token` is not provided, [`tctl`](cli-docs.md#tctl) will generate one:
 
 ``` bsh
 # generate a short-lived invitation token for a new node:
@@ -908,7 +913,7 @@ teleport:
 
     The CA pin becomes invalid if a Teleport administrator
     performs the CA rotation by executing
-    [ `tctl auth rotate` ](cli-docs.md#tctl-auth-rotate) .
+    [`tctl auth rotate`](cli-docs.md#tctl-auth-rotate) .
 
 ## Revoking Invitations
 
@@ -974,7 +979,7 @@ In addition to specifying a custom nodename, Teleport also allows for the
 application of arbitrary key:value pairs to each node, called labels. There are
 two kinds of labels:
 
-1. `static labels` do not change over time, while [ `teleport` ](cli-docs.md#teleport) 
+1. `static labels` do not change over time, while [`teleport`](cli-docs.md#teleport) 
     process is running.  Examples of static labels are physical location of nodes, 
     name of the environment (staging vs production), etc.
 
@@ -1057,7 +1062,7 @@ the audit log:
 3. **Optional: Enhanced Session Recording** 
 
 Refer to the ["Audit Log" chapter in the Teleport
-Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit Log and
+Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit log and
 session recording are designed.
 
 ### SSH Events
@@ -1066,7 +1071,7 @@ Teleport supports multiple storage back-ends for storing the SSH events. The
 section below uses the `dir` backend as an example. `dir` backend uses the local
 filesystem of an auth server using the configurable `data_dir` directory.
 
-For highly available (HA) configuration users can refer to
+For highly available (HA) configuration, users can refer to our 
 [DynamoDB](#using-dynamodb) or [etcd](#using-etcd) chapters on how to configure
 the SSH events and recorded sessions to be stored on network storage. It is even
 possible to store the audit log in multiple places at the same time, see
@@ -1187,7 +1192,7 @@ $ tctl auth export --type=user
 
 To allow access to a single user, copy the above output to
 `~/.ssh/authorized_keys` . To apply this for all users, remove "cert-authority"
-from the start of [ `tctl` ](cli-docs.md#tctl) output and copy it to
+from the start of [`tctl`](cli-docs.md#tctl) output and copy it to
 `/etc/ssh/teleport_user_ca.pub` .
 
 Add the following line to `/etc/ssh/sshd_config` :
@@ -1231,7 +1236,7 @@ HostKey /etc/ssh/teleport_host_key
 HostCertificate /etc/ssh/teleport_host_key-cert.pub
 ```
 
-Now you can use [ `tsh ssh user@host.example.com` ](cli-docs.md#tsh) to login
+Now you can use [`tsh ssh user@host.example.com`](cli-docs.md#tsh) to login
 into any `sshd` node in the cluster and the session will be recorded. If you
 want to use OpenSSH `ssh` client for logging into `sshd` servers behind a proxy
 in "recording mode", you have to tell the `ssh` client to use the jump host and
@@ -1298,14 +1303,14 @@ A Teleport administrator has two tools to configure a Teleport cluster:
 * The [configuration file](#configuration) is used for static configuration like
   the cluster name.
 
-* The [ `tctl` ](cli-docs.md#tctl) admin tool is used for manipulating dynamic
+* The [`tctl`](cli-docs.md#tctl) admin tool is used for manipulating dynamic
   records like Teleport
   users.
 
-[ `tctl` ](cli-docs.md#tctl) has convenient subcommands for dynamic
+[`tctl`](cli-docs.md#tctl) has convenient subcommands for dynamic
 configuration, like `tctl users` or `tctl nodes` . However, for dealing with
 more advanced topics, like connecting clusters together or troubleshooting
-trust, [ `tctl` ](cli-docs.md#tctl) offers the more powerful, although
+trust, [`tctl`](cli-docs.md#tctl) offers the more powerful, although
 lower-level CLI interface called `resources` .
 
 The concept is borrowed from the REST programming pattern. A cluster is composed
@@ -1324,9 +1329,9 @@ be manipulated with just 3 CLI commands:
 
 | Command       | Description                                                           | Examples                                |
 |---------------|-----------------------------------------------------------------------|-----------------------------------------|
-| [ `tctl get` ](cli-docs.md#tctl-get) | Get one or multiple resources                                         | `tctl get users` or `tctl get user/joe` |
-| [ `tctl rm` ](cli-docs.md#tctl-rm) | Delete a resource by type/name                                        | `tctl rm user/joe` |
-| [ `tctl create` ](cli-docs.md#tctl-create) | Create a new resource from a YAML file. Use `-f` to override / update | `tctl create -f joe.yaml` |
+| [`tctl get`](cli-docs.md#tctl-get) | Get one or multiple resources                                         | `tctl get users` or `tctl get user/joe` |
+| [`tctl rm`](cli-docs.md#tctl-rm) | Delete a resource by type/name                                        | `tctl rm user/joe` |
+| [`tctl create`](cli-docs.md#tctl-create) | Create a new resource from a YAML file. Use `-f` to override / update | `tctl create -f joe.yaml` |
 
 !!! warning "YAML Format"
 
@@ -1376,7 +1381,7 @@ spec:
     only internally and are not meant to be changed.  Others are reserved for
     future use.
 
-Here's the list of resources currently exposed via [ `tctl` ](cli-docs.md#tctl) :
+Here's the list of resources currently exposed via [`tctl`](cli-docs.md#tctl) :
 
 | Resource Kind | Description                                                                                                                                  |
 |---------------|----------------------------------------------------------------------------------------------------------------------------------------------|
@@ -1439,7 +1444,7 @@ $ tsh clusters
 
 ### Selecting the Default Cluster
 
-To avoid using `--cluster` switch with [ `tsh` ](cli-docs.md#tsh) commands, you
+To avoid using `--cluster` switch with [`tsh`](cli-docs.md#tsh) commands, you
 can also specify which trusted cluster you want to become the default from the
 start:
 
@@ -1554,7 +1559,7 @@ spec:
       local: ["auditor"] # will be assigned "auditor" role when logging into "east"
 ```
 
-Then, use [ `tctl create` ](cli-docs.md#tctl-create) to add the file:
+Then, use [`tctl create`](cli-docs.md#tctl-create) to add the file:
 
 ``` yaml
 $ tctl create cluster.yaml
@@ -1709,7 +1714,7 @@ to [create and register an OAuth app](https://developer.github.com/apps/building
 Be sure to set the "Authorization callback URL" to the same value as `redirect_url` in 
 the resource spec.
 
-Finally, create the connector using [ `tctl` ](cli-docs.md#tctl)
+Finally, create the connector using [`tctl`](cli-docs.md#tctl)
 [resource](#resources) management command:
 
 ``` yaml
@@ -1762,7 +1767,7 @@ Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/
 
 ## PAM Integration
 
-Teleport SSH daemon can be configured to integrate with
+Teleport node service can be configured to integrate with
 [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create
 user sessions using PAM session profiles.
 
@@ -2047,6 +2052,10 @@ belong to:
 $ tctl users add joe --k8s-groups="system:masters"
 ```
 
+!!! tip "NOTE"
+
+    The above command is for the Teleport OSS version. Teleport Enterprise customers manage `k8s-groups` through RBAC.
+
 If using Teleport Community SSO with Github, Kubernetes groups can be assigned
 to Github teams with a Teleport connector. See example above in [Github OAuth
 2.0 Example](#github-oauth-20) for more information on how to setup Github SSO
@@ -2065,9 +2074,9 @@ You can take advantage of the [Trusted Clusters](#trusted-clusters) feature of
 Teleport to federate trust across multiple Kubernetes clusters.
 
 When multiple trusted clusters are present behind a Teleport proxy, the
-`kubeconfig` generated by [ `tsh login` ](cli-docs.md#tsh-login) will contain the
+`kubeconfig` generated by [`tsh login`](cli-docs.md#tsh-login) will contain the
 Kubernetes API endpoint determined by the `<cluster>` argument to [`tsh
-login`](cli-docs.md#tsh-login) .
+login`](cli-docs.md#tsh-login).
 
 * There are three Teleport/Kubernetes clusters: "main", "east" and "west". These
   are the names set in `cluster_name` setting in their configuration files.
@@ -2536,8 +2545,8 @@ As covered in the [Graceful Restarts](#graceful-restarts) section, Teleport
 supports graceful restarts. To upgrade a host to a newer Teleport version, an
 administrator must:
 
-1. Replace the Teleport binaries, usually [ `teleport` ](cli-docs.md#teleport)
-   and [ `tctl` ](cli-docs.md#tctl)
+1. Replace the Teleport binaries, usually [`teleport`](cli-docs.md#teleport)
+   and [`tctl`](cli-docs.md#tctl)
 
 2. Execute `systemctl restart teleport`
 
@@ -2572,7 +2581,7 @@ The `license_file` path can be either absolute or relative to the configured
 
 ## Troubleshooting
 
-To diagnose problems you can configure [ `teleport` ](cli-docs.md#teleport) to
+To diagnose problems you can configure [`teleport`](cli-docs.md#teleport) to
 run with verbose logging enabled by passing it `-d` flag.
 
 !!! tip "NOTE"
@@ -2580,7 +2589,7 @@ run with verbose logging enabled by passing it `-d` flag.
     It is not recommended to run Teleport in production with verbose
     logging as it generates a substantial amount of data.
 
-Sometimes you may want to reset [ `teleport` ](cli-docs.md#teleport) to a clean
+Sometimes you may want to reset [`teleport`](cli-docs.md#teleport) to a clean
 state. This can be accomplished by erasing everything under `"data_dir"`
 directory. Assuming the default location, `rm -rf /var/lib/teleport/*` will do.
 

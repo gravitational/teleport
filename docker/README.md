@@ -5,15 +5,17 @@ for testing & development purposes.
 
 ### Building 
 
-First, you need to build `teleport:latest` Docker image. This image is built
-when you type `make build` BUT...
+First, you need to build `teleport:latest` Docker image.
 
-But you have to build the base image first, by running `make docker`
-from `$GOPATH/github.com/gravitational/teleport` (repository base dir).
+Run the following commands from `$GOPATH/github.com/gravitational/teleport` (repository base dir):
+
+```bash
+$ make docker
+$ cd docker
+$ make build
+```
 
 ### Starting 
-
-Type:
 
 ```bash
 $ make up
@@ -26,10 +28,8 @@ This will start two Teleport clusters:
 
 ### Stopping
 
-Type:
-
 ```bash
-$ make stop
+$ make down
 ```
 
 ### SSH

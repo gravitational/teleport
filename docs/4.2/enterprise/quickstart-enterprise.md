@@ -30,7 +30,7 @@ interact with it using Teleport's client-side tools:
 
 You will need to have access to the [customer portal](https://dashboard.gravitational.com)
 to download the software. You will also need three computers: two servers and
-one client (probably a laptop) to complete this tutorial. Lets assume the servers have
+one client (probably a laptop) to complete this tutorial. Let's assume the servers have
 the following DNS names and IPs:
 
 Server Name    |  IP Address    | Purpose
@@ -38,7 +38,7 @@ Server Name    |  IP Address    | Purpose
 _"auth.example.com"_  | 10.1.1.10      | This server will be used to run all three Teleport services: auth, proxy and node.
 _"node.example.com"_  | 10.1.1.11      | This server will only run the SSH service. The vast majority of servers in production will be nodes.
 
-This Quick Start Guide assumes that the both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/)
+This Quick Start Guide assumes that both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/)
 Linux distribution such as Debian, Ubuntu or a RHEL derivative.
 
 ## Installing
