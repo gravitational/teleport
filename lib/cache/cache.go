@@ -121,7 +121,8 @@ type Cache struct {
 	accessCache        services.Access
 	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
-	eventsCache        services.Events
+	eventsFanout       *services.Fanout
+	//eventsCache        services.Events
 
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
@@ -275,7 +276,8 @@ func New(config Config) (*Cache, error) {
 		accessCache:        local.NewAccessService(wrapper),
 		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
-		eventsCache:        local.NewEventsService(config.Backend),
+		eventsFanout:       services.NewFanout(),
+		//eventsCache:        local.NewEventsService(config.Backend),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -305,7 +307,8 @@ func New(config Config) (*Cache, error) {
 // to handle subscribers connected to the in-memory caches
 // instead of reading from the backend.
 func (c *Cache) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
-	return c.eventsCache.NewWatcher(ctx, watch)
+	return c.eventsFanout.NewWatcher(ctx, watch)
+	//return c.eventsCache.NewWatcher(ctx, watch)
 }
 
 func (c *Cache) isClosed() bool {
@@ -337,7 +340,8 @@ func (c *Cache) update() {
 		// all watchers will be out of sync, because
 		// cache will reload its own watcher to the backend,
 		// so signal closure to reset the watchers
-		c.Backend.CloseWatchers()
+		//c.Backend.CloseWatchers()
+		c.eventsFanout.CloseWatchers()
 		// events cache should be closed as well
 		c.Debugf("Reloading %v.", retry)
 		select {
@@ -528,7 +532,11 @@ func (c *Cache) processEvent(event services.Event) error {
 		c.Warningf("Skipping unsupported event %v.", event.Resource.GetKind())
 		return nil
 	}
-	return collection.processEvent(event)
+	if err := collection.processEvent(event); err != nil {
+		return trace.Wrap(err)
+	}
+	c.eventsFanout.Emit(event)
+	return nil
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
