@@ -1,5 +1,28 @@
 # Changelog
 
+## 4.2.7
+
+As part of a routine security audit of Teleport, a security vulnerability was discovered that affects all recent releases of Teleport. We strongly suggest upgrading to the latest patched release to mitigate this vulnerability.
+
+### Details
+
+Due to a flaw in how the Teleport Web UI handled host certificate validation, host certificate validation was disabled for clusters where connections were terminated at the node. This means that an attacker could impersonate a Teleport node without detection when connecting through the Web UI.
+
+Clusters where sessions were terminated at the proxy (recording proxy mode) are not affected.
+
+Command line programs like `tsh` (or `ssh`) are not affected by this vulnerability.
+
+### Actions
+
+To mitigate this issue, upgrade and restart all Teleport proxy processes.
+
+If you are unable to upgrade immediately, we strongly suggest terminating sessions at the proxy (recording proxy mode) for all clusters until the updates can be applied:
+
+```
+auth_service:
+   session_recording: "proxy"
+```
+
 ## 4.2.6
 
 This release of Teleport contains a bug fix.
