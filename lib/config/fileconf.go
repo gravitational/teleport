@@ -42,6 +42,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	// randomTokenLenBytes is the length of random token generated for the example config
+	randomTokenLenBytes = 24
+)
+
 var (
 	// all possible valid YAML config keys
 	// true  = has sub-keys
@@ -246,10 +251,16 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 func MakeSampleFileConfig() (fc *FileConfig) {
 	conf := service.MakeDefaultConfig()
 
+	// generate a secure random token
+	randomJoinToken, err := utils.CryptoRandomHex(randomTokenLenBytes)
+	if err != nil {
+		panic(err)
+	}
+
 	// sample global config:
 	var g Global
 	g.NodeName = conf.Hostname
-	g.AuthToken = "cluster-join-token"
+	g.AuthToken = randomJoinToken
 	g.CAPin = "sha256:ca-pin-hash-goes-here"
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
@@ -281,7 +292,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	var a Auth
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
 	a.EnabledFlag = "yes"
-	a.StaticTokens = []StaticToken{"proxy,node:cluster-join-token"}
+	a.StaticTokens = []StaticToken{StaticToken(fmt.Sprintf("proxy,node:%s", randomJoinToken))}
 	a.LicenseFile = "/path/to/license-if-using-teleport-enterprise.pem"
 
 	// sample proxy config:
