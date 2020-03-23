@@ -2594,10 +2594,14 @@ func (c *Client) SetAccessRequestState(ctx context.Context, reqID string, state 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = clt.SetAccessRequestState(ctx, &proto.RequestStateSetter{
+	setter := proto.RequestStateSetter{
 		ID:    reqID,
 		State: state,
-	})
+	}
+	if d := getDelegator(ctx); d != "" {
+		setter.Delegator = d
+	}
+	_, err = clt.SetAccessRequestState(ctx, &setter)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}

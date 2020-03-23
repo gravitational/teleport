@@ -175,6 +175,9 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestUpdateBy indicates the user that updated the request state.
 	AccessRequestUpdateBy = "updated_by"
+	// AccessRequestDelegator is used by teleport plugins to indicate the identity
+	// which caused them to update state.
+	AccessRequestDelegator = "delegator"
 	// AccessRequestState is the state of a request.
 	AccessRequestState = "state"
 	// AccessRequestID is the ID of an access request.
