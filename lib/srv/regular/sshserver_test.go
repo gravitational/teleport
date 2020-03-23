@@ -66,7 +66,6 @@ type SrvSuite struct {
 	up          *upack
 	signer      ssh.Signer
 	user        string
-	testUser    string
 	freePorts   utils.PortList
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
@@ -121,6 +120,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
+	c.Assert(err, IsNil)
 	s.testServer = authServer
 
 	// create proxy client used in some tests
@@ -376,9 +376,6 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, IsNil)
-
-	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	c.Assert(err, IsNil)
 	c.Assert(client.Close(), IsNil)
 
 	// now remove OS user from valid principals
@@ -391,7 +388,7 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
-	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	_, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 }
 
@@ -732,6 +729,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 
 	stdout := &bytes.Buffer{}
 	reader, err := se3.StdoutPipe()
+	c.Assert(err, IsNil)
 	done := make(chan struct{})
 	go func() {
 		io.Copy(stdout, reader)
@@ -1230,10 +1228,4 @@ func waitForSites(s reversetunnel.Server, count int) error {
 			return trace.BadParameter("timed out waiting for clusters")
 		}
 	}
-}
-
-func removeNL(v string) string {
-	v = strings.Replace(v, "\r", "", -1)
-	v = strings.Replace(v, "\n", "", -1)
-	return v
 }
