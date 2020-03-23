@@ -152,8 +152,14 @@ message PluginDataSeq {
 // RequestStateSetter encodes the paramters necessary to update the
 // state of a privilege escalation request.
 message RequestStateSetter {
+    // ID is the request ID being targeted
     string ID = 1 [ (gogoproto.jsontag) = "id" ];
+    // State is the desired state to be set
     services.RequestState State = 2 [ (gogoproto.jsontag) = "state" ];
+    // Delegator is an optional indicator of who delegated this
+    // state update (used by plugins to indicate which user approved
+    // or denied the request).
+    string Delegator = 3 [ (gogoproto.jsontag) = "delegator,omitempty" ];
 }
 
 // RequestID is the unique identifier of an access request.
