@@ -284,6 +284,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
 	a.EnabledFlag = "yes"
 	a.StaticTokens = []StaticToken{"proxy,node:cluster-join-token"}
+	a.SessionRecording = services.RecordAtNode
 
 	// sample proxy config:
 	var p Proxy
