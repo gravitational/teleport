@@ -335,8 +335,8 @@ role_map:
 The role `admin` of the leaf cluster can now be set up to use the root cluster role logins and `kubernetes_groups` using the following variables:
 
 ```yaml
-logins: ['{{internal.logins}}']
-kubernetes_groups: ['{{internal.kubernetes_groups}}']
+logins: ["{{internal.logins}}"]
+kubernetes_groups: ["{{internal.kubernetes_groups}}"]
 ```
 !!! tip "Note"
 
