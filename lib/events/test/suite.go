@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -34,6 +35,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
+
+var _ = fmt.Printf
 
 // HandlerSuite is a conformance test suite to verify external UploadHandlers
 // behavior.
@@ -61,6 +64,48 @@ func (s *HandlerSuite) UploadDownload(c *check.C) {
 	data, err := ioutil.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(data), check.Equals, val)
+}
+
+// CancelUpload makes sure a file upload can be canceled and the file is
+// not uploaded to storage.
+func (s *HandlerSuite) CancelUpload(c *check.C) {
+	uploadCh := make(chan error)
+	sessionID := session.NewID()
+
+	// Create a temporary 100 MB file with junk in it.
+	tmpfile, err := ioutil.TempFile("", "teleport-large-file")
+	c.Assert(err, check.IsNil)
+	defer os.Remove(tmpfile.Name())
+	err = tmpfile.Truncate(100000000)
+	c.Assert(err, check.IsNil)
+	err = tmpfile.Close()
+	c.Assert(err, check.IsNil)
+
+	// Get a handle to the large file created before.
+	reader, err := os.Open(tmpfile.Name())
+	c.Assert(err, check.IsNil)
+	defer reader.Close()
+
+	// Start uploading the file in another goroutine and cancel it right away.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		_, err := s.Handler.Upload(ctx, sessionID, reader)
+		uploadCh <- err
+
+	}()
+	cancel()
+
+	// Wait for upload to return an error.
+	select {
+	case err := <-uploadCh:
+		c.Assert(err, check.NotNil)
+	case <-time.After(60 * time.Second):
+		c.Fatalf("Timed out waiting for upload to cancel.")
+	}
+
+	// Make sure the file was not uploaded.
+	err = s.Handler.Download(context.Background(), sessionID, &writeAtDiscarder{})
+	c.Assert(err, check.NotNil)
 }
 
 func (s *HandlerSuite) DownloadNotFound(c *check.C) {
@@ -148,4 +193,11 @@ func marshal(f events.EventFields) []byte {
 		panic(err)
 	}
 	return data
+}
+
+type writeAtDiscarder struct {
+}
+
+func (w *writeAtDiscarder) WriteAt(p []byte, off int64) (n int, err error) {
+	return len(p), nil
 }

@@ -94,6 +94,10 @@ type StreamManager struct {
 
 // Stream pulls and processes events off the GRPC stream.
 type Stream struct {
+	// mu is used to synchronize access to stream resources. Specifically it's
+	// to prevent "Close" and "process" from running at the same time.
+	mu sync.Mutex
+
 	// manager holds common resources across all streams.
 	manager *StreamManager
 
@@ -218,6 +222,9 @@ func (s *Stream) Wait() error {
 
 // Close will terminate the stream and write a response to the client.
 func (s *Stream) Close(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// Either the upload is complete (call cancel to free resources) or an error
 	// has occured (terminate upload), either way cancel the context.
 	s.uploadCancel()
@@ -280,6 +287,9 @@ func (s *Stream) start() {
 
 // process will construct a tar archive from the messages in the stream.
 func (s *Stream) process(chunk *proto.SessionChunk) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// Check that the chunk transitions are sane.
 	err := s.checkTransition(chunk)
 	if err != nil {

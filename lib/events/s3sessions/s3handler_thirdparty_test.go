@@ -1,3 +1,5 @@
+// +build dynamodb
+
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -12,7 +14,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package s3sessions
@@ -20,7 +21,6 @@ package s3sessions
 import (
 	"fmt"
 	"net/http/httptest"
-	"testing"
 
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -33,8 +33,6 @@ import (
 	"gopkg.in/check.v1"
 )
 
-func TestS3ThirdParty(t *testing.T) { check.TestingT(t) }
-
 type S3ThirdPartySuite struct {
 	backend gofakes3.Backend
 	faker   *gofakes3.GoFakeS3
@@ -43,6 +41,7 @@ type S3ThirdPartySuite struct {
 	test.HandlerSuite
 }
 
+var _ = fmt.Printf
 var _ = check.Suite(&S3ThirdPartySuite{})
 
 func (s *S3ThirdPartySuite) SetUpSuite(c *check.C) {
@@ -66,6 +65,17 @@ func (s *S3ThirdPartySuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *S3ThirdPartySuite) TearDownSuite(c *check.C) {
+	if s.handler != nil {
+		if err := s.handler.deleteBucket(); err != nil {
+			c.Fatalf("Failed to delete bucket: %#v", trace.DebugReport(err))
+		}
+	}
+}
+
+func (s *S3ThirdPartySuite) SetUpTest(c *check.C)    {}
+func (s *S3ThirdPartySuite) TearDownTest(c *check.C) {}
+
 func (s *S3ThirdPartySuite) TestUploadDownload(c *check.C) {
 	s.UploadDownload(c)
 }
@@ -74,10 +84,8 @@ func (s *S3ThirdPartySuite) TestDownloadNotFound(c *check.C) {
 	s.DownloadNotFound(c)
 }
 
-func (s *S3ThirdPartySuite) TearDownSuite(c *check.C) {
-	if s.handler != nil {
-		if err := s.handler.deleteBucket(); err != nil {
-			c.Fatalf("Failed to delete bucket: %#v", trace.DebugReport(err))
-		}
-	}
+// TestCancelUpload makes sure an upload can be canceled and the file is
+// not uploaded.
+func (s *S3ThirdPartySuite) TestCancelUpload(c *check.C) {
+	s.CancelUpload(c)
 }

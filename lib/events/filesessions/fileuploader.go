@@ -105,18 +105,20 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	defer f.Close()
 
 	_, err = io.Copy(f, reader)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
 
-	// If the upload context was canceled, clear out the session recording.
+	// After the io.Copy exits, before checking the error, check if the upload
+	// was canceled. If the upload was canceled clear out the session recording
+	// and return an error.
 	select {
 	case <-ctx.Done():
-		err = os.Remove(path)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
+		err := os.Remove(path)
+		return "", trace.NewAggregate(ctx.Err(), err)
 	default:
+	}
+
+	// If the upload was not canceled, check what error io.Copy returned.
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	return fmt.Sprintf("%v://%v", teleport.SchemeFile, path), nil
