@@ -292,10 +292,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			if err != nil {
 				log.WithError(err).Debugf("Could not ping auth server")
 			} else {
-				proxyVersion := strings.Index(teleport.Version, "4.")
-				authVersion := strings.Index(res.GetServerVersion(), "5.")
+				isProxyV4x := strings.Index(teleport.Version, "4.") == 0
+				isAuthV5x := strings.Index(res.GetServerVersion(), "5.") == 0
 
-				if authVersion == 0 && proxyVersion == 0 {
+				if isAuthV5x && isProxyV4x {
 					message := "There is a version mismatch between your proxy and auth services. Please upgrade your proxy service to version 5.0.0 or higher."
 					pathToError := url.URL{
 						Path:     "/web/msg/error",
