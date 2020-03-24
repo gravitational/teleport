@@ -777,10 +777,23 @@ auth_servers:
   - teleport.example.com:443
 ```
 
+### Trusted clusters (when using Letsencrypt)
 
-### Trusted clusters
+When adding a trusted cluster in a Letsencrypt setup, the proxy's web port and tunnel port are multiplexed over the same connection. In this example, the `tunnel_addr` and `web_proxy_addr` in the trusted cluster configuration should be set up like this:
 
-To add a trusted cluster, you'll need the hostname of the proxy load balancer. You can get it using this command:
+```yaml
+spec:
+  tunnel_addr: teleport.example.com:443
+  web_proxy_addr: teleport.example.com:443
+```
+
+You can generate a token for adding the trusted cluster using `tctl tokens add --type=trusted_cluster` after connecting
+to an auth server. Follow the instructions in our [trusted cluster guide](https://gravitational.com/teleport/docs/trustedclusters/#dynamic-join-tokens).
+
+
+### Trusted clusters (when using ACM)
+
+Setting up trusted clusters when using ACM is a slightly different process. To add a trusted cluster to an ACM setup, you'll need the hostname of the proxy load balancer. You can get it using this command:
 
 ```bash
 $ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text 
