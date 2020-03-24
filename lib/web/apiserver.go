@@ -296,7 +296,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 				isAuthV5x := strings.Index(res.GetServerVersion(), "5.") == 0
 
 				if isAuthV5x && isProxyV4x {
-					message := "There is a version mismatch between your proxy and auth services. Please upgrade your proxy service to version 5.0.0 or higher."
+					message := fmt.Sprintf("Your Teleport proxy and auth service versions are incompatible. Please upgrade your Teleport proxy service to version %v", res.GetServerVersion())
 					pathToError := url.URL{
 						Path:     "/web/msg/error",
 						RawQuery: url.Values{"details": []string{message}}.Encode(),
