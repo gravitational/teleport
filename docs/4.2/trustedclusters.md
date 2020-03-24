@@ -318,14 +318,14 @@ Below is an example of how to share a kubernetes group between trusted clusters.
 In this example, we have a root trusted cluster with a role `root` and kubernetes groups:
 
 ```yaml
-kube_groups: ["system:masters"] 
+kubernetes_groups: ["system:masters"] 
 ```
 SSH logins:
 
 ```yaml
 logins: ["root"]
 ```
-The leaf cluster can choose to map this `root` cluster to it's own. The `admin` cluster in the trusted cluster config:
+The leaf cluster can choose to map this `root` cluster to its own cluster. The `admin` cluster in the trusted cluster config:
 
 ```yaml
 role_map:
