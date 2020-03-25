@@ -17,10 +17,15 @@ limitations under the License.
 package ui
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // Cluster describes a cluster
@@ -28,19 +33,55 @@ type Cluster struct {
 	// Name is the cluster name
 	Name string `json:"name"`
 	// LastConnected is the cluster last connected time
-	LastConnected time.Time `json:"last_connected"`
+	LastConnected time.Time `json:"lastConnected"`
 	// Status is the cluster status
 	Status string `json:"status"`
+	// NodeCount is this cluster number of registered servers
+	NodeCount int `json:"nodeCount"`
+	// PublicURL is this cluster public URL (its first available proxy URL)
+	PublicURL string `json:"publicURL"`
 }
 
-// NewClusters creates a slice of Clusters
-func NewClusters(remoteClusters []reversetunnel.RemoteSite) []Cluster {
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentProxy,
+})
+
+// NewClusters creates a slice of Cluster's, containing data about each cluster.
+func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 	clusters := []Cluster{}
-	for _, item := range remoteClusters {
+	for _, rclsr := range remoteClusters {
+		clt, err := rclsr.CachingAccessPoint()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// public URL would be the first connected proxy public URL
+		proxies, err := clt.GetProxies()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		publicURL := ""
+		if len(proxies) > 0 {
+			publicURL = proxies[0].GetPublicAddr()
+
+			if publicURL == "" {
+				publicURL = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
+				log.Debugf("public_address not set for proxy, returning default proxy's hostname: %q", publicURL)
+			}
+		}
+
+		nodes, err := clt.GetNodes(defaults.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		clusters = append(clusters, Cluster{
-			Name:          item.GetName(),
-			LastConnected: item.GetLastConnected(),
-			Status:        item.GetStatus(),
+			Name:          rclsr.GetName(),
+			LastConnected: rclsr.GetLastConnected(),
+			Status:        rclsr.GetStatus(),
+			NodeCount:     len(nodes),
+			PublicURL:     publicURL,
 		})
 	}
 
@@ -48,5 +89,5 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) []Cluster {
 		return clusters[i].Name < clusters[j].Name
 	})
 
-	return clusters
+	return clusters, nil
 }
