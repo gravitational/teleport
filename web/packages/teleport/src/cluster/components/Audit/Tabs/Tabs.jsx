@@ -26,7 +26,7 @@ const Tabs = ({ children }) => {
   );
 };
 
-export const TabItem = ({ to, title, exact }) => (
+export const TabItem = ({ to = '', title = '', exact = true }) => (
   <StyledTabItem typography="h4" mr={6} as={NavLink} to={to} exact={exact}>
     {title}
   </StyledTabItem>

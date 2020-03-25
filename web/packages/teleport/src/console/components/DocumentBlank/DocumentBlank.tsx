@@ -15,15 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Text, Flex, ButtonSecondary } from 'design';
+import { Flex, Box, ButtonSecondary } from 'design';
+import * as Icons from 'design/Icon';
 import { useConsoleContext } from 'teleport/console/consoleContextProvider';
 import * as stores from 'teleport/console/stores';
 import Document from './../Document';
-
-type PropTypes = {
-  visible: boolean;
-  doc: stores.DocumentBlank;
-};
 
 export default function DocumentBlank(props: PropTypes) {
   const { visible, doc } = props;
@@ -35,17 +31,17 @@ export default function DocumentBlank(props: PropTypes) {
 
   return (
     <Document visible={visible}>
-      <Flex
-        flexDirection="column"
-        flex="1"
-        justifyContent="center"
-        alignItems="center"
-      >
-        <Text typography="body1" mb="4">
-          Click below to start a new session
-        </Text>
-        <ButtonSecondary onClick={onClick} children="New Session" />
-      </Flex>
+      <Box mx="auto">
+        <Flex flexDirection="column">
+          <Icons.Cli fontSize="128px" mt="10" mb="6" color="#0C143D" />
+          <ButtonSecondary onClick={onClick} children="New Session" block />
+        </Flex>
+      </Box>
     </Document>
   );
 }
+
+type PropTypes = {
+  visible: boolean;
+  doc: stores.DocumentBlank;
+};

@@ -49,7 +49,7 @@ function TestHook(props: any) {
   return null;
 }
 
-function DefaultWrapper(props) {
+function DefaultWrapper(props: { children: any }) {
   return props.children;
 }
 

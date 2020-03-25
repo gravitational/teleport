@@ -42,7 +42,7 @@ export default function FieldInputSsh({ onPress, ...boxProps }) {
       <Input
         hasError={hasError}
         height="34px"
-        width="200px"
+        width="240px"
         bg="primary.dark"
         color="text.primary"
         placeholder="login@host"

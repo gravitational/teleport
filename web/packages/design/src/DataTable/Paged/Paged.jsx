@@ -65,6 +65,7 @@ export const StyledPanel = styled.nav`
   padding: 16px;
   display: flex;
   height: 24px;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   background: ${props => props.theme.colors.primary.light};

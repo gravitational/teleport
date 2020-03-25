@@ -21,25 +21,12 @@ import MenuAction, {
   MenuItemIcon,
 } from 'teleport/components/ActionMenu';
 import * as Icons from 'design/Icon';
-import { Flex, ButtonIcon, ButtonPrimary } from 'design';
+import { Flex, ButtonPrimary } from 'design';
 import cfg from 'teleport/config';
 
-export default function ActionBar({
-  clusterId = '',
-  onLogout,
-  disableAddTab = true,
-  onNew,
-}) {
+export default function ActionBar({ clusterId = '', onLogout }) {
   return (
     <Flex alignItems="center">
-      <ButtonIcon
-        disabled={disableAddTab}
-        onClick={() => onNew(clusterId)}
-        size={0}
-        title="New Tab"
-      >
-        <Icons.Add fontSize="16px" />
-      </ButtonIcon>
       <MenuAction
         buttonIconProps={{ mr: 2, ml: 2, size: 0, style: { fontSize: '16px' } }}
         menuProps={menuProps}

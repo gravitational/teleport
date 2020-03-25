@@ -38,11 +38,15 @@ export default class ConsoleContext {
   storeParties = new StoreParties();
 
   constructor() {
+    // set default clusterId (proxy)
+    cfg.setClusterId(cfg.proxyCluster);
+
     // always initialize the console with 1 document
     this.storeDocs.add({
       kind: 'blank',
       url: cfg.getConsoleRoute(cfg.proxyCluster),
       clusterId: cfg.proxyCluster,
+      created: new Date(),
     });
   }
 
@@ -68,6 +72,7 @@ export default class ConsoleContext {
       title: `New session`,
       kind: 'nodes',
       url: cfg.getConsoleNodesRoute(clusterId),
+      created: new Date(),
     });
   }
 
@@ -89,6 +94,7 @@ export default class ConsoleContext {
       login,
       sid,
       url,
+      created: new Date(),
     });
   }
 
@@ -178,16 +184,15 @@ export default class ConsoleContext {
       .replace(':token', getAccessToken())
       .replace(':clusterId', clusterId);
 
-    const ttyConfig = {
+    const addressResolver = new TtyAddressResolver({
       ttyUrl,
       ttyParams: {
         login,
         sid,
         server_id: serverId,
       },
-    };
+    });
 
-    const addressResolver = new TtyAddressResolver(ttyConfig);
     return new Tty(addressResolver);
   }
 

@@ -55,8 +55,6 @@ export const Failed = () => {
 function mockContext() {
   const ctx = new ConsoleCtx();
 
-  ctx.navigateTo = () => null;
-
   ctx.fetchClusters = () => {
     return Promise.resolve<any>(clusters);
   };

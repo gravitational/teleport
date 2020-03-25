@@ -21,9 +21,16 @@ import { space } from 'design/system';
 import { Flex, Text } from 'design';
 import JoinedUsers from './JoinedUsers';
 
-export default function TabItem({ name, users, active, onClick, onClose }) {
+export default function TabItem({
+  name,
+  users,
+  active,
+  onClick,
+  onClose,
+  style,
+}) {
   return (
-    <StyledTabItem alignItems="center" active={active}>
+    <StyledTabItem alignItems="center" active={active} style={style}>
       <StyledTabButton onClick={onClick}>
         <JoinedUsers mr="2" users={users} />
         <Text mx="auto" title={name}>

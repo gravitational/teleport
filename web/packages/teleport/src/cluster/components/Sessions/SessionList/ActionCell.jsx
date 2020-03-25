@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 import { Cell } from 'design/DataTable';
 import { ButtonPrimary } from 'design';
 import cfg from 'teleport/config';
@@ -25,9 +26,8 @@ export default function ActionCell({ rowIndex, data }) {
   return (
     <Cell align="right">
       <ButtonPrimary
-        as="a"
-        target="_blank"
-        href={url}
+        as={NavLink}
+        to={url}
         size="small"
         width="90px"
         children="join"

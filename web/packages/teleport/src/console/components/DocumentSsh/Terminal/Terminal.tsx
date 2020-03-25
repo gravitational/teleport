@@ -26,11 +26,10 @@ export default class Terminal extends React.Component<{ tty: Tty }> {
   refTermContainer = React.createRef();
 
   componentDidMount() {
-    this.terminal = new XTermCtrl({
+    this.terminal = new XTermCtrl(this.props.tty, {
       el: this.refTermContainer.current,
     });
 
-    this.terminal.tty = this.props.tty;
     this.terminal.open();
   }
 

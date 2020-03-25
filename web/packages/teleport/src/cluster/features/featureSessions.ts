@@ -35,16 +35,10 @@ class FeatureNodes extends FeatureBase {
   onload(context: Ctx) {
     context.storeNav.addSideItem({
       title: 'Active Sessions',
-      Icon: Icons.Layers,
+      Icon: Icons.Cli,
       exact: true,
       to: cfg.getSessionsRoute(),
     });
-
-    this.setProcessing();
-    return context.storeSessions
-      .fetchSessions()
-      .then(this.setReady.bind(this))
-      .catch(this.setFailed.bind(this));
   }
 }
 

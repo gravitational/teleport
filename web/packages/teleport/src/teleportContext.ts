@@ -14,37 +14,40 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { StoreNav, StoreNodes, StoreUser, StoreClusters } from './stores';
+import { StoreNav, StoreUser, StoreClusters } from './stores';
 import { Activator } from 'shared/libs/featureBase';
 import cfg from 'teleport/config';
-import StoreSessions from './stores/storeSessions';
 import * as teleport from './types';
+import auditService from './services/audit';
+import nodeService from './services/nodes';
+import clusterService from './services/clusters';
+import sshService from './services/ssh';
 
 export default class Context implements teleport.Context {
-  storeNodes: StoreNodes = null;
-  storeClusters: StoreClusters = null;
-  storeNav: StoreNav = null;
-  storeUser: StoreUser = null;
-  storeSessions: StoreSessions = null;
+  // stores
+  storeNav = new StoreNav();
+  storeUser = new StoreUser();
+  storeClusters = new StoreClusters();
 
-  constructor() {
-    this.initStores();
+  // features
+  features: teleport.Feature[] = [];
+
+  // services
+  auditService = auditService;
+  nodeService = nodeService;
+  clusterService = clusterService;
+  sshService = sshService;
+
+  constructor(params?: { clusterId?: string; features?: teleport.Feature[] }) {
+    const { clusterId, features = [] } = params || {};
+    this.features = features;
+    cfg.setClusterId(clusterId);
   }
 
-  init({
-    features,
-    clusterId,
-  }: {
-    features: teleport.Feature[];
-    clusterId: string;
-  }) {
-    cfg.setClusterId(clusterId);
-    this.initStores();
-    const fetchClustersPromise = this.storeClusters.fetchClusters();
+  init() {
     const fetchUserPromise = this.storeUser.fetchUser();
-
-    return Promise.all([fetchClustersPromise, fetchUserPromise]).then(() => {
-      const activator = new Activator<Context>(features);
+    return Promise.all([fetchUserPromise]).then(() => {
+      const activator = new Activator<Context>(this.features);
       activator.onload(this);
     });
   }
@@ -67,13 +70,5 @@ export default class Context implements teleport.Context {
 
   isTrustedClustersEnabled() {
     return this.storeUser.getTrustedClusterAccess().list;
-  }
-
-  initStores() {
-    this.storeNodes = new StoreNodes();
-    this.storeClusters = new StoreClusters();
-    this.storeNav = new StoreNav();
-    this.storeUser = new StoreUser();
-    this.storeSessions = new StoreSessions();
   }
 }

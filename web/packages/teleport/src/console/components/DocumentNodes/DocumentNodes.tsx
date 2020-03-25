@@ -33,7 +33,20 @@ export default function DocumentNodes({ visible, doc }) {
   } = useNodes(doc);
   const { isProcessing, isSuccess, isFailed, message } = attempt;
 
-  function onLoginMenuSelect(login: string, serverId: string) {
+  function onLoginMenuSelect(
+    e: React.MouseEvent,
+    login: string,
+    serverId: string
+  ) {
+    // allow to open a new browser tab (not the console one) when requested
+    const newBrowserTabRequested = e.ctrlKey || e.metaKey;
+    if (!newBrowserTabRequested) {
+      e.preventDefault();
+      createSshSession(login, serverId);
+    }
+  }
+
+  function onQuickLaunchEnter(login: string, serverId: string) {
     createSshSession(login, serverId);
   }
 
@@ -49,7 +62,7 @@ export default function DocumentNodes({ visible, doc }) {
     <Document visible={visible}>
       <Flex
         flex="1"
-        maxWidth="800px"
+        maxWidth="1024px"
         flexDirection="column"
         mx="auto"
         mt="8"
@@ -61,8 +74,9 @@ export default function DocumentNodes({ visible, doc }) {
             width="400px"
             maxMenuHeight={200}
             onChange={onChangeCluster}
+            mr="3"
           />
-          <QuickLaunch mb="5" onPress={onLoginMenuSelect} />
+          <QuickLaunch mb="5" onPress={onQuickLaunchEnter} />
         </Flex>
         {isProcessing && (
           <Box textAlign="center" m={10}>

@@ -28,6 +28,7 @@ export const Blank = () => {
       visible={true}
       doc={
         {
+          created: new Date(),
           kind: 'blank',
           url: '',
           clusterId: 'one',

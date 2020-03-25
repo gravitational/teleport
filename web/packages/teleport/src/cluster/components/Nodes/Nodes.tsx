@@ -15,45 +15,26 @@ limitations under the License.
 */
 
 import React from 'react';
-import { withState } from 'shared/hooks';
-import cfg from 'teleport/config';
-import AjaxPoller from 'teleport/components/AjaxPoller';
+import * as Cards from 'design/CardError';
+import { Indicator, Box } from 'design';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { useStoreUser, useStoreNodes } from 'teleport/teleportContextProvider';
+import { useTeleport } from 'teleport/teleportContextProvider';
 import NodeList from 'teleport/components/NodeList';
-import { Node } from 'teleport/services/nodes';
-import history from 'teleport/services/history';
+import useClusterNodes from './useClusterNodes';
 
-const POLLING_INTERVAL = 10000; // every 10 sec
+export default function ClusterNodes() {
+  const teleCtx = useTeleport();
+  const state = useClusterNodes(teleCtx);
+  return <Nodes {...state} />;
+}
 
-type NodesProps = {
-  nodes: Node[];
-  logins: string[];
-  onFetch: () => Promise<Node[]>;
-};
-
-export function Nodes({ nodes, logins, onFetch }: NodesProps) {
-  function onLoginMenuSelect(login: string, serverId: string) {
-    const url = cfg.getSshConnectRoute({ login, serverId });
-    history.push(url);
-  }
-
-  function onLoginMenuOpen(serverId: string) {
-    return logins.map(login => {
-      const url = cfg.getSshConnectRoute({
-        serverId,
-        login,
-      });
-
-      return {
-        login,
-        url,
-      };
-    });
+export function Nodes({ nodes, getNodeLoginOptions, attempt }: NodesProp) {
+  if (attempt.isFailed) {
+    return <Cards.Failed alignSelf="baseline" message={attempt.message} />;
   }
 
   return (
@@ -61,24 +42,16 @@ export function Nodes({ nodes, logins, onFetch }: NodesProps) {
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="5">Nodes</FeatureHeaderTitle>
       </FeatureHeader>
-      <NodeList
-        onLoginMenuOpen={onLoginMenuOpen}
-        onLoginSelect={onLoginMenuSelect}
-        nodes={nodes}
-      />
-      <AjaxPoller time={POLLING_INTERVAL} onFetch={onFetch} />
+      {attempt.isProcessing && (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      )}
+      {attempt.isSuccess && (
+        <NodeList onLoginMenuOpen={getNodeLoginOptions} nodes={nodes} />
+      )}
     </FeatureBox>
   );
 }
 
-const mapState = () => {
-  const store = useStoreNodes();
-  const storeUser = useStoreUser();
-  return {
-    onFetch: () => store.fetchNodes(),
-    logins: storeUser.getLogins(),
-    nodes: store.state,
-  };
-};
-
-export default withState(mapState)(Nodes);
+type NodesProp = ReturnType<typeof useClusterNodes>;

@@ -15,8 +15,7 @@ limitations under the License.
 */
 import XTerm from 'xterm/dist/xterm';
 import 'xterm/dist/xterm.css';
-import Tty from './tty';
-import {debounce, isInteger} from 'lodash';
+import { debounce, isInteger } from 'lodash';
 import Logger from 'shared/libs/logger';
 import { TermEventEnum } from './enums';
 
@@ -30,12 +29,11 @@ const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
  * and resize events
  */
 class TtyTerminal {
-
-  constructor(options){
-    const { addressResolver, el, scrollBack = 1000 } = options;
+  constructor(tty, options) {
+    const { el, scrollBack = 1000 } = options;
     this._el = el;
-    this.tty = new Tty(addressResolver);
-    this.scrollBack = scrollBack
+    this.tty = tty;
+    this.scrollBack = scrollBack;
     this.rows = undefined;
     this.cols = undefined;
     this.term = null;
@@ -53,7 +51,7 @@ class TtyTerminal {
       cols: 15,
       rows: 5,
       scrollback: this.scrollBack,
-      cursorBlink: false
+      cursorBlink: false,
     });
 
     this.term.open(this._el);
@@ -63,8 +61,8 @@ class TtyTerminal {
 
     // subscribe to xtermjs output
     this.term.on('data', data => {
-      this.tty.send(data)
-    })
+      this.tty.send(data);
+    });
 
     // subscribe to window resize events
     window.addEventListener('resize', this.debouncedResize);
@@ -75,19 +73,19 @@ class TtyTerminal {
     this.tty.on(TermEventEnum.DATA, this._processData.bind(this));
 
     // subscribe tty resize event (used by session player)
-    this.tty.on(TermEventEnum.RESIZE, ({h, w}) => this.resize(w, h));
+    this.tty.on(TermEventEnum.RESIZE, ({ h, w }) => this.resize(w, h));
 
     this.connect();
   }
 
-  connect(){
+  connect() {
     this.tty.connect(this.cols, this.rows);
   }
 
   destroy() {
     window.removeEventListener('resize', this.debouncedResize);
     this._disconnect();
-    if(this.term !== null){
+    if (this.term !== null) {
       this.term.destroy();
       this.term.removeAllListeners();
     }
@@ -97,19 +95,19 @@ class TtyTerminal {
   }
 
   reset() {
-    this.term.reset()
+    this.term.reset();
   }
 
   resize(cols, rows) {
     try {
       // if not defined, use the size of the container
-      if(!isInteger(cols) || !isInteger(rows)){
+      if (!isInteger(cols) || !isInteger(rows)) {
         const dim = this._getDimensions();
         cols = dim.cols;
         rows = dim.rows;
       }
 
-      if(cols === this.cols && rows === this.rows){
+      if (cols === this.cols && rows === this.rows) {
         return;
       }
 
@@ -122,7 +120,7 @@ class TtyTerminal {
     }
   }
 
-  _processData(data){
+  _processData(data) {
     try {
       this.term.write(data);
     } catch (err) {
@@ -140,7 +138,7 @@ class TtyTerminal {
     }
 
     displayText = `\x1b[31m${displayText}\x1b[m\r\n`;
-    this.term.write(displayText)
+    this.term.write(displayText);
   }
 
   _disconnect() {
@@ -148,10 +146,12 @@ class TtyTerminal {
     this.tty.removeAllListeners();
   }
 
-  _requestResize(){
+  _requestResize() {
     const { cols, rows } = this._getDimensions();
     if (!isInteger(cols) || !isInteger(rows)) {
-      logger.info(`unable to calculate terminal dimensions (container might be hidden) ${cols}:${rows}`);
+      logger.info(
+        `unable to calculate terminal dimensions (container might be hidden) ${cols}:${rows}`
+      );
       return;
     }
 
@@ -163,7 +163,7 @@ class TtyTerminal {
     this.tty.requestResize(w, h);
   }
 
-  _getDimensions(){
+  _getDimensions() {
     const $terminal = this._el.querySelector('.terminal');
 
     const $fakeRow = document.createElement('div');
@@ -171,11 +171,12 @@ class TtyTerminal {
     $terminal.appendChild($fakeRow);
 
     const fakeColHeight = $fakeRow.getBoundingClientRect().height;
-    const fakeColWidth = $fakeRow.firstElementChild.getBoundingClientRect().width;
+    const fakeColWidth = $fakeRow.firstElementChild.getBoundingClientRect()
+      .width;
     const width = this._el.clientWidth;
     const height = this._el.clientHeight;
-    const cols = Math.floor(width / (fakeColWidth));
-    const rows = Math.floor(height / (fakeColHeight));
+    const cols = Math.floor(width / fakeColWidth);
+    const rows = Math.floor(height / fakeColHeight);
 
     $terminal.removeChild($fakeRow);
     return { cols, rows };

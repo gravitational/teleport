@@ -15,24 +15,19 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Failed } from 'design/CardError'
+import { Failed } from 'design/CardError';
 import Logger from 'shared/libs/logger';
 
 const logger = Logger.create('components/CatchError');
 
-//function isDevMod() {
-//  return process.env.NODE_ENV === 'development';
-//}
-
 export default class CatchError extends React.Component {
-
   static getDerivedStateFromError(error) {
     return { error };
   }
 
   state = {
-    error: null
-  }
+    error: null,
+  };
 
   componentDidCatch(err) {
     logger.error('render', err);
@@ -40,10 +35,11 @@ export default class CatchError extends React.Component {
 
   render() {
     if (this.state.error) {
-      return <Failed message={this.state.error.message} />
+      return (
+        <Failed alignSelf={'baseline'} message={this.state.error.message} />
+      );
     }
 
     return this.props.children;
   }
 }
-

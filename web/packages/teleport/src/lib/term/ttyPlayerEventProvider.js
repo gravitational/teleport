@@ -64,8 +64,8 @@ export default class EventProvider {
   }
 
   _fetchContent(events) {
-    // calclulate the size of the session in bytes to know how many
-    // chunks to load due to maximum chunk size.
+    // calculate the size of the session in bytes to know how many
+    // chunks to load due to maximum chunk size limitation.
     let offset = events[0].offset;
     const end = events.length - 1;
     const totalSize = events[end].offset - offset + events[end].bytes;
@@ -86,13 +86,14 @@ export default class EventProvider {
       offset = offset + MAX_SIZE;
     }
 
-    // fetch all session chunks and then merge them in one
-    return Promise.all(promises).then((...responses) => {
-      const allBytes = responses.reduce((byteStr, r) => byteStr + r[0], '');
+    // fetch all chunks and then merge
+    return Promise.all(promises).then(responses => {
+      const allBytes = responses.reduce((byteStr, r) => byteStr + r, '');
       return new Buffer(allBytes);
     });
   }
 
+  // assign a slice of tty stream to corresponding print event
   _populatePrintEvents(buffer, events) {
     let byteStrOffset = events[0].bytes;
     events[0].data = buffer.slice(0, byteStrOffset).toString('utf8');

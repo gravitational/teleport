@@ -27,9 +27,8 @@ export default class StoreDocs extends Store<State> {
   };
 
   add(doc: Document) {
-    const item = {
+    const item: Document = {
       id: Math.floor(Math.random() * 100000),
-      created: new Date(),
       ...doc,
     };
 

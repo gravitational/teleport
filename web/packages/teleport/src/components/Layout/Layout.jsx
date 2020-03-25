@@ -22,25 +22,25 @@ import { Flex, Text } from 'design';
  */
 const FeatureHeader = styled(Flex)`
   flex-shrink: 0;
-`
+`;
 
 FeatureHeader.defaultProps = {
-  mt: 2,
-  mb: 4
-}
+  mt: 4,
+  mb: 4,
+};
 
 /**
  * Header Title
  */
 const FeatureHeaderTitle = styled(Text)`
   flex-shrink: 0;
-`
+`;
 
 FeatureHeaderTitle.defaultProps = {
   ...Text.defaultProps,
   as: 'h1',
-  typography: 'h1'
-}
+  typography: 'h1',
+};
 
 /**
  * Feature Box (container)
@@ -57,12 +57,15 @@ const FeatureBox = styled(Flex)`
     Directly assigning margin-bottom impacts the scrollbar area by pushing it up as well.
     It works in all major browsers.
   */
-  ::after { content: ' '; padding-bottom: 24px; }
-`
+  ::after {
+    content: ' ';
+    padding-bottom: 24px;
+  }
+`;
 
 FeatureBox.defaultProps = {
   px: 6,
-}
+};
 
 /**
  * Layout
@@ -72,18 +75,18 @@ const AppVerticalSplit = styled.div`
   width: 100%;
   height: 100%;
   display: flex;
-`
+`;
 
 const AppHorizontalSplit = styled.div`
   display: flex;
   flex-direction: column;
-  width: 100%
-`
+  width: 100%;
+`;
 
 export {
   AppHorizontalSplit,
   AppVerticalSplit,
   FeatureBox,
   FeatureHeader,
-  FeatureHeaderTitle
-}
+  FeatureHeaderTitle,
+};

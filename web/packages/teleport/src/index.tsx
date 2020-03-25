@@ -22,9 +22,8 @@ import CatchError from 'teleport/components/CatchError';
 import Login, { LoginSuccess, LoginFailed } from 'teleport/components/Login';
 import Console from 'teleport/console';
 import Authenticated from 'teleport/components/Authenticated';
-import Offline from 'teleport/components/Offline';
 import Dashboard from 'teleport/dashboard';
-import SessionAudit from 'teleport/recordings';
+import Player from 'teleport/player';
 import cfg from 'teleport/config';
 
 const Index = ({ history, children }) => (
@@ -59,11 +58,7 @@ const Index = ({ history, children }) => (
               <Authenticated>
                 <Switch>
                   <Route path={cfg.routes.console} component={Console} />
-                  <Route
-                    path={cfg.routes.sessionAudit}
-                    component={SessionAudit}
-                  />
-                  <Route path={cfg.routes.clusterOffline} component={Offline} />
+                  <Route path={cfg.routes.player} component={Player} />
                   {children}
                   <Route path={cfg.routes.app} component={Dashboard} />
                 </Switch>

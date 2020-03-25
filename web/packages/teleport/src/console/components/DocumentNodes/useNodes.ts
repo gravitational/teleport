@@ -22,7 +22,7 @@ import { Node } from 'teleport/services/nodes';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();
-  const [attempt, attemptActions] = useAttempt({ isSuccess: true });
+  const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [state, setState] = useState<{ nodes: Node[]; logins: string[] }>({
     nodes: [],
     logins: [],
@@ -46,6 +46,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
       clusterId,
     });
     consoleCtx.gotoTab({ url });
+    consoleCtx.removeDocument(id);
   }
 
   function changeCluster(value: string) {

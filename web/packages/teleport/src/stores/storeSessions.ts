@@ -21,10 +21,6 @@ import service, { Session } from 'teleport/services/ssh';
 export default class StoreSessions extends Store<Session[]> {
   state = [] as Session[];
 
-  getSessions() {
-    return this.state;
-  }
-
   fetchSessions() {
     return service.fetchSessions().then(sessions => this.setState(sessions));
   }

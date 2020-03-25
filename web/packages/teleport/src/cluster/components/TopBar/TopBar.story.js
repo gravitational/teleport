@@ -17,31 +17,25 @@ limitations under the License.
 import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import { storiesOf } from '@storybook/react';
-import { TopBar } from './TopBar';
-import * as Icons from 'design/Icon';
+import TeleportContextProvider from 'teleport/teleportContextProvider';
+import TeleportContext from 'teleport/teleportContext';
+import TopBar from './TopBar';
 
-storiesOf('Teleport/TopBar', module).add('Healthy', () => {
-  const newProps = {
-    ...props,
-  };
-  return (
-    <Router history={inMemoryHistory}>
-      <TopBar {...newProps} />
-    </Router>
-  );
-});
-
-const props = {
-  username: 'john@example.com',
-  navItems: [],
-  menu: [
-    {
-      Icon: Icons.User,
-      title: 'Menu Item',
-      to: 'xxx',
-    },
-  ],
+export default {
+  title: 'Teleport/TopBar',
 };
 
-const inMemoryHistory = createMemoryHistory({});
+export const Component = () => {
+  const ctx = new TeleportContext();
+  ctx.storeUser.state = {
+    username: 'Timothy Kim',
+  };
+
+  return (
+    <TeleportContextProvider value={ctx}>
+      <Router history={createMemoryHistory()}>
+        <TopBar />
+      </Router>
+    </TeleportContextProvider>
+  );
+};

@@ -15,34 +15,30 @@ limitations under the License.
 */
 
 import React from 'react';
-import { withState } from 'shared/hooks';
+import { useParams } from 'shared/components/Router';
 import FeatureAccount from 'teleport/features/featureAccount';
 import FeatureAudit from 'teleport/cluster/features/featureAudit';
 import FeatureNodes from 'teleport/cluster/features/featureNodes';
 import FeatureSessions from 'teleport/cluster/features/featureSessions';
 import Cluster from 'teleport/cluster/components/Cluster';
-import { useTeleport } from 'teleport/teleportContextProvider';
+import TeleportContext from 'teleport/teleportContext';
+import TeleportContextProvider from 'teleport/teleportContextProvider';
 
-function mapState(props) {
-  const { clusterId } = props.match.params;
-  const teleport = useTeleport();
-  const [features] = React.useState(() => {
-    return [
+export default function CommunityCluster() {
+  const { clusterId } = useParams();
+  const [ctx] = React.useState(() => {
+    const features = [
       new FeatureAccount(),
       new FeatureNodes(),
       new FeatureSessions(),
       new FeatureAudit(),
     ];
+    return new TeleportContext({ clusterId, features });
   });
 
-  function onInit() {
-    return teleport.init({ clusterId, features });
-  }
-
-  return {
-    features,
-    onInit,
-  };
+  return (
+    <TeleportContextProvider value={ctx}>
+      <Cluster />
+    </TeleportContextProvider>
+  );
 }
-
-export default withState(mapState)(Cluster);

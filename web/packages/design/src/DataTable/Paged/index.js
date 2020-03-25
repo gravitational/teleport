@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 import PagedTable, { StyledPanel } from './Paged';
-import Pager from './Pager';
+import Pager, { StyledButtons } from './Pager';
 import usePages from './usePages';
 
 export default PagedTable;
-export { usePages, Pager, StyledPanel };
+export { usePages, Pager, StyledPanel, StyledButtons };

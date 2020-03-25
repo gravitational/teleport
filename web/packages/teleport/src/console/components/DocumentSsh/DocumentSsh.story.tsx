@@ -83,6 +83,7 @@ const doc = {
   login: 'login-value',
   id: 3,
   url: 'fd',
+  created: new Date(),
 } as const;
 
 const session = {

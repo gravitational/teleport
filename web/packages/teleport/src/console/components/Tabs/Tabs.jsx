@@ -17,15 +17,18 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { typography } from 'design/system';
-import { Box } from 'design';
 import TabItem from './TabItem';
+import * as Icons from 'design/Icon';
+import { Box, ButtonIcon } from 'design';
 
 export default function Tabs({
   items,
   parties,
   activeTab,
-  onClose,
   onSelect,
+  onClose,
+  onNew,
+  disableNew,
   ...styledProps
 }) {
   const $items = items
@@ -43,6 +46,11 @@ export default function Tabs({
           active={active}
           onClick={() => onSelect(i)}
           onClose={() => onClose(i)}
+          style={{
+            flex: '1',
+            flexBasis: '0',
+            flexGrow: '1',
+          }}
         />
       );
     });
@@ -54,9 +62,21 @@ export default function Tabs({
       typography="h5"
       color="text.secondary"
       bold
-      children={$items}
       {...styledProps}
-    />
+    >
+      {$items}
+      {$items.length > 0 && (
+        <ButtonIcon
+          ml="2"
+          size={0}
+          disabled={disableNew}
+          title="New Tab"
+          onClick={onNew}
+        >
+          <Icons.Add fontSize="16px" />
+        </ButtonIcon>
+      )}
+    </StyledTabs>
   );
 }
 
@@ -68,11 +88,5 @@ const StyledTabs = styled(Box)`
   align-items: center;
   flex-shrink: 0;
   overflow: hidden;
-
-  > * {
-    flex: 1;
-    flex-basis: 0;
-    flex-grow: 1;
-  }
   ${typography}
 `;

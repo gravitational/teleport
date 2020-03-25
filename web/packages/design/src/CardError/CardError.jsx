@@ -19,7 +19,7 @@ import PropTypes from 'prop-types';
 import styled from 'styled-components';
 import { Text, Alert, Card } from 'design';
 
-export default function CardError({ children }) {
+export default function CardError(props) {
   return (
     <Card
       color="text.onLight"
@@ -28,7 +28,7 @@ export default function CardError({ children }) {
       mx="auto"
       my={6}
       p={5}
-      children={children}
+      {...props}
     />
   );
 }
@@ -64,8 +64,8 @@ export const AccessDenied = ({ message }) => (
   </CardError>
 );
 
-export const Failed = ({ message }) => (
-  <CardError>
+export const Failed = ({ message, ...rest }) => (
+  <CardError {...rest}>
     <Header>Internal Error</Header>
     <Content message={message} />
   </CardError>

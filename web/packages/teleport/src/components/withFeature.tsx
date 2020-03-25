@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ export const withFeature = (feature: tele.Feature) => component => {
 
     if (feature.isFailed()) {
       const errorText = feature.state.statusText;
-      return <Cards.Failed message={errorText} />;
+      return <Cards.Failed alignSelf="baseline" message={errorText} />;
     }
 
     return React.createElement(component, {

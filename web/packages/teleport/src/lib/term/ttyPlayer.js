@@ -18,7 +18,7 @@ import BufferModule from 'buffer/';
 import Logger from 'shared/libs/logger';
 import Tty from './tty';
 import { TermEventEnum } from './enums';
-import EventProvider, { onlyPrintEvents } from './ttyPlayerEventProvider';
+import { onlyPrintEvents } from './ttyPlayerEventProvider';
 
 const logger = Logger.create('TtyPlayer');
 const STREAM_START_INDEX = 0;
@@ -33,7 +33,7 @@ export const StatusEnum = {
 };
 
 export default class TtyPlayer extends Tty {
-  constructor({ url }) {
+  constructor(eventProvider) {
     super({});
     this.currentEventIndex = 0;
     this.current = 0;
@@ -41,7 +41,7 @@ export default class TtyPlayer extends Tty {
     this.status = StatusEnum.LOADING;
     this.statusText = '';
     this._posToEventIndexMap = [];
-    this._eventProvider = new EventProvider({ url });
+    this._eventProvider = eventProvider;
   }
 
   // override
@@ -180,6 +180,10 @@ export default class TtyPlayer extends Tty {
     return (
       this.status !== StatusEnum.LOADING && this.status !== StatusEnum.ERROR
     );
+  }
+
+  disconnect() {
+    // do nothing
   }
 
   _display(events) {

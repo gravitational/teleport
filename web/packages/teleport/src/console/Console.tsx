@@ -26,7 +26,7 @@ import ActionBar from './components/ActionBar';
 import DocumentSsh from './components/DocumentSsh';
 import DocumentNodes from './components/DocumentNodes';
 import DocumentBlank from './components/DocumentBlank';
-import useRouting from './useRouting';
+import useTabRouting from './useTabRouting';
 import useOnExitConfirmation from './useOnExitConfirmation';
 
 const POLL_INTERVAL = 5000; // every 5 sec
@@ -34,7 +34,7 @@ const POLL_INTERVAL = 5000; // every 5 sec
 export default function Console() {
   const consoleCtx = useConsoleContext();
   const { verifyAndConfirm } = useOnExitConfirmation(consoleCtx);
-  const { clusterId, activeDocId } = useRouting(consoleCtx);
+  const { clusterId, activeDocId } = useTabRouting(consoleCtx);
   const storeDocs = consoleCtx.storeDocs;
   const hasSshSessions = storeDocs.getSshDocuments().length > 0;
 
@@ -75,13 +75,11 @@ export default function Console() {
           onClose={onTabClose}
           onSelect={onTabClick}
           activeTab={activeDocId}
-        />
-        <ActionBar
           clusterId={clusterId}
-          disableAddTab={disableNewTab}
+          disableNew={disableNewTab}
           onNew={onTabNew}
-          onLogout={onLogout}
         />
+        <ActionBar onLogout={onLogout} />
       </Flex>
       {$docs}
       {hasSshSessions && (

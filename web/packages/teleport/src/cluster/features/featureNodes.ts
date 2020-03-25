@@ -39,12 +39,6 @@ class FeatureNodes extends FeatureBase {
       exact: true,
       to: cfg.getNodesRoute(),
     });
-
-    this.setProcessing();
-    return context.storeNodes
-      .fetchNodes()
-      .then(this.setReady.bind(this))
-      .catch(this.setFailed.bind(this));
   }
 }
 

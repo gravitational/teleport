@@ -33,7 +33,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
   const { tty, status, statusText } = useSshSession(doc);
 
   function onOpenPlayer() {
-    const routeUrl = cfg.getSessionAuditRoute(doc);
+    const routeUrl = cfg.getPlayerRoute(doc);
     history.push(routeUrl);
   }
 

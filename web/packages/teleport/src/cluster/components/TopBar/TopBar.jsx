@@ -15,96 +15,48 @@ limitations under the License.
 */
 
 import React from 'react';
+import styled from 'styled-components';
+import { ArrowRight } from 'design/Icon';
 import { NavLink } from 'react-router-dom';
-import { withState } from 'shared/hooks';
-import { MenuItemIcon, MenuItem } from 'design/Menu/';
-import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
-import { Flex, ButtonOutlined, ButtonPrimary, TopNav, Text } from 'design';
-import session from 'teleport/services/session';
-import { useStoreUser, useStoreNav } from 'teleport/teleportContextProvider';
+import { Text, ButtonOutlined, Flex } from 'design';
+import TopBar from 'teleport/components/TopBar';
+import cfg from 'teleport/config';
 
-export class TopBar extends React.Component {
-  state = {
-    open: false,
-  };
+export default function ClusterTopBar() {
+  const clusterId = cfg.clusterName;
+  return (
+    <TopBar>
+      <Flex alignItems="center">
+        <BreadCrumbLink
+          ml="6"
+          typography="h5"
+          color="text.secondary"
+          as={NavLink}
+          to={cfg.routes.app}
+          title="Go back to cluster list"
+        >
+          All Clusters
+        </BreadCrumbLink>
+        <ArrowRight mx="3" fontSize={12} color="text.secondary" />
+        <Text
+          mr="5"
+          typography="h5"
+          color="text.primary"
+          style={{ maxWidth: '200px' }}
+        >
+          {clusterId}
+        </Text>
+        <ButtonOutlined width="120px" size="small">
+          Cluster Info
+        </ButtonOutlined>
+      </Flex>
+    </TopBar>
+  );
+}
 
-  onShowMenu = () => {
-    this.setState({ open: true });
-  };
-
-  onCloseMenu = () => {
-    this.setState({ open: false });
-  };
-
-  onItemClick = () => {
-    this.onClose();
-  };
-
-  onLogout = () => {
-    this.onCloseMenu();
-    this.props.onLogout();
-  };
-
-  menuItemProps = {
-    onClick: this.onCloseMenu,
-    py: 2,
-    as: NavLink,
-    exact: true,
-  };
-
-  render() {
-    const { username, navItems, pl } = this.props;
-    const { open } = this.state;
-    const $items = navItems.map((item, index) => (
-      <MenuItem {...this.menuItemProps} key={index} to={item.to}>
-        <MenuItemIcon as={item.Icon} mr="2" />
-        {item.title}
-      </MenuItem>
-    ));
-
-    return (
-      <TopNav pl={pl} height="72px" bg="transparent">
-        <Flex alignItems="center">
-          <Text mr="4" typography="body2" color="text.primary">
-            https://localhost/web
-          </Text>
-          <ButtonOutlined width="120px" size="small">
-            View Info
-          </ButtonOutlined>
-        </Flex>
-        <Flex ml="auto" height="100%">
-          <TopNavUserMenu
-            menuListCss={menuListCss}
-            open={open}
-            onShow={this.onShowMenu}
-            onClose={this.onCloseMenu}
-            user={username}
-          >
-            {$items}
-            <MenuItem>
-              <ButtonPrimary my={3} block onClick={this.onLogout}>
-                Sign Out
-              </ButtonPrimary>
-            </MenuItem>
-          </TopNavUserMenu>
-        </Flex>
-      </TopNav>
-    );
+const BreadCrumbLink = styled(Text)`
+  text-decoration: none;
+  &:hover {
+    color: ${props => props.theme.colors.text.primary};
   }
-}
-
-const menuListCss = () => `
-  width: 250px;
 `;
-
-function mapState() {
-  const navItems = useStoreNav().getTopMenuItems();
-  const { username } = useStoreUser().state;
-  return {
-    navItems,
-    username,
-    onLogout: () => session.logout(),
-  };
-}
-
-export default withState(mapState)(TopBar);

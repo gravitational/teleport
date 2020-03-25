@@ -47,12 +47,11 @@ const cfg = {
     clusterAuditSessions: '/web/cluster/:clusterId/audit/sessions',
     clusterNodes: '/web/cluster/:clusterId/nodes',
     clusterSessions: '/web/cluster/:clusterId/sessions',
-    clusterOffline: '/web/cluster/:siteId/offline',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
-    sessionAudit: '/web/cluster/:clusterId/session/:sid',
+    player: '/web/cluster/:clusterId/session/:sid',
     sessionAuditPlayer: '/web/cluster/:clusterId/session/:sid/player',
     sessionAuditCmds: '/web/cluster/:clusterId/session/:sid/commands',
     error: '/web/msg/error/:type?',
@@ -89,13 +88,11 @@ const cfg = {
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
   },
 
-  getClusterEventsUrl({ start, end, limit }) {
+  getClusterEventsUrl(params: UrlClusterEventsParams) {
     const clusterId = cfg.clusterName;
     return generatePath(cfg.api.clusterEventsPath, {
       clusterId,
-      start,
-      end,
-      limit,
+      ...params,
     });
   },
 
@@ -159,12 +156,13 @@ const cfg = {
     clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.consoleSession, { clusterId, sid });
   },
-  getAuditEventsRoute(clusterId: string) {
+
+  getAuditEventsRoute(clusterId?: string) {
     clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.clusterAuditEvents, { clusterId });
   },
 
-  getAuditSessionsRoute(clusterId: string) {
+  getAuditSessionsRoute(clusterId?: string) {
     clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.clusterAuditSessions, { clusterId });
   },
@@ -183,9 +181,9 @@ const cfg = {
     return generatePath(cfg.routes.console, { clusterId });
   },
 
-  getSessionAuditRoute({ clusterId, sid }: UrlParams) {
+  getPlayerRoute({ clusterId, sid }: UrlParams) {
     clusterId = clusterId || cfg.clusterName;
-    return generatePath(cfg.routes.sessionAudit, { clusterId, sid });
+    return generatePath(cfg.routes.player, { clusterId, sid });
   },
 
   getSessionAuditPlayerRoute({ clusterId, sid }: UrlParams) {
@@ -252,6 +250,12 @@ export interface UrlSshParams {
   serverId?: string;
   sid?: string;
   clusterId?: string;
+}
+
+export interface UrlClusterEventsParams {
+  start: string;
+  end: string;
+  limit?: number;
 }
 
 export default cfg;

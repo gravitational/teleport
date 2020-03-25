@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { KeyboardEvent } from 'react';
 import styled from 'styled-components';
+import { NavLink } from 'react-router-dom';
 import Menu, { MenuItem } from 'design/Menu';
 import { space } from 'design/system';
 import * as Icons from 'design/Icon';
@@ -40,19 +41,19 @@ class MenuSshLogin extends React.Component<MenuSshLoginProps> {
     });
   };
 
-  onItemClick = login => {
+  onItemClick = (e: React.MouseEvent<HTMLAnchorElement>, login: string) => {
     this.onClose();
-    this.props.onSelect(login);
+    this.props.onSelect(e, login);
   };
 
   onClose = () => {
     this.setState({ open: false });
   };
 
-  onKeyPress = e => {
-    if (e.key === 'Enter' && e.target.value) {
+  onKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && e.currentTarget.value) {
       this.onClose();
-      this.props.onSelect(e.target.value);
+      this.props.onSelect(e, e.currentTarget.value);
     }
   };
 
@@ -88,19 +89,18 @@ export const LoginItemList = ({ logins, onClick, onKeyPress }) => {
   const $menuItems = logins.map((item, key) => {
     const { login, url } = item;
     return (
-      <MenuItem
+      <StyledMenuItem
         key={key}
         px="2"
         mx="2"
-        as={StyledMenuItem}
-        href={url}
-        onClick={e => {
-          e.preventDefault();
-          onClick(login);
+        as={NavLink}
+        to={url}
+        onClick={(e: Event) => {
+          onClick(e, login);
         }}
       >
         {login}
-      </MenuItem>
+      </StyledMenuItem>
     );
   });
 
@@ -120,7 +120,7 @@ export const LoginItemList = ({ logins, onClick, onKeyPress }) => {
   );
 };
 
-const StyledMenuItem = styled.a(
+const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
   color: ${theme.colors.grey[400]};
   font-size: 12px;

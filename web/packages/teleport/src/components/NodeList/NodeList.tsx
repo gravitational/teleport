@@ -34,13 +34,6 @@ import { Node } from 'teleport/services/nodes';
 import Pager, { StyledButtons } from 'design/DataTable/Paged/Pager';
 import InputSearch from 'teleport/components/InputSearch';
 
-type NodeListProps = {
-  nodes: Node[];
-  onLoginMenuOpen: (serverId: string) => { login: string; url: string }[];
-  onLoginSelect: (login: string, serverId: string) => void;
-  pageSize?: number;
-};
-
 function NodeList(props: NodeListProps) {
   const { nodes = [], onLoginMenuOpen, onLoginSelect, pageSize = 100 } = props;
   const [searchValue, setSearchValue] = React.useState('');
@@ -51,7 +44,7 @@ function NodeList(props: NodeListProps) {
   function sortAndFilter(search) {
     const filtered = nodes.filter(obj =>
       isMatch(obj, search, {
-        searchableProps: ['hostname', 'addr', 'tags'],
+        searchableProps: ['hostname', 'addr', 'tags', 'tunnel'],
         cb: searchAndFilterCb,
       })
     );
@@ -69,7 +62,7 @@ function NodeList(props: NodeListProps) {
     setSortDir({ [columnKey]: sortDir });
   }
 
-  function onSearchChange(value) {
+  function onSearchChange(value: string) {
     setSearchValue(value);
   }
 
@@ -93,7 +86,7 @@ function NodeList(props: NodeListProps) {
       </StyledPanel>
       <StyledTable data={pagging.data}>
         <Column
-          header={<Cell>Session</Cell>}
+          header={<Cell>Login as</Cell>}
           cell={<LoginCell onOpen={onLoginMenuOpen} onSelect={onLoginSelect} />}
         />
         <Column
@@ -116,7 +109,7 @@ function NodeList(props: NodeListProps) {
               title="Address"
             />
           }
-          cell={<TextCell />}
+          cell={<AddressCell />}
         />
         <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
       </StyledTable>
@@ -129,6 +122,10 @@ function searchAndFilterCb(
   searchValue: string,
   propName: string
 ) {
+  if (propName === 'tunnel') {
+    return 'TUNNEL'.indexOf(searchValue) !== -1;
+  }
+
   if (propName === 'tags') {
     return targetValue.some(item => {
       const { name, value } = item;
@@ -141,19 +138,23 @@ function searchAndFilterCb(
 }
 
 const LoginCell: React.FC<Required<{
-  onSelect: (login: string, serverId: string) => void;
+  onSelect?: (e: React.SyntheticEvent, login: string, serverId: string) => void;
   onOpen: (serverId: string) => LoginItem[];
   [key: string]: any;
 }>> = props => {
   const { rowIndex, data, onOpen, onSelect } = props;
-  const { hostname, id } = data[rowIndex];
+  const { hostname, id } = data[rowIndex] as Node;
   const serverId = hostname || id;
   function handleOnOpen() {
     return onOpen(serverId);
   }
 
-  function handleOnSelect(login) {
-    return onSelect(login, serverId);
+  function handleOnSelect(e: React.SyntheticEvent, login: string) {
+    if (!onSelect) {
+      return [];
+    }
+
+    return onSelect(e, login, serverId);
   }
 
   return (
@@ -175,6 +176,21 @@ export function LabelCell(props) {
   return <Cell>{$labels}</Cell>;
 }
 
+function AddressCell(props) {
+  const { rowIndex, data, ...rest } = props;
+  const { addr, tunnel } = data[rowIndex] as Node;
+  return <Cell {...rest}>{tunnel ? renderTunnel() : addr}</Cell>;
+}
+
+function renderTunnel() {
+  return (
+    <span
+      style={{ cursor: 'default' }}
+      title="This node is connected to cluster through reverse tunnel"
+    >{`⟵ tunnel`}</span>
+  );
+}
+
 const StyledPanel = styled(Flex)`
   box-sizing: content-box;
   padding: 16px;
@@ -191,5 +207,16 @@ const StyledTable = styled(Table)`
     vertical-align: baseline;
   }
 `;
+
+type NodeListProps = {
+  nodes: Node[];
+  onLoginMenuOpen: (serverId: string) => { login: string; url: string }[];
+  onLoginSelect?: (
+    e: React.SyntheticEvent,
+    login: string,
+    serverId: string
+  ) => void;
+  pageSize?: number;
+};
 
 export default NodeList;

@@ -5,7 +5,7 @@ import { storiesOf } from '@storybook/react';
 import * as Icons from 'design/Icon';
 import { DashboardTopNav } from './TopBar';
 
-storiesOf('TeleportDashboard/TopBar', module).add('TopBar', () => {
+storiesOf('TeleportDashboard', module).add('TopBar', () => {
   const history = createMemoryHistory({
     initialEntries: ['/web/page1'],
     initialIndex: 0,

@@ -25,8 +25,7 @@ const FeatureHeader = styled(Flex)`
 `;
 
 FeatureHeader.defaultProps = {
-  mt: 2,
-  mb: 4,
+  my: 4,
 };
 
 /**

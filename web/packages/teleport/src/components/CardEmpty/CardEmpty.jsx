@@ -15,20 +15,30 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components'
+import styled from 'styled-components';
 import { Text, Box } from 'design';
 
-export default function CardEmpty({title, children, ...styles}) {
+export default function CardEmpty(props) {
+  const { title, children, ...styles } = props;
   return (
-    <Container bg="primary.light" p="8" width="100%" m="0 auto" maxWidth="600px" textAlign="center" color="text.primary" {...styles}>
+    <Container
+      bg="primary.light"
+      p="8"
+      width="100%"
+      m="0 auto"
+      maxWidth="600px"
+      textAlign="center"
+      color="text.primary"
+      {...styles}
+    >
       <Text typography="h2" mb="3">
         {title}
       </Text>
       {children}
     </Container>
-  )
+  );
 }
 
 const Container = styled(Box)`
   border-radius: 12px;
-`
+`;
