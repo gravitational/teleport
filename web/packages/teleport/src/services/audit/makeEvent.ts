@@ -14,14 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import {
-  Event,
-  CodeEnum,
-  Code,
-  RawEvent,
-  RawEvents,
-  EventFormatters,
-} from './types';
+import { Event, CodeEnum, RawEvent, EventFormatters } from './types';
 
 export const formatters: EventFormatters = {
   [CodeEnum.ALERT_CREATED]: {
