@@ -29,7 +29,7 @@ const service = {
   },
 
   upsertRole(yaml, isNew = false) {
-    return this.upsert(ResourceEnum.ROLE, yaml, isNew).then(makeResources);
+    return this.upsert(ResourceEnum.ROLE, yaml, isNew);
   },
 
   upsert(kind, yaml, isNew = false) {

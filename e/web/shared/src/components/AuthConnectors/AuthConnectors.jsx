@@ -1,10 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'design/Layout';
+import { FeatureBox, FeatureHeader, FeatureHeaderTitle } from 'design/Layout';
 import Indicator from 'design/Indicator';
 import { Danger } from 'design/Alert';
 import { Text, Box, Flex } from 'design';

@@ -15,7 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import { withState } from 'shared/hooks';
+import { useParams } from 'shared/components/Router';
+import Cluster from 'teleport/cluster/components/Cluster';
+import TeleportContext from 'teleport/teleportContext';
+import TeleportContextProvider from 'teleport/teleportContextProvider';
 import FeatureAccount from 'teleport/features/featureAccount';
 import FeatureAudit from 'teleport/cluster/features/featureAudit';
 import FeatureNodes from 'teleport/cluster/features/featureNodes';
@@ -23,14 +26,11 @@ import FeatureSessions from 'teleport/cluster/features/featureSessions';
 import FeatureAuthConnectors from 'e-teleport/cluster/features/featureAuthConnectors';
 import FeatureRoles from 'e-teleport/cluster/features/featureRoles';
 import FeatureTrustedClusters from 'e-teleport/cluster/features/featureTrustedClusters';
-import Cluster from 'teleport/cluster/components/Cluster';
-import { useTeleport } from 'teleport/teleportContextProvider';
 
-function mapState(props) {
-  const { clusterId } = props.match.params;
-  const teleport = useTeleport();
-  const [features] = React.useState(() => {
-    return [
+export default function EnterpriseCluster() {
+  const { clusterId } = useParams();
+  const [ctx] = React.useState(() => {
+    const features = [
       new FeatureAccount(),
       new FeatureNodes(),
       new FeatureSessions(),
@@ -39,16 +39,12 @@ function mapState(props) {
       new FeatureRoles(),
       new FeatureTrustedClusters(),
     ];
+    return new TeleportContext({ clusterId, features });
   });
 
-  function onInit() {
-    return teleport.init({ clusterId, features });
-  }
-
-  return {
-    features,
-    onInit,
-  };
+  return (
+    <TeleportContextProvider value={ctx}>
+      <Cluster />
+    </TeleportContextProvider>
+  );
 }
-
-export default withState(mapState)(Cluster);
