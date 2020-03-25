@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package services
 import (
 	"fmt"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
@@ -79,6 +80,72 @@ func (s *OIDCSuite) TestUnmarshal(c *check.C) {
 	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
 	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
 	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
+	c.Assert(oc.GetPrompt(), check.Equals, teleport.OIDCPromptSelectAccount)
+}
+
+// TestUnmarshalEmptyPrompt makes sure that empty prompt value
+// that is set does not default to select_account
+func (s *OIDCSuite) TestUnmarshalEmptyPrompt(c *check.C) {
+	input := `
+      {
+        "kind": "oidc",
+        "version": "v2",
+        "metadata": {
+          "name": "google"
+        },
+        "spec": {
+          "issuer_url": "https://accounts.google.com",
+          "client_id": "id-from-google.apps.googleusercontent.com",
+          "client_secret": "secret-key-from-google",
+          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
+          "display": "whatever",
+          "scope": ["roles"],
+          "prompt": ""
+        }
+      }
+	`
+
+	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
+	c.Assert(err, check.IsNil)
+
+	c.Assert(oc.GetName(), check.Equals, "google")
+	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
+	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
+	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
+	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
+	c.Assert(oc.GetPrompt(), check.Equals, "")
+}
+
+// TestUnmarshalPromptValue makes sure that prompt value is set properly
+func (s *OIDCSuite) TestUnmarshalPromptValue(c *check.C) {
+	input := `
+      {
+        "kind": "oidc",
+        "version": "v2",
+        "metadata": {
+          "name": "google"
+        },
+        "spec": {
+          "issuer_url": "https://accounts.google.com",
+          "client_id": "id-from-google.apps.googleusercontent.com",
+          "client_secret": "secret-key-from-google",
+          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
+          "display": "whatever",
+          "scope": ["roles"],
+          "prompt": "consent login"
+        }
+      }
+	`
+
+	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
+	c.Assert(err, check.IsNil)
+
+	c.Assert(oc.GetName(), check.Equals, "google")
+	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
+	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
+	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
+	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
+	c.Assert(oc.GetPrompt(), check.Equals, "consent login")
 }
 
 func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
