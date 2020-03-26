@@ -858,6 +858,14 @@ turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro
 dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
 ```
 
+### Removing Nodes from a cluster
+
+To remove a node from a cluster, simply stop the node that you want to remove. 
+
+Nodes that are stopped have a TTL time of 15 minutes. After 15 minutes, the node is no longer
+considered `active` and is removed from the `active SSH nodes` list within the cluster. You can 
+check for removable with the command: [`tctl nodes ls`](cli-docs.md#tctl-nodes-ls).
+
 ### Untrusted Auth Servers
 
 Teleport nodes use the HTTPS protocol to offer the join tokens to the auth
