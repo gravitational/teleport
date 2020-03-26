@@ -118,10 +118,10 @@ export default function ClustersList(props: ClusterListProps) {
         cell={<TextCell />}
       />
       <Column
-        columnKey="publicUrl"
+        columnKey="publicURL"
         header={
           <SortHeaderCell
-            sortDir={sortDir.publicUrl}
+            sortDir={sortDir.publicURL}
             onSortChange={onSortChange}
             title="Public URL"
           />

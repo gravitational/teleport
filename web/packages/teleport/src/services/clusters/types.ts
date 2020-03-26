@@ -16,11 +16,11 @@ limitations under the License.
 
 export interface Cluster {
   clusterId: string;
-  connected: Date;
+  lastConnected: Date;
   connectedText: string;
   status: string;
   url: string;
   nodeCount: number;
-  publicUrl: string;
+  publicURL: string;
   version: string;
 }
