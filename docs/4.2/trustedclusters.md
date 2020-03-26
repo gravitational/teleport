@@ -134,9 +134,9 @@ $ tctl tokens ls
 $ tctl tokens rm ba4825847f0378bcdfe18113c4998498
 ```
 
-Users of Teleport will recognize that this is the same way you would add any
-node to a cluster.  The token created above can be used multiple times and has
-an expiration time of 5 minutes.
+The token created above can be used multiple times and has an expiration time of 5 minutes.
+
+[Example of how to use a cluster join token.](admin-guide.md#example-configuration)
 
 ### Security Implications
 
