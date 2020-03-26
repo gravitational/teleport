@@ -21,7 +21,28 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"math/rand"
 )
+
+// Jitter is a function which applies random jitter to
+// a duration.  Used to randomize backoff values.  An
+// instance of Jitter likely has internal state so
+// concurrent usage must be managed via external mutex.
+type Jitter func(time.Duration) time.Duration
+
+// NewJitter returns the default jitter (currently jitters on
+// the range [n/2,n), but this is subject to change).
+func NewJitter() Jitter {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return func(d time.Duration) time.Duration {
+		// values less than 1 cause rng to panic, and some logic
+		// relies on treating zero duration as non-blocking case.
+		if d < 1 {
+			return 0
+		}
+		return (d / 2) + time.Duration(rng.Int63n(int64(d))/2)
+	}
+}
 
 // Retry is an interface that provides retry logic
 type Retry interface {
@@ -49,6 +70,10 @@ type LinearConfig struct {
 	// Max is a maximum value of the progression,
 	// can't be 0
 	Max time.Duration
+	// Jitter is an optional jitter function to be applied
+	// to the delay.  Note that supplying a jitter means that
+	// successive calls to Duration may return different results.
+	Jitter Jitter
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -97,8 +122,11 @@ func (r *Linear) Inc() {
 // Duration returns retry duration based on state
 func (r *Linear) Duration() time.Duration {
 	a := r.First + time.Duration(r.attempt)*r.Step
-	if a < 0 {
+	if a < 1 {
 		return 0
+	}
+	if r.Jitter != nil {
+		a = r.Jitter(a)
 	}
 	if a <= r.Max {
 		return a
@@ -110,10 +138,11 @@ func (r *Linear) Duration() time.Duration {
 // defined in Duration method, as a special case
 // if Duration is 0 returns a closed channel
 func (r *Linear) After() <-chan time.Time {
-	if r.Duration() == 0 {
+	d := r.Duration()
+	if d < 1 {
 		return r.closedChan
 	}
-	return time.After(r.Duration())
+	return time.After(d)
 }
 
 // String returns user-friendly representation of the LinearPeriod
