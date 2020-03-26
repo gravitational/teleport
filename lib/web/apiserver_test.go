@@ -1778,6 +1778,9 @@ func (s *WebSuite) client(opts ...roundtrip.ClientParam) *client.WebClient {
 func (s *WebSuite) login(clt *client.WebClient, cookieToken string, reqToken string, reqData interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)
+		if err != nil {
+			return nil, err
+		}
 		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
