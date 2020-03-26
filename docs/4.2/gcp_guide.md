@@ -166,9 +166,8 @@ teleport:
     audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds.json&projectID=example_Teleport-Project-Name'
 auth_service:
   enabled: yes
-  auth_service:
-    tokens:
-    - "proxy,node:EXAMPLE-CLUSTER-JOIN-TOKEN"  
+  tokens:
+  - "proxy,node:EXAMPLE-CLUSTER-JOIN-TOKEN"  
 ```
 
 **2. Setup Proxy**

@@ -73,7 +73,6 @@ type Server struct {
 	hostname  string
 
 	srv           *sshutils.Server
-	hostSigner    ssh.Signer
 	shell         string
 	getRotation   RotationGetter
 	authService   auth.AccessPoint
