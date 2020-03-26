@@ -31,9 +31,9 @@ extra_javascript: []
 extra:
     version: 4.2
     teleport:
-        version: 4.2.3
+        version: 4.2.6
         golang: 1.13
-        sha: 1c14362c9ba10f28088c7228b357dc6a70072d3d4afaa5510c70a8734068684c
+        sha: 0aefb3cfa0477c7d95ba45d0efd0bdc5be8f4ab09f36e25e50ae433831fa8cfe
 nav:
     - Documentation:
         - Introduction: index.md
