@@ -992,6 +992,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 		events.SessionEventID: sid.String(),
 		events.TerminalSize:   params.Serialize(),
 	})
+	c.Assert(err, IsNil)
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketResize,
