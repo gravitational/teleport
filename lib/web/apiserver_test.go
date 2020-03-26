@@ -465,6 +465,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
 	c.Assert(err, IsNil)
 	err = connector.CheckAndSetDefaults()
+	c.Assert(err, IsNil)
 
 	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
 		Options: services.RoleOptions{
@@ -493,10 +494,12 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after;connector_id=` + connector.GetName())
 	c.Assert(err, IsNil)
 	req, err := http.NewRequest("GET", baseURL.String(), nil)
+	c.Assert(err, IsNil)
 	addCSRFCookieToReq(req, csrfToken)
 	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
 		return clt.Client.HTTPClient().Do(req)
 	})
+	c.Assert(err, IsNil)
 
 	// we got a redirect
 	locationURL := re.Headers().Get("Location")
