@@ -251,11 +251,33 @@ type proxyGroup struct {
 // run is the "main loop" for the seek process.
 func (p *proxyGroup) run(ctx context.Context) {
 	const logInterval int = 8
+	// ticker is the primary ticker used to schedule
+	// group-level "ticks".
 	ticker := time.NewTicker(p.conf.TickRate)
 	defer ticker.Stop()
+	// t2 is an extra ticker running on the same tick rate
+	// interval; used as a "timeout" for blocking operations
+	// within the body of the tick loop.
+	t2 := time.NewTicker(p.conf.TickRate)
+	defer t2.Stop()
 	// supply initial status & seek notification.
 	p.notifyStatus(p.Tick())
 	p.notifyShouldSeek()
+	// we use a jittered linear retry to limit the amount of tick-based
+	// seek notifications we send from the main tick loop.  Note that
+	// notifications may still be sent when a *new* proxy entry is added,
+	// or when a previously held proxy is released.
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Step:   p.conf.TickRate / 2,
+		Max:    p.conf.TickRate * 4,
+		Jitter: utils.NewJitter(),
+	})
+	if err != nil {
+		panic(err) // TODO(fspmarshall): don't panic in prod
+	}
+	// backoff is a seek notification backoff channel.  The main tick
+	// loop applies backoff after generating seek notifications.
+	var backoff <-chan time.Time
 	var ticks int
 	for {
 		select {
@@ -263,7 +285,24 @@ func (p *proxyGroup) run(ctx context.Context) {
 			stat := p.Tick()
 			p.notifyStatus(stat)
 			if stat.ShouldSeek() {
-				p.notifyShouldSeek()
+				if backoff == nil {
+					backoff = retry.After()
+				}
+				select {
+				case <-backoff:
+					p.notifyShouldSeek()
+					retry.Inc()
+					backoff = nil
+				case <-ctx.Done():
+					return
+					// don't block longer than one tick, this is OK
+					// since we don't regenerate the backoff channel
+					// unless it fires or we exit seeking mode.
+				case <-t2.C:
+				}
+			} else {
+				retry.Reset()
+				backoff = nil
 			}
 			ticks++
 			if ticks%logInterval == 0 {
