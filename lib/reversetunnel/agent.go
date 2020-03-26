@@ -401,7 +401,9 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 func (a *Agent) run() {
 	defer a.setState(agentStateDisconnected)
 
-	if len(a.DiscoverProxies) != 0 {
+	discoveryMode := len(a.DiscoverProxies) != 0
+
+	if discoveryMode {
 		a.setStateAndPrincipals(agentStateDiscovering, nil)
 	} else {
 		a.setStateAndPrincipals(agentStateConnecting, nil)
@@ -417,23 +419,26 @@ func (a *Agent) run() {
 
 	// Successfully connected to remote cluster.
 	a.Infof("Connected to %s", conn.RemoteAddr())
-	if len(a.DiscoverProxies) != 0 {
+	if discoveryMode {
 		// If not connected to a proxy in the discover list (which means we
 		// connected to a proxy we already have a connection to), try again.
 		if !a.connectedToRightProxy() {
 			a.Debugf("Missed, connected to %v instead of %v.", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
 			return
 		}
-		a.Debugf("Agent discovered proxy: %v.", a.getPrincipalsList())
-		a.setState(agentStateDiscovered)
-	} else {
-		a.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
-		a.setState(agentStateConnected)
 	}
 
 	// wrap up remaining business logic in closure for easy
 	// conditional execution.
 	doWork := func() {
+		// Update state based on discovery mode
+		if discoveryMode {
+			a.Debugf("Agent discovered proxy: %v.", a.getPrincipalsList())
+			a.setState(agentStateDiscovered)
+		} else {
+			a.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
+			a.setState(agentStateConnected)
+		}
 		// Notify waiters that the agent has connected.
 		if a.EventsC != nil {
 			select {
