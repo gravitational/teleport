@@ -58,6 +58,16 @@ const (
 	agentStateDisconnected = "disconnected"
 )
 
+// helper for checking if agent is in a "pending" state.
+func isPendingAgentState(state string) bool {
+	switch state {
+	case agentStateConnecting, agentStateDiscovering:
+		return true
+	default:
+		return false
+	}
+}
+
 // AgentConfig holds configuration for agent
 type AgentConfig struct {
 	// numeric id of agent
