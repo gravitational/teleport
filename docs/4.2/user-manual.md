@@ -321,10 +321,10 @@ $ tsh ssh -J proxy.example.com telenode
 Known limits:
 
 * Only one jump host is supported (`-J` supports chaining that Teleport does not utilise)
-and tsh will return with error in case of two jumphosts: `-J` proxy-1.example.com,proxy-2.example.com
+and `tsh` will return with error in the case of two jumphosts, i.e. `-J proxy-1.example.com,proxy-2.example.com` 
 will not work.
-* Only one jump host is supported (`-J` supports chaining that Teleport does not utilise) and `tsh` will return with error in the case of two jumphosts, i.e. `-J proxy-1.example.com,proxy-2.example.com` will not work.
-* When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh profile and port forwarding is used instead of the existing Teleport proxy subsystem.
+* When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the `tsh` profile,
+and port forwarding is used instead of the existing Teleport proxy subsystem.
 
 
 ### Resolving Node Names
