@@ -91,6 +91,9 @@ type AgentPoolConfig struct {
 	ReverseTunnelServer Server
 	// ProxyAddr if set, points to the address of the ssh proxy
 	ProxyAddr string
+	// MaxPendingAgents is the maximum number of simultaneous connection
+	// attempts which may be active for a given endpoint.
+	MaxPendingAgents int
 	// Seek configures the proxy-seeking algorithm
 	Seek seek.Config
 }
@@ -114,6 +117,9 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.MaxPendingAgents < 1 {
+		cfg.MaxPendingAgents = 3
 	}
 	if err := cfg.Seek.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -178,12 +184,33 @@ func (m *AgentPool) processSeekEvents() {
 		case key := <-m.seekPool.Seek():
 			m.Debugf("Seeking: %+v.", key)
 			m.withLock(func() {
-				if err := m.addAgent(seekToAgentKey(key), nil); err != nil {
+				if err := m.addAgentIfNeeded(seekToAgentKey(key)); err != nil {
 					m.WithError(err).Errorf("Failed to add agent.")
 				}
 			})
 		}
 	}
+}
+
+// addAgentIfNeeded adds an agent only if there are not too many
+// pending agents already.  Must be called with lock.
+func (m *AgentPool) addAgentIfNeeded(key agentKey) error {
+	agents, ok := m.agents[key]
+	if !ok {
+		// no agents present, add one.
+		return trace.Wrap(m.addAgent(key, nil))
+	}
+	pending := 0
+	for _, agent := range agents {
+		if isPendingAgentState(agent.getState()) {
+			pending++
+		}
+	}
+	if pending < m.cfg.MaxPendingAgents {
+		return trace.Wrap(m.addAgent(key, nil))
+	}
+	m.Debugf("Not addding agent for %v, limit exceeded (%d)", key, pending)
+	return nil
 }
 
 func foundInOneOf(proxy services.Server, agents []*Agent) bool {
