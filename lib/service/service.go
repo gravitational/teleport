@@ -1156,8 +1156,9 @@ func (process *TeleportProcess) initAuthService() error {
 					Name:      process.Config.HostUUID,
 				},
 				Spec: services.ServerSpecV2{
-					Addr:     authAddr,
-					Hostname: process.Config.Hostname,
+					Addr:            authAddr,
+					Hostname:        process.Config.Hostname,
+					TeleportVersion: teleport.Version,
 				},
 			}
 			state, err := process.storage.GetState(teleport.RoleAdmin)
@@ -1346,7 +1347,7 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheNam
 	return process.newLocalCache(clt, cache.ForProxy, cacheName)
 }
 
-// newAccessPointCache returns new instance of access point
+// newLocalCache returns new instance of access point
 func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {

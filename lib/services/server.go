@@ -34,6 +34,8 @@ import (
 type Server interface {
 	// Resource provides common resource headers
 	Resource
+	// GetTeleportVersion returns the teleport version the server is running on
+	GetTeleportVersion() string
 	// GetAddr return server address
 	GetAddr() string
 	// GetHostname returns server hostname
@@ -89,6 +91,11 @@ func ServersToV1(in []Server) []ServerV1 {
 // GetVersion returns resource version
 func (s *ServerV2) GetVersion() string {
 	return s.Version
+}
+
+// GetTeleportVersion returns teleport version auth service is running on
+func (s *ServerV2) GetTeleportVersion() string {
+	return s.Spec.TeleportVersion
 }
 
 // GetKind returns resource kind
@@ -307,7 +314,7 @@ const (
 	Equal = iota
 	// OnlyTimestampsDifferent is true when only timestamps are different
 	OnlyTimestampsDifferent = iota
-	// Differnt means that some fields are different
+	// Different means that some fields are different
 	Different = iota
 )
 
@@ -344,6 +351,9 @@ func CompareServers(a, b Server) int {
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
 	}
 	return Equal
 }
