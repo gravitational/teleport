@@ -1,6 +1,6 @@
 image:
   repository: quay.io/gravitational/teleport-ent
-  tag: 3.2.4
+  tag: 4.2.7
   pullPolicy: IfNotPresent
   # Optionally specify an array of imagePullSecrets.
   # Secrets must be manually created in the namespace.
