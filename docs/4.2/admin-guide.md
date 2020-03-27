@@ -862,15 +862,15 @@ dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro
 
 To remove a node from a cluster, simply stop the node that you want to remove. 
 
-#### TTL time
+#### Time to live
 Node processes that are stopped have a TTL time of 10 minutes.
 You can restart the node within this time limit to keep the node. 
 
 After 10 minutes, the node is no longer considered `active` and is removed from 
-the `active SSH nodes` list within the cluster. You can  check for removable with 
+the `active SSH nodes` list within the cluster. You can check that the node has been removed with
 the command: [`tctl nodes ls`](cli-docs.md#tctl-nodes-ls).
 
-#### Remove a Node Immediateley
+#### Remove a Node Immediately
 If you need to remove a node immediately, stop the node process and run [`tctl rm node/<UUID>`](cli-docs.md#tctl-rm):
 ``` bsh
 # STOP the node process first
@@ -882,7 +882,7 @@ Nodename      UUID                                     Address            Labels
 turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro:ubuntu
 dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
 
-# forefully remove the node
+# forcefully remove the node
 $ tctl rm node/d52527f9-b260-41d0-bb5a-e23b0cfe0f8f
 node d52527f9-b260-41d0-bb5a-e23b0cfe0f8f has been deleted
 
