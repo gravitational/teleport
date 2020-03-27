@@ -169,7 +169,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
-		onConfigDump()
+		err = onConfigDump()
 	case exec.FullCommand():
 		err = onExec()
 	case forward.FullCommand():
@@ -213,9 +213,13 @@ func onStatus() error {
 }
 
 // onConfigDump is the handler for "configure" CLI command
-func onConfigDump() {
-	sfc := config.MakeSampleFileConfig()
+func onConfigDump() error {
+	sfc, err := config.MakeSampleFileConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	fmt.Printf("%s\n%s\n", sampleConfComment, sfc.DebugDumpToYAML())
+	return nil
 }
 
 // onSCP implements handling of 'scp' requests on the server side. When the teleport SSH daemon

@@ -100,10 +100,11 @@ func (s *ConfigTestSuite) SetUpTest(c *check.C) {
 
 func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
 	// generate sample config and write it into a temp file:
-	sfc := MakeSampleFileConfig()
+	sfc, err := MakeSampleFileConfig()
+	c.Assert(err, check.IsNil)
 	c.Assert(sfc, check.NotNil)
 	fn := filepath.Join(c.MkDir(), "default-config.yaml")
-	err := ioutil.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
+	err = ioutil.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
 	c.Assert(err, check.IsNil)
 
 	// make sure it could be parsed:
@@ -111,7 +112,7 @@ func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// validate a couple of values:
-	c.Assert(fc.Limits.MaxUsers, check.Equals, defaults.LimiterMaxConcurrentUsers)
+	c.Assert(fc.AuthServers, check.DeepEquals, []string{fmt.Sprintf("%s:%d", defaults.Localhost, defaults.AuthListenPort)})
 	c.Assert(fc.Global.DataDir, check.Equals, defaults.DataDir)
 	c.Assert(fc.Logger.Severity, check.Equals, "INFO")
 
