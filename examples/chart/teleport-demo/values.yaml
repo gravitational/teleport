@@ -1,6 +1,6 @@
 ## override these on the helm command line with things like --set teleportVersion=4.2.0
 # teleport version to deploy (must be a valid tag on https://quay.io/repository/gravitational/teleport-ent?tab=tags)
-teleportVersion: 4.2.0
+teleportVersion: 4.2.7
 # name of the 'main' cluster which will be set up and configured - this will also the cluster's namespace
 # DNS will be set up for <clusterName>.<clusterDomain>
 mainClusterName: main
