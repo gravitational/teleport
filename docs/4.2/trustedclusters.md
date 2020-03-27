@@ -311,6 +311,7 @@ and set `enabled` to "false", then update it:
 ```bsh
 $ tctl create --force cluster.yaml
 ```
+
 ## Sharing Kubernetes groups between Trusted Clusters
 
 Below is an example of how to share a kubernetes group between trusted clusters. 
@@ -335,12 +336,12 @@ role_map:
 The role `admin` of the leaf cluster can now be set up to use the root cluster role logins and `kubernetes_groups` using the following variables:
 
 ```yaml
-logins: ["{{internal.logins}}"]
-kubernetes_groups: ["{{internal.kubernetes_groups}}"]
+logins: ["{% raw %}{{internal.logins}}{% endraw %}"]
+kubernetes_groups: ["{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
 ```
 !!! tip "Note"
 
-    In order to pass logins from a root trusted cluster to a leaf cluster, you must use the variable `{{internal.logins}}`. 
+    In order to pass logins from a root trusted cluster to a leaf cluster, you must use the variable `{% raw %}{{internal.logins}}{% endraw %}`. 
 
 ## How does it work?
 
