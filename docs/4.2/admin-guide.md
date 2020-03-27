@@ -2040,17 +2040,17 @@ chapter.
 
 In the scenario illustrated above a user would execute the following commands:
 
-``` bsh
+```bsh
 # Authentication step to retrieve the certificates. tsh login places the SSH
-# certificate into `~/.tsh` as usual and updates kubeconfig with Kubernetes
-# credentials:
-$ tsh --proxy=teleport.example.com login
+# certificate into ~/.tsh as usual and updates ~/.kube/config on your local
+# client with Kubernetes credentials:
+[client] $ tsh --proxy=teleport.example.com login
 
-# Execute SSH commands to access SSH nodes:
-$ tsh ssh login@ssh-node
+# You can execute SSH commands on your local client to access SSH nodes:
+[client] $ tsh ssh login@ssh-node
 
-# Execute any kubectl commands to access the Kubernetes cluster:
-$ kubectl get pods
+# You can also execute any kubectl commands on your local client to access the Kubernetes cluster:
+[client] $ kubectl get pods
 ```
 
 ### Kubernetes/Teleport Configuration
