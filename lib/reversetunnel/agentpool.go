@@ -198,7 +198,7 @@ func (m *AgentPool) addAgentIfNeeded(key agentKey) error {
 	agents, ok := m.agents[key]
 	if !ok {
 		// no agents present, add one.
-		return trace.Wrap(m.addAgent(key, nil))
+		return trace.Wrap(m.addAgent(key))
 	}
 	pending := 0
 	for _, agent := range agents {
@@ -207,7 +207,7 @@ func (m *AgentPool) addAgentIfNeeded(key agentKey) error {
 		}
 	}
 	if pending < m.cfg.MaxPendingAgents {
-		return trace.Wrap(m.addAgent(key, nil))
+		return trace.Wrap(m.addAgent(key))
 	}
 	m.Debugf("Not addding agent for %v, limit exceeded (%d)", key, pending)
 	return nil
@@ -215,7 +215,7 @@ func (m *AgentPool) addAgentIfNeeded(key agentKey) error {
 
 func foundInOneOf(proxy services.Server, agents []*Agent) bool {
 	for _, agent := range agents {
-		if agent.isDiscovering(proxy) || agent.connectedTo(proxy) {
+		if agent.connectedTo(proxy) {
 			return true
 		}
 	}
@@ -302,7 +302,7 @@ func (m *AgentPool) pollAndSyncAgents() {
 	}
 }
 
-func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) error {
+func (m *AgentPool) addAgent(key agentKey) error {
 	// If the component connecting is a proxy, get the cluster name from the
 	// clusterName (where it is the name of the remote cluster). If it's a node, get
 	// the cluster name from the agent pool configuration itself (where it is
@@ -323,7 +323,6 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 		Client:              m.cfg.Client,
 		AccessPoint:         m.cfg.AccessPoint,
 		Context:             m.ctx,
-		DiscoverProxies:     discoverProxies,
 		KubeDialAddr:        m.cfg.KubeDialAddr,
 		Server:              m.cfg.Server,
 		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
@@ -397,9 +396,7 @@ func (m *AgentPool) reportStats() {
 
 		countPerState := map[string]int{
 			agentStateConnecting:   0,
-			agentStateDiscovering:  0,
 			agentStateConnected:    0,
-			agentStateDiscovered:   0,
 			agentStateDisconnected: 0,
 		}
 		for _, a := range agents {
@@ -437,7 +434,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	}
 	// add agents from added reverse tunnels
 	for _, key := range agentsToAdd {
-		if err := m.addAgent(key, nil); err != nil {
+		if err := m.addAgent(key); err != nil {
 			return trace.Wrap(err)
 		}
 	}

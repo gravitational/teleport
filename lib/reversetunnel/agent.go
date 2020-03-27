@@ -46,13 +46,8 @@ const (
 	// agentStateConnecting is when agent is connecting to the target
 	// without particular purpose
 	agentStateConnecting = "connecting"
-	// agentStateDiscovering is when agent is created with a goal
-	// to discover one or many proxies
-	agentStateDiscovering = "discovering"
 	// agentStateConnected means that agent has connected to instance
 	agentStateConnected = "connected"
-	// agentStateDiscovered means that agent has discovered the right proxy
-	agentStateDiscovered = "discovered"
 	// agentStateDisconnected means that the agent has disconnected from the
 	// proxy and this agent and be removed from the pool.
 	agentStateDisconnected = "disconnected"
@@ -61,7 +56,7 @@ const (
 // helper for checking if agent is in a "pending" state.
 func isPendingAgentState(state string) bool {
 	switch state {
-	case agentStateConnecting, agentStateDiscovering:
+	case agentStateConnecting:
 		return true
 	default:
 		return false
@@ -91,9 +86,6 @@ type AgentConfig struct {
 	DiscoveryC chan *discoveryRequest
 	// Username is the name of this client used to authenticate on SSH
 	Username string
-	// DiscoverProxies is set when the agent is created in discovery mode
-	// and is set to connect to one of the target proxies from the list
-	DiscoverProxies []services.Server
 	// Clock is a clock passed in tests, if not set wall clock
 	// will be used
 	Clock clockwork.Clock
@@ -177,11 +169,7 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 		cancel:      cancel,
 		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
 	}
-	if len(cfg.DiscoverProxies) == 0 {
-		a.state = agentStateConnecting
-	} else {
-		a.state = agentStateDiscovering
-	}
+	a.state = agentStateConnecting
 	a.Entry = log.WithFields(log.Fields{
 		trace.Component: teleport.ComponentReverseTunnelAgent,
 		trace.ComponentFields: log.Fields{
@@ -194,10 +182,7 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 }
 
 func (a *Agent) String() string {
-	if len(a.DiscoverProxies) == 0 {
-		return fmt.Sprintf("agent(id=%d,state=%v) -> %v:%v", a.ID, a.getState(), a.ClusterName, a.Addr.String())
-	}
-	return fmt.Sprintf("agent(id=%d,state=%v) -> %v:%v, discover %v", a.ID, a.getState(), a.ClusterName, a.Addr.String(), Proxies(a.DiscoverProxies))
+	return fmt.Sprintf("agent(id=%d,state=%v) -> %v:%v", a.ID, a.getState(), a.ClusterName, a.Addr.String())
 }
 
 func (a *Agent) getLastStateChange() time.Time {
@@ -206,20 +191,13 @@ func (a *Agent) getLastStateChange() time.Time {
 	return a.stateChange
 }
 
-func (a *Agent) setStateAndPrincipals(state string, principals []string) {
-	a.Lock()
-	defer a.Unlock()
-	prev := a.state
-	a.Debugf("Changing state %v -> %v.", prev, state)
-	a.state = state
-	a.stateChange = a.Clock.Now().UTC()
-	a.principals = principals
-}
 func (a *Agent) setState(state string) {
 	a.Lock()
 	defer a.Unlock()
 	prev := a.state
-	a.Debugf("Changing state %v -> %v.", prev, state)
+	if prev != state {
+		a.Debugf("Changing state %v -> %v.", prev, state)
+	}
 	a.state = state
 	a.stateChange = a.Clock.Now().UTC()
 }
@@ -246,38 +224,12 @@ func (a *Agent) Wait() error {
 	return nil
 }
 
-func (a *Agent) isDiscovering(proxy services.Server) bool {
-	for _, discoverProxy := range a.DiscoverProxies {
-		if a.getState() != agentStateDiscovering && a.getState() != agentStateConnecting {
-			continue
-		}
-
-		proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.ClusterName)
-		discoverID := fmt.Sprintf("%v.%v", discoverProxy.GetName(), a.ClusterName)
-		if proxyID == discoverID {
-			return true
-		}
-	}
-	return false
-}
-
 // connectedTo returns true if connected services.Server passed in.
 func (a *Agent) connectedTo(proxy services.Server) bool {
 	principals := a.getPrincipals()
 	proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.ClusterName)
 	if _, ok := principals[proxyID]; ok {
 		return true
-	}
-	return false
-}
-
-// connectedToRightProxy returns true if it connected to a proxy in the
-// discover list.
-func (a *Agent) connectedToRightProxy() bool {
-	for _, proxy := range a.DiscoverProxies {
-		if a.connectedTo(proxy) {
-			return true
-		}
 	}
 	return false
 }
@@ -411,13 +363,7 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 func (a *Agent) run() {
 	defer a.setState(agentStateDisconnected)
 
-	discoveryMode := len(a.DiscoverProxies) != 0
-
-	if discoveryMode {
-		a.setStateAndPrincipals(agentStateDiscovering, nil)
-	} else {
-		a.setStateAndPrincipals(agentStateConnecting, nil)
-	}
+	a.setState(agentStateConnecting)
 
 	// Try and connect to remote cluster.
 	conn, err := a.connect()
@@ -429,26 +375,12 @@ func (a *Agent) run() {
 
 	// Successfully connected to remote cluster.
 	a.Infof("Connected to %s", conn.RemoteAddr())
-	if discoveryMode {
-		// If not connected to a proxy in the discover list (which means we
-		// connected to a proxy we already have a connection to), try again.
-		if !a.connectedToRightProxy() {
-			a.Debugf("Missed, connected to %v instead of %v.", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
-			return
-		}
-	}
 
 	// wrap up remaining business logic in closure for easy
 	// conditional execution.
 	doWork := func() {
-		// Update state based on discovery mode
-		if discoveryMode {
-			a.Debugf("Agent discovered proxy: %v.", a.getPrincipalsList())
-			a.setState(agentStateDiscovered)
-		} else {
-			a.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
-			a.setState(agentStateConnected)
-		}
+		a.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
+		a.setState(agentStateConnected)
 		// Notify waiters that the agent has connected.
 		if a.EventsC != nil {
 			select {
