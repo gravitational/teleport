@@ -40,6 +40,19 @@ import (
 	"github.com/tstranex/u2f"
 )
 
+func (s *AuthServer) getTOTPLocation() string {
+	clusterName, err := s.GetClusterName()
+	if err == nil {
+		return clusterName.GetClusterName()
+	}
+	proxies, err := s.GetProxies()
+	if err == nil {
+		return proxies[0].GetPublicAddr()
+	}
+
+	return s.AuthServiceName
+}
+
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and otp generator
 func (s *AuthServer) CreateSignupToken(userv1 services.UserV1, ttl time.Duration) (string, error) {
@@ -97,7 +110,7 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1, ttl time.Duration
 	// the "GetSignupTokenData" function for details on why this is done. We
 	// generate a OTP token because it causes no harm and makes tests easier to
 	// write.
-	accountName := user.GetName() + "@" + s.AuthServiceName
+	accountName := user.GetName() + "@" + s.getTOTPLocation()
 	otpKey, otpQRCode, err := s.initializeTOTP(accountName)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -160,7 +173,7 @@ func (s *AuthServer) rotateAndFetchSignupToken(token string) (*services.SignupTo
 	}
 
 	// Generate and set new OTP code for user in *services.SignupToken.
-	accountName := st.User.V2().GetName() + "@" + s.AuthServiceName
+	accountName := st.User.V2().GetName() + "@" + s.getTOTPLocation()
 	st.OTPKey, st.OTPQRCode, err = s.initializeTOTP(accountName)
 	if err != nil {
 		return nil, trace.Wrap(err)
