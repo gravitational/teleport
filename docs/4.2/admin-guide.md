@@ -858,6 +858,41 @@ turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro
 dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
 ```
 
+### Removing Nodes from a Cluster
+
+To remove a node from a cluster, simply stop the node that you want to remove. 
+
+#### Time to live
+Node processes that are stopped have a TTL time of 10 minutes.
+You can restart the node within this time limit to keep the node. 
+
+After 10 minutes, the node is no longer considered `active` and is removed from 
+the `active SSH nodes` list within the cluster. You can check that the node has been removed with
+the command: [`tctl nodes ls`](cli-docs.md#tctl-nodes-ls).
+
+#### Remove a Node Immediately
+If you need to remove a node immediately, stop the node process and run [`tctl rm node/<UUID>`](cli-docs.md#tctl-rm):
+``` bsh
+# STOP the node process first
+
+# get the UUID of the node you want to remove
+$ tctl nodes ls
+Nodename      UUID                                     Address            Labels
+---------     -------                                  -------            ------
+turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro:ubuntu
+dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
+
+# forcefully remove the node
+$ tctl rm node/d52527f9-b260-41d0-bb5a-e23b0cfe0f8f
+node d52527f9-b260-41d0-bb5a-e23b0cfe0f8f has been deleted
+
+# check that the node you removed is no longer in the list of active nodes
+$ tctl nodes ls
+Nodename      UUID                                     Address            Labels
+---------     -------                                  -------            ------
+dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
+```
+
 ### Untrusted Auth Servers
 
 Teleport nodes use the HTTPS protocol to offer the join tokens to the auth
@@ -1311,10 +1346,10 @@ A Teleport administrator has two tools to configure a Teleport cluster:
 configuration, like `tctl users` or `tctl nodes` . However, for dealing with
 more advanced topics, like connecting clusters together or troubleshooting
 trust, [`tctl`](cli-docs.md#tctl) offers the more powerful, although
-lower-level CLI interface called `resources` .
+lower-level, CLI interface called `resources` .
 
 The concept is borrowed from the REST programming pattern. A cluster is composed
-of different objects (aka, resources) and there are just four common operations
+of different objects (aka, resources) and there are just three common operations
 that can be performed on them: `get` , `create` , `remove` .
 
 A resource is defined as a [YAML](https://en.wikipedia.org/wiki/YAML) file.

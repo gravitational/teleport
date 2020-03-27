@@ -94,7 +94,7 @@ steps are explained below the diagram.
     clarity, but Teleport services do not have to run on separate nodes.
     Teleport can be run as a binary on a single-node cluster with no external
     storage backend. We demonstrate this minimal setup in the [Quickstart
-    Guide](../quickstart).
+    Guide](../quickstart.md).
 
 ## Detailed Architecture Overview
 
