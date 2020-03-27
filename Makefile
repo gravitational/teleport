@@ -390,7 +390,7 @@ deb:
 
 # update Helm chart versions
 # this isn't a 'proper' semver regex but should cover most cases
-# the order of parameters in sed's extended regex mode matters, the
+# the order of parameters in sed's extended regex mode matters; the
 # dash (-) must be the last character for this to work as expected
 .PHONY: update-helm-charts
 update-helm-charts:
