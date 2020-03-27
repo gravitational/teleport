@@ -499,6 +499,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	sess, err := f.getOrCreateClusterSession(*ctx)
 	if err != nil {
+		// This error goes to kubernetes client and is not visible in the logs
+		// of the teleport server if not logged here.
+		f.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -592,6 +595,9 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 	f.Debugf("Port forward: %v. req headers: %v", req.URL.String(), req.Header)
 	sess, err := f.getOrCreateClusterSession(*ctx)
 	if err != nil {
+		// This error goes to kubernetes client and is not visible in the logs
+		// of the teleport server if not logged here.
+		f.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -761,9 +767,15 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers ht
 func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.Request) (interface{}, error) {
 	sess, err := f.getOrCreateClusterSession(*ctx)
 	if err != nil {
+		// This error goes to kubernetes client and is not visible in the logs
+		// of the teleport server if not logged here.
+		f.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 	if err := f.setupForwardingHeaders(ctx, sess, req); err != nil {
+		// This error goes to kubernetes client and is not visible in the logs
+		// of the teleport server if not logged here.
+		f.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 	sess.forwarder.ServeHTTP(w, req)
@@ -946,7 +958,7 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 		for _, certAuthority := range response.certAuthorities {
 			ok := pool.AppendCertsFromPEM(certAuthority)
 			if !ok {
-				return nil, trace.BadParameter("failed to append certs from PEM")
+				return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
 			}
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
@@ -954,7 +966,7 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	} else {
 		ok := pool.AppendCertsFromPEM(f.creds.caPEM)
 		if !ok {
-			return nil, trace.BadParameter("failed to append certs from PEM")
+			return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
 		}
 		if f.creds.cert != nil {
 			f.Debugf("Local Cluster: using TLS client certificates.")
