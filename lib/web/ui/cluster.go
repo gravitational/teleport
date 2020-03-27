@@ -21,11 +21,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Cluster describes a cluster
@@ -41,10 +39,6 @@ type Cluster struct {
 	// PublicURL is this cluster public URL (its first available proxy URL)
 	PublicURL string `json:"publicURL"`
 }
-
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentProxy,
-})
 
 // NewClusters creates a slice of Cluster's, containing data about each cluster.
 func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
@@ -65,9 +59,10 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 		if len(proxies) > 0 {
 			publicURL = proxies[0].GetPublicAddr()
 
+			// if public_address under proxy_service in config is not set, it is empty
+			// in this case we manually build the URL using proxy's hostname and default port
 			if publicURL == "" {
 				publicURL = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-				log.Debugf("public_address not set for proxy, returning default proxy's hostname: %q", publicURL)
 			}
 		}
 
