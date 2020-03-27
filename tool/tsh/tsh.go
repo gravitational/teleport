@@ -746,14 +746,15 @@ func onListClusters(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		utils.FatalError(err)
-	}
-	defer proxyClient.Close()
 
 	var sites []services.Site
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		proxyClient, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return err
+		}
+		defer proxyClient.Close()
+
 		sites, err = proxyClient.GetSites()
 		return err
 	})
