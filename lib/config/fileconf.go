@@ -248,13 +248,13 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 
 // MakeSampleFileConfig returns a sample config structure populated by defaults,
 // useful to generate sample configuration files
-func MakeSampleFileConfig() (fc *FileConfig) {
+func MakeSampleFileConfig() (fc *FileConfig, err error) {
 	conf := service.MakeDefaultConfig()
 
 	// generate a secure random token
 	randomJoinToken, err := utils.CryptoRandomHex(randomTokenLenBytes)
 	if err != nil {
-		panic(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// sample global config:
@@ -308,7 +308,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 		SSH:    s,
 		Auth:   a,
 	}
-	return fc
+	return fc, nil
 }
 
 // DebugDumpToYAML allows for quick YAML dumping of the config
