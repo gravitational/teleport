@@ -127,15 +127,19 @@ For more details, take a look at [docs/README](docs/README.md)
 
 ## Why did We Build Teleport?
 
-Mature tech companies with significant infrastructure footprints tend to
-implement most of these patterns internally. Teleport allows smaller companies
-without significant in-house SSH expertise to easily adopt them, as well.
-Teleport comes with an accessible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
-license to facilitate adoption and use.
+The Teleport creators used to work together at Rackspace. We noticed that most
+cloud computing users struggle with setting up and configuring infrastructure
+security because popular tools, while flexible, are complex to understand and
+expensive to maintain. Additionally, most organizations use multiple
+infrastructure form factors such as several cloud providers, multiple cloud
+accounts, servers in colocation, and even smart devices. Some of those devices
+run on untrusted networks, behind third party firewalls. This only magnifies
+complexity and increases operational overhead. 
 
-Being a complete standalone tool, Teleport can be used as a software library
-enabling trust management in complex multi-cluster, multi-region scenarios
-across many teams within multiple organizations.
+We had a choice, either to start a security consulting business or build a
+solution that’s dead-easy to use and understand, something that creates an
+illusion of all of your servers being in the same room as you as if they were
+magically _teleported_. And Teleport was born!
 
 ## More Information
 
