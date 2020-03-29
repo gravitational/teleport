@@ -688,6 +688,19 @@ func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignRespons
 		return trace.Wrap(err)
 	}
 
+	if len(response.SignatureData) == RecoveryTokenLength {
+		tokens, err := s.GetRecoveryTokens(user)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, token := range tokens {
+			if token == response.SignatureData {
+				return nil
+			}
+		}
+	}
+
 	counter, err := s.GetU2FRegistrationCounter(user)
 	if err != nil {
 		return trace.Wrap(err)

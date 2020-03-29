@@ -37,6 +37,9 @@ export class Login extends React.Component {
   onLoginWithU2f = (username, password) => {
     actions.loginWithU2f(username, password);
   }
+  onLoginWithU2fRecovery = (username, password, code) => {
+    actions.loginWithU2fRecovery(username, password, code);
+  }
 
   onLogin = (username, password, token) => {
     actions.login(username, password, token);
@@ -57,6 +60,7 @@ export class Login extends React.Component {
               auth2faType={auth2faType}
               onLoginWithSso={this.onLoginWithSso}
               onLoginWithU2f={this.onLoginWithU2f}
+              onLoginWithU2fRecovery={this.onLoginWithU2fRecovery}
               onLogin={this.onLogin}
               attemp={attemp}
             />
@@ -75,6 +79,7 @@ export class LoginInputForm extends React.Component {
     auth2faType: React.PropTypes.string,
     onLoginWithSso: React.PropTypes.func.isRequired,
     onLoginWithU2f: React.PropTypes.func.isRequired,
+    onLoginWithU2fRecovery: React.PropTypes.func.isRequired,
     onLogin: React.PropTypes.func.isRequired,
     attemp: React.PropTypes.object.isRequired
   }
@@ -84,7 +89,8 @@ export class LoginInputForm extends React.Component {
     this.state = {
       user: '',
       password: '',
-      token: ''
+      token: '',
+      code: ''
     }
   }
 
@@ -101,6 +107,14 @@ export class LoginInputForm extends React.Component {
     if (this.isValid()) {
       let { user, password } = this.state;
       this.props.onLoginWithU2f(user, password);
+    }
+  }
+
+  onLoginWithU2fRecovery = e => {
+    e.preventDefault();
+    if (this.isValid()) {
+      let { user, password, recoveryCode } = this.state;
+      this.props.onLoginWithU2fRecovery(user, password, recoveryCode);
     }
   }
 
@@ -196,6 +210,28 @@ export class LoginInputForm extends React.Component {
     );
   }
 
+  renderRecoveryInput() {
+    return (
+      <div>
+        Or use your recovery code:
+        <div className="form-group">
+          <input
+            value={this.state.recoveryCode}
+            onChange={e => this.onChangeState('recoveryCode', e.target.value)}
+            className="form-control required"
+            placeholder="Recovery code"
+            name="code"/>
+        </div>
+        <button
+          onClick={this.onLoginWithU2fRecovery}
+          type="submit"
+          className="btn btn-primary block full-width m-b">
+          Use recovery code
+        </button>
+      </div>
+    )
+  }
+
   renderSsoBtns() {
     let { authProviders, attemp } = this.props;
     if (!this.needsSso()) {
@@ -229,6 +265,7 @@ export class LoginInputForm extends React.Component {
               {this.renderNameAndPassFields()}
               {this.render2faFields()}
               {this.renderLoginBtn()}
+              {this.props.attemp.isProcessing && this.props.auth2faType === Auth2faTypeEnum.UTF ? this.renderRecoveryInput() : null}
               {this.renderSsoBtns()}
             </div>
           }

@@ -294,6 +294,14 @@ func (s *IdentityService) DeleteUser(user string) error {
 	}
 	startKey := backend.Key(webPrefix, usersPrefix, user)
 	err = s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	recoveryStartKey := backend.Key(webPrefix, usersPrefix, user, recoveryPrefix)
+	err = s.DeleteRange(context.TODO(), recoveryStartKey, backend.RangeEnd(recoveryStartKey))
+
 	return trace.Wrap(err)
 }
 
@@ -337,6 +345,44 @@ func (s *IdentityService) GetPasswordHash(user string) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return item.Value, nil
+}
+
+// UpsertRecoveryTokens sets 2FA recovery tokens for a given user
+func (s *IdentityService) UpsertRecoveryTokens(username string, tokens []string) error {
+	startKey := backend.Key(webPrefix, usersPrefix, username, recoveryPrefix)
+	s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+
+	for _, token := range tokens {
+		item := backend.Item{
+			Key:   backend.Key(webPrefix, usersPrefix, username, recoveryPrefix, token),
+			Value: []byte(token),
+		}
+		_, err := s.Put(context.TODO(), item)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// GetRecoveryTokens returns 2FA recovery tokens for a given user
+func (s *IdentityService) GetRecoveryTokens(user string) ([]string, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing user name")
+	}
+	startKey := backend.Key(webPrefix, usersPrefix, user, recoveryPrefix)
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("user %q is not found", user)
+		}
+		return nil, trace.Wrap(err)
+	}
+	out := make([]string, len(result.Items))
+	for i, item := range result.Items {
+		out[i] = string(item.Value)
+	}
+	return out, nil
 }
 
 // UpsertHOTP upserts HOTP state for user
@@ -1236,6 +1282,7 @@ const (
 	sessionsPrefix               = "sessions"
 	attemptsPrefix               = "attempts"
 	pwdPrefix                    = "pwd"
+	recoveryPrefix               = "recovery"
 	hotpPrefix                   = "hotp"
 	totpPrefix                   = "totp"
 	connectorsPrefix             = "connectors"

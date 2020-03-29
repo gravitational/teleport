@@ -87,6 +87,12 @@ type Identity interface {
 	// GetPasswordHash returns the password hash for a given user
 	GetPasswordHash(user string) ([]byte, error)
 
+	// UpsertRecoveryTokens sets 2FA recovery tokens for a given user
+	UpsertRecoveryTokens(user string, tokens []string) error
+
+	// GetRecoveryTokens returns 2FA recovery tokens for a given user
+	GetRecoveryTokens(user string) ([]string, error)
+
 	// UpsertHOTP upserts HOTP state for user
 	// Deprecated: HOTP use is deprecated, use UpsertTOTP instead.
 	UpsertHOTP(user string, otp *hotp.HOTP) error

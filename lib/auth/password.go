@@ -17,6 +17,12 @@ import (
 
 var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
 
+// Count of recovery tokens for 2FA
+const RecoveryTokenCount = 10
+
+// Length of recovery tokens for 2FA
+const RecoveryTokenLength = 32
+
 // ChangePassword changes user passsword
 func (s *AuthServer) ChangePassword(req services.ChangePasswordReq) error {
 	// validate new password
@@ -95,10 +101,25 @@ func (s *AuthServer) CheckPassword(user string, password []byte, otpToken string
 	return trace.Wrap(err)
 }
 
-// CheckOTP determines the type of OTP token used (for legacy HOTP support), fetches the
+// CheckOTP determines the type of OTP token used (for legacy HOTP and recovery support), fetches the
 // appropriate type from the backend, and checks if the token is valid.
 func (s *AuthServer) CheckOTP(user string, otpToken string) error {
 	var err error
+
+	if len(otpToken) == RecoveryTokenLength {
+		tokens, err := s.GetRecoveryTokens(user)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, token := range tokens {
+			if token == otpToken {
+				return nil
+			}
+		}
+
+		return trace.BadParameter("invalid recovery token")
+	}
 
 	otpType, err := s.getOTPType(user)
 	if err != nil {

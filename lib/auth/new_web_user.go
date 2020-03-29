@@ -389,12 +389,29 @@ func (a *AuthServer) createUserAndSession(stoken *services.SignupToken) (service
 		user.SetRoles([]string{teleport.AdminRoleName})
 	}
 
+	username := user.GetName()
+
 	// upsert user into the backend
 	err := a.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("[AUTH] Created user: %v", user)
+
+	authPreference, err := a.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if authPreference.GetSecondFactor() != teleport.OFF {
+		tokens := make([]string, RecoveryTokenCount)
+		for i := range tokens {
+			tokens[i], err = utils.CryptoRandomHex(RecoveryTokenLength / 2)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		a.UpsertRecoveryTokens(username, tokens)
+	}
 
 	// remove the token once the user has been created
 	err = a.DeleteSignupToken(stoken.Token)
@@ -404,7 +421,7 @@ func (a *AuthServer) createUserAndSession(stoken *services.SignupToken) (service
 
 	// It's safe to extract the roles and traits directly from services.User as
 	// this endpoint is only used for local accounts.
-	sess, err := a.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
+	sess, err := a.NewWebSession(username, user.GetRoles(), user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -435,6 +452,15 @@ func (a *AuthServer) UpsertUser(user services.User) error {
 		events.UserRoles:     user.GetRoles(),
 		events.UserConnector: connectorName,
 	})
+
+	return nil
+}
+
+func (a *AuthServer) UpsertRecoveryTokens(user string, tokens []string) error {
+	err := a.Identity.UpsertRecoveryTokens(user, tokens)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }

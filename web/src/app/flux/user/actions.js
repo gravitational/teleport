@@ -67,6 +67,11 @@ const actions = {
     actions._handleLoginPromise(promise);
   },
 
+  loginWithU2fRecovery(user, password, code) {
+    const promise = auth.loginWithU2fRecovery(user, password, code);
+    actions._handleLoginPromise(promise);
+  },
+
   login(user, password, token) {
     const promise = auth.login(user, password, token);
     actions._handleLoginPromise(promise);

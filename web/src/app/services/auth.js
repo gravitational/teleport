@@ -66,6 +66,24 @@ const auth = {
     });
   },
 
+  loginWithU2fRecovery(name, password, code){    
+    const data = {
+      user: name,
+      pass: password
+    };
+
+    return api.post(cfg.api.u2fSessionChallengePath, data, false).then(() => {
+      const response = {
+        user: name,
+        u2f_sign_response: {
+          signatureData: code
+        }
+      };
+
+      return api.post(cfg.api.u2fSessionPath, response, false)
+    });
+  },
+
   acceptInvite(name, password, token, inviteToken){
     const data = {
       invite_token: inviteToken,      
