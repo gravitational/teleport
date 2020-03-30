@@ -2,17 +2,10 @@ import React from 'react';
 import styled from 'styled-components';
 import { Text, Flex, ButtonPrimary } from 'design';
 import * as Icons from 'design/Icon';
-import ActionMenu, {
-  MenuItem,
-} from 'shared/components/ActionMenu';
+import ActionMenu, { MenuItem } from 'shared/components/ActionMenu';
 
-export default function TrustedListItem({
-  name,
-  id,
-  onEdit,
-  onDelete,
-  ...rest
-}) {
+export default function TrustedListItem(props: Props) {
+  const { name, id, onEdit, onDelete, ...rest } = props;
   const onClickEdit = () => onEdit(id);
   const onClickDelete = () => onDelete(id);
 
@@ -31,9 +24,6 @@ export default function TrustedListItem({
       {...rest}
     >
       <Flex width="100%" justifyContent="center">
-        <Text typography="h4" caps bold>
-          {name}
-        </Text>
         <ActionMenu buttonIconProps={menuActionProps}>
           <MenuItem onClick={onClickDelete}>Delete...</MenuItem>
         </ActionMenu>
@@ -45,11 +35,15 @@ export default function TrustedListItem({
         justifyContent="center"
         flexDirection="column"
       >
-        <Icons.Link
+        <Icons.LanAlt
+          my="4"
           style={{ textAlign: 'center' }}
           fontSize="80px"
           color="text.primary"
         />
+        <Text typography="h5" bold caps="uppercase" mb="1">
+          {name}
+        </Text>
       </Flex>
       <ButtonPrimary mt="auto" px="1" size="medium" block onClick={onClickEdit}>
         EDIT TRUSTED CLUSTER
@@ -73,4 +67,12 @@ const menuActionProps = {
     position: 'absolute',
     top: '10px',
   },
+};
+
+type Props = {
+  name: string;
+  id: string;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+  [index: string]: any;
 };

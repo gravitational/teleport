@@ -1,16 +1,12 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import { Box, ButtonSecondary, ButtonWarning, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import { useAttempt } from 'shared/hooks';
-import Dialog, {
-  DialogContent,
-  DialogFooter,
-} from 'design/DialogConfirmation';
+import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 
-export default function DeleteTrustedClusterDialog(props) {
+export default function DeleteTrustedClusterDialog(props: Props) {
   const { name, onClose, onDelete } = props;
-  const [attempt, attempActions] = useAttempt();
+  const [attempt, attempActions] = useAttempt({ isProcessing: false });
   const isDisabled = attempt.isProcessing;
 
   function onOk() {
@@ -44,8 +40,8 @@ export default function DeleteTrustedClusterDialog(props) {
   );
 }
 
-DeleteTrustedClusterDialog.propTypes = {
-  onClose: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired,
-  name: PropTypes.string.isRequired,
+type Props = {
+  onClose: () => void;
+  onDelete: () => Promise<any>;
+  name: string;
 };

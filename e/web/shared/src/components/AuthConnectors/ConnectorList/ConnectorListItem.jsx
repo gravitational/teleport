@@ -1,9 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Text, Flex, ButtonPrimary } from 'design';
-import ActionMenu, {
-  MenuItem,
-} from 'shared/components/ActionMenu';
+import ActionMenu, { MenuItem } from 'shared/components/ActionMenu';
 import getSsoIcon from './../getSsoIcon';
 
 export default function ConnectorListItem({
@@ -18,10 +16,22 @@ export default function ConnectorListItem({
   const onClickDelete = () => onDelete(id);
   const { desc, SsoIcon } = getSsoIcon(kind);
 
+  const iconProps = {
+    fontSize: '68px',
+    mb: 3,
+    mt: 3,
+  };
+
+  if (kind === 'saml') {
+    iconProps.width = '160px';
+    iconProps.height = '50px';
+    iconProps.mt = 5;
+  }
+
   return (
     <StyledConnectorListItem
-      width="300px"
-      height="300px"
+      width="260px"
+      height="260px"
       borderRadius="3"
       flexDirection="column"
       alignItems="center"
@@ -33,9 +43,6 @@ export default function ConnectorListItem({
       {...rest}
     >
       <Flex width="100%" justifyContent="center">
-        <Text typography="h3" caps bold>
-          {name}
-        </Text>
         <ActionMenu buttonIconProps={menuActionProps}>
           <MenuItem onClick={onClickDelete}>Delete...</MenuItem>
         </ActionMenu>
@@ -47,7 +54,10 @@ export default function ConnectorListItem({
         justifyContent="center"
         flexDirection="column"
       >
-        <SsoIcon height="100px" width="160px" fontSize="100px" my={2} />
+        <SsoIcon {...iconProps} />
+        <Text typography="body2" bold caps="uppercase" mb="1">
+          {name}
+        </Text>
         <Text typography="body2" color="text.primary">
           {desc}
         </Text>

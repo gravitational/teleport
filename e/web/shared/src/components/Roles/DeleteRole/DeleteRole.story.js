@@ -1,6 +1,14 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import DeleteRole from './DeleteRole';
+
+export default {
+  title: 'Shared-E',
+};
+
+export const DeleteRoleDialog = () => <DeleteRole {...props} />;
+DeleteRoleDialog.story = {
+  name: 'DeleteRoleDialog',
+};
 
 const props = {
   name: 'sample-role',
@@ -9,7 +17,3 @@ const props = {
   },
   onClose: () => null,
 };
-
-storiesOf('Shared-E/Roles', module).add('DeleteRoleDialog', () => (
-  <DeleteRole {...props} />
-));

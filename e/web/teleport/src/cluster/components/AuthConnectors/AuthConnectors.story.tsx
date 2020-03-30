@@ -1,24 +1,36 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
+import TeleportContext, {
+  TeleportContextProvider,
+} from 'e-teleport/teleportEContext';
 import AuthConnectors from './AuthConnectors';
 
-storiesOf('Shared-E/AuthConnectors', module)
-  .add('AuthConnectors', () => {
-    return <AuthConnectors {...defaultProps} />;
-  })
-  .add('Empty', () => {
-    const props = {
-      ...defaultProps,
-      connectors: [],
-    };
+export default {
+  title: 'TeleportE/AuthConnectors',
+};
 
-    return <AuthConnectors {...props} />;
-  });
+export function Loaded() {
+  const ctx = new TeleportContext();
+  ctx.resourceService.fetchAuthConnectors = () => Promise.resolve(connectors);
+  return render(ctx);
+}
+
+export function Empty() {
+  const ctx = new TeleportContext();
+  ctx.resourceService.fetchAuthConnectors = () => Promise.resolve([]);
+  return render(ctx);
+}
+
+export function Failed() {
+  const ctx = new TeleportContext();
+  ctx.resourceService.fetchAuthConnectors = () =>
+    Promise.reject(new Error('failed to load'));
+  return render(ctx);
+}
 
 const connectors = [
   {
     id: 'oidc:googleZufuban',
-    kind: 'saml',
+    kind: 'saml' as const,
     name: 'Okta',
     displayName: 'Okta',
     content:
@@ -26,7 +38,7 @@ const connectors = [
   },
   {
     id: 'oidc:googleGogesu',
-    kind: 'oidc',
+    kind: 'oidc' as const,
     name: 'google',
     displayName: 'google',
     content:
@@ -34,7 +46,7 @@ const connectors = [
   },
   {
     id: 'oidc:googlePetizu',
-    kind: 'github',
+    kind: 'github' as const,
     name: 'github',
     displayName: 'Github',
     content:
@@ -42,12 +54,10 @@ const connectors = [
   },
 ];
 
-const defaultProps = {
-  onSave: () => Promise.reject(new Error('server error')),
-  onDelete: () => Promise.reject(new Error('server error')),
-  connectors,
-  canCreate: true,
-  attempt: {
-    isReady: true,
-  },
-};
+function render(ctx: TeleportContext) {
+  return (
+    <TeleportContextProvider value={ctx}>
+      <AuthConnectors />
+    </TeleportContextProvider>
+  );
+}

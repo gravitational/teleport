@@ -1,5 +1,6 @@
 import { generatePath } from 'react-router';
 import teleCfg from 'teleport/config';
+import { Resource } from 'e-shared/services/resources';
 
 const cfg = {
   routes: {
@@ -9,16 +10,17 @@ const cfg = {
   },
 
   api: {
+    licenseStatusPath: '/v1/enterprise/license/status',
     resourcePath: '/v1/enterprise/sites/:clusterId/resources/:kind?',
     removeResourcePath: '/v1/enterprise/sites/:clusterId/resources/:kind/:id',
   },
 
-  getResourcesUrl(kind) {
+  getResourcesUrl(kind?: Resource['kind']) {
     const clusterId = teleCfg.clusterName;
     return generatePath(cfg.api.resourcePath, { clusterId, kind });
   },
 
-  getRemoveResourceUrl(kind, id) {
+  getRemoveResourceUrl(kind: Resource['kind'], id: string) {
     const clusterId = teleCfg.clusterName;
     return generatePath(cfg.api.removeResourcePath, { clusterId, kind, id });
   },
@@ -38,7 +40,7 @@ const cfg = {
     return generatePath(cfg.routes.clusterTrustedClusters, { clusterId });
   },
 
-  init(json) {
+  init(json: object) {
     teleCfg.init(json);
   },
 };

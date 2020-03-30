@@ -112,10 +112,15 @@ export default function ResourceEditor(props) {
 }
 
 ResourceEditor.propTypes = {
+  name: PropTypes.string,
+  text: PropTypes.string,
+  title: PropTypes.string,
+  docsURL: PropTypes.string,
   data: PropTypes.string,
   onSave: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
   isNew: PropTypes.bool.isRequired,
+  directions: PropTypes.element,
 };
 
 const dialogCss = () => `

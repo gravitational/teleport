@@ -1,13 +1,18 @@
 import React from 'react';
 import { Flex } from 'design';
-import ClusterListItem from './ClusterListItem';
+import TrustedListItem from './TrustedListItem';
 
-export default function ClusterList({ items, onEdit, onDelete, ...styles }) {
+export default function TrustedList({
+  items,
+  onEdit,
+  onDelete,
+  ...styles
+}: Props) {
   items = items || [];
   const $items = items.map(item => {
     const { id, name, kind } = item;
     return (
-      <ClusterListItem
+      <TrustedListItem
         mb={4}
         mr={5}
         key={id}
@@ -20,10 +25,16 @@ export default function ClusterList({ items, onEdit, onDelete, ...styles }) {
     );
   });
 
-  const { flex } = styles;
   return (
-    <Flex flexWrap="wrap" alignItems="center" flex={flex}>
+    <Flex flexWrap="wrap" alignItems="center" {...styles}>
       {$items}
     </Flex>
   );
 }
+
+type Props = {
+  items: any[];
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+  [index: string]: any;
+};

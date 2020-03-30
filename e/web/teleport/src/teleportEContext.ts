@@ -14,19 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import ReactDOM from 'react-dom';
-import React from 'react';
-import history from 'teleport/services/history';
-import cfg from 'teleport/config';
-import TeleportE from './TeleportE';
+import TeleportContextProvider, {
+  useTeleport,
+} from 'teleport/teleportContextProvider';
+import CommunityContext from 'teleport/teleportContext';
+import resourceService from './services/resources';
 
-// apply configuration received from the server
-cfg.init(window['GRV_CONFIG']);
+export default class EnterpriseContext extends CommunityContext {
+  resourceService = resourceService;
+}
 
-// use browser history
-history.init();
+export function useTeleportE() {
+  return useTeleport() as EnterpriseContext;
+}
 
-ReactDOM.render(
-  <TeleportE history={history.original()} />,
-  document.getElementById('app')
-);
+export { TeleportContextProvider };

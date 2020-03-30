@@ -1,27 +1,54 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
+import TeleportContext, {
+  TeleportContextProvider,
+} from 'e-teleport/teleportEContext';
 import Roles from './Roles';
 
-storiesOf('Shared-E/Roles', module)
-  .add('Roles', () => {
-    return <Roles {...defaultProps} />;
-  })
-  .add('RolesCannotCreate', () => {
-    return <Roles {...defaultProps} canCreate={false} />;
-  })
-  .add('RolesError', () => {
-    return (
-      <Roles
-        {...defaultProps}
-        attempt={{ isFailed: true, message: 'sever error' }}
-      />
-    );
-  });
+export default {
+  title: 'TeleportE/Roles',
+};
+
+export function Loaded() {
+  const ctx = new TeleportContext();
+  ctx.resourceService.fetchRoles = () => Promise.resolve(roles);
+  ctx.storeUser.getRoleAccess = () => acl;
+  return render(ctx);
+}
+
+export function Empty() {
+  const ctx = new TeleportContext();
+  ctx.resourceService.fetchRoles = () => Promise.resolve([]);
+  ctx.storeUser.getRoleAccess = () => acl;
+  return render(ctx);
+}
+
+export function Failed() {
+  const ctx = new TeleportContext();
+  ctx.storeUser.getRoleAccess = () => acl;
+  ctx.resourceService.fetchRoles = () =>
+    Promise.reject(new Error('failed to load'));
+  return render(ctx);
+}
+
+export function CannotCreate() {
+  const ctx = new TeleportContext();
+  ctx.storeUser.getRoleAccess = () => ({ ...acl, create: false });
+  ctx.resourceService.fetchRoles = () => Promise.resolve([]);
+  return render(ctx);
+}
+
+const acl = {
+  list: true,
+  read: true,
+  edit: true,
+  create: true,
+  remove: true,
+};
 
 const roles = [
   {
     id: 'role:@teleadmin',
-    kind: 'role',
+    kind: 'role' as const,
     name: '@teleadmin',
     displayName: '@teleadmin',
     content:
@@ -29,7 +56,7 @@ const roles = [
   },
   {
     id: 'role:admin',
-    kind: 'role',
+    kind: 'role' as const,
     name: 'admin',
     displayName: 'admin',
     content:
@@ -37,12 +64,10 @@ const roles = [
   },
 ];
 
-const defaultProps = {
-  onSave: () => Promise.reject(new Error('server error')),
-  onDelete: () => Promise.reject(new Error('server error')),
-  roles,
-  canCreate: true,
-  attempt: {
-    isReady: true,
-  },
-};
+function render(ctx: TeleportContext) {
+  return (
+    <TeleportContextProvider value={ctx}>
+      <Roles />
+    </TeleportContextProvider>
+  );
+}

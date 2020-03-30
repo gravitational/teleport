@@ -23,7 +23,7 @@ export default class FeatureTrustedClusters extends FeatureBase {
 
     context.storeNav.addSideItem({
       title: 'Trusted Clusters',
-      Icon: Icons.Link,
+      Icon: Icons.LanAlt,
       to: cfg.getTrustedClustersRoute(),
     });
   }
