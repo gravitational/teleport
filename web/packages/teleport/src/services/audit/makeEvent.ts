@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Event, CodeEnum, RawEvent, EventFormatters } from './types';
+import { Event, CodeEnum, RawEvent, Formatters } from './types';
 
-export const formatters: EventFormatters = {
+export const formatters: Formatters = {
   [CodeEnum.ALERT_CREATED]: {
     desc: 'Alert Created',
     format: ({ user, name }) => `User ${user} created monitoring alert ${name}`,
@@ -407,12 +407,13 @@ const unknownFormatter = {
 };
 
 export default function makeEvent(json: any): Event {
+  // lookup event formatter by code
   const formatter = formatters[json.code] || unknownFormatter;
   const event = {
-    id: getId(json),
-    code: json.code,
     codeDesc: formatter.desc,
     message: formatter.format(json as any),
+    id: getId(json),
+    code: json.code,
     user: json.user,
     time: new Date(json.time),
     raw: json,

@@ -26,7 +26,7 @@ export default {
   title: 'Teleport/Sessions',
 };
 
-export function List() {
+export function Loaded() {
   const props = {
     sessions,
     onRefresh,
@@ -35,7 +35,7 @@ export function List() {
       isSuccess: true,
       isProcessing: false,
       isFailed: false,
-      message: ''
+      message: '',
     },
   };
 
@@ -56,7 +56,7 @@ const sessions = [
     namespace: 'AG',
     login: 'root',
     active: 'AZ',
-    created: new Date(),
+    created: new Date('2019-04-22T00:00:51.543Z'),
     durationText: '12 min',
     serverId: '10_128_0_6.demo.gravitational.io',
     clusterId: '',

@@ -94,6 +94,7 @@ function useSshPlayer(clusterId, sid) {
 
   React.useEffect(() => {
     function onChange() {
+      // trigger rerender when status changes
       rerender(tty.status);
     }
 

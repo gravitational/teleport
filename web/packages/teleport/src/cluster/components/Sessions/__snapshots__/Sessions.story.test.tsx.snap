@@ -1,0 +1,270 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`loaded 1`] = `
+.c3 {
+  box-sizing: border-box;
+}
+
+.c9 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #00BFA5;
+  color: #FFFFFF;
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+}
+
+.c9:active {
+  opacity: 0.56;
+}
+
+.c9:hover,
+.c9:focus {
+  background: #00EAC3;
+}
+
+.c9:active {
+  background: #26A69A;
+}
+
+.c9:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c8 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  margin-right: 16px;
+  padding: 4px;
+  color: #FFFFFF;
+  background-color: #010B1C;
+  font-size: 18px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  margin-top: 24px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 56px;
+  margin: 0px;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c4 {
+  background: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c4 > thead > tr > th,
+.c4 > tbody > tr > th,
+.c4 > tfoot > tr > th,
+.c4 > thead > tr > td,
+.c4 > tbody > tr > td,
+.c4 > tfoot > tr > td {
+  padding: 16px;
+  vertical-align: middle;
+}
+
+.c4 > thead > tr > th {
+  background: #1B234A;
+  color: rgba(255,255,255,0.56);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 16px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.c4 > thead > tr > th .c6 {
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+.c7 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  margin-right: 16px;
+  padding: 4px;
+  color: #FFFFFF;
+  background-color: #010B1C;
+  font-size: 18px;
+  border-radius: 50%;
+}
+
+.c5 {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  min-width: 130px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <h1
+      class="c2"
+    >
+      Sessions
+    </h1>
+  </div>
+  <div
+    class="c3"
+  >
+    <div>
+      <table
+        class="c4"
+      >
+        <thead>
+          <tr>
+            <th>
+              Type
+            </th>
+            <th>
+              Description
+            </th>
+            <th>
+              User
+            </th>
+            <th>
+              Created
+            </th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="font-size: 14px;"
+            >
+              <div
+                class="c5"
+              >
+                <span
+                  class="icon icon-terminal c6 c7 c6 c8"
+                  color="light"
+                  font-size="4"
+                />
+                Session in progress...
+              </div>
+            </td>
+            <td>
+              Session started at 
+              root@demo.gravitational.io
+            </td>
+            <td>
+              hehwawe@aw.sg, ma@pewu.tz
+            </td>
+            <td>
+              2019-04-21 20:00:51
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c9"
+                href="/web/cluster/localhost/console/session/sid0"
+                kind="primary"
+                theme="[object Object]"
+                width="90px"
+              >
+                join
+              </a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,47 +15,52 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import Tabs from './Tabs';
 import { TestLayout } from './../../Console.story';
 
-storiesOf('TeleportConsole', module).add('Tabs', () => {
-  const items = [
-    {
-      id: 35,
-      title: 'tuguwog',
-      type: 'terminal',
-      sid: '15',
-    },
-    {
-      id: 22,
-      title: 'emwonepu',
-      type: 'terminal',
-      sid: '16',
-    },
-    {
-      id: 23,
-      title: 'foguzaziw',
-      type: 'terminal',
-      sid: '27',
-    },
-  ];
+export default {
+  title: 'TeleportConsole',
+};
 
-  const parties = {
-    '16': [{ user: 'jiawu@ninu.fo' }, { user: 'gigbu@fe.ac' }],
-    '15': [{ user: 'difzu@gusebdem.gq' }, { user: 'tuicu@bu.ki' }],
-    '27': [],
-  };
+export const ConsoleTabs = () => (
+  <TestLayout>
+    <Tabs
+      width="100%"
+      height="36px"
+      activeTab={35}
+      items={items}
+      parties={parties}
+    />
+  </TestLayout>
+);
 
-  return (
-    <TestLayout>
-      <Tabs
-        width="100%"
-        height="36px"
-        activeTab={35}
-        items={items}
-        parties={parties}
-      />
-    </TestLayout>
-  );
-});
+ConsoleTabs.story = {
+  name: 'Tabs',
+};
+
+const parties = {
+  '16': [{ user: 'jiawu@ninu.fo' }, { user: 'gigbu@fe.ac' }],
+  '15': [{ user: 'difzu@gusebdem.gq' }, { user: 'tuicu@bu.ki' }],
+  '27': [],
+};
+
+const items = [
+  {
+    id: 35,
+    title: 'tuguwog',
+    type: 'terminal',
+    sid: '15',
+  },
+  {
+    id: 22,
+    title: 'emwonepu',
+    type: 'terminal',
+    sid: '16',
+  },
+  {
+    id: 23,
+    title: 'foguzaziw',
+    type: 'terminal',
+    sid: '27',
+  },
+];

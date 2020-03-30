@@ -24,19 +24,23 @@ import TeleportContext from 'teleport/teleportContext';
 
 export default {
   title: 'TeleportDashboard',
+  excludeStories: ['createContext'],
 };
 
-export function AllClusters() {
-  const history = createMemoryHistory({});
-  const ctx = new TeleportContext();
-  ctx.storeClusters.setState(fixtures.clusters);
-  ctx.clusterService.fetchClusters = () => Promise.resolve(fixtures.clusters);
-
+export function AllClusters({ value }: { value: TeleportContext }) {
+  const ctx = value || createContext();
   return (
     <TeleportContextProvider value={ctx}>
-      <Router history={history}>
+      <Router history={createMemoryHistory()}>
         <Clusters />
       </Router>
     </TeleportContextProvider>
   );
+}
+
+export function createContext() {
+  const ctx = new TeleportContext();
+  ctx.storeClusters.setState(fixtures.clusters);
+  ctx.clusterService.fetchClusters = () => Promise.resolve(fixtures.clusters);
+  return ctx;
 }

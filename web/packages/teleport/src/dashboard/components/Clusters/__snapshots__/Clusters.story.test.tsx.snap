@@ -1,0 +1,581 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render DocumentNodes 1`] = `
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: #FFFFFF;
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #373F64;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c8 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c9 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 500;
+  min-height: 24px;
+  padding: 2px 12px;
+  text-transform: uppercase;
+  line-height: 1.43;
+  background-color: #00BFA5;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 56px;
+  margin: 0px;
+  margin-right: 32px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c2 {
+  box-sizing: border-box;
+  -webkit-flex: 1;
+  -ms-flex: 1;
+  flex: 1;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+}
+
+.c4 {
+  box-sizing: border-box;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 40px;
+  margin-left: auto;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background-color: #222C59;
+  height: 30px;
+}
+
+.c4:focus,
+.c4:active {
+  background: #FFFFFF;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(0,0,0,0.87);
+}
+
+.c4::-webkit-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c4::-moz-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c4:-ms-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c4::placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  margin-bottom: 24px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c6 {
+  background: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c6 > thead > tr > th,
+.c6 > tbody > tr > th,
+.c6 > tfoot > tr > th,
+.c6 > thead > tr > td,
+.c6 > tbody > tr > td,
+.c6 > tfoot > tr > td {
+  padding: 16px;
+  vertical-align: middle;
+}
+
+.c6 > thead > tr > th {
+  background: #1B234A;
+  color: rgba(255,255,255,0.56);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 16px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.c6 > thead > tr > th .c7 {
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+.c5 tr:hover {
+  cursor: pointer;
+  background-color: rgba(0,0,0,0.075);
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      <h1
+        class="c3"
+      >
+        Clusters
+      </h1>
+      <input
+        class="c4"
+        color="text.primary"
+        height="30px"
+        placeholder="SEARCH..."
+        value=""
+      />
+    </div>
+  </div>
+  <div>
+    <table
+      class="c5 c6"
+    >
+      <thead>
+        <tr>
+          <th
+            style="width: 40px;"
+          />
+          <th>
+            <a>
+              Name
+              <span
+                class="icon icon-chevrons-expand-vertical  c7 c8"
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Version
+              <span
+                class="icon icon-chevrons-expand-vertical  c7 c8"
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Nodes
+              <span
+                class="icon icon-chevrons-expand-vertical  c7 c8"
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Public URL
+              <span
+                class="icon icon-chevrons-expand-vertical  c7 c8"
+                color="light"
+              />
+            </a>
+          </th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              class="c9"
+              kind="primary"
+            >
+              Root
+            </div>
+          </td>
+          <td>
+            <div
+              class="c10"
+            >
+              localhost
+            </div>
+          </td>
+          <td>
+            1.2.3
+          </td>
+          <td>
+            30
+          </td>
+          <td>
+            https://abc.example.com:333/web
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c11"
+              href="/localhost/1/lawnabza"
+              kind="secondary"
+              theme="[object Object]"
+              width="90px"
+            >
+              view
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td />
+          <td>
+            <div
+              class="c10"
+            >
+              nidvojik
+            </div>
+          </td>
+          <td>
+            1.2.3
+          </td>
+          <td>
+            21
+          </td>
+          <td>
+            https://abc.example.com:333/web
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c11"
+              href="/localhost/1/nidvojik"
+              kind="secondary"
+              theme="[object Object]"
+              width="90px"
+            >
+              view
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td />
+          <td>
+            <div
+              class="c10"
+            >
+              lidtabih
+            </div>
+          </td>
+          <td>
+            1.2.3
+          </td>
+          <td>
+            35
+          </td>
+          <td>
+            https://abc.example.com:333/web
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c11"
+              href="/localhost/1/lidtabih"
+              kind="secondary"
+              theme="[object Object]"
+              width="90px"
+            >
+              view
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td />
+          <td>
+            <div
+              class="c10"
+            >
+              farovluv
+            </div>
+          </td>
+          <td>
+            1.2.3
+          </td>
+          <td>
+            12
+          </td>
+          <td>
+            https://abc.example.com:333/web
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c11"
+              href="/localhost/1/lidtabih"
+              kind="secondary"
+              theme="[object Object]"
+              width="90px"
+            >
+              view
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td />
+          <td>
+            <div
+              class="c10"
+            >
+              rozpaari
+            </div>
+          </td>
+          <td>
+            1.2.3
+          </td>
+          <td>
+            32
+          </td>
+          <td>
+            https://abc.example.com:333/web
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c11"
+              href="/localhost/1/lidtabih"
+              kind="secondary"
+              theme="[object Object]"
+              width="90px"
+            >
+              view
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td />
+          <td>
+            <div
+              class="c10"
+            >
+              wetjolune
+            </div>
+          </td>
+          <td>
+            1.2.3
+          </td>
+          <td>
+            8
+          </td>
+          <td>
+            https://abc.example.com:333/web
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c11"
+              href="/localhost/1/lidtabih"
+              kind="secondary"
+              theme="[object Object]"
+              width="90px"
+            >
+              view
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td />
+          <td>
+            <div
+              class="c10"
+            >
+              dashawic
+            </div>
+          </td>
+          <td>
+            1.2.3
+          </td>
+          <td>
+            11
+          </td>
+          <td>
+            https://abc.example.com:333/web
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c11"
+              href="/localhost/1/lidtabih"
+              kind="secondary"
+              theme="[object Object]"
+              width="90px"
+            >
+              view
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td />
+          <td>
+            <div
+              class="c10"
+            >
+              fugzucis
+            </div>
+          </td>
+          <td>
+            1.2.3
+          </td>
+          <td>
+            23
+          </td>
+          <td>
+            https://abc.example.com:333/web
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c11"
+              href="/localhost/1/lidtabih"
+              kind="secondary"
+              theme="[object Object]"
+              width="90px"
+            >
+              view
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;

@@ -19,7 +19,7 @@ import AuditEvents from './AuditEvents';
 import { makeEvent } from 'teleport/services/audit';
 
 export default {
-  title: 'Teleport/Audit/Events',
+  title: 'Teleport/Audit',
 };
 
 export const Events = () => <AuditEvents {...defaultProps} />;

@@ -15,43 +15,35 @@ limitations under the License.
 */
 
 const CSS = 'color: blue';
+const isDev = process.env.NODE_ENV === 'development';
 
 /**
- * logger is a simple logger used by store to log changes
+ * logger is used to logs Store state changes
  */
-let logger: {
-  info: (...opts: any[]) => void;
-  error: (...opts: any[]) => void;
-  logState: (...opts: any[]) => void;
-};
-
-// init logger with the right config
-if (process.env.NODE_ENV === 'development') {
-  logger = {
-    info(message?: string, ...optionalParams) {
+const logger = {
+  info(message?: string, ...optionalParams) {
+    if (isDev) {
       window.console.log(message, ...optionalParams);
-    },
+    }
+  },
 
-    logState(name: string, state: object, ...optionalParams) {
+  logState(name: string, state: any, ...optionalParams) {
+    if (isDev) {
       window.console.log(`%cUpdated ${name} `, CSS, state, ...optionalParams);
-    },
+    }
+  },
 
-    error(err, desc) {
-      if (desc) {
-        window.console.error(`${desc}`, err);
-      } else {
-        window.console.error(err);
-      }
-    },
-  };
-} else {
-  logger = {
-    info() {},
+  error(err, desc) {
+    if (!isDev) {
+      return;
+    }
 
-    logState() {},
-
-    error() {},
-  };
-}
+    if (desc) {
+      window.console.error(`${desc}`, err);
+    } else {
+      window.console.error(err);
+    }
+  },
+};
 
 export default logger;

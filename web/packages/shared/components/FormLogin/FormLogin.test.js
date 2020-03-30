@@ -17,10 +17,10 @@
 import React from 'react';
 import FormLogin from './FormLogin';
 import { render, fireEvent } from 'design/utils/testing';
-import { Auth2faTypeEnum, AuthProviderTypeEnum } from '../../services/enums';
+import { Auth2faTypeEnum } from '../../services/enums';
 import { TypeEnum as Type } from '../ButtonSso/';
 
-test('login with auth2faType: disabled with ssoProviders', () => {
+test('login with auth2faType: disabled', () => {
   const onLogin = jest.fn();
   const onLoginWithSso = jest.fn();
   const onLoginWithU2f = jest.fn();
@@ -29,9 +29,7 @@ test('login with auth2faType: disabled with ssoProviders', () => {
     <FormLogin
       title="titleText"
       auth2faType={Auth2faTypeEnum.DISABLED}
-      authProviders={[
-        { type: AuthProviderTypeEnum.OIDC, url: '', name: Type.GITHUB },
-      ]}
+      authProviders={[]}
       attempt={{ isFailed: false, isProcessing: false, message: '' }}
       onLogin={onLogin}
       onLoginWithSso={onLoginWithSso}
@@ -39,24 +37,17 @@ test('login with auth2faType: disabled with ssoProviders', () => {
     />
   );
 
-  // fill form
   fireEvent.change(getByPlaceholderText(/user name/i), {
     target: { value: 'username' },
   });
   fireEvent.change(getByPlaceholderText(/password/i), {
     target: { value: '123' },
   });
+
   fireEvent.click(getByText(/login/i));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '');
   expect(onLoginWithSso).not.toHaveBeenCalled();
-  expect(onLoginWithU2f).not.toHaveBeenCalled();
-  jest.clearAllMocks();
-
-  // test ssoProvider buttons
-  fireEvent.click(getByText(/github/i));
-  expect(onLoginWithSso).toHaveBeenCalledTimes(1);
-  expect(onLogin).not.toHaveBeenCalled();
   expect(onLoginWithU2f).not.toHaveBeenCalled();
 });
 
@@ -118,7 +109,7 @@ test('login with auth2faType: U2F', () => {
   expect(getByText(/login/i)).toBeDisabled();
 });
 
-test('input validation errors with OTP', () => {
+test('input validation error handling', () => {
   const onLogin = jest.fn();
   const onLoginWithSso = jest.fn();
   const onLoginWithU2f = jest.fn();
@@ -145,19 +136,15 @@ test('input validation errors with OTP', () => {
   expect(getByText(/token is required/i)).toBeInTheDocument();
 });
 
-test('attempt object with prop isFailing and error message', () => {
-  const onLogin = jest.fn();
-  const onLoginWithSso = jest.fn();
-  const onLoginWithU2f = jest.fn();
-
+test('error handling', () => {
   const { getByText } = render(
     <FormLogin
       auth2faType={Auth2faTypeEnum.DISABLED}
       authProviders={[]}
       attempt={{ isFailed: true, isProcessing: false, message: 'errMsg' }}
-      onLogin={onLogin}
-      onLoginWithSso={onLoginWithSso}
-      onLoginWithU2f={onLoginWithU2f}
+      onLogin={jest.fn()}
+      onLoginWithSso={jest.fn()}
+      onLoginWithU2f={jest.fn()}
     />
   );
 

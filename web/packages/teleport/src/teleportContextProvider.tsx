@@ -18,7 +18,7 @@ import React from 'react';
 import { useStore } from 'shared/libs/stores';
 import Context from './teleportContext';
 
-const TeleportReactContext = React.createContext(new Context());
+const TeleportReactContext = React.createContext<Context>(null);
 
 export default TeleportReactContext.Provider;
 

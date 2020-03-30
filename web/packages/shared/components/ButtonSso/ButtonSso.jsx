@@ -23,8 +23,8 @@ import { TypeEnum, pickSsoIcon } from './utils';
 import PropTypes from 'prop-types';
 
 const ButtonSso = props => {
-  const { ssoType, ...rest } = props;
-  const { color, Icon, type } = pickSsoIcon(ssoType);
+  const { ssoType, title, ...rest } = props;
+  const { color, Icon } = pickSsoIcon(ssoType);
   return (
     <StyledButton color={color} block {...rest}>
       {Boolean(Icon) && (
@@ -32,7 +32,7 @@ const ButtonSso = props => {
           <Icon data-testid="icon" />
         </IconBox>
       )}
-      {type}
+      {title}
     </StyledButton>
   );
 };

@@ -1,0 +1,363 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`rendering of Audit Sessions 1`] = `
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #00BFA5;
+  color: #FFFFFF;
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: #00EAC3;
+}
+
+.c7:active {
+  background: #26A69A;
+}
+
+.c7:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c5 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c6 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  margin-right: 16px;
+  padding: 4px;
+  color: #FFFFFF;
+  background-color: #010B1C;
+  font-size: 18px;
+}
+
+.c2 {
+  box-sizing: border-box;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: end;
+  -webkit-justify-content: flex-end;
+  -ms-flex-pack: end;
+  justify-content: flex-end;
+}
+
+.c3 {
+  background: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c3 > thead > tr > th,
+.c3 > tbody > tr > th,
+.c3 > tfoot > tr > th,
+.c3 > thead > tr > td,
+.c3 > tbody > tr > td,
+.c3 > tfoot > tr > td {
+  padding: 16px;
+  vertical-align: middle;
+}
+
+.c3 > thead > tr > th {
+  background: #1B234A;
+  color: rgba(255,255,255,0.56);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 16px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.c3 > thead > tr > th .c4 {
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 40px;
+  margin-right: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background-color: #0C143D;
+  height: 30px;
+}
+
+.c1:focus,
+.c1:active {
+  background: #FFFFFF;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(0,0,0,0.87);
+}
+
+.c1::-webkit-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c1::-moz-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c1:-ms-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c1::placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c0 {
+  padding: 16px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  height: 24px;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c0 .c8 {
+  margin-left: 16px;
+}
+
+<div>
+  <nav
+    class="c0"
+  >
+    <input
+      class="c1"
+      color="text.primary"
+      height="30px"
+      placeholder="SEARCH..."
+      value=""
+    />
+    <div
+      class="c2"
+    />
+  </nav>
+  <table
+    class="c3"
+  >
+    <thead>
+      <tr>
+        <th>
+          Session ID
+        </th>
+        <th>
+          User(s)
+        </th>
+        <th>
+          Node
+        </th>
+        <th>
+          <a>
+            Created
+            <span
+              class="icon icon-chevron-up  c4 c5"
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          Duration
+        </th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div
+            style="display: flex; align-items: center;"
+          >
+            <span
+              class="icon icon-terminal  c4 c6"
+              color="light"
+              font-size="4"
+              style="border-radius: 50%; border: 2px solid green;"
+            />
+            240355-6491-11e9-80a1-427cfde50f5a
+          </div>
+        </td>
+        <td>
+          one, two
+        </td>
+        <td>
+          serverId
+        </td>
+        <td>
+          2019-04-21 20:00:51
+        </td>
+        <td>
+          not implemented
+        </td>
+        <td
+          align="right"
+        >
+          <a
+            class="c7"
+            href="/web/cluster/localhost/session/240355-6491-11e9-80a1-427cfde50f5a/player"
+            kind="primary"
+            theme="[object Object]"
+          >
+            Play
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            style="display: flex; align-items: center;"
+          >
+            <span
+              class="icon icon-terminal  c4 c6"
+              color="light"
+              font-size="4"
+              style="border-radius: 50%; border: 2px solid green;"
+            />
+            377875-6491-11e9-80a1-427cfde50f5a
+          </div>
+        </td>
+        <td>
+          one, two
+        </td>
+        <td>
+          serverId
+        </td>
+        <td>
+          2019-04-21 20:00:51
+        </td>
+        <td>
+          not implemented
+        </td>
+        <td
+          align="right"
+        >
+          <a
+            class="c7"
+            href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a/player"
+            kind="primary"
+            theme="[object Object]"
+          >
+            Play
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            style="display: flex; align-items: center;"
+          >
+            <span
+              class="icon icon-terminal  c4 c6"
+              color="light"
+              font-size="4"
+              style="border-radius: 50%; border: 2px solid green;"
+            />
+            426485-6491-11e9-80a1-427cfde50f5a
+          </div>
+        </td>
+        <td>
+          one, two
+        </td>
+        <td>
+          serverId
+        </td>
+        <td>
+          2019-04-21 20:00:51
+        </td>
+        <td>
+          not implemented
+        </td>
+        <td
+          align="right"
+        >
+          <a
+            class="c7"
+            href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a/player"
+            kind="primary"
+            theme="[object Object]"
+          >
+            Play
+          </a>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;

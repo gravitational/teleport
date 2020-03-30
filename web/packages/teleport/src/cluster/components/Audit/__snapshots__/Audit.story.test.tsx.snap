@@ -1,0 +1,472 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`overflow 1`] = `
+.c10 {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  border-radius: 8px;
+  box-sizing: border-box;
+  box-shadow: 0 0 2px rgba(0,0,0,.12),0 2px 2px rgba(0,0,0,.24);
+  font-weight: 400;
+  font-size: 16px;
+  margin: 0 0 16px 0;
+  min-height: 48px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-all;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c10 a {
+  color: #FFFFFF;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c9 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: rgba(255,255,255,0.56);
+  font-size: 16px;
+}
+
+.c14 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c6 {
+  border-radius: 4px;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  border: 1px solid;
+  box-sizing: border-box;
+  background-color: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: bold;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all .3s;
+  transition: all .3s;
+  -webkit-font-smoothing: antialiased;
+  border-color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  font-size: 10px;
+  padding: 8px 8px;
+  margin-left: auto;
+  width: 180px;
+  border-color: rgba(255,255,255,0.87);
+  color: rgba(255,255,255,0.87);
+}
+
+.c6:active {
+  opacity: .56;
+}
+
+.c6 > span {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+}
+
+.c6:hover,
+.c6:focus {
+  border-color: #FFFFFF;
+  color: #FFFFFF;
+}
+
+.c6:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c6:hover,
+.c6:focus {
+  border-color: #FFFFFF;
+  color: #FFFFFF;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 40px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  margin-top: 24px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 56px;
+  margin: 0px;
+  margin-right: 56px;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-right: 40px;
+  outline: none;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.c4:hover,
+.c4.active,
+.c4:focus {
+  color: #FFFFFF;
+}
+
+.c4.active {
+  border-bottom: 4px solid #FA2A6A;
+  padding-top: 4px;
+}
+
+.c3 {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c13 {
+  background: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c13 > thead > tr > th,
+.c13 > tbody > tr > th,
+.c13 > tfoot > tr > th,
+.c13 > thead > tr > td,
+.c13 > tbody > tr > td,
+.c13 > tfoot > tr > td {
+  padding: 16px;
+  vertical-align: middle;
+}
+
+.c13 > thead > tr > th {
+  background: #1B234A;
+  color: rgba(255,255,255,0.56);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 16px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.c13 > thead > tr > th .c8 {
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 40px;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background-color: #0C143D;
+  height: 30px;
+}
+
+.c12:focus,
+.c12:active {
+  background: #FFFFFF;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(0,0,0,0.87);
+}
+
+.c12::-webkit-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c12::-moz-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c12:-ms-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c12::placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c11 {
+  padding: 16px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  height: 24px;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c11 .c16 {
+  margin-left: 16px;
+}
+
+.c5 {
+  position: relative;
+}
+
+.c5 .c8 {
+  position: absolute;
+  right: 16px;
+  top: 6px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <h1
+      class="c2"
+    >
+      Audit Log
+    </h1>
+    <div
+      class="c3"
+      color="text.primary"
+    >
+      <a
+        class="c4"
+        href="/web/cluster/localhost/audit/sessions"
+        mr="6"
+        theme="[object Object]"
+        typography="h4"
+      >
+        Sessions
+      </a>
+      <a
+        aria-current="page"
+        class="c4 active"
+        href="/web/cluster/localhost/audit/events"
+        mr="6"
+        theme="[object Object]"
+        typography="h4"
+      >
+        Events
+      </a>
+    </div>
+    <button
+      class="c5 c6"
+      width="180px"
+    >
+      <span>
+        <div
+          class="c7"
+        >
+          Today
+        </div>
+        <span
+          class="icon icon-caret-down  c8 c9"
+          color="text.onDark"
+          font-size="3"
+        />
+      </span>
+    </button>
+  </div>
+  <div
+    class="c10"
+    kind="danger"
+  >
+    Number of events retrieved for specified date range has exceeded the maximum limit of 
+    9999
+     events
+  </div>
+  <nav
+    class="c11"
+  >
+    <input
+      class="c12"
+      color="text.primary"
+      height="30px"
+      placeholder="SEARCH..."
+      value=""
+    />
+  </nav>
+  <table
+    class="c13"
+  >
+    <thead>
+      <tr>
+        <th>
+          <a>
+            Type
+            <span
+              class="icon icon-chevrons-expand-vertical  c8 c14"
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          Description
+        </th>
+        <th>
+          <a>
+            User
+            <span
+              class="icon icon-chevrons-expand-vertical  c8 c14"
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Created
+            <span
+              class="icon icon-chevron-up  c8 c14"
+              color="light"
+            />
+          </a>
+        </th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td
+          align="center"
+          colspan="5"
+        >
+          <div
+            class="c15"
+            color="text.primary"
+          >
+            NO DATA AVAILABLE
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;

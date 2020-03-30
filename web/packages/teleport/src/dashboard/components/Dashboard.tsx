@@ -29,11 +29,11 @@ export default function Dashboard() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const { isFailed, isSuccess, message } = attempt;
 
-  React.useEffect(() => {
+  React.useState(() => {
     attemptActions.do(() => {
       return teleCtx.init();
     });
-  }, [teleCtx]);
+  });
 
   if (isFailed) {
     return <Failed message={message} />;

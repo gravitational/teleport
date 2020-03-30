@@ -1,0 +1,118 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render DocumentBlank 1`] = `
+.c1 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.c4 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: #FFFFFF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 32px;
+  width: 100%;
+}
+
+.c4:active {
+  opacity: 0.56;
+}
+
+.c4:hover,
+.c4:focus {
+  background: #373F64;
+}
+
+.c4:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c3 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  margin-bottom: 40px;
+  margin-top: 72px;
+  color: #0C143D;
+  font-size: 128px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  -webkit-flex: 1;
+  -ms-flex: 1;
+  flex: 1;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+}
+
+.c2 {
+  box-sizing: border-box;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+<div
+  class="c0"
+  style="overflow: auto; display: flex; position: relative;"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      <span
+        class="icon icon-terminal  c3"
+        color="#0C143D"
+        font-size="128px"
+      />
+      <button
+        class="c4"
+        kind="secondary"
+      >
+        New Session
+      </button>
+    </div>
+  </div>
+</div>
+`;

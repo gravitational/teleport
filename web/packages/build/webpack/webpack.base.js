@@ -108,7 +108,7 @@ module.exports = function createConfig() {
       },
 
       images: {
-        test: /\.(png|jpg|gif)$/,
+        test: /\.(png|jpg|gif|ico)$/,
         loader: 'url-loader',
         options: {
           limit: 10000,

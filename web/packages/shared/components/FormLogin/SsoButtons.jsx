@@ -22,22 +22,20 @@ import ButtonSso from './../ButtonSso';
 const SsoBtnList = ({ providers, prefixText, isDisabled, onClick }) => {
   const $btns = providers.map((item, index) => {
     let { name, type, displayName } = item;
-    displayName = displayName || name;
-    const title = `${prefixText} ${displayName}`;
-    const ssoType = guessProviderType(displayName, type);
+    const title = displayName || `${prefixText} ${name}`;
+    const ssoType = guessProviderType(title, type);
     return (
       <ButtonSso
         key={index}
+        title={title}
         ssoType={ssoType}
-        mt={5}
         disabled={isDisabled}
+        mt={5}
         onClick={e => {
           e.preventDefault();
           onClick(item);
         }}
-      >
-        {title}
-      </ButtonSso>
+      />
     );
   });
 

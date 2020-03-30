@@ -90,6 +90,7 @@ test('login with SSO', () => {
     .mockImplementation(() => Auth2faTypeEnum.OTP);
   jest.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
     {
+      displayName: 'With Github',
       type: AuthProviderTypeEnum.GITHUB,
       name: AuthProviderTypeEnum.GITHUB,
       url:
@@ -100,7 +101,7 @@ test('login with SSO', () => {
   const { getByText } = render(<Login />);
 
   // test login pathways
-  fireEvent.click(getByText(AuthProviderTypeEnum.GITHUB));
+  fireEvent.click(getByText('With Github'));
   expect(history.push).toHaveBeenCalledWith(
     'http://localhost/github/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=github',
     true

@@ -25,17 +25,22 @@ export default function ProgressBarTty(props: { tty: TtyPlayer }) {
 }
 
 export function useTtyProgress(tty: TtyPlayer) {
-  const [state, rerender] = React.useState(() => {
+  const [state, setState] = React.useState(() => {
     return makeTtyProgress(tty);
   });
 
   React.useEffect(() => {
-    const throttledOnChange = throttle(onChange, 500);
+    const throttledOnChange = throttle(
+      onChange,
+      // some magic numbers to reduce number of re-renders when
+      // session is too long and "eventful"
+      Math.max(Math.min(tty.duration * 0.025, 500), 20)
+    );
 
     function onChange() {
       // recalculate progress state
       const ttyProgres = makeTtyProgress(tty);
-      rerender(ttyProgres);
+      setState(ttyProgres);
     }
 
     function cleanup() {

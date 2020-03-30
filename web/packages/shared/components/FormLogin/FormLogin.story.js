@@ -64,11 +64,35 @@ export const ServerError = () => {
 
 export const SSOProviders = () => {
   const ssoProvider = [
-    { name: 'github', type: AuthProviderTypeEnum.OIDC, url: '' },
-    { name: 'google', type: AuthProviderTypeEnum.OIDC, url: '' },
-    { name: 'bitbucket', type: AuthProviderTypeEnum.OIDC, url: '' },
-    { name: 'unknown', type: AuthProviderTypeEnum.OIDC, url: '' },
-    { name: 'microsoft', type: AuthProviderTypeEnum.OIDC, url: '' },
+    {
+      displayName: 'github',
+      name: 'github',
+      type: AuthProviderTypeEnum.OIDC,
+      url: '',
+    },
+    {
+      displayName: 'google',
+      name: 'google',
+      type: AuthProviderTypeEnum.OIDC,
+      url: '',
+    },
+    {
+      displayName: 'bitbucket',
+      name: 'bitbucket',
+      type: AuthProviderTypeEnum.OIDC,
+      url: '',
+    },
+    {
+      name: 'Mission Control',
+      type: AuthProviderTypeEnum.OIDC,
+      url: '',
+    },
+    {
+      displayName: 'microsoft',
+      name: 'microsoft',
+      type: AuthProviderTypeEnum.OIDC,
+      url: '',
+    },
   ];
 
   return (

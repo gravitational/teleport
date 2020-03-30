@@ -87,7 +87,6 @@ export default function EventList(props: EventListProps) {
 
   // paginate
   const pagging = usePages({ pageSize: 20, data });
-
   const { detailsToShow, colSortDirs } = state;
   return (
     <React.Fragment>

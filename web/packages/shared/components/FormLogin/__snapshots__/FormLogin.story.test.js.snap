@@ -800,7 +800,7 @@ exports[`nonrendering of user/pass/otp/login elements w/ local auth disabled 1`]
             data-testid="icon"
           />
         </div>
-        github
+        Login with github
       </button>
       <button
         class="c10 c6"
@@ -816,7 +816,7 @@ exports[`nonrendering of user/pass/otp/login elements w/ local auth disabled 1`]
             data-testid="icon"
           />
         </div>
-        google
+        Login with google
       </button>
     </div>
   </footer>
@@ -1526,7 +1526,7 @@ exports[`sso providers rendering 1`] = `
             data-testid="icon"
           />
         </div>
-        unknown sso
+        Login with Mission Control
       </button>
       <button
         class="c17 c10"

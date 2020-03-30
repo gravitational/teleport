@@ -22,18 +22,16 @@ export default {
   title: 'TeleportConsole/DocumentBlank',
 };
 
-export const Blank = () => {
-  return (
-    <DocumentBlank
-      visible={true}
-      doc={
-        {
-          created: new Date(),
-          kind: 'blank',
-          url: '',
-          clusterId: 'one',
-        } as const
-      }
-    />
-  );
-};
+export const Blank = () => (
+  <DocumentBlank
+    visible={true}
+    doc={
+      {
+        created: new Date(),
+        kind: 'blank',
+        url: '',
+        clusterId: 'one',
+      } as const
+    }
+  />
+);

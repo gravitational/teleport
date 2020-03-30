@@ -1,0 +1,674 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`failed 1`] = `
+.c2 {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  border-radius: 8px;
+  box-sizing: border-box;
+  box-shadow: 0 0 2px rgba(0,0,0,.12),0 2px 2px rgba(0,0,0,.24);
+  font-weight: 400;
+  font-size: 16px;
+  margin: 0 0 16px 0;
+  min-height: 48px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-all;
+  margin-bottom: 24px;
+  margin-top: 8px;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c2 a {
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 40px;
+  margin-bottom: 40px;
+  padding: 32px;
+  width: 540px;
+  color: rgba(0,0,0,0.87);
+  background-color: #FFFFFF;
+  -webkit-align-self: baseline;
+  -ms-flex-item-align: baseline;
+  align-self: baseline;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 56px;
+  margin: 0px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+<div
+  class="c0"
+  color="text.onLight"
+  width="540px"
+>
+  <div
+    class="c1"
+  >
+    Internal Error
+  </div>
+  <div
+    class="c2"
+    kind="danger"
+  >
+    server error
+  </div>
+   
+</div>
+`;
+
+exports[`loaded 1`] = `
+.c8 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c14 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 500;
+  min-height: 24px;
+  padding: 2px 12px;
+  text-transform: uppercase;
+  line-height: 1.43;
+  background-color: #0C143D;
+  color: rgba(255,255,255,0.87);
+  margin-bottom: 4px;
+  margin-right: 4px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  margin-top: 24px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 56px;
+  margin: 0px;
+  margin-right: 32px;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c6 {
+  background: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c6 > thead > tr > th,
+.c6 > tbody > tr > th,
+.c6 > tfoot > tr > th,
+.c6 > thead > tr > td,
+.c6 > tbody > tr > td,
+.c6 > tfoot > tr > td {
+  padding: 16px;
+  vertical-align: middle;
+}
+
+.c6 > thead > tr > th {
+  background: #1B234A;
+  color: rgba(255,255,255,0.56);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 16px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.c6 > thead > tr > th .c7 {
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+.c11 {
+  opacity: 0.87;
+}
+
+.c13 {
+  opacity: 0.24;
+}
+
+.c9 {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+  outline-style: none;
+  outline-width: 0px;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  background: #010B1C;
+  border: 1px solid #010B1C;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12),0 2px 2px rgba(0,0,0,0.24);
+  color: [object Object];
+  cursor: pointer;
+  height: 24px;
+  width: 56px;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.c9 > * {
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+}
+
+.c9:focus {
+  outline: none;
+}
+
+.c9::-moz-focus-inner {
+  border: 0;
+}
+
+.c9:hover,
+.c9:focus {
+  border: 1px solid #00bfa5;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+}
+
+.c9:hover .c10,
+.c9:focus .c10 {
+  opacity: 1;
+}
+
+.c9:hover .c12,
+.c9:focus .c12 {
+  opacity: 0.56;
+}
+
+.c4 {
+  box-sizing: border-box;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 40px;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background-color: #0C143D;
+  height: 30px;
+}
+
+.c4:focus,
+.c4:active {
+  background: #FFFFFF;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(0,0,0,0.87);
+}
+
+.c4::-webkit-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c4::-moz-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c4:-ms-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c4::placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+  box-sizing: content-box;
+  padding: 16px;
+  height: 24px;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c3 .c15 {
+  margin-left: 16px;
+}
+
+.c5 > tbody > tr > td {
+  vertical-align: baseline;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <h1
+      class="c2"
+    >
+      Nodes
+    </h1>
+  </div>
+  <div
+    style="width: 100%;"
+  >
+    <div
+      class="c3"
+    >
+      <input
+        class="c4"
+        color="text.primary"
+        height="30px"
+        placeholder="SEARCH..."
+        value=""
+      />
+    </div>
+    <table
+      class="c5 c6"
+    >
+      <thead>
+        <tr>
+          <th>
+            Login as
+          </th>
+          <th>
+            <a>
+              Hostname
+              <span
+                class="icon icon-chevron-up  c7 c8"
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Address
+              <span
+                class="icon icon-chevrons-expand-vertical  c7 c8"
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            Labels
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <button
+              class="c9"
+            >
+              <div
+                class="icon icon-terminal  c7 c8 c10 c11"
+                color="light"
+              />
+              <div
+                class="icon icon-caret-down  c7 c8 c12 c13"
+                color="light"
+              />
+            </button>
+          </td>
+          <td>
+            zebpecda
+          </td>
+          <td>
+            <span
+              style="cursor: default;"
+              title="This node is connected to cluster through reverse tunnel"
+            >
+              ⟵ tunnel
+            </span>
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              kernel: 4.15.0-51-generic
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <button
+              class="c9"
+            >
+              <div
+                class="icon icon-terminal  c7 c8 c10 c11"
+                color="light"
+              />
+              <div
+                class="icon icon-caret-down  c7 c8 c12 c13"
+                color="light"
+              />
+            </button>
+          </td>
+          <td>
+            zebpecda
+          </td>
+          <td>
+            <span
+              style="cursor: default;"
+              title="This node is connected to cluster through reverse tunnel"
+            >
+              ⟵ tunnel
+            </span>
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              kernel: 4.15.0-51-generic
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <button
+              class="c9"
+            >
+              <div
+                class="icon icon-terminal  c7 c8 c10 c11"
+                color="light"
+              />
+              <div
+                class="icon icon-caret-down  c7 c8 c12 c13"
+                color="light"
+              />
+            </button>
+          </td>
+          <td>
+            zebpecda
+          </td>
+          <td>
+            172.10.1.1:3022
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              kernel: 4.15.0-51-generic
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <button
+              class="c9"
+            >
+              <div
+                class="icon icon-terminal  c7 c8 c10 c11"
+                color="light"
+              />
+              <div
+                class="icon icon-caret-down  c7 c8 c12 c13"
+                color="light"
+              />
+            </button>
+          </td>
+          <td>
+            kuhinur
+          </td>
+          <td>
+            172.10.1.1:3022
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              kernel: 4.15.0-51-generic
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <button
+              class="c9"
+            >
+              <div
+                class="icon icon-terminal  c7 c8 c10 c11"
+                color="light"
+              />
+              <div
+                class="icon icon-caret-down  c7 c8 c12 c13"
+                color="light"
+              />
+            </button>
+          </td>
+          <td>
+            fujedu
+          </td>
+          <td>
+            172.10.1.20:3022
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              kernel: 4.15.0-51-generic
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <button
+              class="c9"
+            >
+              <div
+                class="icon icon-terminal  c7 c8 c10 c11"
+                color="light"
+              />
+              <div
+                class="icon icon-caret-down  c7 c8 c12 c13"
+                color="light"
+              />
+            </button>
+          </td>
+          <td>
+            facuzguv
+          </td>
+          <td>
+            172.10.1.1:3022
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              kernel: 4.15.0-51-generic
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <button
+              class="c9"
+            >
+              <div
+                class="icon icon-terminal  c7 c8 c10 c11"
+                color="light"
+              />
+              <div
+                class="icon icon-caret-down  c7 c8 c12 c13"
+                color="light"
+              />
+            </button>
+          </td>
+          <td>
+            duzsevkig
+          </td>
+          <td>
+            172.10.1.1:3022
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              kernel: 4.15.0-51-generic
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;

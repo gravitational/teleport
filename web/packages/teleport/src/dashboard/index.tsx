@@ -22,10 +22,10 @@ import TeleportContextProvider from 'teleport/teleportContextProvider';
 import TeleportContext from 'teleport/teleportContext';
 
 export default function Index() {
-  const ctx = React.useMemo(() => {
+  const [ctx] = React.useState(() => {
     const features = [new FeatureAccount(), new FeatureClusters()];
     return new TeleportContext({ features });
-  }, []);
+  });
 
   return (
     <TeleportContextProvider value={ctx}>

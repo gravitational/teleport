@@ -17,12 +17,15 @@ limitations under the License.
 import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import { storiesOf } from '@storybook/react';
 import * as Icons from 'design/Icon';
 import { Box } from 'design';
 import { ClusterSideNav } from './SideNav';
 
-storiesOf('Teleport', module).add('SideNav', () => {
+export default {
+  title: 'Teleport/SideNav',
+};
+
+export const SideNav = () => {
   const props = {
     ...defaultProps,
   };
@@ -39,7 +42,7 @@ storiesOf('Teleport', module).add('SideNav', () => {
       </Router>
     </Box>
   );
-});
+};
 
 const clusterOptions = [
   { value: 'Kawupic', label: 'Kawupic' },

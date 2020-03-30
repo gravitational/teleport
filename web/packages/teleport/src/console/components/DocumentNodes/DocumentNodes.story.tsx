@@ -21,10 +21,11 @@ import { TestLayout } from './../../Console.story';
 
 export default {
   title: 'TeleportConsole/DocumentNodes',
+  excludeStories: ['createContext'],
 };
 
-export const Document = () => {
-  const ctx = mockContext();
+export const Document = ({ value }: { value: ConsoleCtx }) => {
+  const ctx = value || createContext();
   return (
     <TestLayout ctx={ctx}>
       <DocumentNodes doc={doc} visible={true} />
@@ -33,7 +34,7 @@ export const Document = () => {
 };
 
 export const Loading = () => {
-  const ctx = mockContext();
+  const ctx = createContext();
   ctx.fetchNodes = () => new Promise(() => null);
   return (
     <TestLayout ctx={ctx}>
@@ -43,7 +44,7 @@ export const Loading = () => {
 };
 
 export const Failed = () => {
-  const ctx = mockContext();
+  const ctx = createContext();
   ctx.fetchNodes = () => Promise.reject<any>(new Error('Failed to load nodes'));
   return (
     <TestLayout ctx={ctx}>
@@ -52,13 +53,12 @@ export const Failed = () => {
   );
 };
 
-function mockContext() {
+export function createContext() {
   const ctx = new ConsoleCtx();
 
   ctx.fetchClusters = () => {
     return Promise.resolve<any>(clusters);
   };
-
   ctx.fetchNodes = () => {
     return Promise.resolve({ nodes, logins: ['root'] });
   };

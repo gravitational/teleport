@@ -50,8 +50,8 @@ const Content = ({ message = '', desc = null }) => {
   );
 };
 
-export const NotFound = ({ message }) => (
-  <CardError>
+export const NotFound = ({ message, ...rest }) => (
+  <CardError {...rest}>
     <Header>404 Not Found</Header>
     <Content message={message} />
   </CardError>

@@ -134,7 +134,7 @@ export default function LoginForm(props) {
               borderBottomRightRadius="3"
             >
               <SsoButtonList
-                prefixText="Login with "
+                prefixText="Login with"
                 isDisabled={isProcessing}
                 providers={authProviders}
                 onClick={onLoginWithSso}

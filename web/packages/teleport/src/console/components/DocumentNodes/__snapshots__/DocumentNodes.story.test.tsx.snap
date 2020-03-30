@@ -1,0 +1,841 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render DocumentNodes 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  margin-right: 16px;
+  width: 400px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+}
+
+.c15 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c9 {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 12px 16px;
+  outline: none;
+  width: 100%;
+  color: rgba(255,255,255,0.87);
+  background-color: #0C143D;
+  width: 240px;
+  height: 34px;
+}
+
+.c9::-ms-clear {
+  display: none;
+}
+
+.c9::-webkit-input-placeholder {
+  opacity: 0.24;
+}
+
+.c9::-moz-placeholder {
+  opacity: 0.24;
+}
+
+.c9:-ms-input-placeholder {
+  opacity: 0.24;
+}
+
+.c9::placeholder {
+  opacity: 0.24;
+}
+
+.c21 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 500;
+  min-height: 24px;
+  padding: 2px 12px;
+  text-transform: uppercase;
+  line-height: 1.43;
+  background-color: #0C143D;
+  color: rgba(255,255,255,0.87);
+  margin-bottom: 4px;
+  margin-right: 4px;
+}
+
+.c5 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin: -16px;
+  height: 100%;
+  width: 100%;
+  background-color: #010B1C;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+}
+
+.c1 {
+  box-sizing: border-box;
+  -webkit-flex: 1;
+  -ms-flex: 1;
+  flex: 1;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+}
+
+.c2 {
+  box-sizing: border-box;
+  max-width: 1024px;
+  margin-top: 56px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 32px;
+  padding-right: 32px;
+  -webkit-flex: 1;
+  -ms-flex: 1;
+  flex: 1;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+.c3 {
+  box-sizing: border-box;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+}
+
+.c13 {
+  background: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c13 > thead > tr > th,
+.c13 > tbody > tr > th,
+.c13 > tfoot > tr > th,
+.c13 > thead > tr > td,
+.c13 > tbody > tr > td,
+.c13 > tfoot > tr > td {
+  padding: 16px;
+  vertical-align: middle;
+}
+
+.c13 > thead > tr > th {
+  background: #1B234A;
+  color: rgba(255,255,255,0.56);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 16px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.c13 > thead > tr > th .c14 {
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+.c18 {
+  opacity: 0.87;
+}
+
+.c20 {
+  opacity: 0.24;
+}
+
+.c16 {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+  outline-style: none;
+  outline-width: 0px;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  background: #010B1C;
+  border: 1px solid #010B1C;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12),0 2px 2px rgba(0,0,0,0.24);
+  color: [object Object];
+  cursor: pointer;
+  height: 24px;
+  width: 56px;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.c16 > * {
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+}
+
+.c16:focus {
+  outline: none;
+}
+
+.c16::-moz-focus-inner {
+  border: 0;
+}
+
+.c16:hover,
+.c16:focus {
+  border: 1px solid #00bfa5;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+}
+
+.c16:hover .c17,
+.c16:focus .c17 {
+  opacity: 1;
+}
+
+.c16:hover .c19,
+.c16:focus .c19 {
+  opacity: 0.56;
+}
+
+.c11 {
+  box-sizing: border-box;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 40px;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background-color: #0C143D;
+  height: 30px;
+}
+
+.c11:focus,
+.c11:active {
+  background: #FFFFFF;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(0,0,0,0.87);
+}
+
+.c11::-webkit-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c11::-moz-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c11:-ms-input-placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c11::placeholder {
+  color: #eceff1;
+  font-size: 12px;
+}
+
+.c10 {
+  box-sizing: border-box;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+  box-sizing: content-box;
+  padding: 16px;
+  height: 24px;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c10 .c22 {
+  margin-left: 16px;
+}
+
+.c12 > tbody > tr > td {
+  vertical-align: baseline;
+}
+
+.c7 .react-select__control,
+.c7 .react-select__control--is-focused {
+  min-height: 40px;
+}
+
+.c7 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 16px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c7 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c7 .react-select__indicator-separator {
+  display: none;
+}
+
+.c7 .react-select__control:hover {
+  border-color: transparent;
+}
+
+.c7 .react-select__control--is-focused {
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c7 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c6 {
+  box-sizing: border-box;
+}
+
+.c6 .react-select__control,
+.c6 .react-select__control--is-focused {
+  min-height: 40px;
+}
+
+.c6 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c6 .react-select-container {
+  background-color: transparent;
+}
+
+.c6 .react-select__indicator-separator {
+  display: none;
+}
+
+.c6 .react-select__control--is-focused {
+  background-color: white;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.87);
+}
+
+.c6 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.87);
+}
+
+.c6 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c6 .react-select__single-value {
+  color: white;
+}
+
+.c6 .react-select__dropdown-indicator {
+  color: #0C143D;
+}
+
+.c6 .react-select__input {
+  color: white;
+  font-size: 16px;
+}
+
+.c6 .react-select__control {
+  border-radius: 4px;
+  border-color: #0C143D;
+  background-color: #1B234A;
+  color: rgba(255,255,255,0.56);
+}
+
+.c6 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.87);
+}
+
+.c6 .react-select__control:hover .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.87);
+}
+
+.c6 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c6 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+<div
+  class="c0"
+  height="100%"
+  style="position: absolute;"
+  width="100%"
+>
+  <div
+    class="c1"
+    style="overflow: auto; display: flex; position: relative;"
+  >
+    <div
+      class="c2"
+    >
+      <div
+        class="c3"
+      >
+        <div
+          class="c4"
+          width="400px"
+        >
+          <label
+            class="c5"
+            font-size="0"
+          >
+             Clusters 
+          </label>
+          <div
+            class="c6"
+          >
+            <div
+              class="c7"
+            >
+              <div
+                class="react-select-container css-2b097c-container"
+              >
+                <div
+                  class="react-select__control css-yk16xz-control"
+                >
+                  <div
+                    class="react-select__value-container react-select__value-container--has-value css-1hwfws3"
+                  >
+                    <div
+                      class="react-select__single-value css-1uccc91-singleValue"
+                    >
+                      cluseter-1
+                    </div>
+                    <div
+                      class="css-b8ldur-Input"
+                    >
+                      <div
+                        class="react-select__input"
+                        style="display: inline-block;"
+                      >
+                        <input
+                          aria-autocomplete="list"
+                          autocapitalize="none"
+                          autocomplete="off"
+                          autocorrect="off"
+                          id="react-select-2-input"
+                          spellcheck="false"
+                          style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
+                          tabindex="0"
+                          type="text"
+                          value=""
+                        />
+                        <div
+                          style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                  >
+                    <span
+                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                    />
+                    <div
+                      aria-hidden="true"
+                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="css-6q0nyr-Svg"
+                        focusable="false"
+                        height="20"
+                        viewBox="0 0 20 20"
+                        width="20"
+                      >
+                        <path
+                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c8"
+        >
+          <label
+            class="c5"
+            font-size="0"
+          >
+            Quick Launch
+          </label>
+          <input
+            class="c9"
+            color="text.primary"
+            height="34px"
+            placeholder="login@host"
+            width="240px"
+          />
+        </div>
+      </div>
+      <div
+        style="width: 100%;"
+      >
+        <div
+          class="c10"
+        >
+          <input
+            class="c11"
+            color="text.primary"
+            height="30px"
+            placeholder="SEARCH..."
+            value=""
+          />
+        </div>
+        <table
+          class="c12 c13"
+        >
+          <thead>
+            <tr>
+              <th>
+                Login as
+              </th>
+              <th>
+                <a>
+                  Hostname
+                  <span
+                    class="icon icon-chevron-up  c14 c15"
+                    color="light"
+                  />
+                </a>
+              </th>
+              <th>
+                <a>
+                  Address
+                  <span
+                    class="icon icon-chevrons-expand-vertical  c14 c15"
+                    color="light"
+                  />
+                </a>
+              </th>
+              <th>
+                Labels
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <button
+                  class="c16"
+                >
+                  <div
+                    class="icon icon-terminal  c14 c15 c17 c18"
+                    color="light"
+                  />
+                  <div
+                    class="icon icon-caret-down  c14 c15 c19 c20"
+                    color="light"
+                  />
+                </button>
+              </td>
+              <td>
+                zebpecda
+              </td>
+              <td>
+                172.10.1.24:3022
+              </td>
+              <td>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  lortavma: one
+                </div>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  lenisret: 4.15.0-51-generic
+                </div>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  lofdevod: one
+                </div>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  llhurlaz: 4.15.0-51-generic
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <button
+                  class="c16"
+                >
+                  <div
+                    class="icon icon-terminal  c14 c15 c17 c18"
+                    color="light"
+                  />
+                  <div
+                    class="icon icon-caret-down  c14 c15 c19 c20"
+                    color="light"
+                  />
+                </button>
+              </td>
+              <td>
+                kuhinur
+              </td>
+              <td>
+                <span
+                  style="cursor: default;"
+                  title="This node is connected to cluster through reverse tunnel"
+                >
+                  ⟵ tunnel
+                </span>
+              </td>
+              <td>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <button
+                  class="c16"
+                >
+                  <div
+                    class="icon icon-terminal  c14 c15 c17 c18"
+                    color="light"
+                  />
+                  <div
+                    class="icon icon-caret-down  c14 c15 c19 c20"
+                    color="light"
+                  />
+                </button>
+              </td>
+              <td>
+                fujedu
+              </td>
+              <td>
+                172.10.1.20:3022
+              </td>
+              <td>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <button
+                  class="c16"
+                >
+                  <div
+                    class="icon icon-terminal  c14 c15 c17 c18"
+                    color="light"
+                  />
+                  <div
+                    class="icon icon-caret-down  c14 c15 c19 c20"
+                    color="light"
+                  />
+                </button>
+              </td>
+              <td>
+                facuzguv
+              </td>
+              <td>
+                172.10.1.42:3022
+              </td>
+              <td>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <button
+                  class="c16"
+                >
+                  <div
+                    class="icon icon-terminal  c14 c15 c17 c18"
+                    color="light"
+                  />
+                  <div
+                    class="icon icon-caret-down  c14 c15 c19 c20"
+                    color="light"
+                  />
+                </button>
+              </td>
+              <td>
+                duzsevkig
+              </td>
+              <td>
+                <span
+                  style="cursor: default;"
+                  title="This node is connected to cluster through reverse tunnel"
+                >
+                  ⟵ tunnel
+                </span>
+              </td>
+              <td>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+`;

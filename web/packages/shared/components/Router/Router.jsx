@@ -25,7 +25,9 @@ import {
 import * as RouterDOM from 'react-router-dom';
 import { NotFound } from 'design/CardError';
 
-const NoMatch = ({ location }) => <NotFound message={location.pathname} />;
+const NoMatch = ({ location }) => (
+  <NotFound alignSelf="baseline" message={location.pathname} />
+);
 
 // Adds default not found handler
 const Switch = props => (

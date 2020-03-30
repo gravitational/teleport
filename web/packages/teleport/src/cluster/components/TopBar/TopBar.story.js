@@ -25,7 +25,7 @@ export default {
   title: 'Teleport/TopBar',
 };
 
-export const Component = () => {
+export const ClusterTopBar = () => {
   const ctx = new TeleportContext();
   ctx.storeUser.state = {
     username: 'Timothy Kim',
@@ -38,4 +38,8 @@ export const Component = () => {
       </Router>
     </TeleportContextProvider>
   );
+};
+
+ClusterTopBar.story = {
+  name: 'ClusterTopBar',
 };

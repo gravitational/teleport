@@ -1,0 +1,145 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`rendering of SideNav 1`] = `
+.c5 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  margin-left: -40px;
+  margin-right: 16px;
+  color: #FFFFFF;
+  font-size: 18px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-top: -16px;
+  height: 100%;
+}
+
+.c1 {
+  background: #1B234A;
+  min-width: 240px;
+  width: 240px;
+  overflow: auto;
+  height: 100%;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding-left: 72px;
+  padding-right: 32px;
+  color: rgba(255,255,255,0.87);
+  background-color: #1B234A;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  min-height: 72px;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  cursor: pointer;
+  -webkit-box-pack: start;
+  -webkit-justify-content: flex-start;
+  -ms-flex-pack: start;
+  justify-content: flex-start;
+  outline: none;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  width: 100%;
+  border-left: 4px solid transparent;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.c3:active,
+.c3.active {
+  background: #222C59;
+  border-left-color: #FA2A6A;
+  color: #FFFFFF;
+}
+
+.c3:hover {
+  background: #222C59;
+}
+
+.c4 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  margin-left: -40px;
+  margin-right: 16px;
+  font-size: 18px;
+  opacity: 0.56;
+}
+
+.c2:active .c4,
+.c2.active .c4 {
+  opacity: 1;
+}
+
+<div
+  class="c0"
+  height="100%"
+  style="position: absolute; overflow: hidden;"
+>
+  <nav
+    class="c1"
+  >
+    <a
+      bg="primary.main"
+      class="c2 c3"
+      color="text.primary"
+      href="/web/site/apartment"
+      pl="10"
+      pr="5"
+    >
+      <span
+        class="icon icon-apartment c4 sc-bdVaJa c5"
+        color="light"
+        font-size="4"
+      />
+      Apartment
+    </a>
+    <a
+      bg="primary.main"
+      class="c2 c3"
+      color="text.primary"
+      href="/web/site/apple"
+      pl="10"
+      pr="5"
+    >
+      <span
+        class="icon icon-apple c4 sc-bdVaJa c5"
+        color="light"
+        font-size="4"
+      />
+      Apple
+    </a>
+    <a
+      bg="primary.main"
+      class="c2 c3"
+      color="text.primary"
+      href="/web/site/camera"
+      pl="10"
+      pr="5"
+    >
+      <span
+        class="icon icon-camera c4 sc-bdVaJa c5"
+        color="light"
+        font-size="4"
+      />
+      Camera
+    </a>
+  </nav>
+</div>
+`;

@@ -436,7 +436,7 @@ export type RawEvents = {
 /**
  * Event Code
  */
-export type Code = keyof RawEvents;
+export type Code = typeof CodeEnum[keyof typeof CodeEnum];
 
 type HasName = {
   name: string;
@@ -451,37 +451,62 @@ type HasCluster = {
 };
 
 /**
+ * Merges properties of 2 types and returns a new "clean" type (using "infer")
+ */
+type Merge<A, B> = Omit<A, keyof B> & B extends infer O
+  ? { [K in keyof O]: O[K] }
+  : never;
+
+/**
  * Describes common properties of the raw events (backend data)
  */
-export type RawEvent<T extends Code, K = {}> = {
-  code: T;
-  user: string;
-  time: string;
-  uid: string;
-  event: string;
-} & { [P in keyof K]: K[P] };
+export type RawEvent<T extends Code, K = {}> = Merge<
+  {
+    code: T;
+    user: string;
+    time: string;
+    uid: string;
+    event: string;
+  },
+  K
+>;
 
-type RawEventAlert<T extends Code> = RawEvent<T> & {
-  name: string;
-};
+type RawEventAlert<T extends Code> = RawEvent<
+  T,
+  {
+    name: string;
+  }
+>;
 
-type RawEventApplication<T extends Code> = RawEvent<T> & {
-  releaseName: string;
-  name: string;
-  version: string;
-};
+type RawEventApplication<T extends Code> = RawEvent<
+  T,
+  {
+    releaseName: string;
+    name: string;
+    version: string;
+  }
+>;
 
-type RawEventAuthFailure<T extends Code> = RawEvent<T> & {
-  error: string;
-};
+type RawEventAuthFailure<T extends Code> = RawEvent<
+  T,
+  {
+    error: string;
+  }
+>;
 
-type RawEventOperation<T extends Code> = RawEvent<T> & {
-  hostname: string;
-  ip: string;
-  role: string;
-};
+type RawEventOperation<T extends Code> = RawEvent<
+  T,
+  {
+    hostname: string;
+    ip: string;
+    role: string;
+  }
+>;
 
-export type EventFormatters = {
+/**
+ * A map of event formatters that provide short and long description
+ */
+export type Formatters = {
   [key in keyof RawEvents]: {
     desc: string;
     format: (json: RawEvents[key]) => string;

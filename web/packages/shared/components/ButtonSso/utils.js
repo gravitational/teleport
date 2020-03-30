@@ -35,7 +35,8 @@ export function pickSsoIcon(type) {
     case TypeEnum.GOOGLE:
       return { color: '#dd4b39', Icon: Icons.Google, type };
     default:
-      return { color: '#f7931e', Icon: Icons.OpenID, type: 'unknown sso' };
+      // provide default icon for unknown social providers
+      return { color: '#f7931e', Icon: Icons.OpenID };
   }
 }
 

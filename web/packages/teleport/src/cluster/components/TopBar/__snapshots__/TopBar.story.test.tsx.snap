@@ -1,0 +1,350 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`rendering of ClusterTopBar 1`] = `
+.c5 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  margin-left: 16px;
+  margin-right: 16px;
+  color: rgba(255,255,255,0.56);
+  font-size: 12px;
+}
+
+.c7 {
+  border-radius: 4px;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  border: 1px solid;
+  box-sizing: border-box;
+  background-color: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: bold;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all .3s;
+  transition: all .3s;
+  -webkit-font-smoothing: antialiased;
+  border-color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  font-size: 10px;
+  padding: 8px 8px;
+  width: 120px;
+  border-color: rgba(255,255,255,0.87);
+  color: rgba(255,255,255,0.87);
+}
+
+.c7:active {
+  opacity: .56;
+}
+
+.c7 > span {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+}
+
+.c7:hover,
+.c7:focus {
+  border-color: #FFFFFF;
+  color: #FFFFFF;
+}
+
+.c7:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c7:hover,
+.c7:focus {
+  border-color: #FFFFFF;
+  color: #FFFFFF;
+}
+
+.c2 {
+  display: block;
+  outline: none;
+  margin-left: 16px;
+  margin-right: 16px;
+  max-width: 160px;
+  max-height: 40px;
+}
+
+.c11 {
+  display: block;
+  outline: none;
+  margin-left: 16px;
+  margin-right: 8px;
+  height: 24px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-right: 32px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 10px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  height: 72px;
+  background-color: #1B234A;
+  -webkit-flex: 0 0 auto;
+  -ms-flex: 0 0 auto;
+  flex: 0 0 auto;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-flex-direction: row;
+  -ms-flex-direction: row;
+  flex-direction: row;
+}
+
+.c3 {
+  box-sizing: border-box;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-left: auto;
+  height: 100%;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+}
+
+.c1 {
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.56);
+  cursor: pointer;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 600;
+  height: 100%;
+  margin: 0;
+  outline: none;
+  padding: 0 16px;
+  position: relative;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  padding-right: 32px;
+  width: 192px;
+}
+
+.c1:hover,
+.c1:focus {
+  background: rgba(255,255,255,.06);
+}
+
+.c1.active {
+  background: #222C59;
+  color: #FFFFFF;
+}
+
+.c1.active:after {
+  background-color: #FA2A6A;
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+}
+
+.c9 {
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.56);
+  cursor: pointer;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 600;
+  height: 100%;
+  margin: 0;
+  outline: none;
+  padding: 0 16px;
+  position: relative;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  margin-left: auto;
+  max-width: 250px;
+}
+
+.c9:hover,
+.c9:focus {
+  background: rgba(255,255,255,.06);
+}
+
+.c9.active {
+  background: #222C59;
+  color: #FFFFFF;
+}
+
+.c9.active:after {
+  background-color: #FA2A6A;
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 40px;
+  color: rgba(255,255,255,0.56);
+  -webkit-text-decoration: none;
+  text-decoration: none;
+}
+
+.c4:hover {
+  color: rgba(255,255,255,0.87);
+}
+
+<nav
+  class="c0"
+  height="72px"
+  style="z-index: 1; box-shadow: 0 4px 16px rgba(0,0,0,.24);"
+>
+  <a
+    class="c1"
+    href="/web"
+    pr="5"
+    width="192px"
+  >
+    <img
+      class="c2"
+      src="file_stub"
+    />
+  </a>
+  <div
+    class="c3"
+  >
+    <a
+      class="c4"
+      color="text.secondary"
+      href="/web"
+      m="0"
+      ml="6"
+      theme="[object Object]"
+      title="Go back to cluster list"
+      typography="h5"
+    >
+      All Clusters
+    </a>
+    <span
+      class="icon icon-chevron-right  c5"
+      color="text.secondary"
+      font-size="12"
+    />
+    <div
+      class="c6"
+      color="text.primary"
+      style="max-width: 200px;"
+    >
+      localhost
+    </div>
+    <button
+      class="c7"
+      width="120px"
+    >
+      <span>
+        Cluster Info
+      </span>
+    </button>
+  </div>
+  <div
+    class="c8"
+    height="100%"
+  >
+    <button
+      class="c9"
+    >
+      <div
+        class="c10"
+      >
+        Timothy Kim
+      </div>
+      <img
+        class="c11"
+        height="24px"
+        src="file_stub"
+      />
+    </button>
+  </div>
+</nav>
+`;

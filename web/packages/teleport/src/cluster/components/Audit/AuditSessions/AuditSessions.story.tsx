@@ -21,7 +21,7 @@ import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 
 export default {
-  title: 'Teleport/Audit/Sessions',
+  title: 'Teleport/Audit',
 };
 
 export const Sessions = () => (
