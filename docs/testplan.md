@@ -184,7 +184,7 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 - [ ] G Suite install instructions work
     - [ ] G Suite Screenshots are up to date
 - [ ] ActiveDirectoy install instructions work
-    - [ ] ActiveDirectoy Screenshots are up to date
+    - [ ] Active Directoy Screenshots are up to date
 - [ ] Okta install instructions work    
     - [ ] Okta Screenshots are up to date
 - [ ] OneLogin install instructions work    
@@ -195,8 +195,8 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
 ### Teleport Plugins 
 
-- [ ] Test reciceing a message via Teleport Slackbot 
-- [ ] Test reciceing a new Jira Ticket via Teleport Jira 
+- [ ] Test receiving a message via Teleport Slackbot 
+- [ ] Test receiving a new Jira Ticket via Teleport Jira 
     
 ## Web UI
 
