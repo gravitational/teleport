@@ -209,14 +209,15 @@ Resources:
             # Set some instance specific environment variables configurations for systemd configuration file
             cat >> /etc/teleport.d/conf <<EOF
             EC2_REGION=${AWS::Region}
+            TELEPORT_AUTH_SERVER_LB=${LocalAuthServerLB}
             TELEPORT_CLUSTER_NAME=${DomainName}
-            TELEPORT_DOMAIN_NAME=${DomainName}
-            TELEPORT_S3_BUCKET=${LocalBucketName}
-            TELEPORT_ROLE=auth
-            TELEPORT_LOCKS_TABLE_NAME=${LocalLocksTableName}
+            TELEPORT_DOMAIN_ADMIN_EMAIL=${DomainAdminEmail}
+            TELEPORT_DOMAIN_NAME=${DomainName}            
             TELEPORT_DYNAMO_TABLE_NAME=${LocalMainTableName}
             TELEPORT_DYNAMO_EVENTS_TABLE_NAME=${LocalEventsTableName}
-            TELEPORT_DOMAIN_ADMIN_EMAIL=${DomainAdminEmail}
+            TELEPORT_LOCKS_TABLE_NAME=${LocalLocksTableName}
+            TELEPORT_ROLE=auth
+            TELEPORT_S3_BUCKET=${LocalBucketName}
             TELEPORT_SSM_KEY_ARN=${LocalKeyARN}
             EOF
 
@@ -253,6 +254,7 @@ Resources:
             systemctl daemon-reload
             systemctl start --no-block cfn-signal-done.service
           - {
+            LocalAuthServerLB: !GetAtt AuthLB.DNSName,
             LocalMainTableName: !Select [1, !Split ["/", !GetAtt MainTable.Arn]],
             LocalLocksTableName: !Select [1, !Split ["/", !GetAtt LocksTable.Arn]],
             LocalEventsTableName: !Select [1, !Split ["/", !GetAtt EventsTable.Arn]],
@@ -414,11 +416,11 @@ Resources:
             # Set some instance specific environment variables configurations for systemd configuration file
             cat >> /etc/teleport.d/conf <<EOF
             EC2_REGION=${AWS::Region}
+            TELEPORT_AUTH_SERVER_LB=${LocalAuthServerLB}
             TELEPORT_CLUSTER_NAME=${DomainName}
             TELEPORT_DOMAIN_NAME=${DomainName}
             TELEPORT_S3_BUCKET=${LocalBucketName}
-            TELEPORT_ROLE=proxy
-            TELEPORT_AUTH_SERVER_LB=${LocalAuthServerLB}
+            TELEPORT_ROLE=proxy            
             TELEPORT_SSM_KEY_ARN=${LocalKeyARN}
             EOF
 
@@ -517,11 +519,11 @@ Resources:
             # Set some instance specific environment variables configurations for systemd configuration file
             cat >> /etc/teleport.d/conf <<EOF
             EC2_REGION=${AWS::Region}
+            TELEPORT_AUTH_SERVER_LB=${LocalAuthServerLB}
             TELEPORT_CLUSTER_NAME=${DomainName}
             TELEPORT_DOMAIN_NAME=${DomainName}
-            TELEPORT_S3_BUCKET=${LocalBucketName}
             TELEPORT_ROLE=node
-            TELEPORT_AUTH_SERVER_LB=${LocalAuthServerLB}
+            TELEPORT_S3_BUCKET=${LocalBucketName}                   
             TELEPORT_SSM_KEY_ARN=${LocalKeyARN}
             EOF
 
