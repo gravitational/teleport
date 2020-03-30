@@ -30,6 +30,7 @@
 set -eu -o pipefail
 
 CN=${CN:-teleport}
+USER=${USER:-teleport}
 
 # Set OS specific values.
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
@@ -102,13 +103,13 @@ clusters:
 contexts:
 - context:
     cluster: k8s
-    user: teleport
+    user: $USER
   name: k8s
 current-context: k8s
 kind: Config
 preferences: {}
 users:
-- name: teleport
+- name: $USER
   user:
     client-certificate-data: $(cat server.crt | base64 ${BASE64_WRAP_FLAG})
     client-key-data: $(cat server-key.pem | base64 ${BASE64_WRAP_FLAG})
