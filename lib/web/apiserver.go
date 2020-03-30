@@ -356,7 +356,7 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 // GET /webapi/user/context
 //
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := c.GetUserClient(site)
+	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -386,7 +386,6 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	userContext.Version = teleport.Version
-
 	return userContext, nil
 }
 
