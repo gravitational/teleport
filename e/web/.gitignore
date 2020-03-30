@@ -2,3 +2,5 @@ node_modules
 *.log
 .vscode
 **/dist
+!gravity/dist
+
