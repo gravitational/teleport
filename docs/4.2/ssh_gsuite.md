@@ -69,13 +69,15 @@ the OIDC Connector, under `google_service_account_uri`.
     up in a HA config. 
 
 ## API Scopes:
+Before setting the Manage API client access capture the client ID of the service account. 
+Within GSuite to access the Manage API client access go to Security -> Settings.  Navigate to Advanced Settings and open Manage API client access.  Put the client ID in the Client Name field and the below permissions in the API scopes as a single comma separated line.  Press Authorize. 
 
-Client name: Use Email from Service account creation ( this will be converted to numbers after it’s authorized )
+!!! note:  Do not use the email of the service account.  The configuration display will look the same but the service account will not have the domain-wide delegation required.  A indicator of that is if you see `Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested.` in your log.
 
 `https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://www.googleapis.com/auth/admin.directory.group.readonly, https://www.googleapis.com/auth/admin.directory.user.readonly`
 
 ![Manage API Client Access](img/gsuite/gsuite-6-manage-api-access.png)
-Once saved, Google with convert the Client Name into the Client ID. 
+Google will display the client id and resolve the permission definitions.
 ![Create OAuth Creds](img/gsuite/gsuite-6a-manage-access.png)
 
 
