@@ -49,6 +49,9 @@ type Key struct {
 
 // Config describes the various parameters related to a seek operation
 type Config struct {
+	// Logger is an optional log.Entry.  If not provided, a simple default
+	// entry is used.
+	Logger *log.Entry
 	// TickRate defines the maximum amount of time between expiry & seek checks.
 	// Shorter tick rates reduce discovery delay.  Longer tick rates reduce resource
 	// consumption (default: ~4s).
@@ -108,6 +111,7 @@ func (s *Config) CheckAndSetDefaults() error {
 
 // Pool manages a collection of group-level seek operations.
 type Pool struct {
+	*log.Entry
 	m      sync.Mutex
 	conf   Config
 	groups map[Key]GroupHandle
@@ -120,7 +124,14 @@ func NewPool(ctx context.Context, conf Config) (*Pool, error) {
 	if err := conf.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	entry := conf.Logger
+	if entry == nil {
+		entry = log.WithFields(log.Fields{
+			trace.Component: "seekpool",
+		})
+	}
 	return &Pool{
+		Entry:  entry,
 		conf:   conf,
 		groups: make(map[Key]GroupHandle),
 		seekC:  make(chan Key, 128),
@@ -133,9 +144,15 @@ func NewPool(ctx context.Context, conf Config) (*Pool, error) {
 func (p *Pool) Group(key Key) GroupHandle {
 	p.m.Lock()
 	defer p.m.Unlock()
+	return p.getOrStartGroup(key)
+}
+
+// getOrStartGroup implements the internal logic of Group.
+func (p *Pool) getOrStartGroup(key Key) GroupHandle {
 	if group, ok := p.groups[key]; ok {
 		return group
 	}
+	p.Infof("Starting seek group: %+v", key)
 	group := newGroupHandle(p.ctx, p.conf, p.seekC, key)
 	p.groups[key] = group
 	return group
@@ -145,6 +162,16 @@ func (p *Pool) Group(key Key) GroupHandle {
 // are seeking.
 func (p *Pool) Seek() <-chan Key {
 	return p.seekC
+}
+
+// Start starts one or more group-level seek operations
+func (p *Pool) Start(group Key, groups ...Key) {
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.getOrStartGroup(group)
+	for _, g := range groups {
+		p.getOrStartGroup(g)
+	}
 }
 
 // Stop stops one or more group-level seek operations
@@ -185,13 +212,21 @@ type GroupHandle struct {
 	proxyC chan<- string
 	seekC  <-chan Key
 	statC  <-chan Status
+	done   <-chan struct{}
 }
 
 func newGroupHandle(ctx context.Context, conf Config, seekC chan Key, id Key) GroupHandle {
 	ctx, cancel := context.WithCancel(ctx)
 	proxyC := make(chan string, 128)
 	statC := make(chan Status, 1)
+	entry := conf.Logger
+	if entry == nil {
+		entry = log.WithFields(log.Fields{
+			trace.Component: "seekgroup",
+		})
+	}
 	seekers := &proxyGroup{
+		Entry:  entry,
 		id:     id,
 		conf:   conf,
 		states: make(map[string]seeker),
@@ -205,9 +240,20 @@ func newGroupHandle(ctx context.Context, conf Config, seekC chan Key, id Key) Gr
 		proxyC: proxyC,
 		seekC:  seekC,
 		statC:  statC,
+		done:   ctx.Done(),
 	}
 	go seekers.run(ctx)
 	return handle
+}
+
+func (s *GroupHandle) Key() Key {
+	return s.inner.id
+}
+
+// Done returns a channel that is closed when this
+// group is closed.
+func (s *GroupHandle) Done() <-chan struct{} {
+	return s.done
 }
 
 // WithProxy is used to wrap the connection-handling logic of an agent,
@@ -239,6 +285,7 @@ func (s *GroupHandle) Gossip() chan<- string {
 // proxyGroup manages all proxy seekers for a group.
 type proxyGroup struct {
 	sync.Mutex
+	*log.Entry
 	id       Key
 	conf     Config
 	states   map[string]seeker
@@ -268,7 +315,7 @@ func (p *proxyGroup) run(ctx context.Context) {
 	// notifications may still be sent when a *new* proxy entry is added,
 	// or when a previously held proxy is released.
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step:   p.conf.TickRate / 2,
+		Step:   p.conf.TickRate / 4,
 		Max:    p.conf.TickRate * 4,
 		Jitter: utils.NewJitter(),
 	})
@@ -306,7 +353,7 @@ func (p *proxyGroup) run(ctx context.Context) {
 			}
 			ticks++
 			if ticks%logInterval == 0 {
-				log.Debugf("SeekStates(states=%+v,id=%s)", p.GetStates(), p.id)
+				p.Debugf("SeekStates(states=%+v,id=%s)", p.GetStates(), p.id)
 			}
 		case proxy := <-p.proxyC:
 			proxies := []string{proxy}
@@ -481,7 +528,7 @@ func (p *proxyGroup) tick(t time.Time) Status {
 			stat.Backoff++
 		default:
 			// this should never happen...
-			log.Errorf("Proxy %s in invalid state %q, removing.", proxy, state)
+			p.Errorf("Proxy %s in invalid state %q, removing.", proxy, state)
 			delete(p.states, proxy)
 			continue
 		}
