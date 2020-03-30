@@ -178,6 +178,26 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh -A -p 22 node.exa
 tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com -p 22 node.foo.com
 ```
 
+
+### Teleport with SSO Providers
+
+- [ ] G Suite install instructions work
+    - [ ] G Suite Screenshots are up to date
+- [ ] ActiveDirectoy install instructions work
+    - [ ] Active Directoy Screenshots are up to date
+- [ ] Okta install instructions work    
+    - [ ] Okta Screenshots are up to date
+- [ ] OneLogin install instructions work    
+    - [ ] OneLogin Screenshots are up to date
+- [ ] OIDC install instructions work    
+    - [ ] OIDC Screenshots are up to date
+
+
+### Teleport Plugins 
+
+- [ ] Test receiving a message via Teleport Slackbot 
+- [ ] Test receiving a new Jira Ticket via Teleport Jira 
+    
 ## Web UI
 
 - [ ] Creating a new SSH session.
