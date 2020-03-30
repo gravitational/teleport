@@ -29,6 +29,8 @@
 
 set -eu -o pipefail
 
+CN=${CN:-teleport}
+
 # Set OS specific values.
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
     REQUEST_ID=$(uuid)
@@ -49,7 +51,7 @@ cat > csr <<EOF
 {
   "hosts": [
   ],
-  "CN": "teleport",
+  "CN": "$CN",
   "names": [{
         "O": "system:masters"
     }],
