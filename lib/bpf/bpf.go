@@ -248,7 +248,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch[event.CgroupID]
+	ctx, ok := s.getWatch(event.CgroupID)
 	if !ok {
 		return
 	}
@@ -320,7 +320,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch[event.CgroupID]
+	ctx, ok := s.getWatch(event.CgroupID)
 	if !ok {
 		return
 	}
@@ -360,7 +360,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch[event.CgroupID]
+	ctx, ok := s.getWatch(event.CgroupID)
 	if !ok {
 		return
 	}
@@ -411,7 +411,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch[event.CgroupID]
+	ctx, ok := s.getWatch(event.CgroupID)
 	if !ok {
 		return
 	}
@@ -455,6 +455,13 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		events.TCPVersion: 6,
 	}
 	ctx.AuditLog.EmitAuditEvent(events.SessionNetwork, eventFields)
+}
+
+func (s *Service) getWatch(cgoupID uint64) (ctx *SessionContext, ok bool) {
+	s.watchMu.Lock()
+	defer s.watchMu.Unlock()
+	ctx, ok = s.watch[cgoupID]
+	return
 }
 
 func (s *Service) addWatch(cgroupID uint64, ctx *SessionContext) {
