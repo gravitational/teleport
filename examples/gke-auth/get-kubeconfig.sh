@@ -29,6 +29,11 @@
 
 set -eu -o pipefail
 
+# Allow passing in common name and username in environment. If not provided,
+# use default.
+CN=${CN:-teleport}
+USER=${USER:-teleport}
+
 # Set OS specific values.
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
     REQUEST_ID=$(uuid)
@@ -49,7 +54,7 @@ cat > csr <<EOF
 {
   "hosts": [
   ],
-  "CN": "teleport",
+  "CN": "$CN",
   "names": [{
         "O": "system:masters"
     }],
@@ -100,13 +105,13 @@ clusters:
 contexts:
 - context:
     cluster: k8s
-    user: teleport
+    user: $USER
   name: k8s
 current-context: k8s
 kind: Config
 preferences: {}
 users:
-- name: teleport
+- name: $USER
   user:
     client-certificate-data: $(cat server.crt | base64 ${BASE64_WRAP_FLAG})
     client-key-data: $(cat server-key.pem | base64 ${BASE64_WRAP_FLAG})
