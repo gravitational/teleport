@@ -16,7 +16,7 @@
     "lodash": "^4.17.15",
     "moment": "^2.22.1",
     "react": "^16.8.4",
-    "react-day-picker": "^7.3.0",
+    "react-day-picker": "7.3.2",
     "react-dom": "^16.8.4",
     "react-router": "5.1.1",
     "react-router-dom": "5.1.1",

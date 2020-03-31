@@ -31,7 +31,6 @@ module.exports = {
     es6: true,
     browser: true,
     node: true,
-    mocha: true,
   },
   globals: {
     expect: true,
@@ -42,6 +41,7 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:import/errors',
     'plugin:import/warnings',
+    'plugin:import/typescript',
     'plugin:jest/all',
   ],
   plugins: ['react', 'babel', 'import', 'jest'],
@@ -58,6 +58,8 @@ module.exports = {
     '@typescript-eslint/explicit-function-return-type': 0,
     '@typescript-eslint/explicit-member-accessibility': 0,
     '@typescript-eslint/prefer-interface': 0,
+    '@typescript-eslint/no-empty-function': 0,
+    '@typescript-eslint/no-this-alias': 0,
 
     // </TODO>
     'comma-dangle': 0,
@@ -69,6 +71,11 @@ module.exports = {
     'import/no-unresolved': 2,
     'no-underscore-dangle': 0,
     'no-case-declarations': 0,
+    'prefer-const': 0,
+    'no-var': 0,
+    'prefer-rest-params': 0,
+    'prefer-spread': 0,
+
     strict: 0,
     'no-console': 1,
     'no-trailing-spaces': 2,
@@ -100,6 +107,10 @@ module.exports = {
     'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
   },
   settings: {
+    react: {
+      // React version. "detect" automatically picks the version you have installed.
+      version: 'detect',
+    },
     'import/resolver': {
       webpack: {
         config: createConfig(),

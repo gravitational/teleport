@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import PropTypes from 'prop-types';
 import ReactDOM from 'react-dom';
-import getScrollbarSize from 'dom-helpers/util/scrollbarSize';
+import getScrollbarSize from './../utils/scrollbarSize';
 import Popover from '../Popover';
 import MenuList from './MenuList';
 

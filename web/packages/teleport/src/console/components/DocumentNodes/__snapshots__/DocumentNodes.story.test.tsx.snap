@@ -493,7 +493,7 @@ exports[`render DocumentNodes 1`] = `
                   class="react-select__control css-yk16xz-control"
                 >
                   <div
-                    class="react-select__value-container react-select__value-container--has-value css-1hwfws3"
+                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                   >
                     <div
                       class="react-select__single-value css-1uccc91-singleValue"
