@@ -28,6 +28,5 @@
     // Import non-ES modules as default imports.
     "esModuleInterop": true
   },
-  "include": ["packages/"],
   "exclude": ["node_modules", "dist", "**/node_modules/*", "**/dist/*"]
 }
