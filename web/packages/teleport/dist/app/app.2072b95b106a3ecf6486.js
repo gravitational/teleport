@@ -160,7 +160,7 @@
 
 "use strict";
 /* harmony import */ var _Icon__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__("oLQf");
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "b", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["b"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "b", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["d"]; });
 
 /* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "c", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["e"]; });
 
@@ -178,35 +178,31 @@
 
 /* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "j", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["l"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "k", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["m"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "k", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["n"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "l", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["o"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "l", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["q"]; });
 
 /* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "m", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["r"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "n", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["s"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "n", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["u"]; });
 
 /* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "o", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["v"]; });
 
 /* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "p", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["w"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "q", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["x"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "q", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["z"]; });
 
 /* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "r", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["A"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "s", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["B"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "s", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["E"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "t", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["C"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "t", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["P"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "u", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["G"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "u", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["S"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "v", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["R"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "v", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["T"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "w", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["U"]; });
-
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "x", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["V"]; });
-
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "y", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["Y"]; });
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "w", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["W"]; });
 
 /* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "a", function() { return _Icon__WEBPACK_IMPORTED_MODULE_0__["a"]; });
 
@@ -226,7 +222,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ __webpack_exports__["z"] = (_Icon__WEBPACK_IMPORTED_MODULE_0__[/* default */ "Z"]);
+/* harmony default export */ __webpack_exports__["x"] = (_Icon__WEBPACK_IMPORTED_MODULE_0__[/* default */ "X"]);
 
 
 /***/ }),
@@ -314,12 +310,11 @@ var cfg = {
     clusterAuditSessions: '/web/cluster/:clusterId/audit/sessions',
     clusterNodes: '/web/cluster/:clusterId/nodes',
     clusterSessions: '/web/cluster/:clusterId/sessions',
-    clusterOffline: '/web/cluster/:siteId/offline',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
-    sessionAudit: '/web/cluster/:clusterId/session/:sid',
+    player: '/web/cluster/:clusterId/session/:sid',
     sessionAuditPlayer: '/web/cluster/:clusterId/session/:sid/player',
     sessionAuditCmds: '/web/cluster/:clusterId/session/:sid/commands',
     error: '/web/msg/error/:type?',
@@ -352,17 +347,11 @@ var cfg = {
     ttyWsAddr: 'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?'
   },
-  getClusterEventsUrl: function getClusterEventsUrl(_ref) {
-    var start = _ref.start,
-        end = _ref.end,
-        limit = _ref.limit;
+  getClusterEventsUrl: function getClusterEventsUrl(params) {
     var clusterId = cfg.clusterName;
-    return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.api.clusterEventsPath, {
-      clusterId: clusterId,
-      start: start,
-      end: end,
-      limit: limit
-    });
+    return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.api.clusterEventsPath, _objectSpread({
+      clusterId: clusterId
+    }, params));
   },
   getAuthProviders: function getAuthProviders() {
     return cfg.auth && cfg.auth.providers ? cfg.auth.providers : [];
@@ -412,16 +401,23 @@ var cfg = {
       clusterId: clusterId
     });
   },
-  getConsoleConnectRoute: function getConsoleConnectRoute(_ref2) {
-    var clusterId = _ref2.clusterId,
-        login = _ref2.login,
-        serverId = _ref2.serverId,
-        sid = _ref2.sid;
+  getSshConnectRoute: function getSshConnectRoute(_ref) {
+    var clusterId = _ref.clusterId,
+        login = _ref.login,
+        serverId = _ref.serverId;
     clusterId = clusterId || cfg.clusterName;
     return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.routes.consoleConnect, {
       clusterId: clusterId,
       serverId: serverId,
-      login: login,
+      login: login
+    });
+  },
+  getSshSessionRoute: function getSshSessionRoute(_ref2) {
+    var clusterId = _ref2.clusterId,
+        sid = _ref2.sid;
+    clusterId = clusterId || cfg.clusterName;
+    return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.routes.consoleSession, {
+      clusterId: clusterId,
       sid: sid
     });
   },
@@ -454,36 +450,27 @@ var cfg = {
       clusterId: clusterId
     });
   },
-  getConsoleSessionRoute: function getConsoleSessionRoute(_ref3) {
+  getPlayerRoute: function getPlayerRoute(_ref3) {
     var clusterId = _ref3.clusterId,
         sid = _ref3.sid;
     clusterId = clusterId || cfg.clusterName;
-    return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.routes.consoleSession, {
+    return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.routes.player, {
       clusterId: clusterId,
       sid: sid
     });
   },
-  getSessionAuditRoute: function getSessionAuditRoute(_ref4) {
+  getSessionAuditPlayerRoute: function getSessionAuditPlayerRoute(_ref4) {
     var clusterId = _ref4.clusterId,
         sid = _ref4.sid;
-    clusterId = clusterId || cfg.clusterName;
-    return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.routes.sessionAudit, {
-      clusterId: clusterId,
-      sid: sid
-    });
-  },
-  getSessionAuditPlayerRoute: function getSessionAuditPlayerRoute(_ref5) {
-    var clusterId = _ref5.clusterId,
-        sid = _ref5.sid;
     clusterId = clusterId || cfg.clusterName;
     return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.routes.sessionAuditPlayer, {
       clusterId: clusterId,
       sid: sid
     });
   },
-  getSessionAuditCmdsRoute: function getSessionAuditCmdsRoute(_ref6) {
-    var clusterId = _ref6.clusterId,
-        sid = _ref6.sid;
+  getSessionAuditCmdsRoute: function getSessionAuditCmdsRoute(_ref5) {
+    var clusterId = _ref5.clusterId,
+        sid = _ref5.sid;
     clusterId = clusterId || cfg.clusterName;
     return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.routes.sessionAuditCmds, {
       clusterId: clusterId,
@@ -496,9 +483,9 @@ var cfg = {
       clusterId: clusterId
     });
   },
-  getTerminalSessionUrl: function getTerminalSessionUrl(_ref7) {
-    var clusterId = _ref7.clusterId,
-        sid = _ref7.sid;
+  getTerminalSessionUrl: function getTerminalSessionUrl(_ref6) {
+    var clusterId = _ref6.clusterId,
+        sid = _ref6.sid;
     clusterId = clusterId || cfg.clusterName;
     return Object(react_router__WEBPACK_IMPORTED_MODULE_0__[/* generatePath */ "f"])(cfg.api.terminalSessionPath, {
       clusterId: clusterId,
@@ -829,6 +816,898 @@ module.exports = __webpack_require__.p + "/assets/fonts/Ubuntu-Bold.ttf";
 
 /***/ }),
 
+/***/ "5PFp":
+/***/ (function(module, exports, __webpack_require__) {
+
+var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+The MIT License (MIT)
+
+Copyright (c) 2014 Michal Powaga
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+*/
+
+/*global define */
+(function (root, factory) {
+  if (true) {
+    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__("ERkP"), __webpack_require__("aWzz"), __webpack_require__("Y3fD")], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
+				__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
+				(__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__),
+				__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+  } else {}
+})(this, function (React, PropTypes, createReactClass) {
+  /**
+   * To prevent text selection while dragging.
+   * http://stackoverflow.com/questions/5429827/how-can-i-prevent-text-element-selection-with-cursor-drag
+   */
+  function pauseEvent(e) {
+    if (e.stopPropagation) e.stopPropagation();
+    if (e.preventDefault) e.preventDefault();
+    return false;
+  }
+
+  function stopPropagation(e) {
+    if (e.stopPropagation) e.stopPropagation();
+  }
+  /**
+   * Spreads `count` values equally between `min` and `max`.
+   */
+
+
+  function linspace(min, max, count) {
+    var range = (max - min) / (count - 1);
+    var res = [];
+
+    for (var i = 0; i < count; i++) {
+      res.push(min + range * i);
+    }
+
+    return res;
+  }
+
+  function ensureArray(x) {
+    return x == null ? [] : Array.isArray(x) ? x : [x];
+  }
+
+  function undoEnsureArray(x) {
+    return x != null && x.length === 1 ? x[0] : x;
+  }
+
+  var isArray = Array.isArray || function (x) {
+    return Object.prototype.toString.call(x) === '[object Array]';
+  }; // undoEnsureArray(ensureArray(x)) === x
+
+
+  var ReactSlider = createReactClass({
+    displayName: 'ReactSlider',
+    propTypes: {
+      /**
+       * The minimum value of the slider.
+       */
+      min: PropTypes.number,
+
+      /**
+       * The maximum value of the slider.
+       */
+      max: PropTypes.number,
+
+      /**
+       * Value to be added or subtracted on each step the slider makes.
+       * Must be greater than zero.
+       * `max - min` should be evenly divisible by the step value.
+       */
+      step: PropTypes.number,
+
+      /**
+       * The minimal distance between any pair of handles.
+       * Must be positive, but zero means they can sit on top of each other.
+       */
+      minDistance: PropTypes.number,
+
+      /**
+       * Determines the initial positions of the handles and the number of handles if the component has no children.
+       *
+       * If a number is passed a slider with one handle will be rendered.
+       * If an array is passed each value will determine the position of one handle.
+       * The values in the array must be sorted.
+       * If the component has children, the length of the array must match the number of children.
+       */
+      defaultValue: PropTypes.oneOfType([PropTypes.number, PropTypes.arrayOf(PropTypes.number)]),
+
+      /**
+       * Like `defaultValue` but for [controlled components](http://facebook.github.io/react/docs/forms.html#controlled-components).
+       */
+      value: PropTypes.oneOfType([PropTypes.number, PropTypes.arrayOf(PropTypes.number)]),
+
+      /**
+       * Determines whether the slider moves horizontally (from left to right) or vertically (from top to bottom).
+       */
+      orientation: PropTypes.oneOf(['horizontal', 'vertical']),
+
+      /**
+       * The css class set on the slider node.
+       */
+      className: PropTypes.string,
+
+      /**
+       * The css class set on each handle node.
+       *
+       * In addition each handle will receive a numbered css class of the form `${handleClassName}-${i}`,
+       * e.g. `handle-0`, `handle-1`, ...
+       */
+      handleClassName: PropTypes.string,
+
+      /**
+       * The css class set on the handle that is currently being moved.
+       */
+      handleActiveClassName: PropTypes.string,
+
+      /**
+       * If `true` bars between the handles will be rendered.
+       */
+      withBars: PropTypes.bool,
+
+      /**
+       * The css class set on the bars between the handles.
+       * In addition bar fragment will receive a numbered css class of the form `${barClassName}-${i}`,
+       * e.g. `bar-0`, `bar-1`, ...
+       */
+      barClassName: PropTypes.string,
+
+      /**
+       * If `true` the active handle will push other handles
+       * within the constraints of `min`, `max`, `step` and `minDistance`.
+       */
+      pearling: PropTypes.bool,
+
+      /**
+       * If `true` the handles can't be moved.
+       */
+      disabled: PropTypes.bool,
+
+      /**
+       * Disables handle move when clicking the slider bar
+       */
+      snapDragDisabled: PropTypes.bool,
+
+      /**
+       * Inverts the slider.
+       */
+      invert: PropTypes.bool,
+
+      /**
+       * Callback called before starting to move a handle.
+       */
+      onBeforeChange: PropTypes.func,
+
+      /**
+       * Callback called on every value change.
+       */
+      onChange: PropTypes.func,
+
+      /**
+       * Callback called only after moving a handle has ended.
+       */
+      onAfterChange: PropTypes.func,
+
+      /**
+       *  Callback called when the the slider is clicked (handle or bars).
+       *  Receives the value at the clicked position as argument.
+       */
+      onSliderClick: PropTypes.func
+    },
+    getDefaultProps: function getDefaultProps() {
+      return {
+        min: 0,
+        max: 100,
+        step: 1,
+        minDistance: 0,
+        defaultValue: 0,
+        orientation: 'horizontal',
+        className: 'slider',
+        handleClassName: 'handle',
+        handleActiveClassName: 'active',
+        barClassName: 'bar',
+        withBars: false,
+        pearling: false,
+        disabled: false,
+        snapDragDisabled: false,
+        invert: false
+      };
+    },
+    getInitialState: function getInitialState() {
+      var value = this._or(ensureArray(this.props.value), ensureArray(this.props.defaultValue)); // reused throughout the component to store results of iterations over `value`
+
+
+      this.tempArray = value.slice(); // array for storing resize timeouts ids
+
+      this.pendingResizeTimeouts = [];
+      var zIndices = [];
+
+      for (var i = 0; i < value.length; i++) {
+        value[i] = this._trimAlignValue(value[i], this.props);
+        zIndices.push(i);
+      }
+
+      return {
+        index: -1,
+        upperBound: 0,
+        sliderLength: 0,
+        value: value,
+        zIndices: zIndices
+      };
+    },
+    // Keep the internal `value` consistent with an outside `value` if present.
+    // This basically allows the slider to be a controlled component.
+    UNSAFE_componentWillReceiveProps: function UNSAFE_componentWillReceiveProps(newProps) {
+      var value = this._or(ensureArray(newProps.value), this.state.value); // ensure the array keeps the same size as `value`
+
+
+      this.tempArray = value.slice();
+
+      for (var i = 0; i < value.length; i++) {
+        this.state.value[i] = this._trimAlignValue(value[i], newProps);
+      }
+
+      if (this.state.value.length > value.length) this.state.value.length = value.length; // If an upperBound has not yet been determined (due to the component being hidden
+      // during the mount event, or during the last resize), then calculate it now
+
+      if (this.state.upperBound === 0) {
+        this._resize();
+      }
+    },
+    // Check if the arity of `value` or `defaultValue` matches the number of children (= number of custom handles).
+    // If no custom handles are provided, just returns `value` if present and `defaultValue` otherwise.
+    // If custom handles are present but neither `value` nor `defaultValue` are applicable the handles are spread out
+    // equally.
+    // TODO: better name? better solution?
+    _or: function _or(value, defaultValue) {
+      var count = React.Children.count(this.props.children);
+
+      switch (count) {
+        case 0:
+          return value.length > 0 ? value : defaultValue;
+
+        case value.length:
+          return value;
+
+        case defaultValue.length:
+          return defaultValue;
+
+        default:
+          if (value.length !== count || defaultValue.length !== count) {
+            window.console.warn(this.constructor.displayName + ": Number of values does not match number of children.");
+          }
+
+          return linspace(this.props.min, this.props.max, count);
+      }
+    },
+    componentDidMount: function componentDidMount() {
+      window.addEventListener('resize', this._handleResize);
+
+      this._resize();
+    },
+    componentWillUnmount: function componentWillUnmount() {
+      this._clearPendingResizeTimeouts();
+
+      window.removeEventListener('resize', this._handleResize);
+    },
+    getValue: function getValue() {
+      return undoEnsureArray(this.state.value);
+    },
+    _resize: function _resize() {
+      var slider = this.slider;
+      var handle = this.handle0;
+      var rect = slider.getBoundingClientRect();
+
+      var size = this._sizeKey();
+
+      var sliderMax = rect[this._posMaxKey()];
+
+      var sliderMin = rect[this._posMinKey()];
+
+      this.setState({
+        upperBound: slider[size] - handle[size],
+        sliderLength: Math.abs(sliderMax - sliderMin),
+        handleSize: handle[size],
+        sliderStart: this.props.invert ? sliderMax : sliderMin
+      });
+    },
+    _handleResize: function _handleResize() {
+      // setTimeout of 0 gives element enough time to have assumed its new size if it is being resized
+      var resizeTimeout = window.setTimeout(function () {
+        // drop this timeout from pendingResizeTimeouts to reduce memory usage
+        this.pendingResizeTimeouts.shift();
+
+        this._resize();
+      }.bind(this), 0);
+      this.pendingResizeTimeouts.push(resizeTimeout);
+    },
+    // clear all pending timeouts to avoid error messages after unmounting
+    _clearPendingResizeTimeouts: function _clearPendingResizeTimeouts() {
+      do {
+        var nextTimeout = this.pendingResizeTimeouts.shift();
+        clearTimeout(nextTimeout);
+      } while (this.pendingResizeTimeouts.length);
+    },
+    // calculates the offset of a handle in pixels based on its value.
+    _calcOffset: function _calcOffset(value) {
+      var range = this.props.max - this.props.min;
+
+      if (range === 0) {
+        return 0;
+      }
+
+      var ratio = (value - this.props.min) / range;
+      return ratio * this.state.upperBound;
+    },
+    // calculates the value corresponding to a given pixel offset, i.e. the inverse of `_calcOffset`.
+    _calcValue: function _calcValue(offset) {
+      var ratio = offset / this.state.upperBound;
+      return ratio * (this.props.max - this.props.min) + this.props.min;
+    },
+    _buildHandleStyle: function _buildHandleStyle(offset, i) {
+      var style = {
+        position: 'absolute',
+        willChange: this.state.index >= 0 ? this._posMinKey() : '',
+        zIndex: this.state.zIndices.indexOf(i) + 1
+      };
+      style[this._posMinKey()] = offset + 'px';
+      return style;
+    },
+    _buildBarStyle: function _buildBarStyle(min, max) {
+      var obj = {
+        position: 'absolute',
+        willChange: this.state.index >= 0 ? this._posMinKey() + ',' + this._posMaxKey() : ''
+      };
+      obj[this._posMinKey()] = min;
+      obj[this._posMaxKey()] = max;
+      return obj;
+    },
+    _getClosestIndex: function _getClosestIndex(pixelOffset) {
+      var minDist = Number.MAX_VALUE;
+      var closestIndex = -1;
+      var value = this.state.value;
+      var l = value.length;
+
+      for (var i = 0; i < l; i++) {
+        var offset = this._calcOffset(value[i]);
+
+        var dist = Math.abs(pixelOffset - offset);
+
+        if (dist < minDist) {
+          minDist = dist;
+          closestIndex = i;
+        }
+      }
+
+      return closestIndex;
+    },
+    _calcOffsetFromPosition: function _calcOffsetFromPosition(position) {
+      var pixelOffset = position - this.state.sliderStart;
+      if (this.props.invert) pixelOffset = this.state.sliderLength - pixelOffset;
+      pixelOffset -= this.state.handleSize / 2;
+      return pixelOffset;
+    },
+    // Snaps the nearest handle to the value corresponding to `position` and calls `callback` with that handle's index.
+    _forceValueFromPosition: function _forceValueFromPosition(position, callback) {
+      var pixelOffset = this._calcOffsetFromPosition(position);
+
+      var closestIndex = this._getClosestIndex(pixelOffset);
+
+      var nextValue = this._trimAlignValue(this._calcValue(pixelOffset));
+
+      var value = this.state.value.slice(); // Clone this.state.value since we'll modify it temporarily
+
+      value[closestIndex] = nextValue; // Prevents the slider from shrinking below `props.minDistance`
+
+      for (var i = 0; i < value.length - 1; i += 1) {
+        if (value[i + 1] - value[i] < this.props.minDistance) return;
+      }
+
+      this.setState({
+        value: value
+      }, callback.bind(this, closestIndex));
+    },
+    _getMousePosition: function _getMousePosition(e) {
+      return [e['page' + this._axisKey()], e['page' + this._orthogonalAxisKey()]];
+    },
+    _getTouchPosition: function _getTouchPosition(e) {
+      var touch = e.touches[0];
+      return [touch['page' + this._axisKey()], touch['page' + this._orthogonalAxisKey()]];
+    },
+    _getKeyDownEventMap: function _getKeyDownEventMap() {
+      return {
+        'keydown': this._onKeyDown,
+        'focusout': this._onBlur
+      };
+    },
+    _getMouseEventMap: function _getMouseEventMap() {
+      return {
+        'mousemove': this._onMouseMove,
+        'mouseup': this._onMouseUp
+      };
+    },
+    _getTouchEventMap: function _getTouchEventMap() {
+      return {
+        'touchmove': this._onTouchMove,
+        'touchend': this._onTouchEnd
+      };
+    },
+    // create the `keydown` handler for the i-th handle
+    _createOnKeyDown: function _createOnKeyDown(i) {
+      return function (e) {
+        if (this.props.disabled) return;
+
+        this._start(i);
+
+        this._addHandlers(this._getKeyDownEventMap());
+
+        pauseEvent(e);
+      }.bind(this);
+    },
+    // create the `mousedown` handler for the i-th handle
+    _createOnMouseDown: function _createOnMouseDown(i) {
+      return function (e) {
+        if (this.props.disabled) return;
+
+        var position = this._getMousePosition(e);
+
+        this._start(i, position[0]);
+
+        this._addHandlers(this._getMouseEventMap());
+
+        pauseEvent(e);
+      }.bind(this);
+    },
+    // create the `touchstart` handler for the i-th handle
+    _createOnTouchStart: function _createOnTouchStart(i) {
+      return function (e) {
+        if (this.props.disabled || e.touches.length > 1) return;
+
+        var position = this._getTouchPosition(e);
+
+        this.startPosition = position;
+        this.isScrolling = undefined; // don't know yet if the user is trying to scroll
+
+        this._start(i, position[0]);
+
+        this._addHandlers(this._getTouchEventMap());
+
+        stopPropagation(e);
+      }.bind(this);
+    },
+    _addHandlers: function _addHandlers(eventMap) {
+      for (var key in eventMap) {
+        document.addEventListener(key, eventMap[key], false);
+      }
+    },
+    _removeHandlers: function _removeHandlers(eventMap) {
+      for (var key in eventMap) {
+        document.removeEventListener(key, eventMap[key], false);
+      }
+    },
+    _start: function _start(i, position) {
+      var activeEl = document.activeElement;
+      var handleRef = this['handle' + i]; // if activeElement is body window will lost focus in IE9
+
+      if (activeEl && activeEl != document.body && activeEl != handleRef) {
+        activeEl.blur && activeEl.blur();
+      }
+
+      this.hasMoved = false;
+
+      this._fireChangeEvent('onBeforeChange');
+
+      var zIndices = this.state.zIndices;
+      zIndices.splice(zIndices.indexOf(i), 1); // remove wherever the element is
+
+      zIndices.push(i); // add to end
+
+      this.setState(function (prevState) {
+        return {
+          startValue: this.state.value[i],
+          startPosition: position !== undefined ? position : prevState.startPosition,
+          index: i,
+          zIndices: zIndices
+        };
+      });
+    },
+    _onMouseUp: function _onMouseUp() {
+      this._onEnd(this._getMouseEventMap());
+    },
+    _onTouchEnd: function _onTouchEnd() {
+      this._onEnd(this._getTouchEventMap());
+    },
+    _onBlur: function _onBlur() {
+      this._onEnd(this._getKeyDownEventMap());
+    },
+    _onEnd: function _onEnd(eventMap) {
+      this._removeHandlers(eventMap);
+
+      this.setState({
+        index: -1
+      }, this._fireChangeEvent.bind(this, 'onAfterChange'));
+    },
+    _onMouseMove: function _onMouseMove(e) {
+      var position = this._getMousePosition(e);
+
+      var diffPosition = this._getDiffPosition(position[0]);
+
+      var newValue = this._getValueFromPosition(diffPosition);
+
+      this._move(newValue);
+    },
+    _onTouchMove: function _onTouchMove(e) {
+      if (e.touches.length > 1) return;
+
+      var position = this._getTouchPosition(e);
+
+      if (typeof this.isScrolling === 'undefined') {
+        var diffMainDir = position[0] - this.startPosition[0];
+        var diffScrollDir = position[1] - this.startPosition[1];
+        this.isScrolling = Math.abs(diffScrollDir) > Math.abs(diffMainDir);
+      }
+
+      if (this.isScrolling) {
+        this.setState({
+          index: -1
+        });
+        return;
+      }
+
+      pauseEvent(e);
+
+      var diffPosition = this._getDiffPosition(position[0]);
+
+      var newValue = this._getValueFromPosition(diffPosition);
+
+      this._move(newValue);
+    },
+    _onKeyDown: function _onKeyDown(e) {
+      if (e.ctrlKey || e.shiftKey || e.altKey) return;
+
+      switch (e.key) {
+        case "ArrowLeft":
+        case "ArrowUp":
+          e.preventDefault();
+          return this._moveDownOneStep();
+
+        case "ArrowRight":
+        case "ArrowDown":
+          e.preventDefault();
+          return this._moveUpOneStep();
+
+        case "Home":
+          return this._move(this.props.min);
+
+        case "End":
+          return this._move(this.props.max);
+
+        default:
+          return;
+      }
+    },
+    _moveUpOneStep: function _moveUpOneStep() {
+      var oldValue = this.state.value[this.state.index];
+      var newValue = oldValue + this.props.step;
+
+      this._move(Math.min(newValue, this.props.max));
+    },
+    _moveDownOneStep: function _moveDownOneStep() {
+      var oldValue = this.state.value[this.state.index];
+      var newValue = oldValue - this.props.step;
+
+      this._move(Math.max(newValue, this.props.min));
+    },
+    _getValueFromPosition: function _getValueFromPosition(position) {
+      var diffValue = position / (this.state.sliderLength - this.state.handleSize) * (this.props.max - this.props.min);
+      return this._trimAlignValue(this.state.startValue + diffValue);
+    },
+    _getDiffPosition: function _getDiffPosition(position) {
+      var diffPosition = position - this.state.startPosition;
+      if (this.props.invert) diffPosition *= -1;
+      return diffPosition;
+    },
+    _move: function _move(newValue) {
+      this.hasMoved = true;
+      var props = this.props;
+      var state = this.state;
+      var index = state.index;
+      var value = state.value;
+      var length = value.length;
+      var oldValue = value[index];
+      var minDistance = props.minDistance; // if "pearling" (= handles pushing each other) is disabled,
+      // prevent the handle from getting closer than `minDistance` to the previous or next handle.
+
+      if (!props.pearling) {
+        if (index > 0) {
+          var valueBefore = value[index - 1];
+
+          if (newValue < valueBefore + minDistance) {
+            newValue = valueBefore + minDistance;
+          }
+        }
+
+        if (index < length - 1) {
+          var valueAfter = value[index + 1];
+
+          if (newValue > valueAfter - minDistance) {
+            newValue = valueAfter - minDistance;
+          }
+        }
+      }
+
+      value[index] = newValue; // if "pearling" is enabled, let the current handle push the pre- and succeeding handles.
+
+      if (props.pearling && length > 1) {
+        if (newValue > oldValue) {
+          this._pushSucceeding(value, minDistance, index);
+
+          this._trimSucceeding(length, value, minDistance, props.max);
+        } else if (newValue < oldValue) {
+          this._pushPreceding(value, minDistance, index);
+
+          this._trimPreceding(length, value, minDistance, props.min);
+        }
+      } // Normally you would use `shouldComponentUpdate`, but since the slider is a low-level component,
+      // the extra complexity might be worth the extra performance.
+
+
+      if (newValue !== oldValue) {
+        this.setState({
+          value: value
+        }, this._fireChangeEvent.bind(this, 'onChange'));
+      }
+    },
+    _pushSucceeding: function _pushSucceeding(value, minDistance, index) {
+      var i, padding;
+
+      for (i = index, padding = value[i] + minDistance; value[i + 1] != null && padding > value[i + 1]; i++, padding = value[i] + minDistance) {
+        value[i + 1] = this._alignValue(padding);
+      }
+    },
+    _trimSucceeding: function _trimSucceeding(length, nextValue, minDistance, max) {
+      for (var i = 0; i < length; i++) {
+        var padding = max - i * minDistance;
+
+        if (nextValue[length - 1 - i] > padding) {
+          nextValue[length - 1 - i] = padding;
+        }
+      }
+    },
+    _pushPreceding: function _pushPreceding(value, minDistance, index) {
+      var i, padding;
+
+      for (i = index, padding = value[i] - minDistance; value[i - 1] != null && padding < value[i - 1]; i--, padding = value[i] - minDistance) {
+        value[i - 1] = this._alignValue(padding);
+      }
+    },
+    _trimPreceding: function _trimPreceding(length, nextValue, minDistance, min) {
+      for (var i = 0; i < length; i++) {
+        var padding = min + i * minDistance;
+
+        if (nextValue[i] < padding) {
+          nextValue[i] = padding;
+        }
+      }
+    },
+    _axisKey: function _axisKey() {
+      var orientation = this.props.orientation;
+      if (orientation === 'horizontal') return 'X';
+      if (orientation === 'vertical') return 'Y';
+    },
+    _orthogonalAxisKey: function _orthogonalAxisKey() {
+      var orientation = this.props.orientation;
+      if (orientation === 'horizontal') return 'Y';
+      if (orientation === 'vertical') return 'X';
+    },
+    _posMinKey: function _posMinKey() {
+      var orientation = this.props.orientation;
+      if (orientation === 'horizontal') return this.props.invert ? 'right' : 'left';
+      if (orientation === 'vertical') return this.props.invert ? 'bottom' : 'top';
+    },
+    _posMaxKey: function _posMaxKey() {
+      var orientation = this.props.orientation;
+      if (orientation === 'horizontal') return this.props.invert ? 'left' : 'right';
+      if (orientation === 'vertical') return this.props.invert ? 'top' : 'bottom';
+    },
+    _sizeKey: function _sizeKey() {
+      var orientation = this.props.orientation;
+      if (orientation === 'horizontal') return 'clientWidth';
+      if (orientation === 'vertical') return 'clientHeight';
+    },
+    _trimAlignValue: function _trimAlignValue(val, props) {
+      return this._alignValue(this._trimValue(val, props), props);
+    },
+    _trimValue: function _trimValue(val, props) {
+      props = props || this.props;
+      if (val <= props.min) val = props.min;
+      if (val >= props.max) val = props.max;
+      return val;
+    },
+    _alignValue: function _alignValue(val, props) {
+      props = props || this.props;
+      var valModStep = (val - props.min) % props.step;
+      var alignValue = val - valModStep;
+
+      if (Math.abs(valModStep) * 2 >= props.step) {
+        alignValue += valModStep > 0 ? props.step : -props.step;
+      }
+
+      return parseFloat(alignValue.toFixed(5));
+    },
+    _renderHandle: function _renderHandle(style, child, i) {
+      var self = this;
+      var className = this.props.handleClassName + ' ' + (this.props.handleClassName + '-' + i) + ' ' + (this.state.index === i ? this.props.handleActiveClassName : '');
+      return React.createElement('div', {
+        ref: function ref(r) {
+          self['handle' + i] = r;
+        },
+        key: 'handle' + i,
+        className: className,
+        style: style,
+        onMouseDown: this._createOnMouseDown(i),
+        onTouchStart: this._createOnTouchStart(i),
+        onFocus: this._createOnKeyDown(i),
+        tabIndex: 0,
+        role: "slider",
+        "aria-valuenow": this.state.value[i],
+        "aria-valuemin": this.props.min,
+        "aria-valuemax": this.props.max,
+        "aria-label": isArray(this.props.ariaLabel) ? this.props.ariaLabel[i] : this.props.ariaLabel,
+        "aria-valuetext": this.props.ariaValuetext
+      }, child);
+    },
+    _renderHandles: function _renderHandles(offset) {
+      var length = offset.length;
+      var styles = this.tempArray;
+
+      for (var i = 0; i < length; i++) {
+        styles[i] = this._buildHandleStyle(offset[i], i);
+      }
+
+      var res = [];
+      var renderHandle = this._renderHandle;
+
+      if (React.Children.count(this.props.children) > 0) {
+        React.Children.forEach(this.props.children, function (child, i) {
+          res[i] = renderHandle(styles[i], child, i);
+        });
+      } else {
+        for (i = 0; i < length; i++) {
+          res[i] = renderHandle(styles[i], null, i);
+        }
+      }
+
+      return res;
+    },
+    _renderBar: function _renderBar(i, offsetFrom, offsetTo) {
+      var self = this;
+      return React.createElement('div', {
+        key: 'bar' + i,
+        ref: function ref(r) {
+          self['bar' + i] = r;
+        },
+        className: this.props.barClassName + ' ' + this.props.barClassName + '-' + i,
+        style: this._buildBarStyle(offsetFrom, this.state.upperBound - offsetTo)
+      });
+    },
+    _renderBars: function _renderBars(offset) {
+      var bars = [];
+      var lastIndex = offset.length - 1;
+      bars.push(this._renderBar(0, 0, offset[0]));
+
+      for (var i = 0; i < lastIndex; i++) {
+        bars.push(this._renderBar(i + 1, offset[i], offset[i + 1]));
+      }
+
+      bars.push(this._renderBar(lastIndex + 1, offset[lastIndex], this.state.upperBound));
+      return bars;
+    },
+    _onSliderMouseDown: function _onSliderMouseDown(e) {
+      if (this.props.disabled) return;
+      this.hasMoved = false;
+
+      if (!this.props.snapDragDisabled) {
+        var position = this._getMousePosition(e);
+
+        this._forceValueFromPosition(position[0], function (i) {
+          this._start(i, position[0]);
+
+          this._fireChangeEvent('onChange');
+
+          this._addHandlers(this._getMouseEventMap());
+        }.bind(this));
+      }
+
+      pauseEvent(e);
+    },
+    _onSliderClick: function _onSliderClick(e) {
+      if (this.props.disabled) return;
+
+      if (this.props.onSliderClick && !this.hasMoved) {
+        var position = this._getMousePosition(e);
+
+        var valueAtPos = this._trimAlignValue(this._calcValue(this._calcOffsetFromPosition(position[0])));
+
+        this.props.onSliderClick(valueAtPos);
+      }
+    },
+    _fireChangeEvent: function _fireChangeEvent(event) {
+      if (this.props[event]) {
+        this.props[event](undoEnsureArray(this.state.value));
+      }
+    },
+    render: function render() {
+      var self = this;
+      var state = this.state;
+      var props = this.props;
+      var offset = this.tempArray;
+      var value = state.value;
+      var l = value.length;
+
+      for (var i = 0; i < l; i++) {
+        offset[i] = this._calcOffset(value[i], i);
+      }
+
+      var bars = props.withBars ? this._renderBars(offset) : null;
+
+      var handles = this._renderHandles(offset);
+
+      return React.createElement('div', {
+        ref: function ref(r) {
+          self.slider = r;
+        },
+        style: {
+          position: 'relative'
+        },
+        className: props.className + (props.disabled ? ' disabled' : ''),
+        onMouseDown: this._onSliderMouseDown,
+        onClick: this._onSliderClick
+      }, bars, handles);
+    }
+  });
+  return ReactSlider;
+});
+
+/***/ }),
+
 /***/ "6XdB":
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
@@ -957,7 +1836,8 @@ var service = {
     // To retrieve a hostname, we are fetching all cluster nodes.
     // TODO: optimize it by adding hostname attribute to the session (backend)
     return Promise.all([api["a" /* default */].get(config["a" /* default */].getTerminalSessionUrl({
-      sid: sid
+      sid: sid,
+      clusterId: clusterId
     })), api["a" /* default */].get(config["a" /* default */].getClusterNodesUrl(clusterId))]).then(function (response) {
       var _response = _slicedToArray(response, 2),
           sessionJson = _response[0],
@@ -2576,20 +3456,46 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 var CSS = 'color: blue';
+var isDev = "production" === 'development';
 /**
- * logger is a simple logger used by store to log changes
+ * logger is used to logs Store state changes
  */
 
-var logger; // init logger with the right config
+var logger = {
+  info: function info(message) {
+    if (isDev) {
+      var _window$console;
 
-if (false) {} else {
-  logger = {
-    info: function info() {},
-    logState: function logState() {},
-    error: function error() {}
-  };
-}
+      for (var _len = arguments.length, optionalParams = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+        optionalParams[_key - 1] = arguments[_key];
+      }
 
+      (_window$console = window.console).log.apply(_window$console, [message].concat(optionalParams));
+    }
+  },
+  logState: function logState(name, state) {
+    if (isDev) {
+      var _window$console2;
+
+      for (var _len2 = arguments.length, optionalParams = new Array(_len2 > 2 ? _len2 - 2 : 0), _key2 = 2; _key2 < _len2; _key2++) {
+        optionalParams[_key2 - 2] = arguments[_key2];
+      }
+
+      (_window$console2 = window.console).log.apply(_window$console2, ["%cUpdated ".concat(name, " "), CSS, state].concat(optionalParams));
+    }
+  },
+  error: function error(err, desc) {
+    if (!isDev) {
+      return;
+    }
+
+    if (desc) {
+      window.console.error("".concat(desc), err);
+    } else {
+      window.console.error(err);
+    }
+  }
+};
 /* harmony default export */ var stores_logger = (logger);
 // CONCATENATED MODULE: ../shared/libs/stores/store.ts
 function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
@@ -2827,19 +3733,24 @@ limitations under the License.
 
 
 function makeCluster(json) {
-  var _at = Object(lodash["at"])(json, ['name', 'last_connected', 'status']),
-      _at2 = _slicedToArray(_at, 3),
+  var _at = Object(lodash["at"])(json, ['name', 'lastConnected', 'status', 'nodeCount', 'publicURL']),
+      _at2 = _slicedToArray(_at, 5),
       clusterId = _at2[0],
-      connected = _at2[1],
-      status = _at2[2];
+      lastConnected = _at2[1],
+      status = _at2[2],
+      nodeCount = _at2[3],
+      publicURL = _at2[4];
 
-  var connectedText = Object(loc["b" /* displayDateTime */])(connected);
+  var connectedText = Object(loc["b" /* displayDateTime */])(lastConnected);
   return {
     clusterId: clusterId,
-    connected: new Date(connected),
+    lastConnected: new Date(lastConnected),
     connectedText: connectedText,
     status: status,
-    url: config["a" /* default */].getClusterRoute(clusterId)
+    url: config["a" /* default */].getClusterRoute(clusterId),
+    version: 'not implemented',
+    nodeCount: nodeCount,
+    publicURL: publicURL
   };
 }
 var StatusEnum = {
@@ -2909,898 +3820,6 @@ limitations under the License.
 
 /* harmony default export */ __webpack_exports__["default"] = (_MenuSshLogin__WEBPACK_IMPORTED_MODULE_0__[/* default */ "a"]);
 
-
-/***/ }),
-
-/***/ "M5Kj":
-/***/ (function(module, exports, __webpack_require__) {
-
-var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/*
-The MIT License (MIT)
-
-Copyright (c) 2014 Michal Powaga
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-*/
-
-/*global define */
-(function (root, factory) {
-  if (true) {
-    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__("ERkP"), __webpack_require__("aWzz"), __webpack_require__("Y3fD")], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
-				__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
-				(__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__),
-				__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
-  } else {}
-})(this, function (React, PropTypes, createReactClass) {
-  /**
-   * To prevent text selection while dragging.
-   * http://stackoverflow.com/questions/5429827/how-can-i-prevent-text-element-selection-with-cursor-drag
-   */
-  function pauseEvent(e) {
-    if (e.stopPropagation) e.stopPropagation();
-    if (e.preventDefault) e.preventDefault();
-    return false;
-  }
-
-  function stopPropagation(e) {
-    if (e.stopPropagation) e.stopPropagation();
-  }
-  /**
-   * Spreads `count` values equally between `min` and `max`.
-   */
-
-
-  function linspace(min, max, count) {
-    var range = (max - min) / (count - 1);
-    var res = [];
-
-    for (var i = 0; i < count; i++) {
-      res.push(min + range * i);
-    }
-
-    return res;
-  }
-
-  function ensureArray(x) {
-    return x == null ? [] : Array.isArray(x) ? x : [x];
-  }
-
-  function undoEnsureArray(x) {
-    return x != null && x.length === 1 ? x[0] : x;
-  }
-
-  var isArray = Array.isArray || function (x) {
-    return Object.prototype.toString.call(x) === '[object Array]';
-  }; // undoEnsureArray(ensureArray(x)) === x
-
-
-  var ReactSlider = createReactClass({
-    displayName: 'ReactSlider',
-    propTypes: {
-      /**
-       * The minimum value of the slider.
-       */
-      min: PropTypes.number,
-
-      /**
-       * The maximum value of the slider.
-       */
-      max: PropTypes.number,
-
-      /**
-       * Value to be added or subtracted on each step the slider makes.
-       * Must be greater than zero.
-       * `max - min` should be evenly divisible by the step value.
-       */
-      step: PropTypes.number,
-
-      /**
-       * The minimal distance between any pair of handles.
-       * Must be positive, but zero means they can sit on top of each other.
-       */
-      minDistance: PropTypes.number,
-
-      /**
-       * Determines the initial positions of the handles and the number of handles if the component has no children.
-       *
-       * If a number is passed a slider with one handle will be rendered.
-       * If an array is passed each value will determine the position of one handle.
-       * The values in the array must be sorted.
-       * If the component has children, the length of the array must match the number of children.
-       */
-      defaultValue: PropTypes.oneOfType([PropTypes.number, PropTypes.arrayOf(PropTypes.number)]),
-
-      /**
-       * Like `defaultValue` but for [controlled components](http://facebook.github.io/react/docs/forms.html#controlled-components).
-       */
-      value: PropTypes.oneOfType([PropTypes.number, PropTypes.arrayOf(PropTypes.number)]),
-
-      /**
-       * Determines whether the slider moves horizontally (from left to right) or vertically (from top to bottom).
-       */
-      orientation: PropTypes.oneOf(['horizontal', 'vertical']),
-
-      /**
-       * The css class set on the slider node.
-       */
-      className: PropTypes.string,
-
-      /**
-       * The css class set on each handle node.
-       *
-       * In addition each handle will receive a numbered css class of the form `${handleClassName}-${i}`,
-       * e.g. `handle-0`, `handle-1`, ...
-       */
-      handleClassName: PropTypes.string,
-
-      /**
-       * The css class set on the handle that is currently being moved.
-       */
-      handleActiveClassName: PropTypes.string,
-
-      /**
-       * If `true` bars between the handles will be rendered.
-       */
-      withBars: PropTypes.bool,
-
-      /**
-       * The css class set on the bars between the handles.
-       * In addition bar fragment will receive a numbered css class of the form `${barClassName}-${i}`,
-       * e.g. `bar-0`, `bar-1`, ...
-       */
-      barClassName: PropTypes.string,
-
-      /**
-       * If `true` the active handle will push other handles
-       * within the constraints of `min`, `max`, `step` and `minDistance`.
-       */
-      pearling: PropTypes.bool,
-
-      /**
-       * If `true` the handles can't be moved.
-       */
-      disabled: PropTypes.bool,
-
-      /**
-       * Disables handle move when clicking the slider bar
-       */
-      snapDragDisabled: PropTypes.bool,
-
-      /**
-       * Inverts the slider.
-       */
-      invert: PropTypes.bool,
-
-      /**
-       * Callback called before starting to move a handle.
-       */
-      onBeforeChange: PropTypes.func,
-
-      /**
-       * Callback called on every value change.
-       */
-      onChange: PropTypes.func,
-
-      /**
-       * Callback called only after moving a handle has ended.
-       */
-      onAfterChange: PropTypes.func,
-
-      /**
-       *  Callback called when the the slider is clicked (handle or bars).
-       *  Receives the value at the clicked position as argument.
-       */
-      onSliderClick: PropTypes.func
-    },
-    getDefaultProps: function getDefaultProps() {
-      return {
-        min: 0,
-        max: 100,
-        step: 1,
-        minDistance: 0,
-        defaultValue: 0,
-        orientation: 'horizontal',
-        className: 'slider',
-        handleClassName: 'handle',
-        handleActiveClassName: 'active',
-        barClassName: 'bar',
-        withBars: false,
-        pearling: false,
-        disabled: false,
-        snapDragDisabled: false,
-        invert: false
-      };
-    },
-    getInitialState: function getInitialState() {
-      var value = this._or(ensureArray(this.props.value), ensureArray(this.props.defaultValue)); // reused throughout the component to store results of iterations over `value`
-
-
-      this.tempArray = value.slice(); // array for storing resize timeouts ids
-
-      this.pendingResizeTimeouts = [];
-      var zIndices = [];
-
-      for (var i = 0; i < value.length; i++) {
-        value[i] = this._trimAlignValue(value[i], this.props);
-        zIndices.push(i);
-      }
-
-      return {
-        index: -1,
-        upperBound: 0,
-        sliderLength: 0,
-        value: value,
-        zIndices: zIndices
-      };
-    },
-    // Keep the internal `value` consistent with an outside `value` if present.
-    // This basically allows the slider to be a controlled component.
-    UNSAFE_componentWillReceiveProps: function UNSAFE_componentWillReceiveProps(newProps) {
-      var value = this._or(ensureArray(newProps.value), this.state.value); // ensure the array keeps the same size as `value`
-
-
-      this.tempArray = value.slice();
-
-      for (var i = 0; i < value.length; i++) {
-        this.state.value[i] = this._trimAlignValue(value[i], newProps);
-      }
-
-      if (this.state.value.length > value.length) this.state.value.length = value.length; // If an upperBound has not yet been determined (due to the component being hidden
-      // during the mount event, or during the last resize), then calculate it now
-
-      if (this.state.upperBound === 0) {
-        this._resize();
-      }
-    },
-    // Check if the arity of `value` or `defaultValue` matches the number of children (= number of custom handles).
-    // If no custom handles are provided, just returns `value` if present and `defaultValue` otherwise.
-    // If custom handles are present but neither `value` nor `defaultValue` are applicable the handles are spread out
-    // equally.
-    // TODO: better name? better solution?
-    _or: function _or(value, defaultValue) {
-      var count = React.Children.count(this.props.children);
-
-      switch (count) {
-        case 0:
-          return value.length > 0 ? value : defaultValue;
-
-        case value.length:
-          return value;
-
-        case defaultValue.length:
-          return defaultValue;
-
-        default:
-          if (value.length !== count || defaultValue.length !== count) {
-            window.console.warn(this.constructor.displayName + ": Number of values does not match number of children.");
-          }
-
-          return linspace(this.props.min, this.props.max, count);
-      }
-    },
-    componentDidMount: function componentDidMount() {
-      window.addEventListener('resize', this._handleResize);
-
-      this._resize();
-    },
-    componentWillUnmount: function componentWillUnmount() {
-      this._clearPendingResizeTimeouts();
-
-      window.removeEventListener('resize', this._handleResize);
-    },
-    getValue: function getValue() {
-      return undoEnsureArray(this.state.value);
-    },
-    _resize: function _resize() {
-      var slider = this.slider;
-      var handle = this.handle0;
-      var rect = slider.getBoundingClientRect();
-
-      var size = this._sizeKey();
-
-      var sliderMax = rect[this._posMaxKey()];
-
-      var sliderMin = rect[this._posMinKey()];
-
-      this.setState({
-        upperBound: slider[size] - handle[size],
-        sliderLength: Math.abs(sliderMax - sliderMin),
-        handleSize: handle[size],
-        sliderStart: this.props.invert ? sliderMax : sliderMin
-      });
-    },
-    _handleResize: function _handleResize() {
-      // setTimeout of 0 gives element enough time to have assumed its new size if it is being resized
-      var resizeTimeout = window.setTimeout(function () {
-        // drop this timeout from pendingResizeTimeouts to reduce memory usage
-        this.pendingResizeTimeouts.shift();
-
-        this._resize();
-      }.bind(this), 0);
-      this.pendingResizeTimeouts.push(resizeTimeout);
-    },
-    // clear all pending timeouts to avoid error messages after unmounting
-    _clearPendingResizeTimeouts: function _clearPendingResizeTimeouts() {
-      do {
-        var nextTimeout = this.pendingResizeTimeouts.shift();
-        clearTimeout(nextTimeout);
-      } while (this.pendingResizeTimeouts.length);
-    },
-    // calculates the offset of a handle in pixels based on its value.
-    _calcOffset: function _calcOffset(value) {
-      var range = this.props.max - this.props.min;
-
-      if (range === 0) {
-        return 0;
-      }
-
-      var ratio = (value - this.props.min) / range;
-      return ratio * this.state.upperBound;
-    },
-    // calculates the value corresponding to a given pixel offset, i.e. the inverse of `_calcOffset`.
-    _calcValue: function _calcValue(offset) {
-      var ratio = offset / this.state.upperBound;
-      return ratio * (this.props.max - this.props.min) + this.props.min;
-    },
-    _buildHandleStyle: function _buildHandleStyle(offset, i) {
-      var style = {
-        position: 'absolute',
-        willChange: this.state.index >= 0 ? this._posMinKey() : '',
-        zIndex: this.state.zIndices.indexOf(i) + 1
-      };
-      style[this._posMinKey()] = offset + 'px';
-      return style;
-    },
-    _buildBarStyle: function _buildBarStyle(min, max) {
-      var obj = {
-        position: 'absolute',
-        willChange: this.state.index >= 0 ? this._posMinKey() + ',' + this._posMaxKey() : ''
-      };
-      obj[this._posMinKey()] = min;
-      obj[this._posMaxKey()] = max;
-      return obj;
-    },
-    _getClosestIndex: function _getClosestIndex(pixelOffset) {
-      var minDist = Number.MAX_VALUE;
-      var closestIndex = -1;
-      var value = this.state.value;
-      var l = value.length;
-
-      for (var i = 0; i < l; i++) {
-        var offset = this._calcOffset(value[i]);
-
-        var dist = Math.abs(pixelOffset - offset);
-
-        if (dist < minDist) {
-          minDist = dist;
-          closestIndex = i;
-        }
-      }
-
-      return closestIndex;
-    },
-    _calcOffsetFromPosition: function _calcOffsetFromPosition(position) {
-      var pixelOffset = position - this.state.sliderStart;
-      if (this.props.invert) pixelOffset = this.state.sliderLength - pixelOffset;
-      pixelOffset -= this.state.handleSize / 2;
-      return pixelOffset;
-    },
-    // Snaps the nearest handle to the value corresponding to `position` and calls `callback` with that handle's index.
-    _forceValueFromPosition: function _forceValueFromPosition(position, callback) {
-      var pixelOffset = this._calcOffsetFromPosition(position);
-
-      var closestIndex = this._getClosestIndex(pixelOffset);
-
-      var nextValue = this._trimAlignValue(this._calcValue(pixelOffset));
-
-      var value = this.state.value.slice(); // Clone this.state.value since we'll modify it temporarily
-
-      value[closestIndex] = nextValue; // Prevents the slider from shrinking below `props.minDistance`
-
-      for (var i = 0; i < value.length - 1; i += 1) {
-        if (value[i + 1] - value[i] < this.props.minDistance) return;
-      }
-
-      this.setState({
-        value: value
-      }, callback.bind(this, closestIndex));
-    },
-    _getMousePosition: function _getMousePosition(e) {
-      return [e['page' + this._axisKey()], e['page' + this._orthogonalAxisKey()]];
-    },
-    _getTouchPosition: function _getTouchPosition(e) {
-      var touch = e.touches[0];
-      return [touch['page' + this._axisKey()], touch['page' + this._orthogonalAxisKey()]];
-    },
-    _getKeyDownEventMap: function _getKeyDownEventMap() {
-      return {
-        'keydown': this._onKeyDown,
-        'focusout': this._onBlur
-      };
-    },
-    _getMouseEventMap: function _getMouseEventMap() {
-      return {
-        'mousemove': this._onMouseMove,
-        'mouseup': this._onMouseUp
-      };
-    },
-    _getTouchEventMap: function _getTouchEventMap() {
-      return {
-        'touchmove': this._onTouchMove,
-        'touchend': this._onTouchEnd
-      };
-    },
-    // create the `keydown` handler for the i-th handle
-    _createOnKeyDown: function _createOnKeyDown(i) {
-      return function (e) {
-        if (this.props.disabled) return;
-
-        this._start(i);
-
-        this._addHandlers(this._getKeyDownEventMap());
-
-        pauseEvent(e);
-      }.bind(this);
-    },
-    // create the `mousedown` handler for the i-th handle
-    _createOnMouseDown: function _createOnMouseDown(i) {
-      return function (e) {
-        if (this.props.disabled) return;
-
-        var position = this._getMousePosition(e);
-
-        this._start(i, position[0]);
-
-        this._addHandlers(this._getMouseEventMap());
-
-        pauseEvent(e);
-      }.bind(this);
-    },
-    // create the `touchstart` handler for the i-th handle
-    _createOnTouchStart: function _createOnTouchStart(i) {
-      return function (e) {
-        if (this.props.disabled || e.touches.length > 1) return;
-
-        var position = this._getTouchPosition(e);
-
-        this.startPosition = position;
-        this.isScrolling = undefined; // don't know yet if the user is trying to scroll
-
-        this._start(i, position[0]);
-
-        this._addHandlers(this._getTouchEventMap());
-
-        stopPropagation(e);
-      }.bind(this);
-    },
-    _addHandlers: function _addHandlers(eventMap) {
-      for (var key in eventMap) {
-        document.addEventListener(key, eventMap[key], false);
-      }
-    },
-    _removeHandlers: function _removeHandlers(eventMap) {
-      for (var key in eventMap) {
-        document.removeEventListener(key, eventMap[key], false);
-      }
-    },
-    _start: function _start(i, position) {
-      var activeEl = document.activeElement;
-      var handleRef = this['handle' + i]; // if activeElement is body window will lost focus in IE9
-
-      if (activeEl && activeEl != document.body && activeEl != handleRef) {
-        activeEl.blur && activeEl.blur();
-      }
-
-      this.hasMoved = false;
-
-      this._fireChangeEvent('onBeforeChange');
-
-      var zIndices = this.state.zIndices;
-      zIndices.splice(zIndices.indexOf(i), 1); // remove wherever the element is
-
-      zIndices.push(i); // add to end
-
-      this.setState(function (prevState) {
-        return {
-          startValue: this.state.value[i],
-          startPosition: position !== undefined ? position : prevState.startPosition,
-          index: i,
-          zIndices: zIndices
-        };
-      });
-    },
-    _onMouseUp: function _onMouseUp() {
-      this._onEnd(this._getMouseEventMap());
-    },
-    _onTouchEnd: function _onTouchEnd() {
-      this._onEnd(this._getTouchEventMap());
-    },
-    _onBlur: function _onBlur() {
-      this._onEnd(this._getKeyDownEventMap());
-    },
-    _onEnd: function _onEnd(eventMap) {
-      this._removeHandlers(eventMap);
-
-      this.setState({
-        index: -1
-      }, this._fireChangeEvent.bind(this, 'onAfterChange'));
-    },
-    _onMouseMove: function _onMouseMove(e) {
-      var position = this._getMousePosition(e);
-
-      var diffPosition = this._getDiffPosition(position[0]);
-
-      var newValue = this._getValueFromPosition(diffPosition);
-
-      this._move(newValue);
-    },
-    _onTouchMove: function _onTouchMove(e) {
-      if (e.touches.length > 1) return;
-
-      var position = this._getTouchPosition(e);
-
-      if (typeof this.isScrolling === 'undefined') {
-        var diffMainDir = position[0] - this.startPosition[0];
-        var diffScrollDir = position[1] - this.startPosition[1];
-        this.isScrolling = Math.abs(diffScrollDir) > Math.abs(diffMainDir);
-      }
-
-      if (this.isScrolling) {
-        this.setState({
-          index: -1
-        });
-        return;
-      }
-
-      pauseEvent(e);
-
-      var diffPosition = this._getDiffPosition(position[0]);
-
-      var newValue = this._getValueFromPosition(diffPosition);
-
-      this._move(newValue);
-    },
-    _onKeyDown: function _onKeyDown(e) {
-      if (e.ctrlKey || e.shiftKey || e.altKey) return;
-
-      switch (e.key) {
-        case "ArrowLeft":
-        case "ArrowUp":
-          e.preventDefault();
-          return this._moveDownOneStep();
-
-        case "ArrowRight":
-        case "ArrowDown":
-          e.preventDefault();
-          return this._moveUpOneStep();
-
-        case "Home":
-          return this._move(this.props.min);
-
-        case "End":
-          return this._move(this.props.max);
-
-        default:
-          return;
-      }
-    },
-    _moveUpOneStep: function _moveUpOneStep() {
-      var oldValue = this.state.value[this.state.index];
-      var newValue = oldValue + this.props.step;
-
-      this._move(Math.min(newValue, this.props.max));
-    },
-    _moveDownOneStep: function _moveDownOneStep() {
-      var oldValue = this.state.value[this.state.index];
-      var newValue = oldValue - this.props.step;
-
-      this._move(Math.max(newValue, this.props.min));
-    },
-    _getValueFromPosition: function _getValueFromPosition(position) {
-      var diffValue = position / (this.state.sliderLength - this.state.handleSize) * (this.props.max - this.props.min);
-      return this._trimAlignValue(this.state.startValue + diffValue);
-    },
-    _getDiffPosition: function _getDiffPosition(position) {
-      var diffPosition = position - this.state.startPosition;
-      if (this.props.invert) diffPosition *= -1;
-      return diffPosition;
-    },
-    _move: function _move(newValue) {
-      this.hasMoved = true;
-      var props = this.props;
-      var state = this.state;
-      var index = state.index;
-      var value = state.value;
-      var length = value.length;
-      var oldValue = value[index];
-      var minDistance = props.minDistance; // if "pearling" (= handles pushing each other) is disabled,
-      // prevent the handle from getting closer than `minDistance` to the previous or next handle.
-
-      if (!props.pearling) {
-        if (index > 0) {
-          var valueBefore = value[index - 1];
-
-          if (newValue < valueBefore + minDistance) {
-            newValue = valueBefore + minDistance;
-          }
-        }
-
-        if (index < length - 1) {
-          var valueAfter = value[index + 1];
-
-          if (newValue > valueAfter - minDistance) {
-            newValue = valueAfter - minDistance;
-          }
-        }
-      }
-
-      value[index] = newValue; // if "pearling" is enabled, let the current handle push the pre- and succeeding handles.
-
-      if (props.pearling && length > 1) {
-        if (newValue > oldValue) {
-          this._pushSucceeding(value, minDistance, index);
-
-          this._trimSucceeding(length, value, minDistance, props.max);
-        } else if (newValue < oldValue) {
-          this._pushPreceding(value, minDistance, index);
-
-          this._trimPreceding(length, value, minDistance, props.min);
-        }
-      } // Normally you would use `shouldComponentUpdate`, but since the slider is a low-level component,
-      // the extra complexity might be worth the extra performance.
-
-
-      if (newValue !== oldValue) {
-        this.setState({
-          value: value
-        }, this._fireChangeEvent.bind(this, 'onChange'));
-      }
-    },
-    _pushSucceeding: function _pushSucceeding(value, minDistance, index) {
-      var i, padding;
-
-      for (i = index, padding = value[i] + minDistance; value[i + 1] != null && padding > value[i + 1]; i++, padding = value[i] + minDistance) {
-        value[i + 1] = this._alignValue(padding);
-      }
-    },
-    _trimSucceeding: function _trimSucceeding(length, nextValue, minDistance, max) {
-      for (var i = 0; i < length; i++) {
-        var padding = max - i * minDistance;
-
-        if (nextValue[length - 1 - i] > padding) {
-          nextValue[length - 1 - i] = padding;
-        }
-      }
-    },
-    _pushPreceding: function _pushPreceding(value, minDistance, index) {
-      var i, padding;
-
-      for (i = index, padding = value[i] - minDistance; value[i - 1] != null && padding < value[i - 1]; i--, padding = value[i] - minDistance) {
-        value[i - 1] = this._alignValue(padding);
-      }
-    },
-    _trimPreceding: function _trimPreceding(length, nextValue, minDistance, min) {
-      for (var i = 0; i < length; i++) {
-        var padding = min + i * minDistance;
-
-        if (nextValue[i] < padding) {
-          nextValue[i] = padding;
-        }
-      }
-    },
-    _axisKey: function _axisKey() {
-      var orientation = this.props.orientation;
-      if (orientation === 'horizontal') return 'X';
-      if (orientation === 'vertical') return 'Y';
-    },
-    _orthogonalAxisKey: function _orthogonalAxisKey() {
-      var orientation = this.props.orientation;
-      if (orientation === 'horizontal') return 'Y';
-      if (orientation === 'vertical') return 'X';
-    },
-    _posMinKey: function _posMinKey() {
-      var orientation = this.props.orientation;
-      if (orientation === 'horizontal') return this.props.invert ? 'right' : 'left';
-      if (orientation === 'vertical') return this.props.invert ? 'bottom' : 'top';
-    },
-    _posMaxKey: function _posMaxKey() {
-      var orientation = this.props.orientation;
-      if (orientation === 'horizontal') return this.props.invert ? 'left' : 'right';
-      if (orientation === 'vertical') return this.props.invert ? 'top' : 'bottom';
-    },
-    _sizeKey: function _sizeKey() {
-      var orientation = this.props.orientation;
-      if (orientation === 'horizontal') return 'clientWidth';
-      if (orientation === 'vertical') return 'clientHeight';
-    },
-    _trimAlignValue: function _trimAlignValue(val, props) {
-      return this._alignValue(this._trimValue(val, props), props);
-    },
-    _trimValue: function _trimValue(val, props) {
-      props = props || this.props;
-      if (val <= props.min) val = props.min;
-      if (val >= props.max) val = props.max;
-      return val;
-    },
-    _alignValue: function _alignValue(val, props) {
-      props = props || this.props;
-      var valModStep = (val - props.min) % props.step;
-      var alignValue = val - valModStep;
-
-      if (Math.abs(valModStep) * 2 >= props.step) {
-        alignValue += valModStep > 0 ? props.step : -props.step;
-      }
-
-      return parseFloat(alignValue.toFixed(5));
-    },
-    _renderHandle: function _renderHandle(style, child, i) {
-      var self = this;
-      var className = this.props.handleClassName + ' ' + (this.props.handleClassName + '-' + i) + ' ' + (this.state.index === i ? this.props.handleActiveClassName : '');
-      return React.createElement('div', {
-        ref: function ref(r) {
-          self['handle' + i] = r;
-        },
-        key: 'handle' + i,
-        className: className,
-        style: style,
-        onMouseDown: this._createOnMouseDown(i),
-        onTouchStart: this._createOnTouchStart(i),
-        onFocus: this._createOnKeyDown(i),
-        tabIndex: 0,
-        role: "slider",
-        "aria-valuenow": this.state.value[i],
-        "aria-valuemin": this.props.min,
-        "aria-valuemax": this.props.max,
-        "aria-label": isArray(this.props.ariaLabel) ? this.props.ariaLabel[i] : this.props.ariaLabel,
-        "aria-valuetext": this.props.ariaValuetext
-      }, child);
-    },
-    _renderHandles: function _renderHandles(offset) {
-      var length = offset.length;
-      var styles = this.tempArray;
-
-      for (var i = 0; i < length; i++) {
-        styles[i] = this._buildHandleStyle(offset[i], i);
-      }
-
-      var res = [];
-      var renderHandle = this._renderHandle;
-
-      if (React.Children.count(this.props.children) > 0) {
-        React.Children.forEach(this.props.children, function (child, i) {
-          res[i] = renderHandle(styles[i], child, i);
-        });
-      } else {
-        for (i = 0; i < length; i++) {
-          res[i] = renderHandle(styles[i], null, i);
-        }
-      }
-
-      return res;
-    },
-    _renderBar: function _renderBar(i, offsetFrom, offsetTo) {
-      var self = this;
-      return React.createElement('div', {
-        key: 'bar' + i,
-        ref: function ref(r) {
-          self['bar' + i] = r;
-        },
-        className: this.props.barClassName + ' ' + this.props.barClassName + '-' + i,
-        style: this._buildBarStyle(offsetFrom, this.state.upperBound - offsetTo)
-      });
-    },
-    _renderBars: function _renderBars(offset) {
-      var bars = [];
-      var lastIndex = offset.length - 1;
-      bars.push(this._renderBar(0, 0, offset[0]));
-
-      for (var i = 0; i < lastIndex; i++) {
-        bars.push(this._renderBar(i + 1, offset[i], offset[i + 1]));
-      }
-
-      bars.push(this._renderBar(lastIndex + 1, offset[lastIndex], this.state.upperBound));
-      return bars;
-    },
-    _onSliderMouseDown: function _onSliderMouseDown(e) {
-      if (this.props.disabled) return;
-      this.hasMoved = false;
-
-      if (!this.props.snapDragDisabled) {
-        var position = this._getMousePosition(e);
-
-        this._forceValueFromPosition(position[0], function (i) {
-          this._start(i, position[0]);
-
-          this._fireChangeEvent('onChange');
-
-          this._addHandlers(this._getMouseEventMap());
-        }.bind(this));
-      }
-
-      pauseEvent(e);
-    },
-    _onSliderClick: function _onSliderClick(e) {
-      if (this.props.disabled) return;
-
-      if (this.props.onSliderClick && !this.hasMoved) {
-        var position = this._getMousePosition(e);
-
-        var valueAtPos = this._trimAlignValue(this._calcValue(this._calcOffsetFromPosition(position[0])));
-
-        this.props.onSliderClick(valueAtPos);
-      }
-    },
-    _fireChangeEvent: function _fireChangeEvent(event) {
-      if (this.props[event]) {
-        this.props[event](undoEnsureArray(this.state.value));
-      }
-    },
-    render: function render() {
-      var self = this;
-      var state = this.state;
-      var props = this.props;
-      var offset = this.tempArray;
-      var value = state.value;
-      var l = value.length;
-
-      for (var i = 0; i < l; i++) {
-        offset[i] = this._calcOffset(value[i], i);
-      }
-
-      var bars = props.withBars ? this._renderBars(offset) : null;
-
-      var handles = this._renderHandles(offset);
-
-      return React.createElement('div', {
-        ref: function ref(r) {
-          self.slider = r;
-        },
-        style: {
-          position: 'relative'
-        },
-        className: props.className + (props.disabled ? ' disabled' : ''),
-        onMouseDown: this._onSliderMouseDown,
-        onClick: this._onSliderClick
-      }, bars, handles);
-    }
-  });
-  return ReactSlider;
-});
 
 /***/ }),
 
@@ -4337,9 +4356,10 @@ limitations under the License.
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__("ERkP");
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__("j/s1");
-/* harmony import */ var design_Menu__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__("jf9t");
-/* harmony import */ var design_system__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__("xM/J");
-/* harmony import */ var design_Icon__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__("+aPP");
+/* harmony import */ var react_router_dom__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__("daAW");
+/* harmony import */ var design_Menu__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__("jf9t");
+/* harmony import */ var design_system__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__("xM/J");
+/* harmony import */ var design_Icon__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__("+aPP");
 function _templateObject2() {
   var data = _taggedTemplateLiteral(["\n  opacity: 0.24;\n"]);
 
@@ -4403,6 +4423,7 @@ limitations under the License.
 
 
 
+
 var MenuSshLogin =
 /*#__PURE__*/
 function (_React$Component) {
@@ -4438,10 +4459,10 @@ function (_React$Component) {
       });
     });
 
-    _defineProperty(_assertThisInitialized(_this), "onItemClick", function (login) {
+    _defineProperty(_assertThisInitialized(_this), "onItemClick", function (e, login) {
       _this.onClose();
 
-      _this.props.onSelect(login);
+      _this.props.onSelect(e, login);
     });
 
     _defineProperty(_assertThisInitialized(_this), "onClose", function () {
@@ -4451,10 +4472,10 @@ function (_React$Component) {
     });
 
     _defineProperty(_assertThisInitialized(_this), "onKeyPress", function (e) {
-      if (e.key === 'Enter' && e.target.value) {
+      if (e.key === 'Enter' && e.currentTarget.value) {
         _this.onClose();
 
-        _this.props.onSelect(e.target.value);
+        _this.props.onSelect(e, e.currentTarget.value);
       }
     });
 
@@ -4474,11 +4495,11 @@ function (_React$Component) {
         px: "2",
         ref: this.anchorEl,
         onClick: this.onOpen
-      }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(design_Icon__WEBPACK_IMPORTED_MODULE_4__[/* Cli */ "k"], {
+      }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(design_Icon__WEBPACK_IMPORTED_MODULE_5__[/* Cli */ "j"], {
         as: StyledCliIcon
-      }), react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(design_Icon__WEBPACK_IMPORTED_MODULE_4__[/* CarrotDown */ "e"], {
+      }), react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(design_Icon__WEBPACK_IMPORTED_MODULE_5__[/* CarrotDown */ "d"], {
         as: StyledCarrotIcon
-      })), react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(design_Menu__WEBPACK_IMPORTED_MODULE_2__[/* default */ "c"], {
+      })), react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(design_Menu__WEBPACK_IMPORTED_MODULE_3__[/* default */ "c"], {
         anchorOrigin: anchorOrigin,
         transformOrigin: transformOrigin,
         anchorEl: this.anchorEl.current,
@@ -4505,16 +4526,14 @@ var LoginItemList = function LoginItemList(_ref) {
   var $menuItems = logins.map(function (item, key) {
     var login = item.login,
         url = item.url;
-    return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(design_Menu__WEBPACK_IMPORTED_MODULE_2__[/* MenuItem */ "a"], {
+    return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(StyledMenuItem, {
       key: key,
       px: "2",
       mx: "2",
-      as: StyledMenuItem,
-      href: url,
+      as: react_router_dom__WEBPACK_IMPORTED_MODULE_2__[/* NavLink */ "b"],
+      to: url,
       onClick: function onClick(e) {
-        e.preventDefault();
-
-        _onClick(login);
+        _onClick(e, login);
       }
     }, login);
   });
@@ -4528,7 +4547,7 @@ var LoginItemList = function LoginItemList(_ref) {
     placeholder: "Enter login name..."
   }), $menuItems);
 };
-var StyledMenuItem = styled_components__WEBPACK_IMPORTED_MODULE_1__[/* default */ "c"].a(function (_ref2) {
+var StyledMenuItem = Object(styled_components__WEBPACK_IMPORTED_MODULE_1__[/* default */ "c"])(design_Menu__WEBPACK_IMPORTED_MODULE_3__[/* MenuItem */ "a"])(function (_ref2) {
   var theme = _ref2.theme;
   return "\n  color: ".concat(theme.colors.grey[400], ";\n  font-size: 12px;\n  border-bottom: 1px solid ").concat(theme.colors.subtle, ";\n  min-height: 32px;\n  &:hover {\n    color: ").concat(theme.colors.link, ";\n  }\n\n  :last-child {\n    border-bottom: none;\n    margin-bottom: 8px;\n  }\n");
 });
@@ -4537,11 +4556,11 @@ var StyledCarrotIcon = styled_components__WEBPACK_IMPORTED_MODULE_1__[/* default
 var StyledSessionButton = styled_components__WEBPACK_IMPORTED_MODULE_1__[/* default */ "c"].button(function (_ref3) {
   var theme = _ref3.theme;
   return "\n  display: flex;\n  justify-content: space-between;\n  outline-style: none;\n  outline-width: 0px;\n  -webkit-appearance: none;\n  -webkit-tap-highlight-color: transparent;\n  align-items: center;\n  background: ".concat(theme.colors.bgTerminal, ";\n  border: 1px solid ").concat(theme.colors.bgTerminal, ";\n  border-radius: 2px;\n  box-sizing: border-box;\n  box-shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 2px rgba(0, 0, 0, 0.24);\n  color: ").concat(theme.colors.primary, ";\n  cursor: pointer;\n  height: 24px;\n  width: 56px;\n\n  transition: all 0.3s;\n  > * {\n    transition: all 0.3s;\n  }\n\n  :focus {\n    outline: none;\n  }\n\n  ::-moz-focus-inner {\n    border: 0;\n  }\n\n  :hover,\n  :focus {\n    border: 1px solid ").concat(theme.colors.success, ";\n    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);\n    ").concat(StyledCliIcon, " {\n      opacity: 1;\n    }\n    ").concat(StyledCarrotIcon, " {\n      opacity: 0.56;\n    }\n  }\n");
-}, design_system__WEBPACK_IMPORTED_MODULE_3__[/* space */ "u"]);
+}, design_system__WEBPACK_IMPORTED_MODULE_4__[/* space */ "u"]);
 var Input = styled_components__WEBPACK_IMPORTED_MODULE_1__[/* default */ "c"].input(function (_ref4) {
   var theme = _ref4.theme;
   return "\n  background: ".concat(theme.colors.subtle, ";\n  border: 1px solid ").concat(theme.colors.subtle, ";\n  border-radius: 4px;\n  box-sizing: border-box;\n  color: #263238;\n  height: 32px;\n  outline: none;\n\n  &:focus {\n    background: ").concat(theme.colors.light, ";\n    border 1px solid ").concat(theme.colors.link, ";\n    box-shadow: inset 0 1px 3px rgba(0, 0, 0, .24);\n  }\n\n  ::placeholder {\n    color: ").concat(theme.colors.grey[100], ";\n  }\n");
-}, design_system__WEBPACK_IMPORTED_MODULE_3__[/* space */ "u"]);
+}, design_system__WEBPACK_IMPORTED_MODULE_4__[/* space */ "u"]);
 /* harmony default export */ __webpack_exports__["a"] = (MenuSshLogin);
 
 /***/ }),
@@ -4859,7 +4878,7 @@ limitations under the License.
 
 
 
-var MenuItemIcon = Object(styled_components_browser_esm["c" /* default */])(Icon["z" /* default */])(MenuItemIcon_templateObject());
+var MenuItemIcon = Object(styled_components_browser_esm["c" /* default */])(Icon["x" /* default */])(MenuItemIcon_templateObject());
 MenuItemIcon.displayName = 'MenuItemIcon';
 MenuItemIcon.defaultProps = {
   fontSize: 4,
@@ -5252,6 +5271,13 @@ limitations under the License.
 
 /***/ }),
 
+/***/ "m1cd":
+/***/ (function(module, exports) {
+
+module.exports = "data:image/vnd.microsoft.icon;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAgCAYAAAAFQMh/AAAAAXNSR0IArs4c6QAAB0NJREFUSA21V2lsVUUUnjNz2wcUKCJQqAZLQSWyQ1A2ZQ1SFAFDm1C2sgRIlDUQCMFIxBhUglVUQgK0LK2kNJC6gPUHGKuSIkvgDwRKK8YUQXZs7et7d8bvzLz70moCjx9O8969vXPO+c73nTNz55F4hJE1bN94Ev5a44t0JUy6NEKQoVqpTa0SYlPpqbzvEg3nJWro7KJzATpaWUB8aQY2zwr+aLoGm/8HGOwGAAhgQjBbwQloI6QgTmDAo5CgRI1njd+TcvuOfw/g0oLFwJvc62Ty2u49N7sukZgyESO2uX+PBjMoM7W1BdMAlK9CG2m0PzjReHHG48aVpJpoY74y5ji1CJWWl+fc4iCTRhV3MPWNG1HHuVKLkDLUKIyukkJyUwFNpAO4Bz6YE2HIvksY9daeC3Nusv/8XiXtqf7uNCQ9tL1su/z96py7/DwOPGbkniI45zIbDk5alyui703UrMazztJQpRQ6v5VKOlxUOfMeOwdj3vCyNpHbtyYIXy9FgiMg41Wp5YdS69Go/QTSIkkSoRdE8bZfF8xgPws8dtTeGXDaBwaQkRsl1jQsqxD3PC0XHTo5e/+0AYVjjTbTpTAjweAJ6QvCfS2C/yA17d97YV553tMFr0vj74D0j7mSIAZAbUPiqqSaubU6r4iysg6HInU3roBtmjPk2llAgWC/SamyWlKkvrFR7CTfjAk6GvaxJPkKe+tjKpQfmueZKEz9b6Uxmdz5ji3AwRQqXuuhOj8lI/U3cxmUA7lgmGQptKiTnnpVaZHSGBYn/guKgFhaVqWYr/DNi8KEK4mokzTqFVzv8lKzyy2QV1Bajb6eK6VvltmMOTN8mK1jLFcA9LaIRr6ClB0Dps1t3ZqG7I41l0mb9joaLUsOqTAYLrEyx0AVCsPLCPGWeZisgXE/W1utEQBBtDifnNlil3+5vhSAUMM23C9oHLtpWAb8LBYQjYhgCGpwJeoKuzQ/HNm2rWZ+1pJuhSux1vqzj91w2EdSDWVnl6i/fq//HI2ykFm57ZCWh4SsiPrRU4H803q29nIO5Pjwe+BYnLFjCwxWMJCnaDi21d4A3O6YQxGi7UMGtXxDHkCwI8fzFikS68DWoBtFiyRdFtXR7ACU5X2UwQS4kRAqJ9SKvpTk1gpjbKmes5gJ8Hx8TBlY+DOWx3MHT89tl92/4Ec01HAOYhtIUBkk1yyv0PrC7osL1vHt/G47nkeTrbW1QwWVoL7QtDszlpJOf1w9d9DKjMKrYFyzuWbOMPbh0eztREK3Q61qeQIgvCPFmgYPtJ7MSXCdUI6f2IYH7tPxbCok5KaxVJmNZYQYbCOlqIVNO74PRjNgyQ3io2swLFO4czArHTOPfRg8GAoSGAhn7RmcmQLVMnbw/CR2F3jxfJOBwHfgY7NEp9Yy4+Djup6VcCo0cbNB7SYBYAYNlMGEVQ9dng7Wd5r6xIFz+hWswQYwBHVNzetfkKGMrGCGqJllyszdGowFDqKgz5kPSxtXxiaA7VFQxYZeJZ0xmyYMDVmXWbQmcPN4OZmLdZ+iBRdbKTETDYvJivwSo2ktr11+7pg7ifj/YChojWR5mcTkhi0nCwN0c0lDQ/g1qEC2ZEJvert7UUavgUlvUnb/XQfBdKoFdTsPbwznJ/Vu0+fw2fulmJvi5pgRs+YodAlnro0KlprEICS1zNY0JjPLrqQs31Q1K2td5r7T+BcbiEuIlUFChyi7T8FZvIP78qKLA+AePBZ6OnTEmIaTmLO7l2MRMHMt4wLhGyrYOlu2dDM5WQz2fTGCNO1hG2vHc1YZOic9QfmWSVxOlwACfSR1BK82NQls/sRbxbJ1zFhMDuXA+I7nYwC3wHayb7wQabnVdjsDWg/nJ5XMlx2e7FSMyWsB2/jV1ylaRL/GWadOhRQ2CTrKdWRmDBCwc/87UOxMFQB9AQeJ6yLif0PCpLKL/Vgf+AEr1bQtlluPTAyD9aoA0C4FXkZWAdFVRPVxBBmy7cr8sUlSjfOk3KkkVcH+b7BsQALVACxUSk74oDrvJWxAfX2jK9FQmXGW/OLBm4nTw7JatbRqIr+53JjzzM5i8jVOF2gMIyLk44wszTG88lbjWRoAKgGY356SDm+oan70wZJp3VDfkAXXpbDlo88foLkZyY1GAvgRQElWcpJfrL88PZcR48ALB5WkRu/e/wTv4OPJyd6Bz2KHtSU9dnXEIf5dGOYhQDISwHnMVEnJW6sxaMJ0lACHPRwEpWyEXYGn5PoNF3NvMMB7PQ8+rv1wNvpoqEr1lq499a/DHhs9aKzsvnu07+ujnCnX117xbe9jHe2RHPPO5RnHHhQnmOMVktCQKXQCNdWQzm0O8AoS4OZBIN0mpcOJhIKxb6KGm/ELAV16ybUIg+KOG5DZgjn+Lq0+93JCvyIYM2FgNkYtz/CScn9umTBrBsbkGbZJdDR7LT7MCc1TiEbrghc8/0TtYutMdBWJ1PKSeph/0/l/AGFLLY/R/zs3AAAAAElFTkSuQmCC"
+
+/***/ }),
+
 /***/ "mWm6":
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -5263,26 +5289,26 @@ module.exports = __webpack_require__.p + "/assets/fonts/Ubuntu-Italic.eot";
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "b", function() { return AddUsers; });
+/* unused harmony export AddUsers */
 /* unused harmony export Amex */
 /* unused harmony export Apartment */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "c", function() { return AppInstalled; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "b", function() { return AppInstalled; });
 /* unused harmony export Apple */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "d", function() { return AppRollback; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "c", function() { return AppRollback; });
 /* unused harmony export Archive */
 /* unused harmony export ArrowDown */
 /* unused harmony export ArrowLeft */
-/* unused harmony export ArrowRight */
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "d", function() { return ArrowRight; });
 /* unused harmony export ArrowsVertical */
 /* unused harmony export ArrowUp */
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "e", function() { return BitBucket; });
 /* unused harmony export Bubble */
 /* unused harmony export Camera */
 /* unused harmony export CardView */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "f", function() { return CardViewSmall; });
+/* unused harmony export CardViewSmall */
 /* unused harmony export CaretLeft */
 /* unused harmony export CaretRight */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "g", function() { return CarrotDown; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "f", function() { return CarrotDown; });
 /* unused harmony export CarrotLeft */
 /* unused harmony export CarrotRight */
 /* unused harmony export CarrotSort */
@@ -5292,24 +5318,24 @@ module.exports = __webpack_require__.p + "/assets/fonts/Ubuntu-Italic.eot";
 /* unused harmony export ChevronCircleLeft */
 /* unused harmony export ChevronCircleRight */
 /* unused harmony export ChevronCircleUp */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "h", function() { return CircleArrowLeft; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "i", function() { return CircleArrowRight; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "j", function() { return CircleCheck; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "g", function() { return CircleArrowLeft; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "h", function() { return CircleArrowRight; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "i", function() { return CircleCheck; });
 /* unused harmony export CircleCross */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "k", function() { return CirclePause; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "l", function() { return CirclePlay; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "j", function() { return CirclePause; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "k", function() { return CirclePlay; });
 /* unused harmony export CircleStop */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "m", function() { return Cli; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "l", function() { return Cli; });
 /* unused harmony export Clipboard */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "n", function() { return ClipboardUser; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "o", function() { return Close; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "m", function() { return ClipboardUser; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "n", function() { return Close; });
 /* unused harmony export Cloud */
 /* unused harmony export Cluster */
 /* unused harmony export ClusterAdded */
 /* unused harmony export ClusterAuth */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "p", function() { return Code; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "o", function() { return Code; });
 /* unused harmony export Cog */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "q", function() { return Config; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "p", function() { return Config; });
 /* unused harmony export Contract */
 /* unused harmony export CreditCard */
 /* unused harmony export CreditCardAlt */
@@ -5317,27 +5343,27 @@ module.exports = __webpack_require__.p + "/assets/fonts/Ubuntu-Italic.eot";
 /* unused harmony export Cross */
 /* unused harmony export Database */
 /* unused harmony export Discover */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "r", function() { return Download; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "q", function() { return Download; });
 /* unused harmony export Earth */
 /* unused harmony export Edit */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "s", function() { return Ellipsis; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "t", function() { return EmailSolid; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "r", function() { return Ellipsis; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "s", function() { return EmailSolid; });
 /* unused harmony export Equalizer */
 /* unused harmony export Expand */
 /* unused harmony export Facebook */
 /* unused harmony export FacebookSquare */
 /* unused harmony export FileCode */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "u", function() { return ForwarderAdded; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "v", function() { return Github; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "w", function() { return Google; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "t", function() { return ForwarderAdded; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "u", function() { return Github; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "v", function() { return Google; });
 /* unused harmony export Graph */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "x", function() { return Home; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "y", function() { return Keypair; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "w", function() { return Home; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "x", function() { return Keypair; });
 /* unused harmony export Kubernetes */
 /* unused harmony export Label */
 /* unused harmony export Lan */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "z", function() { return LanAlt; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "A", function() { return Layers; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "y", function() { return LanAlt; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "z", function() { return Layers; });
 /* unused harmony export Layers1 */
 /* unused harmony export License */
 /* unused harmony export Link */
@@ -5345,61 +5371,61 @@ module.exports = __webpack_require__.p + "/assets/fonts/Ubuntu-Italic.eot";
 /* unused harmony export Linux */
 /* unused harmony export List */
 /* unused harmony export ListAddCheck */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "B", function() { return ListBullet; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "A", function() { return ListBullet; });
 /* unused harmony export ListCheck */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "C", function() { return ListView; });
+/* unused harmony export ListView */
 /* unused harmony export LocalPlay */
 /* unused harmony export Lock */
 /* unused harmony export Magnifier */
 /* unused harmony export MasterCard */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "D", function() { return Memory; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "B", function() { return Memory; });
 /* unused harmony export MoreHoriz */
 /* unused harmony export MoreVert */
 /* unused harmony export Mute */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "E", function() { return NoteAdded; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "F", function() { return NotificationsActive; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "G", function() { return OpenID; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "C", function() { return NoteAdded; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "D", function() { return NotificationsActive; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "E", function() { return OpenID; });
 /* unused harmony export Paypal */
 /* unused harmony export Pencil */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "H", function() { return Person; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "I", function() { return PersonAdd; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "J", function() { return PhonelinkErase; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "K", function() { return PhonelinkSetup; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "F", function() { return Person; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "G", function() { return PersonAdd; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "H", function() { return PhonelinkErase; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "I", function() { return PhonelinkSetup; });
 /* unused harmony export Planet */
 /* unused harmony export Play */
 /* unused harmony export Profile */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "L", function() { return Restore; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "J", function() { return Restore; });
 /* unused harmony export Server */
 /* unused harmony export SettingsInputComposite */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "M", function() { return SettingsOverscan; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "K", function() { return SettingsOverscan; });
 /* unused harmony export Shart */
 /* unused harmony export ShieldCheck */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "N", function() { return Shrink; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "L", function() { return Shrink; });
 /* unused harmony export SmallArrowDown */
 /* unused harmony export SmallArrowUp */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "O", function() { return Sort; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "P", function() { return SortAsc; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "Q", function() { return SortDesc; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "M", function() { return Sort; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "N", function() { return SortAsc; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "O", function() { return SortDesc; });
 /* unused harmony export Speed */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "R", function() { return Spinner; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "S", function() { return Stars; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "P", function() { return Spinner; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "Q", function() { return Stars; });
 /* unused harmony export Stripe */
 /* unused harmony export Tablet */
 /* unused harmony export Trash */
 /* unused harmony export Twitter */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "T", function() { return Unarchive; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "R", function() { return Unarchive; });
 /* unused harmony export Unlock */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "U", function() { return Upload; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "V", function() { return User; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "W", function() { return UserCreated; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "S", function() { return Upload; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "T", function() { return User; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "U", function() { return UserCreated; });
 /* unused harmony export Users */
 /* unused harmony export VideoGame */
 /* unused harmony export Visa */
 /* unused harmony export VolumeUp */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "X", function() { return VpnKey; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "V", function() { return VpnKey; });
 /* unused harmony export Warning */
 /* unused harmony export Wifi */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "Y", function() { return Windows; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "W", function() { return Windows; });
 /* unused harmony export Youtube */
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return Add; });
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__("ERkP");
@@ -5604,7 +5630,7 @@ var Wifi = makeFontIcon('Wifi', 'icon-wifi');
 var Windows = makeFontIcon('Windows', 'icon-windows');
 var Youtube = makeFontIcon('Youtube', 'icon-youtube');
 var Add = makeFontIcon('Add', 'icon-add');
-/* harmony default export */ __webpack_exports__["Z"] = (Icon);
+/* harmony default export */ __webpack_exports__["X"] = (Icon);
 
 /***/ }),
 
@@ -5682,8 +5708,7 @@ function (_Store) {
     _this = _possibleConstructorReturn(this, (_getPrototypeOf2 = _getPrototypeOf(StoreDocs)).call.apply(_getPrototypeOf2, [this].concat(args)));
 
     _defineProperty(_assertThisInitialized(_this), "state", {
-      items: [],
-      active: -1
+      items: []
     });
 
     return _this;
@@ -5692,16 +5717,12 @@ function (_Store) {
   _createClass(StoreDocs, [{
     key: "add",
     value: function add(doc) {
-      var makeActive = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
-
-      var item = _objectSpread({}, doc, {
+      var item = _objectSpread({
         id: Math.floor(Math.random() * 100000)
-      });
+      }, doc);
 
-      var active = makeActive ? item.id : this.state.active;
       this.setState({
-        items: [].concat(_toConsumableArray(this.state.items), [item]),
-        active: active
+        items: [].concat(_toConsumableArray(this.state.items), [item])
       });
       return item;
     }
@@ -5753,6 +5774,13 @@ function (_Store) {
       });
     }
   }, {
+    key: "findByUrl",
+    value: function findByUrl(url) {
+      return this.state.items.find(function (i) {
+        return i.url === url;
+      });
+    }
+  }, {
     key: "getNodeDocuments",
     value: function getNodeDocuments() {
       return this.state.items.filter(function (doc) {
@@ -5770,15 +5798,6 @@ function (_Store) {
     key: "getDocuments",
     value: function getDocuments() {
       return this.state.items;
-    }
-  }, {
-    key: "getActive",
-    value: function getActive() {
-      var _this2 = this;
-
-      return this.state.items.find(function (item) {
-        return item.id === _this2.state.active;
-      });
     }
   }]);
 
@@ -5873,14 +5892,250 @@ var react_dom_default = /*#__PURE__*/__webpack_require__.n(react_dom);
 var react = __webpack_require__("ERkP");
 var react_default = /*#__PURE__*/__webpack_require__.n(react);
 
+// EXTERNAL MODULE: /web-apps/node_modules/history/esm/history.js + 2 modules
+var esm_history = __webpack_require__("11Hm");
+
 // EXTERNAL MODULE: /web-apps/node_modules/react-router/esm/react-router.js + 1 modules
 var react_router = __webpack_require__("zCf4");
 
-// EXTERNAL MODULE: /web-apps/node_modules/react-router-dom/esm/react-router-dom.js
-var react_router_dom = __webpack_require__("daAW");
+// EXTERNAL MODULE: ./src/config.ts
+var config = __webpack_require__("1wtQ");
+
+// CONCATENATED MODULE: ./src/services/history.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+var _inst = null;
+var history_history = {
+  original: function original() {
+    return _inst;
+  },
+  init: function init(history) {
+    _inst = history || Object(esm_history["a" /* createBrowserHistory */])();
+  },
+  replace: function replace(route) {
+    route = this.ensureKnownRoute(route);
+
+    _inst.replace(route);
+  },
+  push: function push(route) {
+    var withRefresh = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+    route = this.ensureKnownRoute(route);
+
+    if (withRefresh) {
+      this._pageRefresh(route);
+    } else {
+      _inst.push(route);
+    }
+  },
+  goBack: function goBack(number) {
+    this.original().goBack(number);
+  },
+  goToLogin: function goToLogin() {
+    var rememberLocation = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
+    var url = config["a" /* default */].routes.login;
+
+    if (rememberLocation) {
+      var redirectUrl = _inst.createHref(_inst.location);
+
+      redirectUrl = this.ensureKnownRoute(redirectUrl);
+      redirectUrl = this.ensureBaseUrl(redirectUrl);
+      url = "".concat(url, "?redirect_uri=").concat(redirectUrl);
+    }
+
+    this._pageRefresh(url);
+  },
+  createRedirect: function createRedirect(location
+  /* location || string */
+  ) {
+    var route = _inst.createHref(location);
+
+    var knownRoute = this.ensureKnownRoute(route);
+    return this.ensureBaseUrl(knownRoute);
+  },
+  getRedirectParam: function getRedirectParam() {
+    return getUrlParameter('redirect_uri', this.original().location.search);
+  },
+  ensureKnownRoute: function ensureKnownRoute(url) {
+    url = this._canPush(url) ? url : config["a" /* default */].routes.app;
+    return url;
+  },
+  ensureBaseUrl: function ensureBaseUrl(url) {
+    url = url || '';
+
+    if (url.indexOf(config["a" /* default */].baseUrl) !== 0) {
+      url = history_withBaseUrl(url);
+    }
+
+    return url;
+  },
+  getRoutes: function getRoutes() {
+    return Object.getOwnPropertyNames(config["a" /* default */].routes).map(function (p) {
+      return config["a" /* default */].routes[p];
+    });
+  },
+  getLocation: function getLocation() {
+    this.original().location;
+  },
+  _canPush: function _canPush(route) {
+    route = route || '';
+    var routes = this.getRoutes();
+
+    if (route.indexOf(config["a" /* default */].baseUrl) === 0) {
+      route = route.replace(config["a" /* default */].baseUrl, '');
+    }
+
+    return routes.some(history_match(route));
+  },
+  _pageRefresh: function _pageRefresh(route) {
+    window.location.href = this.ensureBaseUrl(route);
+  }
+};
+
+var history_withBaseUrl = function withBaseUrl(url) {
+  return config["a" /* default */].baseUrl + url;
+};
+
+var history_match = function match(url) {
+  return function (route) {
+    return Object(react_router["g" /* matchPath */])(url, {
+      path: route,
+      exact: true
+    });
+  };
+};
+
+/* harmony default export */ var services_history = (history_history);
+function getUrlParameter(name, path) {
+  path = path || window.location.search;
+  var query = path.substring(1);
+  var vars = query.split('&');
+
+  for (var i = 0; i < vars.length; i++) {
+    var pair = vars[i].split('=');
+
+    if (decodeURIComponent(pair[0]) == name) {
+      return decodeURIComponent(pair[1]);
+    }
+  }
+
+  return '';
+}
+// EXTERNAL MODULE: /web-apps/node_modules/react-hot-loader/root.js
+var root = __webpack_require__("20Iw");
 
 // EXTERNAL MODULE: /web-apps/node_modules/styled-components/dist/styled-components.browser.esm.js
 var styled_components_browser_esm = __webpack_require__("j/s1");
+
+// EXTERNAL MODULE: ../design/src/theme/utils/index.js + 1 modules
+var utils = __webpack_require__("WDIG");
+
+// EXTERNAL MODULE: ../design/src/assets/ubuntu/style.css
+var ubuntu_style = __webpack_require__("hogG");
+
+// CONCATENATED MODULE: ../design/src/ThemeProvider/globals.js
+function _templateObject() {
+  var data = _taggedTemplateLiteral(["\n\n  html {\n    font-family: ", ";\n    ", ";\n  }\n\n  body {\n    margin: 0;\n    background-color: ", ";\n    color: ", ";\n    padding: 0;\n  }\n\n  ", "\n"]);
+
+  _templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function _taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+var _getPlatform = Object(utils["a" /* getPlatform */])(),
+    isMac = _getPlatform.isMac;
+
+var GlobalStyle = Object(styled_components_browser_esm["b" /* createGlobalStyle */])(_templateObject(), function (props) {
+  return props.theme.font;
+}, function (props) {
+  return props.theme.typography.body1;
+}, function (props) {
+  return props.theme.colors.primary.dark;
+}, function (props) {
+  return props.theme.colors.light;
+}, function (_ref) {
+  var theme = _ref.theme;
+
+  // let mac platforms to handle the scrollbar styles
+  if (isMac) {
+    return;
+  } // custom scrollbars
+
+
+  return "\n      ::-webkit-scrollbar {\n        width: 8px;\n        height: 8px;\n      }\n\n      ::-webkit-scrollbar-track {\n        background: ".concat(theme.colors.primary.main, ";\n      }\n\n      ::-webkit-scrollbar-thumb {\n        background: #757575;\n      }\n\n      ::-webkit-scrollbar-corner {\n        background: rgba(0,0,0,0.5);\n      }\n\n      // remove dotted Firefox outline\n      button {\n        ::-moz-focus-inner {\n          border: 0;\n        }\n      }\n\n    ");
+});
+
+// EXTERNAL MODULE: ../design/src/theme/index.js + 4 modules
+var src_theme = __webpack_require__("wxQg");
+
+// CONCATENATED MODULE: ../design/src/ThemeProvider/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+var ThemeProvider_ThemeProvider = function ThemeProvider(props) {
+  return react_default.a.createElement(styled_components_browser_esm["a" /* ThemeProvider */], {
+    theme: props.theme || src_theme["a" /* default */]
+  }, react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(GlobalStyle, null), props.children));
+};
+
+/* harmony default export */ var src_ThemeProvider = (ThemeProvider_ThemeProvider);
+// EXTERNAL MODULE: /web-apps/node_modules/react-router-dom/esm/react-router-dom.js
+var react_router_dom = __webpack_require__("daAW");
 
 // EXTERNAL MODULE: /web-apps/node_modules/prop-types/index.js
 var prop_types = __webpack_require__("aWzz");
@@ -5888,9 +6143,6 @@ var prop_types_default = /*#__PURE__*/__webpack_require__.n(prop_types);
 
 // EXTERNAL MODULE: ../design/src/system/index.js + 2 modules
 var system = __webpack_require__("xM/J");
-
-// EXTERNAL MODULE: ../design/src/theme/index.js + 4 modules
-var src_theme = __webpack_require__("wxQg");
 
 // CONCATENATED MODULE: ../design/src/Alert/Alert.jsx
 function _extends() { _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends.apply(this, arguments); }
@@ -5901,17 +6153,17 @@ function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { va
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
-function _templateObject() {
-  var data = _taggedTemplateLiteral(["\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  border-radius: 8px;\n  box-sizing: border-box;\n  box-shadow: 0 0 2px rgba(0, 0, 0, .12),  0 2px 2px rgba(0, 0, 0, .24);\n  font-weight: ", ";\n  font-size: 16px;\n  margin: 0 0 16px 0;\n  min-height: 48px;\n  padding: 8px 16px;\n  overflow: auto;\n  word-break: break-all;\n  ", "\n  ", "\n  ", "\n\n  a {\n    color: ", ";\n  }\n"]);
+function Alert_templateObject() {
+  var data = Alert_taggedTemplateLiteral(["\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  border-radius: 8px;\n  box-sizing: border-box;\n  box-shadow: 0 0 2px rgba(0, 0, 0, .12),  0 2px 2px rgba(0, 0, 0, .24);\n  font-weight: ", ";\n  font-size: 16px;\n  margin: 0 0 16px 0;\n  min-height: 48px;\n  padding: 8px 16px;\n  overflow: auto;\n  word-break: break-all;\n  ", "\n  ", "\n  ", "\n\n  a {\n    color: ", ";\n  }\n"]);
 
-  _templateObject = function _templateObject() {
+  Alert_templateObject = function _templateObject() {
     return data;
   };
 
   return data;
 }
 
-function _taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+function Alert_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
 
 /*
 Copyright 2019 Gravitational, Inc.
@@ -5971,7 +6223,7 @@ var Alert_kind = function kind(props) {
   }
 };
 
-var Alert = styled_components_browser_esm["c" /* default */].div(_templateObject(), function (_ref) {
+var Alert = styled_components_browser_esm["c" /* default */].div(Alert_templateObject(), function (_ref) {
   var theme = _ref.theme;
   return theme.fontWeights.regular;
 }, system["u" /* space */], Alert_kind, system["x" /* width */], function (_ref2) {
@@ -6144,7 +6396,7 @@ var Button_Button = function Button(_ref) {
   }), children);
 };
 
-var Button_size = function size(props) {
+var size = function size(props) {
   switch (props.size) {
     case 'small':
       return {
@@ -6179,7 +6431,7 @@ var Button_themedStyles = function themedStyles(props) {
       color: colors.action.disabled
     }
   };
-  return Button_objectSpread({}, Button_kinds(props), {}, style, {}, Button_size(props), {}, Object(system["u" /* space */])(props), {}, Object(system["x" /* width */])(props), {}, block(props), {}, Object(system["l" /* height */])(props));
+  return Button_objectSpread({}, Button_kinds(props), {}, style, {}, size(props), {}, Object(system["u" /* space */])(props), {}, Object(system["x" /* width */])(props), {}, block(props), {}, Object(system["l" /* height */])(props));
 };
 
 var Button_kinds = function kinds(props) {
@@ -6342,10 +6594,10 @@ var sizeMap = {
     width: '48px'
   }
 };
-var ButtonIcon_defaultSize = sizeMap[1];
+var defaultSize = sizeMap[1];
 
 var ButtonIcon_size = function size(props) {
-  return sizeMap[props.size] || ButtonIcon_defaultSize;
+  return sizeMap[props.size] || defaultSize;
 };
 
 var fromProps = function fromProps(props) {
@@ -6370,7 +6622,7 @@ var ButtonIcon_ButtonIcon = function ButtonIcon(props) {
   }, rest), children);
 };
 
-var StyledButtonIcon = styled_components_browser_esm["c" /* default */].button(ButtonIcon_templateObject(), src_Icon["z" /* default */], function (_ref) {
+var StyledButtonIcon = styled_components_browser_esm["c" /* default */].button(ButtonIcon_templateObject(), src_Icon["x" /* default */], function (_ref) {
   var theme = _ref.theme;
   return theme.colors.action.disabled;
 }, fromProps, ButtonIcon_size, system["u" /* space */], system["f" /* color */]);
@@ -6715,7 +6967,7 @@ function CardSuccess(_ref) {
     my: 4,
     mx: "auto",
     textAlign: "center"
-  }, react_default.a.createElement(src_Icon["h" /* CircleCheck */], {
+  }, react_default.a.createElement(src_Icon["g" /* CircleCheck */], {
     mb: 3,
     fontSize: 64,
     color: "success"
@@ -6962,7 +7214,7 @@ Indicator_Indicator.propTypes = {
 Indicator_Indicator.defaultProps = {
   delay: 'short'
 };
-var StyledSpinner = Object(styled_components_browser_esm["c" /* default */])(src_Icon["v" /* Spinner */])(Indicator_templateObject(), function (_ref) {
+var StyledSpinner = Object(styled_components_browser_esm["c" /* default */])(src_Icon["t" /* Spinner */])(Indicator_templateObject(), function (_ref) {
   var _ref$fontSize = _ref.fontSize,
       fontSize = _ref$fontSize === void 0 ? '32px' : _ref$fontSize;
   return "\n    font-size: ".concat(fontSize, ";\n    height: ").concat(fontSize, ";\n    width: ").concat(fontSize, ";\n  ");
@@ -7743,7 +7995,7 @@ limitations under the License.
 
 
 
-var SideNavItemIcon = Object(styled_components_browser_esm["c" /* default */])(src_Icon["z" /* default */])(SideNavItemIcon_templateObject(), SideNav_SideNavItem, SideNav_SideNavItem);
+var SideNavItemIcon = Object(styled_components_browser_esm["c" /* default */])(src_Icon["x" /* default */])(SideNavItemIcon_templateObject(), SideNav_SideNavItem, SideNav_SideNavItem);
 SideNavItemIcon.displayName = 'SideNavItemIcon';
 SideNavItemIcon.defaultProps = {
   fontSize: 4,
@@ -7923,6 +8175,12 @@ function CardError_templateObject() {
 
 function CardError_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
 
+function CardError_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = CardError_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function CardError_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+function CardError_extends() { CardError_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return CardError_extends.apply(this, arguments); }
+
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -7942,17 +8200,15 @@ limitations under the License.
 
 
 
-function CardError(_ref) {
-  var children = _ref.children;
-  return react_default.a.createElement(src_Card, {
+function CardError(props) {
+  return react_default.a.createElement(src_Card, CardError_extends({
     color: "text.onLight",
     bg: "light",
     width: "540px",
     mx: "auto",
     my: 6,
-    p: 5,
-    children: children
-  });
+    p: 5
+  }, props));
 }
 
 var CardError_Header = function Header(props) {
@@ -7964,11 +8220,11 @@ var CardError_Header = function Header(props) {
   });
 };
 
-var CardError_Content = function Content(_ref2) {
-  var _ref2$message = _ref2.message,
-      message = _ref2$message === void 0 ? '' : _ref2$message,
-      _ref2$desc = _ref2.desc,
-      desc = _ref2$desc === void 0 ? null : _ref2$desc;
+var CardError_Content = function Content(_ref) {
+  var _ref$message = _ref.message,
+      message = _ref$message === void 0 ? '' : _ref$message,
+      _ref$desc = _ref.desc,
+      desc = _ref$desc === void 0 ? null : _ref$desc;
   var $errMessage = message ? react_default.a.createElement(src_Alert, {
     mt: 2,
     mb: 4
@@ -7976,27 +8232,31 @@ var CardError_Content = function Content(_ref2) {
   return react_default.a.createElement(react_default.a.Fragment, null, $errMessage, " ", desc);
 };
 
-var CardError_NotFound = function NotFound(_ref3) {
-  var message = _ref3.message;
-  return react_default.a.createElement(CardError, null, react_default.a.createElement(CardError_Header, null, "404 Not Found"), react_default.a.createElement(CardError_Content, {
+var CardError_NotFound = function NotFound(_ref2) {
+  var message = _ref2.message,
+      rest = CardError_objectWithoutProperties(_ref2, ["message"]);
+
+  return react_default.a.createElement(CardError, rest, react_default.a.createElement(CardError_Header, null, "404 Not Found"), react_default.a.createElement(CardError_Content, {
     message: message
   }));
 };
-var CardError_AccessDenied = function AccessDenied(_ref4) {
-  var message = _ref4.message;
+var CardError_AccessDenied = function AccessDenied(_ref3) {
+  var message = _ref3.message;
   return react_default.a.createElement(CardError, null, react_default.a.createElement(CardError_Header, null, "Access Denied"), react_default.a.createElement(CardError_Content, {
     message: message
   }));
 };
-var CardError_Failed = function Failed(_ref5) {
-  var message = _ref5.message;
-  return react_default.a.createElement(CardError, null, react_default.a.createElement(CardError_Header, null, "Internal Error"), react_default.a.createElement(CardError_Content, {
+var CardError_Failed = function Failed(_ref4) {
+  var message = _ref4.message,
+      rest = CardError_objectWithoutProperties(_ref4, ["message"]);
+
+  return react_default.a.createElement(CardError, rest, react_default.a.createElement(CardError_Header, null, "Internal Error"), react_default.a.createElement(CardError_Content, {
     message: message
   }));
 };
-var CardError_Offline = function Offline(_ref6) {
-  var message = _ref6.message,
-      title = _ref6.title;
+var CardError_Offline = function Offline(_ref5) {
+  var message = _ref5.message,
+      title = _ref5.title;
   return react_default.a.createElement(CardError, null, react_default.a.createElement(CardError_Header, null, title), react_default.a.createElement(CardError_Content, {
     desc: react_default.a.createElement(src_Text, {
       typography: "paragraph",
@@ -8008,9 +8268,9 @@ CardError_Offline.propTypes = {
   title: prop_types_default.a.string.isRequired,
   message: prop_types_default.a.string
 };
-var CardError_LoginFailed = function LoginFailed(_ref7) {
-  var message = _ref7.message,
-      loginUrl = _ref7.loginUrl;
+var CardError_LoginFailed = function LoginFailed(_ref6) {
+  var message = _ref6.message,
+      loginUrl = _ref6.loginUrl;
   return react_default.a.createElement(CardError, null, react_default.a.createElement(CardError_Header, null, "Login Unsuccessful"), react_default.a.createElement(CardError_Content, {
     message: message,
     desc: react_default.a.createElement(src_Text, {
@@ -8024,8 +8284,8 @@ CardError_LoginFailed.propTypes = {
   message: prop_types_default.a.string,
   loginUrl: prop_types_default.a.string.isRequired
 };
-var HyperLink = styled_components_browser_esm["c" /* default */].a(CardError_templateObject(), function (_ref8) {
-  var theme = _ref8.theme;
+var HyperLink = styled_components_browser_esm["c" /* default */].a(CardError_templateObject(), function (_ref7) {
+  var theme = _ref7.theme;
   return theme.colors.link;
 });
 // CONCATENATED MODULE: ../design/src/CardError/index.js
@@ -8048,8 +8308,6 @@ limitations under the License.
 /* harmony default export */ var src_CardError = (CardError);
 
 // CONCATENATED MODULE: ../shared/components/Router/Router.jsx
-function Router_extends() { Router_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Router_extends.apply(this, arguments); }
-
 function Router_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = Router_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
 
 function Router_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
@@ -8074,10 +8332,10 @@ limitations under the License.
 
 
 
-
 var Router_NoMatch = function NoMatch(_ref) {
   var location = _ref.location;
   return react_default.a.createElement(CardError_NotFound, {
+    alignSelf: "baseline",
     message: location.pathname
   });
 }; // Adds default not found handler
@@ -8090,22 +8348,14 @@ var Router_Switch = function Switch(props) {
 };
 
 var Router_Route = function Route(props) {
-  var Component = props.component,
-      _props$title = props.title,
+  var _props$title = props.title,
       title = _props$title === void 0 ? '' : _props$title,
-      rest = Router_objectWithoutProperties(props, ["component", "title"]);
+      rest = Router_objectWithoutProperties(props, ["title"]);
 
-  return react_default.a.createElement(react_router["b" /* Route */], Router_extends({
-    render: function render(props) {
-      if (!title) {
-        return react_default.a.createElement(Component, props);
-      }
-
-      return react_default.a.createElement(src_DocumentTitle, {
-        title: title
-      }, react_default.a.createElement(Component, props));
-    }
-  }, rest));
+  react_default.a.useEffect(function () {
+    document.title = title;
+  }, [title]);
+  return react_default.a.createElement(react_router["b" /* Route */], rest);
 };
 
 var NavLink = react_router_dom["b" /* NavLink */];
@@ -8129,239 +8379,6 @@ limitations under the License.
 */
 
 
-// EXTERNAL MODULE: /web-apps/node_modules/history/esm/history.js + 2 modules
-var esm_history = __webpack_require__("11Hm");
-
-// EXTERNAL MODULE: ./src/config.ts
-var config = __webpack_require__("1wtQ");
-
-// CONCATENATED MODULE: ./src/services/history.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-var _inst = null;
-var history_history = {
-  original: function original() {
-    return _inst;
-  },
-  init: function init(history) {
-    _inst = history || Object(esm_history["a" /* createBrowserHistory */])();
-  },
-  replace: function replace(route) {
-    route = this.ensureKnownRoute(route);
-
-    _inst.replace(route);
-  },
-  push: function push(route) {
-    var withRefresh = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
-    route = this.ensureKnownRoute(route);
-
-    if (withRefresh) {
-      this._pageRefresh(route);
-    } else {
-      _inst.push(route);
-    }
-  },
-  goBack: function goBack(number) {
-    this.original().goBack(number);
-  },
-  goToLogin: function goToLogin() {
-    var rememberLocation = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
-    var url = config["a" /* default */].routes.login;
-
-    if (rememberLocation) {
-      var redirectUrl = _inst.createHref(_inst.location);
-
-      redirectUrl = this.ensureKnownRoute(redirectUrl);
-      redirectUrl = this.ensureBaseUrl(redirectUrl);
-      url = "".concat(url, "?redirect_uri=").concat(redirectUrl);
-    }
-
-    this._pageRefresh(url);
-  },
-  createRedirect: function createRedirect(location
-  /* location || string */
-  ) {
-    var route = _inst.createHref(location);
-
-    var knownRoute = this.ensureKnownRoute(route);
-    return this.ensureBaseUrl(knownRoute);
-  },
-  getRedirectParam: function getRedirectParam() {
-    return getUrlParameter('redirect_uri', this.original().location.search);
-  },
-  ensureKnownRoute: function ensureKnownRoute(url) {
-    url = this._canPush(url) ? url : config["a" /* default */].routes.app;
-    return url;
-  },
-  ensureBaseUrl: function ensureBaseUrl(url) {
-    url = url || '';
-
-    if (url.indexOf(config["a" /* default */].baseUrl) !== 0) {
-      url = history_withBaseUrl(url);
-    }
-
-    return url;
-  },
-  getRoutes: function getRoutes() {
-    return Object.getOwnPropertyNames(config["a" /* default */].routes).map(function (p) {
-      return config["a" /* default */].routes[p];
-    });
-  },
-  getLocation: function getLocation() {
-    this.original().location;
-  },
-  _canPush: function _canPush(route) {
-    route = route || '';
-    var routes = this.getRoutes();
-
-    if (route.indexOf(config["a" /* default */].baseUrl) === 0) {
-      route = route.replace(config["a" /* default */].baseUrl, '');
-    }
-
-    return routes.some(history_match(route));
-  },
-  _pageRefresh: function _pageRefresh(route) {
-    window.location.href = this.ensureBaseUrl(route);
-  }
-};
-
-var history_withBaseUrl = function withBaseUrl(url) {
-  return config["a" /* default */].baseUrl + url;
-};
-
-var history_match = function match(url) {
-  return function (route) {
-    return Object(react_router["g" /* matchPath */])(url, {
-      path: route,
-      exact: true
-    });
-  };
-};
-
-/* harmony default export */ var services_history = (history_history);
-function getUrlParameter(name, path) {
-  path = path || window.location.search;
-  var query = path.substring(1);
-  var vars = query.split('&');
-
-  for (var i = 0; i < vars.length; i++) {
-    var pair = vars[i].split('=');
-
-    if (decodeURIComponent(pair[0]) == name) {
-      return decodeURIComponent(pair[1]);
-    }
-  }
-
-  return '';
-}
-// EXTERNAL MODULE: /web-apps/node_modules/react-hot-loader/root.js
-var root = __webpack_require__("20Iw");
-
-// EXTERNAL MODULE: ../design/src/theme/utils/index.js + 1 modules
-var utils = __webpack_require__("WDIG");
-
-// EXTERNAL MODULE: ../design/src/assets/ubuntu/style.css
-var ubuntu_style = __webpack_require__("hogG");
-
-// CONCATENATED MODULE: ../design/src/ThemeProvider/globals.js
-function globals_templateObject() {
-  var data = globals_taggedTemplateLiteral(["\n\n  html {\n    font-family: ", ";\n    ", ";\n  }\n\n  body {\n    margin: 0;\n    background-color: ", ";\n    color: ", ";\n    padding: 0;\n  }\n\n  ", "\n"]);
-
-  globals_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function globals_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-var _getPlatform = Object(utils["a" /* getPlatform */])(),
-    isMac = _getPlatform.isMac;
-
-var GlobalStyle = Object(styled_components_browser_esm["b" /* createGlobalStyle */])(globals_templateObject(), function (props) {
-  return props.theme.font;
-}, function (props) {
-  return props.theme.typography.body1;
-}, function (props) {
-  return props.theme.colors.primary.dark;
-}, function (props) {
-  return props.theme.colors.light;
-}, function (_ref) {
-  var theme = _ref.theme;
-
-  // let mac platforms to handle the scrollbar styles
-  if (isMac) {
-    return;
-  } // custom scrollbars
-
-
-  return "\n      ::-webkit-scrollbar {\n        width: 8px;\n        height: 8px;\n      }\n\n      ::-webkit-scrollbar-track {\n        background: ".concat(theme.colors.primary.main, ";\n      }\n\n      ::-webkit-scrollbar-thumb {\n        background: #757575;\n      }\n\n      ::-webkit-scrollbar-corner {\n        background: rgba(0,0,0,0.5);\n      }\n\n      // remove dotted Firefox outline\n      button {\n        ::-moz-focus-inner {\n          border: 0;\n        }\n      }\n\n    ");
-});
-
-// CONCATENATED MODULE: ../design/src/ThemeProvider/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-var ThemeProvider_ThemeProvider = function ThemeProvider(props) {
-  return react_default.a.createElement(styled_components_browser_esm["a" /* ThemeProvider */], {
-    theme: props.theme || src_theme["a" /* default */]
-  }, react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(GlobalStyle, null), props.children));
-};
-
-/* harmony default export */ var src_ThemeProvider = (ThemeProvider_ThemeProvider);
 // EXTERNAL MODULE: /web-apps/node_modules/hoist-non-react-statics/dist/hoist-non-react-statics.cjs.js
 var hoist_non_react_statics_cjs = __webpack_require__("oXkQ");
 var hoist_non_react_statics_cjs_default = /*#__PURE__*/__webpack_require__.n(hoist_non_react_statics_cjs);
@@ -8511,6 +8528,33 @@ function makeActions(setState) {
     error: error
   };
 }
+// CONCATENATED MODULE: ../shared/hooks/useFavicon.ts
+/*
+Copyright 2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+function useFavicon(path) {
+  react_default.a.useEffect(function () {
+    var link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+    link.href = path;
+    link.rel = 'shortcut icon';
+    link.type = 'image/x-icon';
+    document.getElementsByTagName('head')[0].appendChild(link);
+  }, [path]);
+  return null;
+}
 // CONCATENATED MODULE: ../shared/hooks/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
@@ -8527,6 +8571,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 
 
 
@@ -9743,9 +9788,7 @@ limitations under the License.
 
 
 
-var CatchError_logger = logger["a" /* default */].create('components/CatchError'); //function isDevMod() {
-//  return process.env.NODE_ENV === 'development';
-//}
+var CatchError_logger = logger["a" /* default */].create('components/CatchError');
 
 var CatchError_CatchError =
 /*#__PURE__*/
@@ -9782,6 +9825,7 @@ function (_React$Component) {
     value: function render() {
       if (this.state.error) {
         return react_default.a.createElement(CardError_Failed, {
+          alignSelf: 'baseline',
           message: this.state.error.message
         });
       }
@@ -9848,14 +9892,14 @@ function pickSsoIcon(type) {
     case TypeEnum.MICROSOFT:
       return {
         color: '#2672ec',
-        Icon: src_Icon["y" /* Windows */],
+        Icon: src_Icon["w" /* Windows */],
         type: type
       };
 
     case TypeEnum.GITHUB:
       return {
         color: '#444444',
-        Icon: src_Icon["o" /* Github */],
+        Icon: src_Icon["n" /* Github */],
         type: type
       };
 
@@ -9869,15 +9913,15 @@ function pickSsoIcon(type) {
     case TypeEnum.GOOGLE:
       return {
         color: '#dd4b39',
-        Icon: src_Icon["p" /* Google */],
+        Icon: src_Icon["o" /* Google */],
         type: type
       };
 
     default:
+      // provide default icon for unknown social providers
       return {
         color: '#f7931e',
-        Icon: src_Icon["u" /* OpenID */],
-        type: 'unknown sso'
+        Icon: src_Icon["s" /* OpenID */]
       };
   }
 }
@@ -9960,19 +10004,19 @@ limitations under the License.
 
 var ButtonSso_ButtonSso = function ButtonSso(props) {
   var ssoType = props.ssoType,
-      rest = ButtonSso_objectWithoutProperties(props, ["ssoType"]);
+      title = props.title,
+      rest = ButtonSso_objectWithoutProperties(props, ["ssoType", "title"]);
 
   var _pickSsoIcon = pickSsoIcon(ssoType),
       color = _pickSsoIcon.color,
-      Icon = _pickSsoIcon.Icon,
-      type = _pickSsoIcon.type;
+      Icon = _pickSsoIcon.Icon;
 
   return react_default.a.createElement(ButtonSso_StyledButton, ButtonSso_extends({
     color: color,
     block: true
   }, rest), Boolean(Icon) && react_default.a.createElement(IconBox, null, react_default.a.createElement(Icon, {
     "data-testid": "icon"
-  })), type);
+  })), title);
 };
 
 ButtonSso_ButtonSso.propTypes = {
@@ -9988,7 +10032,7 @@ var ButtonSso_StyledButton = Object(styled_components_browser_esm["c" /* default
   return props.color;
 }, function (props) {
   return Object(colorManipulator["a" /* fade */])(props.color, 0.4);
-}, src_Icon["z" /* default */]);
+}, src_Icon["x" /* default */]);
 var IconBox = styled_components_browser_esm["c" /* default */].div(_templateObject2());
 /* harmony default export */ var components_ButtonSso_ButtonSso = (ButtonSso_ButtonSso);
 
@@ -10041,20 +10085,20 @@ var SsoButtons_SsoBtnList = function SsoBtnList(_ref) {
     var name = item.name,
         type = item.type,
         displayName = item.displayName;
-    displayName = displayName || name;
-    var title = "".concat(prefixText, " ").concat(displayName);
-    var ssoType = guessProviderType(displayName, type);
+    var title = displayName || "".concat(prefixText, " ").concat(name);
+    var ssoType = guessProviderType(title, type);
     return react_default.a.createElement(components_ButtonSso, {
       key: index,
+      title: title,
       ssoType: ssoType,
-      mt: 5,
       disabled: isDisabled,
+      mt: 5,
       onClick: function onClick(e) {
         e.preventDefault();
 
         _onClick(item);
       }
-    }, title);
+    });
   });
 
   if ($btns.length === 0) {
@@ -10220,7 +10264,7 @@ function LoginForm(props) {
       borderBottomLeftRadius: "3",
       borderBottomRightRadius: "3"
     }, react_default.a.createElement(SsoButtons, {
-      prefixText: "Login with ",
+      prefixText: "Login with",
       isDisabled: isProcessing,
       providers: authProviders,
       onClick: onLoginWithSso
@@ -10899,10 +10943,12 @@ function TabItem_TabItem(_ref) {
       users = _ref.users,
       active = _ref.active,
       onClick = _ref.onClick,
-      onClose = _ref.onClose;
+      onClose = _ref.onClose,
+      style = _ref.style;
   return react_default.a.createElement(StyledTabItem, {
     alignItems: "center",
-    active: active
+    active: active,
+    style: style
   }, react_default.a.createElement(StyledTabButton, {
     onClick: onClick
   }, react_default.a.createElement(Tabs_JoinedUsers, {
@@ -10914,7 +10960,7 @@ function TabItem_TabItem(_ref) {
   }, name)), react_default.a.createElement(StyledCloseButton, {
     title: "Close",
     onClick: onClose
-  }, react_default.a.createElement(src_Icon["l" /* Close */], null)));
+  }, react_default.a.createElement(src_Icon["k" /* Close */], null)));
 }
 
 function TabItem_fromProps(_ref2) {
@@ -10948,7 +10994,7 @@ var StyledCloseButton = styled_components_browser_esm["c" /* default */].button(
 }, system["u" /* space */]);
 // CONCATENATED MODULE: ./src/console/components/Tabs/Tabs.jsx
 function Tabs_templateObject() {
-  var data = Tabs_taggedTemplateLiteral(["\n  min-height: 36px;\n  border-radius: 4px;\n  display: flex;\n  flex-wrap: no-wrap;\n  align-items: center;\n  flex-shrink: 0;\n  overflow: hidden;\n\n  > * {\n    flex: 1;\n    flex-basis: 0;\n    flex-grow: 1;\n  }\n  ", "\n"]);
+  var data = Tabs_taggedTemplateLiteral(["\n  min-height: 36px;\n  border-radius: 4px;\n  display: flex;\n  flex-wrap: no-wrap;\n  align-items: center;\n  flex-shrink: 0;\n  overflow: hidden;\n  ", "\n"]);
 
   Tabs_templateObject = function _templateObject() {
     return data;
@@ -10985,13 +11031,16 @@ limitations under the License.
 
 
 
+
 function Tabs_Tabs(_ref) {
   var items = _ref.items,
       parties = _ref.parties,
       activeTab = _ref.activeTab,
-      _onClose = _ref.onClose,
       onSelect = _ref.onSelect,
-      styledProps = Tabs_objectWithoutProperties(_ref, ["items", "parties", "activeTab", "onClose", "onSelect"]);
+      _onClose = _ref.onClose,
+      onNew = _ref.onNew,
+      disableNew = _ref.disableNew,
+      styledProps = Tabs_objectWithoutProperties(_ref, ["items", "parties", "activeTab", "onSelect", "onClose", "onNew", "disableNew"]);
 
   var $items = items.filter(function (i) {
     return i.kind !== 'blank';
@@ -11013,6 +11062,11 @@ function Tabs_Tabs(_ref) {
       },
       onClose: function onClose() {
         return _onClose(i);
+      },
+      style: {
+        flex: '1',
+        flexBasis: '0',
+        flexGrow: '1'
       }
     });
   });
@@ -11021,9 +11075,16 @@ function Tabs_Tabs(_ref) {
     bg: "primary.dark",
     typography: "h5",
     color: "text.secondary",
-    bold: true,
-    children: $items
-  }, styledProps));
+    bold: true
+  }, styledProps), $items, $items.length > 0 && react_default.a.createElement(src_ButtonIcon, {
+    ml: "2",
+    size: 0,
+    disabled: disableNew,
+    title: "New Tab",
+    onClick: onNew
+  }, react_default.a.createElement(src_Icon["a" /* Add */], {
+    fontSize: "16px"
+  })));
 }
 var StyledTabs = Object(styled_components_browser_esm["c" /* default */])(src_Box)(Tabs_templateObject(), system["w" /* typography */]);
 // CONCATENATED MODULE: ./src/console/components/Tabs/index.js
@@ -11142,7 +11203,7 @@ function (_React$Component) {
           return _this2.anchorEl = e;
         },
         onClick: this.onOpen
-      }), react_default.a.createElement(src_Icon["n" /* Ellipsis */], null)), react_default.a.createElement(Menu["c" /* default */], ActionMenu_extends({
+      }), react_default.a.createElement(src_Icon["m" /* Ellipsis */], null)), react_default.a.createElement(Menu["c" /* default */], ActionMenu_extends({
         menuListCss: ActionMenu_menuListCss,
         anchorEl: this.anchorEl,
         open: open,
@@ -11238,22 +11299,10 @@ limitations under the License.
 function ActionBar(_ref) {
   var _ref$clusterId = _ref.clusterId,
       clusterId = _ref$clusterId === void 0 ? '' : _ref$clusterId,
-      onLogout = _ref.onLogout,
-      _ref$disableAddTab = _ref.disableAddTab,
-      disableAddTab = _ref$disableAddTab === void 0 ? true : _ref$disableAddTab,
-      onNew = _ref.onNew;
+      onLogout = _ref.onLogout;
   return react_default.a.createElement(src_Flex, {
     alignItems: "center"
-  }, react_default.a.createElement(src_ButtonIcon, {
-    disabled: disableAddTab,
-    onClick: function onClick() {
-      return onNew(clusterId);
-    },
-    size: 0,
-    title: "New Tab"
-  }, react_default.a.createElement(src_Icon["a" /* Add */], {
-    fontSize: "16px"
-  })), react_default.a.createElement(components_ActionMenu, {
+  }, react_default.a.createElement(components_ActionMenu, {
     buttonIconProps: {
       mr: 2,
       ml: 2,
@@ -11267,7 +11316,7 @@ function ActionBar(_ref) {
     as: react_router_dom["b" /* NavLink */],
     to: config["a" /* default */].getClusterRoute(clusterId)
   }, react_default.a.createElement(Menu["b" /* MenuItemIcon */], {
-    as: src_Icon["q" /* Home */],
+    as: src_Icon["p" /* Home */],
     mr: "2"
   }), "Dashboard"), react_default.a.createElement(Menu["a" /* MenuItem */], null, react_default.a.createElement(Button_ButtonPrimary, {
     my: 3,
@@ -11384,7 +11433,7 @@ limitations under the License.
 function ButtonClose(props) {
   return react_default.a.createElement(ButtonClose_StyledCloseButton, ButtonClose_extends({
     title: "Close"
-  }, props), react_default.a.createElement(src_Icon["l" /* Close */], null));
+  }, props), react_default.a.createElement(src_Icon["k" /* Close */], null));
 }
 var ButtonClose_StyledCloseButton = styled_components_browser_esm["c" /* default */].button(ButtonClose_templateObject(), function (props) {
   return props.theme.colors.error;
@@ -12189,7 +12238,7 @@ var FileListItem_CancelButton = function CancelButton(_ref) {
   var onClick = _ref.onClick;
   return react_default.a.createElement(FileListItem_StyledButton, {
     onClick: onClick
-  }, react_default.a.createElement(src_Icon["l" /* Close */], null));
+  }, react_default.a.createElement(src_Icon["k" /* Close */], null));
 };
 
 function saveOnDisk(fileName, blob) {
@@ -13114,9 +13163,3052 @@ var TermEventEnum = {
 var StatusCodeEnum = {
   NORMAL: 1000
 };
+// CONCATENATED MODULE: ./src/lib/term/terminal.js
+function terminal_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function terminal_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function terminal_createClass(Constructor, protoProps, staticProps) { if (protoProps) terminal_defineProperties(Constructor.prototype, protoProps); if (staticProps) terminal_defineProperties(Constructor, staticProps); return Constructor; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+var terminal_logger = logger["a" /* default */].create('lib/term/terminal');
+var DISCONNECT_TXT = 'disconnected';
+var GRV_CLASS = 'grv-terminal';
+var WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
+/**
+ * TtyTerminal is a wrapper on top of xtermjs that handles connections
+ * and resize events
+ */
+
+var terminal_TtyTerminal =
+/*#__PURE__*/
+function () {
+  function TtyTerminal(tty, options) {
+    terminal_classCallCheck(this, TtyTerminal);
+
+    var el = options.el,
+        _options$scrollBack = options.scrollBack,
+        scrollBack = _options$scrollBack === void 0 ? 1000 : _options$scrollBack;
+    this._el = el;
+    this.tty = tty;
+    this.scrollBack = scrollBack;
+    this.rows = undefined;
+    this.cols = undefined;
+    this.term = null;
+    this.debouncedResize = Object(lodash["debounce"])(this._requestResize.bind(this), WINDOW_RESIZE_DEBOUNCE_DELAY);
+  }
+
+  terminal_createClass(TtyTerminal, [{
+    key: "open",
+    value: function open() {
+      var _this = this;
+
+      this._el.classList.add(GRV_CLASS); // render xtermjs with default values
+
+
+      this.term = new xterm_default.a({
+        cols: 15,
+        rows: 5,
+        scrollback: this.scrollBack,
+        cursorBlink: false
+      });
+      this.term.open(this._el); // fit xterm to available space
+
+      this.resize(this.cols, this.rows); // subscribe to xtermjs output
+
+      this.term.on('data', function (data) {
+        _this.tty.send(data);
+      }); // subscribe to window resize events
+
+      window.addEventListener('resize', this.debouncedResize); // subscribe to tty
+
+      this.tty.on(TermEventEnum.RESET, this.reset.bind(this));
+      this.tty.on(TermEventEnum.CONN_CLOSE, this._processClose.bind(this));
+      this.tty.on(TermEventEnum.DATA, this._processData.bind(this)); // subscribe tty resize event (used by session player)
+
+      this.tty.on(TermEventEnum.RESIZE, function (_ref) {
+        var h = _ref.h,
+            w = _ref.w;
+        return _this.resize(w, h);
+      });
+      this.connect();
+    }
+  }, {
+    key: "connect",
+    value: function connect() {
+      this.tty.connect(this.cols, this.rows);
+    }
+  }, {
+    key: "destroy",
+    value: function destroy() {
+      window.removeEventListener('resize', this.debouncedResize);
+
+      this._disconnect();
+
+      if (this.term !== null) {
+        this.term.destroy();
+        this.term.removeAllListeners();
+      }
+
+      this._el.innerHTML = null;
+
+      this._el.classList.remove(GRV_CLASS);
+    }
+  }, {
+    key: "reset",
+    value: function reset() {
+      this.term.reset();
+    }
+  }, {
+    key: "resize",
+    value: function resize(cols, rows) {
+      try {
+        // if not defined, use the size of the container
+        if (!Object(lodash["isInteger"])(cols) || !Object(lodash["isInteger"])(rows)) {
+          var dim = this._getDimensions();
+
+          cols = dim.cols;
+          rows = dim.rows;
+        }
+
+        if (cols === this.cols && rows === this.rows) {
+          return;
+        }
+
+        this.cols = cols;
+        this.rows = rows;
+        this.term.resize(cols, rows);
+      } catch (err) {
+        terminal_logger.error('xterm.resize', {
+          w: cols,
+          h: rows
+        }, err);
+        this.term.reset();
+      }
+    }
+  }, {
+    key: "_processData",
+    value: function _processData(data) {
+      try {
+        this.term.write(data);
+      } catch (err) {
+        terminal_logger.error('xterm.write', data, err); // recover xtermjs by resetting it
+
+        this.term.reset();
+      }
+    }
+  }, {
+    key: "_processClose",
+    value: function _processClose(e) {
+      var reason = e.reason;
+      var displayText = DISCONNECT_TXT;
+
+      if (reason) {
+        displayText = "".concat(displayText, ": ").concat(reason);
+      }
+
+      displayText = "\x1B[31m".concat(displayText, "\x1B[m\r\n");
+      this.term.write(displayText);
+    }
+  }, {
+    key: "_disconnect",
+    value: function _disconnect() {
+      this.tty.disconnect();
+      this.tty.removeAllListeners();
+    }
+  }, {
+    key: "_requestResize",
+    value: function _requestResize() {
+      var _this$_getDimensions = this._getDimensions(),
+          cols = _this$_getDimensions.cols,
+          rows = _this$_getDimensions.rows;
+
+      if (!Object(lodash["isInteger"])(cols) || !Object(lodash["isInteger"])(rows)) {
+        terminal_logger.info("unable to calculate terminal dimensions (container might be hidden) ".concat(cols, ":").concat(rows));
+        return;
+      } // ensure min size
+
+
+      var w = cols < 5 ? 5 : cols;
+      var h = rows < 5 ? 5 : rows;
+      this.resize(w, h);
+      this.tty.requestResize(w, h);
+    }
+  }, {
+    key: "_getDimensions",
+    value: function _getDimensions() {
+      var $terminal = this._el.querySelector('.terminal');
+
+      var $fakeRow = document.createElement('div');
+      $fakeRow.innerHTML = "<span>&nbsp;</span>";
+      $terminal.appendChild($fakeRow);
+      var fakeColHeight = $fakeRow.getBoundingClientRect().height;
+      var fakeColWidth = $fakeRow.firstElementChild.getBoundingClientRect().width;
+      var width = this._el.clientWidth;
+      var height = this._el.clientHeight;
+      var cols = Math.floor(width / fakeColWidth);
+      var rows = Math.floor(height / fakeColHeight);
+      $terminal.removeChild($fakeRow);
+      return {
+        cols: cols,
+        rows: rows
+      };
+    }
+  }]);
+
+  return TtyTerminal;
+}();
+
+/* harmony default export */ var terminal = (terminal_TtyTerminal);
+// CONCATENATED MODULE: ./src/console/components/StyledXterm/StyledXterm.jsx
+function StyledXterm_templateObject() {
+  var data = StyledXterm_taggedTemplateLiteral(["\n  height: 100%;\n  width: 100%;\n  font-size: 14px;\n  line-height: normal;\n  overflow: auto;\n  background-color: ", ";\n  .terminal {\n    font-family: ", ";\n    border: none;\n    font-size: inherit;\n    line-height: normal;\n    position: relative;\n  }\n  .terminal .xterm-viewport {\n    background-color: ", ";\n    overflow-y: hidden;\n  }\n  .terminal * {\n    font-weight: normal !important;\n  }\n"]);
+
+  StyledXterm_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function StyledXterm_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+var StyledXterm = Object(styled_components_browser_esm["c" /* default */])(src_Box)(StyledXterm_templateObject(), colors_colors.bgTerminal, function (props) {
+  return props.theme.fonts.mono;
+}, colors_colors.bgTerminal);
+/* harmony default export */ var StyledXterm_StyledXterm = (StyledXterm);
+// CONCATENATED MODULE: ./src/console/components/StyledXterm/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var components_StyledXterm = (StyledXterm_StyledXterm);
+// CONCATENATED MODULE: ./src/console/components/DocumentSsh/Terminal/Terminal.tsx
+function Terminal_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { Terminal_typeof = function _typeof(obj) { return typeof obj; }; } else { Terminal_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return Terminal_typeof(obj); }
+
+function Terminal_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function Terminal_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function Terminal_createClass(Constructor, protoProps, staticProps) { if (protoProps) Terminal_defineProperties(Constructor.prototype, protoProps); if (staticProps) Terminal_defineProperties(Constructor, staticProps); return Constructor; }
+
+function Terminal_possibleConstructorReturn(self, call) { if (call && (Terminal_typeof(call) === "object" || typeof call === "function")) { return call; } return Terminal_assertThisInitialized(self); }
+
+function Terminal_getPrototypeOf(o) { Terminal_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return Terminal_getPrototypeOf(o); }
+
+function Terminal_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function Terminal_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) Terminal_setPrototypeOf(subClass, superClass); }
+
+function Terminal_setPrototypeOf(o, p) { Terminal_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return Terminal_setPrototypeOf(o, p); }
+
+function Terminal_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+var Terminal_Terminal =
+/*#__PURE__*/
+function (_React$Component) {
+  Terminal_inherits(Terminal, _React$Component);
+
+  function Terminal() {
+    var _getPrototypeOf2;
+
+    var _this;
+
+    Terminal_classCallCheck(this, Terminal);
+
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+
+    _this = Terminal_possibleConstructorReturn(this, (_getPrototypeOf2 = Terminal_getPrototypeOf(Terminal)).call.apply(_getPrototypeOf2, [this].concat(args)));
+
+    Terminal_defineProperty(Terminal_assertThisInitialized(_this), "terminal", void 0);
+
+    Terminal_defineProperty(Terminal_assertThisInitialized(_this), "refTermContainer", react_default.a.createRef());
+
+    return _this;
+  }
+
+  Terminal_createClass(Terminal, [{
+    key: "componentDidMount",
+    value: function componentDidMount() {
+      this.terminal = new terminal(this.props.tty, {
+        el: this.refTermContainer.current
+      });
+      this.terminal.open();
+    }
+  }, {
+    key: "componentWillUnmount",
+    value: function componentWillUnmount() {
+      this.terminal.destroy();
+    }
+  }, {
+    key: "shouldComponentUpdate",
+    value: function shouldComponentUpdate() {
+      return false;
+    }
+  }, {
+    key: "focus",
+    value: function focus() {
+      this.terminal.term.focus();
+    }
+  }, {
+    key: "render",
+    value: function render() {
+      return react_default.a.createElement(src_Flex, {
+        flexDirection: "column",
+        height: "100%",
+        width: "100%",
+        px: "2",
+        style: {
+          overflow: 'auto'
+        }
+      }, react_default.a.createElement(components_StyledXterm, {
+        ref: this.refTermContainer
+      }));
+    }
+  }]);
+
+  return Terminal;
+}(react_default.a.Component);
+
+
+// CONCATENATED MODULE: ./src/console/components/DocumentSsh/Terminal/index.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var DocumentSsh_Terminal = (Terminal_Terminal);
+// CONCATENATED MODULE: ./src/console/components/Document/Document.tsx
+function Document_extends() { Document_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Document_extends.apply(this, arguments); }
+
+function Document_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = Document_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function Document_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+var Document_Document = function Document(_ref) {
+  var visible = _ref.visible,
+      children = _ref.children,
+      styles = Document_objectWithoutProperties(_ref, ["visible", "children"]);
+
+  return react_default.a.createElement(src_Flex, Document_extends({
+    flex: "1",
+    style: {
+      overflow: 'auto',
+      display: visible ? 'flex' : 'none',
+      position: 'relative'
+    }
+  }, styles), children);
+};
+
+/* harmony default export */ var components_Document_Document = (Document_Document);
+// CONCATENATED MODULE: ./src/console/components/Document/index.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var components_Document = (components_Document_Document);
+// CONCATENATED MODULE: ./src/console/components/DocumentSsh/useSshSession.ts
+function useSshSession_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
+
+function useSshSession_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { useSshSession_ownKeys(source, true).forEach(function (key) { useSshSession_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { useSshSession_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
+
+function useSshSession_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function useSshSession_slicedToArray(arr, i) { return useSshSession_arrayWithHoles(arr) || useSshSession_iterableToArrayLimit(arr, i) || useSshSession_nonIterableRest(); }
+
+function useSshSession_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function useSshSession_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function useSshSession_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
+/*
+Copyright 2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+function useSshSession(doc) {
+  var clusterId = doc.clusterId,
+      sid = doc.sid,
+      serverId = doc.serverId,
+      login = doc.login;
+  var ctx = useConsoleContext();
+  var ttyRef = react_default.a.useRef(null);
+
+  var _React$useState = react_default.a.useState(null),
+      _React$useState2 = useSshSession_slicedToArray(_React$useState, 2),
+      session = _React$useState2[0],
+      setSession = _React$useState2[1];
+
+  var _React$useState3 = react_default.a.useState(''),
+      _React$useState4 = useSshSession_slicedToArray(_React$useState3, 2),
+      statusText = _React$useState4[0],
+      setStatusText = _React$useState4[1];
+
+  var _React$useState5 = react_default.a.useState('loading'),
+      _React$useState6 = useSshSession_slicedToArray(_React$useState5, 2),
+      status = _React$useState6[0],
+      setStatus = _React$useState6[1];
+
+  react_default.a.useEffect(function () {
+    // initializes tty instances
+    function initTty(session) {
+      var tty = ctx.createTty(session); // subscribe to tty events to handle connect/disconnects events
+
+      tty.on(TermEventEnum.CLOSE, function () {
+        return handleTtyDisconnect(ctx, doc.id);
+      });
+      tty.on(TermEventEnum.CONN_CLOSE, function () {
+        return handleTtyDisconnect(ctx, doc.id);
+      });
+      tty.on('open', function () {
+        return handleTtyConnect(ctx, session, doc.id);
+      }); // assign tty reference so it can be passed down to xterm
+
+      ttyRef.current = tty;
+      setSession(session);
+      setStatus('initialized');
+    } // cleanup by unsubscribing from tty
+
+
+    function cleanup() {
+      ttyRef.current && ttyRef.current.removeAllListeners();
+    }
+
+    if (sid) {
+      // join existing session
+      ctx.fetchSshSession(clusterId, sid).then(initTty)["catch"](function (err) {
+        setStatus('notfound');
+        setStatusText(err.message);
+      });
+    } else {
+      // create new ssh session
+      ctx.createSshSession(clusterId, serverId, login).then(initTty)["catch"](function (err) {
+        setStatus('error');
+        setStatusText(err.message);
+      });
+    }
+
+    return cleanup;
+  }, []);
+  return {
+    tty: ttyRef.current,
+    status: status,
+    statusText: statusText,
+    session: session
+  };
+}
+
+function handleTtyConnect(ctx, session, docId) {
+  var hostname = session.hostname,
+      login = session.login,
+      sid = session.sid,
+      clusterId = session.clusterId;
+  var url = config["a" /* default */].getSshSessionRoute({
+    sid: sid,
+    clusterId: clusterId
+  });
+  ctx.updateSshDocument(docId, useSshSession_objectSpread({
+    title: "".concat(login, "@").concat(hostname),
+    status: 'connected',
+    url: url
+  }, session));
+  ctx.gotoTab({
+    url: url
+  });
+}
+
+function handleTtyDisconnect(ctx, docId) {
+  ctx.updateSshDocument(docId, {
+    status: 'disconnected'
+  });
+}
+// CONCATENATED MODULE: ./src/console/components/DocumentSsh/ActionBar/ActionBar.jsx
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+function ActionBar_ActionBar(_ref) {
+  var isConnected = _ref.isConnected,
+      isDownloadOpen = _ref.isDownloadOpen,
+      isUploadOpen = _ref.isUploadOpen,
+      onOpenDownload = _ref.onOpenDownload,
+      onOpenUpload = _ref.onOpenUpload;
+  var isScpDisabled = isDownloadOpen || isUploadOpen || !isConnected;
+  return react_default.a.createElement(src_Flex, {
+    flex: "0 0",
+    alignItems: "center",
+    height: "32px"
+  }, react_default.a.createElement(src_ButtonIcon, {
+    disabled: isScpDisabled,
+    size: 0,
+    title: "Download files",
+    onClick: onOpenDownload
+  }, react_default.a.createElement(src_Icon["l" /* Download */], {
+    fontSize: "16px"
+  })), react_default.a.createElement(src_ButtonIcon, {
+    disabled: isScpDisabled,
+    size: 0,
+    title: "Upload files",
+    onClick: onOpenUpload
+  }, react_default.a.createElement(src_Icon["u" /* Upload */], {
+    fontSize: "16px"
+  })));
+}
+// CONCATENATED MODULE: ./src/console/components/DocumentSsh/ActionBar/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var DocumentSsh_ActionBar = (ActionBar_ActionBar);
+// CONCATENATED MODULE: ./src/console/components/DocumentSsh/DocumentSsh.tsx
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+
+
+
+
+
+
+function DocumentSsh(_ref) {
+  var doc = _ref.doc,
+      visible = _ref.visible;
+  var refTerminal = Object(react["useRef"])();
+  var scpDialogs = useFileTransferDialogs();
+
+  var _useSshSession = useSshSession(doc),
+      tty = _useSshSession.tty,
+      status = _useSshSession.status,
+      statusText = _useSshSession.statusText;
+
+  function onOpenPlayer() {
+    var routeUrl = config["a" /* default */].getPlayerRoute(doc);
+    services_history.push(routeUrl);
+  }
+
+  function onCloseScpDialogs() {
+    scpDialogs.close();
+    refTerminal.current.terminal.term.focus();
+  }
+
+  return react_default.a.createElement(components_Document, {
+    visible: visible,
+    flexDirection: "column"
+  }, react_default.a.createElement(DocumentSsh_ActionBar, {
+    isConnected: doc.status === 'connected',
+    isDownloadOpen: scpDialogs.isDownloadOpen,
+    isUploadOpen: scpDialogs.isUploadOpen,
+    onOpenDownload: scpDialogs.openDownload,
+    onOpenUpload: scpDialogs.openUpload
+  }), status === 'loading' && react_default.a.createElement(src_Box, {
+    textAlign: "center",
+    m: 10
+  }, react_default.a.createElement(src_Indicator, null)), status === 'error' && react_default.a.createElement(Alert_Danger, {
+    mx: "10",
+    mt: "5"
+  }, "Connection error: ", statusText), status === 'notfound' && react_default.a.createElement(DocumentSsh_SidNotFoundError, {
+    onReplay: onOpenPlayer
+  }), status === 'initialized' && react_default.a.createElement(DocumentSsh_Terminal, {
+    tty: tty,
+    ref: refTerminal
+  }), react_default.a.createElement(components_FileTransfer, {
+    clusterId: doc.clusterId,
+    serverId: doc.serverId,
+    login: doc.login,
+    isDownloadOpen: scpDialogs.isDownloadOpen,
+    isUploadOpen: scpDialogs.isUploadOpen,
+    onClose: onCloseScpDialogs
+  }));
+}
+
+var DocumentSsh_SidNotFoundError = function SidNotFoundError(_ref2) {
+  var onReplay = _ref2.onReplay;
+  return react_default.a.createElement(src_Box, {
+    my: 10,
+    mx: "auto",
+    width: "300px"
+  }, react_default.a.createElement(src_Text, {
+    typography: "h4",
+    mb: "3",
+    textAlign: "center"
+  }, "The session is no longer active"), react_default.a.createElement(Button_ButtonSecondary, {
+    block: true,
+    secondary: true,
+    onClick: onReplay
+  }, react_default.a.createElement(src_Icon["i" /* CirclePlay */], {
+    fontSize: "5",
+    mr: "2"
+  }), " Replay Session"));
+};
+// CONCATENATED MODULE: ./src/console/components/DocumentSsh/index.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var components_DocumentSsh = (DocumentSsh);
+// CONCATENATED MODULE: ../design/src/utils/match.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+function match_match(obj, searchValue, _ref) {
+  var searchableProps = _ref.searchableProps,
+      cb = _ref.cb;
+  searchValue = searchValue.toLocaleUpperCase();
+  var propNames = searchableProps || Object.getOwnPropertyNames(obj);
+
+  for (var i = 0; i < propNames.length; i++) {
+    var targetValue = obj[propNames[i]];
+
+    if (targetValue) {
+      if (typeof cb === 'function') {
+        var result = cb(targetValue, searchValue, propNames[i]);
+
+        if (result === true) {
+          return result;
+        }
+      }
+
+      if (targetValue.toString().toLocaleUpperCase().indexOf(searchValue) !== -1) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+// CONCATENATED MODULE: ../design/src/DataTable/StyledTable.jsx
+function StyledTable_templateObject2() {
+  var data = StyledTable_taggedTemplateLiteral(["\n  background: ", ";\n  border-radius: 4px;\n  box-sizing: border-box;\n  margin: 48px auto;\n  max-width: 720px;\n  padding: 48px 32px;\n  text-align: center;\n\n  a {\n    color: ", ";\n  }\n"]);
+
+  StyledTable_templateObject2 = function _templateObject2() {
+    return data;
+  };
+
+  return data;
+}
+
+function StyledTable_templateObject() {
+  var data = StyledTable_taggedTemplateLiteral(["\n  background: ", ";\n  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);\n  border-collapse: collapse;\n  border-spacing: 0;\n  border-radius: 8px;\n  font-size: 12px;\n  width: 100%;\n\n  & > thead > tr > th,\n  & > tbody > tr > th,\n  & > tfoot > tr > th,\n  & > thead > tr > td,\n  & > tbody > tr > td,\n  & > tfoot > tr > td {\n    padding: 16px;\n    vertical-align: middle;\n  }\n\n  & > thead > tr > th {\n    background: ", ";\n    color: rgba(255, 255, 255, 0.56);\n    cursor: pointer;\n    font-size: 10px;\n    font-weight: 600;\n    padding: 4px 16px;\n    text-align: left;\n    text-transform: uppercase;\n\n    ", " {\n      font-weight: bold;\n      margin-left: 8px;\n    }\n  }\n\n  ", "\n  ", "\n"]);
+
+  StyledTable_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function StyledTable_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+var StyledTable = styled_components_browser_esm["c" /* default */].table(StyledTable_templateObject(), function (props) {
+  return props.theme.colors.primary.light;
+}, function (props) {
+  return props.theme.colors.primary.main;
+}, src_Icon["x" /* default */], system["u" /* space */], system["d" /* borderRadius */]);
+var StyledEmptyIndicator = styled_components_browser_esm["c" /* default */].div(StyledTable_templateObject2(), function (props) {
+  return props.theme.colors.primary.main;
+}, function (props) {
+  return props.theme.colors.link;
+});
+// EXTERNAL MODULE: ../design/src/Icon/Icon.jsx
+var Icon_Icon = __webpack_require__("oLQf");
+
+// CONCATENATED MODULE: ../design/src/DataTable/Table.jsx
+function Table_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { Table_typeof = function _typeof(obj) { return typeof obj; }; } else { Table_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return Table_typeof(obj); }
+
+function Table_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = Table_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function Table_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+function Table_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
+
+function Table_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { Table_ownKeys(source, true).forEach(function (key) { Table_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { Table_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
+
+function Table_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function Table_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function Table_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function Table_createClass(Constructor, protoProps, staticProps) { if (protoProps) Table_defineProperties(Constructor.prototype, protoProps); if (staticProps) Table_defineProperties(Constructor, staticProps); return Constructor; }
+
+function Table_possibleConstructorReturn(self, call) { if (call && (Table_typeof(call) === "object" || typeof call === "function")) { return call; } return Table_assertThisInitialized(self); }
+
+function Table_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function Table_getPrototypeOf(o) { Table_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return Table_getPrototypeOf(o); }
+
+function Table_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) Table_setPrototypeOf(subClass, superClass); }
+
+function Table_setPrototypeOf(o, p) { Table_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return Table_setPrototypeOf(o, p); }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+/**
+ * Sort indicator used by SortHeaderCell
+ */
+
+var SortTypes = {
+  ASC: 'ASC',
+  DESC: 'DESC'
+};
+
+var Table_Table =
+/*#__PURE__*/
+function (_React$Component) {
+  Table_inherits(Table, _React$Component);
+
+  function Table() {
+    Table_classCallCheck(this, Table);
+
+    return Table_possibleConstructorReturn(this, Table_getPrototypeOf(Table).apply(this, arguments));
+  }
+
+  Table_createClass(Table, [{
+    key: "renderHeader",
+    value: function renderHeader(children) {
+      var _this = this;
+
+      var data = this.props.data;
+      var cells = children.map(function (item, index) {
+        return _this.renderCell(item.props.header, Table_objectSpread({
+          index: index,
+          key: index,
+          isHeader: true,
+          data: data
+        }, item.props));
+      });
+      return react_default.a.createElement("thead", null, react_default.a.createElement("tr", null, cells));
+    }
+  }, {
+    key: "renderBody",
+    value: function renderBody(children) {
+      var _this2 = this;
+
+      var data = this.props.data;
+      var rows = [];
+
+      var _loop = function _loop(i) {
+        var cells = children.map(function (item, index) {
+          return _this2.renderCell(item.props.cell, Table_objectSpread({
+            rowIndex: i,
+            key: index,
+            isHeader: false,
+            data: data
+          }, item.props));
+        });
+        rows.push(react_default.a.createElement("tr", {
+          key: i
+        }, cells));
+      };
+
+      for (var i = 0; i < data.length; i++) {
+        _loop(i);
+      }
+
+      if (rows.length) {
+        return react_default.a.createElement("tbody", null, rows);
+      }
+
+      return react_default.a.createElement("tbody", null, react_default.a.createElement("tr", null, react_default.a.createElement("td", {
+        align: "center",
+        colSpan: children ? children.length : 0
+      }, react_default.a.createElement(src_Text, {
+        typography: "paragraph",
+        m: "6",
+        color: "text.primary"
+      }, "NO DATA AVAILABLE"))));
+    }
+  }, {
+    key: "renderCell",
+    value: function renderCell(cell, cellProps) {
+      if (react_default.a.isValidElement(cell)) {
+        return react_default.a.cloneElement(cell, cellProps);
+      }
+
+      return null;
+    }
+  }, {
+    key: "render",
+    value: function render() {
+      /* eslint-disable @typescript-eslint/no-unused-vars */
+      var _this$props = this.props,
+          data = _this$props.data,
+          children = _this$props.children,
+          rest = Table_objectWithoutProperties(_this$props, ["data", "children"]);
+      /* eslint-enable @typescript-eslint/no-unused-vars */
+
+
+      var columns = [];
+      react_default.a.Children.forEach(children, function (child) {
+        if (child == null) {
+          return;
+        }
+
+        if (!child.props._isColumn) {
+          throw 'Should be Column';
+        }
+
+        columns.push(child);
+      });
+      return react_default.a.createElement(StyledTable, rest, this.renderHeader(columns), this.renderBody(columns));
+    }
+  }]);
+
+  return Table;
+}(react_default.a.Component);
+
+var Table_SortIndicator = function SortIndicator(_ref) {
+  var sortDir = _ref.sortDir;
+
+  if (sortDir === SortTypes.DESC) {
+    return react_default.a.createElement(Icon_Icon["O" /* SortDesc */], null);
+  }
+
+  if (sortDir === SortTypes.ASC) {
+    return react_default.a.createElement(Icon_Icon["N" /* SortAsc */], null);
+  }
+
+  return react_default.a.createElement(Icon_Icon["M" /* Sort */], null);
+};
+
+var Column =
+/*#__PURE__*/
+function (_React$Component2) {
+  Table_inherits(Column, _React$Component2);
+
+  function Column() {
+    Table_classCallCheck(this, Column);
+
+    return Table_possibleConstructorReturn(this, Table_getPrototypeOf(Column).apply(this, arguments));
+  }
+
+  Table_createClass(Column, [{
+    key: "render",
+    value: function render() {
+      return null;
+    }
+  }]);
+
+  return Column;
+}(react_default.a.Component);
+
+Table_defineProperty(Column, "defaultProps", {
+  _isColumn: true
+});
+
+var Table_Cell = function Cell(props) {
+  var isHeader = props.isHeader,
+      children = props.children,
+      align = props.align,
+      style = props.style,
+      className = props.className;
+  var childProps = {
+    children: children,
+    align: align,
+    style: style,
+    className: className
+  };
+
+  if (isHeader) {
+    return react_default.a.createElement("th", childProps);
+  }
+
+  return react_default.a.createElement("td", childProps);
+};
+
+var Table_TextCell = function TextCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data,
+      columnKey = props.columnKey,
+      rest = Table_objectWithoutProperties(props, ["rowIndex", "data", "columnKey"]);
+
+  return react_default.a.createElement(Table_Cell, rest, data[rowIndex][columnKey]);
+};
+
+var Table_SortHeaderCell =
+/*#__PURE__*/
+function (_React$Component3) {
+  Table_inherits(SortHeaderCell, _React$Component3);
+
+  function SortHeaderCell() {
+    var _getPrototypeOf2;
+
+    var _this3;
+
+    Table_classCallCheck(this, SortHeaderCell);
+
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+
+    _this3 = Table_possibleConstructorReturn(this, (_getPrototypeOf2 = Table_getPrototypeOf(SortHeaderCell)).call.apply(_getPrototypeOf2, [this].concat(args)));
+
+    Table_defineProperty(Table_assertThisInitialized(_this3), "onSortChange", function (e) {
+      e.preventDefault();
+
+      if (!_this3.props.onSortChange) {
+        return;
+      }
+
+      var _this3$props = _this3.props,
+          sortDir = _this3$props.sortDir,
+          columnKey = _this3$props.columnKey; // default
+
+      var newDir = SortTypes.DESC;
+
+      if (sortDir) {
+        newDir = sortDir === SortTypes.DESC ? SortTypes.ASC : SortTypes.DESC;
+      }
+
+      _this3.props.onSortChange(columnKey, newDir);
+    });
+
+    return _this3;
+  }
+
+  Table_createClass(SortHeaderCell, [{
+    key: "render",
+    value: function render() {
+      var _this$props2 = this.props,
+          sortDir = _this$props2.sortDir,
+          title = _this$props2.title,
+          props = Table_objectWithoutProperties(_this$props2, ["sortDir", "title"]);
+
+      return react_default.a.createElement(Table_Cell, props, react_default.a.createElement("a", {
+        onClick: this.onSortChange
+      }, title, react_default.a.createElement(Table_SortIndicator, {
+        sortDir: sortDir
+      })));
+    }
+  }]);
+
+  return SortHeaderCell;
+}(react_default.a.Component);
+
+var Table_EmptyIndicator =
+/*#__PURE__*/
+function (_React$Component4) {
+  Table_inherits(EmptyIndicator, _React$Component4);
+
+  function EmptyIndicator() {
+    Table_classCallCheck(this, EmptyIndicator);
+
+    return Table_possibleConstructorReturn(this, Table_getPrototypeOf(EmptyIndicator).apply(this, arguments));
+  }
+
+  Table_createClass(EmptyIndicator, [{
+    key: "render",
+    value: function render() {
+      var _this$props3 = this.props,
+          children = _this$props3.children,
+          title = _this$props3.title;
+      var noResults = title || 'No Results Found';
+      return react_default.a.createElement(StyledEmptyIndicator, null, react_default.a.createElement(src_Text, {
+        typography: "h1",
+        color: "text.primary"
+      }, noResults), children && react_default.a.createElement(src_Text, {
+        typography: "paragraph",
+        mt: "3",
+        color: "text.primary"
+      }, children));
+    }
+  }]);
+
+  return EmptyIndicator;
+}(react_default.a.Component);
+
+
+// CONCATENATED MODULE: ../design/src/DataTable/Paged/Pager/Pager.jsx
+function Pager_templateObject() {
+  var data = Pager_taggedTemplateLiteral(["\n  button {\n    background: none;\n    border: none;\n    border-radius: 200px;\n    cursor: pointer;\n    height: 24px;\n    padding: 0;\n    margin: 0 2px;\n    min-width: 24px;\n    outline: none;\n    transition: all 0.3s;\n\n    &:hover {\n      background: ", ";\n      ", " {\n        opacity: 1;\n      }\n    }\n\n    ", " {\n      opacity: 0.56;\n      transition: all 0.3s;\n    }\n  }\n"]);
+
+  Pager_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function Pager_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+function Pager(props) {
+  var _props$startFrom = props.startFrom,
+      startFrom = _props$startFrom === void 0 ? 0 : _props$startFrom,
+      _props$endAt = props.endAt,
+      endAt = _props$endAt === void 0 ? 0 : _props$endAt,
+      _props$totalRows = props.totalRows,
+      totalRows = _props$totalRows === void 0 ? 0 : _props$totalRows,
+      onPrev = props.onPrev,
+      onNext = props.onNext;
+  var isPrevDisabled = totalRows === 0 || startFrom === 0;
+  var isNextDisabled = totalRows === 0 || endAt === totalRows;
+  return react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(src_Text, {
+    typography: "body2",
+    color: "primary.contrastText"
+  }, "SHOWING ", react_default.a.createElement("strong", null, startFrom + 1), " to ", react_default.a.createElement("strong", null, endAt), " of", ' ', react_default.a.createElement("strong", null, totalRows)), react_default.a.createElement(StyledButtons, null, react_default.a.createElement("button", {
+    onClick: onPrev,
+    title: "Previous Page",
+    disabled: isPrevDisabled
+  }, react_default.a.createElement(src_Icon["e" /* CircleArrowLeft */], {
+    fontSize: "3"
+  })), react_default.a.createElement("button", {
+    onClick: onNext,
+    title: "Next Page",
+    disabled: isNextDisabled
+  }, react_default.a.createElement(src_Icon["f" /* CircleArrowRight */], {
+    fontSize: "3"
+  }))));
+}
+Pager.propTypes = {
+  startFrom: prop_types_default.a.number.isRequired,
+  endAt: prop_types_default.a.number.isRequired,
+  totalRows: prop_types_default.a.number.isRequired,
+  onPrev: prop_types_default.a.func.isRequired,
+  onNext: prop_types_default.a.func.isRequired
+};
+var StyledButtons = styled_components_browser_esm["c" /* default */].div(Pager_templateObject(), function (props) {
+  return props.theme.colors.primary.main;
+}, src_Icon["x" /* default */], src_Icon["x" /* default */]);
+// CONCATENATED MODULE: ../design/src/DataTable/Paged/Pager/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var Paged_Pager = (Pager);
+
+// CONCATENATED MODULE: ../design/src/DataTable/Paged/usePages.jsx
+function usePages_slicedToArray(arr, i) { return usePages_arrayWithHoles(arr) || usePages_iterableToArrayLimit(arr, i) || usePages_nonIterableRest(); }
+
+function usePages_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function usePages_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function usePages_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+function usePages(_ref) {
+  var _ref$pageSize = _ref.pageSize,
+      pageSize = _ref$pageSize === void 0 ? 7 : _ref$pageSize,
+      _ref$data = _ref.data,
+      data = _ref$data === void 0 ? [] : _ref$data;
+
+  var _React$useState = react_default.a.useState(0),
+      _React$useState2 = usePages_slicedToArray(_React$useState, 2),
+      startFrom = _React$useState2[0],
+      setFrom = _React$useState2[1]; // set current page to 0 when data source length changes
+
+
+  react_default.a.useEffect(function () {
+    setFrom(0);
+  }, [data.length]);
+
+  function onPrev() {
+    var prevPage = startFrom - pageSize;
+
+    if (prevPage < 0) {
+      prevPage = 0;
+    }
+
+    setFrom(prevPage);
+  }
+
+  function onNext() {
+    var nextPage = startFrom + pageSize;
+
+    if (nextPage < data.length) {
+      nextPage = startFrom + pageSize;
+      setFrom(nextPage);
+    }
+  }
+
+  var totalRows = data.length;
+  var endAt = 0;
+  var pagedData = data;
+
+  if (data.length > 0) {
+    endAt = startFrom + (pageSize > data.length ? data.length : pageSize);
+
+    if (endAt > data.length) {
+      endAt = data.length;
+    }
+
+    pagedData = data.slice(startFrom, endAt);
+  }
+
+  return {
+    pageSize: pageSize,
+    startFrom: startFrom,
+    endAt: endAt,
+    totalRows: totalRows,
+    data: pagedData,
+    hasPages: totalRows > pageSize,
+    onNext: onNext,
+    onPrev: onPrev
+  };
+}
+// CONCATENATED MODULE: ../design/src/DataTable/Paged/Paged.jsx
+function Paged_templateObject() {
+  var data = Paged_taggedTemplateLiteral(["\n  padding: 16px;\n  display: flex;\n  height: 24px;\n  flex-shrink: 0;\n  align-items: center;\n  justify-content: space-between;\n  background: ", ";\n  ", "\n"]);
+
+  Paged_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function Paged_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+function Paged_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
+
+function Paged_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { Paged_ownKeys(source, true).forEach(function (key) { Paged_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { Paged_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
+
+function Paged_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function Paged_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = Paged_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function Paged_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+
+
+function TablePaged(props) {
+  var pageSize = props.pageSize,
+      data = props.data,
+      pagerPosition = props.pagerPosition,
+      rest = Paged_objectWithoutProperties(props, ["pageSize", "data", "pagerPosition"]);
+
+  var pagedState = usePages({
+    pageSize: pageSize,
+    data: data
+  });
+
+  var tableProps = Paged_objectSpread({}, rest, {
+    data: pagedState.data
+  });
+
+  var showTopPager = pagedState.hasPages && (!pagerPosition || pagerPosition === 'top');
+  var showBottomPager = pagedState.hasPages && (!pagerPosition || pagerPosition === 'bottom');
+
+  if (showBottomPager) {
+    tableProps.borderBottomRightRadius = '0';
+    tableProps.borderBottomLeftRadius = '0';
+  }
+
+  return react_default.a.createElement("div", null, showTopPager && react_default.a.createElement(StyledPanel, {
+    borderTopRightRadius: "3",
+    borderTopLeftRadius: "3"
+  }, react_default.a.createElement(Paged_Pager, pagedState)), react_default.a.createElement(Table_Table, tableProps), showBottomPager && react_default.a.createElement(StyledPanel, {
+    borderBottomRightRadius: "3",
+    borderBottomLeftRadius: "3"
+  }, react_default.a.createElement(Paged_Pager, pagedState)));
+}
+TablePaged.propTypes = {
+  pagerPosition: prop_types_default.a.oneOf(['top', 'bottom'])
+};
+var StyledPanel = styled_components_browser_esm["c" /* default */].nav(Paged_templateObject(), function (props) {
+  return props.theme.colors.primary.light;
+}, system["d" /* borderRadius */]);
+// CONCATENATED MODULE: ../design/src/DataTable/Paged/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+/* harmony default export */ var Paged = (TablePaged);
+
+// CONCATENATED MODULE: ../design/src/DataTable/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+// EXTERNAL MODULE: ../shared/components/MenuSshLogin/index.ts
+var MenuSshLogin = __webpack_require__("LwOW");
+
+// CONCATENATED MODULE: ./src/components/InputSearch/InputSearch.jsx
+function InputSearch_templateObject() {
+  var data = InputSearch_taggedTemplateLiteral(["\n  box-sizing: border-box;\n  min-width: 200px;\n  outline: none;\n  border: none;\n  border-radius: 200px;\n  height: 40px;\n  ", "\n  ", "\n  ", "\n  ", "\n"]);
+
+  InputSearch_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function InputSearch_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+function InputSearch_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { InputSearch_typeof = function _typeof(obj) { return typeof obj; }; } else { InputSearch_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return InputSearch_typeof(obj); }
+
+function InputSearch_extends() { InputSearch_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return InputSearch_extends.apply(this, arguments); }
+
+function InputSearch_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = InputSearch_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function InputSearch_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+function InputSearch_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function InputSearch_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function InputSearch_createClass(Constructor, protoProps, staticProps) { if (protoProps) InputSearch_defineProperties(Constructor.prototype, protoProps); if (staticProps) InputSearch_defineProperties(Constructor, staticProps); return Constructor; }
+
+function InputSearch_possibleConstructorReturn(self, call) { if (call && (InputSearch_typeof(call) === "object" || typeof call === "function")) { return call; } return InputSearch_assertThisInitialized(self); }
+
+function InputSearch_getPrototypeOf(o) { InputSearch_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return InputSearch_getPrototypeOf(o); }
+
+function InputSearch_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function InputSearch_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) InputSearch_setPrototypeOf(subClass, superClass); }
+
+function InputSearch_setPrototypeOf(o, p) { InputSearch_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return InputSearch_setPrototypeOf(o, p); }
+
+function InputSearch_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+var InputSearch_InputSearch =
+/*#__PURE__*/
+function (_React$Component) {
+  InputSearch_inherits(InputSearch, _React$Component);
+
+  function InputSearch(props) {
+    var _this;
+
+    InputSearch_classCallCheck(this, InputSearch);
+
+    _this = InputSearch_possibleConstructorReturn(this, InputSearch_getPrototypeOf(InputSearch).call(this, props));
+
+    InputSearch_defineProperty(InputSearch_assertThisInitialized(_this), "onBlur", function () {
+      _this.setState({
+        isFocused: false
+      });
+    });
+
+    InputSearch_defineProperty(InputSearch_assertThisInitialized(_this), "onFocus", function () {
+      _this.setState({
+        isFocused: true
+      });
+    });
+
+    InputSearch_defineProperty(InputSearch_assertThisInitialized(_this), "onChange", function (e) {
+      _this.setState({
+        value: e.target.value
+      });
+
+      _this.debouncedNotify();
+    });
+
+    _this.debouncedNotify = Object(lodash["debounce"])(function () {
+      _this.props.onChange(_this.state.value);
+    }, 200);
+    var value = props.value || '';
+    _this.state = {
+      value: value,
+      isFocused: false
+    };
+    return _this;
+  }
+
+  InputSearch_createClass(InputSearch, [{
+    key: "render",
+    value: function render() {
+      var _this$props = this.props,
+          _this$props$autoFocus = _this$props.autoFocus,
+          autoFocus = _this$props$autoFocus === void 0 ? false : _this$props$autoFocus,
+          rest = InputSearch_objectWithoutProperties(_this$props, ["autoFocus"]);
+
+      return react_default.a.createElement(InputSearch_Input, InputSearch_extends({
+        px: "3",
+        placeholder: "SEARCH...",
+        bg: "primary.dark",
+        color: "text.primary"
+      }, rest, {
+        autoFocus: autoFocus,
+        value: this.state.value,
+        onChange: this.onChange,
+        onFocus: this.onFocus,
+        onBlur: this.onBlur
+      }));
+    }
+  }]);
+
+  return InputSearch;
+}(react_default.a.Component);
+
+function InputSearch_fromTheme(props) {
+  return {
+    '&:focus, &:active': {
+      background: props.theme.colors.light,
+      boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, .24)',
+      color: props.theme.colors.text.onLight
+    },
+    '&::placeholder': {
+      color: props.theme.colors.subtle,
+      fontSize: props.theme.fontSizes[1]
+    }
+  };
+}
+
+var InputSearch_Input = styled_components_browser_esm["c" /* default */].input(InputSearch_templateObject(), InputSearch_fromTheme, system["u" /* space */], system["f" /* color */], system["l" /* height */]);
+/* harmony default export */ var components_InputSearch_InputSearch = (InputSearch_InputSearch);
+// CONCATENATED MODULE: ./src/components/InputSearch/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var components_InputSearch = (components_InputSearch_InputSearch);
+// CONCATENATED MODULE: ./src/components/NodeList/NodeList.tsx
+function NodeList_templateObject2() {
+  var data = NodeList_taggedTemplateLiteral(["\n  & > tbody > tr > td {\n    vertical-align: baseline;\n  }\n"]);
+
+  NodeList_templateObject2 = function _templateObject2() {
+    return data;
+  };
+
+  return data;
+}
+
+function NodeList_templateObject() {
+  var data = NodeList_taggedTemplateLiteral(["\n  box-sizing: content-box;\n  padding: 16px;\n  height: 24px;\n  background: ", ";\n  ", "\n  ", " {\n    margin-left: ", ";\n  }\n"]);
+
+  NodeList_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function NodeList_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+function NodeList_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = NodeList_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function NodeList_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+function NodeList_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function NodeList_slicedToArray(arr, i) { return NodeList_arrayWithHoles(arr) || NodeList_iterableToArrayLimit(arr, i) || NodeList_nonIterableRest(); }
+
+function NodeList_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function NodeList_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function NodeList_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+function NodeList(props) {
+  var _props$nodes = props.nodes,
+      nodes = _props$nodes === void 0 ? [] : _props$nodes,
+      onLoginMenuOpen = props.onLoginMenuOpen,
+      onLoginSelect = props.onLoginSelect,
+      _props$pageSize = props.pageSize,
+      pageSize = _props$pageSize === void 0 ? 100 : _props$pageSize;
+
+  var _React$useState = react_default.a.useState(''),
+      _React$useState2 = NodeList_slicedToArray(_React$useState, 2),
+      searchValue = _React$useState2[0],
+      setSearchValue = _React$useState2[1];
+
+  var _React$useState3 = react_default.a.useState({
+    hostname: SortTypes.ASC
+  }),
+      _React$useState4 = NodeList_slicedToArray(_React$useState3, 2),
+      sortDir = _React$useState4[0],
+      setSortDir = _React$useState4[1];
+
+  function sortAndFilter(search) {
+    var filtered = nodes.filter(function (obj) {
+      return match_match(obj, search, {
+        searchableProps: ['hostname', 'addr', 'tags', 'tunnel'],
+        cb: searchAndFilterCb
+      });
+    });
+    var columnKey = Object.getOwnPropertyNames(sortDir)[0];
+    var sorted = Object(lodash["sortBy"])(filtered, columnKey);
+
+    if (sortDir[columnKey] === SortTypes.ASC) {
+      return sorted.reverse();
+    }
+
+    return sorted;
+  }
+
+  function onSortChange(columnKey, sortDir) {
+    setSortDir(NodeList_defineProperty({}, columnKey, sortDir));
+  }
+
+  function onSearchChange(value) {
+    setSearchValue(value);
+  }
+
+  var data = sortAndFilter(searchValue);
+  var pagging = usePages({
+    pageSize: pageSize,
+    data: data
+  });
+  return react_default.a.createElement("div", {
+    style: {
+      width: '100%'
+    }
+  }, react_default.a.createElement(NodeList_StyledPanel, {
+    alignItems: "center",
+    borderTopRightRadius: "3",
+    borderTopLeftRadius: "3",
+    justifyContent: "space-between"
+  }, react_default.a.createElement(components_InputSearch, {
+    height: "30px",
+    mr: "3",
+    onChange: onSearchChange
+  }), pagging.hasPages && react_default.a.createElement(src_Flex, {
+    alignItems: "center",
+    justifyContent: "flex-end"
+  }, react_default.a.createElement(Paged_Pager, pagging))), react_default.a.createElement(NodeList_StyledTable, {
+    data: pagging.data
+  }, react_default.a.createElement(Column, {
+    header: react_default.a.createElement(Table_Cell, null, "Login as"),
+    cell: react_default.a.createElement(NodeList_LoginCell, {
+      onOpen: onLoginMenuOpen,
+      onSelect: onLoginSelect
+    })
+  }), react_default.a.createElement(Column, {
+    columnKey: "hostname",
+    header: react_default.a.createElement(Table_SortHeaderCell, {
+      sortDir: sortDir.hostname,
+      onSortChange: onSortChange,
+      title: "Hostname"
+    }),
+    cell: react_default.a.createElement(Table_TextCell, null)
+  }), react_default.a.createElement(Column, {
+    columnKey: "addr",
+    header: react_default.a.createElement(Table_SortHeaderCell, {
+      sortDir: sortDir.addr,
+      onSortChange: onSortChange,
+      title: "Address"
+    }),
+    cell: react_default.a.createElement(AddressCell, null)
+  }), react_default.a.createElement(Column, {
+    header: react_default.a.createElement(Table_Cell, null, "Labels"),
+    cell: react_default.a.createElement(LabelCell, null)
+  })));
+}
+
+function searchAndFilterCb(targetValue, searchValue, propName) {
+  if (propName === 'tunnel') {
+    return 'TUNNEL'.indexOf(searchValue) !== -1;
+  }
+
+  if (propName === 'tags') {
+    return targetValue.some(function (item) {
+      var name = item.name,
+          value = item.value;
+      return name.toLocaleUpperCase().indexOf(searchValue) !== -1 || value.toLocaleUpperCase().indexOf(searchValue) !== -1;
+    });
+  }
+}
+
+var NodeList_LoginCell = function LoginCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data,
+      onOpen = props.onOpen,
+      onSelect = props.onSelect;
+  var _ref = data[rowIndex],
+      hostname = _ref.hostname,
+      id = _ref.id;
+  var serverId = hostname || id;
+
+  function handleOnOpen() {
+    return onOpen(serverId);
+  }
+
+  function handleOnSelect(e, login) {
+    if (!onSelect) {
+      return [];
+    }
+
+    return onSelect(e, login, serverId);
+  }
+
+  return react_default.a.createElement(Table_Cell, null, react_default.a.createElement(MenuSshLogin["default"], {
+    onOpen: handleOnOpen,
+    onSelect: handleOnSelect
+  }));
+};
+
+function LabelCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
+  var tags = data[rowIndex].tags;
+  var $labels = tags.map(function (_ref2) {
+    var name = _ref2.name,
+        value = _ref2.value;
+    return react_default.a.createElement(src_Label, {
+      mb: "1",
+      mr: "1",
+      key: name,
+      kind: "secondary"
+    }, "".concat(name, ": ").concat(value));
+  });
+  return react_default.a.createElement(Table_Cell, null, $labels);
+}
+
+function AddressCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data,
+      rest = NodeList_objectWithoutProperties(props, ["rowIndex", "data"]);
+
+  var _ref3 = data[rowIndex],
+      addr = _ref3.addr,
+      tunnel = _ref3.tunnel;
+  return react_default.a.createElement(Table_Cell, rest, tunnel ? renderTunnel() : addr);
+}
+
+function renderTunnel() {
+  return react_default.a.createElement("span", {
+    style: {
+      cursor: 'default'
+    },
+    title: "This node is connected to cluster through reverse tunnel"
+  }, "\u27F5 tunnel");
+}
+
+var NodeList_StyledPanel = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(NodeList_templateObject(), function (props) {
+  return props.theme.colors.primary.light;
+}, system["d" /* borderRadius */], StyledButtons, function (props) {
+  return "".concat(props.theme.space[3], "px");
+});
+var NodeList_StyledTable = Object(styled_components_browser_esm["c" /* default */])(Table_Table)(NodeList_templateObject2());
+/* harmony default export */ var NodeList_NodeList = (NodeList);
+// CONCATENATED MODULE: ./src/components/NodeList/index.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var components_NodeList = (NodeList_NodeList);
+// CONCATENATED MODULE: ./src/console/components/DocumentNodes/QuickLaunch/QuickLaunch.jsx
+function QuickLaunch_extends() { QuickLaunch_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return QuickLaunch_extends.apply(this, arguments); }
+
+function QuickLaunch_slicedToArray(arr, i) { return QuickLaunch_arrayWithHoles(arr) || QuickLaunch_iterableToArrayLimit(arr, i) || QuickLaunch_nonIterableRest(); }
+
+function QuickLaunch_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function QuickLaunch_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function QuickLaunch_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
+function QuickLaunch_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = QuickLaunch_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function QuickLaunch_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+function FieldInputSsh(_ref) {
+  var onPress = _ref.onPress,
+      boxProps = QuickLaunch_objectWithoutProperties(_ref, ["onPress"]);
+
+  var _React$useState = react_default.a.useState(false),
+      _React$useState2 = QuickLaunch_slicedToArray(_React$useState, 2),
+      hasError = _React$useState2[0],
+      setHasError = _React$useState2[1];
+
+  function onKeyPress(e) {
+    var value = e.target.value;
+
+    if ((e.key === 'Enter' || e.type === 'click') && value) {
+      var valid = check(value);
+      setHasError(!valid);
+
+      if (valid) {
+        var _value$split = value.split('@'),
+            _value$split2 = QuickLaunch_slicedToArray(_value$split, 2),
+            login = _value$split2[0],
+            serverId = _value$split2[1];
+
+        onPress(login, serverId);
+      }
+    } else {
+      setHasError(false);
+    }
+  }
+
+  var labelText = hasError ? 'Invalid' : 'Quick Launch';
+  return react_default.a.createElement(src_Box, QuickLaunch_extends({
+    mb: "4"
+  }, boxProps), react_default.a.createElement(src_LabelInput, {
+    hasError: hasError
+  }, labelText), react_default.a.createElement(src_Input, {
+    hasError: hasError,
+    height: "34px",
+    width: "240px",
+    bg: "primary.dark",
+    color: "text.primary",
+    placeholder: "login@host",
+    onKeyPress: onKeyPress
+  }));
+}
+var SSH_STR_REGEX = /(^\w+@(\S+)$)/;
+
+var check = function check(value) {
+  var match = SSH_STR_REGEX.exec(value);
+  return match !== null;
+};
+// CONCATENATED MODULE: ./src/console/components/DocumentNodes/QuickLaunch/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var QuickLaunch = (FieldInputSsh);
+// EXTERNAL MODULE: /web-apps/node_modules/react-select/dist/react-select.browser.esm.js + 1 modules
+var react_select_browser_esm = __webpack_require__("BGTi");
+
+// EXTERNAL MODULE: /web-apps/node_modules/react-select/async/dist/react-select.browser.esm.js
+var dist_react_select_browser_esm = __webpack_require__("ogNk");
+
+// CONCATENATED MODULE: ../shared/components/Select/Select.jsx
+function Select_templateObject() {
+  var data = Select_taggedTemplateLiteral(["\n  .react-select__control,\n  .react-select__control--is-focused {\n    min-height: 40px;\n    ", "\n  }\n\n  .react-select-container {\n    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.24);\n    box-sizing: border-box;\n    border: none;\n    display: block;\n    font-size: 16px;\n    outline: none;\n    width: 100%;\n    color: rgba(0, 0, 0, 0.87);\n    background-color: #ffffff;\n    margin-bottom: 0px;\n    border-radius: 4px;\n  }\n\n  .react-select__menu {\n    margin-top: 0px;\n  }\n\n  react-select__menu-list {\n  }\n\n  .react-select__indicator-separator {\n    display: none;\n  }\n\n  .react-select__control {\n    &:hover {\n      border-color: transparent;\n    }\n  }\n\n  .react-select__control--is-focused {\n    background-color: transparent;\n    border-color: transparent;\n    border-radius: 4px;\n    border-style: solid;\n    border-width: 1px;\n    box-shadow: none;\n  }\n\n  .react-select__option--is-selected {\n    //background-color: white;\n    background-color: #cfd8dc;\n    color: inherit;\n  }\n"]);
+
+  Select_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function Select_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+function Select_extends() { Select_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Select_extends.apply(this, arguments); }
+
+function Select_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = Select_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function Select_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+function Select(_ref) {
+  var hasError = _ref.hasError,
+      props = Select_objectWithoutProperties(_ref, ["hasError"]);
+
+  return react_default.a.createElement(StyledSelect, {
+    hasError: hasError
+  }, react_default.a.createElement(react_select_browser_esm["a" /* default */], Select_extends({
+    className: "react-select-container",
+    classNamePrefix: "react-select",
+    clearable: false,
+    placeholder: "Select..."
+  }, props)));
+}
+function SelectAsync(_ref2) {
+  var hasError = _ref2.hasError,
+      props = Select_objectWithoutProperties(_ref2, ["hasError"]);
+
+  return react_default.a.createElement(StyledSelect, {
+    hasError: hasError
+  }, react_default.a.createElement(dist_react_select_browser_esm["a" /* default */], Select_extends({
+    className: "react-select-container",
+    classNamePrefix: "react-select",
+    clearable: false,
+    placeholder: "Select..."
+  }, props)));
+}
+var StyledSelect = styled_components_browser_esm["c" /* default */].div(Select_templateObject(), function (_ref3) {
+  var hasError = _ref3.hasError,
+      theme = _ref3.theme;
+
+  if (hasError) {
+    return {
+      borderRadius: 'inherit !important',
+      borderWidth: '2px !important',
+      border: "2px solid ".concat(theme.colors.error.main, "  !important")
+    };
+  }
+});
+// CONCATENATED MODULE: ../shared/components/Select/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var components_Select = (Select);
+
+// CONCATENATED MODULE: ./src/console/components/DocumentNodes/ClusterSelector/ClusterSelector.tsx
+function ClusterSelector_extends() { ClusterSelector_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return ClusterSelector_extends.apply(this, arguments); }
+
+function ClusterSelector_slicedToArray(arr, i) { return ClusterSelector_arrayWithHoles(arr) || ClusterSelector_iterableToArrayLimit(arr, i) || ClusterSelector_nonIterableRest(); }
+
+function ClusterSelector_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function ClusterSelector_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function ClusterSelector_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
+function ClusterSelector_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = ClusterSelector_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function ClusterSelector_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+function ClusterSelector(_ref) {
+  var value = _ref.value,
+      onChange = _ref.onChange,
+      _ref$defaultMenuIsOpe = _ref.defaultMenuIsOpen,
+      defaultMenuIsOpen = _ref$defaultMenuIsOpe === void 0 ? false : _ref$defaultMenuIsOpe,
+      styles = ClusterSelector_objectWithoutProperties(_ref, ["value", "onChange", "defaultMenuIsOpen"]);
+
+  var consoleCtx = useConsoleContext();
+
+  var _React$useState = react_default.a.useState(null),
+      _React$useState2 = ClusterSelector_slicedToArray(_React$useState, 2),
+      errorMessage = _React$useState2[0],
+      setError = _React$useState2[1];
+
+  var _React$useState3 = react_default.a.useState([]),
+      _React$useState4 = ClusterSelector_slicedToArray(_React$useState3, 2),
+      options = _React$useState4[0],
+      setOptions = _React$useState4[1];
+
+  var selectedOption = {
+    value: value,
+    label: value
+  };
+
+  function onChangeOption(option) {
+    onChange(option.value);
+  }
+
+  function onLoadOptions(inputValue) {
+    var promise = Promise.resolve(options);
+
+    if (options.length === 0) {
+      promise = consoleCtx.fetchClusters().then(function (clusters) {
+        return clusters.map(function (o) {
+          return {
+            value: o.clusterId,
+            label: o.clusterId
+          };
+        });
+      }).then(function (options) {
+        setOptions(options);
+        return options;
+      });
+    }
+
+    return promise.then(function (options) {
+      return filterOptions(inputValue, options);
+    })["catch"](function (err) {
+      setError(err.message);
+    });
+  }
+
+  function getNoOptionsMessage() {
+    if (errorMessage) {
+      return "Error: ".concat(errorMessage);
+    }
+
+    return 'No leaf clusters found';
+  }
+
+  return react_default.a.createElement(src_Box, ClusterSelector_extends({
+    mb: "4"
+  }, styles), react_default.a.createElement(src_LabelInput, null, " Clusters "), react_default.a.createElement(ClusterSelector_StyledSelect, null, react_default.a.createElement(SelectAsync, {
+    noOptionsMessage: getNoOptionsMessage,
+    value: selectedOption,
+    onChange: onChangeOption,
+    loadOptions: onLoadOptions,
+    defaultMenuIsOpen: defaultMenuIsOpen,
+    hasError: false,
+    width: 400,
+    maxMenuHeight: 300,
+    isSearchable: true,
+    isSimpleValue: false,
+    clearable: false,
+    defaultOptions: true,
+    cacheOptions: true
+  })));
+}
+
+function filterOptions() {
+  var value = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '';
+  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+  value = value.toLocaleLowerCase();
+  return options.filter(function (o) {
+    return o.value.toLocaleLowerCase().indexOf(value) !== -1;
+  });
+}
+
+var ClusterSelector_StyledSelect = Object(styled_components_browser_esm["c" /* default */])(src_Box)(function (_ref2) {
+  var theme = _ref2.theme;
+  return "\n  .react-select__control,\n  .react-select__control--is-focused {\n    min-height: 40px;\n  }\n\n  .react-select__menu {\n    margin-top: 0px;\n  }\n\n  react-select__menu-list {\n  }\n\n  .react-select-container{\n    background-color: transparent;\n\n  }\n\n  .react-select__indicator-separator {\n    display: none;\n  }\n\n  .react-select__control--is-focused {\n    background-color: white;\n    border-color: transparent;\n    border-radius: 4px;\n    border-style: solid;\n    border-width: 1px;\n    box-shadow: none;\n\n    border-color: ".concat(theme.colors.text.primary, ";\n    .react-select__dropdown-indicator{\n      color: ").concat(theme.colors.text.primary, ";\n    }\n  }\n\n  .react-select__option--is-selected {\n    background-color: #cfd8dc;\n    color: inherit;\n  }\n\n  .react-select__single-value{\n    color: white;\n  }\n\n  .react-select__dropdown-indicator{\n    color: ").concat(theme.colors.primary.dark, ";\n  }\n\n  .react-select__input {\n    color: white;\n    font-size: 16px;\n  }\n\n  .react-select__control {\n    border-radius: 4px;\n    border-color: ").concat(theme.colors.primary.dark, ";\n    background-color: ").concat(theme.colors.primary.main, ";\n    color: ").concat(theme.colors.text.secondary, ";\n    &:hover {\n      border-color: ").concat(theme.colors.text.primary, ";\n      .react-select__dropdown-indicator{\n        color: ").concat(theme.colors.text.primary, ";\n      }\n    }\n  }\n\n  .react-select__option--is-selected {\n    background-color: #cfd8dc;\n    color: inherit;\n  }\n\n  .react-select__menu {\n    border-top-left-radius: 0;\n    border-top-right-radius: 0;\n  }\n");
+});
+// CONCATENATED MODULE: ./src/console/components/DocumentNodes/ClusterSelector/index.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var DocumentNodes_ClusterSelector = (ClusterSelector);
+// CONCATENATED MODULE: ./src/console/components/DocumentNodes/useNodes.ts
+function useNodes_slicedToArray(arr, i) { return useNodes_arrayWithHoles(arr) || useNodes_iterableToArrayLimit(arr, i) || useNodes_nonIterableRest(); }
+
+function useNodes_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function useNodes_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function useNodes_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+function useNodes(_ref) {
+  var clusterId = _ref.clusterId,
+      id = _ref.id;
+  var consoleCtx = useConsoleContext();
+
+  var _useAttempt = useAttempt({
+    isProcessing: true
+  }),
+      _useAttempt2 = useNodes_slicedToArray(_useAttempt, 2),
+      attempt = _useAttempt2[0],
+      attemptActions = _useAttempt2[1];
+
+  var _useState = Object(react["useState"])({
+    nodes: [],
+    logins: []
+  }),
+      _useState2 = useNodes_slicedToArray(_useState, 2),
+      state = _useState2[0],
+      setState = _useState2[1];
+
+  Object(react["useEffect"])(function () {
+    attemptActions["do"](function () {
+      return consoleCtx.fetchNodes(clusterId).then(function (_ref2) {
+        var nodes = _ref2.nodes,
+            logins = _ref2.logins;
+        setState({
+          logins: logins,
+          nodes: nodes
+        });
+      });
+    });
+  }, [clusterId]);
+
+  function createSshSession(login, serverId) {
+    var url = consoleCtx.getSshDocumentUrl({
+      serverId: serverId,
+      login: login,
+      clusterId: clusterId
+    });
+    consoleCtx.gotoTab({
+      url: url
+    });
+    consoleCtx.removeDocument(id);
+  }
+
+  function changeCluster(value) {
+    var clusterId = value;
+    var url = consoleCtx.getNodeDocumentUrl(clusterId);
+    consoleCtx.storeDocs.update(id, {
+      url: url,
+      clusterId: clusterId
+    });
+    consoleCtx.gotoTab({
+      url: url
+    });
+  }
+
+  function getNodeSshLogins(serverId) {
+    return state.logins.map(function (login) {
+      return {
+        login: login,
+        url: consoleCtx.getSshDocumentUrl({
+          serverId: serverId,
+          login: login,
+          clusterId: clusterId
+        })
+      };
+    });
+  }
+
+  return {
+    nodes: state.nodes,
+    attempt: attempt,
+    createSshSession: createSshSession,
+    changeCluster: changeCluster,
+    getNodeSshLogins: getNodeSshLogins
+  };
+}
+// CONCATENATED MODULE: ./src/console/components/DocumentNodes/DocumentNodes.tsx
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+
+
+
+function DocumentNodes(_ref) {
+  var visible = _ref.visible,
+      doc = _ref.doc;
+
+  var _useNodes = useNodes(doc),
+      nodes = _useNodes.nodes,
+      attempt = _useNodes.attempt,
+      createSshSession = _useNodes.createSshSession,
+      changeCluster = _useNodes.changeCluster,
+      getNodeSshLogins = _useNodes.getNodeSshLogins;
+
+  var isProcessing = attempt.isProcessing,
+      isSuccess = attempt.isSuccess,
+      isFailed = attempt.isFailed,
+      message = attempt.message;
+
+  function onLoginMenuSelect(e, login, serverId) {
+    // allow to open a new browser tab (not the console one) when requested
+    var newBrowserTabRequested = e.ctrlKey || e.metaKey;
+
+    if (!newBrowserTabRequested) {
+      e.preventDefault();
+      createSshSession(login, serverId);
+    }
+  }
+
+  function onQuickLaunchEnter(login, serverId) {
+    createSshSession(login, serverId);
+  }
+
+  function onLoginMenuOpen(serverId) {
+    return getNodeSshLogins(serverId);
+  }
+
+  function onChangeCluster(newClusterId) {
+    changeCluster(newClusterId);
+  }
+
+  return react_default.a.createElement(components_Document, {
+    visible: visible
+  }, react_default.a.createElement(src_Flex, {
+    flex: "1",
+    maxWidth: "1024px",
+    flexDirection: "column",
+    mx: "auto",
+    mt: "8",
+    px: "5"
+  }, react_default.a.createElement(src_Flex, {
+    justifyContent: "space-between"
+  }, react_default.a.createElement(DocumentNodes_ClusterSelector, {
+    value: doc.clusterId,
+    width: "400px",
+    maxMenuHeight: 200,
+    onChange: onChangeCluster,
+    mr: "3"
+  }), react_default.a.createElement(QuickLaunch, {
+    mb: "5",
+    onPress: onQuickLaunchEnter
+  })), isProcessing && react_default.a.createElement(src_Box, {
+    textAlign: "center",
+    m: 10
+  }, react_default.a.createElement(src_Indicator, null)), isFailed && react_default.a.createElement(Alert_Danger, {
+    mt: "5"
+  }, message), isSuccess && react_default.a.createElement(components_NodeList, {
+    onLoginMenuOpen: onLoginMenuOpen,
+    onLoginSelect: onLoginMenuSelect,
+    nodes: nodes
+  })));
+}
+// CONCATENATED MODULE: ./src/console/components/DocumentNodes/index.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var components_DocumentNodes = (DocumentNodes);
+// CONCATENATED MODULE: ./src/console/components/DocumentBlank/DocumentBlank.tsx
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+function DocumentBlank(props) {
+  var visible = props.visible,
+      doc = props.doc;
+  var ctx = useConsoleContext();
+
+  function onClick() {
+    ctx.gotoNodeTab(doc.clusterId);
+  }
+
+  return react_default.a.createElement(components_Document, {
+    visible: visible
+  }, react_default.a.createElement(src_Box, {
+    mx: "auto"
+  }, react_default.a.createElement(src_Flex, {
+    flexDirection: "column"
+  }, react_default.a.createElement(src_Icon["j" /* Cli */], {
+    fontSize: "128px",
+    mt: "10",
+    mb: "6",
+    color: "#0C143D"
+  }), react_default.a.createElement(Button_ButtonSecondary, {
+    onClick: onClick,
+    children: "New Session",
+    block: true
+  }))));
+}
+// CONCATENATED MODULE: ./src/console/components/DocumentBlank/index.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var components_DocumentBlank = (DocumentBlank);
+// CONCATENATED MODULE: ./src/console/useTabRouting.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+function useRouting(ctx) {
+  var _useLocation = Object(react_router["h" /* useLocation */])(),
+      pathname = _useLocation.pathname;
+
+  var _useParams = Object(react_router["i" /* useParams */])(),
+      clusterId = _useParams.clusterId;
+
+  var sshRouteMatch = Object(react_router["j" /* useRouteMatch */])(config["a" /* default */].routes.consoleConnect);
+  var nodesRouteMatch = Object(react_router["j" /* useRouteMatch */])(config["a" /* default */].routes.consoleNodes);
+  var joinSshRouteMatch = Object(react_router["j" /* useRouteMatch */])(config["a" /* default */].routes.consoleSession); // Ensure that each URL has corresponding document
+
+  react_default.a.useMemo(function () {
+    if (ctx.getActiveDocId(pathname) !== -1) {
+      return;
+    } // When no document matches current URL that means we need to
+    // create one base on URL parameters.
+
+
+    if (sshRouteMatch) {
+      ctx.addSshDocument(sshRouteMatch.params);
+    } else if (joinSshRouteMatch) {
+      ctx.addSshDocument(joinSshRouteMatch.params);
+    } else if (nodesRouteMatch) {
+      ctx.addNodeDocument(clusterId);
+    }
+  }, [ctx, pathname]);
+  return {
+    clusterId: clusterId,
+    activeDocId: ctx.getActiveDocId(pathname)
+  };
+}
+// CONCATENATED MODULE: ./src/console/useOnExitConfirmation.ts
+/**
+ * Copyright 2020 Gravitational, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// TAB_MIN_AGE defines "active terminal" session in ms
+var TAB_MIN_AGE = 30000;
+/**
+ * useOnExitConfirmation notifies users closing active terminal sessions by:
+ *    refresh, window close, window tab close, session tab close.
+ *
+ * "active terminal" is defined by seconds the tab has been opened.
+ *
+ * @param ctx data that is shared between Console related components.
+ */
+
+function useOnExitConfirmation(ctx) {
+  react_default.a.useEffect(function () {
+    /**
+     * handleBeforeUnload listens for browser closes and refreshes.
+     * Checks if users need to be notified before closing based on type
+     * of document opened and how long it has been active for.
+     */
+    var handleBeforeunload = function handleBeforeunload(event) {
+      var shouldNotify = ctx.getDocuments().some(hasLastingSshConnection);
+
+      if (shouldNotify) {
+        // cancel event as set by standard, but not supported in all browsers
+        event.preventDefault(); // required in chrome
+
+        event.returnValue = '';
+      }
+    }; // add event listener on mount
+
+
+    window.addEventListener('beforeunload', handleBeforeunload);
+    return function () {
+      window.removeEventListener('beforeunload', handleBeforeunload);
+    };
+  }, []);
+  /**
+   * confirmCloseSession prompts user to confirm to close.
+   */
+
+  function confirmCloseSession() {
+    return window.confirm('Are you sure you want to terminate this session?');
+  }
+  /**
+   * hasLastingSshConnection calculates the milliseconds between given date
+   * from when fn was called.
+   *
+   * @param doc the document in context
+   */
+
+
+  function hasLastingSshConnection(doc) {
+    if (doc.kind !== 'terminal' || doc.status !== 'connected') {
+      return false;
+    }
+
+    var created = doc.created.getTime();
+    var fromNow = new Date().getTime();
+    return fromNow - created > TAB_MIN_AGE;
+  }
+  /**
+   * verifyAndConfirm verifies the document is of type terminal,
+   * and based on how long it was active for, prompts users to confirm closing.
+   *
+   * @param doc the document in context
+   */
+
+
+  function verifyAndConfirm(doc) {
+    if (hasLastingSshConnection(doc)) {
+      return confirmCloseSession();
+    }
+
+    return true;
+  }
+
+  return {
+    verifyAndConfirm: verifyAndConfirm,
+    hasLastingSshConnection: hasLastingSshConnection
+  };
+}
+
+/* harmony default export */ var console_useOnExitConfirmation = (useOnExitConfirmation);
+// CONCATENATED MODULE: ./src/console/Console.tsx
+function Console_templateObject() {
+  var data = Console_taggedTemplateLiteral(["\n  background-color: ", ";\n  bottom: 0;\n  left: 0;\n  position: absolute;\n  right: 0;\n  top: 0;\n  display: flex;\n  flex-direction: column;\n"]);
+
+  Console_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function Console_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+var POLL_INTERVAL = 5000; // every 5 sec
+
+function Console() {
+  var consoleCtx = useConsoleContext();
+
+  var _useOnExitConfirmatio = console_useOnExitConfirmation(consoleCtx),
+      verifyAndConfirm = _useOnExitConfirmatio.verifyAndConfirm;
+
+  var _useTabRouting = useRouting(consoleCtx),
+      clusterId = _useTabRouting.clusterId,
+      activeDocId = _useTabRouting.activeDocId;
+
+  var storeDocs = consoleCtx.storeDocs;
+  var hasSshSessions = storeDocs.getSshDocuments().length > 0;
+
+  function onTabClick(doc) {
+    consoleCtx.gotoTab(doc);
+  }
+
+  function onTabClose(doc) {
+    if (verifyAndConfirm(doc)) {
+      consoleCtx.closeTab(doc);
+    }
+  }
+
+  function onTabNew() {
+    consoleCtx.gotoNodeTab(clusterId);
+  }
+
+  function onRefresh() {
+    return consoleCtx.refreshParties();
+  }
+
+  function onLogout() {
+    consoleCtx.logout();
+  }
+
+  var disableNewTab = storeDocs.getNodeDocuments().length > 0;
+  var documents = storeDocs.getDocuments();
+  var $docs = documents.map(function (doc) {
+    return react_default.a.createElement(MemoizedDocument, {
+      doc: doc,
+      visible: doc.id === activeDocId,
+      key: doc.id
+    });
+  });
+  return react_default.a.createElement(StyledConsole, null, react_default.a.createElement(src_Flex, {
+    bg: "primary.dark",
+    height: "38px"
+  }, react_default.a.createElement(components_Tabs, {
+    flex: "1",
+    items: documents,
+    onClose: onTabClose,
+    onSelect: onTabClick,
+    activeTab: activeDocId,
+    clusterId: clusterId,
+    disableNew: disableNewTab,
+    onNew: onTabNew
+  }), react_default.a.createElement(components_ActionBar, {
+    onLogout: onLogout
+  })), $docs, hasSshSessions && react_default.a.createElement(components_AjaxPoller, {
+    time: POLL_INTERVAL,
+    onFetch: onRefresh
+  }));
+}
+/**
+ * Ensures that document is not getting re-rendered if it's invisible
+ */
+
+function MemoizedDocument(props) {
+  var doc = props.doc,
+      visible = props.visible;
+  return react_default.a.useMemo(function () {
+    switch (doc.kind) {
+      case 'terminal':
+        return react_default.a.createElement(components_DocumentSsh, {
+          doc: doc,
+          visible: visible
+        });
+
+      case 'nodes':
+        return react_default.a.createElement(components_DocumentNodes, {
+          doc: doc,
+          visible: visible
+        });
+
+      default:
+        return react_default.a.createElement(components_DocumentBlank, {
+          doc: doc,
+          visible: visible
+        });
+    }
+  }, [visible, doc]);
+}
+
+var StyledConsole = styled_components_browser_esm["c" /* default */].div(Console_templateObject(), colors_colors.bgTerminal);
+// EXTERNAL MODULE: ./src/console/stores/index.ts
+var console_stores = __webpack_require__("lAdB");
+
+// EXTERNAL MODULE: ./src/services/localStorage.js
+var localStorage = __webpack_require__("QCYR");
+
+// CONCATENATED MODULE: ./src/services/session.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+var TOKEN_CHECKER_INTERVAL = 15 * 1000; //  every 15 sec
+
+var session_logger = logger["a" /* default */].create('services/session');
+var sesstionCheckerTimerId = null;
+var session_session = {
+  logout: function logout() {
+    api["a" /* default */]["delete"](config["a" /* default */].api.sessionPath)["finally"](function () {
+      services_history.goToLogin();
+    });
+    this.clear();
+  },
+  clear: function clear() {
+    this._stopTokenChecker();
+
+    localStorage["c" /* default */].unsubscribe(receiveMessage);
+    localStorage["c" /* default */].setBearerToken(null);
+    localStorage["c" /* default */].clear();
+  },
+  // ensureSession verifies that token is valid and starts
+  // periodically checking and refreshing the token.
+  ensureSession: function ensureSession() {
+    var _this = this;
+
+    this._stopTokenChecker();
+
+    this._ensureLocalStorageSubscription();
+
+    if (!this.isValid()) {
+      this.logout();
+      return;
+    }
+
+    if (this._shouldRenewToken()) {
+      this._renewToken().then(function () {
+        _this._startTokenChecker();
+      })["catch"](this.logout.bind(this));
+    } else {
+      this._startTokenChecker();
+    }
+  },
+  isValid: function isValid() {
+    return this._timeLeft() > 0;
+  },
+  _getBearerToken: function _getBearerToken() {
+    var token = null;
+
+    try {
+      token = this._extractBearerTokenFromHtml();
+
+      if (token) {
+        localStorage["c" /* default */].setBearerToken(token);
+      } else {
+        token = localStorage["c" /* default */].getBearerToken();
+      }
+    } catch (err) {
+      session_logger.error('Cannot find bearer token', err);
+    }
+
+    return token;
+  },
+  _extractBearerTokenFromHtml: function _extractBearerTokenFromHtml() {
+    var el = document.querySelector('[name=grv_bearer_token]');
+
+    if (!el || !el.content) {
+      return null;
+    } // remove token from HTML as it will be renewed with a time
+    // and stored in the localStorage
+
+
+    el.parentNode.removeChild(el);
+    var decoded = window.atob(el.content);
+    var json = JSON.parse(decoded);
+    return new localStorage["a" /* BearerToken */](json);
+  },
+  _shouldRenewToken: function _shouldRenewToken() {
+    if (this._getIsRenewing()) {
+      return false;
+    }
+    /*
+     * increase the threshold value for slow connections to avoid
+     * access-denied response due to concurrent renew token request
+     * made from another tab.
+     */
+
+
+    return this._timeLeft() < TOKEN_CHECKER_INTERVAL * 1.5;
+  },
+  _renewToken: function _renewToken() {
+    var _this2 = this;
+
+    this._setAndBroadcastIsRenewing(true);
+
+    return api["a" /* default */].post(config["a" /* default */].api.renewTokenPath).then(this._receiveBearerToken.bind(this))["finally"](function () {
+      _this2._setAndBroadcastIsRenewing(false);
+    });
+  },
+  _receiveBearerToken: function _receiveBearerToken(json) {
+    var token = new localStorage["a" /* BearerToken */](json);
+    localStorage["c" /* default */].setBearerToken(token);
+  },
+  _setAndBroadcastIsRenewing: function _setAndBroadcastIsRenewing(value) {
+    this._setIsRenewing(value);
+
+    localStorage["c" /* default */].broadcast(localStorage["b" /* KeysEnum */].TOKEN_RENEW, value);
+  },
+  _setIsRenewing: function _setIsRenewing(value) {
+    this._isRenewing = value;
+  },
+  _getIsRenewing: function _getIsRenewing() {
+    return !!this._isRenewing;
+  },
+  _timeLeft: function _timeLeft() {
+    var token = this._getBearerToken();
+
+    if (!token) {
+      return 0;
+    }
+
+    var expiresIn = token.expiresIn,
+        created = token.created;
+
+    if (!created || !expiresIn) {
+      return 0;
+    }
+
+    expiresIn = expiresIn * 1000;
+    var delta = created + expiresIn - new Date().getTime();
+    return delta;
+  },
+  _shouldCheckStatus: function _shouldCheckStatus() {
+    if (this._getIsRenewing()) {
+      return false;
+    }
+    /*
+     * double the threshold value for slow connections to avoid
+     * access-denied response due to concurrent renew token request
+     * made from other tab
+     */
+
+
+    return this._timeLeft() > TOKEN_CHECKER_INTERVAL * 2;
+  },
+  // subsribes to localStorage changes (triggered from other browser tabs)
+  _ensureLocalStorageSubscription: function _ensureLocalStorageSubscription() {
+    localStorage["c" /* default */].subscribe(receiveMessage);
+  },
+  _fetchStatus: function _fetchStatus() {
+    var _this3 = this;
+
+    api["a" /* default */].get(config["a" /* default */].api.userStatusPath)["catch"](function (err) {
+      // this indicates that session is no longer valid (caused by server restarts or updates)
+      if (err.response.status == 403) {
+        _this3.logout();
+      }
+    });
+  },
+  _startTokenChecker: function _startTokenChecker() {
+    var _this4 = this;
+
+    this._stopTokenChecker();
+
+    sesstionCheckerTimerId = setInterval(function () {
+      // calling ensureSession() will again invoke _startTokenChecker
+      _this4.ensureSession(); // handle server restarts when session may become invalid
+
+
+      if (_this4._shouldCheckStatus()) {
+        _this4._fetchStatus();
+      }
+    }, TOKEN_CHECKER_INTERVAL);
+  },
+  _stopTokenChecker: function _stopTokenChecker() {
+    clearInterval(sesstionCheckerTimerId);
+    sesstionCheckerTimerId = null;
+  }
+};
+
+function receiveMessage(event) {
+  var key = event.key,
+      newValue = event.newValue; // check if logout was triggered from other tabs
+
+  if (localStorage["c" /* default */].getBearerToken() === null) {
+    session_session.logout();
+  } // check if token is being renewed from another tab
+
+
+  if (key === localStorage["b" /* KeysEnum */].TOKEN_RENEW && !!newValue) {
+    session_session._setIsRenewing(JSON.parse(newValue));
+  }
+}
+
+/* harmony default export */ var services_session = (session_session);
 // EXTERNAL MODULE: /web-apps/node_modules/buffer/index.js
-var node_modules_buffer = __webpack_require__("GmLw");
-var buffer_default = /*#__PURE__*/__webpack_require__.n(node_modules_buffer);
+var buffer = __webpack_require__("GmLw");
+var buffer_default = /*#__PURE__*/__webpack_require__.n(buffer);
 
 // CONCATENATED MODULE: ./src/lib/term/protobuf.js
 function protobuf_slicedToArray(arr, i) { return protobuf_arrayWithHoles(arr) || protobuf_iterableToArrayLimit(arr, i) || protobuf_nonIterableRest(); }
@@ -13584,2867 +16676,6 @@ function (_EventEmitter) {
 }(events_events["EventEmitter"]);
 
 /* harmony default export */ var term_tty = (tty_Tty);
-// CONCATENATED MODULE: ./src/lib/term/terminal.js
-function terminal_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function terminal_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function terminal_createClass(Constructor, protoProps, staticProps) { if (protoProps) terminal_defineProperties(Constructor.prototype, protoProps); if (staticProps) terminal_defineProperties(Constructor, staticProps); return Constructor; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-var terminal_logger = logger["a" /* default */].create('lib/term/terminal');
-var DISCONNECT_TXT = 'disconnected';
-var GRV_CLASS = 'grv-terminal';
-var WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
-/**
- * TtyTerminal is a wrapper on top of xtermjs that handles connections
- * and resize events
- */
-
-var terminal_TtyTerminal =
-/*#__PURE__*/
-function () {
-  function TtyTerminal(options) {
-    terminal_classCallCheck(this, TtyTerminal);
-
-    var addressResolver = options.addressResolver,
-        el = options.el,
-        _options$scrollBack = options.scrollBack,
-        scrollBack = _options$scrollBack === void 0 ? 1000 : _options$scrollBack;
-    this._el = el;
-    this.tty = new term_tty(addressResolver);
-    this.scrollBack = scrollBack;
-    this.rows = undefined;
-    this.cols = undefined;
-    this.term = null;
-    this.debouncedResize = Object(lodash["debounce"])(this._requestResize.bind(this), WINDOW_RESIZE_DEBOUNCE_DELAY);
-  }
-
-  terminal_createClass(TtyTerminal, [{
-    key: "open",
-    value: function open() {
-      var _this = this;
-
-      this._el.classList.add(GRV_CLASS); // render xtermjs with default values
-
-
-      this.term = new xterm_default.a({
-        cols: 15,
-        rows: 5,
-        scrollback: this.scrollBack,
-        cursorBlink: false
-      });
-      this.term.open(this._el); // fit xterm to available space
-
-      this.resize(this.cols, this.rows); // subscribe to xtermjs output
-
-      this.term.on('data', function (data) {
-        _this.tty.send(data);
-      }); // subscribe to window resize events
-
-      window.addEventListener('resize', this.debouncedResize); // subscribe to tty
-
-      this.tty.on(TermEventEnum.RESET, this.reset.bind(this));
-      this.tty.on(TermEventEnum.CONN_CLOSE, this._processClose.bind(this));
-      this.tty.on(TermEventEnum.DATA, this._processData.bind(this)); // subscribe tty resize event (used by session player)
-
-      this.tty.on(TermEventEnum.RESIZE, function (_ref) {
-        var h = _ref.h,
-            w = _ref.w;
-        return _this.resize(w, h);
-      });
-      this.connect();
-    }
-  }, {
-    key: "connect",
-    value: function connect() {
-      this.tty.connect(this.cols, this.rows);
-    }
-  }, {
-    key: "destroy",
-    value: function destroy() {
-      window.removeEventListener('resize', this.debouncedResize);
-
-      this._disconnect();
-
-      if (this.term !== null) {
-        this.term.destroy();
-        this.term.removeAllListeners();
-      }
-
-      this._el.innerHTML = null;
-
-      this._el.classList.remove(GRV_CLASS);
-    }
-  }, {
-    key: "reset",
-    value: function reset() {
-      this.term.reset();
-    }
-  }, {
-    key: "resize",
-    value: function resize(cols, rows) {
-      try {
-        // if not defined, use the size of the container
-        if (!Object(lodash["isInteger"])(cols) || !Object(lodash["isInteger"])(rows)) {
-          var dim = this._getDimensions();
-
-          cols = dim.cols;
-          rows = dim.rows;
-        }
-
-        if (cols === this.cols && rows === this.rows) {
-          return;
-        }
-
-        this.cols = cols;
-        this.rows = rows;
-        this.term.resize(cols, rows);
-      } catch (err) {
-        terminal_logger.error('xterm.resize', {
-          w: cols,
-          h: rows
-        }, err);
-        this.term.reset();
-      }
-    }
-  }, {
-    key: "_processData",
-    value: function _processData(data) {
-      try {
-        this.term.write(data);
-      } catch (err) {
-        terminal_logger.error('xterm.write', data, err); // recover xtermjs by resetting it
-
-        this.term.reset();
-      }
-    }
-  }, {
-    key: "_processClose",
-    value: function _processClose(e) {
-      var reason = e.reason;
-      var displayText = DISCONNECT_TXT;
-
-      if (reason) {
-        displayText = "".concat(displayText, ": ").concat(reason);
-      }
-
-      displayText = "\x1B[31m".concat(displayText, "\x1B[m\r\n");
-      this.term.write(displayText);
-    }
-  }, {
-    key: "_disconnect",
-    value: function _disconnect() {
-      this.tty.disconnect();
-      this.tty.removeAllListeners();
-    }
-  }, {
-    key: "_requestResize",
-    value: function _requestResize() {
-      var _this$_getDimensions = this._getDimensions(),
-          cols = _this$_getDimensions.cols,
-          rows = _this$_getDimensions.rows;
-
-      if (!Object(lodash["isInteger"])(cols) || !Object(lodash["isInteger"])(rows)) {
-        terminal_logger.info("unable to calculate terminal dimensions (container might be hidden) ".concat(cols, ":").concat(rows));
-        return;
-      } // ensure min size
-
-
-      var w = cols < 5 ? 5 : cols;
-      var h = rows < 5 ? 5 : rows;
-      this.resize(w, h);
-      this.tty.requestResize(w, h);
-    }
-  }, {
-    key: "_getDimensions",
-    value: function _getDimensions() {
-      var $terminal = this._el.querySelector('.terminal');
-
-      var $fakeRow = document.createElement('div');
-      $fakeRow.innerHTML = "<span>&nbsp;</span>";
-      $terminal.appendChild($fakeRow);
-      var fakeColHeight = $fakeRow.getBoundingClientRect().height;
-      var fakeColWidth = $fakeRow.firstElementChild.getBoundingClientRect().width;
-      var width = this._el.clientWidth;
-      var height = this._el.clientHeight;
-      var cols = Math.floor(width / fakeColWidth);
-      var rows = Math.floor(height / fakeColHeight);
-      $terminal.removeChild($fakeRow);
-      return {
-        cols: cols,
-        rows: rows
-      };
-    }
-  }]);
-
-  return TtyTerminal;
-}();
-
-/* harmony default export */ var terminal = (terminal_TtyTerminal);
-// CONCATENATED MODULE: ./src/console/components/StyledXterm/StyledXterm.jsx
-function StyledXterm_templateObject() {
-  var data = StyledXterm_taggedTemplateLiteral(["\n  height: 100%;\n  width: 100%;\n  font-size: 14px;\n  line-height: normal;\n  overflow: auto;\n  background-color: ", ";\n  .terminal {\n    font-family: ", ";\n    border: none;\n    font-size: inherit;\n    line-height: normal;\n    position: relative;\n  }\n  .terminal .xterm-viewport {\n    background-color: ", ";\n    overflow-y: hidden;\n  }\n  .terminal * {\n    font-weight: normal !important;\n  }\n"]);
-
-  StyledXterm_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function StyledXterm_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-var StyledXterm = Object(styled_components_browser_esm["c" /* default */])(src_Box)(StyledXterm_templateObject(), colors_colors.bgTerminal, function (props) {
-  return props.theme.fonts.mono;
-}, colors_colors.bgTerminal);
-/* harmony default export */ var StyledXterm_StyledXterm = (StyledXterm);
-// CONCATENATED MODULE: ./src/console/components/StyledXterm/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_StyledXterm = (StyledXterm_StyledXterm);
-// CONCATENATED MODULE: ./src/console/components/DocumentSsh/Terminal/Terminal.tsx
-function Terminal_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { Terminal_typeof = function _typeof(obj) { return typeof obj; }; } else { Terminal_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return Terminal_typeof(obj); }
-
-function Terminal_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function Terminal_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function Terminal_createClass(Constructor, protoProps, staticProps) { if (protoProps) Terminal_defineProperties(Constructor.prototype, protoProps); if (staticProps) Terminal_defineProperties(Constructor, staticProps); return Constructor; }
-
-function Terminal_possibleConstructorReturn(self, call) { if (call && (Terminal_typeof(call) === "object" || typeof call === "function")) { return call; } return Terminal_assertThisInitialized(self); }
-
-function Terminal_getPrototypeOf(o) { Terminal_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return Terminal_getPrototypeOf(o); }
-
-function Terminal_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function Terminal_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) Terminal_setPrototypeOf(subClass, superClass); }
-
-function Terminal_setPrototypeOf(o, p) { Terminal_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return Terminal_setPrototypeOf(o, p); }
-
-function Terminal_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-var Terminal_Terminal =
-/*#__PURE__*/
-function (_React$Component) {
-  Terminal_inherits(Terminal, _React$Component);
-
-  function Terminal() {
-    var _getPrototypeOf2;
-
-    var _this;
-
-    Terminal_classCallCheck(this, Terminal);
-
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    _this = Terminal_possibleConstructorReturn(this, (_getPrototypeOf2 = Terminal_getPrototypeOf(Terminal)).call.apply(_getPrototypeOf2, [this].concat(args)));
-
-    Terminal_defineProperty(Terminal_assertThisInitialized(_this), "terminal", void 0);
-
-    Terminal_defineProperty(Terminal_assertThisInitialized(_this), "refTermContainer", react_default.a.createRef());
-
-    return _this;
-  }
-
-  Terminal_createClass(Terminal, [{
-    key: "componentDidMount",
-    value: function componentDidMount() {
-      this.terminal = new terminal({
-        el: this.refTermContainer.current
-      });
-      this.terminal.tty = this.props.tty;
-      this.terminal.open();
-    }
-  }, {
-    key: "componentWillUnmount",
-    value: function componentWillUnmount() {
-      this.terminal.destroy();
-    }
-  }, {
-    key: "shouldComponentUpdate",
-    value: function shouldComponentUpdate() {
-      return false;
-    }
-  }, {
-    key: "focus",
-    value: function focus() {
-      this.terminal.term.focus();
-    }
-  }, {
-    key: "render",
-    value: function render() {
-      return react_default.a.createElement(src_Flex, {
-        flexDirection: "column",
-        height: "100%",
-        width: "100%",
-        px: "2",
-        style: {
-          overflow: 'auto'
-        }
-      }, react_default.a.createElement(components_StyledXterm, {
-        ref: this.refTermContainer
-      }));
-    }
-  }]);
-
-  return Terminal;
-}(react_default.a.Component);
-
-
-// CONCATENATED MODULE: ./src/console/components/DocumentSsh/Terminal/index.ts
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var DocumentSsh_Terminal = (Terminal_Terminal);
-// CONCATENATED MODULE: ./src/console/components/Document/Document.tsx
-function Document_extends() { Document_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Document_extends.apply(this, arguments); }
-
-function Document_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = Document_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function Document_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-var Document_Document = function Document(_ref) {
-  var visible = _ref.visible,
-      children = _ref.children,
-      styles = Document_objectWithoutProperties(_ref, ["visible", "children"]);
-
-  return react_default.a.createElement(src_Flex, Document_extends({
-    flex: "1",
-    style: {
-      overflow: 'auto',
-      display: visible ? 'flex' : 'none',
-      position: 'relative'
-    }
-  }, styles), children);
-};
-
-/* harmony default export */ var components_Document_Document = (Document_Document);
-// CONCATENATED MODULE: ./src/console/components/Document/index.ts
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_Document = (components_Document_Document);
-// CONCATENATED MODULE: ./src/console/components/DocumentSsh/useSshSession.ts
-function useSshSession_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
-
-function useSshSession_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { useSshSession_ownKeys(source, true).forEach(function (key) { useSshSession_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { useSshSession_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
-
-function useSshSession_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function useSshSession_slicedToArray(arr, i) { return useSshSession_arrayWithHoles(arr) || useSshSession_iterableToArrayLimit(arr, i) || useSshSession_nonIterableRest(); }
-
-function useSshSession_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function useSshSession_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function useSshSession_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-/*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-function useSshSession(doc) {
-  var clusterId = doc.clusterId,
-      sid = doc.sid,
-      serverId = doc.serverId,
-      login = doc.login;
-  var ctx = useConsoleContext();
-  var ttyRef = react_default.a.useRef(null);
-
-  var _React$useState = react_default.a.useState(null),
-      _React$useState2 = useSshSession_slicedToArray(_React$useState, 2),
-      session = _React$useState2[0],
-      setSession = _React$useState2[1];
-
-  var _React$useState3 = react_default.a.useState(''),
-      _React$useState4 = useSshSession_slicedToArray(_React$useState3, 2),
-      statusText = _React$useState4[0],
-      setStatusText = _React$useState4[1];
-
-  var _React$useState5 = react_default.a.useState('loading'),
-      _React$useState6 = useSshSession_slicedToArray(_React$useState5, 2),
-      status = _React$useState6[0],
-      setStatus = _React$useState6[1];
-
-  react_default.a.useEffect(function () {
-    // initializes tty instances
-    function initTty(session) {
-      var tty = ctx.createTty(session); // susbscribe to tty events to handle connect/disconnects events
-
-      tty.on(TermEventEnum.CLOSE, function () {
-        return handleTtyDisconnect(ctx, doc.id);
-      });
-      tty.on(TermEventEnum.CONN_CLOSE, function () {
-        return handleTtyDisconnect(ctx, doc.id);
-      });
-      tty.on('open', function () {
-        return handleTtyConnect(ctx, session, doc.id);
-      }); // assign tty reference so it can be passed down to xterm
-
-      ttyRef.current = tty;
-      setSession(session);
-      setStatus('initialized');
-    } // cleanup by unsubscribing from tty
-
-
-    function cleanup() {
-      ttyRef.current && ttyRef.current.removeAllListeners();
-    }
-
-    if (sid) {
-      // join existing session
-      ctx.fetchSshSession(clusterId, sid).then(initTty)["catch"](function (err) {
-        setStatus('notfound');
-        setStatusText(err.message);
-      });
-    } else {
-      // create new ssh session
-      ctx.createSshSession(clusterId, serverId, login).then(initTty)["catch"](function (err) {
-        setStatus('error');
-        setStatusText(err.message);
-      });
-    }
-
-    return cleanup;
-  }, []);
-  return {
-    tty: ttyRef.current,
-    status: status,
-    statusText: statusText,
-    session: session
-  };
-}
-
-function handleTtyConnect(ctx, session, docId) {
-  var hostname = session.hostname,
-      login = session.login,
-      sid = session.sid,
-      clusterId = session.clusterId;
-  var url = config["a" /* default */].getConsoleSessionRoute({
-    sid: sid,
-    clusterId: clusterId
-  });
-  ctx.updateSshDocument(docId, useSshSession_objectSpread({
-    title: "".concat(login, "@").concat(hostname),
-    status: 'connected',
-    url: url
-  }, session));
-  ctx.navigateTo({
-    url: url
-  }, true);
-}
-
-function handleTtyDisconnect(ctx, docId) {
-  ctx.updateSshDocument(docId, {
-    status: 'disconnected'
-  });
-}
-// CONCATENATED MODULE: ./src/console/components/DocumentSsh/ActionBar/ActionBar.jsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-function ActionBar_ActionBar(_ref) {
-  var isConnected = _ref.isConnected,
-      isDownloadOpen = _ref.isDownloadOpen,
-      isUploadOpen = _ref.isUploadOpen,
-      onOpenDownload = _ref.onOpenDownload,
-      onOpenUpload = _ref.onOpenUpload;
-  var isScpDisabled = isDownloadOpen || isUploadOpen || !isConnected;
-  return react_default.a.createElement(src_Flex, {
-    flex: "0 0",
-    alignItems: "center",
-    height: "32px"
-  }, react_default.a.createElement(src_ButtonIcon, {
-    disabled: isScpDisabled,
-    size: 0,
-    title: "Download files",
-    onClick: onOpenDownload
-  }, react_default.a.createElement(src_Icon["m" /* Download */], {
-    fontSize: "16px"
-  })), react_default.a.createElement(src_ButtonIcon, {
-    disabled: isScpDisabled,
-    size: 0,
-    title: "Upload files",
-    onClick: onOpenUpload
-  }, react_default.a.createElement(src_Icon["w" /* Upload */], {
-    fontSize: "16px"
-  })));
-}
-// CONCATENATED MODULE: ./src/console/components/DocumentSsh/ActionBar/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var DocumentSsh_ActionBar = (ActionBar_ActionBar);
-// CONCATENATED MODULE: ./src/console/components/DocumentSsh/DocumentSsh.tsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-
-
-
-
-
-function DocumentSsh(_ref) {
-  var doc = _ref.doc,
-      visible = _ref.visible;
-  var refTerminal = Object(react["useRef"])();
-  var scpDialogs = useFileTransferDialogs();
-
-  var _useSshSession = useSshSession(doc),
-      tty = _useSshSession.tty,
-      status = _useSshSession.status,
-      statusText = _useSshSession.statusText;
-
-  function onOpenPlayer() {
-    var routeUrl = config["a" /* default */].getSessionAuditRoute(doc);
-    services_history.push(routeUrl);
-  }
-
-  function onCloseScpDialogs() {
-    scpDialogs.close();
-    refTerminal.current.terminal.term.focus();
-  }
-
-  return react_default.a.createElement(components_Document, {
-    visible: visible,
-    flexDirection: "column"
-  }, react_default.a.createElement(DocumentSsh_ActionBar, {
-    isConnected: doc.status === 'connected',
-    isDownloadOpen: scpDialogs.isDownloadOpen,
-    isUploadOpen: scpDialogs.isUploadOpen,
-    onOpenDownload: scpDialogs.openDownload,
-    onOpenUpload: scpDialogs.openUpload
-  }), status === 'loading' && react_default.a.createElement(src_Box, {
-    textAlign: "center",
-    m: 10
-  }, react_default.a.createElement(src_Indicator, null)), status === 'error' && react_default.a.createElement(Alert_Danger, {
-    mx: "10",
-    mt: "5"
-  }, "Connection error: ", statusText), status === 'notfound' && react_default.a.createElement(DocumentSsh_SidNotFoundError, {
-    onReplay: onOpenPlayer
-  }), status === 'initialized' && react_default.a.createElement(DocumentSsh_Terminal, {
-    tty: tty,
-    ref: refTerminal
-  }), react_default.a.createElement(components_FileTransfer, {
-    clusterId: doc.clusterId,
-    serverId: doc.serverId,
-    login: doc.login,
-    isDownloadOpen: scpDialogs.isDownloadOpen,
-    isUploadOpen: scpDialogs.isUploadOpen,
-    onClose: onCloseScpDialogs
-  }));
-}
-
-var DocumentSsh_SidNotFoundError = function SidNotFoundError(_ref2) {
-  var onReplay = _ref2.onReplay;
-  return react_default.a.createElement(src_Box, {
-    my: 10,
-    mx: "auto",
-    width: "300px"
-  }, react_default.a.createElement(src_Text, {
-    typography: "h4",
-    mb: "3",
-    textAlign: "center"
-  }, "The session is no longer active"), react_default.a.createElement(Button_ButtonSecondary, {
-    block: true,
-    secondary: true,
-    onClick: onReplay
-  }, react_default.a.createElement(src_Icon["j" /* CirclePlay */], {
-    fontSize: "5",
-    mr: "2"
-  }), " Replay Session"));
-};
-// CONCATENATED MODULE: ./src/console/components/DocumentSsh/index.ts
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_DocumentSsh = (DocumentSsh);
-// CONCATENATED MODULE: ../design/src/utils/match.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-function match_match(obj, searchValue, _ref) {
-  var searchableProps = _ref.searchableProps,
-      cb = _ref.cb;
-  searchValue = searchValue.toLocaleUpperCase();
-  var propNames = searchableProps || Object.getOwnPropertyNames(obj);
-
-  for (var i = 0; i < propNames.length; i++) {
-    var targetValue = obj[propNames[i]];
-
-    if (targetValue) {
-      if (typeof cb === 'function') {
-        var result = cb(targetValue, searchValue, propNames[i]);
-
-        if (result === true) {
-          return result;
-        }
-      }
-
-      if (targetValue.toString().toLocaleUpperCase().indexOf(searchValue) !== -1) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-// CONCATENATED MODULE: ../design/src/DataTable/StyledTable.jsx
-function StyledTable_templateObject2() {
-  var data = StyledTable_taggedTemplateLiteral(["\n  background: ", ";\n  border-radius: 4px;\n  box-sizing: border-box;\n  margin: 48px auto;\n  max-width: 720px;\n  padding: 48px 32px;\n  text-align: center;\n\n  a {\n    color: ", ";\n  }\n"]);
-
-  StyledTable_templateObject2 = function _templateObject2() {
-    return data;
-  };
-
-  return data;
-}
-
-function StyledTable_templateObject() {
-  var data = StyledTable_taggedTemplateLiteral(["\n  background: ", ";\n  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);\n  border-collapse: collapse;\n  border-spacing: 0;\n  border-radius: 8px;\n  font-size: 12px;\n  width: 100%;\n\n  & > thead > tr > th,\n  & > tbody > tr > th,\n  & > tfoot > tr > th,\n  & > thead > tr > td,\n  & > tbody > tr > td,\n  & > tfoot > tr > td {\n    padding: 16px;\n    vertical-align: middle;\n  }\n\n  & > thead > tr > th {\n    background: ", ";\n    color: rgba(255, 255, 255, 0.56);\n    cursor: pointer;\n    font-size: 10px;\n    font-weight: 600;\n    padding: 4px 16px;\n    text-align: left;\n    text-transform: uppercase;\n\n    ", " {\n      font-weight: bold;\n      margin-left: 8px;\n    }\n  }\n\n  ", "\n  ", "\n"]);
-
-  StyledTable_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function StyledTable_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-var StyledTable = styled_components_browser_esm["c" /* default */].table(StyledTable_templateObject(), function (props) {
-  return props.theme.colors.primary.light;
-}, function (props) {
-  return props.theme.colors.primary.main;
-}, src_Icon["z" /* default */], system["u" /* space */], system["d" /* borderRadius */]);
-var StyledEmptyIndicator = styled_components_browser_esm["c" /* default */].div(StyledTable_templateObject2(), function (props) {
-  return props.theme.colors.primary.main;
-}, function (props) {
-  return props.theme.colors.link;
-});
-// EXTERNAL MODULE: ../design/src/Icon/Icon.jsx
-var Icon_Icon = __webpack_require__("oLQf");
-
-// CONCATENATED MODULE: ../design/src/DataTable/Table.jsx
-function Table_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { Table_typeof = function _typeof(obj) { return typeof obj; }; } else { Table_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return Table_typeof(obj); }
-
-function Table_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = Table_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function Table_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
-function Table_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
-
-function Table_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { Table_ownKeys(source, true).forEach(function (key) { Table_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { Table_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
-
-function Table_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function Table_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function Table_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function Table_createClass(Constructor, protoProps, staticProps) { if (protoProps) Table_defineProperties(Constructor.prototype, protoProps); if (staticProps) Table_defineProperties(Constructor, staticProps); return Constructor; }
-
-function Table_possibleConstructorReturn(self, call) { if (call && (Table_typeof(call) === "object" || typeof call === "function")) { return call; } return Table_assertThisInitialized(self); }
-
-function Table_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function Table_getPrototypeOf(o) { Table_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return Table_getPrototypeOf(o); }
-
-function Table_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) Table_setPrototypeOf(subClass, superClass); }
-
-function Table_setPrototypeOf(o, p) { Table_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return Table_setPrototypeOf(o, p); }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-/**
- * Sort indicator used by SortHeaderCell
- */
-
-var SortTypes = {
-  ASC: 'ASC',
-  DESC: 'DESC'
-};
-
-var Table_Table =
-/*#__PURE__*/
-function (_React$Component) {
-  Table_inherits(Table, _React$Component);
-
-  function Table() {
-    Table_classCallCheck(this, Table);
-
-    return Table_possibleConstructorReturn(this, Table_getPrototypeOf(Table).apply(this, arguments));
-  }
-
-  Table_createClass(Table, [{
-    key: "renderHeader",
-    value: function renderHeader(children) {
-      var _this = this;
-
-      var data = this.props.data;
-      var cells = children.map(function (item, index) {
-        return _this.renderCell(item.props.header, Table_objectSpread({
-          index: index,
-          key: index,
-          isHeader: true,
-          data: data
-        }, item.props));
-      });
-      return react_default.a.createElement("thead", null, react_default.a.createElement("tr", null, cells));
-    }
-  }, {
-    key: "renderBody",
-    value: function renderBody(children) {
-      var _this2 = this;
-
-      var data = this.props.data;
-      var rows = [];
-
-      var _loop = function _loop(i) {
-        var cells = children.map(function (item, index) {
-          return _this2.renderCell(item.props.cell, Table_objectSpread({
-            rowIndex: i,
-            key: index,
-            isHeader: false,
-            data: data
-          }, item.props));
-        });
-        rows.push(react_default.a.createElement("tr", {
-          key: i
-        }, cells));
-      };
-
-      for (var i = 0; i < data.length; i++) {
-        _loop(i);
-      }
-
-      if (rows.length) {
-        return react_default.a.createElement("tbody", null, rows);
-      }
-
-      return react_default.a.createElement("tbody", null, react_default.a.createElement("tr", null, react_default.a.createElement("td", {
-        align: "center",
-        colSpan: children ? children.length : 0
-      }, react_default.a.createElement(src_Text, {
-        typography: "paragraph",
-        m: "6",
-        color: "text.primary"
-      }, "NO DATA AVAILABLE"))));
-    }
-  }, {
-    key: "renderCell",
-    value: function renderCell(cell, cellProps) {
-      if (react_default.a.isValidElement(cell)) {
-        return react_default.a.cloneElement(cell, cellProps);
-      }
-
-      return null;
-    }
-  }, {
-    key: "render",
-    value: function render() {
-      /* eslint-disable @typescript-eslint/no-unused-vars */
-      var _this$props = this.props,
-          data = _this$props.data,
-          children = _this$props.children,
-          rest = Table_objectWithoutProperties(_this$props, ["data", "children"]);
-      /* eslint-enable @typescript-eslint/no-unused-vars */
-
-
-      var columns = [];
-      react_default.a.Children.forEach(children, function (child) {
-        if (child == null) {
-          return;
-        }
-
-        if (!child.props._isColumn) {
-          throw 'Should be Column';
-        }
-
-        columns.push(child);
-      });
-      return react_default.a.createElement(StyledTable, rest, this.renderHeader(columns), this.renderBody(columns));
-    }
-  }]);
-
-  return Table;
-}(react_default.a.Component);
-
-var Table_SortIndicator = function SortIndicator(_ref) {
-  var sortDir = _ref.sortDir;
-
-  if (sortDir === SortTypes.DESC) {
-    return react_default.a.createElement(Icon_Icon["Q" /* SortDesc */], null);
-  }
-
-  if (sortDir === SortTypes.ASC) {
-    return react_default.a.createElement(Icon_Icon["P" /* SortAsc */], null);
-  }
-
-  return react_default.a.createElement(Icon_Icon["O" /* Sort */], null);
-};
-
-var Column =
-/*#__PURE__*/
-function (_React$Component2) {
-  Table_inherits(Column, _React$Component2);
-
-  function Column() {
-    Table_classCallCheck(this, Column);
-
-    return Table_possibleConstructorReturn(this, Table_getPrototypeOf(Column).apply(this, arguments));
-  }
-
-  Table_createClass(Column, [{
-    key: "render",
-    value: function render() {
-      return null;
-    }
-  }]);
-
-  return Column;
-}(react_default.a.Component);
-
-Table_defineProperty(Column, "defaultProps", {
-  _isColumn: true
-});
-
-var Table_Cell = function Cell(props) {
-  var isHeader = props.isHeader,
-      children = props.children,
-      align = props.align,
-      style = props.style,
-      className = props.className;
-  var childProps = {
-    children: children,
-    align: align,
-    style: style,
-    className: className
-  };
-
-  if (isHeader) {
-    return react_default.a.createElement("th", childProps);
-  }
-
-  return react_default.a.createElement("td", childProps);
-};
-
-var Table_TextCell = function TextCell(props) {
-  var rowIndex = props.rowIndex,
-      data = props.data,
-      columnKey = props.columnKey,
-      rest = Table_objectWithoutProperties(props, ["rowIndex", "data", "columnKey"]);
-
-  return react_default.a.createElement(Table_Cell, rest, data[rowIndex][columnKey]);
-};
-
-var Table_SortHeaderCell =
-/*#__PURE__*/
-function (_React$Component3) {
-  Table_inherits(SortHeaderCell, _React$Component3);
-
-  function SortHeaderCell() {
-    var _getPrototypeOf2;
-
-    var _this3;
-
-    Table_classCallCheck(this, SortHeaderCell);
-
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    _this3 = Table_possibleConstructorReturn(this, (_getPrototypeOf2 = Table_getPrototypeOf(SortHeaderCell)).call.apply(_getPrototypeOf2, [this].concat(args)));
-
-    Table_defineProperty(Table_assertThisInitialized(_this3), "onSortChange", function (e) {
-      e.preventDefault();
-
-      if (!_this3.props.onSortChange) {
-        return;
-      }
-
-      var _this3$props = _this3.props,
-          sortDir = _this3$props.sortDir,
-          columnKey = _this3$props.columnKey; // default
-
-      var newDir = SortTypes.DESC;
-
-      if (sortDir) {
-        newDir = sortDir === SortTypes.DESC ? SortTypes.ASC : SortTypes.DESC;
-      }
-
-      _this3.props.onSortChange(columnKey, newDir);
-    });
-
-    return _this3;
-  }
-
-  Table_createClass(SortHeaderCell, [{
-    key: "render",
-    value: function render() {
-      var _this$props2 = this.props,
-          sortDir = _this$props2.sortDir,
-          title = _this$props2.title,
-          props = Table_objectWithoutProperties(_this$props2, ["sortDir", "title"]);
-
-      return react_default.a.createElement(Table_Cell, props, react_default.a.createElement("a", {
-        onClick: this.onSortChange
-      }, title, react_default.a.createElement(Table_SortIndicator, {
-        sortDir: sortDir
-      })));
-    }
-  }]);
-
-  return SortHeaderCell;
-}(react_default.a.Component);
-
-var Table_EmptyIndicator =
-/*#__PURE__*/
-function (_React$Component4) {
-  Table_inherits(EmptyIndicator, _React$Component4);
-
-  function EmptyIndicator() {
-    Table_classCallCheck(this, EmptyIndicator);
-
-    return Table_possibleConstructorReturn(this, Table_getPrototypeOf(EmptyIndicator).apply(this, arguments));
-  }
-
-  Table_createClass(EmptyIndicator, [{
-    key: "render",
-    value: function render() {
-      var _this$props3 = this.props,
-          children = _this$props3.children,
-          title = _this$props3.title;
-      var noResults = title || 'No Results Found';
-      return react_default.a.createElement(StyledEmptyIndicator, null, react_default.a.createElement(src_Text, {
-        typography: "h1",
-        color: "text.primary"
-      }, noResults), children && react_default.a.createElement(src_Text, {
-        typography: "paragraph",
-        mt: "3",
-        color: "text.primary"
-      }, children));
-    }
-  }]);
-
-  return EmptyIndicator;
-}(react_default.a.Component);
-
-
-// CONCATENATED MODULE: ../design/src/DataTable/Paged/Pager/Pager.jsx
-function Pager_templateObject() {
-  var data = Pager_taggedTemplateLiteral(["\n  button {\n    background: none;\n    border: none;\n    border-radius: 200px;\n    cursor: pointer;\n    height: 24px;\n    padding: 0;\n    margin: 0 2px;\n    min-width: 24px;\n    outline: none;\n    transition: all 0.3s;\n\n    &:hover {\n      background: ", ";\n      ", " {\n        opacity: 1;\n      }\n    }\n\n    ", " {\n      opacity: 0.56;\n      transition: all 0.3s;\n    }\n  }\n"]);
-
-  Pager_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function Pager_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-function Pager(props) {
-  var _props$startFrom = props.startFrom,
-      startFrom = _props$startFrom === void 0 ? 0 : _props$startFrom,
-      _props$endAt = props.endAt,
-      endAt = _props$endAt === void 0 ? 0 : _props$endAt,
-      _props$totalRows = props.totalRows,
-      totalRows = _props$totalRows === void 0 ? 0 : _props$totalRows,
-      onPrev = props.onPrev,
-      onNext = props.onNext;
-  var isPrevDisabled = totalRows === 0 || startFrom === 0;
-  var isNextDisabled = totalRows === 0 || endAt === totalRows;
-  return react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(src_Text, {
-    typography: "body2",
-    color: "primary.contrastText"
-  }, "SHOWING ", react_default.a.createElement("strong", null, startFrom + 1), " to ", react_default.a.createElement("strong", null, endAt), " of", ' ', react_default.a.createElement("strong", null, totalRows)), react_default.a.createElement(StyledButtons, null, react_default.a.createElement("button", {
-    onClick: onPrev,
-    title: "Previous Page",
-    disabled: isPrevDisabled
-  }, react_default.a.createElement(src_Icon["f" /* CircleArrowLeft */], {
-    fontSize: "3"
-  })), react_default.a.createElement("button", {
-    onClick: onNext,
-    title: "Next Page",
-    disabled: isNextDisabled
-  }, react_default.a.createElement(src_Icon["g" /* CircleArrowRight */], {
-    fontSize: "3"
-  }))));
-}
-Pager.propTypes = {
-  startFrom: prop_types_default.a.number.isRequired,
-  endAt: prop_types_default.a.number.isRequired,
-  totalRows: prop_types_default.a.number.isRequired,
-  onPrev: prop_types_default.a.func.isRequired,
-  onNext: prop_types_default.a.func.isRequired
-};
-var StyledButtons = styled_components_browser_esm["c" /* default */].div(Pager_templateObject(), function (props) {
-  return props.theme.colors.primary.main;
-}, src_Icon["z" /* default */], src_Icon["z" /* default */]);
-// CONCATENATED MODULE: ../design/src/DataTable/Paged/Pager/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var Paged_Pager = (Pager);
-
-// CONCATENATED MODULE: ../design/src/DataTable/Paged/usePages.jsx
-function usePages_slicedToArray(arr, i) { return usePages_arrayWithHoles(arr) || usePages_iterableToArrayLimit(arr, i) || usePages_nonIterableRest(); }
-
-function usePages_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function usePages_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function usePages_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-function usePages(_ref) {
-  var _ref$pageSize = _ref.pageSize,
-      pageSize = _ref$pageSize === void 0 ? 7 : _ref$pageSize,
-      _ref$data = _ref.data,
-      data = _ref$data === void 0 ? [] : _ref$data;
-
-  var _React$useState = react_default.a.useState(0),
-      _React$useState2 = usePages_slicedToArray(_React$useState, 2),
-      startFrom = _React$useState2[0],
-      setFrom = _React$useState2[1]; // set current page to 0 when data source length changes
-
-
-  react_default.a.useEffect(function () {
-    setFrom(0);
-  }, [data.length]);
-
-  function onPrev() {
-    var prevPage = startFrom - pageSize;
-
-    if (prevPage < 0) {
-      prevPage = 0;
-    }
-
-    setFrom(prevPage);
-  }
-
-  function onNext() {
-    var nextPage = startFrom + pageSize;
-
-    if (nextPage < data.length) {
-      nextPage = startFrom + pageSize;
-      setFrom(nextPage);
-    }
-  }
-
-  var totalRows = data.length;
-  var endAt = 0;
-  var pagedData = data;
-
-  if (data.length > 0) {
-    endAt = startFrom + (pageSize > data.length ? data.length : pageSize);
-
-    if (endAt > data.length) {
-      endAt = data.length;
-    }
-
-    pagedData = data.slice(startFrom, endAt);
-  }
-
-  return {
-    pageSize: pageSize,
-    startFrom: startFrom,
-    endAt: endAt,
-    totalRows: totalRows,
-    data: pagedData,
-    hasPages: totalRows > pageSize,
-    onNext: onNext,
-    onPrev: onPrev
-  };
-}
-// CONCATENATED MODULE: ../design/src/DataTable/Paged/Paged.jsx
-function Paged_templateObject() {
-  var data = Paged_taggedTemplateLiteral(["\n  padding: 16px;\n  display: flex;\n  height: 24px;\n  align-items: center;\n  justify-content: space-between;\n  background: ", ";\n  ", "\n"]);
-
-  Paged_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function Paged_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-function Paged_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
-
-function Paged_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { Paged_ownKeys(source, true).forEach(function (key) { Paged_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { Paged_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
-
-function Paged_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function Paged_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = Paged_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function Paged_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-
-function TablePaged(props) {
-  var pageSize = props.pageSize,
-      data = props.data,
-      pagerPosition = props.pagerPosition,
-      rest = Paged_objectWithoutProperties(props, ["pageSize", "data", "pagerPosition"]);
-
-  var pagedState = usePages({
-    pageSize: pageSize,
-    data: data
-  });
-
-  var tableProps = Paged_objectSpread({}, rest, {
-    data: pagedState.data
-  });
-
-  var showTopPager = pagedState.hasPages && (!pagerPosition || pagerPosition === 'top');
-  var showBottomPager = pagedState.hasPages && (!pagerPosition || pagerPosition === 'bottom');
-
-  if (showBottomPager) {
-    tableProps.borderBottomRightRadius = '0';
-    tableProps.borderBottomLeftRadius = '0';
-  }
-
-  return react_default.a.createElement("div", null, showTopPager && react_default.a.createElement(StyledPanel, {
-    borderTopRightRadius: "3",
-    borderTopLeftRadius: "3"
-  }, react_default.a.createElement(Paged_Pager, pagedState)), react_default.a.createElement(Table_Table, tableProps), showBottomPager && react_default.a.createElement(StyledPanel, {
-    borderBottomRightRadius: "3",
-    borderBottomLeftRadius: "3"
-  }, react_default.a.createElement(Paged_Pager, pagedState)));
-}
-TablePaged.propTypes = {
-  pagerPosition: prop_types_default.a.oneOf(['top', 'bottom'])
-};
-var StyledPanel = styled_components_browser_esm["c" /* default */].nav(Paged_templateObject(), function (props) {
-  return props.theme.colors.primary.light;
-}, system["d" /* borderRadius */]);
-// CONCATENATED MODULE: ../design/src/DataTable/Paged/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-/* harmony default export */ var Paged = (TablePaged);
-
-// CONCATENATED MODULE: ../design/src/DataTable/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-// EXTERNAL MODULE: ../shared/components/MenuSshLogin/index.ts
-var MenuSshLogin = __webpack_require__("LwOW");
-
-// CONCATENATED MODULE: ./src/components/InputSearch/InputSearch.jsx
-function InputSearch_templateObject() {
-  var data = InputSearch_taggedTemplateLiteral(["\n  box-sizing: border-box;\n  min-width: 200px;\n  outline: none;\n  border: none;\n  border-radius: 200px;\n  height: 40px;\n  ", "\n  ", "\n  ", "\n  ", "\n"]);
-
-  InputSearch_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function InputSearch_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-function InputSearch_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { InputSearch_typeof = function _typeof(obj) { return typeof obj; }; } else { InputSearch_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return InputSearch_typeof(obj); }
-
-function InputSearch_extends() { InputSearch_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return InputSearch_extends.apply(this, arguments); }
-
-function InputSearch_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = InputSearch_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function InputSearch_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
-function InputSearch_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function InputSearch_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function InputSearch_createClass(Constructor, protoProps, staticProps) { if (protoProps) InputSearch_defineProperties(Constructor.prototype, protoProps); if (staticProps) InputSearch_defineProperties(Constructor, staticProps); return Constructor; }
-
-function InputSearch_possibleConstructorReturn(self, call) { if (call && (InputSearch_typeof(call) === "object" || typeof call === "function")) { return call; } return InputSearch_assertThisInitialized(self); }
-
-function InputSearch_getPrototypeOf(o) { InputSearch_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return InputSearch_getPrototypeOf(o); }
-
-function InputSearch_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function InputSearch_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) InputSearch_setPrototypeOf(subClass, superClass); }
-
-function InputSearch_setPrototypeOf(o, p) { InputSearch_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return InputSearch_setPrototypeOf(o, p); }
-
-function InputSearch_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-var InputSearch_InputSearch =
-/*#__PURE__*/
-function (_React$Component) {
-  InputSearch_inherits(InputSearch, _React$Component);
-
-  function InputSearch(props) {
-    var _this;
-
-    InputSearch_classCallCheck(this, InputSearch);
-
-    _this = InputSearch_possibleConstructorReturn(this, InputSearch_getPrototypeOf(InputSearch).call(this, props));
-
-    InputSearch_defineProperty(InputSearch_assertThisInitialized(_this), "onBlur", function () {
-      _this.setState({
-        isFocused: false
-      });
-    });
-
-    InputSearch_defineProperty(InputSearch_assertThisInitialized(_this), "onFocus", function () {
-      _this.setState({
-        isFocused: true
-      });
-    });
-
-    InputSearch_defineProperty(InputSearch_assertThisInitialized(_this), "onChange", function (e) {
-      _this.setState({
-        value: e.target.value
-      });
-
-      _this.debouncedNotify();
-    });
-
-    _this.debouncedNotify = Object(lodash["debounce"])(function () {
-      _this.props.onChange(_this.state.value);
-    }, 200);
-    var value = props.value || '';
-    _this.state = {
-      value: value,
-      isFocused: false
-    };
-    return _this;
-  }
-
-  InputSearch_createClass(InputSearch, [{
-    key: "render",
-    value: function render() {
-      var _this$props = this.props,
-          _this$props$autoFocus = _this$props.autoFocus,
-          autoFocus = _this$props$autoFocus === void 0 ? false : _this$props$autoFocus,
-          rest = InputSearch_objectWithoutProperties(_this$props, ["autoFocus"]);
-
-      return react_default.a.createElement(InputSearch_Input, InputSearch_extends({
-        px: "3",
-        placeholder: "SEARCH...",
-        bg: "primary.dark",
-        color: "text.primary"
-      }, rest, {
-        autoFocus: autoFocus,
-        value: this.state.value,
-        onChange: this.onChange,
-        onFocus: this.onFocus,
-        onBlur: this.onBlur
-      }));
-    }
-  }]);
-
-  return InputSearch;
-}(react_default.a.Component);
-
-function InputSearch_fromTheme(props) {
-  return {
-    '&:focus, &:active': {
-      background: props.theme.colors.light,
-      boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, .24)',
-      color: props.theme.colors.text.onLight
-    },
-    '&::placeholder': {
-      color: props.theme.colors.subtle,
-      fontSize: props.theme.fontSizes[1]
-    }
-  };
-}
-
-var InputSearch_Input = styled_components_browser_esm["c" /* default */].input(InputSearch_templateObject(), InputSearch_fromTheme, system["u" /* space */], system["f" /* color */], system["l" /* height */]);
-/* harmony default export */ var components_InputSearch_InputSearch = (InputSearch_InputSearch);
-// CONCATENATED MODULE: ./src/components/InputSearch/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_InputSearch = (components_InputSearch_InputSearch);
-// CONCATENATED MODULE: ./src/components/NodeList/NodeList.tsx
-function NodeList_templateObject2() {
-  var data = NodeList_taggedTemplateLiteral(["\n  & > tbody > tr > td {\n    vertical-align: baseline;\n  }\n"]);
-
-  NodeList_templateObject2 = function _templateObject2() {
-    return data;
-  };
-
-  return data;
-}
-
-function NodeList_templateObject() {
-  var data = NodeList_taggedTemplateLiteral(["\n  box-sizing: content-box;\n  padding: 16px;\n  height: 24px;\n  background: ", ";\n  ", "\n  ", " {\n    margin-left: ", ";\n  }\n"]);
-
-  NodeList_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function NodeList_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-function NodeList_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function NodeList_slicedToArray(arr, i) { return NodeList_arrayWithHoles(arr) || NodeList_iterableToArrayLimit(arr, i) || NodeList_nonIterableRest(); }
-
-function NodeList_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function NodeList_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function NodeList_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-
-
-
-
-
-
-function NodeList(props) {
-  var _props$nodes = props.nodes,
-      nodes = _props$nodes === void 0 ? [] : _props$nodes,
-      onLoginMenuOpen = props.onLoginMenuOpen,
-      onLoginSelect = props.onLoginSelect,
-      _props$pageSize = props.pageSize,
-      pageSize = _props$pageSize === void 0 ? 100 : _props$pageSize;
-
-  var _React$useState = react_default.a.useState(''),
-      _React$useState2 = NodeList_slicedToArray(_React$useState, 2),
-      searchValue = _React$useState2[0],
-      setSearchValue = _React$useState2[1];
-
-  var _React$useState3 = react_default.a.useState({
-    hostname: SortTypes.ASC
-  }),
-      _React$useState4 = NodeList_slicedToArray(_React$useState3, 2),
-      sortDir = _React$useState4[0],
-      setSortDir = _React$useState4[1];
-
-  function sortAndFilter(search) {
-    var filtered = nodes.filter(function (obj) {
-      return match_match(obj, search, {
-        searchableProps: ['hostname', 'addr', 'tags'],
-        cb: searchAndFilterCb
-      });
-    });
-    var columnKey = Object.getOwnPropertyNames(sortDir)[0];
-    var sorted = Object(lodash["sortBy"])(filtered, columnKey);
-
-    if (sortDir[columnKey] === SortTypes.ASC) {
-      return sorted.reverse();
-    }
-
-    return sorted;
-  }
-
-  function onSortChange(columnKey, sortDir) {
-    setSortDir(NodeList_defineProperty({}, columnKey, sortDir));
-  }
-
-  function onSearchChange(value) {
-    setSearchValue(value);
-  }
-
-  var data = sortAndFilter(searchValue);
-  var pagging = usePages({
-    pageSize: pageSize,
-    data: data
-  });
-  return react_default.a.createElement("div", {
-    style: {
-      width: '100%'
-    }
-  }, react_default.a.createElement(NodeList_StyledPanel, {
-    alignItems: "center",
-    borderTopRightRadius: "3",
-    borderTopLeftRadius: "3",
-    justifyContent: "space-between"
-  }, react_default.a.createElement(components_InputSearch, {
-    height: "30px",
-    mr: "3",
-    onChange: onSearchChange
-  }), pagging.hasPages && react_default.a.createElement(src_Flex, {
-    alignItems: "center",
-    justifyContent: "flex-end"
-  }, react_default.a.createElement(Paged_Pager, pagging))), react_default.a.createElement(NodeList_StyledTable, {
-    data: pagging.data
-  }, react_default.a.createElement(Column, {
-    header: react_default.a.createElement(Table_Cell, null, "Session"),
-    cell: react_default.a.createElement(NodeList_LoginCell, {
-      onOpen: onLoginMenuOpen,
-      onSelect: onLoginSelect
-    })
-  }), react_default.a.createElement(Column, {
-    columnKey: "hostname",
-    header: react_default.a.createElement(Table_SortHeaderCell, {
-      sortDir: sortDir.hostname,
-      onSortChange: onSortChange,
-      title: "Hostname"
-    }),
-    cell: react_default.a.createElement(Table_TextCell, null)
-  }), react_default.a.createElement(Column, {
-    columnKey: "addr",
-    header: react_default.a.createElement(Table_SortHeaderCell, {
-      sortDir: sortDir.addr,
-      onSortChange: onSortChange,
-      title: "Address"
-    }),
-    cell: react_default.a.createElement(Table_TextCell, null)
-  }), react_default.a.createElement(Column, {
-    header: react_default.a.createElement(Table_Cell, null, "Labels"),
-    cell: react_default.a.createElement(LabelCell, null)
-  })));
-}
-
-function searchAndFilterCb(targetValue, searchValue, propName) {
-  if (propName === 'tags') {
-    return targetValue.some(function (item) {
-      var name = item.name,
-          value = item.value;
-      return name.toLocaleUpperCase().indexOf(searchValue) !== -1 || value.toLocaleUpperCase().indexOf(searchValue) !== -1;
-    });
-  }
-}
-
-var NodeList_LoginCell = function LoginCell(props) {
-  var rowIndex = props.rowIndex,
-      data = props.data,
-      onOpen = props.onOpen,
-      onSelect = props.onSelect;
-  var _data$rowIndex = data[rowIndex],
-      hostname = _data$rowIndex.hostname,
-      id = _data$rowIndex.id;
-  var serverId = hostname || id;
-
-  function handleOnOpen() {
-    return onOpen(serverId);
-  }
-
-  function handleOnSelect(login) {
-    return onSelect(login, serverId);
-  }
-
-  return react_default.a.createElement(Table_Cell, null, react_default.a.createElement(MenuSshLogin["default"], {
-    onOpen: handleOnOpen,
-    onSelect: handleOnSelect
-  }));
-};
-
-function LabelCell(props) {
-  var rowIndex = props.rowIndex,
-      data = props.data;
-  var tags = data[rowIndex].tags;
-  var $labels = tags.map(function (_ref) {
-    var name = _ref.name,
-        value = _ref.value;
-    return react_default.a.createElement(src_Label, {
-      mb: "1",
-      mr: "1",
-      key: name,
-      kind: "secondary"
-    }, "".concat(name, ": ").concat(value));
-  });
-  return react_default.a.createElement(Table_Cell, null, $labels);
-}
-var NodeList_StyledPanel = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(NodeList_templateObject(), function (props) {
-  return props.theme.colors.primary.light;
-}, system["d" /* borderRadius */], StyledButtons, function (props) {
-  return "".concat(props.theme.space[3], "px");
-});
-var NodeList_StyledTable = Object(styled_components_browser_esm["c" /* default */])(Table_Table)(NodeList_templateObject2());
-/* harmony default export */ var NodeList_NodeList = (NodeList);
-// CONCATENATED MODULE: ./src/components/NodeList/index.ts
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_NodeList = (NodeList_NodeList);
-// CONCATENATED MODULE: ./src/console/components/DocumentNodes/QuickLaunch/QuickLaunch.jsx
-function QuickLaunch_extends() { QuickLaunch_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return QuickLaunch_extends.apply(this, arguments); }
-
-function QuickLaunch_slicedToArray(arr, i) { return QuickLaunch_arrayWithHoles(arr) || QuickLaunch_iterableToArrayLimit(arr, i) || QuickLaunch_nonIterableRest(); }
-
-function QuickLaunch_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function QuickLaunch_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function QuickLaunch_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-function QuickLaunch_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = QuickLaunch_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function QuickLaunch_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-function FieldInputSsh(_ref) {
-  var onPress = _ref.onPress,
-      boxProps = QuickLaunch_objectWithoutProperties(_ref, ["onPress"]);
-
-  var _React$useState = react_default.a.useState(false),
-      _React$useState2 = QuickLaunch_slicedToArray(_React$useState, 2),
-      hasError = _React$useState2[0],
-      setHasError = _React$useState2[1];
-
-  function onKeyPress(e) {
-    var value = e.target.value;
-
-    if ((e.key === 'Enter' || e.type === 'click') && value) {
-      var valid = check(value);
-      setHasError(!valid);
-
-      if (valid) {
-        var _value$split = value.split('@'),
-            _value$split2 = QuickLaunch_slicedToArray(_value$split, 2),
-            login = _value$split2[0],
-            serverId = _value$split2[1];
-
-        onPress(login, serverId);
-      }
-    } else {
-      setHasError(false);
-    }
-  }
-
-  var labelText = hasError ? 'Invalid' : 'Quick Launch';
-  return react_default.a.createElement(src_Box, QuickLaunch_extends({
-    mb: "4"
-  }, boxProps), react_default.a.createElement(src_LabelInput, {
-    hasError: hasError
-  }, labelText), react_default.a.createElement(src_Input, {
-    hasError: hasError,
-    height: "34px",
-    width: "200px",
-    bg: "primary.dark",
-    color: "text.primary",
-    placeholder: "login@host",
-    onKeyPress: onKeyPress
-  }));
-}
-var SSH_STR_REGEX = /(^\w+@(\S+)$)/;
-
-var check = function check(value) {
-  var match = SSH_STR_REGEX.exec(value);
-  return match !== null;
-};
-// CONCATENATED MODULE: ./src/console/components/DocumentNodes/QuickLaunch/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var QuickLaunch = (FieldInputSsh);
-// EXTERNAL MODULE: /web-apps/node_modules/react-select/dist/react-select.browser.esm.js + 1 modules
-var react_select_browser_esm = __webpack_require__("BGTi");
-
-// EXTERNAL MODULE: /web-apps/node_modules/react-select/async/dist/react-select.browser.esm.js
-var dist_react_select_browser_esm = __webpack_require__("ogNk");
-
-// CONCATENATED MODULE: ../shared/components/Select/Select.jsx
-function Select_templateObject() {
-  var data = Select_taggedTemplateLiteral(["\n  .react-select__control,\n  .react-select__control--is-focused {\n    min-height: 40px;\n    ", "\n  }\n\n  .react-select-container {\n    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.24);\n    box-sizing: border-box;\n    border: none;\n    display: block;\n    font-size: 16px;\n    outline: none;\n    width: 100%;\n    color: rgba(0, 0, 0, 0.87);\n    background-color: #ffffff;\n    margin-bottom: 0px;\n    border-radius: 4px;\n  }\n\n  .react-select__menu {\n    margin-top: 0px;\n  }\n\n  react-select__menu-list {\n  }\n\n  .react-select__indicator-separator {\n    display: none;\n  }\n\n  .react-select__control {\n    &:hover {\n      border-color: transparent;\n    }\n  }\n\n  .react-select__control--is-focused {\n    background-color: transparent;\n    border-color: transparent;\n    border-radius: 4px;\n    border-style: solid;\n    border-width: 1px;\n    box-shadow: none;\n  }\n\n  .react-select__option--is-selected {\n    //background-color: white;\n    background-color: #cfd8dc;\n    color: inherit;\n  }\n"]);
-
-  Select_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function Select_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-function Select_extends() { Select_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Select_extends.apply(this, arguments); }
-
-function Select_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = Select_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function Select_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-function Select(_ref) {
-  var hasError = _ref.hasError,
-      props = Select_objectWithoutProperties(_ref, ["hasError"]);
-
-  return react_default.a.createElement(StyledSelect, {
-    hasError: hasError
-  }, react_default.a.createElement(react_select_browser_esm["a" /* default */], Select_extends({
-    className: "react-select-container",
-    classNamePrefix: "react-select",
-    clearable: false,
-    placeholder: "Select..."
-  }, props)));
-}
-function SelectAsync(_ref2) {
-  var hasError = _ref2.hasError,
-      props = Select_objectWithoutProperties(_ref2, ["hasError"]);
-
-  return react_default.a.createElement(StyledSelect, {
-    hasError: hasError
-  }, react_default.a.createElement(dist_react_select_browser_esm["a" /* default */], Select_extends({
-    className: "react-select-container",
-    classNamePrefix: "react-select",
-    clearable: false,
-    placeholder: "Select..."
-  }, props)));
-}
-var StyledSelect = styled_components_browser_esm["c" /* default */].div(Select_templateObject(), function (_ref3) {
-  var hasError = _ref3.hasError,
-      theme = _ref3.theme;
-
-  if (hasError) {
-    return {
-      borderRadius: 'inherit !important',
-      borderWidth: '2px !important',
-      border: "2px solid ".concat(theme.colors.error.main, "  !important")
-    };
-  }
-});
-// CONCATENATED MODULE: ../shared/components/Select/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_Select = (Select);
-
-// CONCATENATED MODULE: ./src/console/components/DocumentNodes/ClusterSelector/ClusterSelector.tsx
-function ClusterSelector_extends() { ClusterSelector_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return ClusterSelector_extends.apply(this, arguments); }
-
-function ClusterSelector_slicedToArray(arr, i) { return ClusterSelector_arrayWithHoles(arr) || ClusterSelector_iterableToArrayLimit(arr, i) || ClusterSelector_nonIterableRest(); }
-
-function ClusterSelector_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function ClusterSelector_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function ClusterSelector_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-function ClusterSelector_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = ClusterSelector_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function ClusterSelector_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-function ClusterSelector(_ref) {
-  var value = _ref.value,
-      onChange = _ref.onChange,
-      _ref$defaultMenuIsOpe = _ref.defaultMenuIsOpen,
-      defaultMenuIsOpen = _ref$defaultMenuIsOpe === void 0 ? false : _ref$defaultMenuIsOpe,
-      styles = ClusterSelector_objectWithoutProperties(_ref, ["value", "onChange", "defaultMenuIsOpen"]);
-
-  var consoleCtx = useConsoleContext();
-
-  var _React$useState = react_default.a.useState(null),
-      _React$useState2 = ClusterSelector_slicedToArray(_React$useState, 2),
-      errorMessage = _React$useState2[0],
-      setError = _React$useState2[1];
-
-  var _React$useState3 = react_default.a.useState([]),
-      _React$useState4 = ClusterSelector_slicedToArray(_React$useState3, 2),
-      options = _React$useState4[0],
-      setOptions = _React$useState4[1];
-
-  var selectedOption = {
-    value: value,
-    label: value
-  };
-
-  function onChangeOption(option) {
-    onChange(option.value);
-  }
-
-  function onLoadOptions(inputValue) {
-    var promise = Promise.resolve(options);
-
-    if (options.length === 0) {
-      promise = consoleCtx.fetchClusters().then(function (clusters) {
-        return clusters.map(function (o) {
-          return {
-            value: o.clusterId,
-            label: o.clusterId
-          };
-        });
-      }).then(function (options) {
-        setOptions(options);
-        return options;
-      });
-    }
-
-    return promise.then(function (options) {
-      return filterOptions(inputValue, options);
-    })["catch"](function (err) {
-      setError(err.message);
-    });
-  }
-
-  function getNoOptionsMessage() {
-    if (errorMessage) {
-      return "Error: ".concat(errorMessage);
-    }
-
-    return 'No leaf clusters found';
-  }
-
-  return react_default.a.createElement(src_Box, ClusterSelector_extends({
-    mb: "4"
-  }, styles), react_default.a.createElement(src_LabelInput, null, " Clusters "), react_default.a.createElement(SelectAsync, {
-    noOptionsMessage: getNoOptionsMessage,
-    value: selectedOption,
-    onChange: onChangeOption,
-    loadOptions: onLoadOptions,
-    defaultMenuIsOpen: defaultMenuIsOpen,
-    hasError: false,
-    width: 400,
-    maxMenuHeight: 300,
-    isSearchable: true,
-    isSimpleValue: false,
-    clearable: false,
-    defaultOptions: true,
-    cacheOptions: true
-  }));
-}
-
-function filterOptions() {
-  var value = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '';
-  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
-  value = value.toLocaleLowerCase();
-  return options.filter(function (o) {
-    return o.value.toLocaleLowerCase().indexOf(value) !== -1;
-  });
-}
-// CONCATENATED MODULE: ./src/console/components/DocumentNodes/ClusterSelector/index.ts
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var DocumentNodes_ClusterSelector = (ClusterSelector);
-// CONCATENATED MODULE: ./src/console/components/DocumentNodes/useNodes.ts
-function useNodes_slicedToArray(arr, i) { return useNodes_arrayWithHoles(arr) || useNodes_iterableToArrayLimit(arr, i) || useNodes_nonIterableRest(); }
-
-function useNodes_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function useNodes_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function useNodes_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-function useNodes(_ref) {
-  var clusterId = _ref.clusterId,
-      id = _ref.id;
-  var consoleCtx = useConsoleContext();
-
-  var _useAttempt = useAttempt({
-    isSuccess: true
-  }),
-      _useAttempt2 = useNodes_slicedToArray(_useAttempt, 2),
-      attempt = _useAttempt2[0],
-      attemptActions = _useAttempt2[1];
-
-  var _useState = Object(react["useState"])([]),
-      _useState2 = useNodes_slicedToArray(_useState, 2),
-      nodes = _useState2[0],
-      setNodes = _useState2[1];
-
-  var _useState3 = Object(react["useState"])([]),
-      _useState4 = useNodes_slicedToArray(_useState3, 2),
-      logins = _useState4[0],
-      setLogins = _useState4[1];
-
-  Object(react["useEffect"])(function () {
-    attemptActions["do"](function () {
-      return consoleCtx.fetchNodes(clusterId).then(function (_ref2) {
-        var nodes = _ref2.nodes,
-            logins = _ref2.logins;
-        setLogins(logins);
-        setNodes(nodes);
-      });
-    });
-  }, [clusterId]);
-
-  function createSshSession(login, serverId) {
-    var url = consoleCtx.getSshDocumentUrl({
-      serverId: serverId,
-      login: login,
-      clusterId: clusterId
-    });
-    consoleCtx.navigateTo({
-      url: url
-    });
-  }
-
-  function changeCluster(value) {
-    var clusterId = value;
-    var url = consoleCtx.getNodeDocumentUrl(clusterId);
-    consoleCtx.storeDocs.update(id, {
-      url: url,
-      clusterId: clusterId
-    });
-    consoleCtx.navigateTo({
-      url: url
-    });
-  }
-
-  function getNodeSshLogins(serverId) {
-    return logins.map(function (login) {
-      return {
-        login: login,
-        url: consoleCtx.getSshDocumentUrl({
-          serverId: serverId,
-          login: login,
-          clusterId: clusterId
-        })
-      };
-    });
-  }
-
-  return {
-    nodes: nodes,
-    attempt: attempt,
-    createSshSession: createSshSession,
-    changeCluster: changeCluster,
-    getNodeSshLogins: getNodeSshLogins
-  };
-}
-// CONCATENATED MODULE: ./src/console/components/DocumentNodes/DocumentNodes.tsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-
-
-function DocumentNodes(_ref) {
-  var visible = _ref.visible,
-      doc = _ref.doc;
-
-  var _useNodes = useNodes(doc),
-      nodes = _useNodes.nodes,
-      attempt = _useNodes.attempt,
-      createSshSession = _useNodes.createSshSession,
-      changeCluster = _useNodes.changeCluster,
-      getNodeSshLogins = _useNodes.getNodeSshLogins;
-
-  var isProcessing = attempt.isProcessing,
-      isSuccess = attempt.isSuccess,
-      isFailed = attempt.isFailed,
-      message = attempt.message;
-
-  function onLoginMenuSelect(login, serverId) {
-    createSshSession(login, serverId);
-  }
-
-  function onLoginMenuOpen(serverId) {
-    return getNodeSshLogins(serverId);
-  }
-
-  function onChangeCluster(newClusterId) {
-    changeCluster(newClusterId);
-  }
-
-  return react_default.a.createElement(components_Document, {
-    visible: visible
-  }, react_default.a.createElement(src_Flex, {
-    flex: "1",
-    maxWidth: "800px",
-    flexDirection: "column",
-    mx: "auto",
-    mt: "8",
-    px: "5"
-  }, react_default.a.createElement(src_Flex, {
-    justifyContent: "space-between"
-  }, react_default.a.createElement(DocumentNodes_ClusterSelector, {
-    value: doc.clusterId,
-    width: "400px",
-    maxMenuHeight: 200,
-    onChange: onChangeCluster
-  }), react_default.a.createElement(QuickLaunch, {
-    mb: "5",
-    onPress: onLoginMenuSelect
-  })), isProcessing && react_default.a.createElement(src_Box, {
-    textAlign: "center",
-    m: 10
-  }, react_default.a.createElement(src_Indicator, null)), isFailed && react_default.a.createElement(Alert_Danger, {
-    mt: "5"
-  }, message), isSuccess && react_default.a.createElement(components_NodeList, {
-    onLoginMenuOpen: onLoginMenuOpen,
-    onLoginSelect: onLoginMenuSelect,
-    nodes: nodes
-  })));
-}
-// CONCATENATED MODULE: ./src/console/components/DocumentNodes/index.ts
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_DocumentNodes = (DocumentNodes);
-// CONCATENATED MODULE: ./src/console/components/DocumentBlank/DocumentBlank.tsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-function DocumentBlank(props) {
-  var visible = props.visible,
-      doc = props.doc;
-  var consoleCtx = useConsoleContext();
-
-  function onClick() {
-    var addedDoc = consoleCtx.addNodeDocument(doc.clusterId);
-    consoleCtx.navigateTo(addedDoc, true);
-  }
-
-  return react_default.a.createElement(components_Document, {
-    visible: visible
-  }, react_default.a.createElement(src_Flex, {
-    flexDirection: "column",
-    flex: "1",
-    justifyContent: "center",
-    alignItems: "center"
-  }, react_default.a.createElement(src_Text, {
-    typography: "body1",
-    mb: "4"
-  }, "Click below to start a new session"), react_default.a.createElement(Button_ButtonSecondary, {
-    onClick: onClick,
-    children: "New Session"
-  })));
-}
-// CONCATENATED MODULE: ./src/console/components/DocumentBlank/index.ts
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_DocumentBlank = (DocumentBlank);
-// CONCATENATED MODULE: ./src/console/Console.tsx
-function Console_templateObject() {
-  var data = Console_taggedTemplateLiteral(["\n  background-color: ", ";\n  bottom: 0;\n  left: 0;\n  position: absolute;\n  right: 0;\n  top: 0;\n  display: flex;\n  flex-direction: column;\n"]);
-
-  Console_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function Console_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-function Console_extends() { Console_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Console_extends.apply(this, arguments); }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-var POLL_INTERVAL = 3000; // every 3 sec
-
-function Console() {
-  var consoleCtx = useConsoleContext();
-
-  var _useLocation = Object(react_router["h" /* useLocation */])(),
-      pathname = _useLocation.pathname;
-
-  var _useParams = Object(react_router["i" /* useParams */])(),
-      clusterId = _useParams.clusterId;
-
-  var sshRouteMatch = Object(react_router["j" /* useRouteMatch */])(config["a" /* default */].routes.consoleConnect);
-  var nodesRouteMatch = Object(react_router["j" /* useRouteMatch */])(config["a" /* default */].routes.consoleNodes);
-  var joinSshRouteMatch = Object(react_router["j" /* useRouteMatch */])(config["a" /* default */].routes.consoleSession); // find the document which matches current URL
-
-  var storeDocs = useStoreDocs();
-  var hasSshSessions = storeDocs.getSshDocuments().length > 0;
-  var activeDoc = consoleCtx.ensureActiveDoc(pathname);
-  react_default.a.useEffect(function () {
-    if (activeDoc) {
-      return;
-    } // create document based on URL request
-
-
-    if (sshRouteMatch) {
-      var doc = consoleCtx.addSshDocument(sshRouteMatch.params);
-      consoleCtx.navigateTo(doc);
-    } else if (joinSshRouteMatch) {
-      var _doc = consoleCtx.addSshDocument(joinSshRouteMatch.params);
-
-      consoleCtx.navigateTo(_doc);
-    } else if (nodesRouteMatch) {
-      var _doc2 = consoleCtx.addNodeDocument(clusterId);
-
-      consoleCtx.navigateTo(_doc2);
-    }
-  }, [pathname]);
-
-  function onSelectTab(doc) {
-    consoleCtx.navigateTo(doc);
-  }
-
-  function onCloseTab(doc) {
-    var next = consoleCtx.closeDocument(doc.id);
-    consoleCtx.navigateTo(next);
-  }
-
-  function onNewTab() {
-    var doc = consoleCtx.addNodeDocument(clusterId);
-    consoleCtx.navigateTo(doc);
-  }
-
-  function onRefresh() {
-    return consoleCtx.refreshParties();
-  }
-
-  function onLogout() {
-    consoleCtx.logout();
-  }
-
-  var disableNewTab = storeDocs.getNodeDocuments().length > 0;
-  var active = storeDocs.state.active;
-  var documents = storeDocs.getDocuments();
-  var $docs = documents.map(function (doc) {
-    return renderDocument(doc, doc.id === active);
-  });
-  return react_default.a.createElement(StyledConsole, null, react_default.a.createElement(src_Flex, {
-    bg: "primary.dark",
-    height: "38px"
-  }, react_default.a.createElement(components_Tabs, {
-    flex: "1",
-    items: documents,
-    onClose: onCloseTab,
-    onSelect: onSelectTab,
-    activeTab: active
-  }), react_default.a.createElement(components_ActionBar, {
-    clusterId: clusterId,
-    disableAddTab: disableNewTab,
-    onNew: onNewTab,
-    onLogout: onLogout
-  })), $docs, hasSshSessions && react_default.a.createElement(components_AjaxPoller, {
-    time: POLL_INTERVAL,
-    onFetch: onRefresh
-  }));
-}
-
-function renderDocument(doc, visible) {
-  var props = {
-    visible: visible,
-    key: doc.id
-  };
-
-  switch (doc.kind) {
-    case 'terminal':
-      return react_default.a.createElement(components_DocumentSsh, Console_extends({
-        doc: doc
-      }, props));
-
-    case 'nodes':
-      return react_default.a.createElement(components_DocumentNodes, Console_extends({
-        doc: doc
-      }, props));
-
-    default:
-      return react_default.a.createElement(components_DocumentBlank, Console_extends({
-        doc: doc
-      }, props));
-  }
-}
-
-var StyledConsole = styled_components_browser_esm["c" /* default */].div(Console_templateObject(), colors_colors.bgTerminal);
-// EXTERNAL MODULE: ./src/console/stores/index.ts
-var console_stores = __webpack_require__("lAdB");
-
-// EXTERNAL MODULE: ./src/services/localStorage.js
-var localStorage = __webpack_require__("QCYR");
-
-// CONCATENATED MODULE: ./src/services/session.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-var TOKEN_CHECKER_INTERVAL = 15 * 1000; //  every 15 sec
-
-var session_logger = logger["a" /* default */].create('services/session');
-var sesstionCheckerTimerId = null;
-var session_session = {
-  logout: function logout() {
-    api["a" /* default */]["delete"](config["a" /* default */].api.sessionPath)["finally"](function () {
-      services_history.goToLogin();
-    });
-    this.clear();
-  },
-  clear: function clear() {
-    this._stopTokenChecker();
-
-    localStorage["c" /* default */].unsubscribe(receiveMessage);
-    localStorage["c" /* default */].setBearerToken(null);
-    localStorage["c" /* default */].clear();
-  },
-  // ensureSession verifies that token is valid and starts
-  // periodically checking and refreshing the token.
-  ensureSession: function ensureSession() {
-    var _this = this;
-
-    this._stopTokenChecker();
-
-    this._ensureLocalStorageSubscription();
-
-    if (!this.isValid()) {
-      this.logout();
-      return;
-    }
-
-    if (this._shouldRenewToken()) {
-      this._renewToken().then(function () {
-        _this._startTokenChecker();
-      })["catch"](this.logout.bind(this));
-    } else {
-      this._startTokenChecker();
-    }
-  },
-  isValid: function isValid() {
-    return this._timeLeft() > 0;
-  },
-  _getBearerToken: function _getBearerToken() {
-    var token = null;
-
-    try {
-      token = this._extractBearerTokenFromHtml();
-
-      if (token) {
-        localStorage["c" /* default */].setBearerToken(token);
-      } else {
-        token = localStorage["c" /* default */].getBearerToken();
-      }
-    } catch (err) {
-      session_logger.error('Cannot find bearer token', err);
-    }
-
-    return token;
-  },
-  _extractBearerTokenFromHtml: function _extractBearerTokenFromHtml() {
-    var el = document.querySelector('[name=grv_bearer_token]');
-
-    if (!el || !el.content) {
-      return null;
-    } // remove token from HTML as it will be renewed with a time
-    // and stored in the localStorage
-
-
-    el.parentNode.removeChild(el);
-    var decoded = window.atob(el.content);
-    var json = JSON.parse(decoded);
-    return new localStorage["a" /* BearerToken */](json);
-  },
-  _shouldRenewToken: function _shouldRenewToken() {
-    if (this._getIsRenewing()) {
-      return false;
-    }
-    /*
-     * increase the threshold value for slow connections to avoid
-     * access-denied response due to concurrent renew token request
-     * made from another tab.
-     */
-
-
-    return this._timeLeft() < TOKEN_CHECKER_INTERVAL * 1.5;
-  },
-  _renewToken: function _renewToken() {
-    var _this2 = this;
-
-    this._setAndBroadcastIsRenewing(true);
-
-    return api["a" /* default */].post(config["a" /* default */].api.renewTokenPath).then(this._receiveBearerToken.bind(this))["finally"](function () {
-      _this2._setAndBroadcastIsRenewing(false);
-    });
-  },
-  _receiveBearerToken: function _receiveBearerToken(json) {
-    var token = new localStorage["a" /* BearerToken */](json);
-    localStorage["c" /* default */].setBearerToken(token);
-  },
-  _setAndBroadcastIsRenewing: function _setAndBroadcastIsRenewing(value) {
-    this._setIsRenewing(value);
-
-    localStorage["c" /* default */].broadcast(localStorage["b" /* KeysEnum */].TOKEN_RENEW, value);
-  },
-  _setIsRenewing: function _setIsRenewing(value) {
-    this._isRenewing = value;
-  },
-  _getIsRenewing: function _getIsRenewing() {
-    return !!this._isRenewing;
-  },
-  _timeLeft: function _timeLeft() {
-    var token = this._getBearerToken();
-
-    if (!token) {
-      return 0;
-    }
-
-    var expiresIn = token.expiresIn,
-        created = token.created;
-
-    if (!created || !expiresIn) {
-      return 0;
-    }
-
-    expiresIn = expiresIn * 1000;
-    var delta = created + expiresIn - new Date().getTime();
-    return delta;
-  },
-  _shouldCheckStatus: function _shouldCheckStatus() {
-    if (this._getIsRenewing()) {
-      return false;
-    }
-    /*
-     * double the threshold value for slow connections to avoid
-     * access-denied response due to concurrent renew token request
-     * made from other tab
-     */
-
-
-    return this._timeLeft() > TOKEN_CHECKER_INTERVAL * 2;
-  },
-  // subsribes to localStorage changes (triggered from other browser tabs)
-  _ensureLocalStorageSubscription: function _ensureLocalStorageSubscription() {
-    localStorage["c" /* default */].subscribe(receiveMessage);
-  },
-  _fetchStatus: function _fetchStatus() {
-    var _this3 = this;
-
-    api["a" /* default */].get(config["a" /* default */].api.userStatusPath)["catch"](function (err) {
-      // this indicates that session is no longer valid (caused by server restarts or updates)
-      if (err.response.status == 403) {
-        _this3.logout();
-      }
-    });
-  },
-  _startTokenChecker: function _startTokenChecker() {
-    var _this4 = this;
-
-    this._stopTokenChecker();
-
-    sesstionCheckerTimerId = setInterval(function () {
-      // calling ensureSession() will again invoke _startTokenChecker
-      _this4.ensureSession(); // handle server restarts when session may become invalid
-
-
-      if (_this4._shouldCheckStatus()) {
-        _this4._fetchStatus();
-      }
-    }, TOKEN_CHECKER_INTERVAL);
-  },
-  _stopTokenChecker: function _stopTokenChecker() {
-    clearInterval(sesstionCheckerTimerId);
-    sesstionCheckerTimerId = null;
-  }
-};
-
-function receiveMessage(event) {
-  var key = event.key,
-      newValue = event.newValue; // check if logout was triggered from other tabs
-
-  if (localStorage["c" /* default */].getBearerToken() === null) {
-    session_session.logout();
-  } // check if token is being renewed from another tab
-
-
-  if (key === localStorage["b" /* KeysEnum */].TOKEN_RENEW && !!newValue) {
-    session_session._setIsRenewing(JSON.parse(newValue));
-  }
-}
-
-/* harmony default export */ var services_session = (session_session);
 // CONCATENATED MODULE: ./src/lib/term/ttyAddressResolver.js
 function ttyAddressResolver_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
 
@@ -16578,7 +16809,8 @@ limitations under the License.
 
 var consoleContext_logger = logger["a" /* default */].create('teleport/console');
 /**
- * A main controller which manages the console global state
+ * Console Context is used by components to access shared state and also to communicate
+ * with other services.
  */
 
 var consoleContext_ConsoleContext =
@@ -16591,35 +16823,30 @@ function () {
 
     consoleContext_defineProperty(this, "storeParties", new console_stores["StoreParties"]());
 
-    // always initialize the console with 1 document
+    // set default clusterId (proxy)
+    config["a" /* default */].setClusterId(config["a" /* default */].proxyCluster); // always initialize the console with 1 document
+
     this.storeDocs.add({
       kind: 'blank',
       url: config["a" /* default */].getConsoleRoute(config["a" /* default */].proxyCluster),
-      clusterId: config["a" /* default */].proxyCluster
+      clusterId: config["a" /* default */].proxyCluster,
+      created: new Date()
     });
   }
 
   consoleContext_createClass(ConsoleContext, [{
-    key: "ensureActiveDoc",
-    value: function ensureActiveDoc(url) {
-      var doc = this.storeDocs.state.items.find(function (i) {
-        return i.url === url;
-      });
-
-      if (doc) {
-        this.storeDocs.state.active = doc.id;
-      }
-
-      return doc;
+    key: "getActiveDocId",
+    value: function getActiveDocId(url) {
+      var doc = this.storeDocs.findByUrl(url);
+      return doc ? doc.id : -1;
     }
   }, {
-    key: "closeDocument",
-    value: function closeDocument(id) {
+    key: "removeDocument",
+    value: function removeDocument(id) {
       var nextId = this.storeDocs.getNext(id);
       var items = this.storeDocs.filter(id);
       this.storeDocs.setState({
-        items: items,
-        active: -1
+        items: items
       });
       return this.storeDocs.find(nextId);
     }
@@ -16629,18 +16856,6 @@ function () {
       this.storeDocs.update(id, partial);
     }
   }, {
-    key: "navigateTo",
-    value: function navigateTo(_ref) {
-      var url = _ref.url;
-      var replace = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
-
-      if (replace) {
-        services_history.replace(url);
-      } else {
-        services_history.push(url);
-      }
-    }
-  }, {
     key: "addNodeDocument",
     value: function addNodeDocument() {
       var clusterId = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : config["a" /* default */].proxyCluster;
@@ -16648,16 +16863,17 @@ function () {
         clusterId: clusterId,
         title: "New session",
         kind: 'nodes',
-        url: config["a" /* default */].getConsoleNodesRoute(clusterId)
+        url: config["a" /* default */].getConsoleNodesRoute(clusterId),
+        created: new Date()
       });
     }
   }, {
     key: "addSshDocument",
-    value: function addSshDocument(_ref2) {
-      var login = _ref2.login,
-          serverId = _ref2.serverId,
-          sid = _ref2.sid,
-          clusterId = _ref2.clusterId;
+    value: function addSshDocument(_ref) {
+      var login = _ref.login,
+          serverId = _ref.serverId,
+          sid = _ref.sid,
+          clusterId = _ref.clusterId;
       var title = login && serverId ? "".concat(login, "@").concat(serverId) : sid;
       var url = this.getSshDocumentUrl({
         clusterId: clusterId,
@@ -16673,7 +16889,8 @@ function () {
         serverId: serverId,
         login: login,
         sid: sid,
-        url: url
+        url: url,
+        created: new Date()
       });
     }
   }, {
@@ -16689,12 +16906,7 @@ function () {
   }, {
     key: "getSshDocumentUrl",
     value: function getSshDocumentUrl(sshParams) {
-      var sid = sshParams.sid,
-          clusterId = sshParams.clusterId;
-      return sid ? config["a" /* default */].getConsoleSessionRoute({
-        clusterId: clusterId,
-        sid: sid
-      }) : config["a" /* default */].getConsoleConnectRoute(sshParams);
+      return sshParams.sid ? config["a" /* default */].getSshSessionRoute(sshParams) : config["a" /* default */].getSshConnectRoute(sshParams);
     }
   }, {
     key: "refreshParties",
@@ -16783,16 +16995,41 @@ function () {
           serverId = session.serverId,
           clusterId = session.clusterId;
       var ttyUrl = config["a" /* default */].api.ttyWsAddr.replace(':fqdm', getHostName()).replace(':token', Object(api["b" /* getAccessToken */])()).replace(':clusterId', clusterId);
-      var ttyConfig = {
+      var addressResolver = new AddressResolver({
         ttyUrl: ttyUrl,
         ttyParams: {
           login: login,
           sid: sid,
           server_id: serverId
         }
-      };
-      var addressResolver = new AddressResolver(ttyConfig);
+      });
       return new term_tty(addressResolver);
+    }
+  }, {
+    key: "gotoNodeTab",
+    value: function gotoNodeTab(clusterId) {
+      var url = this.getNodeDocumentUrl(clusterId);
+      this.gotoTab({
+        url: url
+      });
+    }
+  }, {
+    key: "gotoTab",
+    value: function gotoTab(_ref2) {
+      var url = _ref2.url;
+      var replace = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+
+      if (replace) {
+        services_history.replace(url);
+      } else {
+        services_history.push(url);
+      }
+    }
+  }, {
+    key: "closeTab",
+    value: function closeTab(doc) {
+      var next = this.removeDocument(doc.id);
+      this.gotoTab(next);
     }
   }]);
 
@@ -16831,8 +17068,10 @@ limitations under the License.
 
 
 
+ // Main entry point to Console where it initializes ContextProvider with the
+// instance of ConsoleContext.
 
-function console_Index() {
+function Index() {
   var _React$useState = react_default.a.useState(function () {
     return new consoleContext_ConsoleContext();
   }),
@@ -16944,52 +17183,6 @@ limitations under the License.
 */
 
 /* harmony default export */ var components_Authenticated = (Authenticated_Authenticated);
-// CONCATENATED MODULE: ./src/components/Offline/Offline.jsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-function OfflineCluster(_ref) {
-  var match = _ref.match;
-  var siteId = match.params.siteId;
-  return react_default.a.createElement(CardError_Offline, {
-    title: "This cluster is not available from Gravity",
-    message: "To access \"".concat(siteId, "\" please use its local endpoint.")
-  });
-}
-/* harmony default export */ var Offline_Offline = (Object(react_router["k" /* withRouter */])(OfflineCluster));
-// CONCATENATED MODULE: ./src/components/Offline/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_Offline = (Offline_Offline);
 // CONCATENATED MODULE: ../shared/components/FormPassword/FormPassword.jsx
 function FormPassword_slicedToArray(arr, i) { return FormPassword_arrayWithHoles(arr) || FormPassword_iterableToArrayLimit(arr, i) || FormPassword_nonIterableRest(); }
 
@@ -17208,7 +17401,7 @@ limitations under the License.
 /* harmony default export */ var components_FormPassword = (FormPassword_FormPassword);
 // CONCATENATED MODULE: ./src/components/Layout/Layout.jsx
 function Layout_templateObject5() {
-  var data = Layout_taggedTemplateLiteral(["\n  display: flex;\n  flex-direction: column;\n  width: 100%\n"]);
+  var data = Layout_taggedTemplateLiteral(["\n  display: flex;\n  flex-direction: column;\n  width: 100%;\n"]);
 
   Layout_templateObject5 = function _templateObject5() {
     return data;
@@ -17228,7 +17421,7 @@ function Layout_templateObject4() {
 }
 
 function Layout_templateObject3() {
-  var data = Layout_taggedTemplateLiteral(["\n  overflow: auto;\n  width: 100%;\n  height: 100%;\n  flex-direction: column;\n\n  /*\n    This hack adds space to the bottom.\n    Directly assigning padding-bottom does not work as flex container ignores this child padding.\n    Directly assigning margin-bottom impacts the scrollbar area by pushing it up as well.\n    It works in all major browsers.\n  */\n  ::after { content: ' '; padding-bottom: 24px; }\n"]);
+  var data = Layout_taggedTemplateLiteral(["\n  overflow: auto;\n  width: 100%;\n  height: 100%;\n  flex-direction: column;\n\n  /*\n    This hack adds space to the bottom.\n    Directly assigning padding-bottom does not work as flex container ignores this child padding.\n    Directly assigning margin-bottom impacts the scrollbar area by pushing it up as well.\n    It works in all major browsers.\n  */\n  ::after {\n    content: ' ';\n    padding-bottom: 24px;\n  }\n"]);
 
   Layout_templateObject3 = function _templateObject3() {
     return data;
@@ -17288,7 +17481,7 @@ limitations under the License.
 
 var FeatureHeader = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(Layout_templateObject());
 FeatureHeader.defaultProps = {
-  mt: 2,
+  mt: 4,
   mb: 4
 };
 /**
@@ -17583,7 +17776,7 @@ function withFeature_objectSpread(target) { for (var i = 1; i < arguments.length
 function withFeature_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17619,6 +17812,7 @@ var withFeature_withFeature = function withFeature(feature) {
       if (feature.isFailed()) {
         var errorText = feature.state.statusText;
         return react_default.a.createElement(CardError_Failed, {
+          alignSelf: "baseline",
           message: errorText
         });
       }
@@ -17719,7 +17913,7 @@ function (_FeatureBase) {
 
       context.storeNav.addTopMenuItem({
         title: 'Account Settings',
-        Icon: src_Icon["x" /* User */],
+        Icon: src_Icon["v" /* User */],
         to: config["a" /* default */].routes.account
       });
     }
@@ -17729,1558 +17923,7 @@ function (_FeatureBase) {
 }(FeatureBase);
 
 /* harmony default export */ var featureAccount = (featureAccount_AccountFeature);
-// CONCATENATED MODULE: ./src/stores/storeNav.ts
-function storeNav_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { storeNav_typeof = function _typeof(obj) { return typeof obj; }; } else { storeNav_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return storeNav_typeof(obj); }
-
-function storeNav_toConsumableArray(arr) { return storeNav_arrayWithoutHoles(arr) || storeNav_iterableToArray(arr) || storeNav_nonIterableSpread(); }
-
-function storeNav_nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance"); }
-
-function storeNav_iterableToArray(iter) { if (Symbol.iterator in Object(iter) || Object.prototype.toString.call(iter) === "[object Arguments]") return Array.from(iter); }
-
-function storeNav_arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = new Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } }
-
-function storeNav_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
-
-function storeNav_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { storeNav_ownKeys(source, true).forEach(function (key) { storeNav_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { storeNav_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
-
-function storeNav_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function storeNav_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function storeNav_createClass(Constructor, protoProps, staticProps) { if (protoProps) storeNav_defineProperties(Constructor.prototype, protoProps); if (staticProps) storeNav_defineProperties(Constructor, staticProps); return Constructor; }
-
-function storeNav_possibleConstructorReturn(self, call) { if (call && (storeNav_typeof(call) === "object" || typeof call === "function")) { return call; } return storeNav_assertThisInitialized(self); }
-
-function storeNav_getPrototypeOf(o) { storeNav_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return storeNav_getPrototypeOf(o); }
-
-function storeNav_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function storeNav_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) storeNav_setPrototypeOf(subClass, superClass); }
-
-function storeNav_setPrototypeOf(o, p) { storeNav_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return storeNav_setPrototypeOf(o, p); }
-
-function storeNav_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-var storeNav_defaultState = {
-  sideNav: [],
-  topNav: [],
-  topMenu: []
-};
-
-var StoreNav =
-/*#__PURE__*/
-function (_Store) {
-  storeNav_inherits(StoreNav, _Store);
-
-  function StoreNav() {
-    var _getPrototypeOf2;
-
-    var _this;
-
-    storeNav_classCallCheck(this, StoreNav);
-
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    _this = storeNav_possibleConstructorReturn(this, (_getPrototypeOf2 = storeNav_getPrototypeOf(StoreNav)).call.apply(_getPrototypeOf2, [this].concat(args)));
-
-    storeNav_defineProperty(storeNav_assertThisInitialized(_this), "state", storeNav_objectSpread({}, storeNav_defaultState));
-
-    return _this;
-  }
-
-  storeNav_createClass(StoreNav, [{
-    key: "addTopMenuItem",
-    value: function addTopMenuItem(item) {
-      var items = [].concat(storeNav_toConsumableArray(this.state.topMenu), [item]);
-      return this.setState({
-        topMenu: items
-      });
-    }
-  }, {
-    key: "addTopItem",
-    value: function addTopItem(item) {
-      var items = [].concat(storeNav_toConsumableArray(this.state.topNav), [item]);
-      return this.setState({
-        topNav: items
-      });
-    }
-  }, {
-    key: "addSideItem",
-    value: function addSideItem(item) {
-      var items = [].concat(storeNav_toConsumableArray(this.state.sideNav), [item]);
-      return this.setState({
-        sideNav: items
-      });
-    }
-  }, {
-    key: "getSideItems",
-    value: function getSideItems() {
-      return this.state.sideNav;
-    }
-  }, {
-    key: "getTopMenuItems",
-    value: function getTopMenuItems() {
-      return this.state.topMenu;
-    }
-  }, {
-    key: "getTopItems",
-    value: function getTopItems() {
-      return this.state.topNav;
-    }
-  }]);
-
-  return StoreNav;
-}(stores["a" /* Store */]);
-
-
-// CONCATENATED MODULE: ./src/stores/storeUser.ts
-function storeUser_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { storeUser_typeof = function _typeof(obj) { return typeof obj; }; } else { storeUser_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return storeUser_typeof(obj); }
-
-function storeUser_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function storeUser_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function storeUser_createClass(Constructor, protoProps, staticProps) { if (protoProps) storeUser_defineProperties(Constructor.prototype, protoProps); if (staticProps) storeUser_defineProperties(Constructor, staticProps); return Constructor; }
-
-function storeUser_possibleConstructorReturn(self, call) { if (call && (storeUser_typeof(call) === "object" || typeof call === "function")) { return call; } return storeUser_assertThisInitialized(self); }
-
-function storeUser_getPrototypeOf(o) { storeUser_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return storeUser_getPrototypeOf(o); }
-
-function storeUser_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function storeUser_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) storeUser_setPrototypeOf(subClass, superClass); }
-
-function storeUser_setPrototypeOf(o, p) { storeUser_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return storeUser_setPrototypeOf(o, p); }
-
-function storeUser_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-var storeUser_StoreUser =
-/*#__PURE__*/
-function (_Store) {
-  storeUser_inherits(StoreUser, _Store);
-
-  function StoreUser() {
-    var _getPrototypeOf2;
-
-    var _this;
-
-    storeUser_classCallCheck(this, StoreUser);
-
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    _this = storeUser_possibleConstructorReturn(this, (_getPrototypeOf2 = storeUser_getPrototypeOf(StoreUser)).call.apply(_getPrototypeOf2, [this].concat(args)));
-
-    storeUser_defineProperty(storeUser_assertThisInitialized(_this), "state", null);
-
-    return _this;
-  }
-
-  storeUser_createClass(StoreUser, [{
-    key: "isSso",
-    value: function isSso() {
-      return this.state.authType === 'sso';
-    }
-  }, {
-    key: "getEventAccess",
-    value: function getEventAccess() {
-      return this.state.acl.events;
-    }
-  }, {
-    key: "getConnectorAccess",
-    value: function getConnectorAccess() {
-      return this.state.acl.authConnectors;
-    }
-  }, {
-    key: "getRoleAccess",
-    value: function getRoleAccess() {
-      return this.state.acl.roles;
-    }
-  }, {
-    key: "getLogins",
-    value: function getLogins() {
-      return this.state.acl.logins;
-    }
-  }, {
-    key: "getTrustedClusterAccess",
-    value: function getTrustedClusterAccess() {
-      return this.state.acl.trustedClusters;
-    }
-  }, {
-    key: "fetchUser",
-    value: function fetchUser() {
-      var _this2 = this;
-
-      return services_user["default"].fetchUser().then(function (user) {
-        _this2.setState(user);
-      });
-    }
-  }]);
-
-  return StoreUser;
-}(stores["a" /* Store */]);
-
-
-// CONCATENATED MODULE: ./src/stores/storeClusters.ts
-function storeClusters_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { storeClusters_typeof = function _typeof(obj) { return typeof obj; }; } else { storeClusters_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return storeClusters_typeof(obj); }
-
-function storeClusters_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function storeClusters_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function storeClusters_createClass(Constructor, protoProps, staticProps) { if (protoProps) storeClusters_defineProperties(Constructor.prototype, protoProps); if (staticProps) storeClusters_defineProperties(Constructor, staticProps); return Constructor; }
-
-function storeClusters_possibleConstructorReturn(self, call) { if (call && (storeClusters_typeof(call) === "object" || typeof call === "function")) { return call; } return storeClusters_assertThisInitialized(self); }
-
-function storeClusters_getPrototypeOf(o) { storeClusters_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return storeClusters_getPrototypeOf(o); }
-
-function storeClusters_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function storeClusters_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) storeClusters_setPrototypeOf(subClass, superClass); }
-
-function storeClusters_setPrototypeOf(o, p) { storeClusters_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return storeClusters_setPrototypeOf(o, p); }
-
-function storeClusters_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-var storeClusters_StoreClusters =
-/*#__PURE__*/
-function (_Store) {
-  storeClusters_inherits(StoreClusters, _Store);
-
-  function StoreClusters() {
-    var _getPrototypeOf2;
-
-    var _this;
-
-    storeClusters_classCallCheck(this, StoreClusters);
-
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    _this = storeClusters_possibleConstructorReturn(this, (_getPrototypeOf2 = storeClusters_getPrototypeOf(StoreClusters)).call.apply(_getPrototypeOf2, [this].concat(args)));
-
-    storeClusters_defineProperty(storeClusters_assertThisInitialized(_this), "state", []);
-
-    return _this;
-  }
-
-  storeClusters_createClass(StoreClusters, [{
-    key: "getClusters",
-    value: function getClusters() {
-      return this.state;
-    }
-  }, {
-    key: "fetchClusters",
-    value: function fetchClusters() {
-      var _this2 = this;
-
-      return services_clusters["default"].fetchClusters().then(function (clusters) {
-        _this2.setState(clusters);
-
-        return clusters;
-      });
-    }
-  }]);
-
-  return StoreClusters;
-}(stores["a" /* Store */]);
-
-
-// EXTERNAL MODULE: /web-apps/node_modules/moment/moment.js
-var moment = __webpack_require__("wgY5");
-var moment_default = /*#__PURE__*/__webpack_require__.n(moment);
-
-// CONCATENATED MODULE: ./src/services/events/event.js
-var _eventConfig;
-
-function event_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function event_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function event_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = event_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function event_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-var CodeEnum = {
-  // Teleport
-  AUTH_ATTEMPT_FAILURE: 'T3007W',
-  CLIENT_DISCONNECT: 'T3006I',
-  EXEC_FAILURE: 'T3002E',
-  EXEC: 'T3002I',
-  PORTFORWARD_FAILURE: 'T3003E',
-  PORTFORWARD: 'T3003I',
-  SCP_DOWNLOAD_FAILURE: 'T3004E',
-  SCP_DOWNLOAD: 'T3004I',
-  SCP_UPLOAD_FAILURE: 'T3005E',
-  SCP_UPLOAD: 'T3005I',
-  SESSION_END: 'T2004I',
-  SESSION_JOIN: 'T2001I',
-  SESSION_LEAVE: 'T2003I',
-  SESSION_START: 'T2000I',
-  SESSION_UPLOAD: 'T2005I',
-  SUBSYSTEM_FAILURE: 'T3001E',
-  SUBSYSTEM: 'T3001I',
-  TERMINAL_RESIZE: 'T2002I',
-  USER_LOCAL_LOGIN: 'T1000I',
-  USER_LOCAL_LOGINFAILURE: 'T1000W',
-  USER_SSO_LOGIN: 'T1001I',
-  USER_SSO_LOGINFAILURE: 'T1001W',
-  // Gravity Oss
-  ALERT_CREATED: 'G1007I',
-  ALERT_DELETED: 'G2007I',
-  ALERT_TARGET_CREATED: 'G1008I',
-  ALERT_TARGET_DELETED: 'G2008I',
-  APPLICATION_INSTALL: 'G4000I',
-  APPLICATION_ROLLBACK: 'G4002I',
-  APPLICATION_UNINSTALL: 'G4003I',
-  APPLICATION_UPGRADE: 'G4001I',
-  AUTHGATEWAY_UPDATED: 'G1009I',
-  AUTHPREFERENCE_UPDATED: 'G1005I',
-  CLUSTER_HEALTHY: 'G3001I',
-  CLUSTER_UNHEALTHY: 'G3000W',
-  GITHUB_CONNECTOR_CREATED: 'G1002I',
-  GITHUB_CONNECTOR_DELETED: 'G2002I',
-  LOGFORWARDER_CREATED: 'G1003I',
-  LOGFORWARDER_DELETED: 'G2003I',
-  OPERATION_CONFIG_COMPLETE: 'G0016I',
-  OPERATION_CONFIG_FAILURE: 'G0016E',
-  OPERATION_CONFIG_START: 'G0015I',
-  OPERATION_ENV_COMPLETE: 'G0014I',
-  OPERATION_ENV_FAILURE: 'G0014E',
-  OPERATION_ENV_START: 'G0013I',
-  OPERATION_EXPAND_COMPLETE: 'G0004I',
-  OPERATION_EXPAND_FAILURE: 'G0004E',
-  OPERATION_EXPAND_START: 'G0003I',
-  OPERATION_GC_COMPLETE: 'G0012I',
-  OPERATION_GC_FAILURE: 'G0012E',
-  OPERATION_GC_START: 'G0011I',
-  OPERATION_INSTALL_COMPLETE: 'G0002I',
-  OPERATION_INSTALL_FAILURE: 'G0002E',
-  OPERATION_INSTALL_START: 'G0001I',
-  OPERATION_SHRINK_COMPLETE: 'G0006I',
-  OPERATION_SHRINK_FAILURE: 'G0006E',
-  OPERATION_SHRINK_START: 'G0005I',
-  OPERATION_UNINSTALL_COMPLETE: 'G0010I',
-  OPERATION_UNINSTALL_FAILURE: 'G0010E',
-  OPERATION_UNINSTALL_START: 'G0009I',
-  OPERATION_UPDATE_COMPLETE: 'G0008I',
-  OPERATION_UPDATE_FAILURE: 'G0008E',
-  OPERATION_UPDATE_START: 'G0007I',
-  ROLE_CREATED: 'GE1000I',
-  ROLE_DELETED: 'GE2000I',
-  SMTPCONFIG_CREATED: 'G1006I',
-  SMTPCONFIG_DELETED: 'G2006I',
-  TLSKEYPAIR_CREATED: 'G1004I',
-  TLSKEYPAIR_DELETED: 'G2004I',
-  TOKEN_CREATED: 'G1001I',
-  TOKEN_DELETED: 'G2001I',
-  USER_CREATED: 'G1000I',
-  USER_DELETED: 'G2000I',
-  USER_INVITE_CREATED: 'G1010I',
-  // Gravity E
-  ENDPOINTS_UPDATED: 'GE1003I',
-  LICENSE_EXPIRED: 'GE3003I',
-  LICENSE_GENERATED: 'GE3002I',
-  LICENSE_UPDATED: 'GE3004I',
-  OIDC_CONNECTOR_CREATED: 'GE1001I',
-  OIDC_CONNECTOR_DELETED: 'GE2001I',
-  REMOTE_SUPPORT_DISABLED: 'GE3001I',
-  REMOTE_SUPPORT_ENABLED: 'GE3000I',
-  SAML_CONNECTOR_CREATED: 'GE1002I',
-  SAML_CONNECTOR_DELETED: 'GE2002I',
-  UPDATES_DISABLED: 'GE3006I',
-  UPDATES_DOWNLOADED: 'GE3007I',
-  UPDATES_ENABLED: 'GE3005I'
-};
-var eventConfig = (_eventConfig = {}, event_defineProperty(_eventConfig, CodeEnum.ALERT_CREATED, {
-  desc: 'Alert Created',
-  formatter: function formatter(_ref) {
-    var user = _ref.user,
-        name = _ref.name;
-    return "User ".concat(user, " created monitoring alert ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.ALERT_DELETED, {
-  desc: 'Alert Deleted',
-  formatter: function formatter(_ref2) {
-    var user = _ref2.user,
-        name = _ref2.name;
-    return "User ".concat(user, " deleted monitoring alert ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.ALERT_TARGET_CREATED, {
-  desc: 'Alert Target Created',
-  formatter: function formatter(_ref3) {
-    var user = _ref3.user;
-    return "User ".concat(user, " updated monitoring alert target");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.ALERT_TARGET_DELETED, {
-  desc: 'Alert Target Deleted',
-  formatter: function formatter(_ref4) {
-    var user = _ref4.user;
-    return "User ".concat(user, " deleted monitoring alert target");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.APPLICATION_INSTALL, {
-  desc: 'Application Installed',
-  formatter: function formatter(_ref5) {
-    var releaseName = _ref5.releaseName,
-        name = _ref5.name,
-        version = _ref5.version;
-    return "Application release ".concat(releaseName, " (").concat(name, ":").concat(version, ") has been installed");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.APPLICATION_UPGRADE, {
-  desc: 'Application Upgraded',
-  formatter: function formatter(_ref6) {
-    var releaseName = _ref6.releaseName,
-        name = _ref6.name,
-        version = _ref6.version;
-    return "Application release ".concat(releaseName, " has been upgraded to ").concat(name, ":").concat(version);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.APPLICATION_ROLLBACK, {
-  desc: 'Application Rolledbacked',
-  formatter: function formatter(_ref7) {
-    var releaseName = _ref7.releaseName,
-        name = _ref7.name,
-        version = _ref7.version;
-    return "Application release ".concat(releaseName, " has been rolled back to ").concat(name, ":").concat(version);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.APPLICATION_UNINSTALL, {
-  desc: 'Application Uninstalled',
-  formatter: function formatter(_ref8) {
-    var releaseName = _ref8.releaseName,
-        name = _ref8.name,
-        version = _ref8.version;
-    return "Applicaiton release ".concat(releaseName, " (").concat(name, ":").concat(version, ") has been uninstalled");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.AUTH_ATTEMPT_FAILURE, {
-  desc: 'Auth Attempt Failed',
-  formatter: function formatter(_ref9) {
-    var user = _ref9.user,
-        error = _ref9.error;
-    return "User ".concat(user, " failed auth attempt: ").concat(error);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.AUTHGATEWAY_UPDATED, {
-  desc: 'Auth Gateway Updated',
-  formatter: function formatter(_ref10) {
-    var user = _ref10.user;
-    return "User ".concat(user, " updated cluster authentication gateway settings");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.AUTHPREFERENCE_UPDATED, {
-  desc: 'Auth Preferences Updated',
-  formatter: function formatter(_ref11) {
-    var user = _ref11.user;
-    return "User ".concat(user, " updated cluster authentication preference");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.CLIENT_DISCONNECT, {
-  desc: 'Client Disconnected',
-  formatter: function formatter(_ref12) {
-    var user = _ref12.user,
-        reason = _ref12.reason;
-    return "User ".concat(user, " has been disconnected: ").concat(reason);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.CLUSTER_HEALTHY, {
-  desc: 'Cluster Healthy',
-  formatter: function formatter() {
-    return "Cluster has become healthy";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.CLUSTER_UNHEALTHY, {
-  desc: 'Cluster Unhealthy',
-  formatter: function formatter(_ref13) {
-    var reason = _ref13.reason;
-    return "Cluster is degraded: ".concat(reason);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.ENDPOINTS_UPDATED, {
-  desc: 'Endpoints Updated',
-  formatter: function formatter(_ref14) {
-    var user = _ref14.user;
-    return "User ".concat(user, " updated Ops Center endpoints");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.EXEC, {
-  desc: 'Command Execution',
-  formatter: function formatter(_ref15) {
-    var user = _ref15.user,
-        rest = event_objectWithoutProperties(_ref15, ["user"]);
-
-    return "User ".concat(user, " executed a command on node ").concat(rest['addr.local']);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.EXEC_FAILURE, {
-  desc: 'Command Execution Failed',
-  formatter: function formatter(_ref16) {
-    var user = _ref16.user,
-        exitError = _ref16.exitError,
-        rest = event_objectWithoutProperties(_ref16, ["user", "exitError"]);
-
-    return "User ".concat(user, " command execution on node ").concat(rest['addr.local'], " failed: ").concat(exitError);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.GITHUB_CONNECTOR_CREATED, {
-  desc: 'GITHUB Auth Connector Created',
-  formatter: function formatter(_ref17) {
-    var user = _ref17.user,
-        name = _ref17.name;
-    return "User ".concat(user, " created Github connector ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.GITHUB_CONNECTOR_DELETED, {
-  desc: 'GITHUB Auth Connector Deleted',
-  formatter: function formatter(_ref18) {
-    var user = _ref18.user,
-        name = _ref18.name;
-    return "User ".concat(user, " deleted Github connector ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.LICENSE_GENERATED, {
-  desc: 'Cluster License Generated',
-  formatter: function formatter(_ref19) {
-    var maxNodes = _ref19.maxNodes;
-    return "License for max nodes ".concat(maxNodes, " has been generated");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.LICENSE_EXPIRED, {
-  desc: 'Cluster License Expired',
-  formatter: function formatter() {
-    return "Cluster license has expired";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.LICENSE_UPDATED, {
-  desc: 'Cluster License Updated',
-  formatter: function formatter() {
-    return "Cluster license has been updated";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.LOGFORWARDER_CREATED, {
-  desc: 'Log Forwarder Created',
-  formatter: function formatter(_ref20) {
-    var user = _ref20.user,
-        name = _ref20.name;
-    return "User ".concat(user, " created log forwarder ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.LOGFORWARDER_DELETED, {
-  desc: 'Log Forwarder Deleted',
-  formatter: function formatter(_ref21) {
-    var user = _ref21.user,
-        name = _ref21.name;
-    return "User ".concat(user, " deleted log forwarder ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OIDC_CONNECTOR_CREATED, {
-  desc: 'OIDC Auth Connector Created',
-  formatter: function formatter(_ref22) {
-    var user = _ref22.user,
-        name = _ref22.name;
-    return "User ".concat(user, " created OIDC connector ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OIDC_CONNECTOR_DELETED, {
-  desc: 'OIDC Auth Connector Deleted',
-  formatter: function formatter(_ref23) {
-    var user = _ref23.user,
-        name = _ref23.name;
-    return "User ".concat(user, " deleted OIDC connector ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_CONFIG_COMPLETE, {
-  desc: 'Cluster Configuration Completed',
-  formatter: function formatter() {
-    return "Cluster configuration has been updated";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_CONFIG_FAILURE, {
-  desc: 'Cluster Configuration Failed',
-  formatter: function formatter() {
-    return "Failed to update the cluster configuration";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_CONFIG_START, {
-  desc: 'Cluster Configuration Started',
-  formatter: function formatter() {
-    return "Updating the cluster configuration";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_ENV_COMPLETE, {
-  desc: 'Environment Update Completed',
-  formatter: function formatter() {
-    return "Cluster runtime environment has been updated";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_ENV_FAILURE, {
-  desc: 'Environment Update Failed',
-  formatter: function formatter() {
-    return "Failed to update the cluster runtime environment";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_ENV_START, {
-  desc: 'Environment Update Started',
-  formatter: function formatter() {
-    return "Updating the cluster runtime environment";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_EXPAND_START, {
-  desc: 'Cluster Expand Started',
-  formatter: function formatter(_ref24) {
-    var hostname = _ref24.hostname,
-        ip = _ref24.ip,
-        role = _ref24.role;
-    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " is joining the cluster");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_EXPAND_COMPLETE, {
-  desc: 'Cluster Expand Completed',
-  formatter: function formatter(_ref25) {
-    var hostname = _ref25.hostname,
-        ip = _ref25.ip,
-        role = _ref25.role;
-    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " has joined the cluster");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_EXPAND_FAILURE, {
-  desc: 'Cluster Expand Failed',
-  formatter: function formatter(_ref26) {
-    var hostname = _ref26.hostname,
-        ip = _ref26.ip,
-        role = _ref26.role;
-    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " has failed to join the cluster");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_GC_START, {
-  desc: 'GC Started',
-  formatter: function formatter() {
-    return 'Running garbage collection on the cluster';
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_GC_COMPLETE, {
-  desc: 'GC Completed',
-  formatter: function formatter() {
-    return 'Garbage collection on the cluster has finished';
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_GC_FAILURE, {
-  desc: 'GC Failed',
-  formatter: function formatter() {
-    return 'Garbage collection on the cluster has failed';
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_INSTALL_START, {
-  desc: 'Cluster Install Started',
-  formatter: function formatter(_ref27) {
-    var cluster = _ref27.cluster;
-    return "Cluster ".concat(cluster, " is being installed");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_INSTALL_COMPLETE, {
-  desc: 'Cluster Install Completed',
-  formatter: function formatter(_ref28) {
-    var cluster = _ref28.cluster;
-    return "Cluster ".concat(cluster, " has been installed");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_INSTALL_FAILURE, {
-  desc: 'Cluster Install Failed',
-  formatter: function formatter(_ref29) {
-    var cluster = _ref29.cluster;
-    return "Cluster ".concat(cluster, " install has failed");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_SHRINK_START, {
-  desc: 'Cluster Shrink Started',
-  formatter: function formatter(_ref30) {
-    var hostname = _ref30.hostname,
-        ip = _ref30.ip,
-        role = _ref30.role;
-    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " is leaving the cluster");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_SHRINK_COMPLETE, {
-  desc: 'Cluster Shrink Completed',
-  formatter: function formatter(_ref31) {
-    var hostname = _ref31.hostname,
-        ip = _ref31.ip,
-        role = _ref31.role;
-    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " has left the cluster");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_SHRINK_FAILURE, {
-  desc: 'Cluster Shrink Failed',
-  formatter: function formatter(_ref32) {
-    var hostname = _ref32.hostname,
-        ip = _ref32.ip,
-        role = _ref32.role;
-    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " has failed to leave the cluster");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_UNINSTALL_START, {
-  desc: 'Cluster Uninstall Started',
-  formatter: function formatter() {
-    return "Cluster is being uninstalled";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_UNINSTALL_COMPLETE, {
-  desc: 'Cluster Uninstall Completed',
-  formatter: function formatter() {
-    return "Cluster has been uninstalled";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_UNINSTALL_FAILURE, {
-  desc: 'Cluster Uninstall Failed',
-  formatter: function formatter() {
-    return "Cluster uninstall has failed";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_UPDATE_COMPLETE, {
-  desc: 'Cluster Update Completed',
-  formatter: function formatter(_ref33) {
-    var version = _ref33.version;
-    return "Cluster has been updated to version ".concat(version);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_UPDATE_FAILURE, {
-  desc: 'Cluster Update Failed',
-  formatter: function formatter(_ref34) {
-    var version = _ref34.version;
-    return "Cluster has failed to update to version ".concat(version);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.OPERATION_UPDATE_START, {
-  desc: 'Cluster Update Started',
-  formatter: function formatter(_ref35) {
-    var version = _ref35.version;
-    return "Cluster update to version ".concat(version, " has started");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.PORTFORWARD, {
-  desc: 'Port Forwarding Started',
-  formatter: function formatter(_ref36) {
-    var user = _ref36.user;
-    return "User ".concat(user, " started port forwarding");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.PORTFORWARD_FAILURE, {
-  desc: 'Port Forwarding Failed',
-  formatter: function formatter(_ref37) {
-    var user = _ref37.user,
-        error = _ref37.error;
-    return "User ".concat(user, " port forwarding request failed: ").concat(error);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.REMOTE_SUPPORT_ENABLED, {
-  desc: 'Remote Support Enabled',
-  formatter: function formatter(_ref38) {
-    var user = _ref38.user,
-        hub = _ref38.hub;
-    return "User ".concat(user, " enabled remote support with Gravity Hub ").concat(hub);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.REMOTE_SUPPORT_DISABLED, {
-  desc: 'Remote Support Disabled',
-  formatter: function formatter(_ref39) {
-    var user = _ref39.user,
-        hub = _ref39.hub;
-    return "User ".concat(user, " disabled remote support with Gravity Hub ").concat(hub);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.ROLE_CREATED, {
-  desc: 'Role Created',
-  formatter: function formatter(_ref40) {
-    var user = _ref40.user,
-        name = _ref40.name;
-    return "User ".concat(user, " created role ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.ROLE_DELETED, {
-  desc: 'Role Deleted',
-  formatter: function formatter(_ref41) {
-    var user = _ref41.user,
-        name = _ref41.name;
-    return "User ".concat(user, " deleted role ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SAML_CONNECTOR_CREATED, {
-  desc: 'SAML Connector Created',
-  formatter: function formatter(_ref42) {
-    var user = _ref42.user,
-        name = _ref42.name;
-    return "User ".concat(user, " created SAML connector ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SAML_CONNECTOR_DELETED, {
-  desc: 'SAML Connector Deleted',
-  formatter: function formatter(_ref43) {
-    var user = _ref43.user,
-        name = _ref43.name;
-    return "User ".concat(user, " deleted SAML connector ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SCP_DOWNLOAD, {
-  desc: 'SCP Download',
-  formatter: function formatter(_ref44) {
-    var user = _ref44.user,
-        path = _ref44.path,
-        rest = event_objectWithoutProperties(_ref44, ["user", "path"]);
-
-    return "User ".concat(user, " downloaded a file ").concat(path, " from node ").concat(rest['addr.local']);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SCP_DOWNLOAD_FAILURE, {
-  desc: 'SCP Download Failed',
-  formatter: function formatter(_ref45) {
-    var exitError = _ref45.exitError,
-        rest = event_objectWithoutProperties(_ref45, ["exitError"]);
-
-    return "File download from node ".concat(rest['addr.local'], " failed: ").concat(exitError);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SCP_UPLOAD, {
-  desc: 'SCP Upload',
-  formatter: function formatter(_ref46) {
-    var user = _ref46.user,
-        path = _ref46.path,
-        rest = event_objectWithoutProperties(_ref46, ["user", "path"]);
-
-    return "User ".concat(user, " uploaded a file ").concat(path, " to node ").concat(rest['addr.local']);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SCP_UPLOAD_FAILURE, {
-  desc: 'SCP Upload Failed',
-  formatter: function formatter(_ref47) {
-    var exitError = _ref47.exitError,
-        rest = event_objectWithoutProperties(_ref47, ["exitError"]);
-
-    return "File upload to node ".concat(rest['addr.local'], " failed: ").concat(exitError);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SESSION_JOIN, {
-  desc: 'User Joined',
-  formatter: function formatter(_ref48) {
-    var user = _ref48.user,
-        sid = _ref48.sid;
-    return "User ".concat(user, " has joined the session ").concat(sid);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SESSION_END, {
-  desc: 'Session Ended',
-  formatter: function formatter(_ref49) {
-    var user = _ref49.user,
-        sid = _ref49.sid;
-    return "User ".concat(user, " has ended the session ").concat(sid);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SESSION_LEAVE, {
-  desc: 'User Disconnected',
-  formatter: function formatter(_ref50) {
-    var user = _ref50.user,
-        sid = _ref50.sid;
-    return "User ".concat(user, " has left the session ").concat(sid);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SESSION_START, {
-  desc: 'Session Started',
-  formatter: function formatter(_ref51) {
-    var user = _ref51.user,
-        sid = _ref51.sid;
-    return "User ".concat(user, " has started a session ").concat(sid);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SESSION_UPLOAD, {
-  desc: 'Session Uploaded',
-  formatter: function formatter() {
-    return "Recorded session has been uploaded";
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SMTPCONFIG_CREATED, {
-  desc: 'SMTP Config Created',
-  formatter: function formatter(_ref52) {
-    var user = _ref52.user;
-    return "User ".concat(user, " updated cluster SMTP configuration");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SMTPCONFIG_DELETED, {
-  desc: 'SMTP Config Deleted',
-  formatter: function formatter(_ref53) {
-    var user = _ref53.user;
-    return "User ".concat(user, " deleted cluster SMTP configuration");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SUBSYSTEM, {
-  desc: 'Subsystem Requested',
-  formatter: function formatter(_ref54) {
-    var user = _ref54.user,
-        name = _ref54.name;
-    return "User ".concat(user, " requested subsystem ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.SUBSYSTEM_FAILURE, {
-  desc: 'Subsystem Request Failed',
-  formatter: function formatter(_ref55) {
-    var user = _ref55.user,
-        name = _ref55.name,
-        exitError = _ref55.exitError;
-    return "User ".concat(user, " subsystem ").concat(name, " request failed: ").concat(exitError);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.TERMINAL_RESIZE, {
-  desc: 'Terminal Resize',
-  formatter: function formatter(_ref56) {
-    var user = _ref56.user;
-    return "User ".concat(user, " resized the terminal");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.TLSKEYPAIR_CREATED, {
-  desc: 'TLS Keypair Created',
-  formatter: function formatter(_ref57) {
-    var user = _ref57.user;
-    return "User ".concat(user, " installed cluster web certificate");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.TLSKEYPAIR_DELETED, {
-  desc: 'TLS Keypair Deleted',
-  formatter: function formatter(_ref58) {
-    var user = _ref58.user;
-    return "User ".concat(user, " deleted cluster web certificate");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.TOKEN_CREATED, {
-  desc: 'User Token Created',
-  formatter: function formatter(_ref59) {
-    var user = _ref59.user,
-        owner = _ref59.owner;
-    return "User ".concat(user, " created token for user ").concat(owner);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.TOKEN_DELETED, {
-  desc: 'User Token Deleted',
-  formatter: function formatter(_ref60) {
-    var user = _ref60.user,
-        owner = _ref60.owner;
-    return "User ".concat(user, " deleted token for user ").concat(owner);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.UPDATES_ENABLED, {
-  desc: 'Periodic Updates Enabled',
-  formatter: function formatter(_ref61) {
-    var user = _ref61.user,
-        hub = _ref61.hub;
-    return "User ".concat(user, " enabled periodic updates with Gravity Hub ").concat(hub);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.UPDATES_DISABLED, {
-  desc: 'Periodic Updates Disabled',
-  formatter: function formatter(_ref62) {
-    var user = _ref62.user,
-        hub = _ref62.hub;
-    return "User ".concat(user, " disabled periodic updates with Gravity Hub ").concat(hub);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.UPDATES_DOWNLOADED, {
-  desc: 'Update Downloaded',
-  formatter: function formatter(_ref63) {
-    var hub = _ref63.hub,
-        name = _ref63.name,
-        version = _ref63.version;
-    return "Downloaded new version ".concat(name, ":").concat(version, " from Gravity Hub ").concat(hub);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.USER_CREATED, {
-  desc: 'User Created',
-  formatter: function formatter(_ref64) {
-    var user = _ref64.user,
-        name = _ref64.name;
-    return "User ".concat(user, " created user ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.USER_DELETED, {
-  desc: 'User Deleted',
-  formatter: function formatter(_ref65) {
-    var user = _ref65.user,
-        name = _ref65.name;
-    return "User ".concat(user, " deleted user ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.USER_INVITE_CREATED, {
-  desc: 'Invite Created',
-  formatter: function formatter(_ref66) {
-    var user = _ref66.user,
-        name = _ref66.name,
-        roles = _ref66.roles;
-    return "User ".concat(user, " invited user ").concat(name, " with roles ").concat(roles);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.USER_LOCAL_LOGIN, {
-  desc: 'Local Login',
-  formatter: function formatter(_ref67) {
-    var user = _ref67.user;
-    return "Local user ".concat(user, " successfully logged in");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.USER_LOCAL_LOGINFAILURE, {
-  desc: 'Local Login Failed',
-  formatter: function formatter(_ref68) {
-    var user = _ref68.user,
-        error = _ref68.error;
-    return "Local user ".concat(user, " login failed: ").concat(error);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.USER_SSO_LOGIN, {
-  desc: 'SSO Login',
-  formatter: function formatter(_ref69) {
-    var user = _ref69.user;
-    return "SSO user ".concat(user, " successfully logged in");
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.USER_SSO_LOGINFAILURE, {
-  desc: 'SSO Login Failed',
-  formatter: function formatter(_ref70) {
-    var error = _ref70.error;
-    return "SSO user login failed: ".concat(error);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.ROLE_CREATED, {
-  desc: 'User Role Created',
-  formatter: function formatter(_ref71) {
-    var user = _ref71.user,
-        name = _ref71.name;
-    return "User ".concat(user, " created role ").concat(name);
-  }
-}), event_defineProperty(_eventConfig, CodeEnum.ROLE_DELETED, {
-  desc: 'User Role Deleted',
-  formatter: function formatter(_ref72) {
-    var user = _ref72.user,
-        name = _ref72.name;
-    return "User ".concat(user, " deleted role ").concat(name);
-  }
-}), _eventConfig);
-var unknownEvent = {
-  desc: 'Unknown',
-  formatter: function formatter() {
-    return 'Unknown';
-  }
-};
-var SeverityEnum = {
-  WARNING: 'warning',
-  ERROR: 'error',
-  INFO: 'info'
-};
-
-var event_Event = function Event(json) {
-  event_classCallCheck(this, Event);
-
-  event_defineProperty(this, "id", '');
-
-  event_defineProperty(this, "type", '');
-
-  event_defineProperty(this, "typeDesc", '');
-
-  event_defineProperty(this, "time", '');
-
-  event_defineProperty(this, "user", '');
-
-  event_defineProperty(this, "desc", '');
-
-  event_defineProperty(this, "details", {});
-
-  var cfg = eventConfig[json.code] || unknownEvent;
-  this.id = getId(json);
-  this.code = json.code;
-  this.codeDesc = cfg.desc;
-  this.message = cfg.formatter(json);
-  this.user = json.user;
-  this.time = new Date(json.time);
-  this.details = json;
-}; // older events might not have an uid field.
-// in this case compose it from other fields.
-
-
-function getId(json) {
-  var uid = json.uid,
-      event = json.event,
-      time = json.time;
-
-  if (uid) {
-    return uid;
-  }
-
-  return "".concat(event, ":").concat(time);
-}
-
-/* harmony default export */ var events_event = (event_Event);
-// CONCATENATED MODULE: ./src/services/events/events.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-var service = {
-  fetchEvents: function fetchEvents(_ref) {
-    var start = _ref.start,
-        end = _ref.end,
-        limit = _ref.limit;
-    return api["a" /* default */].get(config["a" /* default */].getClusterEventsUrl({
-      start: start,
-      end: end,
-      limit: limit
-    })).then(function (json) {
-      return json.events.map(function (item) {
-        return new events_event(item);
-      });
-    });
-  }
-};
-/* harmony default export */ var services_events_events = (service);
-// CONCATENATED MODULE: ./src/services/events/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var services_events = (services_events_events);
-// CONCATENATED MODULE: ./src/stores/storeEvents.js
-function storeEvents_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { storeEvents_typeof = function _typeof(obj) { return typeof obj; }; } else { storeEvents_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return storeEvents_typeof(obj); }
-
-function storeEvents_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
-
-function storeEvents_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { storeEvents_ownKeys(source, true).forEach(function (key) { storeEvents_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { storeEvents_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
-
-function storeEvents_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function storeEvents_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function storeEvents_createClass(Constructor, protoProps, staticProps) { if (protoProps) storeEvents_defineProperties(Constructor.prototype, protoProps); if (staticProps) storeEvents_defineProperties(Constructor, staticProps); return Constructor; }
-
-function storeEvents_possibleConstructorReturn(self, call) { if (call && (storeEvents_typeof(call) === "object" || typeof call === "function")) { return call; } return storeEvents_assertThisInitialized(self); }
-
-function storeEvents_getPrototypeOf(o) { storeEvents_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return storeEvents_getPrototypeOf(o); }
-
-function storeEvents_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function storeEvents_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) storeEvents_setPrototypeOf(subClass, superClass); }
-
-function storeEvents_setPrototypeOf(o, p) { storeEvents_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return storeEvents_setPrototypeOf(o, p); }
-
-function storeEvents_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-var EVENT_MAX_LIMIT = 9999;
-
-var storeEvents_StoreEvents =
-/*#__PURE__*/
-function (_Store) {
-  storeEvents_inherits(StoreEvents, _Store);
-
-  function StoreEvents() {
-    var _getPrototypeOf2;
-
-    var _this;
-
-    storeEvents_classCallCheck(this, StoreEvents);
-
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    _this = storeEvents_possibleConstructorReturn(this, (_getPrototypeOf2 = storeEvents_getPrototypeOf(StoreEvents)).call.apply(_getPrototypeOf2, [this].concat(args)));
-
-    storeEvents_defineProperty(storeEvents_assertThisInitialized(_this), "state", {
-      overflow: false,
-      events: {}
-    });
-
-    return _this;
-  }
-
-  storeEvents_createClass(StoreEvents, [{
-    key: "mergeEvents",
-    value: function mergeEvents(events) {
-      return storeEvents_objectSpread({}, this.state.events, {}, Object(lodash["keyBy"])(events, 'id'));
-    }
-  }, {
-    key: "getEvents",
-    value: function getEvents() {
-      return Object(lodash["values"])(this.state.events);
-    }
-  }, {
-    key: "getMaxLimit",
-    value: function getMaxLimit() {
-      return EVENT_MAX_LIMIT;
-    }
-  }, {
-    key: "fetchLatest",
-    value: function fetchLatest() {
-      var _this2 = this;
-
-      var start = moment_default()(new Date()).startOf('day').toDate().toISOString();
-      var end = moment_default()(new Date()).endOf('day').toDate().toISOString();
-      return services_events.fetchEvents({
-        start: start,
-        end: end
-      }).then(function (events) {
-        var keyed = keyEvents(events);
-
-        _this2.setState({
-          events: storeEvents_objectSpread({}, _this2.state.events, {}, keyed)
-        });
-      });
-    }
-  }, {
-    key: "fetchEvents",
-    value: function fetchEvents(_ref) {
-      var _this3 = this;
-
-      var end = _ref.end,
-          start = _ref.start;
-      start = start.toISOString();
-      end = end.toISOString();
-      return services_events.fetchEvents({
-        start: start,
-        end: end,
-        limit: EVENT_MAX_LIMIT + 1
-      }).then(function (events) {
-        var overflow = events.length > EVENT_MAX_LIMIT;
-        events = events.splice(0, EVENT_MAX_LIMIT - 1);
-        var keyed = keyEvents(events);
-
-        _this3.setState({
-          overflow: overflow,
-          events: storeEvents_objectSpread({}, _this3.state.events, {}, keyed)
-        });
-      });
-    }
-  }]);
-
-  return StoreEvents;
-}(stores["a" /* Store */]);
-
-
-
-function keyEvents(events) {
-  return storeEvents_objectSpread({}, Object(lodash["keyBy"])(events, 'id'));
-}
-// CONCATENATED MODULE: ./src/stores/storeNodes.ts
-function storeNodes_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { storeNodes_typeof = function _typeof(obj) { return typeof obj; }; } else { storeNodes_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return storeNodes_typeof(obj); }
-
-function storeNodes_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function storeNodes_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function storeNodes_createClass(Constructor, protoProps, staticProps) { if (protoProps) storeNodes_defineProperties(Constructor.prototype, protoProps); if (staticProps) storeNodes_defineProperties(Constructor, staticProps); return Constructor; }
-
-function storeNodes_possibleConstructorReturn(self, call) { if (call && (storeNodes_typeof(call) === "object" || typeof call === "function")) { return call; } return storeNodes_assertThisInitialized(self); }
-
-function storeNodes_getPrototypeOf(o) { storeNodes_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return storeNodes_getPrototypeOf(o); }
-
-function storeNodes_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function storeNodes_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) storeNodes_setPrototypeOf(subClass, superClass); }
-
-function storeNodes_setPrototypeOf(o, p) { storeNodes_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return storeNodes_setPrototypeOf(o, p); }
-
-function storeNodes_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-var storeNodes_StoreNodes =
-/*#__PURE__*/
-function (_Store) {
-  storeNodes_inherits(StoreNodes, _Store);
-
-  function StoreNodes() {
-    var _getPrototypeOf2;
-
-    var _this;
-
-    storeNodes_classCallCheck(this, StoreNodes);
-
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    _this = storeNodes_possibleConstructorReturn(this, (_getPrototypeOf2 = storeNodes_getPrototypeOf(StoreNodes)).call.apply(_getPrototypeOf2, [this].concat(args)));
-
-    storeNodes_defineProperty(storeNodes_assertThisInitialized(_this), "state", []);
-
-    return _this;
-  }
-
-  storeNodes_createClass(StoreNodes, [{
-    key: "find",
-    value: function find(serverId) {
-      return this.state.find(function (s) {
-        return s.id === serverId;
-      });
-    }
-  }, {
-    key: "getNodes",
-    value: function getNodes() {
-      return this.state;
-    }
-  }, {
-    key: "fetchNodes",
-    value: function fetchNodes() {
-      var _this2 = this;
-
-      return services_nodes["default"].fetchNodes().then(function (nodes) {
-        _this2.setState(nodes);
-
-        return nodes;
-      });
-    }
-  }]);
-
-  return StoreNodes;
-}(stores["a" /* Store */]);
-
-
-// CONCATENATED MODULE: ./src/stores/index.ts
-
-
-
-
-
-
-// CONCATENATED MODULE: ./src/stores/storeSessions.ts
-function storeSessions_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { storeSessions_typeof = function _typeof(obj) { return typeof obj; }; } else { storeSessions_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return storeSessions_typeof(obj); }
-
-function storeSessions_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function storeSessions_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function storeSessions_createClass(Constructor, protoProps, staticProps) { if (protoProps) storeSessions_defineProperties(Constructor.prototype, protoProps); if (staticProps) storeSessions_defineProperties(Constructor, staticProps); return Constructor; }
-
-function storeSessions_possibleConstructorReturn(self, call) { if (call && (storeSessions_typeof(call) === "object" || typeof call === "function")) { return call; } return storeSessions_assertThisInitialized(self); }
-
-function storeSessions_getPrototypeOf(o) { storeSessions_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return storeSessions_getPrototypeOf(o); }
-
-function storeSessions_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function storeSessions_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) storeSessions_setPrototypeOf(subClass, superClass); }
-
-function storeSessions_setPrototypeOf(o, p) { storeSessions_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return storeSessions_setPrototypeOf(o, p); }
-
-function storeSessions_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-var storeSessions_StoreSessions =
-/*#__PURE__*/
-function (_Store) {
-  storeSessions_inherits(StoreSessions, _Store);
-
-  function StoreSessions() {
-    var _getPrototypeOf2;
-
-    var _this;
-
-    storeSessions_classCallCheck(this, StoreSessions);
-
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    _this = storeSessions_possibleConstructorReturn(this, (_getPrototypeOf2 = storeSessions_getPrototypeOf(StoreSessions)).call.apply(_getPrototypeOf2, [this].concat(args)));
-
-    storeSessions_defineProperty(storeSessions_assertThisInitialized(_this), "state", []);
-
-    return _this;
-  }
-
-  storeSessions_createClass(StoreSessions, [{
-    key: "getSessions",
-    value: function getSessions() {
-      return this.state;
-    }
-  }, {
-    key: "fetchSessions",
-    value: function fetchSessions() {
-      var _this2 = this;
-
-      return ssh["default"].fetchSessions().then(function (sessions) {
-        return _this2.setState(sessions);
-      });
-    }
-  }]);
-
-  return StoreSessions;
-}(stores["a" /* Store */]);
-
-
-// CONCATENATED MODULE: ./src/teleportContext.ts
-function teleportContext_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function teleportContext_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function teleportContext_createClass(Constructor, protoProps, staticProps) { if (protoProps) teleportContext_defineProperties(Constructor.prototype, protoProps); if (staticProps) teleportContext_defineProperties(Constructor, staticProps); return Constructor; }
-
-function teleportContext_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-var teleportContext_Context =
-/*#__PURE__*/
-function () {
-  function Context() {
-    teleportContext_classCallCheck(this, Context);
-
-    teleportContext_defineProperty(this, "storeNodes", null);
-
-    teleportContext_defineProperty(this, "storeClusters", null);
-
-    teleportContext_defineProperty(this, "storeNav", null);
-
-    teleportContext_defineProperty(this, "storeUser", null);
-
-    teleportContext_defineProperty(this, "storeSessions", null);
-
-    this.initStores();
-  }
-
-  teleportContext_createClass(Context, [{
-    key: "init",
-    value: function init(_ref) {
-      var _this = this;
-
-      var features = _ref.features,
-          clusterId = _ref.clusterId;
-      config["a" /* default */].setClusterId(clusterId);
-      this.initStores();
-      var fetchClustersPromise = this.storeClusters.fetchClusters();
-      var fetchUserPromise = this.storeUser.fetchUser();
-      return Promise.all([fetchClustersPromise, fetchUserPromise]).then(function () {
-        var activator = new Activator(features);
-        activator.onload(_this);
-      });
-    }
-  }, {
-    key: "isAccountEnabled",
-    value: function isAccountEnabled() {
-      return this.storeUser.isSso() === false;
-    }
-  }, {
-    key: "isAuditEnabled",
-    value: function isAuditEnabled() {
-      return this.storeUser.getEventAccess().list;
-    }
-  }, {
-    key: "isAuthConnectorEnabled",
-    value: function isAuthConnectorEnabled() {
-      return this.storeUser.getConnectorAccess().list;
-    }
-  }, {
-    key: "isRolesEnabled",
-    value: function isRolesEnabled() {
-      return this.storeUser.getRoleAccess().list;
-    }
-  }, {
-    key: "isTrustedClustersEnabled",
-    value: function isTrustedClustersEnabled() {
-      return this.storeUser.getTrustedClusterAccess().list;
-    }
-  }, {
-    key: "initStores",
-    value: function initStores() {
-      this.storeNodes = new storeNodes_StoreNodes();
-      this.storeClusters = new storeClusters_StoreClusters();
-      this.storeNav = new StoreNav();
-      this.storeUser = new storeUser_StoreUser();
-      this.storeSessions = new storeSessions_StoreSessions();
-    }
-  }]);
-
-  return Context;
-}();
-
-
-// CONCATENATED MODULE: ./src/teleportContextProvider.ts
+// CONCATENATED MODULE: ./src/teleportContextProvider.tsx
 /*
 Copyright 2020 Gravitational, Inc.
 
@@ -19298,8 +17941,8 @@ limitations under the License.
 */
 
 
-
-var TeleportReactContext = react_default.a.createContext(new teleportContext_Context());
+var TeleportReactContext = react_default.a.createContext(null);
+/* harmony default export */ var teleportContextProvider = (TeleportReactContext.Provider);
 function useTeleport() {
   var value = react_default.a.useContext(TeleportReactContext);
 
@@ -19317,17 +17960,9 @@ function useStoreUser() {
   var context = react_default.a.useContext(TeleportReactContext);
   return Object(stores["b" /* useStore */])(context.storeUser);
 }
-function useStoreNodes() {
-  var context = react_default.a.useContext(TeleportReactContext);
-  return Object(stores["b" /* useStore */])(context.storeNodes);
-}
 function useStoreClusters() {
   var context = react_default.a.useContext(TeleportReactContext);
   return Object(stores["b" /* useStore */])(context.storeClusters);
-}
-function useStoreSessions() {
-  var context = react_default.a.useContext(TeleportReactContext);
-  return Object(stores["b" /* useStore */])(context.storeSessions);
 }
 // CONCATENATED MODULE: ./src/dashboard/components/Layout/Layout.jsx
 function Layout_Layout_templateObject4() {
@@ -19430,232 +18065,31 @@ limitations under the License.
 */
 
 
-// CONCATENATED MODULE: ./src/components/CardEmpty/CardEmpty.jsx
-function CardEmpty_templateObject() {
-  var data = CardEmpty_taggedTemplateLiteral(["\n  border-radius: 12px;\n"]);
+// CONCATENATED MODULE: ./src/dashboard/components/Clusters/ClusterList/ClusterList.tsx
+function ClusterList_templateObject() {
+  var data = ClusterList_taggedTemplateLiteral(["\n  tr:hover {\n    cursor: pointer;\n    background-color: rgba(0, 0, 0, 0.075);\n  }\n"]);
 
-  CardEmpty_templateObject = function _templateObject() {
+  ClusterList_templateObject = function _templateObject() {
     return data;
   };
 
   return data;
 }
 
-function CardEmpty_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+function ClusterList_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
 
-function CardEmpty_extends() { CardEmpty_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return CardEmpty_extends.apply(this, arguments); }
+function ClusterList_extends() { ClusterList_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return ClusterList_extends.apply(this, arguments); }
 
-function CardEmpty_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = CardEmpty_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+function ClusterList_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
-function CardEmpty_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+function ClusterList_slicedToArray(arr, i) { return ClusterList_arrayWithHoles(arr) || ClusterList_iterableToArrayLimit(arr, i) || ClusterList_nonIterableRest(); }
 
-/*
-Copyright 2019 Gravitational, Inc.
+function ClusterList_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+function ClusterList_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
 
-    http://www.apache.org/licenses/LICENSE-2.0
+function ClusterList_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-function CardEmpty(_ref) {
-  var title = _ref.title,
-      children = _ref.children,
-      styles = CardEmpty_objectWithoutProperties(_ref, ["title", "children"]);
-
-  return react_default.a.createElement(Container, CardEmpty_extends({
-    bg: "primary.light",
-    p: "8",
-    width: "100%",
-    m: "0 auto",
-    maxWidth: "600px",
-    textAlign: "center",
-    color: "text.primary"
-  }, styles), react_default.a.createElement(src_Text, {
-    typography: "h2",
-    mb: "3"
-  }, title), children);
-}
-var Container = Object(styled_components_browser_esm["c" /* default */])(src_Box)(CardEmpty_templateObject());
-// CONCATENATED MODULE: ./src/components/CardEmpty/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_CardEmpty = (CardEmpty);
-// CONCATENATED MODULE: ./src/dashboard/components/Clusters/ClusterList/TableView/TableView.jsx
-function TableView_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function TableView_slicedToArray(arr, i) { return TableView_arrayWithHoles(arr) || TableView_iterableToArrayLimit(arr, i) || TableView_nonIterableRest(); }
-
-function TableView_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function TableView_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function TableView_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-function TableView(_ref) {
-  var clusters = _ref.clusters,
-      _ref$pageSize = _ref.pageSize,
-      pageSize = _ref$pageSize === void 0 ? 500 : _ref$pageSize;
-
-  var _React$useState = react_default.a.useState({
-    clusterId: SortTypes.ASC
-  }),
-      _React$useState2 = TableView_slicedToArray(_React$useState, 2),
-      sortDir = _React$useState2[0],
-      setSortDir = _React$useState2[1];
-
-  function sort(clusters) {
-    var columnKey = Object.getOwnPropertyNames(sortDir)[0];
-    var sorted = Object(lodash["sortBy"])(clusters, columnKey);
-
-    if (sortDir[columnKey] === SortTypes.DESC) {
-      return sorted.reverse();
-    }
-
-    return sorted;
-  }
-
-  function onSortChange(columnKey, sortDir) {
-    setSortDir(TableView_defineProperty({}, columnKey, sortDir));
-  }
-
-  var data = sort(clusters);
-  return react_default.a.createElement(Paged, {
-    data: data,
-    pageSize: pageSize
-  }, react_default.a.createElement(Column, {
-    columnKey: "clusterId",
-    header: react_default.a.createElement(Table_SortHeaderCell, {
-      sortDir: sortDir.clusterId,
-      onSortChange: onSortChange,
-      title: "Name"
-    }),
-    cell: react_default.a.createElement(NameCell, null)
-  }), react_default.a.createElement(Column, {
-    columnKey: "version",
-    header: react_default.a.createElement(Table_SortHeaderCell, {
-      sortDir: sortDir.version,
-      onSortChange: onSortChange,
-      title: "Version"
-    }),
-    cell: react_default.a.createElement(Table_TextCell, null)
-  }), react_default.a.createElement(Column, {
-    columnKey: "nodes",
-    header: react_default.a.createElement(Table_SortHeaderCell, {
-      sortDir: sortDir.nodes,
-      onSortChange: onSortChange,
-      title: "Nodes"
-    }),
-    cell: react_default.a.createElement(Table_TextCell, null)
-  }), react_default.a.createElement(Column, {
-    columnKey: "connected",
-    header: react_default.a.createElement(Table_SortHeaderCell, {
-      sortDir: sortDir.connected,
-      onSortChange: onSortChange,
-      title: "Connected"
-    }),
-    cell: react_default.a.createElement(ConnectedCell, null)
-  }), react_default.a.createElement(Column, {
-    header: react_default.a.createElement(Table_Cell, null),
-    cell: react_default.a.createElement(TableView_ActionCell, null)
-  }));
-}
-
-function NameCell(_ref2) {
-  var rowIndex = _ref2.rowIndex,
-      data = _ref2.data;
-  var clusterId = data[rowIndex].clusterId;
-  return react_default.a.createElement(Table_Cell, null, react_default.a.createElement(src_Text, {
-    typography: "h5"
-  }, clusterId));
-}
-
-function ConnectedCell(_ref3) {
-  var rowIndex = _ref3.rowIndex,
-      data = _ref3.data;
-  var connectedText = data[rowIndex].connectedText;
-  return react_default.a.createElement(Table_Cell, null, connectedText);
-}
-
-function TableView_ActionCell(_ref4) {
-  var rowIndex = _ref4.rowIndex,
-      data = _ref4.data;
-  var url = data[rowIndex].url;
-  return react_default.a.createElement(Table_Cell, {
-    align: "right"
-  }, react_default.a.createElement(Button_ButtonSecondary, {
-    as: NavLink,
-    to: url,
-    size: "small",
-    width: "90px",
-    children: "view"
-  }));
-}
-
-/* harmony default export */ var TableView_TableView = (TableView);
-// CONCATENATED MODULE: ./src/dashboard/components/Clusters/ClusterList/TableView/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var ClusterList_TableView = (TableView_TableView);
-// CONCATENATED MODULE: ./src/dashboard/components/Clusters/ClusterList/ClusterList.jsx
 /*
 Copyright 2019-2020 Gravitational, Inc.
 
@@ -19676,39 +18110,123 @@ limitations under the License.
 
 
 
+
+
+
+
+
 function ClustersList(props) {
   var clusters = props.clusters,
-      _props$filter = props.filter,
-      filter = _props$filter === void 0 ? '' : _props$filter,
-      _props$pageSizeTable = props.pageSizeTable,
-      pageSizeTable = _props$pageSizeTable === void 0 ? 500 : _props$pageSizeTable;
-  var filtered = ClusterList_sortAndFilter(clusters, filter);
+      _props$search = props.search,
+      search = _props$search === void 0 ? '' : _props$search,
+      _props$pageSize = props.pageSize,
+      pageSize = _props$pageSize === void 0 ? 500 : _props$pageSize;
 
-  if (filtered.length === 0 && !!filter) {
-    return react_default.a.createElement(components_CardEmpty, {
-      mt: "10",
-      title: "No Results Found for \"".concat(filter, "\"")
-    });
+  var _React$useState = react_default.a.useState({}),
+      _React$useState2 = ClusterList_slicedToArray(_React$useState, 2),
+      sortDir = _React$useState2[0],
+      setSortDir = _React$useState2[1];
+
+  function onSortChange(columnKey, sortDir) {
+    setSortDir(ClusterList_defineProperty({}, columnKey, sortDir));
   }
 
-  return react_default.a.createElement(ClusterList_TableView, {
-    clusters: filtered,
-    pageSize: pageSizeTable
+  function sort(clusters) {
+    var columnKey = Object.getOwnPropertyNames(sortDir)[0];
+    var sorted = Object(lodash["sortBy"])(clusters, columnKey);
+
+    if (sortDir[columnKey] === SortTypes.DESC) {
+      return sortByRoot(sorted.reverse());
+    }
+
+    return clusters;
+  }
+
+  var filtered = filter(clusters, search);
+  var data = sort(filtered);
+  var tableProps = {
+    pageSize: pageSize,
+    data: data
+  };
+
+  function onTableRowClick(e) {
+    if (e.ctrlKey || e.shiftKey || e.altKey) {
+      return;
+    }
+
+    var closest = e.target.closest('a, button, tbody tr'); // ignore clicks on input elements (a, buttons)
+
+    if (!closest || closest.tagName !== 'TR') {
+      return;
+    }
+
+    var rows = closest.parentElement.childNodes;
+
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i] === closest) {
+        services_history.push(clusters[i].url);
+      }
+    }
+  }
+
+  return react_default.a.createElement(ClusterList_StyledTable, ClusterList_extends({}, tableProps, {
+    onClick: onTableRowClick
+  }), react_default.a.createElement(Column, {
+    header: react_default.a.createElement(Table_Cell, {
+      style: {
+        width: '40px'
+      }
+    }),
+    cell: react_default.a.createElement(RootLabelCell, null)
+  }), react_default.a.createElement(Column, {
+    columnKey: "clusterId",
+    header: react_default.a.createElement(Table_SortHeaderCell, {
+      sortDir: sortDir.clusterId,
+      onSortChange: onSortChange,
+      title: "Name"
+    }),
+    cell: react_default.a.createElement(NameCell, null)
+  }), react_default.a.createElement(Column, {
+    columnKey: "version",
+    header: react_default.a.createElement(Table_SortHeaderCell, {
+      sortDir: sortDir.version,
+      onSortChange: onSortChange,
+      title: "Version"
+    }),
+    cell: react_default.a.createElement(Table_TextCell, null)
+  }), react_default.a.createElement(Column, {
+    columnKey: "nodeCount",
+    header: react_default.a.createElement(Table_SortHeaderCell, {
+      sortDir: sortDir.nodeCount,
+      onSortChange: onSortChange,
+      title: "Nodes"
+    }),
+    cell: react_default.a.createElement(Table_TextCell, null)
+  }), react_default.a.createElement(Column, {
+    columnKey: "publicURL",
+    header: react_default.a.createElement(Table_SortHeaderCell, {
+      sortDir: sortDir.publicURL,
+      onSortChange: onSortChange,
+      title: "Public URL"
+    }),
+    cell: react_default.a.createElement(Table_TextCell, null)
+  }), react_default.a.createElement(Column, {
+    header: react_default.a.createElement(Table_Cell, null),
+    cell: react_default.a.createElement(ClusterList_ActionCell, null)
+  }));
+}
+
+function filter(clusters) {
+  var searchValue = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : '';
+  return clusters.filter(function (obj) {
+    return match_match(obj, searchValue, {
+      searchableProps: ['clusterId', 'version'],
+      cb: filterCb
+    });
   });
 }
 
-function ClusterList_sortAndFilter(clusters, searchValue) {
-  var filtered = clusters.filter(function (obj) {
-    return match_match(obj, searchValue, {
-      searchableProps: ['clusterId', 'version', 'status', 'connectedText', 'labels'],
-      cb: ClusterList_searchAndFilterCb
-    });
-  }); // sort by date before grouping
-
-  return Object(lodash["sortBy"])(filtered, ['clusterId']);
-}
-
-function ClusterList_searchAndFilterCb(targetValue, searchValue, propName) {
+function filterCb(targetValue, searchValue, propName) {
   if (propName === 'labels') {
     return targetValue.some(function (item) {
       var name = item.name,
@@ -19717,7 +18235,56 @@ function ClusterList_searchAndFilterCb(targetValue, searchValue, propName) {
     });
   }
 }
-// CONCATENATED MODULE: ./src/dashboard/components/Clusters/ClusterList/index.js
+
+function sortByRoot(clusters) {
+  var proxyCluster = clusters.find(function (c) {
+    return c.clusterId === config["a" /* default */].proxyCluster;
+  });
+
+  if (proxyCluster) {
+    var tmp = clusters[0];
+    var index = clusters.indexOf(proxyCluster);
+    clusters[0] = clusters[index];
+    clusters[index] = tmp;
+  }
+
+  return clusters;
+}
+
+function NameCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
+  var clusterId = data[rowIndex].clusterId;
+  return react_default.a.createElement(Table_Cell, null, react_default.a.createElement(src_Text, {
+    typography: "h6"
+  }, clusterId));
+}
+
+function RootLabelCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
+  var clusterId = data[rowIndex].clusterId;
+  var isRoot = config["a" /* default */].proxyCluster === clusterId;
+  return react_default.a.createElement(Table_Cell, null, isRoot && react_default.a.createElement(Label_Primary, null, "Root"));
+}
+
+function ClusterList_ActionCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
+  var url = data[rowIndex].url;
+  return react_default.a.createElement(Table_Cell, {
+    align: "right"
+  }, react_default.a.createElement(Button_ButtonSecondary, {
+    as: NavLink,
+    to: url,
+    size: "small",
+    width: "90px",
+    children: "view"
+  }));
+}
+
+var ClusterList_StyledTable = Object(styled_components_browser_esm["c" /* default */])(Paged)(ClusterList_templateObject());
+// CONCATENATED MODULE: ./src/dashboard/components/Clusters/ClusterList/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -19735,7 +18302,7 @@ limitations under the License.
 */
 
 /* harmony default export */ var ClusterList = (ClustersList);
-// CONCATENATED MODULE: ./src/dashboard/components/Clusters/Clusters.jsx
+// CONCATENATED MODULE: ./src/dashboard/components/Clusters/Clusters.tsx
 function Clusters_slicedToArray(arr, i) { return Clusters_arrayWithHoles(arr) || Clusters_iterableToArrayLimit(arr, i) || Clusters_nonIterableRest(); }
 
 function Clusters_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
@@ -19766,21 +18333,14 @@ limitations under the License.
 
 
 
-
 var Clusters_POLL_INTERVAL = 4000; // every 4 sec
 
-function Clusters(props) {
-  var clusters = props.clusters,
-      onRefresh = props.onRefresh;
-
-  var _React$useState = react_default.a.useState(''),
-      _React$useState2 = Clusters_slicedToArray(_React$useState, 2),
-      searchValue = _React$useState2[0],
-      setSearchValue = _React$useState2[1];
-
-  function onSearchChange(value) {
-    setSearchValue(value);
-  }
+function Clusters() {
+  var _useClusters = useClusters(),
+      clusters = _useClusters.clusters,
+      searchValue = _useClusters.searchValue,
+      setSearchValue = _useClusters.setSearchValue,
+      onRefresh = _useClusters.onRefresh;
 
   return react_default.a.createElement(Layout_FeatureBox, null, react_default.a.createElement(Layout_FeatureHeader, {
     alignItems: "center"
@@ -19793,32 +18353,40 @@ function Clusters(props) {
     ml: "auto",
     height: "30px",
     bg: "primary.light",
-    onChange: onSearchChange
+    onChange: setSearchValue
   }))), react_default.a.createElement(ClusterList, {
     clusters: clusters,
-    filter: searchValue
+    search: searchValue
   }), react_default.a.createElement(components_AjaxPoller, {
     time: Clusters_POLL_INTERVAL,
-    onFetch: onRefresh
+    onFetch: onRefresh,
+    immediately: false
   }));
 }
 
-function Clusters_mapState() {
+function useClusters() {
+  var teleCtx = useTeleport();
   var store = useStoreClusters();
-  var clusters = store.getClusters();
+
+  var _React$useState = react_default.a.useState(''),
+      _React$useState2 = Clusters_slicedToArray(_React$useState, 2),
+      searchValue = _React$useState2[0],
+      setSearchValue = _React$useState2[1];
 
   function onRefresh() {
-    return store.fetchClusters();
+    return teleCtx.clusterService.fetchClusters().then(function (clusters) {
+      return store.setState(clusters);
+    });
   }
 
   return {
-    clusters: clusters,
-    onRefresh: onRefresh
+    clusters: store.state,
+    onRefresh: onRefresh,
+    searchValue: searchValue,
+    setSearchValue: setSearchValue
   };
 }
-
-/* harmony default export */ var Clusters_Clusters = (withState(Clusters_mapState)(Clusters));
-// CONCATENATED MODULE: ./src/dashboard/components/Clusters/index.js
+// CONCATENATED MODULE: ./src/dashboard/components/Clusters/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -19835,7 +18403,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var components_Clusters = (Clusters_Clusters);
+
+/* harmony default export */ var components_Clusters = (Object(root["hot"])(Clusters));
 // CONCATENATED MODULE: ./src/dashboard/features/featureClusters.ts
 function featureClusters_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { featureClusters_typeof = function _typeof(obj) { return typeof obj; }; } else { featureClusters_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return featureClusters_typeof(obj); }
 
@@ -19858,7 +18427,7 @@ function featureClusters_setPrototypeOf(o, p) { featureClusters_setPrototypeOf =
 function featureClusters_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19913,7 +18482,9 @@ function (_FeatureBase) {
     key: "onload",
     value: function onload(context) {
       this.setProcessing();
-      return context.storeClusters.fetchClusters().then(this.setReady.bind(this))["catch"](this.setFailed.bind(this));
+      return context.clusterService.fetchClusters().then(function (clusters) {
+        return context.storeClusters.setState(clusters);
+      }).then(this.setReady.bind(this))["catch"](this.setFailed.bind(this));
     }
   }]);
 
@@ -20256,7 +18827,7 @@ limitations under the License.
 */
 
 /* harmony default export */ var components_TopBar = (TopBar);
-// CONCATENATED MODULE: ./src/dashboard/components/Dashboard.jsx
+// CONCATENATED MODULE: ./src/dashboard/components/Dashboard.tsx
 function Dashboard_templateObject2() {
   var data = Dashboard_taggedTemplateLiteral(["\n  align-items: center;\n  justify-content: center;\n"]);
 
@@ -20310,11 +18881,13 @@ limitations under the License.
 
 
 
-function Dashboard(props) {
-  var onInit = props.onInit,
-      features = props.features;
 
-  var _useAttempt = useAttempt(),
+function Dashboard() {
+  var teleCtx = useTeleport();
+
+  var _useAttempt = useAttempt({
+    isProcessing: true
+  }),
       _useAttempt2 = Dashboard_slicedToArray(_useAttempt, 2),
       attempt = _useAttempt2[0],
       attemptActions = _useAttempt2[1];
@@ -20322,11 +18895,11 @@ function Dashboard(props) {
   var isFailed = attempt.isFailed,
       isSuccess = attempt.isSuccess,
       message = attempt.message;
-  react_default.a.useEffect(function () {
+  react_default.a.useState(function () {
     attemptActions["do"](function () {
-      return onInit();
+      return teleCtx.init();
     });
-  }, []);
+  });
 
   if (isFailed) {
     return react_default.a.createElement(CardError_Failed, {
@@ -20339,7 +18912,7 @@ function Dashboard(props) {
   } // render allowed features
 
 
-  var allowed = features.filter(function (f) {
+  var allowed = teleCtx.features.filter(function (f) {
     return !f.isDisabled();
   });
   var $features = allowed.map(function (item, index) {
@@ -20361,7 +18934,58 @@ function Dashboard(props) {
 }
 var StyledLayout = styled_components_browser_esm["c" /* default */].div(Dashboard_templateObject());
 var Dashboard_StyledIndicator = Object(styled_components_browser_esm["c" /* default */])(AppVerticalSplit)(Dashboard_templateObject2());
-// CONCATENATED MODULE: ./src/dashboard/components/index.js
+// CONCATENATED MODULE: ./src/dashboard/components/index.ts
+/*
+Copyright 2019-2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+/* harmony default export */ var components = (Object(root["hot"])(Dashboard));
+// CONCATENATED MODULE: ./src/stores/storeNav.ts
+function storeNav_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { storeNav_typeof = function _typeof(obj) { return typeof obj; }; } else { storeNav_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return storeNav_typeof(obj); }
+
+function storeNav_toConsumableArray(arr) { return storeNav_arrayWithoutHoles(arr) || storeNav_iterableToArray(arr) || storeNav_nonIterableSpread(); }
+
+function storeNav_nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance"); }
+
+function storeNav_iterableToArray(iter) { if (Symbol.iterator in Object(iter) || Object.prototype.toString.call(iter) === "[object Arguments]") return Array.from(iter); }
+
+function storeNav_arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = new Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } }
+
+function storeNav_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
+
+function storeNav_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { storeNav_ownKeys(source, true).forEach(function (key) { storeNav_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { storeNav_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
+
+function storeNav_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function storeNav_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function storeNav_createClass(Constructor, protoProps, staticProps) { if (protoProps) storeNav_defineProperties(Constructor.prototype, protoProps); if (staticProps) storeNav_defineProperties(Constructor, staticProps); return Constructor; }
+
+function storeNav_possibleConstructorReturn(self, call) { if (call && (storeNav_typeof(call) === "object" || typeof call === "function")) { return call; } return storeNav_assertThisInitialized(self); }
+
+function storeNav_getPrototypeOf(o) { storeNav_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return storeNav_getPrototypeOf(o); }
+
+function storeNav_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function storeNav_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) storeNav_setPrototypeOf(subClass, superClass); }
+
+function storeNav_setPrototypeOf(o, p) { storeNav_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return storeNav_setPrototypeOf(o, p); }
+
+function storeNav_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -20378,8 +19002,1216 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var components = (Dashboard);
-// CONCATENATED MODULE: ./src/dashboard/index.ts
+var storeNav_defaultState = {
+  sideNav: [],
+  topNav: [],
+  topMenu: []
+};
+
+var StoreNav =
+/*#__PURE__*/
+function (_Store) {
+  storeNav_inherits(StoreNav, _Store);
+
+  function StoreNav() {
+    var _getPrototypeOf2;
+
+    var _this;
+
+    storeNav_classCallCheck(this, StoreNav);
+
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+
+    _this = storeNav_possibleConstructorReturn(this, (_getPrototypeOf2 = storeNav_getPrototypeOf(StoreNav)).call.apply(_getPrototypeOf2, [this].concat(args)));
+
+    storeNav_defineProperty(storeNav_assertThisInitialized(_this), "state", storeNav_objectSpread({}, storeNav_defaultState));
+
+    return _this;
+  }
+
+  storeNav_createClass(StoreNav, [{
+    key: "addTopMenuItem",
+    value: function addTopMenuItem(item) {
+      var items = [].concat(storeNav_toConsumableArray(this.state.topMenu), [item]);
+      return this.setState({
+        topMenu: items
+      });
+    }
+  }, {
+    key: "addTopItem",
+    value: function addTopItem(item) {
+      var items = [].concat(storeNav_toConsumableArray(this.state.topNav), [item]);
+      return this.setState({
+        topNav: items
+      });
+    }
+  }, {
+    key: "addSideItem",
+    value: function addSideItem(item) {
+      var items = [].concat(storeNav_toConsumableArray(this.state.sideNav), [item]);
+      return this.setState({
+        sideNav: items
+      });
+    }
+  }, {
+    key: "getSideItems",
+    value: function getSideItems() {
+      return this.state.sideNav;
+    }
+  }, {
+    key: "getTopMenuItems",
+    value: function getTopMenuItems() {
+      return this.state.topMenu;
+    }
+  }, {
+    key: "getTopItems",
+    value: function getTopItems() {
+      return this.state.topNav;
+    }
+  }]);
+
+  return StoreNav;
+}(stores["a" /* Store */]);
+
+
+// CONCATENATED MODULE: ./src/stores/storeUser.ts
+function storeUser_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { storeUser_typeof = function _typeof(obj) { return typeof obj; }; } else { storeUser_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return storeUser_typeof(obj); }
+
+function storeUser_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function storeUser_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function storeUser_createClass(Constructor, protoProps, staticProps) { if (protoProps) storeUser_defineProperties(Constructor.prototype, protoProps); if (staticProps) storeUser_defineProperties(Constructor, staticProps); return Constructor; }
+
+function storeUser_possibleConstructorReturn(self, call) { if (call && (storeUser_typeof(call) === "object" || typeof call === "function")) { return call; } return storeUser_assertThisInitialized(self); }
+
+function storeUser_getPrototypeOf(o) { storeUser_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return storeUser_getPrototypeOf(o); }
+
+function storeUser_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function storeUser_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) storeUser_setPrototypeOf(subClass, superClass); }
+
+function storeUser_setPrototypeOf(o, p) { storeUser_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return storeUser_setPrototypeOf(o, p); }
+
+function storeUser_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+var storeUser_StoreUser =
+/*#__PURE__*/
+function (_Store) {
+  storeUser_inherits(StoreUser, _Store);
+
+  function StoreUser() {
+    var _getPrototypeOf2;
+
+    var _this;
+
+    storeUser_classCallCheck(this, StoreUser);
+
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+
+    _this = storeUser_possibleConstructorReturn(this, (_getPrototypeOf2 = storeUser_getPrototypeOf(StoreUser)).call.apply(_getPrototypeOf2, [this].concat(args)));
+
+    storeUser_defineProperty(storeUser_assertThisInitialized(_this), "state", null);
+
+    return _this;
+  }
+
+  storeUser_createClass(StoreUser, [{
+    key: "isSso",
+    value: function isSso() {
+      return this.state.authType === 'sso';
+    }
+  }, {
+    key: "getEventAccess",
+    value: function getEventAccess() {
+      return this.state.acl.events;
+    }
+  }, {
+    key: "getConnectorAccess",
+    value: function getConnectorAccess() {
+      return this.state.acl.authConnectors;
+    }
+  }, {
+    key: "getRoleAccess",
+    value: function getRoleAccess() {
+      return this.state.acl.roles;
+    }
+  }, {
+    key: "getLogins",
+    value: function getLogins() {
+      return this.state.acl.logins;
+    }
+  }, {
+    key: "getTrustedClusterAccess",
+    value: function getTrustedClusterAccess() {
+      return this.state.acl.trustedClusters;
+    }
+  }, {
+    key: "fetchUser",
+    value: function fetchUser() {
+      var _this2 = this;
+
+      return services_user["default"].fetchUser().then(function (user) {
+        _this2.setState(user);
+      });
+    }
+  }]);
+
+  return StoreUser;
+}(stores["a" /* Store */]);
+
+
+// CONCATENATED MODULE: ./src/stores/storeClusters.ts
+function storeClusters_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { storeClusters_typeof = function _typeof(obj) { return typeof obj; }; } else { storeClusters_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return storeClusters_typeof(obj); }
+
+function storeClusters_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function storeClusters_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function storeClusters_createClass(Constructor, protoProps, staticProps) { if (protoProps) storeClusters_defineProperties(Constructor.prototype, protoProps); if (staticProps) storeClusters_defineProperties(Constructor, staticProps); return Constructor; }
+
+function storeClusters_possibleConstructorReturn(self, call) { if (call && (storeClusters_typeof(call) === "object" || typeof call === "function")) { return call; } return storeClusters_assertThisInitialized(self); }
+
+function storeClusters_getPrototypeOf(o) { storeClusters_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return storeClusters_getPrototypeOf(o); }
+
+function storeClusters_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function storeClusters_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) storeClusters_setPrototypeOf(subClass, superClass); }
+
+function storeClusters_setPrototypeOf(o, p) { storeClusters_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return storeClusters_setPrototypeOf(o, p); }
+
+function storeClusters_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+var storeClusters_StoreClusters =
+/*#__PURE__*/
+function (_Store) {
+  storeClusters_inherits(StoreClusters, _Store);
+
+  function StoreClusters() {
+    var _getPrototypeOf2;
+
+    var _this;
+
+    storeClusters_classCallCheck(this, StoreClusters);
+
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+
+    _this = storeClusters_possibleConstructorReturn(this, (_getPrototypeOf2 = storeClusters_getPrototypeOf(StoreClusters)).call.apply(_getPrototypeOf2, [this].concat(args)));
+
+    storeClusters_defineProperty(storeClusters_assertThisInitialized(_this), "state", []);
+
+    return _this;
+  }
+
+  storeClusters_createClass(StoreClusters, [{
+    key: "getClusters",
+    value: function getClusters() {
+      return this.state;
+    }
+  }, {
+    key: "fetchClusters",
+    value: function fetchClusters() {
+      var _this2 = this;
+
+      return services_clusters["default"].fetchClusters().then(function (clusters) {
+        _this2.setState(clusters);
+
+        return clusters;
+      });
+    }
+  }]);
+
+  return StoreClusters;
+}(stores["a" /* Store */]);
+
+
+// CONCATENATED MODULE: ./src/stores/index.ts
+
+
+
+
+// EXTERNAL MODULE: /web-apps/node_modules/moment/moment.js
+var moment = __webpack_require__("wgY5");
+var moment_default = /*#__PURE__*/__webpack_require__.n(moment);
+
+// CONCATENATED MODULE: ./src/services/audit/types.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+var CodeEnum = {
+  // Teleport
+  AUTH_ATTEMPT_FAILURE: 'T3007W',
+  CLIENT_DISCONNECT: 'T3006I',
+  EXEC_FAILURE: 'T3002E',
+  EXEC: 'T3002I',
+  PORTFORWARD_FAILURE: 'T3003E',
+  PORTFORWARD: 'T3003I',
+  SCP_DOWNLOAD_FAILURE: 'T3004E',
+  SCP_DOWNLOAD: 'T3004I',
+  SCP_UPLOAD_FAILURE: 'T3005E',
+  SCP_UPLOAD: 'T3005I',
+  SESSION_END: 'T2004I',
+  SESSION_JOIN: 'T2001I',
+  SESSION_LEAVE: 'T2003I',
+  SESSION_START: 'T2000I',
+  SESSION_UPLOAD: 'T2005I',
+  SUBSYSTEM_FAILURE: 'T3001E',
+  SUBSYSTEM: 'T3001I',
+  TERMINAL_RESIZE: 'T2002I',
+  USER_LOCAL_LOGIN: 'T1000I',
+  USER_LOCAL_LOGINFAILURE: 'T1000W',
+  USER_SSO_LOGIN: 'T1001I',
+  USER_SSO_LOGINFAILURE: 'T1001W',
+  // Gravity Oss
+  ALERT_CREATED: 'G1007I',
+  ALERT_DELETED: 'G2007I',
+  ALERT_TARGET_CREATED: 'G1008I',
+  ALERT_TARGET_DELETED: 'G2008I',
+  APPLICATION_INSTALL: 'G4000I',
+  APPLICATION_ROLLBACK: 'G4002I',
+  APPLICATION_UNINSTALL: 'G4003I',
+  APPLICATION_UPGRADE: 'G4001I',
+  AUTHGATEWAY_UPDATED: 'G1009I',
+  AUTHPREFERENCE_UPDATED: 'G1005I',
+  CLUSTER_HEALTHY: 'G3001I',
+  CLUSTER_UNHEALTHY: 'G3000W',
+  GITHUB_CONNECTOR_CREATED: 'G1002I',
+  GITHUB_CONNECTOR_DELETED: 'G2002I',
+  LOGFORWARDER_CREATED: 'G1003I',
+  LOGFORWARDER_DELETED: 'G2003I',
+  OPERATION_CONFIG_COMPLETE: 'G0016I',
+  OPERATION_CONFIG_FAILURE: 'G0016E',
+  OPERATION_CONFIG_START: 'G0015I',
+  OPERATION_ENV_COMPLETE: 'G0014I',
+  OPERATION_ENV_FAILURE: 'G0014E',
+  OPERATION_ENV_START: 'G0013I',
+  OPERATION_EXPAND_COMPLETE: 'G0004I',
+  OPERATION_EXPAND_FAILURE: 'G0004E',
+  OPERATION_EXPAND_START: 'G0003I',
+  OPERATION_GC_COMPLETE: 'G0012I',
+  OPERATION_GC_FAILURE: 'G0012E',
+  OPERATION_GC_START: 'G0011I',
+  OPERATION_INSTALL_COMPLETE: 'G0002I',
+  OPERATION_INSTALL_FAILURE: 'G0002E',
+  OPERATION_INSTALL_START: 'G0001I',
+  OPERATION_SHRINK_COMPLETE: 'G0006I',
+  OPERATION_SHRINK_FAILURE: 'G0006E',
+  OPERATION_SHRINK_START: 'G0005I',
+  OPERATION_UNINSTALL_COMPLETE: 'G0010I',
+  OPERATION_UNINSTALL_FAILURE: 'G0010E',
+  OPERATION_UNINSTALL_START: 'G0009I',
+  OPERATION_UPDATE_COMPLETE: 'G0008I',
+  OPERATION_UPDATE_FAILURE: 'G0008E',
+  OPERATION_UPDATE_START: 'G0007I',
+  ROLE_CREATED: 'GE1000I',
+  ROLE_DELETED: 'GE2000I',
+  SMTPCONFIG_CREATED: 'G1006I',
+  SMTPCONFIG_DELETED: 'G2006I',
+  TLSKEYPAIR_CREATED: 'G1004I',
+  TLSKEYPAIR_DELETED: 'G2004I',
+  TOKEN_CREATED: 'G1001I',
+  TOKEN_DELETED: 'G2001I',
+  USER_CREATED: 'G1000I',
+  USER_DELETED: 'G2000I',
+  USER_INVITE_CREATED: 'G1010I',
+  // Gravity E
+  ENDPOINTS_UPDATED: 'GE1003I',
+  LICENSE_EXPIRED: 'GE3003I',
+  LICENSE_GENERATED: 'GE3002I',
+  LICENSE_UPDATED: 'GE3004I',
+  OIDC_CONNECTOR_CREATED: 'GE1001I',
+  OIDC_CONNECTOR_DELETED: 'GE2001I',
+  REMOTE_SUPPORT_DISABLED: 'GE3001I',
+  REMOTE_SUPPORT_ENABLED: 'GE3000I',
+  SAML_CONNECTOR_CREATED: 'GE1002I',
+  SAML_CONNECTOR_DELETED: 'GE2002I',
+  UPDATES_DISABLED: 'GE3006I',
+  UPDATES_DOWNLOADED: 'GE3007I',
+  UPDATES_ENABLED: 'GE3005I'
+};
+/**
+ * Describes all raw event types
+ */
+// CONCATENATED MODULE: ./src/services/audit/makeEvent.ts
+var _formatters;
+
+function makeEvent_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function makeEvent_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = makeEvent_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+
+function makeEvent_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+var formatters = (_formatters = {}, makeEvent_defineProperty(_formatters, CodeEnum.ALERT_CREATED, {
+  desc: 'Alert Created',
+  format: function format(_ref) {
+    var user = _ref.user,
+        name = _ref.name;
+    return "User ".concat(user, " created monitoring alert ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.ALERT_DELETED, {
+  desc: 'Alert Deleted',
+  format: function format(_ref2) {
+    var user = _ref2.user,
+        name = _ref2.name;
+    return "User ".concat(user, " deleted monitoring alert ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.ALERT_TARGET_CREATED, {
+  desc: 'Alert Target Created',
+  format: function format(_ref3) {
+    var user = _ref3.user;
+    return "User ".concat(user, " updated monitoring alert target");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.ALERT_TARGET_DELETED, {
+  desc: 'Alert Target Deleted',
+  format: function format(_ref4) {
+    var user = _ref4.user;
+    return "User ".concat(user, " deleted monitoring alert target");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.APPLICATION_INSTALL, {
+  desc: 'Application Installed',
+  format: function format(_ref5) {
+    var releaseName = _ref5.releaseName,
+        name = _ref5.name,
+        version = _ref5.version;
+    return "Application release ".concat(releaseName, " (").concat(name, ":").concat(version, ") has been installed");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.APPLICATION_UPGRADE, {
+  desc: 'Application Upgraded',
+  format: function format(_ref6) {
+    var releaseName = _ref6.releaseName,
+        name = _ref6.name,
+        version = _ref6.version;
+    return "Application release ".concat(releaseName, " has been upgraded to ").concat(name, ":").concat(version);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.APPLICATION_ROLLBACK, {
+  desc: 'Application Rolledbacked',
+  format: function format(_ref7) {
+    var releaseName = _ref7.releaseName,
+        name = _ref7.name,
+        version = _ref7.version;
+    return "Application release ".concat(releaseName, " has been rolled back to ").concat(name, ":").concat(version);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.APPLICATION_UNINSTALL, {
+  desc: 'Application Uninstalled',
+  format: function format(_ref8) {
+    var releaseName = _ref8.releaseName,
+        name = _ref8.name,
+        version = _ref8.version;
+    return "Applicaiton release ".concat(releaseName, " (").concat(name, ":").concat(version, ") has been uninstalled");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.AUTH_ATTEMPT_FAILURE, {
+  desc: 'Auth Attempt Failed',
+  format: function format(_ref9) {
+    var user = _ref9.user,
+        error = _ref9.error;
+    return "User ".concat(user, " failed auth attempt: ").concat(error);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.AUTHGATEWAY_UPDATED, {
+  desc: 'Auth Gateway Updated',
+  format: function format(_ref10) {
+    var user = _ref10.user;
+    return "User ".concat(user, " updated cluster authentication gateway settings");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.AUTHPREFERENCE_UPDATED, {
+  desc: 'Auth Preferences Updated',
+  format: function format(_ref11) {
+    var user = _ref11.user;
+    return "User ".concat(user, " updated cluster authentication preference");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.CLIENT_DISCONNECT, {
+  desc: 'Client Disconnected',
+  format: function format(_ref12) {
+    var user = _ref12.user,
+        reason = _ref12.reason;
+    return "User ".concat(user, " has been disconnected: ").concat(reason);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.CLUSTER_HEALTHY, {
+  desc: 'Cluster Healthy',
+  format: function format() {
+    return "Cluster has become healthy";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.CLUSTER_UNHEALTHY, {
+  desc: 'Cluster Unhealthy',
+  format: function format(_ref13) {
+    var reason = _ref13.reason;
+    return "Cluster is degraded: ".concat(reason);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.ENDPOINTS_UPDATED, {
+  desc: 'Endpoints Updated',
+  format: function format(_ref14) {
+    var user = _ref14.user;
+    return "User ".concat(user, " updated Ops Center endpoints");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.EXEC, {
+  desc: 'Command Execution',
+  format: function format(_ref15) {
+    var user = _ref15.user,
+        rest = makeEvent_objectWithoutProperties(_ref15, ["user"]);
+
+    return "User ".concat(user, " executed a command on node ").concat(rest['addr.local']);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.EXEC_FAILURE, {
+  desc: 'Command Execution Failed',
+  format: function format(_ref16) {
+    var user = _ref16.user,
+        exitError = _ref16.exitError,
+        rest = makeEvent_objectWithoutProperties(_ref16, ["user", "exitError"]);
+
+    return "User ".concat(user, " command execution on node ").concat(rest['addr.local'], " failed: ").concat(exitError);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.GITHUB_CONNECTOR_CREATED, {
+  desc: 'GITHUB Auth Connector Created',
+  format: function format(_ref17) {
+    var user = _ref17.user,
+        name = _ref17.name;
+    return "User ".concat(user, " created Github connector ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.GITHUB_CONNECTOR_DELETED, {
+  desc: 'GITHUB Auth Connector Deleted',
+  format: function format(_ref18) {
+    var user = _ref18.user,
+        name = _ref18.name;
+    return "User ".concat(user, " deleted Github connector ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.LICENSE_GENERATED, {
+  desc: 'Cluster License Generated',
+  format: function format(_ref19) {
+    var maxNodes = _ref19.maxNodes;
+    return "License for max nodes ".concat(maxNodes, " has been generated");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.LICENSE_EXPIRED, {
+  desc: 'Cluster License Expired',
+  format: function format() {
+    return "Cluster license has expired";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.LICENSE_UPDATED, {
+  desc: 'Cluster License Updated',
+  format: function format() {
+    return "Cluster license has been updated";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.LOGFORWARDER_CREATED, {
+  desc: 'Log Forwarder Created',
+  format: function format(_ref20) {
+    var user = _ref20.user,
+        name = _ref20.name;
+    return "User ".concat(user, " created log forwarder ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.LOGFORWARDER_DELETED, {
+  desc: 'Log Forwarder Deleted',
+  format: function format(_ref21) {
+    var user = _ref21.user,
+        name = _ref21.name;
+    return "User ".concat(user, " deleted log forwarder ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OIDC_CONNECTOR_CREATED, {
+  desc: 'OIDC Auth Connector Created',
+  format: function format(_ref22) {
+    var user = _ref22.user,
+        name = _ref22.name;
+    return "User ".concat(user, " created OIDC connector ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OIDC_CONNECTOR_DELETED, {
+  desc: 'OIDC Auth Connector Deleted',
+  format: function format(_ref23) {
+    var user = _ref23.user,
+        name = _ref23.name;
+    return "User ".concat(user, " deleted OIDC connector ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_CONFIG_COMPLETE, {
+  desc: 'Cluster Configuration Completed',
+  format: function format() {
+    return "Cluster configuration has been updated";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_CONFIG_FAILURE, {
+  desc: 'Cluster Configuration Failed',
+  format: function format() {
+    return "Failed to update the cluster configuration";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_CONFIG_START, {
+  desc: 'Cluster Configuration Started',
+  format: function format() {
+    return "Updating the cluster configuration";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_ENV_COMPLETE, {
+  desc: 'Environment Update Completed',
+  format: function format() {
+    return "Cluster runtime environment has been updated";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_ENV_FAILURE, {
+  desc: 'Environment Update Failed',
+  format: function format() {
+    return "Failed to update the cluster runtime environment";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_ENV_START, {
+  desc: 'Environment Update Started',
+  format: function format() {
+    return "Updating the cluster runtime environment";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_EXPAND_START, {
+  desc: 'Cluster Expand Started',
+  format: function format(_ref24) {
+    var hostname = _ref24.hostname,
+        ip = _ref24.ip,
+        role = _ref24.role;
+    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " is joining the cluster");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_EXPAND_COMPLETE, {
+  desc: 'Cluster Expand Completed',
+  format: function format(_ref25) {
+    var hostname = _ref25.hostname,
+        ip = _ref25.ip,
+        role = _ref25.role;
+    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " has joined the cluster");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_EXPAND_FAILURE, {
+  desc: 'Cluster Expand Failed',
+  format: function format(_ref26) {
+    var hostname = _ref26.hostname,
+        ip = _ref26.ip,
+        role = _ref26.role;
+    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " has failed to join the cluster");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_GC_START, {
+  desc: 'GC Started',
+  format: function format() {
+    return 'Running garbage collection on the cluster';
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_GC_COMPLETE, {
+  desc: 'GC Completed',
+  format: function format() {
+    return 'Garbage collection on the cluster has finished';
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_GC_FAILURE, {
+  desc: 'GC Failed',
+  format: function format() {
+    return 'Garbage collection on the cluster has failed';
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_INSTALL_START, {
+  desc: 'Cluster Install Started',
+  format: function format(_ref27) {
+    var cluster = _ref27.cluster;
+    return "Cluster ".concat(cluster, " is being installed");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_INSTALL_COMPLETE, {
+  desc: 'Cluster Install Completed',
+  format: function format(_ref28) {
+    var cluster = _ref28.cluster;
+    return "Cluster ".concat(cluster, " has been installed");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_INSTALL_FAILURE, {
+  desc: 'Cluster Install Failed',
+  format: function format(_ref29) {
+    var cluster = _ref29.cluster;
+    return "Cluster ".concat(cluster, " install has failed");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_SHRINK_START, {
+  desc: 'Cluster Shrink Started',
+  format: function format(_ref30) {
+    var hostname = _ref30.hostname,
+        ip = _ref30.ip,
+        role = _ref30.role;
+    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " is leaving the cluster");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_SHRINK_COMPLETE, {
+  desc: 'Cluster Shrink Completed',
+  format: function format(_ref31) {
+    var hostname = _ref31.hostname,
+        ip = _ref31.ip,
+        role = _ref31.role;
+    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " has left the cluster");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_SHRINK_FAILURE, {
+  desc: 'Cluster Shrink Failed',
+  format: function format(_ref32) {
+    var hostname = _ref32.hostname,
+        ip = _ref32.ip,
+        role = _ref32.role;
+    return "Node ".concat(hostname, " (").concat(ip, ") with role ").concat(role, " has failed to leave the cluster");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_UNINSTALL_START, {
+  desc: 'Cluster Uninstall Started',
+  format: function format() {
+    return "Cluster is being uninstalled";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_UNINSTALL_COMPLETE, {
+  desc: 'Cluster Uninstall Completed',
+  format: function format() {
+    return "Cluster has been uninstalled";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_UNINSTALL_FAILURE, {
+  desc: 'Cluster Uninstall Failed',
+  format: function format() {
+    return "Cluster uninstall has failed";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_UPDATE_COMPLETE, {
+  desc: 'Cluster Update Completed',
+  format: function format(_ref33) {
+    var version = _ref33.version;
+    return "Cluster has been updated to version ".concat(version);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_UPDATE_FAILURE, {
+  desc: 'Cluster Update Failed',
+  format: function format(_ref34) {
+    var version = _ref34.version;
+    return "Cluster has failed to update to version ".concat(version);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.OPERATION_UPDATE_START, {
+  desc: 'Cluster Update Started',
+  format: function format(_ref35) {
+    var version = _ref35.version;
+    return "Cluster update to version ".concat(version, " has started");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.PORTFORWARD, {
+  desc: 'Port Forwarding Started',
+  format: function format(_ref36) {
+    var user = _ref36.user;
+    return "User ".concat(user, " started port forwarding");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.PORTFORWARD_FAILURE, {
+  desc: 'Port Forwarding Failed',
+  format: function format(_ref37) {
+    var user = _ref37.user,
+        error = _ref37.error;
+    return "User ".concat(user, " port forwarding request failed: ").concat(error);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.REMOTE_SUPPORT_ENABLED, {
+  desc: 'Remote Support Enabled',
+  format: function format(_ref38) {
+    var user = _ref38.user,
+        hub = _ref38.hub;
+    return "User ".concat(user, " enabled remote support with Gravity Hub ").concat(hub);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.REMOTE_SUPPORT_DISABLED, {
+  desc: 'Remote Support Disabled',
+  format: function format(_ref39) {
+    var user = _ref39.user,
+        hub = _ref39.hub;
+    return "User ".concat(user, " disabled remote support with Gravity Hub ").concat(hub);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.ROLE_CREATED, {
+  desc: 'Role Created',
+  format: function format(_ref40) {
+    var user = _ref40.user,
+        name = _ref40.name;
+    return "User ".concat(user, " created role ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.ROLE_DELETED, {
+  desc: 'Role Deleted',
+  format: function format(_ref41) {
+    var user = _ref41.user,
+        name = _ref41.name;
+    return "User ".concat(user, " deleted role ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SAML_CONNECTOR_CREATED, {
+  desc: 'SAML Connector Created',
+  format: function format(_ref42) {
+    var user = _ref42.user,
+        name = _ref42.name;
+    return "User ".concat(user, " created SAML connector ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SAML_CONNECTOR_DELETED, {
+  desc: 'SAML Connector Deleted',
+  format: function format(_ref43) {
+    var user = _ref43.user,
+        name = _ref43.name;
+    return "User ".concat(user, " deleted SAML connector ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SCP_DOWNLOAD, {
+  desc: 'SCP Download',
+  format: function format(_ref44) {
+    var user = _ref44.user,
+        path = _ref44.path,
+        rest = makeEvent_objectWithoutProperties(_ref44, ["user", "path"]);
+
+    return "User ".concat(user, " downloaded a file ").concat(path, " from node ").concat(rest['addr.local']);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SCP_DOWNLOAD_FAILURE, {
+  desc: 'SCP Download Failed',
+  format: function format(_ref45) {
+    var exitError = _ref45.exitError,
+        rest = makeEvent_objectWithoutProperties(_ref45, ["exitError"]);
+
+    return "File download from node ".concat(rest['addr.local'], " failed: ").concat(exitError);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SCP_UPLOAD, {
+  desc: 'SCP Upload',
+  format: function format(_ref46) {
+    var user = _ref46.user,
+        path = _ref46.path,
+        rest = makeEvent_objectWithoutProperties(_ref46, ["user", "path"]);
+
+    return "User ".concat(user, " uploaded a file ").concat(path, " to node ").concat(rest['addr.local']);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SCP_UPLOAD_FAILURE, {
+  desc: 'SCP Upload Failed',
+  format: function format(_ref47) {
+    var exitError = _ref47.exitError,
+        rest = makeEvent_objectWithoutProperties(_ref47, ["exitError"]);
+
+    return "File upload to node ".concat(rest['addr.local'], " failed: ").concat(exitError);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SESSION_JOIN, {
+  desc: 'User Joined',
+  format: function format(_ref48) {
+    var user = _ref48.user,
+        sid = _ref48.sid;
+    return "User ".concat(user, " has joined the session ").concat(sid);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SESSION_END, {
+  desc: 'Session Ended',
+  format: function format(_ref49) {
+    var user = _ref49.user,
+        sid = _ref49.sid;
+    return "User ".concat(user, " has ended the session ").concat(sid);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SESSION_LEAVE, {
+  desc: 'User Disconnected',
+  format: function format(_ref50) {
+    var user = _ref50.user,
+        sid = _ref50.sid;
+    return "User ".concat(user, " has left the session ").concat(sid);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SESSION_START, {
+  desc: 'Session Started',
+  format: function format(_ref51) {
+    var user = _ref51.user,
+        sid = _ref51.sid;
+    return "User ".concat(user, " has started a session ").concat(sid);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SESSION_UPLOAD, {
+  desc: 'Session Uploaded',
+  format: function format() {
+    return "Recorded session has been uploaded";
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SMTPCONFIG_CREATED, {
+  desc: 'SMTP Config Created',
+  format: function format(_ref52) {
+    var user = _ref52.user;
+    return "User ".concat(user, " updated cluster SMTP configuration");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SMTPCONFIG_DELETED, {
+  desc: 'SMTP Config Deleted',
+  format: function format(_ref53) {
+    var user = _ref53.user;
+    return "User ".concat(user, " deleted cluster SMTP configuration");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SUBSYSTEM, {
+  desc: 'Subsystem Requested',
+  format: function format(_ref54) {
+    var user = _ref54.user,
+        name = _ref54.name;
+    return "User ".concat(user, " requested subsystem ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.SUBSYSTEM_FAILURE, {
+  desc: 'Subsystem Request Failed',
+  format: function format(_ref55) {
+    var user = _ref55.user,
+        name = _ref55.name,
+        exitError = _ref55.exitError;
+    return "User ".concat(user, " subsystem ").concat(name, " request failed: ").concat(exitError);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.TERMINAL_RESIZE, {
+  desc: 'Terminal Resize',
+  format: function format(_ref56) {
+    var user = _ref56.user;
+    return "User ".concat(user, " resized the terminal");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.TLSKEYPAIR_CREATED, {
+  desc: 'TLS Keypair Created',
+  format: function format(_ref57) {
+    var user = _ref57.user;
+    return "User ".concat(user, " installed cluster web certificate");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.TLSKEYPAIR_DELETED, {
+  desc: 'TLS Keypair Deleted',
+  format: function format(_ref58) {
+    var user = _ref58.user;
+    return "User ".concat(user, " deleted cluster web certificate");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.TOKEN_CREATED, {
+  desc: 'User Token Created',
+  format: function format(_ref59) {
+    var user = _ref59.user,
+        owner = _ref59.owner;
+    return "User ".concat(user, " created token for user ").concat(owner);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.TOKEN_DELETED, {
+  desc: 'User Token Deleted',
+  format: function format(_ref60) {
+    var user = _ref60.user,
+        owner = _ref60.owner;
+    return "User ".concat(user, " deleted token for user ").concat(owner);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.UPDATES_ENABLED, {
+  desc: 'Periodic Updates Enabled',
+  format: function format(_ref61) {
+    var user = _ref61.user,
+        hub = _ref61.hub;
+    return "User ".concat(user, " enabled periodic updates with Gravity Hub ").concat(hub);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.UPDATES_DISABLED, {
+  desc: 'Periodic Updates Disabled',
+  format: function format(_ref62) {
+    var user = _ref62.user,
+        hub = _ref62.hub;
+    return "User ".concat(user, " disabled periodic updates with Gravity Hub ").concat(hub);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.UPDATES_DOWNLOADED, {
+  desc: 'Update Downloaded',
+  format: function format(_ref63) {
+    var hub = _ref63.hub,
+        name = _ref63.name,
+        version = _ref63.version;
+    return "Downloaded new version ".concat(name, ":").concat(version, " from Gravity Hub ").concat(hub);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.USER_CREATED, {
+  desc: 'User Created',
+  format: function format(_ref64) {
+    var user = _ref64.user,
+        name = _ref64.name;
+    return "User ".concat(user, " created user ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.USER_DELETED, {
+  desc: 'User Deleted',
+  format: function format(_ref65) {
+    var user = _ref65.user,
+        name = _ref65.name;
+    return "User ".concat(user, " deleted user ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.USER_INVITE_CREATED, {
+  desc: 'Invite Created',
+  format: function format(_ref66) {
+    var user = _ref66.user,
+        name = _ref66.name,
+        roles = _ref66.roles;
+    return "User ".concat(user, " invited user ").concat(name, " with roles ").concat(roles);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.USER_LOCAL_LOGIN, {
+  desc: 'Local Login',
+  format: function format(_ref67) {
+    var user = _ref67.user;
+    return "Local user ".concat(user, " successfully logged in");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.USER_LOCAL_LOGINFAILURE, {
+  desc: 'Local Login Failed',
+  format: function format(_ref68) {
+    var user = _ref68.user,
+        error = _ref68.error;
+    return "Local user ".concat(user, " login failed: ").concat(error);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.USER_SSO_LOGIN, {
+  desc: 'SSO Login',
+  format: function format(_ref69) {
+    var user = _ref69.user;
+    return "SSO user ".concat(user, " successfully logged in");
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.USER_SSO_LOGINFAILURE, {
+  desc: 'SSO Login Failed',
+  format: function format(_ref70) {
+    var error = _ref70.error;
+    return "SSO user login failed: ".concat(error);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.ROLE_CREATED, {
+  desc: 'User Role Created',
+  format: function format(_ref71) {
+    var user = _ref71.user,
+        name = _ref71.name;
+    return "User ".concat(user, " created role ").concat(name);
+  }
+}), makeEvent_defineProperty(_formatters, CodeEnum.ROLE_DELETED, {
+  desc: 'User Role Deleted',
+  format: function format(_ref72) {
+    var user = _ref72.user,
+        name = _ref72.name;
+    return "User ".concat(user, " deleted role ").concat(name);
+  }
+}), _formatters);
+var unknownFormatter = {
+  desc: 'Unknown',
+  format: function format() {
+    return 'Unknown';
+  }
+};
+function makeEvent(json) {
+  // lookup event formatter by code
+  var formatter = formatters[json.code] || unknownFormatter;
+  var event = {
+    codeDesc: formatter.desc,
+    message: formatter.format(json),
+    id: getId(json),
+    code: json.code,
+    user: json.user,
+    time: new Date(json.time),
+    raw: json
+  };
+  return event;
+} // older events might not have an uid field.
+// in this case compose it from other fields.
+
+function getId(json) {
+  var uid = json.uid,
+      event = json.event,
+      time = json.time;
+
+  if (uid) {
+    return uid;
+  }
+
+  return "".concat(event, ":").concat(time);
+}
+// CONCATENATED MODULE: ./src/services/audit/audit.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+var EVENT_MAX_LIMIT = 9999;
+var service = {
+  maxLimit: EVENT_MAX_LIMIT,
+  fetchLatest: function fetchLatest() {
+    var start = moment_default()(new Date()).startOf('day').toDate();
+    var end = moment_default()(new Date()).endOf('day').toDate();
+    return service.fetchEvents({
+      start: start,
+      end: end
+    });
+  },
+  fetchEvents: function fetchEvents(params) {
+    var start = params.start.toISOString();
+    var end = params.end.toISOString();
+    var url = config["a" /* default */].getClusterEventsUrl({
+      start: start,
+      end: end,
+      limit: EVENT_MAX_LIMIT + 1
+    });
+    return api["a" /* default */].get(url).then(function (json) {
+      var events = json.events;
+      return events.map(makeEvent);
+    }).then(function (events) {
+      var overflow = events.length > EVENT_MAX_LIMIT;
+      events = events.splice(0, EVENT_MAX_LIMIT - 1);
+      return {
+        overflow: overflow,
+        events: events
+      };
+    });
+  }
+};
+/* harmony default export */ var audit = (service);
+// CONCATENATED MODULE: ./src/services/audit/index.ts
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+/* harmony default export */ var services_audit = (audit);
+
+// CONCATENATED MODULE: ./src/teleportContext.ts
+function teleportContext_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function teleportContext_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function teleportContext_createClass(Constructor, protoProps, staticProps) { if (protoProps) teleportContext_defineProperties(Constructor.prototype, protoProps); if (staticProps) teleportContext_defineProperties(Constructor, staticProps); return Constructor; }
+
+function teleportContext_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+
+
+
+var teleportContext_Context =
+/*#__PURE__*/
+function () {
+  // stores
+  // features
+  // services
+  function Context(params) {
+    teleportContext_classCallCheck(this, Context);
+
+    teleportContext_defineProperty(this, "storeNav", new StoreNav());
+
+    teleportContext_defineProperty(this, "storeUser", new storeUser_StoreUser());
+
+    teleportContext_defineProperty(this, "storeClusters", new storeClusters_StoreClusters());
+
+    teleportContext_defineProperty(this, "features", []);
+
+    teleportContext_defineProperty(this, "auditService", services_audit);
+
+    teleportContext_defineProperty(this, "nodeService", services_nodes["default"]);
+
+    teleportContext_defineProperty(this, "clusterService", services_clusters["default"]);
+
+    teleportContext_defineProperty(this, "sshService", ssh["default"]);
+
+    var _ref = params || {},
+        clusterId = _ref.clusterId,
+        _ref$features = _ref.features,
+        features = _ref$features === void 0 ? [] : _ref$features;
+
+    this.features = features;
+    config["a" /* default */].setClusterId(clusterId);
+  }
+
+  teleportContext_createClass(Context, [{
+    key: "init",
+    value: function init() {
+      var _this = this;
+
+      var fetchUserPromise = this.storeUser.fetchUser();
+      return Promise.all([fetchUserPromise]).then(function () {
+        var activator = new Activator(_this.features);
+        activator.onload(_this);
+      });
+    }
+  }, {
+    key: "isAccountEnabled",
+    value: function isAccountEnabled() {
+      return this.storeUser.isSso() === false;
+    }
+  }, {
+    key: "isAuditEnabled",
+    value: function isAuditEnabled() {
+      return this.storeUser.getEventAccess().list;
+    }
+  }, {
+    key: "isAuthConnectorEnabled",
+    value: function isAuthConnectorEnabled() {
+      return this.storeUser.getConnectorAccess().list;
+    }
+  }, {
+    key: "isRolesEnabled",
+    value: function isRolesEnabled() {
+      return this.storeUser.getRoleAccess().list;
+    }
+  }, {
+    key: "isTrustedClustersEnabled",
+    value: function isTrustedClustersEnabled() {
+      return this.storeUser.getTrustedClusterAccess().list;
+    }
+  }]);
+
+  return Context;
+}();
+
+
+// CONCATENATED MODULE: ./src/dashboard/index.tsx
 function dashboard_slicedToArray(arr, i) { return dashboard_arrayWithHoles(arr) || dashboard_iterableToArrayLimit(arr, i) || dashboard_nonIterableRest(); }
 
 function dashboard_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
@@ -20389,7 +20221,7 @@ function dashboard_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Objec
 function dashboard_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20409,55 +20241,44 @@ limitations under the License.
 
 
 
-
-
-function dashboard_mapState() {
-  var teleport = useTeleport();
-
+function dashboard_Index() {
   var _React$useState = react_default.a.useState(function () {
-    return [new featureAccount(), new featureClusters()];
-  }),
-      _React$useState2 = dashboard_slicedToArray(_React$useState, 1),
-      features = _React$useState2[0];
-
-  function onInit() {
-    return teleport.init({
-      clusterId: config["a" /* default */].proxyCluster,
+    var features = [new featureAccount(), new featureClusters()];
+    return new teleportContext_Context({
       features: features
     });
-  }
+  }),
+      _React$useState2 = dashboard_slicedToArray(_React$useState, 1),
+      ctx = _React$useState2[0];
 
-  return {
-    features: features,
-    onInit: onInit
-  };
+  return react_default.a.createElement(teleportContextProvider, {
+    value: ctx
+  }, react_default.a.createElement(components, null));
 }
+// CONCATENATED MODULE: ./src/player/PlayerTabs/PlayerTabs.tsx
+function PlayerTabs_templateObject2() {
+  var data = PlayerTabs_taggedTemplateLiteral(["\n  ", "\n"]);
 
-/* harmony default export */ var dashboard = (withState(dashboard_mapState)(components));
-// CONCATENATED MODULE: ./src/recordings/SessionAuditTabs/SessionAuditTabs.jsx
-function SessionAuditTabs_templateObject2() {
-  var data = SessionAuditTabs_taggedTemplateLiteral(["\n  min-height: 36px;\n  ", "\n"]);
-
-  SessionAuditTabs_templateObject2 = function _templateObject2() {
+  PlayerTabs_templateObject2 = function _templateObject2() {
     return data;
   };
 
   return data;
 }
 
-function SessionAuditTabs_templateObject() {
-  var data = SessionAuditTabs_taggedTemplateLiteral(["\n  max-width: 200px;\n  height: 100%;\n  outline: none;\n  text-transform: uppercase;\n  text-decoration: none;\n  color: inherit;\n  align-items: center;\n  display: flex;\n  justify-content: center;\n  flex: 1;\n\n  &:hover,\n  &.active,\n  &:focus {\n    color: ", ";\n  }\n\n  &.active {\n    ", "\n  }\n\n  ", "\n"]);
+function PlayerTabs_templateObject() {
+  var data = PlayerTabs_taggedTemplateLiteral(["\n  max-width: 200px;\n  height: 100%;\n  outline: none;\n  text-transform: uppercase;\n  text-decoration: none;\n  color: inherit;\n  align-items: center;\n  display: flex;\n  justify-content: center;\n  flex: 1;\n\n  &:hover,\n  &.active,\n  &:focus {\n    color: ", ";\n  }\n\n  ", "\n\n  ", "\n"]);
 
-  SessionAuditTabs_templateObject = function _templateObject() {
+  PlayerTabs_templateObject = function _templateObject() {
     return data;
   };
 
   return data;
 }
 
-function SessionAuditTabs_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+function PlayerTabs_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
 
-function SessionAuditTabs_extends() { SessionAuditTabs_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return SessionAuditTabs_extends.apply(this, arguments); }
+function PlayerTabs_extends() { PlayerTabs_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return PlayerTabs_extends.apply(this, arguments); }
 
 /*
 Copyright 2019 Gravitational, Inc.
@@ -20479,9 +20300,8 @@ limitations under the License.
 
 
 
-
-var SessionAuditTabs_Tabs = function Tabs(props) {
-  return react_default.a.createElement(SessionAuditTabs_StyledTabs, SessionAuditTabs_extends({
+var PlayerTabs_Tabs = function Tabs(props) {
+  return react_default.a.createElement(PlayerTabs_StyledTabs, PlayerTabs_extends({
     height: "40px",
     color: "text.secondary",
     as: "nav",
@@ -20489,17 +20309,11 @@ var SessionAuditTabs_Tabs = function Tabs(props) {
   }, props));
 };
 
-var SessionAuditTabs_TabItem = function TabItem(_ref) {
-  var to = _ref.to,
-      title = _ref.title,
-      exact = _ref.exact;
-  return react_default.a.createElement(SessionAuditTabs_StyledTabItem, {
-    as: NavLink,
-    to: to,
-    exact: exact
-  }, title);
+var PlayerTabs_TabItem = function TabItem(_ref) {
+  var title = _ref.title;
+  return react_default.a.createElement(PlayerTabs_StyledTabItem, null, title);
 };
-var SessionAuditTabs_StyledTabItem = Object(styled_components_browser_esm["c" /* default */])(src_Box)(SessionAuditTabs_templateObject(), function (props) {
+var PlayerTabs_StyledTabItem = Object(styled_components_browser_esm["c" /* default */])(src_Box)(PlayerTabs_templateObject(), function (props) {
   return props.theme.colors.primary.contrastText;
 }, function (_ref2) {
   var theme = _ref2.theme;
@@ -20520,9 +20334,9 @@ var SessionAuditTabs_StyledTabItem = Object(styled_components_browser_esm["c" /*
     }
   };
 });
-var SessionAuditTabs_StyledTabs = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(SessionAuditTabs_templateObject2(), system["w" /* typography */]);
-/* harmony default export */ var SessionAuditTabs = (SessionAuditTabs_Tabs);
-// CONCATENATED MODULE: ./src/recordings/SessionAuditTabs/index.js
+var PlayerTabs_StyledTabs = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(PlayerTabs_templateObject2(), system["w" /* typography */]);
+/* harmony default export */ var PlayerTabs = (PlayerTabs_Tabs);
+// CONCATENATED MODULE: ./src/player/PlayerTabs/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -20540,310 +20354,7 @@ limitations under the License.
 */
 
 
-/* harmony default export */ var recordings_SessionAuditTabs = (SessionAuditTabs);
-// CONCATENATED MODULE: ../shared/hooks/useDraggable.js
-function useDraggable_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
-
-function useDraggable_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { useDraggable_ownKeys(source, true).forEach(function (key) { useDraggable_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { useDraggable_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
-
-function useDraggable_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function useDraggable_slicedToArray(arr, i) { return useDraggable_arrayWithHoles(arr) || useDraggable_iterableToArrayLimit(arr, i) || useDraggable_nonIterableRest(); }
-
-function useDraggable_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function useDraggable_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function useDraggable_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-var POSITION = {
-  x: 0,
-  y: 0
-};
-function useDraggable() {
-  var _useState = Object(react["useState"])({
-    isDragging: false,
-    origin: POSITION,
-    position: POSITION
-  }),
-      _useState2 = useDraggable_slicedToArray(_useState, 2),
-      state = _useState2[0],
-      setState = _useState2[1];
-
-  var onMouseDown = Object(react["useCallback"])(function (event) {
-    // disable text selection
-    event.stopPropagation();
-    event.preventDefault();
-    var clientX = event.clientX,
-        clientY = event.clientY;
-    setState(function (state) {
-      return useDraggable_objectSpread({}, state, {
-        isDragging: true,
-        origin: {
-          x: clientX,
-          y: clientY
-        }
-      });
-    });
-  }, []);
-  var onMouseMove = Object(react["useCallback"])(function (event) {
-    var position = {
-      x: event.clientX - state.origin.x,
-      y: event.clientY - state.origin.y
-    };
-    setState(function (state) {
-      return useDraggable_objectSpread({}, state, {
-        position: position
-      });
-    });
-  }, [state.origin]);
-  var onMouseUp = Object(react["useCallback"])(function () {
-    setState(function (state) {
-      return useDraggable_objectSpread({}, state, {
-        isDragging: false
-      });
-    });
-  }, []);
-  Object(react["useEffect"])(function () {
-    if (state.isDragging) {
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    } else {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      setState(function (state) {
-        return useDraggable_objectSpread({}, state, {
-          position: {
-            x: 0,
-            y: 0
-          }
-        });
-      });
-    }
-  }, [state.isDragging, onMouseMove, onMouseUp]);
-  return {
-    onMouseDown: onMouseDown,
-    isDragging: state.isDragging,
-    position: state.position
-  };
-}
-// CONCATENATED MODULE: ../shared/components/SplitPane/SplitPane.jsx
-function SplitPane_templateObject3() {
-  var data = SplitPane_taggedTemplateLiteral(["\n  cursor: row-resize;\n  width: 100%;\n  height: 4px;\n"]);
-
-  SplitPane_templateObject3 = function _templateObject3() {
-    return data;
-  };
-
-  return data;
-}
-
-function SplitPane_templateObject2() {
-  var data = SplitPane_taggedTemplateLiteral(["\n  cursor: col-resize;\n  width: 4px;\n  height: 100%;\n"]);
-
-  SplitPane_templateObject2 = function _templateObject2() {
-    return data;
-  };
-
-  return data;
-}
-
-function SplitPane_templateObject() {
-  var data = SplitPane_taggedTemplateLiteral(["\n  ", "\n"]);
-
-  SplitPane_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function SplitPane_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-function SplitPane_extends() { SplitPane_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return SplitPane_extends.apply(this, arguments); }
-
-function SplitPane_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = SplitPane_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function SplitPane_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-function SplitPane(_ref) {
-  var children = _ref.children,
-      defaultSize = _ref.defaultSize,
-      _ref$split = _ref.split,
-      split = _ref$split === void 0 ? SplitEnum.VERTICAL : _ref$split,
-      props = SplitPane_objectWithoutProperties(_ref, ["children", "defaultSize", "split"]);
-
-  var _useDraggable = useDraggable(),
-      onMouseDown = _useDraggable.onMouseDown,
-      isDragging = _useDraggable.isDragging,
-      position = _useDraggable.position;
-
-  var Holder = split === SplitEnum.VERTICAL ? YHolder : XHolder;
-  var hasFirstSide = !!children[0];
-  var hasSecondSide = !!children[1];
-  var hasTwoSides = hasFirstSide && hasSecondSide;
-  return react_default.a.createElement(Pane, SplitPane_extends({
-    split: split
-  }, props), hasFirstSide && react_default.a.createElement(PaneSide, {
-    isDragging: isDragging,
-    position: position,
-    split: split,
-    defaultSize: defaultSize,
-    hasTwoSides: hasTwoSides
-  }, children[0]), hasTwoSides && react_default.a.createElement(Holder, {
-    bg: "primary.main",
-    onMouseDown: onMouseDown
-  }), hasSecondSide && react_default.a.createElement(src_Flex, {
-    flex: "1 1 0%"
-  }, children[1]));
-}
-var Pane = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(SplitPane_templateObject(), function (props) {
-  return {
-    flexDirection: props.split === SplitEnum.VERTICAL ? 'row' : 'column'
-  };
-});
-function PaneSide(props) {
-  var children = props.children,
-      position = props.position,
-      isDragging = props.isDragging,
-      split = props.split,
-      defaultSize = props.defaultSize,
-      hasTwoSides = props.hasTwoSides;
-  var compRef = react_default.a.useRef(); // size contains the width and height of the element to be resized
-
-  var size = react_default.a.useMemo(function () {
-    return {
-      height: 0,
-      width: 0
-    };
-  }, []); // initialSizeProps contains initial values for width and height
-
-  var initialSizeProps = react_default.a.useMemo(function () {
-    return getInitialSizeValues(split, defaultSize, hasTwoSides);
-  }, [hasTwoSides, split]); // remember the element size before and after drag
-
-  react_default.a.useEffect(function () {
-    var element = compRef.current;
-    size.width = element.clientWidth;
-    size.height = element.clientHeight; // trigger windows resize event so other components can adjust
-    // to the new div size
-
-    window.dispatchEvent(new Event('resize'));
-  }, [isDragging]); // reset width and height when nothing to split
-
-  react_default.a.useEffect(function () {
-    if (!hasTwoSides) {
-      compRef.current.style.width = null;
-      compRef.current.style.height = null;
-      return;
-    }
-
-    if (split === SplitEnum.VERTICAL) {
-      compRef.current.style.height = null;
-    } else {
-      compRef.current.style.width = null;
-    }
-  }, [hasTwoSides, split]); // handle drag movements which causes a position to change
-
-  react_default.a.useEffect(function () {
-    if (!isDragging) {
-      return;
-    }
-
-    var element = compRef.current;
-    var newWidth = size.width + position.x;
-    var newHeight = size.height + position.y;
-
-    if (split === SplitEnum.VERTICAL) {
-      element.style.width = "".concat(newWidth, "px");
-    } else {
-      element.style.height = "".concat(newHeight, "px");
-    }
-  }, [position.x, position.y]);
-  return react_default.a.createElement(src_Flex, SplitPane_extends({
-    ref: compRef
-  }, initialSizeProps), children);
-}
-var YHolder = Object(styled_components_browser_esm["c" /* default */])(src_Box)(SplitPane_templateObject2());
-var XHolder = Object(styled_components_browser_esm["c" /* default */])(src_Box)(SplitPane_templateObject3());
-
-function getInitialSizeValues(split, defaultSize, hasTwoSides) {
-  if (!hasTwoSides) {
-    return {
-      width: 'inherit',
-      height: 'inherit',
-      flex: '1'
-    };
-  }
-
-  if (split === 'vertical') {
-    return {
-      width: defaultSize
-    };
-  }
-
-  return {
-    height: defaultSize
-  };
-}
-
-var SplitEnum = {
-  VERTICAL: 'vertical'
-};
-// CONCATENATED MODULE: ../shared/components/SplitPane/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_SplitPane = (SplitPane);
-
+/* harmony default export */ var player_PlayerTabs = (PlayerTabs);
 // CONCATENATED MODULE: ./src/lib/term/ttyPlayerEventProvider.js
 function ttyPlayerEventProvider_slicedToArray(arr, i) { return ttyPlayerEventProvider_arrayWithHoles(arr) || ttyPlayerEventProvider_iterableToArrayLimit(arr, i) || ttyPlayerEventProvider_nonIterableRest(); }
 
@@ -20940,8 +20451,8 @@ function () {
   }, {
     key: "_fetchContent",
     value: function _fetchContent(events) {
-      // calclulate the size of the session in bytes to know how many
-      // chunks to load due to maximum chunk size.
+      // calculate the size of the session in bytes to know how many
+      // chunks to load due to maximum chunk size limitation.
       var offset = events[0].offset;
       var end = events.length - 1;
       var totalSize = events[end].offset - offset + events[end].bytes;
@@ -20958,20 +20469,17 @@ function () {
           return response.text();
         }));
         offset = offset + MAX_SIZE;
-      } // fetch all session chunks and then merge them in one
+      } // fetch all chunks and then merge
 
 
-      return Promise.all(promises).then(function () {
-        for (var _len = arguments.length, responses = new Array(_len), _key = 0; _key < _len; _key++) {
-          responses[_key] = arguments[_key];
-        }
-
+      return Promise.all(promises).then(function (responses) {
         var allBytes = responses.reduce(function (byteStr, r) {
-          return byteStr + r[0];
+          return byteStr + r;
         }, '');
         return new Buffer(allBytes);
       });
-    }
+    } // assign a slice of tty stream to corresponding print event
+
   }, {
     key: "_populatePrintEvents",
     value: function _populatePrintEvents(buffer, events) {
@@ -21168,10 +20676,8 @@ var ttyPlayer_TtyPlayer =
 function (_Tty) {
   ttyPlayer_inherits(TtyPlayer, _Tty);
 
-  function TtyPlayer(_ref) {
+  function TtyPlayer(eventProvider) {
     var _this;
-
-    var url = _ref.url;
 
     ttyPlayer_classCallCheck(this, TtyPlayer);
 
@@ -21182,9 +20688,7 @@ function (_Tty) {
     _this.status = StatusEnum.LOADING;
     _this.statusText = '';
     _this._posToEventIndexMap = [];
-    _this._eventProvider = new ttyPlayerEventProvider_EventProvider({
-      url: url
-    });
+    _this._eventProvider = eventProvider;
     return _this;
   } // override
 
@@ -21349,6 +20853,10 @@ function (_Tty) {
       return this.status !== StatusEnum.LOADING && this.status !== StatusEnum.ERROR;
     }
   }, {
+    key: "disconnect",
+    value: function disconnect() {// do nothing
+    }
+  }, {
     key: "_display",
     value: function _display(events) {
       if (!events || events.length === 0) {
@@ -21426,11 +20934,11 @@ function (_Tty) {
 }(term_tty);
 
 
-// EXTERNAL MODULE: ./src/recordings/ProgressBar/Slider/Slider.jsx
-var Slider = __webpack_require__("M5Kj");
+// EXTERNAL MODULE: ./src/player/ProgressBar/Slider/Slider.jsx
+var Slider = __webpack_require__("5PFp");
 var Slider_default = /*#__PURE__*/__webpack_require__.n(Slider);
 
-// CONCATENATED MODULE: ./src/recordings/ProgressBar/Slider/index.js
+// CONCATENATED MODULE: ./src/player/ProgressBar/Slider/index.js
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -21448,7 +20956,7 @@ limitations under the License.
 */
 
 /* harmony default export */ var ProgressBar_Slider = (Slider_default.a);
-// CONCATENATED MODULE: ./src/recordings/ProgressBar/ProgressBar.jsx
+// CONCATENATED MODULE: ./src/player/ProgressBar/ProgressBar.tsx
 function ProgressBar_templateObject4() {
   var data = ProgressBar_taggedTemplateLiteral(["\n  background-color: ", ";\n  display: flex;\n  color: ", ";\n  padding: 16px;\n\n  .grv-slider {\n    display: block;\n    padding: 0;\n    height: 24px;\n  }\n\n  .grv-slider .bar {\n    border-radius: 200px;\n    height: 8px;\n    margin: 8px 0;\n  }\n\n  .grv-slider .handle {\n    background-color: ", ";\n    border-radius: 200px;\n    box-shadow: 0 0 4px rgba(0, 0, 0, 0.12), 0 4px 4px rgba(0, 0, 0, 0.24);\n    width: 16px;\n    height: 16px;\n    left: -8px;\n    top: 4px;\n  }\n\n  .grv-slider .bar-0 {\n    background-color: ", ";\n    box-shadow: none;\n  }\n\n  .grv-slider .bar-1 {\n    background-color: ", ";\n  }\n"]);
 
@@ -21491,24 +20999,6 @@ function ProgressBar_templateObject() {
 
 function ProgressBar_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
 
-function ProgressBar_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { ProgressBar_typeof = function _typeof(obj) { return typeof obj; }; } else { ProgressBar_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return ProgressBar_typeof(obj); }
-
-function ProgressBar_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function ProgressBar_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function ProgressBar_createClass(Constructor, protoProps, staticProps) { if (protoProps) ProgressBar_defineProperties(Constructor.prototype, protoProps); if (staticProps) ProgressBar_defineProperties(Constructor, staticProps); return Constructor; }
-
-function ProgressBar_possibleConstructorReturn(self, call) { if (call && (ProgressBar_typeof(call) === "object" || typeof call === "function")) { return call; } return ProgressBar_assertThisInitialized(self); }
-
-function ProgressBar_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function ProgressBar_getPrototypeOf(o) { ProgressBar_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return ProgressBar_getPrototypeOf(o); }
-
-function ProgressBar_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) ProgressBar_setPrototypeOf(subClass, superClass); }
-
-function ProgressBar_setPrototypeOf(o, p) { ProgressBar_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return ProgressBar_setPrototypeOf(o, p); }
-
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -21530,48 +21020,20 @@ limitations under the License.
 
 
 
-
-var ProgressBar_ProgressBar =
-/*#__PURE__*/
-function (_React$Component) {
-  ProgressBar_inherits(ProgressBar, _React$Component);
-
-  function ProgressBar() {
-    ProgressBar_classCallCheck(this, ProgressBar);
-
-    return ProgressBar_possibleConstructorReturn(this, ProgressBar_getPrototypeOf(ProgressBar).apply(this, arguments));
-  }
-
-  ProgressBar_createClass(ProgressBar, [{
-    key: "render",
-    value: function render() {
-      var _this$props = this.props,
-          isPlaying = _this$props.isPlaying,
-          min = _this$props.min,
-          max = _this$props.max,
-          value = _this$props.value,
-          onChange = _this$props.onChange,
-          onToggle = _this$props.onToggle,
-          time = _this$props.time;
-      var Icon = isPlaying ? src_Icon["i" /* CirclePause */] : src_Icon["j" /* CirclePlay */];
-      return react_default.a.createElement(StyledProgessBar, null, react_default.a.createElement(ActionButton, {
-        onClick: onToggle
-      }, react_default.a.createElement(Icon, null)), react_default.a.createElement(TimeText, null, time), react_default.a.createElement(SliderContainer, null, react_default.a.createElement(ProgressBar_Slider, {
-        min: min,
-        max: max,
-        value: value,
-        onChange: onChange,
-        defaultValue: 1,
-        withBars: true,
-        className: "grv-slider"
-      })));
-    }
-  }]);
-
-  return ProgressBar;
-}(react_default.a.Component);
-
-
+function ProgressBar(props) {
+  var Icon = props.isPlaying ? src_Icon["h" /* CirclePause */] : src_Icon["i" /* CirclePlay */];
+  return react_default.a.createElement(StyledProgessBar, null, react_default.a.createElement(ActionButton, {
+    onClick: props.toggle
+  }, react_default.a.createElement(Icon, null)), react_default.a.createElement(TimeText, null, props.time), react_default.a.createElement(SliderContainer, null, react_default.a.createElement(ProgressBar_Slider, {
+    min: props.min,
+    max: props.max,
+    value: props.current,
+    onChange: props.move,
+    defaultValue: 1,
+    withBars: true,
+    className: "grv-slider"
+  })));
+}
 var SliderContainer = styled_components_browser_esm["c" /* default */].div(ProgressBar_templateObject());
 var TimeText = Object(styled_components_browser_esm["c" /* default */])(src_Text)(ProgressBar_templateObject2(), function (props) {
   return props.theme.fonts.mono;
@@ -21580,20 +21042,14 @@ var TimeText = Object(styled_components_browser_esm["c" /* default */])(src_Text
 });
 var ActionButton = styled_components_browser_esm["c" /* default */].button(ProgressBar_templateObject3(), colors_colors.dark, colors_colors.light, colors_colors.primary);
 var StyledProgessBar = styled_components_browser_esm["c" /* default */].div(ProgressBar_templateObject4(), colors_colors.dark, colors_colors.light, colors_colors.light, colors_colors.success, colors_colors.text);
-// CONCATENATED MODULE: ./src/recordings/ProgressBar/useTtyProgress.js
-function useTtyProgress_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
+// CONCATENATED MODULE: ./src/player/ProgressBar/ProgressBarTty.tsx
+function ProgressBarTty_slicedToArray(arr, i) { return ProgressBarTty_arrayWithHoles(arr) || ProgressBarTty_iterableToArrayLimit(arr, i) || ProgressBarTty_nonIterableRest(); }
 
-function useTtyProgress_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { useTtyProgress_ownKeys(source, true).forEach(function (key) { useTtyProgress_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { useTtyProgress_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
+function ProgressBarTty_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
 
-function useTtyProgress_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+function ProgressBarTty_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
 
-function useTtyProgress_slicedToArray(arr, i) { return useTtyProgress_arrayWithHoles(arr) || useTtyProgress_iterableToArrayLimit(arr, i) || useTtyProgress_nonIterableRest(); }
-
-function useTtyProgress_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function useTtyProgress_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function useTtyProgress_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+function ProgressBarTty_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 /*
 Copyright 2019 Gravitational, Inc.
@@ -21612,38 +21068,29 @@ limitations under the License.
 */
 
 
+
+function ProgressBarTty(props) {
+  var state = useTtyProgress(props.tty);
+  return react_default.a.createElement(ProgressBar, state);
+}
 function useTtyProgress(tty) {
   var _React$useState = react_default.a.useState(function () {
-    var playerState = makePlayerState(tty);
-
-    function onTogglePlayStop() {
-      if (tty.isPlaying()) {
-        tty.stop();
-      } else {
-        tty.play();
-      }
-    }
-
-    function onMove(value) {
-      tty.move(value);
-    }
-
-    return useTtyProgress_objectSpread({}, playerState, {
-      onTogglePlayStop: onTogglePlayStop,
-      onMove: onMove
-    });
+    return makeTtyProgress(tty);
   }),
-      _React$useState2 = useTtyProgress_slicedToArray(_React$useState, 2),
+      _React$useState2 = ProgressBarTty_slicedToArray(_React$useState, 2),
       state = _React$useState2[0],
-      rerender = _React$useState2[1];
+      setState = _React$useState2[1];
 
   react_default.a.useEffect(function () {
-    function onChange() {
-      var newState = makePlayerState(tty);
-      rerender(useTtyProgress_objectSpread({}, state, {}, newState));
-    }
+    var throttledOnChange = Object(lodash["throttle"])(onChange, // some magic numbers to reduce number of re-renders when
+    // session is too long and "eventful"
+    Math.max(Math.min(tty.duration * 0.025, 500), 20));
 
-    var throttledOnChange = Object(lodash["throttle"])(onChange, 500);
+    function onChange() {
+      // recalculate progress state
+      var ttyProgres = makeTtyProgress(tty);
+      setState(ttyProgres);
+    }
 
     function cleanup() {
       throttledOnChange.cancel();
@@ -21657,21 +21104,31 @@ function useTtyProgress(tty) {
   return state;
 }
 
-function makePlayerState(tty) {
+function makeTtyProgress(tty) {
+  function toggle() {
+    if (tty.isPlaying()) {
+      tty.stop();
+    } else {
+      tty.play();
+    }
+  }
+
+  function move(value) {
+    tty.move(value);
+  }
+
   return {
-    eventCount: tty.getEventCount(),
-    duration: tty.duration,
+    max: tty.duration,
     min: 1,
     time: tty.getCurrentTime(),
     isLoading: tty.isLoading(),
     isPlaying: tty.isPlaying(),
-    isError: tty.isError(),
-    errText: tty.errText,
     current: tty.current,
-    canPlay: tty.length > 1
+    move: move,
+    toggle: toggle
   };
 }
-// CONCATENATED MODULE: ./src/recordings/ProgressBar/index.js
+// CONCATENATED MODULE: ./src/player/ProgressBar/index.tsx
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -21689,32 +21146,9 @@ limitations under the License.
 */
 
 
+/* harmony default export */ var player_ProgressBar = (ProgressBar);
 
-function Mama(_ref) {
-  var tty = _ref.tty;
-  var state = useTtyProgress(tty);
-  var isPlaying = state.isPlaying,
-      time = state.time,
-      min = state.min,
-      duration = state.duration,
-      current = state.current,
-      onTogglePlayStop = state.onTogglePlayStop,
-      onMove = state.onMove;
-  return react_default.a.createElement(ProgressBar_ProgressBar, {
-    isPlaying: isPlaying,
-    time: time,
-    min: min,
-    max: duration,
-    value: current,
-    onToggle: onTogglePlayStop,
-    onChange: onMove
-  });
-}
-// CONCATENATED MODULE: ./src/recordings/Xterm/Xterm.jsx
-function _get(target, property, receiver) { if (typeof Reflect !== "undefined" && Reflect.get) { _get = Reflect.get; } else { _get = function _get(target, property, receiver) { var base = _superPropBase(target, property); if (!base) return; var desc = Object.getOwnPropertyDescriptor(base, property); if (desc.get) { return desc.get.call(receiver); } return desc.value; }; } return _get(target, property, receiver || target); }
-
-function _superPropBase(object, property) { while (!Object.prototype.hasOwnProperty.call(object, property)) { object = Xterm_getPrototypeOf(object); if (object === null) break; } return object; }
-
+// CONCATENATED MODULE: ./src/player/Xterm/Xterm.tsx
 function Xterm_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { Xterm_typeof = function _typeof(obj) { return typeof obj; }; } else { Xterm_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return Xterm_typeof(obj); }
 
 function Xterm_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -21727,14 +21161,16 @@ function Xterm_possibleConstructorReturn(self, call) { if (call && (Xterm_typeof
 
 function Xterm_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
 
+function _get(target, property, receiver) { if (typeof Reflect !== "undefined" && Reflect.get) { _get = Reflect.get; } else { _get = function _get(target, property, receiver) { var base = _superPropBase(target, property); if (!base) return; var desc = Object.getOwnPropertyDescriptor(base, property); if (desc.get) { return desc.get.call(receiver); } return desc.value; }; } return _get(target, property, receiver || target); }
+
+function _superPropBase(object, property) { while (!Object.prototype.hasOwnProperty.call(object, property)) { object = Xterm_getPrototypeOf(object); if (object === null) break; } return object; }
+
 function Xterm_getPrototypeOf(o) { Xterm_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return Xterm_getPrototypeOf(o); }
 
 function Xterm_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) Xterm_setPrototypeOf(subClass, superClass); }
 
 function Xterm_setPrototypeOf(o, p) { Xterm_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return Xterm_setPrototypeOf(o, p); }
 
-function Xterm_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -21753,106 +21189,60 @@ limitations under the License.
 
 
 
-
-
-var Xterm_Xterm =
-/*#__PURE__*/
-function (_React$Component) {
-  Xterm_inherits(Xterm, _React$Component);
-
-  function Xterm() {
-    Xterm_classCallCheck(this, Xterm);
-
-    return Xterm_possibleConstructorReturn(this, Xterm_getPrototypeOf(Xterm).apply(this, arguments));
-  }
-
-  Xterm_createClass(Xterm, [{
-    key: "componentDidMount",
-    value: function componentDidMount() {
-      var tty = this.props.tty;
-      this.terminal = new PlayerXtermCtrl(tty, this.refs.container);
-      this.terminal.open();
-    }
-  }, {
-    key: "componentWillUnmount",
-    value: function componentWillUnmount() {
-      this.terminal.destroy();
-    }
-  }, {
-    key: "render",
-    value: function render() {
-      var isLoading = this.props.tty.isLoading(); // need to hide the terminal cursor while fetching for events
-
-      var style = {
-        visibility: isLoading ? 'hidden' : 'initial'
-      };
-      return react_default.a.createElement(components_StyledXterm, {
-        p: "2",
-        style: style,
-        ref: "container"
-      });
-    }
-  }]);
-
-  return Xterm;
-}(react_default.a.Component);
-
-Xterm_defineProperty(Xterm_Xterm, "propTypes", {
-  tty: prop_types_default.a.object.isRequired
-});
-
-
-
-var PlayerXtermCtrl =
-/*#__PURE__*/
-function (_XtermCtrl) {
-  Xterm_inherits(PlayerXtermCtrl, _XtermCtrl);
-
-  function PlayerXtermCtrl(tty, el) {
-    var _this;
-
-    Xterm_classCallCheck(this, PlayerXtermCtrl);
-
-    _this = Xterm_possibleConstructorReturn(this, Xterm_getPrototypeOf(PlayerXtermCtrl).call(this, {
-      el: el,
+function Xterm(_ref) {
+  var tty = _ref.tty;
+  var refContainer = Object(react["useRef"])();
+  Object(react["useEffect"])(function () {
+    var term = new TerminalPlayer(tty, {
+      el: refContainer.current,
       scrollBack: 1000
-    }));
-    _this.tty = tty;
-    return _this;
+    });
+    term.open();
+
+    function cleanup() {
+      term.destroy();
+    }
+
+    return cleanup;
+  }, [tty]);
+  return react_default.a.createElement(components_StyledXterm, {
+    p: "2",
+    ref: refContainer
+  });
+}
+
+var TerminalPlayer =
+/*#__PURE__*/
+function (_Terminal) {
+  Xterm_inherits(TerminalPlayer, _Terminal);
+
+  function TerminalPlayer() {
+    Xterm_classCallCheck(this, TerminalPlayer);
+
+    return Xterm_possibleConstructorReturn(this, Xterm_getPrototypeOf(TerminalPlayer).apply(this, arguments));
   }
 
-  Xterm_createClass(PlayerXtermCtrl, [{
+  Xterm_createClass(TerminalPlayer, [{
     key: "connect",
+    // do not attempt to connect
     value: function connect() {}
-  }, {
-    key: "open",
-    value: function open() {
-      _get(Xterm_getPrototypeOf(PlayerXtermCtrl.prototype), "open", this).call(this);
-    }
   }, {
     key: "resize",
     value: function resize(cols, rows) {
       // ensure that cursor is visible as xterm hides it on blur event
       this.term.cursorState = 1;
 
-      _get(Xterm_getPrototypeOf(PlayerXtermCtrl.prototype), "resize", this).call(this, cols, rows);
-    }
-  }, {
-    key: "destroy",
-    value: function destroy() {
-      _get(Xterm_getPrototypeOf(PlayerXtermCtrl.prototype), "destroy", this).call(this);
-    }
-  }, {
-    key: "_disconnect",
-    value: function _disconnect() {}
+      _get(Xterm_getPrototypeOf(TerminalPlayer.prototype), "resize", this).call(this, cols, rows);
+    } // prevent user resize requests
+
   }, {
     key: "_requestResize",
     value: function _requestResize() {}
   }]);
 
-  return PlayerXtermCtrl;
+  return TerminalPlayer;
 }(terminal);
-// CONCATENATED MODULE: ./src/recordings/Xterm/index.js
+// CONCATENATED MODULE: ./src/player/Xterm/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -21869,427 +21259,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var recordings_Xterm = (Xterm_Xterm);
-// EXTERNAL MODULE: /web-apps/node_modules/ace-builds/src-min-noconflict/ace.js
-var ace = __webpack_require__("3S6b");
-var ace_default = /*#__PURE__*/__webpack_require__.n(ace);
+/* harmony default export */ var player_Xterm = (Xterm);
+// CONCATENATED MODULE: ./src/player/SshPlayer.tsx
+function SshPlayer_slicedToArray(arr, i) { return SshPlayer_arrayWithHoles(arr) || SshPlayer_iterableToArrayLimit(arr, i) || SshPlayer_nonIterableRest(); }
 
-// EXTERNAL MODULE: /web-apps/node_modules/ace-builds/src-noconflict/theme-monokai.js
-var theme_monokai = __webpack_require__("0v6X");
+function SshPlayer_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
 
-// EXTERNAL MODULE: /web-apps/node_modules/ace-builds/src-noconflict/ext-searchbox.js
-var ext_searchbox = __webpack_require__("Dzb0");
+function SshPlayer_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
 
-// CONCATENATED MODULE: ../shared/components/BpfViewer/ace-mode-bpf.js
-/*
-Copyright 2019 Gravitational, Inc.
+function SshPlayer_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+function SshPlayer_templateObject() {
+  var data = SshPlayer_taggedTemplateLiteral(["\n  display: flex;\n  height: 100%;\n  width: 100%;\n  position: absolute;\n  flex-direction: column;\n  flex: 1;\n  justify-content: space-between;\n"]);
 
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
- // Defines custom ace mode module
-
-ace_default.a.define('ace/mode/grv_bpf', ['require', 'exports', 'ace/lib/oop', 'ace/mode/text', 'ace/mode/matching_brace_outdent', 'ace/mode/grv_bpf_highlight_rules'], function (acequire, exports) {
-  var oop = acequire('../lib/oop');
-  var TextMode = acequire('./text').Mode;
-  var FoldMode = acequire('./folding/coffee').FoldMode;
-  var MatchingBraceOutdent = acequire('./matching_brace_outdent').MatchingBraceOutdent;
-  var GravitationalHighlightRules = acequire('ace/mode/grv_bpf_highlight_rules').GravitationalHighlightRules;
-
-  var Mode = function Mode() {
-    this.$outdent = new MatchingBraceOutdent();
-    this.foldingRules = new FoldMode();
-    this.HighlightRules = GravitationalHighlightRules;
-  };
-
-  oop.inherits(Mode, TextMode);
-  exports.Mode = Mode;
-}); // This is where we really create the highlighting rules
-
-ace_default.a.define('ace/mode/grv_bpf_highlight_rules', ['require', 'exports', 'ace/lib/oop', 'ace/mode/text_highlight_rules'], function (acequire, exports) {
-  var oop = acequire('ace/lib/oop');
-  var TextHighlightRules = acequire('ace/mode/text_highlight_rules').TextHighlightRules;
-
-  function GravitationalHighlightRules() {
-    this.$rules = new TextHighlightRules().getRules(); // Use Text's rules as a base
-
-    this.$rules.start = [{
-      token: ['grv_file.variable', 'grv_space.text', 'grv_path.string'],
-      regex: /(file)(\t+)(.*)/
-    }, {
-      token: ['grv_network.variable', 'grv_space.text', 'grv_addr.constant.numeric', 'grv_space.text', 'grv_addr.constant.numeric', 'grv_space.text', 'grv_addr.constant.numeric'],
-      regex: /(network)(\t+)([^\t]+)?(\t+)(->)(\t+)([^\t]+)?/
-    }, {
-      token: createTokens,
-      regex: /(?!\t)([^\t]+)?(\t+)([^\t]+)?(\t+)([^\t]+)?(\t+)(.*)/
-    }, {
-      token: createTokens,
-      regex: /(?!\t)([^\t]+)?(\t+)([^\t]+)?(\t+)([^\t]+)/
-    }, {
-      token: 'string',
-      // multi line string start
-      regex: /[|>][-+\d]*(?:$|\s+(?:$|#))/,
-      onMatch: function onMatch(val, state, stack, line) {
-        line = line.replace(/ #.*/, '');
-        var indent = /^ *((:\s*)?-(\s*[^|>])?)?/.exec(line)[0].replace(/\S\s*$/, '').length;
-        var indentationIndicator = parseInt(/\d+[\s+-]*$/.exec(line));
-
-        if (indentationIndicator) {
-          indent += indentationIndicator - 1;
-          this.next = 'mlString';
-        } else {
-          this.next = 'mlStringPre';
-        }
-
-        if (!stack.length) {
-          stack.push(this.next);
-          stack.push(indent);
-        } else {
-          stack[0] = this.next;
-          stack[1] = indent;
-        }
-
-        return this.token;
-      },
-      next: 'mlString'
-    }];
-    this.$rules.mlStringPre = [{
-      token: 'indent',
-      regex: /^ *$/
-    }, {
-      token: 'indent',
-      regex: /^ */,
-      onMatch: function onMatch(val, state, stack) {
-        var curIndent = stack[1];
-
-        if (curIndent >= val.length) {
-          this.next = 'start';
-          stack.shift();
-          stack.shift();
-        } else {
-          stack[1] = val.length - 1;
-          this.next = stack[0] = 'mlString';
-        }
-
-        return this.token;
-      },
-      next: 'mlString'
-    }, {
-      defaultToken: 'string'
-    }];
-    this.$rules.mlString = [{
-      token: 'indent',
-      regex: /^ *$/
-    }, {
-      token: 'indent',
-      regex: /^ */,
-      onMatch: function onMatch(val, state, stack) {
-        var curIndent = stack[1];
-
-        if (curIndent >= val.length) {
-          this.next = 'start';
-          stack.splice(0);
-        } else {
-          this.next = 'mlString';
-        }
-
-        return this.token;
-      },
-      next: 'mlString'
-    }, {
-      token: 'string',
-      regex: '.+'
-    }];
-    this.normalizeRules();
-  }
-
-  function createTokens() {
-    if (arguments.length === 3) {
-      return ['grv_date.comment', 'grv_space.text', 'grv_path.string'];
-    } // file
-
-
-    if (arguments.length === 4) {
-      return ['grv_date.comment', 'grv_space.text', 'grv_path.string', 'grv_space.text'];
-    } // network
-
-
-    if (arguments.length === 5) {
-      return ['grv_date.comment', 'grv_space.text', 'grv_path.string', 'grv_space.text', 'grv_cmd.keyword'];
-    } // command
-
-
-    return ['grv_date.comment', 'grv_space.text', 'grv_path.string', 'grv_space.text', 'grv_cmd.keyword', 'grv_space.text', 'grv_space.text'];
-  }
-
-  oop.inherits(GravitationalHighlightRules, TextHighlightRules);
-  exports.GravitationalHighlightRules = GravitationalHighlightRules;
-});
-// CONCATENATED MODULE: ../shared/components/BpfViewer/treeBuilder.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-function makeTree(events) {
-  var processMap = new Map();
-  var tree = {
-    pid: 'root',
-    children: {},
-    index: -1,
-    level: 0
-  }; // create a lookup table
-
-  events.forEach(function (s, index) {
-    if (!processMap.has(s.pid)) {
-      processMap.set(s.pid, {
-        files: [],
-        network: [],
-        ppid: s.ppid,
-        index: index
-      });
-    }
-
-    var process = processMap.get(s.pid);
-
-    if (s.event === 'session.connect') {
-      process.network.push(index);
-    }
-
-    if (s.event === 'session.open') {
-      process.files.push(index);
-    }
-
-    if (s.event === 'session.exec') {
-      process.ppid = s.ppid;
-      process.index = index;
-    }
-  }); // build a tree
-
-  processMap.forEach(function (process, keyPid) {
-    var ppath = [keyPid];
-    var pid = process.ppid;
-
-    while (processMap.has(pid)) {
-      ppath.unshift(pid);
-      pid = processMap.get(pid).ppid;
-    }
-
-    var current = tree.children;
-    var level = ppath.length - 1;
-
-    for (var i = 0; i < ppath.length; i++) {
-      var _pid = ppath[i];
-      current[_pid] = current[_pid] || {
-        index: processMap.get(_pid).index,
-        pid: _pid,
-        level: level,
-        files: processMap.get(_pid).files,
-        network: processMap.get(_pid).network,
-        children: {}
-      };
-      current = current[_pid].children;
-    }
-  });
-  return tree;
-}
-// EXTERNAL MODULE: ../shared/services/loc/index.js + 2 modules
-var loc = __webpack_require__("2rFg");
-
-// CONCATENATED MODULE: ../shared/components/BpfViewer/formatters.js
-function formatters_slicedToArray(arr, i) { return formatters_arrayWithHoles(arr) || formatters_iterableToArrayLimit(arr, i) || formatters_nonIterableRest(); }
-
-function formatters_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function formatters_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function formatters_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-function formatTabs(level) {
-  var tabs = [];
-
-  while (level > 1) {
-    tabs.push('\t');
-    level--;
-  }
-
-  return tabs.join('');
-}
-function formatCmd(item) {
-  var time = Object(loc["b" /* displayDateTime */])(item.time);
-  var _item$args = item.args,
-      args = _item$args === void 0 ? '' : _item$args,
-      program = item.program;
-
-  if (item.event === 'session.exec') {
-    var _splitProgramPath = splitProgramPath(program),
-        _splitProgramPath2 = formatters_slicedToArray(_splitProgramPath, 2),
-        path = _splitProgramPath2[0],
-        cmd = _splitProgramPath2[1];
-
-    return [time, path, cmd, args].join('\t');
-  }
-
-  return [time, '?', program].join('\t');
-}
-function formatFile(item) {
-  var path = item.path;
-  return ['file', path].join('\t');
-}
-function formatNetwork(item) {
-  var src = item.src,
-      dest = item.dest;
-  return ['network', src, '->', dest].join('\t');
-}
-function splitProgramPath(program) {
-  var temp = program.split('/');
-
-  if (temp.length === 1) {
-    return program;
-  }
-
-  program = temp.pop();
-  return [temp.join('/'), program];
-}
-// CONCATENATED MODULE: ../shared/components/BpfViewer/treeFormatter.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-function formatTree(tree, events, buffer) {
-  if (!tree) {
-    return;
-  }
-
-  var tabStr = formatTabs(tree.level);
-
-  if (tree.index !== -1) {
-    var processStr = formatCmd(events[tree.index]);
-    buffer.push("".concat(tabStr).concat(processStr));
-  }
-
-  Object.keys(tree.children).forEach(function (kid) {
-    formatTree(tree.children[kid], events, buffer);
-  });
-
-  if (tree.index !== -1) {
-    tree.network.map(function (fIndex) {
-      var fStr = formatNetwork(events[fIndex]);
-      buffer.push("\t".concat(tabStr).concat(fStr));
-    });
-    tree.files.map(function (fIndex) {
-      var fStr = formatFile(events[fIndex]);
-      buffer.push("\t".concat(tabStr).concat(fStr));
-    });
-  }
-}
-// CONCATENATED MODULE: ../shared/components/BpfViewer/flatFormatter.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-function flatFormatter(events, buffer) {
-  for (var i = 0; i < events.length; i++) {
-    var event = events[i];
-
-    if (event.event === 'session.exec') {
-      buffer.push(formatCmd(event));
-    } else if (event.event === 'session.connect') {
-      buffer.push(formatNetwork(event));
-    } else if (event.event === 'session.open') {
-      buffer.push(formatFile(event));
-    }
-  }
-}
-// CONCATENATED MODULE: ../shared/components/BpfViewer/BpfViewer.jsx
-function BpfViewer_templateObject() {
-  var data = BpfViewer_taggedTemplateLiteral(["\n  overflow: hidden;\n  border-radius: 4px;\n  flex: 1;\n  display: flex;\n  position: relative;\n  border: none;\n  background: ", ";\n\n  .ace-monokai {\n    background: ", ";\n  }\n\n  .ace-monokai .ace_marker-layer .ace_active-line {\n    //background: #928787;\n   }\n\n  //.ace-monokai .ace_gutter,\n  //.ace-monokai .ace_gutter-cell {\n  //  color: rgba(255, 255, 255, 0.56);\n  //  background: ", ";\n  //}\n\n  > .ace_editor {\n    position: absolute;\n    line-height: 1.6;\n    top: 8px;\n    right: 0px;\n    bottom: 0px;\n    left: 0px;\n    font-family: ", ";\n  }\n"]);
-
-  BpfViewer_templateObject = function _templateObject() {
+  SshPlayer_templateObject = function _templateObject() {
     return data;
   };
 
   return data;
 }
 
-function BpfViewer_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+function SshPlayer_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
 
-function BpfViewer_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { BpfViewer_typeof = function _typeof(obj) { return typeof obj; }; } else { BpfViewer_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return BpfViewer_typeof(obj); }
-
-function BpfViewer_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function BpfViewer_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function BpfViewer_createClass(Constructor, protoProps, staticProps) { if (protoProps) BpfViewer_defineProperties(Constructor.prototype, protoProps); if (staticProps) BpfViewer_defineProperties(Constructor, staticProps); return Constructor; }
-
-function BpfViewer_possibleConstructorReturn(self, call) { if (call && (BpfViewer_typeof(call) === "object" || typeof call === "function")) { return call; } return BpfViewer_assertThisInitialized(self); }
-
-function BpfViewer_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function BpfViewer_getPrototypeOf(o) { BpfViewer_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return BpfViewer_getPrototypeOf(o); }
-
-function BpfViewer_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) BpfViewer_setPrototypeOf(subClass, superClass); }
-
-function BpfViewer_setPrototypeOf(o, p) { BpfViewer_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return BpfViewer_setPrototypeOf(o, p); }
+function SshPlayer_extends() { SshPlayer_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return SshPlayer_extends.apply(this, arguments); }
 
 /*
 Copyright 2019 Gravitational, Inc.
@@ -22315,310 +21307,93 @@ limitations under the License.
 
 
 
+function Player(_ref) {
+  var sid = _ref.sid,
+      clusterId = _ref.clusterId;
 
-var BpfViewer_BpfViewer =
-/*#__PURE__*/
-function (_React$Component) {
-  BpfViewer_inherits(BpfViewer, _React$Component);
+  var _useSshPlayer = useSshPlayer(clusterId, sid),
+      tty = _useSshPlayer.tty;
 
-  function BpfViewer() {
-    BpfViewer_classCallCheck(this, BpfViewer);
+  var statusText = tty.statusText,
+      status = tty.status;
+  var eventCount = tty.getEventCount();
+  var isError = status === StatusEnum.ERROR;
+  var isLoading = status === StatusEnum.LOADING;
 
-    return BpfViewer_possibleConstructorReturn(this, BpfViewer_getPrototypeOf(BpfViewer).apply(this, arguments));
+  if (isError) {
+    return react_default.a.createElement(SshPlayer_StatusBox, null, react_default.a.createElement(Alert_Danger, {
+      m: 10
+    }, statusText || 'Error'));
   }
 
-  BpfViewer_createClass(BpfViewer, [{
-    key: "componentDidMount",
-    value: function componentDidMount() {
-      var _this$props = this.props,
-          _this$props$readOnly = _this$props.readOnly,
-          readOnly = _this$props$readOnly === void 0 ? true : _this$props$readOnly,
-          _this$props$showGutte = _this$props.showGutter,
-          showGutter = _this$props$showGutte === void 0 ? true : _this$props$showGutte,
-          _this$props$theme = _this$props.theme,
-          theme = _this$props$theme === void 0 ? 'ace/theme/monokai' : _this$props$theme;
-      this.editor = ace_default.a.edit(this.ace_viewer);
-      this.editor.setFontSize('14px');
-      this.editor.setWrapBehavioursEnabled(true);
-      this.editor.setHighlightActiveLine(false);
-      this.editor.setShowInvisibles(false);
-      this.editor.renderer.setShowPrintMargin(false);
-      this.editor.renderer.setShowGutter(showGutter);
-      this.editor.setReadOnly(readOnly);
-      this.editor.setTheme(theme);
-      this.editor.setOptions({
-        showLineNumbers: false
-      });
-      this.session = new ace_default.a.EditSession('');
-      this.session.setUseWrapMode(false);
-      this.session.setMode('ace/mode/grv_bpf');
-      this.session.setOptions({
-        tabSize: 2,
-        useSoftTabs: true
-      });
-      this.editor.setSession(this.session);
-      this.editor.focus();
-    }
-  }, {
-    key: "componentWillUnmount",
-    value: function componentWillUnmount() {
-      this.editor && this.editor.destroy();
-      this.editor = null;
-      this.session = null;
-    }
-  }, {
-    key: "shouldComponentUpdate",
-    value: function shouldComponentUpdate() {
-      return false;
-    }
-  }, {
-    key: "render",
-    value: function render() {
-      var _this = this;
-
-      return react_default.a.createElement(StyledTextEditor, null, react_default.a.createElement("div", {
-        ref: function ref(e) {
-          return _this.ace_viewer = e;
-        }
-      }));
-    }
-  }]);
-
-  return BpfViewer;
-}(react_default.a.Component);
-
-
-function formatEvents(events, mode) {
-  var data = [];
-
-  if (mode === 'tree') {
-    var tree = makeTree(events);
-    formatTree(tree, events, data);
-  } else {
-    flatFormatter(events, data);
+  if (isLoading) {
+    return react_default.a.createElement(SshPlayer_StatusBox, null, react_default.a.createElement(src_Indicator, null));
   }
 
-  return data;
+  if (!isLoading && eventCount === 0) {
+    return react_default.a.createElement(SshPlayer_StatusBox, null, react_default.a.createElement(src_Text, {
+      typography: "h4"
+    }, "Recording for this session is not available."));
+  }
+
+  return react_default.a.createElement(StyledPlayer, null, react_default.a.createElement(src_Flex, {
+    flex: "1",
+    flexDirection: "column",
+    overflow: "auto"
+  }, react_default.a.createElement(player_Xterm, {
+    tty: tty
+  })), eventCount > 0 && react_default.a.createElement(ProgressBarTty, {
+    tty: tty
+  }));
 }
-var StyledTextEditor = styled_components_browser_esm["c" /* default */].div(BpfViewer_templateObject(), function (props) {
-  return props.theme.colors.bgTerminal;
-}, function (props) {
-  return props.theme.colors.bgTerminal;
-}, function (props) {
-  return props.theme.colors.bgTerminal;
-}, function (props) {
-  return props.theme.fonts.mono;
-});
-// CONCATENATED MODULE: ../shared/components/BpfViewer/index.js
-/*
-Copyright 2019 Gravitational, Inc.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+var SshPlayer_StatusBox = function StatusBox(props) {
+  return react_default.a.createElement(src_Box, SshPlayer_extends({
+    width: "100%",
+    textAlign: "center",
+    p: 3
+  }, props));
+};
 
-    http://www.apache.org/licenses/LICENSE-2.0
+var StyledPlayer = styled_components_browser_esm["c" /* default */].div(SshPlayer_templateObject());
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var components_BpfViewer = (BpfViewer_BpfViewer);
-
-// CONCATENATED MODULE: ./src/recordings/BpfLogs/useTtyBpfMapper.js
-function useTtyBpfMapper_slicedToArray(arr, i) { return useTtyBpfMapper_arrayWithHoles(arr) || useTtyBpfMapper_iterableToArrayLimit(arr, i) || useTtyBpfMapper_nonIterableRest(); }
-
-function useTtyBpfMapper_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function useTtyBpfMapper_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function useTtyBpfMapper_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-function useTtyBpfMapper(tty, events) {
-  // create a map [time][index] for quick lookups
-  var bpfLookupTable = react_default.a.useMemo(function () {
-    return events.map(function (i) {
-      return new Date(i.time);
+function useSshPlayer(clusterId, sid) {
+  var tty = react_default.a.useMemo(function () {
+    var url = config["a" /* default */].getTerminalSessionUrl({
+      clusterId: clusterId,
+      sid: sid
     });
-  }, [events]); // current cursor (index)
+    return new ttyPlayer_TtyPlayer(new ttyPlayerEventProvider_EventProvider({
+      url: url
+    }));
+  }, [sid, clusterId]); // to trigger re-render when tty state changes
 
-  var _React$useState = react_default.a.useState(function () {
-    return mapTtyToBpfEvent(tty, bpfLookupTable);
-  }),
-      _React$useState2 = useTtyBpfMapper_slicedToArray(_React$useState, 2),
-      cursor = _React$useState2[0],
-      setCursor = _React$useState2[1];
+  var _React$useState = react_default.a.useState(tty.status),
+      _React$useState2 = SshPlayer_slicedToArray(_React$useState, 2),
+      rerender = _React$useState2[1];
 
   react_default.a.useEffect(function () {
     function onChange() {
-      var index = mapTtyToBpfEvent(tty, bpfLookupTable);
-      setCursor(index);
+      // trigger rerender when status changes
+      rerender(tty.status);
     }
-
-    var throttledOnChange = Object(lodash["throttle"])(onChange, 100);
 
     function cleanup() {
-      throttledOnChange.cancel();
-      tty.removeListener('change', throttledOnChange);
+      tty.stop();
+      tty.removeAllListeners();
     }
 
-    tty.on('change', throttledOnChange);
+    tty.on('change', onChange);
+    tty.connect().then(function () {
+      tty.play();
+    });
     return cleanup;
-  }, [tty, events]);
-  return cursor;
-}
-
-function mapTtyToBpfEvent(tty) {
-  var bpfLookupTable = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
-
-  if (bpfLookupTable.length === 0) {
-    return -1;
-  } // return the last event index if player exceeded
-  // the total number of events
-
-
-  if (tty.currentEventIndex >= tty._eventProvider.events.length) {
-    return bpfLookupTable.length;
-  }
-
-  var ttyEvent = tty._eventProvider.events[tty.currentEventIndex];
-  return getEventIndex(ttyEvent.time, bpfLookupTable);
-} // finds event index by datetime using binary search
-
-
-function getEventIndex(datetime, lookupTable) {
-  var arr = lookupTable;
-  var low = 0;
-  var hi = arr.length - 1;
-
-  while (hi - low > 1) {
-    var mid = Math.floor((low + hi) / 2);
-
-    if (arr[mid] < datetime) {
-      low = mid;
-    } else {
-      hi = mid;
-    }
-  }
-
-  if (datetime - arr[low] <= arr[hi] - datetime) {
-    return low;
-  }
-
-  return hi;
-}
-// CONCATENATED MODULE: ./src/recordings/BpfLogs/BpfLogs.jsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-function BpfLogs(_ref) {
-  var tty = _ref.tty,
-      events = _ref.events,
-      split = _ref.split;
-  var cursor = useTtyBpfMapper(tty, events);
-  var ref = react_default.a.useRef();
-  react_default.a.useEffect(function () {
-    var _ref$current = ref.current,
-        session = _ref$current.session,
-        editor = _ref$current.editor;
-    var length = session.getLength();
-    var doc = session.getDocument(); // clear the content and insert the first line
-
-    if (cursor === 0) {
-      doc.removeFullLines(0, length);
-      editor.insert(formatEvents([events[0]]).join('\n'));
-    } else if (cursor > length) {
-      var sliced = formatEvents(events.slice(length, cursor));
-      var formatted = "\n".concat(sliced.join('\n'));
-      session.insert({
-        row: length,
-        column: 0
-      }, formatted);
-    } else if (cursor < length) {
-      doc.removeFullLines(cursor, length);
-    }
-
-    editor.gotoLine(cursor);
-  }, [cursor]);
-  react_default.a.useEffect(function () {
-    ref.current.editor.resize();
-  }, [split]);
-  return react_default.a.createElement(components_BpfViewer, {
-    showGutter: false,
-    ref: ref,
-    events: []
-  });
-}
-// CONCATENATED MODULE: ./src/recordings/BpfLogs/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var recordings_BpfLogs = (BpfLogs);
-// CONCATENATED MODULE: ./src/recordings/SwitchMode/SwitchMode.jsx
-function SwitchMode_templateObject() {
-  var data = SwitchMode_taggedTemplateLiteral(["\n  transition: none;\n  padding: 0;\n  width: 38px;\n\n  ", " {\n    font-size: 14px;\n    color: ", ";\n  }\n\n  :nth-child(1) {\n    border-bottom-right-radius: 0px;\n    border-top-right-radius: 0px;\n  }\n\n  :nth-child(2) {\n    border-bottom-left-radius: 0px;\n    border-bottom-right-radius: 0px;\n    border-top-left-radius: 0px;\n    border-top-right-radius: 0px;\n    border-right: 1px solid;\n    border-left: 1px solid;\n    border-color: ", ";\n  }\n\n  :nth-child(3) {\n    border-bottom-left-radius: 0px;\n    border-top-left-radius: 0px;\n  }\n\n  :disabled {\n    color: inherit;\n  }\n"]);
-
-  SwitchMode_templateObject = function _templateObject() {
-    return data;
+  }, [tty]);
+  return {
+    tty: tty
   };
-
-  return data;
 }
-
-function SwitchMode_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-function SwitchMode_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = SwitchMode_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
-
-function SwitchMode_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
-
+// CONCATENATED MODULE: ./src/player/ActionBar/ActionBar.tsx
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -22639,65 +21414,52 @@ limitations under the License.
 
 
 
-var ModeEnum = {
-  VERTICAL: 'vertical',
-  HORIZONTAL: 'horizontal',
-  FULLSCREEN: 'fullscreen'
-};
-function SwitchMode_Switch(_ref) {
-  var _ref$mode = _ref.mode,
-      mode = _ref$mode === void 0 ? ModeEnum.VERTICAL : _ref$mode,
-      onChange = _ref.onChange,
-      styles = SwitchMode_objectWithoutProperties(_ref, ["mode", "onChange"]);
 
-  function onSetHorizontal() {
-    onChange(ModeEnum.HORIZONTAL);
-  }
-
-  function onSetVertical() {
-    onChange(ModeEnum.VERTICAL);
-  }
-
-  function onSetFullScreen() {
-    onChange(ModeEnum.FULLSCREEN);
-  }
-
-  return react_default.a.createElement(src_Flex, styles, react_default.a.createElement(Button_ButtonSecondary, {
-    active: mode !== ModeEnum.FULLSCREEN,
-    size: "small",
-    onClick: onSetFullScreen,
-    as: SwitchMode_StyledButton,
-    disabled: mode === ModeEnum.FULLSCREEN,
-    title: "TTY only"
-  }, react_default.a.createElement(src_Icon["d" /* CardViewSmall */], null)), react_default.a.createElement(Button_ButtonSecondary, {
-    active: mode !== ModeEnum.HORIZONTAL,
-    size: "small",
-    as: SwitchMode_StyledButton,
-    disabled: mode === ModeEnum.HORIZONTAL,
-    onClick: onSetHorizontal,
-    title: "Horizontal"
-  }, react_default.a.createElement(src_Icon["b" /* AddUsers */], null)), react_default.a.createElement(Button_ButtonSecondary, {
-    active: mode !== ModeEnum.VERTICAL,
-    size: "small",
-    onClick: onSetVertical,
-    disabled: mode === ModeEnum.VERTICAL,
-    as: SwitchMode_StyledButton,
-    title: "Vertical"
-  }, react_default.a.createElement(src_Icon["t" /* ListView */], null)));
+function ActionBar_ActionBar_ActionBar(_ref) {
+  var _ref$clusterId = _ref.clusterId,
+      clusterId = _ref$clusterId === void 0 ? '' : _ref$clusterId,
+      onLogout = _ref.onLogout;
+  return react_default.a.createElement(src_Flex, {
+    alignItems: "center"
+  }, react_default.a.createElement(components_ActionMenu, {
+    buttonIconProps: {
+      mr: 2,
+      ml: 2,
+      size: 0,
+      style: {
+        fontSize: '16px'
+      }
+    },
+    menuProps: ActionBar_ActionBar_menuProps
+  }, react_default.a.createElement(Menu["a" /* MenuItem */], {
+    as: react_router_dom["b" /* NavLink */],
+    to: config["a" /* default */].getClusterRoute(clusterId)
+  }, react_default.a.createElement(Menu["b" /* MenuItemIcon */], {
+    as: src_Icon["p" /* Home */],
+    mr: "2"
+  }), "Dashboard"), react_default.a.createElement(Menu["a" /* MenuItem */], null, react_default.a.createElement(Button_ButtonPrimary, {
+    my: 3,
+    block: true,
+    onClick: onLogout
+  }, "Sign Out"))));
 }
-SwitchMode_Switch.propTypes = {
-  onChange: prop_types_default.a.func.isRequired,
-  mode: prop_types_default.a.string.isRequired
+
+var ActionBar_ActionBar_menuListCss = function menuListCss() {
+  return "\n  width: 250px;\n";
 };
-var SwitchMode_StyledButton = styled_components_browser_esm["c" /* default */].button(SwitchMode_templateObject(), src_Icon["z" /* default */], function (_ref2) {
-  var theme = _ref2.theme,
-      active = _ref2.active;
-  return active ? theme.colors.primary.dark : '';
-}, function (_ref3) {
-  var theme = _ref3.theme;
-  return theme.colors.primary.main;
-});
-// CONCATENATED MODULE: ./src/recordings/SwitchMode/index.js
+
+var ActionBar_ActionBar_menuProps = {
+  menuListCss: ActionBar_ActionBar_menuListCss,
+  anchorOrigin: {
+    vertical: 'center',
+    horizontal: 'center'
+  },
+  transformOrigin: {
+    vertical: 'top',
+    horizontal: 'center'
+  }
+};
+// CONCATENATED MODULE: ./src/player/ActionBar/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -22714,23 +21476,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var SwitchMode = (SwitchMode_Switch);
-
-// CONCATENATED MODULE: ./src/recordings/Player.jsx
-function Player_templateObject2() {
-  var data = Player_taggedTemplateLiteral(["\n  display: flex;\n  height: 100%;\n  width: 100%;\n  position: absolute;\n  flex-direction: column;\n  flex: 1;\n  justify-content: space-between;\n"]);
-
-  Player_templateObject2 = function _templateObject2() {
-    return data;
-  };
-
-  return data;
-}
-
-function Player_extends() { Player_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Player_extends.apply(this, arguments); }
-
+/* harmony default export */ var player_ActionBar = (ActionBar_ActionBar_ActionBar);
+// CONCATENATED MODULE: ./src/player/Player.tsx
 function Player_templateObject() {
-  var data = Player_taggedTemplateLiteral(["\n  border-bottom: 1px solid ", ";\n"]);
+  var data = Player_taggedTemplateLiteral(["\n  display: flex;\n  height: 100%;\n  width: 100%;\n  position: absolute;\n  flex-direction: column;\n"]);
 
   Player_templateObject = function _templateObject() {
     return data;
@@ -22741,14 +21490,6 @@ function Player_templateObject() {
 
 function Player_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
 
-function Player_slicedToArray(arr, i) { return Player_arrayWithHoles(arr) || Player_iterableToArrayLimit(arr, i) || Player_nonIterableRest(); }
-
-function Player_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
-
-function Player_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
-
-function Player_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
-
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -22774,240 +21515,42 @@ limitations under the License.
 
 
 
-
-
-
-/* harmony default export */ var Player = (withState(function () {
+function Player_Player() {
   var _useParams = Object(react_router["i" /* useParams */])(),
       sid = _useParams.sid,
       clusterId = _useParams.clusterId;
 
-  var url = config["a" /* default */].getTerminalSessionUrl({
-    clusterId: clusterId,
-    sid: sid
-  });
-  return {
-    url: url,
-    sid: sid
-  };
-})(Player_Player));
-function Player_Player(props) {
-  var url = props.url,
-      _props$bpfEvents = props.bpfEvents,
-      bpfEvents = _props$bpfEvents === void 0 ? [] : _props$bpfEvents;
-  var tty = react_default.a.useMemo(function () {
-    return props.tty || new ttyPlayer_TtyPlayer({
-      url: url
-    });
-  }, [url]);
-
-  var _React$useState = react_default.a.useState(tty.status),
-      _React$useState2 = Player_slicedToArray(_React$useState, 2),
-      setStatus = _React$useState2[1];
-
-  var _React$useState3 = react_default.a.useState(ModeEnum.FULLSCREEN),
-      _React$useState4 = Player_slicedToArray(_React$useState3, 2),
-      viewMode = _React$useState4[0],
-      setViewMode = _React$useState4[1];
-
-  function onChangeMode(value) {
-    setViewMode(value);
-  }
-
-  react_default.a.useEffect(function () {
-    function onChange() {
-      setStatus(tty.status);
-    }
-
-    function cleanup() {
-      tty.stop();
-      tty.removeAllListeners();
-    }
-
-    tty.on('change', onChange);
-    tty.connect();
-    return cleanup;
-  }, [url]);
-  var statusText = tty.statusText,
-      status = tty.status;
-  var eventCount = tty.getEventCount();
-  var isError = status === StatusEnum.ERROR;
-  var isLoading = status === StatusEnum.LOADING;
-
-  if (isError) {
-    return react_default.a.createElement(Player_StatusBox, null, react_default.a.createElement(Alert_Danger, {
-      m: 10
-    }, statusText || 'Error'));
-  }
-
-  if (isLoading) {
-    return react_default.a.createElement(Player_StatusBox, null, react_default.a.createElement(src_Indicator, null));
-  }
-
-  if (!isLoading && eventCount === 0) {
-    return react_default.a.createElement(Player_StatusBox, null, react_default.a.createElement(src_Text, {
-      typography: "h4"
-    }, "Recording for this session is not available."));
-  }
-
-  return react_default.a.createElement(StyledPlayer, null, react_default.a.createElement(src_Flex, {
-    flex: "1",
-    flexDirection: "column",
-    overflow: "auto"
-  }, react_default.a.createElement(ToolBar, {
-    px: "3",
-    py: "2"
-  }, react_default.a.createElement(SwitchMode, {
-    mx: "auto",
-    mode: viewMode,
-    onChange: onChangeMode
-  })), react_default.a.createElement(components_SplitPane, {
-    flex: "1",
-    defaultSize: "60%",
-    overflow: "auto",
-    split: viewMode
-  }, react_default.a.createElement(recordings_Xterm, {
-    p: "2",
-    tty: tty
-  }), viewMode !== ModeEnum.FULLSCREEN && react_default.a.createElement(recordings_BpfLogs, {
-    events: bpfEvents,
-    tty: tty,
-    split: viewMode
-  }))), eventCount > 0 && react_default.a.createElement(Mama, {
-    tty: tty
-  }));
-}
-var ToolBar = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(Player_templateObject(), function (_ref) {
-  var theme = _ref.theme;
-  return theme.colors.primary.main;
-});
-
-var Player_StatusBox = function StatusBox(props) {
-  return react_default.a.createElement(src_Box, Player_extends({
-    width: "100%",
-    textAlign: "center",
-    p: 3
-  }, props));
-};
-
-var StyledPlayer = styled_components_browser_esm["c" /* default */].div(Player_templateObject2());
-// CONCATENATED MODULE: ./src/recordings/Bpf.jsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-function Bpf() {
-  var ref = react_default.a.useRef();
-  return react_default.a.createElement(components_BpfViewer, {
-    ref: ref,
-    events: []
-  });
-}
-// CONCATENATED MODULE: ./src/recordings/SessionAudit.jsx
-function SessionAudit_templateObject() {
-  var data = SessionAudit_taggedTemplateLiteral(["\n  display: flex;\n  height: 100%;\n  width: 100%;\n  position: absolute;\n  flex-direction: column;\n"]);
-
-  SessionAudit_templateObject = function _templateObject() {
-    return data;
-  };
-
-  return data;
-}
-
-function SessionAudit_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
-
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-
-
-
-function SessionAudit() {
-  var _useParams = Object(react_router["i" /* useParams */])(),
-      sid = _useParams.sid,
-      clusterId = _useParams.clusterId;
-
-  react_default.a.useState(function () {
+  react_default.a.useMemo(function () {
     config["a" /* default */].setClusterId(clusterId);
-  }, []);
-  var indexRoute = config["a" /* default */].getSessionAuditRoute({
-    sid: sid
-  });
-  var playerRoute = config["a" /* default */].getSessionAuditPlayerRoute({
-    sid: sid
-  });
-  var cmdsRoute = config["a" /* default */].getSessionAuditCmdsRoute({
-    sid: sid
-  });
-  var isCmdTabActive = Boolean(Object(react_router["j" /* useRouteMatch */])(config["a" /* default */].routes.sessionAuditCmds));
-  var isPlayerTabActive = Boolean(Object(react_router["j" /* useRouteMatch */])(config["a" /* default */].routes.sessionAuditPlayer));
-  return react_default.a.createElement(StyledSessionAudit, null, react_default.a.createElement(recordings_SessionAuditTabs, null, react_default.a.createElement(SessionAuditTabs_TabItem, {
-    to: playerRoute,
-    title: "Player"
-  }), react_default.a.createElement(SessionAuditTabs_TabItem, {
-    to: cmdsRoute,
-    title: "Commands"
-  })), react_default.a.createElement(StyledDocument, {
-    visible: isPlayerTabActive
-  }, react_default.a.createElement(Player, {
-    sid: sid,
-    clusterId: clusterId
-  })), react_default.a.createElement(StyledDocument, {
-    visible: isCmdTabActive
-  }, react_default.a.createElement(Bpf, null)), react_default.a.createElement(Router_Route, {
-    exact: true,
-    path: indexRoute
-  }, react_default.a.createElement(Redirect, {
-    to: playerRoute
-  })));
-}
-var StyledSessionAudit = styled_components_browser_esm["c" /* default */].div(SessionAudit_templateObject());
+  }, [clusterId]);
 
-function StyledDocument(_ref) {
-  var children = _ref.children,
-      visible = _ref.visible;
-  return react_default.a.createElement(src_Flex, {
+  function onLogout() {
+    services_session.logout();
+  }
+
+  return react_default.a.createElement(Player_StyledPlayer, null, react_default.a.createElement(src_Flex, {
+    bg: "primary.dark",
+    height: "38px"
+  }, react_default.a.createElement(player_PlayerTabs, {
+    flex: "1 0"
+  }, react_default.a.createElement(PlayerTabs_TabItem, {
+    title: "Session Player"
+  })), react_default.a.createElement(player_ActionBar, {
+    onLogout: onLogout
+  })), react_default.a.createElement(src_Flex, {
     bg: colors_colors.bgTerminal,
     flex: "1",
     style: {
       overflow: 'auto',
-      display: visible ? 'flex' : 'none',
       position: 'relative'
     }
-  }, children);
+  }, react_default.a.createElement(Player, {
+    sid: sid,
+    clusterId: clusterId
+  })));
 }
-// CONCATENATED MODULE: ./src/recordings/index.js
+var Player_StyledPlayer = styled_components_browser_esm["c" /* default */].div(Player_templateObject());
+// CONCATENATED MODULE: ./src/player/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -23024,83 +21567,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var recordings = (SessionAudit);
-// CONCATENATED MODULE: ./src/index.tsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-var src_Index = function Index(_ref) {
-  var history = _ref.history,
-      children = _ref.children;
-  return react_default.a.createElement(components_CatchError, null, react_default.a.createElement(src_ThemeProvider, null, react_default.a.createElement(react_router["c" /* Router */], {
-    history: history
-  }, react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Router_Route, {
-    title: "Login Failed",
-    path: config["a" /* default */].routes.loginFailed,
-    component: LoginFailed_LoginFailed
-  }), react_default.a.createElement(Router_Route, {
-    title: "Login",
-    path: config["a" /* default */].routes.login,
-    component: components_Login
-  }), react_default.a.createElement(Router_Route, {
-    title: "Success",
-    path: config["a" /* default */].routes.loginSuccess,
-    component: LoginSuccess
-  }), react_default.a.createElement(Router_Route, {
-    title: "Invite",
-    path: config["a" /* default */].routes.userInvite,
-    component: components_Invite
-  }), react_default.a.createElement(Router_Route, {
-    title: "Password Reset",
-    path: config["a" /* default */].routes.userReset,
-    component: Invite_ResetPassword
-  }), react_default.a.createElement(Router_Route, {
-    path: config["a" /* default */].routes.app,
-    render: function render() {
-      return react_default.a.createElement(components_Authenticated, null, react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Router_Route, {
-        path: config["a" /* default */].routes.console,
-        component: console_Index
-      }), react_default.a.createElement(Router_Route, {
-        path: config["a" /* default */].routes.sessionAudit,
-        component: recordings
-      }), react_default.a.createElement(Router_Route, {
-        path: config["a" /* default */].routes.clusterOffline,
-        component: components_Offline
-      }), children, react_default.a.createElement(Router_Route, {
-        path: config["a" /* default */].routes.app,
-        component: dashboard
-      })));
-    }
-  })))));
-};
-
-/* harmony default export */ var src = (Object(root["hot"])(src_Index));
+/* harmony default export */ var player = (Player_Player);
 // CONCATENATED MODULE: ./src/cluster/components/Audit/Tabs/Tabs.jsx
 function Tabs_templateObject2() {
   var data = Tabs_Tabs_taggedTemplateLiteral(["\n  display: flex;\n  align-items: center;\n  flex-shrink: 0;\n  ", "\n  ", "\n"]);
@@ -23156,9 +21623,12 @@ var Tabs_Tabs_Tabs = function Tabs(_ref) {
 };
 
 var Tabs_TabItem = function TabItem(_ref2) {
-  var to = _ref2.to,
-      title = _ref2.title,
-      exact = _ref2.exact;
+  var _ref2$to = _ref2.to,
+      to = _ref2$to === void 0 ? '' : _ref2$to,
+      _ref2$title = _ref2.title,
+      title = _ref2$title === void 0 ? '' : _ref2$title,
+      _ref2$exact = _ref2.exact,
+      exact = _ref2$exact === void 0 ? true : _ref2$exact;
   return react_default.a.createElement(Tabs_StyledTabItem, {
     typography: "h4",
     mr: 6,
@@ -23194,53 +21664,12 @@ limitations under the License.
 
 
 /* harmony default export */ var Audit_Tabs = (Audit_Tabs_Tabs);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/InputSearch/InputSearch.jsx
-function InputSearch_InputSearch_extends() { InputSearch_InputSearch_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return InputSearch_InputSearch_extends.apply(this, arguments); }
+// EXTERNAL MODULE: ../shared/services/loc/index.js + 2 modules
+var loc = __webpack_require__("2rFg");
 
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-function AuditInputSearch(props) {
-  return react_default.a.createElement(components_InputSearch, InputSearch_InputSearch_extends({
-    height: "30px",
-    mr: "3"
-  }, props));
-}
-// CONCATENATED MODULE: ./src/cluster/components/Audit/InputSearch/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var Audit_InputSearch = (AuditInputSearch);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditSessions/AuditSessions.jsx
+// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditSessions/AuditSessions.tsx
 function AuditSessions_templateObject() {
-  var data = AuditSessions_taggedTemplateLiteral(["\n  ", "\n"]);
+  var data = AuditSessions_taggedTemplateLiteral(["\n  ", " {\n    margin-left: ", ";\n  }\n"]);
 
   AuditSessions_templateObject = function _templateObject() {
     return data;
@@ -23257,9 +21686,13 @@ function AuditSessions_objectSpread(target) { for (var i = 1; i < arguments.leng
 
 function AuditSessions_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
-function AuditSessions_objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = AuditSessions_objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
+function AuditSessions_slicedToArray(arr, i) { return AuditSessions_arrayWithHoles(arr) || AuditSessions_iterableToArrayLimit(arr, i) || AuditSessions_nonIterableRest(); }
 
-function AuditSessions_objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+function AuditSessions_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function AuditSessions_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function AuditSessions_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 /*
 Copyright 2019 Gravitational, Inc.
@@ -23283,38 +21716,172 @@ limitations under the License.
 
 
 
+
+
+
+
+
+var AuditSessions_searchableProps = ['sid', 'createdText', 'users', 'durationText', 'serverId'];
 function SessionList(props) {
   var pageSize = props.pageSize,
-      events = props.events,
-      rest = AuditSessions_objectWithoutProperties(props, ["pageSize", "events"]);
+      events = props.events;
+
+  var _React$useState = react_default.a.useState(function () {
+    return {
+      search: '',
+      colSortDirs: {
+        created: SortTypes.ASC
+      }
+    };
+  }),
+      _React$useState2 = AuditSessions_slicedToArray(_React$useState, 2),
+      state = _React$useState2[0],
+      setState = _React$useState2[1]; // sort and filter
+
+
+  var data = react_default.a.useMemo(function () {
+    var colSortDirs = state.colSortDirs,
+        search = state.search;
+    var rows = events.filter(function (e) {
+      return e.code === 'T2004I';
+    }).map(makeRows);
+    var filtered = rows.filter(function (obj) {
+      return match_match(obj, search, {
+        searchableProps: AuditSessions_searchableProps,
+        cb: null
+      });
+    });
+    var columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
+    var sortDir = colSortDirs[columnKey];
+    var sorted = Object(lodash["sortBy"])(filtered, columnKey);
+
+    if (sortDir === SortTypes.ASC) {
+      return sorted.reverse();
+    }
+
+    return sorted;
+  }, [state, events]);
+
+  function onSortChange(columnKey, sortDir) {
+    setState(AuditSessions_objectSpread({}, state, {
+      colSortDirs: AuditSessions_defineProperty({}, columnKey, sortDir)
+    }));
+  }
+
+  function onSearchChange(value) {
+    setState(AuditSessions_objectSpread({}, state, {
+      search: value
+    }));
+  }
 
   var pagedState = usePages({
     pageSize: pageSize,
-    data: events
+    data: data
   });
-
-  var tableProps = AuditSessions_objectSpread({}, rest, {
-    data: pagedState.data
-  });
-
-  return react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(BorderedFlex, {
-    bg: "primary.light",
-    py: "3",
-    px: "3",
+  return react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(CustomStyledPanel, {
+    alignItems: "center",
     borderTopRightRadius: "3",
-    borderTopLeftRadius: "3"
-  }, react_default.a.createElement(Audit_InputSearch, null)), pagedState.hasPages && react_default.a.createElement(StyledPanel, null, react_default.a.createElement(Paged_Pager, pagedState)), react_default.a.createElement(Table_Table, tableProps, react_default.a.createElement(Column, {
-    columnKey: "user",
-    header: react_default.a.createElement(Table_Cell, null, "Description"),
+    borderTopLeftRadius: "3",
+    justifyContent: "space-between"
+  }, react_default.a.createElement(components_InputSearch, {
+    height: "30px",
+    mr: "2",
+    onChange: onSearchChange
+  }), react_default.a.createElement(src_Flex, {
+    alignItems: "center",
+    justifyContent: "flex-end"
+  }, pagedState.hasPages && react_default.a.createElement(Paged_Pager, pagedState))), react_default.a.createElement(Table_Table, {
+    data: pagedState.data
+  }, react_default.a.createElement(Column, {
+    header: react_default.a.createElement(Table_Cell, null, "Session ID"),
+    cell: react_default.a.createElement(SidCell, null)
+  }), react_default.a.createElement(Column, {
+    columnKey: "users",
+    header: react_default.a.createElement(Table_Cell, null, "User(s)"),
     cell: react_default.a.createElement(Table_TextCell, null)
   }), react_default.a.createElement(Column, {
-    columnKey: "id",
-    header: react_default.a.createElement(Table_Cell, null, "Description"),
+    columnKey: "serverId",
+    header: react_default.a.createElement(Table_Cell, null, "Node"),
     cell: react_default.a.createElement(Table_TextCell, null)
+  }), react_default.a.createElement(Column, {
+    columnKey: "created",
+    header: react_default.a.createElement(Table_SortHeaderCell, {
+      sortDir: state.colSortDirs.created,
+      onSortChange: onSortChange,
+      title: "Created"
+    }),
+    cell: react_default.a.createElement(CreatedCell, null)
+  }), react_default.a.createElement(Column, {
+    columnKey: "durationText",
+    header: react_default.a.createElement(Table_Cell, null, "Duration"),
+    cell: react_default.a.createElement(Table_TextCell, null)
+  }), react_default.a.createElement(Column, {
+    header: react_default.a.createElement(Table_Cell, null),
+    cell: react_default.a.createElement(AuditSessions_PlayCell, null)
   })));
 }
-var BorderedFlex = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(AuditSessions_templateObject(), system["d" /* borderRadius */]);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditSessions/index.js
+
+function makeRows(event) {
+  var time = event.time,
+      raw = event.raw;
+  var users = (raw === null || raw === void 0 ? void 0 : raw.participants) || [];
+  var serverId = raw.server_id;
+  return {
+    sid: event.raw.sid,
+    created: time,
+    createdText: Object(loc["b" /* displayDateTime */])(time),
+    users: users.join(', '),
+    durationText: 'not implemented',
+    serverId: serverId
+  };
+}
+
+function CreatedCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
+  var row = data[rowIndex];
+  return react_default.a.createElement(Table_Cell, null, row.createdText);
+}
+
+function SidCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
+  var row = data[rowIndex];
+  return react_default.a.createElement(Table_Cell, null, react_default.a.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center'
+    }
+  }, react_default.a.createElement(src_Icon["j" /* Cli */], {
+    p: "1",
+    mr: "3",
+    bg: "bgTerminal",
+    fontSize: "4",
+    style: {
+      borderRadius: '50%',
+      border: 'solid 2px green'
+    }
+  }), row.sid));
+}
+
+var AuditSessions_PlayCell = function PlayCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
+  var row = data[rowIndex];
+  var url = config["a" /* default */].getSessionAuditPlayerRoute(row);
+  return react_default.a.createElement(Table_Cell, {
+    align: "right"
+  }, react_default.a.createElement(Button_ButtonPrimary, {
+    as: react_router_dom["b" /* NavLink */],
+    to: url,
+    size: "small"
+  }, "Play"));
+};
+
+var CustomStyledPanel = Object(styled_components_browser_esm["c" /* default */])(StyledPanel)(AuditSessions_templateObject(), StyledButtons, function (props) {
+  return "".concat(props.theme.space[3], "px");
+});
+// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditSessions/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -23332,11 +21899,7 @@ limitations under the License.
 */
 
 /* harmony default export */ var AuditSessions = (SessionList);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/useAuditContext.js
-function useAuditContext_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function useAuditContext_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
+// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventList/EventListCells.tsx
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -23355,21 +21918,41 @@ limitations under the License.
 
 
 
-var useAuditContext_AuditContext = function AuditContext() {
-  useAuditContext_classCallCheck(this, AuditContext);
 
-  useAuditContext_defineProperty(this, "storeEvents", new storeEvents_StoreEvents());
+var EventListCells_ActionCell = function ActionCell(props) {
+  var rowIndex = props.rowIndex,
+      onViewDetails = props.onViewDetails,
+      data = props.data;
+  var event = data[rowIndex];
+
+  function onClick() {
+    onViewDetails(event);
+  }
+
+  return react_default.a.createElement(Table_Cell, {
+    align: "right"
+  }, react_default.a.createElement(Button_ButtonSecondary, {
+    size: "small",
+    onClick: onClick
+  }, "Details"));
 };
-var ReactAuditContext = react_default.a.createContext(new useAuditContext_AuditContext());
-function useAuditContext() {
-  var value = react_default.a.useContext(ReactAuditContext);
-  return value;
+var EventListCells_TimeCell = function TimeCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
+  var time = data[rowIndex].time;
+  return react_default.a.createElement(Table_Cell, {
+    style: {
+      minWidth: '120px'
+    }
+  }, Object(loc["b" /* displayDateTime */])(time));
+};
+function DescCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
+  var message = data[rowIndex].message;
+  return react_default.a.createElement(Table_Cell, null, message);
 }
-function useStoreEvents() {
-  var auditContext = useAuditContext();
-  return Object(stores["b" /* useStore */])(auditContext.storeEvents);
-}
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventTypeCell/EventTypeCell.jsx
+// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventList/EventTypeCell.tsx
 var _EventIconMap;
 
 function EventTypeCell_templateObject2() {
@@ -23416,7 +21999,7 @@ limitations under the License.
 
 
 
-var EventIconMap = (_EventIconMap = {}, EventTypeCell_defineProperty(_EventIconMap, CodeEnum.ALERT_CREATED, Icon_Icon["F" /* NotificationsActive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.ALERT_DELETED, Icon_Icon["F" /* NotificationsActive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.APPLICATION_INSTALL, Icon_Icon["c" /* AppInstalled */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.APPLICATION_ROLLBACK, Icon_Icon["d" /* AppRollback */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.APPLICATION_UNINSTALL, Icon_Icon["J" /* PhonelinkErase */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.APPLICATION_UPGRADE, Icon_Icon["K" /* PhonelinkSetup */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.ROLE_CREATED, Icon_Icon["n" /* ClipboardUser */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.ROLE_DELETED, Icon_Icon["n" /* ClipboardUser */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.AUTHGATEWAY_UPDATED, Icon_Icon["q" /* Config */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.AUTH_ATTEMPT_FAILURE, Icon_Icon["X" /* VpnKey */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.EXEC, Icon_Icon["p" /* Code */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.EXEC_FAILURE, Icon_Icon["p" /* Code */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_EXPAND_COMPLETE, Icon_Icon["M" /* SettingsOverscan */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_EXPAND_START, Icon_Icon["M" /* SettingsOverscan */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.GITHUB_CONNECTOR_CREATED, Icon_Icon["E" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.GITHUB_CONNECTOR_DELETED, Icon_Icon["E" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_INSTALL_COMPLETE, Icon_Icon["T" /* Unarchive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_INSTALL_START, Icon_Icon["T" /* Unarchive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_INSTALL_FAILURE, Icon_Icon["T" /* Unarchive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.LICENSE_EXPIRED, Icon_Icon["E" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.LICENSE_UPDATED, Icon_Icon["E" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.LOGFORWARDER_CREATED, Icon_Icon["u" /* ForwarderAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.LOGFORWARDER_DELETED, Icon_Icon["u" /* ForwarderAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.UPDATES_DISABLED, Icon_Icon["L" /* Restore */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.UPDATES_DOWNLOADED, Icon_Icon["L" /* Restore */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.UPDATES_ENABLED, Icon_Icon["L" /* Restore */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.REMOTE_SUPPORT_ENABLED, Icon_Icon["z" /* LanAlt */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.REMOTE_SUPPORT_DISABLED, Icon_Icon["z" /* LanAlt */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_ENV_COMPLETE, Icon_Icon["D" /* Memory */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_ENV_FAILURE, Icon_Icon["D" /* Memory */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_ENV_START, Icon_Icon["E" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SAML_CONNECTOR_DELETED, Icon_Icon["E" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SCP_DOWNLOAD, Icon_Icon["r" /* Download */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SCP_DOWNLOAD_FAILURE, Icon_Icon["r" /* Download */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SCP_UPLOAD, Icon_Icon["U" /* Upload */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SCP_DOWNLOAD_FAILURE, Icon_Icon["U" /* Upload */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_SHRINK_COMPLETE, Icon_Icon["N" /* Shrink */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_SHRINK_FAILURE, Icon_Icon["N" /* Shrink */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_SHRINK_START, Icon_Icon["N" /* Shrink */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SMTPCONFIG_CREATED, Icon_Icon["t" /* EmailSolid */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SMTPCONFIG_DELETED, Icon_Icon["t" /* EmailSolid */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TLSKEYPAIR_CREATED, Icon_Icon["y" /* Keypair */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TLSKEYPAIR_DELETED, Icon_Icon["y" /* Keypair */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TOKEN_CREATED, Icon_Icon["S" /* Stars */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TOKEN_DELETED, Icon_Icon["S" /* Stars */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_CREATE, Icon_Icon["W" /* UserCreated */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_DELETED, Icon_Icon["W" /* UserCreated */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_INVITE_CREATED, Icon_Icon["I" /* PersonAdd */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_LOCAL_LOGIN, Icon_Icon["H" /* Person */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_LOCAL_LOGINFAILURE, Icon_Icon["H" /* Person */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_SSO_LOGIN, Icon_Icon["H" /* Person */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_SSO_LOGINFAILURE, Icon_Icon["H" /* Person */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_START, Icon_Icon["m" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_JOIN, Icon_Icon["m" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TERMINAL_RESIZE, Icon_Icon["m" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_LEAVE, Icon_Icon["m" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_END, Icon_Icon["m" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_UPLOAD, Icon_Icon["m" /* Cli */]), _EventIconMap);
+var EventIconMap = (_EventIconMap = {}, EventTypeCell_defineProperty(_EventIconMap, CodeEnum.ALERT_CREATED, Icon_Icon["D" /* NotificationsActive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.ALERT_DELETED, Icon_Icon["D" /* NotificationsActive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.APPLICATION_INSTALL, Icon_Icon["b" /* AppInstalled */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.APPLICATION_ROLLBACK, Icon_Icon["c" /* AppRollback */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.APPLICATION_UNINSTALL, Icon_Icon["H" /* PhonelinkErase */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.APPLICATION_UPGRADE, Icon_Icon["I" /* PhonelinkSetup */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.ROLE_CREATED, Icon_Icon["m" /* ClipboardUser */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.ROLE_DELETED, Icon_Icon["m" /* ClipboardUser */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.AUTHGATEWAY_UPDATED, Icon_Icon["p" /* Config */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.AUTH_ATTEMPT_FAILURE, Icon_Icon["V" /* VpnKey */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.EXEC, Icon_Icon["o" /* Code */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.EXEC_FAILURE, Icon_Icon["o" /* Code */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_EXPAND_COMPLETE, Icon_Icon["K" /* SettingsOverscan */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_EXPAND_START, Icon_Icon["K" /* SettingsOverscan */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.GITHUB_CONNECTOR_CREATED, Icon_Icon["C" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.GITHUB_CONNECTOR_DELETED, Icon_Icon["C" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_INSTALL_COMPLETE, Icon_Icon["R" /* Unarchive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_INSTALL_START, Icon_Icon["R" /* Unarchive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_INSTALL_FAILURE, Icon_Icon["R" /* Unarchive */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.LICENSE_EXPIRED, Icon_Icon["C" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.LICENSE_UPDATED, Icon_Icon["C" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.LOGFORWARDER_CREATED, Icon_Icon["t" /* ForwarderAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.LOGFORWARDER_DELETED, Icon_Icon["t" /* ForwarderAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.UPDATES_DISABLED, Icon_Icon["J" /* Restore */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.UPDATES_DOWNLOADED, Icon_Icon["J" /* Restore */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.UPDATES_ENABLED, Icon_Icon["J" /* Restore */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.REMOTE_SUPPORT_ENABLED, Icon_Icon["y" /* LanAlt */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.REMOTE_SUPPORT_DISABLED, Icon_Icon["y" /* LanAlt */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_ENV_COMPLETE, Icon_Icon["B" /* Memory */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_ENV_FAILURE, Icon_Icon["B" /* Memory */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_ENV_START, Icon_Icon["C" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SAML_CONNECTOR_DELETED, Icon_Icon["C" /* NoteAdded */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SCP_DOWNLOAD, Icon_Icon["q" /* Download */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SCP_DOWNLOAD_FAILURE, Icon_Icon["q" /* Download */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SCP_UPLOAD, Icon_Icon["S" /* Upload */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SCP_DOWNLOAD_FAILURE, Icon_Icon["S" /* Upload */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_SHRINK_COMPLETE, Icon_Icon["L" /* Shrink */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_SHRINK_FAILURE, Icon_Icon["L" /* Shrink */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.OPERATION_SHRINK_START, Icon_Icon["L" /* Shrink */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SMTPCONFIG_CREATED, Icon_Icon["s" /* EmailSolid */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SMTPCONFIG_DELETED, Icon_Icon["s" /* EmailSolid */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TLSKEYPAIR_CREATED, Icon_Icon["x" /* Keypair */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TLSKEYPAIR_DELETED, Icon_Icon["x" /* Keypair */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TOKEN_CREATED, Icon_Icon["Q" /* Stars */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TOKEN_DELETED, Icon_Icon["Q" /* Stars */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_CREATED, Icon_Icon["U" /* UserCreated */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_DELETED, Icon_Icon["U" /* UserCreated */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_INVITE_CREATED, Icon_Icon["G" /* PersonAdd */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_LOCAL_LOGIN, Icon_Icon["F" /* Person */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_LOCAL_LOGINFAILURE, Icon_Icon["F" /* Person */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_SSO_LOGIN, Icon_Icon["F" /* Person */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.USER_SSO_LOGINFAILURE, Icon_Icon["F" /* Person */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_START, Icon_Icon["l" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_JOIN, Icon_Icon["l" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.TERMINAL_RESIZE, Icon_Icon["l" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_LEAVE, Icon_Icon["l" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_END, Icon_Icon["l" /* Cli */]), EventTypeCell_defineProperty(_EventIconMap, CodeEnum.SESSION_UPLOAD, Icon_Icon["l" /* Cli */]), _EventIconMap);
 
 function getColor(severity, code) {
   // first pick the color based on event code
@@ -23439,7 +22022,7 @@ function getColor(severity, code) {
     case CodeEnum.SMTPCONFIG_CREATED:
     case CodeEnum.TLSKEYPAIR_CREATED:
     case CodeEnum.TOKEN_CREATED:
-    case CodeEnum.USER_CREATE:
+    case CodeEnum.USER_CREATED:
     case CodeEnum.ROLE_CREATED:
     case CodeEnum.USER_INVITE_CREATED:
       return 'success';
@@ -23475,14 +22058,14 @@ function getColor(severity, code) {
   return 'info';
 }
 
-function TypeCell(_ref) {
-  var rowIndex = _ref.rowIndex,
-      data = _ref.data;
+function TypeCell(props) {
+  var rowIndex = props.rowIndex,
+      data = props.data;
   var _data$rowIndex = data[rowIndex],
       codeDesc = _data$rowIndex.codeDesc,
       code = _data$rowIndex.code,
       severity = _data$rowIndex.severity;
-  var IconType = EventIconMap[code] || Icon_Icon["S" /* Stars */];
+  var IconType = EventIconMap[code] || Icon_Icon["Q" /* Stars */];
   var bgColor = getColor(severity, code);
   return react_default.a.createElement(Table_Cell, {
     style: {
@@ -23496,151 +22079,23 @@ function TypeCell(_ref) {
     fontSize: "4"
   }), codeDesc));
 }
-var StyledIcon = Object(styled_components_browser_esm["c" /* default */])(Icon_Icon["Z" /* default */])(EventTypeCell_templateObject());
+var StyledIcon = Object(styled_components_browser_esm["c" /* default */])(Icon_Icon["X" /* default */])(EventTypeCell_templateObject());
 var StyledEventType = styled_components_browser_esm["c" /* default */].div(EventTypeCell_templateObject2());
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventTypeCell/index.js
-/*
-Copyright 2019 Gravitational, Inc.
+// EXTERNAL MODULE: /web-apps/node_modules/ace-builds/src-min-noconflict/ace.js
+var ace = __webpack_require__("3S6b");
+var ace_default = /*#__PURE__*/__webpack_require__.n(ace);
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var EventTypeCell = (TypeCell);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventDescCell/EventDescCell.jsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-
-
-
-function getDescription(_ref) {
-  var code = _ref.code,
-      message = _ref.message,
-      details = _ref.details;
-
-  switch (code) {
-    case CodeEnum.SESSION_END:
-      var sid = details.sid;
-      var url = config["a" /* default */].getSessionAuditRoute({
-        sid: sid
-      });
-      return react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(Button_ButtonPrimary, {
-        mr: "2",
-        size: "small",
-        as: "a",
-        href: url,
-        target: "_blank"
-      }, react_default.a.createElement(src_Icon["j" /* CirclePlay */], {
-        mr: "1",
-        fontSize: 1
-      }), "Play"), message);
-  }
-
-  return message;
-}
-
-function EventDescCell_TypeCell(_ref2) {
-  var rowIndex = _ref2.rowIndex,
-      data = _ref2.data;
-  var desc = getDescription(data[rowIndex]);
-  return react_default.a.createElement(Table_Cell, null, desc);
-}
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventDescCell/index.js
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-/* harmony default export */ var EventDescCell = (EventDescCell_TypeCell);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventListCells.jsx
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
-
-
-var EventListCells_ActionCell = function ActionCell(_ref) {
-  var rowIndex = _ref.rowIndex,
-      onViewDetails = _ref.onViewDetails,
-      data = _ref.data;
-  var event = data[rowIndex];
-
-  function onClick() {
-    onViewDetails(event);
-  }
-
-  return react_default.a.createElement(Table_Cell, {
-    align: "right"
-  }, react_default.a.createElement(Button_ButtonSecondary, {
-    size: "small",
-    onClick: onClick
-  }, "Details"));
-};
-var EventListCells_TimeCell = function TimeCell(_ref2) {
-  var rowIndex = _ref2.rowIndex,
-      data = _ref2.data;
-  var time = data[rowIndex].time;
-  return react_default.a.createElement(Table_Cell, {
-    style: {
-      minWidth: '120px'
-    }
-  }, Object(loc["b" /* displayDateTime */])(time));
-};
 // EXTERNAL MODULE: /web-apps/node_modules/ace-builds/src-noconflict/mode-json.js
 var mode_json = __webpack_require__("McRP");
 
 // EXTERNAL MODULE: /web-apps/node_modules/ace-builds/src-noconflict/mode-yaml.js
 var mode_yaml = __webpack_require__("0ppN");
+
+// EXTERNAL MODULE: /web-apps/node_modules/ace-builds/src-noconflict/theme-monokai.js
+var theme_monokai = __webpack_require__("0v6X");
+
+// EXTERNAL MODULE: /web-apps/node_modules/ace-builds/src-noconflict/ext-searchbox.js
+var ext_searchbox = __webpack_require__("Dzb0");
 
 // CONCATENATED MODULE: ../shared/components/TextEditor/StyledTextEditor.jsx
 function StyledTextEditor_templateObject() {
@@ -23671,14 +22126,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var StyledTextEditor_StyledTextEditor = styled_components_browser_esm["c" /* default */].div(StyledTextEditor_templateObject(), function (props) {
+var StyledTextEditor = styled_components_browser_esm["c" /* default */].div(StyledTextEditor_templateObject(), function (props) {
   return props.theme.colors.bgTerminal;
 }, function (props) {
   return props.theme.colors.bgTerminal;
 }, function (props) {
   return props.theme.colors.bgTerminal;
 });
-/* harmony default export */ var TextEditor_StyledTextEditor = (StyledTextEditor_StyledTextEditor);
+/* harmony default export */ var TextEditor_StyledTextEditor = (StyledTextEditor);
 // CONCATENATED MODULE: ../shared/components/TextEditor/TextEditor.jsx
 function TextEditor_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { TextEditor_typeof = function _typeof(obj) { return typeof obj; }; } else { TextEditor_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return TextEditor_typeof(obj); }
 
@@ -24193,7 +22648,7 @@ limitations under the License.
 
 /* harmony default export */ var src_Dialog = (Dialog_Dialog);
 
-// CONCATENATED MODULE: ./src/cluster/components/Audit/EventDialog/EventDialog.jsx
+// CONCATENATED MODULE: ./src/cluster/components/Audit/EventDialog/EventDialog.tsx
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -24215,10 +22670,10 @@ limitations under the License.
 
 
 
-function EvenDialog(props) {
+function EventDialog(props) {
   var event = props.event,
       onClose = props.onClose;
-  var json = JSON.stringify(event.details, null, 2);
+  var json = JSON.stringify(event.raw, null, 2);
   var title = event.codeDesc || 'Event Details';
   return react_default.a.createElement(src_Dialog, {
     dialogCss: EventDialog_dialogCss,
@@ -24240,7 +22695,7 @@ function EvenDialog(props) {
   }, "Close")));
 }
 
-EvenDialog.propTypes = {
+EventDialog.propTypes = {
   event: prop_types_default.a.object.isRequired,
   onClose: prop_types_default.a.func.isRequired
 };
@@ -24249,8 +22704,8 @@ var EventDialog_dialogCss = function dialogCss() {
   return "\n  min-height: 400px;\n  min-width: 600px;\n";
 };
 
-/* harmony default export */ var EventDialog = (EvenDialog);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/EventDialog/index.js
+/* harmony default export */ var EventDialog_EventDialog = (EventDialog);
+// CONCATENATED MODULE: ./src/cluster/components/Audit/EventDialog/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -24267,8 +22722,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var Audit_EventDialog = (EventDialog);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventList.jsx
+/* harmony default export */ var Audit_EventDialog = (EventDialog_EventDialog);
+// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventList/EventList.tsx
+function EventList_templateObject() {
+  var data = EventList_taggedTemplateLiteral(["\n  ", " {\n    margin-left: ", ";\n  }\n"]);
+
+  EventList_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function EventList_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
 function EventList_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
 
 function EventList_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { EventList_ownKeys(source, true).forEach(function (key) { EventList_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { EventList_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
@@ -24307,11 +22774,14 @@ limitations under the License.
 
 
 
+
+
 function EventList(props) {
   var _props$events = props.events,
       events = _props$events === void 0 ? [] : _props$events,
       _props$search = props.search,
-      search = _props$search === void 0 ? '' : _props$search;
+      search = _props$search === void 0 ? '' : _props$search,
+      onSearchChange = props.onSearchChange;
 
   var _React$useState = react_default.a.useState(function () {
     return {
@@ -24342,14 +22812,16 @@ function EventList(props) {
     setState(EventList_objectSpread({}, state, {
       detailsToShow: null
     }));
-  }
+  } // sort and filter
+
 
   var data = react_default.a.useMemo(function () {
     var colSortDirs = state.colSortDirs,
         searchableProps = state.searchableProps;
     var filtered = events.filter(function (obj) {
       return match_match(obj, search, {
-        searchableProps: searchableProps
+        searchableProps: searchableProps,
+        cb: null
       });
     });
     var columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
@@ -24361,18 +22833,30 @@ function EventList(props) {
     }
 
     return sorted;
-  }, [state, events, search]);
-  var detailsToShow = state.detailsToShow,
-      colSortDirs = state.colSortDirs;
-  var paged = usePages({
+  }, [state, events, search]); // paginate
+
+  var pagging = usePages({
     pageSize: 20,
     data: data
   });
-  return react_default.a.createElement(react_default.a.Fragment, null, paged.hasPages && react_default.a.createElement(StyledPanel, null, react_default.a.createElement(Paged_Pager, paged)), react_default.a.createElement(Table_Table, {
-    data: paged.data
+  var detailsToShow = state.detailsToShow,
+      colSortDirs = state.colSortDirs;
+  return react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(EventList_CustomStyledPanel, {
+    borderTopRightRadius: "3",
+    borderTopLeftRadius: "3",
+    justifyContent: "space-between"
+  }, react_default.a.createElement(components_InputSearch, {
+    height: "30px",
+    mr: "3",
+    onChange: onSearchChange
+  }), pagging.hasPages && react_default.a.createElement(src_Flex, {
+    alignItems: "center",
+    justifyContent: "flex-end"
+  }, react_default.a.createElement(Paged_Pager, pagging))), react_default.a.createElement(Table_Table, {
+    data: pagging.data
   }, react_default.a.createElement(Column, {
     columnKey: "codeDesc",
-    cell: react_default.a.createElement(EventTypeCell, null),
+    cell: react_default.a.createElement(TypeCell, null),
     header: react_default.a.createElement(Table_SortHeaderCell, {
       sortDir: colSortDirs.codeDesc,
       onSortChange: onSortChange,
@@ -24381,7 +22865,7 @@ function EventList(props) {
   }), react_default.a.createElement(Column, {
     columnKey: "message",
     header: react_default.a.createElement(Table_Cell, null, "Description"),
-    cell: react_default.a.createElement(EventDescCell, {
+    cell: react_default.a.createElement(DescCell, {
       style: {
         wordBreak: 'break-all'
       }
@@ -24393,7 +22877,11 @@ function EventList(props) {
       onSortChange: onSortChange,
       title: "User"
     }),
-    cell: react_default.a.createElement(Table_TextCell, null)
+    cell: react_default.a.createElement(Table_TextCell, {
+      style: {
+        minWidth: '48px'
+      }
+    })
   }), react_default.a.createElement(Column, {
     columnKey: "time",
     header: react_default.a.createElement(Table_SortHeaderCell, {
@@ -24412,19 +22900,28 @@ function EventList(props) {
     onClose: closeDetails
   }));
 }
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/AuditEvents.jsx
-function AuditEvents_templateObject() {
-  var data = AuditEvents_taggedTemplateLiteral(["\n  ", "\n"]);
+var EventList_CustomStyledPanel = Object(styled_components_browser_esm["c" /* default */])(StyledPanel)(EventList_templateObject(), StyledButtons, function (props) {
+  return "".concat(props.theme.space[3], "px");
+});
+// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/EventList/index.ts
+/*
+Copyright 2019 Gravitational, Inc.
 
-  AuditEvents_templateObject = function _templateObject() {
-    return data;
-  };
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-  return data;
-}
+    http://www.apache.org/licenses/LICENSE-2.0
 
-function AuditEvents_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
+/* harmony default export */ var AuditEvents_EventList = (EventList);
+// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/AuditEvents.tsx
 function AuditEvents_slicedToArray(arr, i) { return AuditEvents_arrayWithHoles(arr) || AuditEvents_iterableToArrayLimit(arr, i) || AuditEvents_nonIterableRest(); }
 
 function AuditEvents_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
@@ -24450,97 +22947,21 @@ limitations under the License.
 */
 
 
-
-
-
-
-
-
-
-
-function AuditEvents(props) {
-  var events = props.events,
-      maxLimit = props.maxLimit,
-      overflow = props.overflow,
-      attempt = props.attempt,
-      searchValue = props.searchValue,
-      onSearchChange = props.onSearchChange;
-  var isFailed = attempt.isFailed,
-      message = attempt.message;
-  return react_default.a.createElement(react_default.a.Fragment, null, overflow && react_default.a.createElement(Alert_Danger, null, "Number of events retrieved for specified date range was exceeded the maximum limit of ", maxLimit), isFailed && react_default.a.createElement(Alert_Danger, null, " ", message, " "), react_default.a.createElement(AuditEvents_BorderedFlex, {
-    bg: "primary.light",
-    py: "3",
-    px: "3",
-    borderTopRightRadius: "3",
-    borderTopLeftRadius: "3"
-  }, react_default.a.createElement(Audit_InputSearch, {
-    onChange: onSearchChange
-  })), react_default.a.createElement(EventList, {
-    events: events,
-    search: searchValue
-  }));
-}
-
-function AuditEvents_mapState(props) {
-  var range = props.range;
-  var store = useStoreEvents();
-  var events = store.getEvents();
-  var maxLimit = store.getMaxLimit();
-  var overflow = store.state.overflow;
-
-  var _useAttempt = useAttempt({
-    isProcessing: true
-  }),
-      _useAttempt2 = AuditEvents_slicedToArray(_useAttempt, 2),
-      attempt = _useAttempt2[0],
-      attemptActions = _useAttempt2[1];
+function AuditEvents(_ref) {
+  var events = _ref.events;
 
   var _React$useState = react_default.a.useState(''),
       _React$useState2 = AuditEvents_slicedToArray(_React$useState, 2),
       searchValue = _React$useState2[0],
       setSearchValue = _React$useState2[1];
 
-  function onFetch(_ref) {
-    var from = _ref.from,
-        to = _ref.to;
-    attemptActions["do"](function () {
-      return store.fetchEvents({
-        start: from,
-        end: to
-      });
-    });
-  }
-
-  function onFetchLatest() {
-    return store.fetchLatest();
-  }
-
-  react_default.a.useEffect(function () {
-    onFetch(range);
-  }, [range]);
-  var filtered = react_default.a.useMemo(function () {
-    var from = range.from,
-        to = range.to;
-    return events.filter(function (item) {
-      return moment_default()(item.time).isBetween(from, to);
-    });
-  }, [range, events]);
-  return {
-    events: filtered,
-    overflow: overflow,
-    searchValue: searchValue,
-    attempt: attempt,
-    attemptActions: attemptActions,
-    onFetch: onFetch,
-    onSearchChange: setSearchValue,
-    onFetchLatest: onFetchLatest,
-    maxLimit: maxLimit
-  };
+  return react_default.a.createElement(AuditEvents_EventList, {
+    events: events,
+    search: searchValue,
+    onSearchChange: setSearchValue
+  });
 }
-
-/* harmony default export */ var AuditEvents_AuditEvents = (withState(AuditEvents_mapState)(AuditEvents));
-var AuditEvents_BorderedFlex = Object(styled_components_browser_esm["c" /* default */])(src_Flex)(AuditEvents_templateObject(), system["d" /* borderRadius */]);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/index.js
+// CONCATENATED MODULE: ./src/cluster/components/Audit/AuditEvents/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -24557,7 +22978,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var Audit_AuditEvents = (AuditEvents_AuditEvents);
+/* harmony default export */ var Audit_AuditEvents = (AuditEvents);
 // EXTERNAL MODULE: /web-apps/node_modules/react-day-picker/lib/style.css
 var lib_style = __webpack_require__("d7bV");
 
@@ -24784,7 +23205,7 @@ limitations under the License.
 */
 
 /* harmony default export */ var Custom = (Custom_CustomRange);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/RangePicker/RangePicker.jsx
+// CONCATENATED MODULE: ./src/cluster/components/Audit/RangePicker/RangePicker.tsx
 function RangePicker_templateObject() {
   var data = RangePicker_taggedTemplateLiteral(["\n  position: relative;\n  ", " {\n    position: absolute;\n    right: 16px;\n    top: 6px;\n  }\n"]);
 
@@ -24894,7 +23315,7 @@ function DataRange(props) {
     onClick: onOpenMenu
   }, react_default.a.createElement(src_Box, {
     mr: "2"
-  }, btnText), react_default.a.createElement(src_Icon["e" /* CarrotDown */], {
+  }, btnText), react_default.a.createElement(src_Icon["d" /* CarrotDown */], {
     position: "absolute",
     fontSize: "3",
     color: "text.onDark"
@@ -24950,8 +23371,8 @@ function getRangeOptions() {
     to: new Date()
   }];
 }
-var DropDownButton = Object(styled_components_browser_esm["c" /* default */])(src_ButtonOutlined)(RangePicker_templateObject(), src_Icon["z" /* default */]);
-// CONCATENATED MODULE: ./src/cluster/components/Audit/RangePicker/index.js
+var DropDownButton = Object(styled_components_browser_esm["c" /* default */])(src_ButtonOutlined)(RangePicker_templateObject(), src_Icon["x" /* default */]);
+// CONCATENATED MODULE: ./src/cluster/components/Audit/RangePicker/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -24970,7 +23391,13 @@ limitations under the License.
 
 /* harmony default export */ var RangePicker = (DataRange);
 
-// CONCATENATED MODULE: ./src/cluster/components/Audit/Audit.jsx
+// CONCATENATED MODULE: ./src/cluster/components/Audit/Audit.tsx
+function Audit_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
+
+function Audit_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { Audit_ownKeys(source, true).forEach(function (key) { Audit_defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { Audit_ownKeys(source).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
+
+function Audit_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
 function Audit_slicedToArray(arr, i) { return Audit_arrayWithHoles(arr) || Audit_iterableToArrayLimit(arr, i) || Audit_nonIterableRest(); }
 
 function Audit_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
@@ -25002,50 +23429,115 @@ limitations under the License.
 
 
 
+
+
+
+
 function Audit() {
-  var rangeOptions = react_default.a.useMemo(function () {
+  var rangeOptions = Object(react["useMemo"])(function () {
     return getRangeOptions();
   }, []);
 
-  var _React$useState = react_default.a.useState(rangeOptions[0]),
-      _React$useState2 = Audit_slicedToArray(_React$useState, 2),
-      range = _React$useState2[0],
-      handleOnRange = _React$useState2[1];
+  var _useState = Object(react["useState"])(rangeOptions[0]),
+      _useState2 = Audit_slicedToArray(_useState, 2),
+      range = _useState2[0],
+      handleOnRange = _useState2[1];
 
   var auditRoute = config["a" /* default */].getAuditRoute();
   var eventsRoute = config["a" /* default */].getAuditEventsRoute();
   var sessionsRoute = config["a" /* default */].getAuditSessionsRoute();
+
+  var _useEvents = useEvents(range),
+      overflow = _useEvents.overflow,
+      attempt = _useEvents.attempt,
+      maxLimit = _useEvents.maxLimit,
+      events = _useEvents.events;
+
+  var isSuccess = attempt.isSuccess,
+      isFailed = attempt.isFailed,
+      message = attempt.message,
+      isProcessing = attempt.isProcessing;
   return react_default.a.createElement(FeatureBox, null, react_default.a.createElement(FeatureHeader, {
     alignItems: "center"
   }, react_default.a.createElement(Layout_FeatureHeaderTitle, {
     mr: "8"
   }, "Audit Log"), react_default.a.createElement(Audit_Tabs, null, react_default.a.createElement(Tabs_TabItem, {
-    to: eventsRoute,
-    title: "Events"
-  }), react_default.a.createElement(Tabs_TabItem, {
     to: sessionsRoute,
     title: "Sessions"
+  }), react_default.a.createElement(Tabs_TabItem, {
+    to: eventsRoute,
+    title: "Events"
   })), react_default.a.createElement(RangePicker, {
     ml: "auto",
     value: range,
     options: rangeOptions,
     onChange: handleOnRange
-  })), react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Router_Route, {
+  })), overflow && react_default.a.createElement(Alert_Danger, null, "Number of events retrieved for specified date range has exceeded the maximum limit of ", maxLimit, " events"), isFailed && react_default.a.createElement(Alert_Danger, null, " ", message, " "), isProcessing && react_default.a.createElement(src_Box, {
+    textAlign: "center",
+    m: 10
+  }, react_default.a.createElement(src_Indicator, null)), isSuccess && react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Router_Route, {
+    title: "Sessions",
+    path: sessionsRoute
+  }, react_default.a.createElement(AuditSessions, {
+    pageSize: 20,
+    events: events
+  })), react_default.a.createElement(Router_Route, {
     title: "Events",
     path: eventsRoute
   }, react_default.a.createElement(Audit_AuditEvents, {
-    range: range
-  })), react_default.a.createElement(Router_Route, {
-    title: "Sessions",
-    path: sessionsRoute,
-    component: AuditSessions
-  }), react_default.a.createElement(Redirect, {
+    events: events
+  })), react_default.a.createElement(Redirect, {
     exact: true,
     from: auditRoute,
-    to: eventsRoute
+    to: sessionsRoute
   })));
 }
-// CONCATENATED MODULE: ./src/cluster/components/Audit/index.js
+
+function useEvents(range) {
+  var teleCtx = useTeleport();
+
+  var _useAttempt = useAttempt({
+    isProcessing: true
+  }),
+      _useAttempt2 = Audit_slicedToArray(_useAttempt, 2),
+      attempt = _useAttempt2[0],
+      attemptActions = _useAttempt2[1];
+
+  var _useState3 = Object(react["useState"])({
+    events: [],
+    overflow: false
+  }),
+      _useState4 = Audit_slicedToArray(_useState3, 2),
+      results = _useState4[0],
+      setResults = _useState4[1];
+
+  function onFetch(_ref) {
+    var from = _ref.from,
+        to = _ref.to;
+    attemptActions["do"](function () {
+      return teleCtx.auditService.fetchEvents({
+        start: from,
+        end: to
+      }).then(setResults);
+    });
+  }
+
+  function onFetchLatest() {
+    return teleCtx.auditService.fetchLatest().then(setResults);
+  }
+
+  Object(react["useEffect"])(function () {
+    onFetch(range);
+  }, [range]);
+  return Audit_objectSpread({}, results, {
+    attempt: attempt,
+    attemptActions: attemptActions,
+    onFetch: onFetch,
+    onFetchLatest: onFetchLatest,
+    maxLimit: teleCtx.auditService.maxLimit
+  });
+}
+// CONCATENATED MODULE: ./src/cluster/components/Audit/index.tsx
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -25146,7 +23638,7 @@ function (_FeatureBase) {
 
       context.storeNav.addSideItem({
         title: 'Audit Log',
-        Icon: src_Icon["s" /* ListBullet */],
+        Icon: src_Icon["r" /* ListBullet */],
         to: config["a" /* default */].getAuditRoute()
       });
     }
@@ -25156,6 +23648,79 @@ function (_FeatureBase) {
 }(FeatureBase);
 
 /* harmony default export */ var featureAudit = (featureAudit_FeatureAudit);
+// CONCATENATED MODULE: ./src/cluster/components/Nodes/useClusterNodes.ts
+function useClusterNodes_slicedToArray(arr, i) { return useClusterNodes_arrayWithHoles(arr) || useClusterNodes_iterableToArrayLimit(arr, i) || useClusterNodes_nonIterableRest(); }
+
+function useClusterNodes_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function useClusterNodes_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function useClusterNodes_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+function useClusterNodes(teleCtx) {
+  var storeUser = Object(stores["b" /* useStore */])(teleCtx.storeUser);
+
+  var _useState = Object(react["useState"])([]),
+      _useState2 = useClusterNodes_slicedToArray(_useState, 2),
+      nodes = _useState2[0],
+      setNodes = _useState2[1];
+
+  var _useAttempt = useAttempt({
+    isProcessing: true
+  }),
+      _useAttempt2 = useClusterNodes_slicedToArray(_useAttempt, 2),
+      attempt = _useAttempt2[0],
+      attemptActions = _useAttempt2[1];
+
+  var logins = storeUser.getLogins();
+  Object(react["useEffect"])(function () {
+    attemptActions["do"](function () {
+      return teleCtx.nodeService.fetchNodes().then(setNodes);
+    });
+  }, []);
+  var getNodeLoginOptions = Object(react["useCallback"])(function (serverId) {
+    return makeOptions(serverId, logins);
+  }, [logins]);
+  return {
+    attempt: attempt,
+    nodes: nodes,
+    getNodeLoginOptions: getNodeLoginOptions
+  };
+}
+
+function makeOptions() {
+  var serverId = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '';
+  var logins = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+  return logins.map(function (login) {
+    var url = config["a" /* default */].getSshConnectRoute({
+      serverId: serverId,
+      login: login
+    });
+    return {
+      login: login,
+      url: url
+    };
+  });
+}
 // CONCATENATED MODULE: ./src/cluster/components/Nodes/Nodes.tsx
 /*
 Copyright 2019 Gravitational, Inc.
@@ -25179,31 +23744,20 @@ limitations under the License.
 
 
 
-var POLLING_INTERVAL = 10000; // every 10 sec
-
+function ClusterNodes() {
+  var teleCtx = useTeleport();
+  var state = useClusterNodes(teleCtx);
+  return react_default.a.createElement(Nodes, state);
+}
 function Nodes(_ref) {
   var nodes = _ref.nodes,
-      logins = _ref.logins,
-      onFetch = _ref.onFetch;
+      getNodeLoginOptions = _ref.getNodeLoginOptions,
+      attempt = _ref.attempt;
 
-  function onLoginMenuSelect(login, serverId) {
-    var url = config["a" /* default */].getConsoleConnectRoute({
-      login: login,
-      serverId: serverId
-    });
-    window.open(url);
-  }
-
-  function onLoginMenuOpen(serverId) {
-    return logins.map(function (login) {
-      var url = config["a" /* default */].getConsoleConnectRoute({
-        serverId: serverId,
-        login: login
-      });
-      return {
-        login: login,
-        url: url
-      };
+  if (attempt.isFailed) {
+    return react_default.a.createElement(CardError_Failed, {
+      alignSelf: "baseline",
+      message: attempt.message
     });
   }
 
@@ -25211,29 +23765,14 @@ function Nodes(_ref) {
     alignItems: "center"
   }, react_default.a.createElement(Layout_FeatureHeaderTitle, {
     mr: "5"
-  }, "Nodes")), react_default.a.createElement(components_NodeList, {
-    onLoginMenuOpen: onLoginMenuOpen,
-    onLoginSelect: onLoginMenuSelect,
+  }, "Nodes")), attempt.isProcessing && react_default.a.createElement(src_Box, {
+    textAlign: "center",
+    m: 10
+  }, react_default.a.createElement(src_Indicator, null)), attempt.isSuccess && react_default.a.createElement(components_NodeList, {
+    onLoginMenuOpen: getNodeLoginOptions,
     nodes: nodes
-  }), react_default.a.createElement(components_AjaxPoller, {
-    time: POLLING_INTERVAL,
-    onFetch: onFetch
   }));
 }
-
-var Nodes_mapState = function mapState() {
-  var store = useStoreNodes();
-  var storeUser = useStoreUser();
-  return {
-    onFetch: function onFetch() {
-      return store.fetchNodes();
-    },
-    logins: storeUser.getLogins(),
-    nodes: store.state
-  };
-};
-
-/* harmony default export */ var Nodes_Nodes = (withState(Nodes_mapState)(Nodes));
 // CONCATENATED MODULE: ./src/cluster/components/Nodes/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
@@ -25251,7 +23790,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var components_Nodes = (Nodes_Nodes);
+/* harmony default export */ var components_Nodes = (ClusterNodes);
 // CONCATENATED MODULE: ./src/cluster/features/featureNodes.ts
 function featureNodes_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { featureNodes_typeof = function _typeof(obj) { return typeof obj; }; } else { featureNodes_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return featureNodes_typeof(obj); }
 
@@ -25331,12 +23870,10 @@ function (_FeatureBase) {
     value: function onload(context) {
       context.storeNav.addSideItem({
         title: 'Nodes',
-        Icon: src_Icon["r" /* Layers */],
+        Icon: src_Icon["q" /* Layers */],
         exact: true,
         to: config["a" /* default */].getNodesRoute()
       });
-      this.setProcessing();
-      return context.storeNodes.fetchNodes().then(this.setReady.bind(this))["catch"](this.setFailed.bind(this));
     }
   }]);
 
@@ -25395,11 +23932,11 @@ function TypeCell_TypeCell() {
     p: "1",
     mr: "3",
     bg: "bgTerminal",
-    as: Icon_Icon["m" /* Cli */],
+    as: Icon_Icon["l" /* Cli */],
     fontSize: "4"
   }), "Session in progress..."));
 }
-var TypeCell_StyledIcon = Object(styled_components_browser_esm["c" /* default */])(Icon_Icon["Z" /* default */])(TypeCell_templateObject());
+var TypeCell_StyledIcon = Object(styled_components_browser_esm["c" /* default */])(Icon_Icon["X" /* default */])(TypeCell_templateObject());
 var TypeCell_StyledEventType = styled_components_browser_esm["c" /* default */].div(TypeCell_templateObject2());
 // CONCATENATED MODULE: ./src/cluster/components/Sessions/SessionList/UserCell.jsx
 /*
@@ -25449,19 +23986,19 @@ limitations under the License.
 
 
 
+
 function ActionCell_ActionCell(_ref) {
   var rowIndex = _ref.rowIndex,
       data = _ref.data;
   var sid = data[rowIndex].sid;
-  var url = config["a" /* default */].getConsoleSessionRoute({
+  var url = config["a" /* default */].getSshSessionRoute({
     sid: sid
   });
   return react_default.a.createElement(Table_Cell, {
     align: "right"
   }, react_default.a.createElement(Button_ButtonPrimary, {
-    as: "a",
-    target: "_blank",
-    href: url,
+    as: react_router_dom["b" /* NavLink */],
+    to: url,
     size: "small",
     width: "90px",
     children: "join"
@@ -25486,7 +24023,7 @@ limitations under the License.
 
 
 
-function CreatedCell(_ref) {
+function CreatedCell_CreatedCell(_ref) {
   var rowIndex = _ref.rowIndex,
       data = _ref.data;
   var created = data[rowIndex].created;
@@ -25510,7 +24047,7 @@ limitations under the License.
 */
 
 
-function DescCell(_ref) {
+function DescCell_DescCell(_ref) {
   var rowIndex = _ref.rowIndex,
       data = _ref.data,
       nodes = _ref.nodes;
@@ -25567,14 +24104,14 @@ function SessionList_SessionList(_ref) {
     nodes: nodes,
     columnKey: "description",
     header: react_default.a.createElement(Table_Cell, null, "Description"),
-    cell: react_default.a.createElement(DescCell, null)
+    cell: react_default.a.createElement(DescCell_DescCell, null)
   }), react_default.a.createElement(Column, {
     columnKey: "createdBy",
     header: react_default.a.createElement(Table_Cell, null, "User"),
     cell: react_default.a.createElement(UserCell, null)
   }), react_default.a.createElement(Column, {
     header: react_default.a.createElement(Table_Cell, null, "Created"),
-    cell: react_default.a.createElement(CreatedCell, null)
+    cell: react_default.a.createElement(CreatedCell_CreatedCell, null)
   }), react_default.a.createElement(Column, {
     header: react_default.a.createElement(Table_Cell, null),
     cell: react_default.a.createElement(ActionCell_ActionCell, null)
@@ -25598,7 +24135,70 @@ limitations under the License.
 */
 
 /* harmony default export */ var Sessions_SessionList = (SessionList_SessionList);
-// CONCATENATED MODULE: ./src/cluster/components/Sessions/Sessions.jsx
+// CONCATENATED MODULE: ./src/cluster/components/Sessions/useClusterSessions.ts
+function useClusterSessions_slicedToArray(arr, i) { return useClusterSessions_arrayWithHoles(arr) || useClusterSessions_iterableToArrayLimit(arr, i) || useClusterSessions_nonIterableRest(); }
+
+function useClusterSessions_nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function useClusterSessions_iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function useClusterSessions_arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+function useClusterSessions(teleCtx) {
+  var _useState = Object(react["useState"])({}),
+      _useState2 = useClusterSessions_slicedToArray(_useState, 2),
+      nodes = _useState2[0],
+      setNodes = _useState2[1];
+
+  var _useState3 = Object(react["useState"])([]),
+      _useState4 = useClusterSessions_slicedToArray(_useState3, 2),
+      sessions = _useState4[0],
+      setSessions = _useState4[1];
+
+  var _useAttempt = useAttempt({
+    isProcessing: true
+  }),
+      _useAttempt2 = useClusterSessions_slicedToArray(_useAttempt, 2),
+      attempt = _useAttempt2[0],
+      attemptActions = _useAttempt2[1];
+
+  function fetchSessions() {
+    return teleCtx.sshService.fetchSessions().then(setSessions);
+  }
+
+  Object(react["useState"])(function () {
+    attemptActions["do"](function () {
+      return Promise.all([fetchSessions(), teleCtx.nodeService.fetchNodes().then(function (nodes) {
+        return setNodes(Object(lodash["keyBy"])(nodes, 'id'));
+      })]);
+    });
+  });
+  return {
+    attempt: attempt,
+    sessions: sessions,
+    nodes: nodes,
+    onRefresh: fetchSessions
+  };
+}
+// CONCATENATED MODULE: ./src/cluster/components/Sessions/Sessions.tsx
 /*
 Copyright 2019 Gravitational, Inc.
 
@@ -25621,41 +24221,40 @@ limitations under the License.
 
 
 
-var Sessions_POLLING_INTERVAL = 3000; // every 3 sec
 
-function Sessions(_ref) {
-  var nodes = _ref.nodes,
-      sessions = _ref.sessions,
-      onRefresh = _ref.onRefresh;
+var POLLING_INTERVAL = 3000; // every 3 sec
+
+function Sessions(props) {
+  var attempt = props.attempt,
+      onRefresh = props.onRefresh,
+      nodes = props.nodes,
+      sessions = props.sessions;
+
+  if (attempt.isFailed) {
+    return react_default.a.createElement(CardError_Failed, {
+      alignSelf: "baseline",
+      message: attempt.message
+    });
+  }
+
   return react_default.a.createElement(FeatureBox, null, react_default.a.createElement(FeatureHeader, {
     alignItems: "center"
-  }, react_default.a.createElement(Layout_FeatureHeaderTitle, null, "Sessions")), react_default.a.createElement(Sessions_SessionList, {
+  }, react_default.a.createElement(Layout_FeatureHeaderTitle, null, "Sessions")), attempt.isProcessing && react_default.a.createElement(src_Box, {
+    textAlign: "center",
+    m: 10
+  }, react_default.a.createElement(src_Indicator, null)), attempt.isSuccess && react_default.a.createElement(react_default.a.Fragment, null, react_default.a.createElement(Sessions_SessionList, {
     sessions: sessions,
     nodes: nodes
   }), react_default.a.createElement(components_AjaxPoller, {
-    time: Sessions_POLLING_INTERVAL,
+    time: POLLING_INTERVAL,
     onFetch: onRefresh
-  }));
+  })));
 }
-
-function Sessions_mapState() {
-  var sessionStore = useStoreSessions();
-  var nodeStore = useStoreNodes();
-
-  function onRefresh() {
-    return sessionStore.fetchSessions();
-  }
-
-  var nodes = Object(lodash["keyBy"])(nodeStore.getNodes(), 'id');
-  var sessions = sessionStore.getSessions();
-  return {
-    sessions: sessions,
-    nodes: nodes,
-    onRefresh: onRefresh
-  };
+function ClusterSessions() {
+  var teleCtx = useTeleport();
+  var state = useClusterSessions(teleCtx);
+  return react_default.a.createElement(Sessions, state);
 }
-
-/* harmony default export */ var Sessions_Sessions = (withState(Sessions_mapState)(Sessions));
 // CONCATENATED MODULE: ./src/cluster/components/Sessions/index.js
 /*
 Copyright 2019 Gravitational, Inc.
@@ -25673,7 +24272,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* harmony default export */ var components_Sessions = (Sessions_Sessions);
+/* harmony default export */ var components_Sessions = (ClusterSessions);
 // CONCATENATED MODULE: ./src/cluster/features/featureSessions.ts
 function featureSessions_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { featureSessions_typeof = function _typeof(obj) { return typeof obj; }; } else { featureSessions_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return featureSessions_typeof(obj); }
 
@@ -25753,12 +24352,10 @@ function (_FeatureBase) {
     value: function onload(context) {
       context.storeNav.addSideItem({
         title: 'Active Sessions',
-        Icon: src_Icon["r" /* Layers */],
+        Icon: src_Icon["j" /* Cli */],
         exact: true,
         to: config["a" /* default */].getSessionsRoute()
       });
-      this.setProcessing();
-      return context.storeSessions.fetchSessions().then(this.setReady.bind(this))["catch"](this.setFailed.bind(this));
     }
   }]);
 
@@ -25854,6 +24451,21 @@ function TopBar_TopBar_setPrototypeOf(o, p) { TopBar_TopBar_setPrototypeOf = Obj
 
 function TopBar_TopBar_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
+/*
+Copyright 2019-2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 
 
@@ -25926,7 +24538,8 @@ function (_React$Component) {
       var _this$props = this.props,
           username = _this$props.username,
           topMenuItems = _this$props.topMenuItems,
-          pl = _this$props.pl;
+          pl = _this$props.pl,
+          children = _this$props.children;
       var open = this.state.open;
       var $userMenuItems = topMenuItems.map(function (item, index) {
         return react_default.a.createElement(Menu["a" /* MenuItem */], TopBar_TopBar_extends({}, _this2.menuItemProps, {
@@ -25954,7 +24567,7 @@ function (_React$Component) {
         mx: "3",
         maxHeight: "40px",
         maxWidth: "160px"
-      })), react_default.a.createElement(src_Flex, {
+      })), children, react_default.a.createElement(src_Flex, {
         ml: "auto",
         height: "100%"
       }, react_default.a.createElement(TopNav_TopNavUserMenu, {
@@ -26009,7 +24622,90 @@ limitations under the License.
 */
 
 /* harmony default export */ var src_components_TopBar = (TopBar_TopBar);
-// CONCATENATED MODULE: ./src/cluster/components/Cluster.jsx
+// CONCATENATED MODULE: ./src/cluster/components/TopBar/TopBar.jsx
+function TopBar_templateObject() {
+  var data = TopBar_taggedTemplateLiteral(["\n  text-decoration: none;\n  &:hover {\n    color: ", ";\n  }\n"]);
+
+  TopBar_templateObject = function _templateObject() {
+    return data;
+  };
+
+  return data;
+}
+
+function TopBar_taggedTemplateLiteral(strings, raw) { if (!raw) { raw = strings.slice(0); } return Object.freeze(Object.defineProperties(strings, { raw: { value: Object.freeze(raw) } })); }
+
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+
+
+function ClusterTopBar() {
+  var clusterId = config["a" /* default */].clusterName;
+  return react_default.a.createElement(src_components_TopBar, null, react_default.a.createElement(src_Flex, {
+    alignItems: "center"
+  }, react_default.a.createElement(BreadCrumbLink, {
+    ml: "6",
+    typography: "h5",
+    color: "text.secondary",
+    as: react_router_dom["b" /* NavLink */],
+    to: config["a" /* default */].routes.app,
+    title: "Go back to cluster list"
+  }, "All Clusters"), react_default.a.createElement(src_Icon["b" /* ArrowRight */], {
+    mx: "3",
+    fontSize: 12,
+    color: "text.secondary"
+  }), react_default.a.createElement(src_Text, {
+    mr: "5",
+    typography: "h5",
+    color: "text.primary",
+    style: {
+      maxWidth: '200px'
+    }
+  }, clusterId), react_default.a.createElement(src_ButtonOutlined, {
+    width: "120px",
+    size: "small"
+  }, "Cluster Info")));
+}
+var BreadCrumbLink = Object(styled_components_browser_esm["c" /* default */])(src_Text)(TopBar_templateObject(), function (props) {
+  return props.theme.colors.text.primary;
+});
+// CONCATENATED MODULE: ./src/cluster/components/TopBar/index.js
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* harmony default export */ var cluster_components_TopBar = (ClusterTopBar);
+// CONCATENATED MODULE: ./src/cluster/components/Cluster.tsx
 function Cluster_templateObject3() {
   var data = Cluster_taggedTemplateLiteral(["\n  align-items: center;\n  justify-content: center;\n"]);
 
@@ -26031,7 +24727,7 @@ function Cluster_templateObject2() {
 }
 
 function Cluster_templateObject() {
-  var data = Cluster_taggedTemplateLiteral(["\n  width: 100%;\n  height: 100%;\n  display: flex;\n  flex: 1;\n"]);
+  var data = Cluster_taggedTemplateLiteral(["\n  width: 100%;\n  height: 100%;\n  display: flex;\n  flex: 1;\n  overflow: hidden;\n"]);
 
   Cluster_templateObject = function _templateObject() {
     return data;
@@ -26074,11 +24770,13 @@ limitations under the License.
 
 
 
-function Cluster(props) {
-  var onInit = props.onInit,
-      features = props.features;
 
-  var _useAttempt = useAttempt(),
+function Cluster() {
+  var teleportCtx = useTeleport();
+
+  var _useAttempt = useAttempt({
+    isProcessing: true
+  }),
       _useAttempt2 = Cluster_slicedToArray(_useAttempt, 2),
       attempt = _useAttempt2[0],
       attemptActions = _useAttempt2[1];
@@ -26088,7 +24786,7 @@ function Cluster(props) {
       message = attempt.message;
   react_default.a.useEffect(function () {
     attemptActions["do"](function () {
-      return onInit();
+      return teleportCtx.init();
     });
   }, []);
 
@@ -26103,7 +24801,7 @@ function Cluster(props) {
   } // render allowed features
 
 
-  var allowed = features.filter(function (f) {
+  var allowed = teleportCtx.features.filter(function (f) {
     return !f.isDisabled();
   });
   var $features = allowed.map(function (item, index) {
@@ -26121,7 +24819,7 @@ function Cluster(props) {
       component: component
     });
   });
-  return react_default.a.createElement(HorizontalSplit, null, react_default.a.createElement(src_components_TopBar, null), react_default.a.createElement(VerticalSplit, null, react_default.a.createElement(components_SideNav, null), react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Redirect, {
+  return react_default.a.createElement(HorizontalSplit, null, react_default.a.createElement(cluster_components_TopBar, null), react_default.a.createElement(VerticalSplit, null, react_default.a.createElement(components_SideNav, null), react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Redirect, {
     exact: true,
     from: config["a" /* default */].routes.cluster,
     to: config["a" /* default */].routes.clusterNodes
@@ -26163,30 +24861,24 @@ limitations under the License.
 
 
 
-function CommunityCluster_mapState(props) {
-  var clusterId = props.match.params.clusterId;
-  var teleport = useTeleport();
+function CommunityCluster() {
+  var _useParams = Object(react_router["i" /* useParams */])(),
+      clusterId = _useParams.clusterId;
 
   var _React$useState = react_default.a.useState(function () {
-    return [new featureAccount(), new featureNodes(), new featureSessions(), new featureAudit()];
-  }),
-      _React$useState2 = CommunityCluster_slicedToArray(_React$useState, 1),
-      features = _React$useState2[0];
-
-  function onInit() {
-    return teleport.init({
+    var features = [new featureAccount(), new featureNodes(), new featureSessions(), new featureAudit()];
+    return new teleportContext_Context({
       clusterId: clusterId,
       features: features
     });
-  }
+  }),
+      _React$useState2 = CommunityCluster_slicedToArray(_React$useState, 1),
+      ctx = _React$useState2[0];
 
-  return {
-    features: features,
-    onInit: onInit
-  };
+  return react_default.a.createElement(teleportContextProvider, {
+    value: ctx
+  }, react_default.a.createElement(Cluster, null));
 }
-
-/* harmony default export */ var CommunityCluster = (withState(CommunityCluster_mapState)(Cluster));
 // CONCATENATED MODULE: ./src/cluster/index.ts
 /*
 Copyright 2019 Gravitational, Inc.
@@ -26206,6 +24898,92 @@ limitations under the License.
 
 
 /* harmony default export */ var cluster = (Object(root["hot"])(CommunityCluster));
+// CONCATENATED MODULE: ./src/Teleport.tsx
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var teleportIco = __webpack_require__("m1cd");
+
+var Teleport_Teleport = function Teleport(_ref) {
+  var history = _ref.history,
+      children = _ref.children;
+  useFavicon(teleportIco);
+  return react_default.a.createElement(components_CatchError, null, react_default.a.createElement(src_ThemeProvider, null, react_default.a.createElement(react_router["c" /* Router */], {
+    history: history
+  }, react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Router_Route, {
+    title: "Login Failed",
+    path: config["a" /* default */].routes.loginFailed,
+    component: LoginFailed_LoginFailed
+  }), react_default.a.createElement(Router_Route, {
+    title: "Login",
+    path: config["a" /* default */].routes.login,
+    component: components_Login
+  }), react_default.a.createElement(Router_Route, {
+    title: "Success",
+    path: config["a" /* default */].routes.loginSuccess,
+    component: LoginSuccess
+  }), react_default.a.createElement(Router_Route, {
+    title: "Invite",
+    path: config["a" /* default */].routes.userInvite,
+    component: components_Invite
+  }), react_default.a.createElement(Router_Route, {
+    title: "Password Reset",
+    path: config["a" /* default */].routes.userReset,
+    component: Invite_ResetPassword
+  }), react_default.a.createElement(Router_Route, {
+    path: config["a" /* default */].routes.app
+  }, react_default.a.createElement(components_Authenticated, null, renderAuthenticated(children)))))));
+}; // TODO: make it lazy loadable
+
+
+function renderAuthenticated(children) {
+  if (children) {
+    return children;
+  }
+
+  return react_default.a.createElement(Router_Switch, null, react_default.a.createElement(Router_Route, {
+    path: config["a" /* default */].routes.console,
+    component: Index
+  }), react_default.a.createElement(Router_Route, {
+    path: config["a" /* default */].routes.player,
+    component: player
+  }), react_default.a.createElement(Router_Route, {
+    path: config["a" /* default */].routes.cluster,
+    component: cluster
+  }), react_default.a.createElement(Router_Route, {
+    path: config["a" /* default */].routes.app,
+    component: dashboard_Index
+  }));
+}
+
+/* harmony default export */ var src_Teleport = (Object(root["hot"])(Teleport_Teleport));
 // CONCATENATED MODULE: ./src/boot.js
 /*
 Copyright 2019 Gravitational, Inc.
@@ -26226,19 +25004,14 @@ limitations under the License.
 
 
 
-
-
  // apply configuration received from the server
 
 config["a" /* default */].init(window.GRV_CONFIG); // use browser history
 
 services_history.init();
-react_dom_default.a.render(react_default.a.createElement(src, {
+react_dom_default.a.render(react_default.a.createElement(src_Teleport, {
   history: services_history.original()
-}, react_default.a.createElement(Router_Route, {
-  path: config["a" /* default */].routes.cluster,
-  component: cluster
-})), document.getElementById('app'));
+}), document.getElementById('app'));
 
 /***/ }),
 
