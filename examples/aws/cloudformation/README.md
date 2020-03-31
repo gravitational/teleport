@@ -10,8 +10,9 @@ using DynamoDB and S3 to store logs. This setup will acquire a Let's Encrypt x50
 for you.
 
 If you are using the enterprise template please ensure that you have an enterprise license
-available. Once the CloudFormation stack is complete you will need to place your enterprise
-license file onto each Auth server in   
+available. If you are an enterprise customer you can find the license in your dashboard 
+at https://dashboard.gravitational.com/web/ . Once the CloudFormation stack is complete 
+you will need to place your enterprise license file onto each Auth server in   
 `/var/lib/teleport/license.pem`.
 
 ## Launch VPC
