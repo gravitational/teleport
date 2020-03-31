@@ -1,3 +1,3 @@
-import Roles from './Roles';
-export default Roles;
-
+import DeleteRole from './DeleteRole';
+import RoleList from './RoleList';
+export { DeleteRole, RoleList };

@@ -1,35 +1,16 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Text, Flex, ButtonPrimary } from 'design';
+import * as Icons from 'design/Icon';
 import ActionMenu, { MenuItem } from 'shared/components/ActionMenu';
-import getSsoIcon from './../getSsoIcon';
 
-export default function ConnectorListItem({
-  name,
-  kind,
-  id,
-  onEdit,
-  onDelete,
-  ...rest
-}) {
+export default function TrustedListItem(props: Props) {
+  const { name, id, onEdit, onDelete, ...rest } = props;
   const onClickEdit = () => onEdit(id);
   const onClickDelete = () => onDelete(id);
-  const { desc, SsoIcon } = getSsoIcon(kind);
-
-  const iconProps = {
-    fontSize: '68px',
-    mb: 3,
-    mt: 3,
-  };
-
-  if (kind === 'saml') {
-    iconProps.width = '160px';
-    iconProps.height = '50px';
-    iconProps.mt = 5;
-  }
 
   return (
-    <StyledConnectorListItem
+    <StyledItem
       width="260px"
       height="260px"
       borderRadius="3"
@@ -54,22 +35,24 @@ export default function ConnectorListItem({
         justifyContent="center"
         flexDirection="column"
       >
-        <SsoIcon {...iconProps} />
-        <Text typography="body2" bold caps="uppercase" mb="1">
+        <Icons.LanAlt
+          my="4"
+          style={{ textAlign: 'center' }}
+          fontSize="80px"
+          color="text.primary"
+        />
+        <Text typography="h5" bold caps="uppercase" mb="1">
           {name}
         </Text>
-        <Text typography="body2" color="text.primary">
-          {desc}
-        </Text>
       </Flex>
-      <ButtonPrimary mt="auto" size="medium" block onClick={onClickEdit}>
-        EDIT CONNECTOR
+      <ButtonPrimary mt="auto" px="1" size="medium" block onClick={onClickEdit}>
+        EDIT TRUSTED CLUSTER
       </ButtonPrimary>
-    </StyledConnectorListItem>
+    </StyledItem>
   );
 }
 
-const StyledConnectorListItem = styled(Flex)`
+const StyledItem = styled(Flex)`
   position: relative;
   transition: all 0.3s;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
@@ -84,4 +67,12 @@ const menuActionProps = {
     position: 'absolute',
     top: '10px',
   },
+};
+
+type Props = {
+  name: string;
+  id: string;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+  [index: string]: any;
 };

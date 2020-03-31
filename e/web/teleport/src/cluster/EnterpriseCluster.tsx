@@ -17,8 +17,6 @@ limitations under the License.
 import React from 'react';
 import { useParams } from 'shared/components/Router';
 import Cluster from 'teleport/cluster/components/Cluster';
-import TeleportContext from 'teleport/teleportContext';
-import TeleportContextProvider from 'teleport/teleportContextProvider';
 import FeatureAccount from 'teleport/features/featureAccount';
 import FeatureAudit from 'teleport/cluster/features/featureAudit';
 import FeatureNodes from 'teleport/cluster/features/featureNodes';
@@ -26,6 +24,8 @@ import FeatureSessions from 'teleport/cluster/features/featureSessions';
 import FeatureAuthConnectors from 'e-teleport/cluster/features/featureAuthConnectors';
 import FeatureRoles from 'e-teleport/cluster/features/featureRoles';
 import FeatureTrustedClusters from 'e-teleport/cluster/features/featureTrustedClusters';
+import TeleportContext from 'e-teleport/teleportEContext';
+import TeleportContextProvider from 'teleport/teleportContextProvider';
 
 export default function EnterpriseCluster() {
   const { clusterId } = useParams();

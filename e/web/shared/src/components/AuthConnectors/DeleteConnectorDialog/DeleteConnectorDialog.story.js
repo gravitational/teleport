@@ -1,6 +1,11 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
-import DeleteConnectorDialog from './DeleteConnectorDialog';
+import DeleteDialog from './DeleteConnectorDialog';
+
+export default {
+  title: 'Shared-E',
+};
+
+export const DeleteConnectorDialog = () => <DeleteDialog {...props} />;
 
 const props = {
   name: 'sample-connector-role',
@@ -10,7 +15,6 @@ const props = {
   onClose: () => null,
 };
 
-storiesOf('Shared-E/AuthConnectors', module).add(
-  'DeleteConnectorDialog',
-  () => <DeleteConnectorDialog {...props} />
-);
+DeleteConnectorDialog.story = {
+  name: 'DeleteConnectorDialog',
+};
