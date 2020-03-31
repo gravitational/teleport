@@ -15,19 +15,8 @@ limitations under the License.
 */
 
 import { Store } from 'shared/libs/stores';
-import service, { Cluster } from 'teleport/services/clusters';
+import { Cluster } from 'teleport/services/clusters';
 
 export default class StoreClusters extends Store<Cluster[]> {
   state: Cluster[] = [];
-
-  getClusters() {
-    return this.state;
-  }
-
-  fetchClusters() {
-    return service.fetchClusters().then(clusters => {
-      this.setState(clusters);
-      return clusters;
-    });
-  }
 }
