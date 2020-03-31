@@ -763,25 +763,22 @@ func (s SortedReverseTunnels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// GetProxyHost finds and returns the first proxy with a configured
+// GetConfiguredOrDefaultProxyHost finds and returns the first proxy with a configured
 // public address (non empty value). Other two cases:
-//   1. No proxies available, return a proxy template w/ default port.
-//   2. No proxy has a public address set, return first proxy hostname w/ default port.
-func GetProxyHost(proxies []Server) (string, error) {
+//   1. No proxies available, return empty value
+//   2. No proxy has a public address configured, return first proxy hostname w/ default port.
+func GetConfiguredOrDefaultProxyHost(proxies []Server) string {
 	if len(proxies) < 1 {
-		proxyHost := fmt.Sprintf("<proxyhost>:%v", defaults.HTTPListenPort)
-		return proxyHost, trace.NotFound("no proxies available")
+		return ""
 	}
 
 	// find the first proxy with a public address set
 	for _, proxy := range proxies {
 		proxyHost := proxy.GetPublicAddr()
 		if proxyHost != "" {
-			return proxyHost, nil
+			return proxyHost
 		}
 	}
 
-	proxyHost := fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-
-	return proxyHost, trace.NotFound("public_address not set for proxy, returning proxyHost: %q", proxyHost)
+	return fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
 }
