@@ -156,6 +156,7 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 
 // Start starts the agent pool
 func (m *AgentPool) Start() error {
+	m.Infof("Starting agent pool %s.%s...", m.cfg.HostUUID, m.cfg.Cluster)
 	go m.pollAndSyncAgents()
 	go m.processSeekEvents()
 	return nil
@@ -181,10 +182,10 @@ func (m *AgentPool) processSeekEvents() {
 		case <-m.ctx.Done():
 			m.Debugf("Halting seek event processing (pool closing)")
 			return
-		case key := <-m.seekPool.Seek():
-			m.Debugf("Seeking: %+v.", key)
+		case lease := <-m.seekPool.Grants():
+			m.Debugf("Seeking: %+v.", lease.Key())
 			m.withLock(func() {
-				if err := m.addAgentIfNeeded(seekToAgentKey(key)); err != nil {
+				if err := m.addAgent(lease); err != nil {
 					m.WithError(err).Errorf("Failed to add agent.")
 				}
 			})
@@ -192,6 +193,7 @@ func (m *AgentPool) processSeekEvents() {
 	}
 }
 
+/*
 // addAgentIfNeeded adds an agent only if there are not too many
 // pending agents already.  Must be called with lock.
 func (m *AgentPool) addAgentIfNeeded(key agentKey) error {
@@ -211,7 +213,7 @@ func (m *AgentPool) addAgentIfNeeded(key agentKey) error {
 	}
 	m.Debugf("Not addding agent for %v, limit exceeded (%d)", key, pending)
 	return nil
-}
+}*/
 
 func foundInOneOf(proxy services.Server, agents []*Agent) bool {
 	for _, agent := range agents {
@@ -302,16 +304,16 @@ func (m *AgentPool) pollAndSyncAgents() {
 	}
 }
 
-func (m *AgentPool) addAgent(key agentKey) error {
+func (m *AgentPool) addAgent(lease *seek.Lease) error {
 	// If the component connecting is a proxy, get the cluster name from the
 	// clusterName (where it is the name of the remote cluster). If it's a node, get
 	// the cluster name from the agent pool configuration itself (where it is
 	// the name of the local cluster).
+	key := seekToAgentKey(lease.Key())
 	clusterName := key.clusterName
 	if key.tunnelType == string(services.NodeTunnel) {
 		clusterName = m.cfg.Cluster
 	}
-	seekGroup := m.seekPool.Group(agentToSeekKey(key))
 	m.lastAgentID++
 	agentID := m.lastAgentID
 	agent, err := NewAgent(AgentConfig{
@@ -327,9 +329,11 @@ func (m *AgentPool) addAgent(key agentKey) error {
 		Server:              m.cfg.Server,
 		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
 		LocalClusterName:    m.cfg.Cluster,
-		SeekGroup:           &seekGroup,
+		Lease:               lease,
 	})
 	if err != nil {
+		// ensure that lease has been released; OK to call multiple times.
+		lease.Release()
 		return trace.Wrap(err)
 	}
 	m.Debugf("Adding %v.", agent)
@@ -346,10 +350,18 @@ func (m *AgentPool) addAgent(key agentKey) error {
 // connected to. Used in tests to determine if a proxy has been found and/or
 // removed.
 func (m *AgentPool) Counts() map[string]int {
+	m.Lock()
+	defer m.Unlock()
 	out := make(map[string]int)
 
 	for key, agents := range m.agents {
-		out[key.clusterName] += len(agents)
+		count := 0
+		for _, agent := range agents {
+			if agent.getState() == agentStateConnected {
+				count++
+			}
+		}
+		out[key.clusterName] += count
 	}
 
 	return out
@@ -434,9 +446,10 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	}
 	// add agents from added reverse tunnels
 	for _, key := range agentsToAdd {
-		if err := m.addAgent(key); err != nil {
-			return trace.Wrap(err)
-		}
+		m.seekPool.Start(agentToSeekKey(key))
+		//if err := m.addAgent(key); err != nil {
+		//	return trace.Wrap(err)
+		//}
 	}
 
 	// Remove disconnected agents from the list of agents.

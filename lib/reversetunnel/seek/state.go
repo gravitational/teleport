@@ -223,6 +223,15 @@ func (s *Status) ShouldSeek() bool {
 	return false
 }
 
+// TargetCount is the minumum number of agents that should be active.
+func (s *Status) TargetCount() int {
+	total := s.Seeking + s.Claimed
+	if total < 1 {
+		return 1
+	}
+	return total
+}
+
 // Sum returns the sum of all known proxies.
 func (s *Status) Sum() int {
 	if s == nil {

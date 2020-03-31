@@ -115,7 +115,7 @@ type Pool struct {
 	m      sync.Mutex
 	conf   Config
 	groups map[Key]GroupHandle
-	seekC  chan Key
+	grantC chan *Lease
 	ctx    context.Context
 }
 
@@ -134,7 +134,7 @@ func NewPool(ctx context.Context, conf Config) (*Pool, error) {
 		Entry:  entry,
 		conf:   conf,
 		groups: make(map[Key]GroupHandle),
-		seekC:  make(chan Key, 128),
+		grantC: make(chan *Lease),
 		ctx:    ctx,
 	}, nil
 }
@@ -153,15 +153,15 @@ func (p *Pool) getOrStartGroup(key Key) GroupHandle {
 		return group
 	}
 	p.Infof("Starting seek group: %+v", key)
-	group := newGroupHandle(p.ctx, p.conf, p.seekC, key)
+	group := newGroupHandle(p.ctx, p.conf, p.grantC, key)
 	p.groups[key] = group
 	return group
 }
 
-// Seek channel yields stream of keys indicating which groups
-// are seeking.
-func (p *Pool) Seek() <-chan Key {
-	return p.seekC
+// Grants provides access to the lease grant channel.  Each time a lease
+// is granted, a corresponding connection attempt must be made.
+func (p *Pool) Grants() <-chan *Lease {
+	return p.grantC
 }
 
 // Start starts one or more group-level seek operations
@@ -210,15 +210,16 @@ type GroupHandle struct {
 	inner  *proxyGroup
 	cancel context.CancelFunc
 	proxyC chan<- string
-	seekC  <-chan Key
 	statC  <-chan Status
 	done   <-chan struct{}
 }
 
-func newGroupHandle(ctx context.Context, conf Config, seekC chan Key, id Key) GroupHandle {
+func newGroupHandle(ctx context.Context, conf Config, grantC chan *Lease, id Key) GroupHandle {
 	ctx, cancel := context.WithCancel(ctx)
 	proxyC := make(chan string, 128)
 	statC := make(chan Status, 1)
+	releaseC := make(chan struct{})
+	notifyC := make(chan struct{}, 1)
 	entry := conf.Logger
 	if entry == nil {
 		entry = log.WithFields(log.Fields{
@@ -226,23 +227,24 @@ func newGroupHandle(ctx context.Context, conf Config, seekC chan Key, id Key) Gr
 		})
 	}
 	seekers := &proxyGroup{
-		Entry:  entry,
-		id:     id,
-		conf:   conf,
-		states: make(map[string]seeker),
-		proxyC: proxyC,
-		seekC:  seekC,
-		statC:  statC,
+		Entry:    entry,
+		id:       id,
+		conf:     conf,
+		states:   make(map[string]seeker),
+		proxyC:   proxyC,
+		grantC:   grantC,
+		releaseC: releaseC,
+		notifyC:  notifyC,
+		statC:    statC,
 	}
 	handle := GroupHandle{
 		inner:  seekers,
 		cancel: cancel,
 		proxyC: proxyC,
-		seekC:  seekC,
 		statC:  statC,
 		done:   ctx.Done(),
 	}
-	go seekers.run(ctx)
+	go seekers.run(ctx, handle)
 	return handle
 }
 
@@ -290,33 +292,26 @@ type proxyGroup struct {
 	conf     Config
 	states   map[string]seeker
 	proxyC   <-chan string
-	seekC    chan<- Key
+	grantC   chan<- *Lease
+	releaseC chan struct{}
 	statC    chan Status
+	notifyC  chan struct{}
 	lastStat *Status
 }
 
 // run is the "main loop" for the seek process.
-func (p *proxyGroup) run(ctx context.Context) {
+func (p *proxyGroup) run(ctx context.Context, handle GroupHandle) {
 	const logInterval int = 8
 	// ticker is the primary ticker used to schedule
 	// group-level "ticks".
 	ticker := time.NewTicker(p.conf.TickRate)
 	defer ticker.Stop()
-	// t2 is an extra ticker running on the same tick rate
-	// interval; used as a "timeout" for blocking operations
-	// within the body of the tick loop.
-	t2 := time.NewTicker(p.conf.TickRate)
-	defer t2.Stop()
-	// supply initial status & seek notification.
-	p.notifyStatus(p.Tick())
-	p.notifyShouldSeek()
-	// we use a jittered linear retry to limit the amount of tick-based
-	// seek notifications we send from the main tick loop.  Note that
-	// notifications may still be sent when a *new* proxy entry is added,
-	// or when a previously held proxy is released.
+
+	// we use a jittered linear retry to limit the rate at which we generate
+	// successive leases.  This helps mitigate excessive connection attempts.
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step:   p.conf.TickRate / 4,
-		Max:    p.conf.TickRate * 4,
+		Max:    p.conf.TickRate * 2,
 		Jitter: utils.NewJitter(),
 	})
 	if err != nil {
@@ -325,36 +320,76 @@ func (p *proxyGroup) run(ctx context.Context) {
 	// backoff is a seek notification backoff channel.  The main tick
 	// loop applies backoff after generating seek notifications.
 	var backoff <-chan time.Time
+
+	// activeLeases tracks the number of leases that have been granted.
+	activeLeases := 0
+	// start the loop in a notified state
+	p.notifyGroup()
 	var ticks int
+	var lastLog int
+Outer:
 	for {
 		select {
-		case <-ticker.C:
+		case <-p.releaseC:
+			// a lease has been relenquished, update activeLeases count and
+			// trigger recalculation of state.
+			activeLeases--
+			p.notifyGroup()
+			p.Debugf("Lease relenquished for %s", p.id)
+		case <-p.notifyC:
+			// drain the ticker, since it will just re-call notify
+			select {
+			case <-ticker.C:
+				ticks++
+			default:
+			}
 			stat := p.Tick()
 			p.notifyStatus(stat)
-			if stat.ShouldSeek() {
+			granting := false
+			// if the calculated status indicates that we need more
+			// agents, grant more leases.
+			for stat.TargetCount() > activeLeases {
+				granting = true
 				if backoff == nil {
 					backoff = retry.After()
 				}
+				// wait for backoff before generating lease.  If ticker fires, yield
+				// priority back to outer loop.
 				select {
 				case <-backoff:
-					p.notifyShouldSeek()
-					retry.Inc()
 					backoff = nil
+					retry.Inc()
 				case <-ctx.Done():
 					return
-					// don't block longer than one tick, this is OK
-					// since we don't regenerate the backoff channel
-					// unless it fires or we exit seeking mode.
-				case <-t2.C:
+				case <-ticker.C:
+					ticks++
+					p.notifyGroup()
+					continue Outer
 				}
-			} else {
+				lease := &Lease{
+					GroupHandle: handle,
+					release:     p.releaseC,
+				}
+				select {
+				case p.grantC <- lease:
+					activeLeases++
+					p.Debugf("Lease granted for %s", p.id)
+				case <-ctx.Done():
+					return
+				}
+			}
+			// stable agent count; reset linear retry.
+			if !granting {
 				retry.Reset()
 				backoff = nil
 			}
-			ticks++
-			if ticks%logInterval == 0 {
-				p.Debugf("SeekStates(states=%+v,id=%s)", p.GetStates(), p.id)
+			if ticks%logInterval == 0 && ticks != lastLog {
+				lastLog = ticks
+				p.Debugf("SeekStates(states=%+v,id=%s,leases=%d)", p.GetStates(), p.id, activeLeases)
 			}
+		case <-ticker.C:
+			ticks++
+			p.notifyGroup()
 		case proxy := <-p.proxyC:
 			proxies := []string{proxy}
 			// Collect any additional proxy messages
@@ -370,7 +405,7 @@ func (p *proxyGroup) run(ctx context.Context) {
 			}
 			count := p.RefreshProxy(proxies...)
 			if count > 0 {
-				p.notifyShouldSeek()
+				p.notifyGroup()
 			}
 		case <-ctx.Done():
 			return
@@ -411,10 +446,10 @@ func (p *proxyGroup) refreshProxy(t time.Time, proxy string) (ok bool) {
 	return false
 }
 
-// notifyShouldSeek sets the seek channel.
-func (p *proxyGroup) notifyShouldSeek() {
+// notifyGroup informs the group that its state may have changed.
+func (p *proxyGroup) notifyGroup() {
 	select {
-	case p.seekC <- p.id:
+	case p.notifyC <- struct{}{}:
 	default:
 	}
 }
@@ -468,7 +503,7 @@ func (p *proxyGroup) releaseProxy(t time.Time, principals ...string) (ok bool) {
 		return false
 	}
 	if s.state == stateSeeking {
-		p.notifyShouldSeek()
+		p.notifyGroup()
 	}
 	p.states[name] = s
 	return true

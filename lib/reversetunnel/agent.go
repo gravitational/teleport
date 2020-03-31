@@ -101,7 +101,8 @@ type AgentConfig struct {
 	// LocalClusterName is the name of the cluster this agent is running in.
 	LocalClusterName string
 	// SeekGroup manages gossip and exclusive claims for agents.
-	SeekGroup *seek.GroupHandle
+	//SeekGroup *seek.GroupHandle
+	Lease *seek.Lease
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -363,6 +364,10 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 func (a *Agent) run() {
 	defer a.setState(agentStateDisconnected)
 
+	if a.Lease != nil {
+		defer a.Lease.Release()
+	}
+
 	a.setState(agentStateConnecting)
 
 	// Try and connect to remote cluster.
@@ -404,8 +409,8 @@ func (a *Agent) run() {
 	}
 	// if a SeekGroup was provided, then the agent shouldn't continue unless
 	// no other agents hold a claim.
-	if a.SeekGroup != nil {
-		if !a.SeekGroup.WithProxy(doWork, a.getPrincipalsList()...) {
+	if a.Lease != nil {
+		if !a.Lease.WithProxy(doWork, a.getPrincipalsList()...) {
 			a.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
 		}
 	} else {
@@ -535,12 +540,12 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				default:
 				}
 			}
-			if a.SeekGroup != nil {
+			if a.Lease != nil {
 				// Broadcast proxies to the seek group.
 			Gossip:
 				for i, p := range r.Proxies {
 					select {
-					case a.SeekGroup.Gossip() <- p.GetName():
+					case a.Lease.Gossip() <- p.GetName():
 					case <-a.ctx.Done():
 						a.Infof("Closed, returning.")
 						return
