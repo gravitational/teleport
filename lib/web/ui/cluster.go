@@ -17,12 +17,12 @@ limitations under the License.
 package ui
 
 import (
-	"fmt"
 	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 )
 
@@ -49,34 +49,17 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		// public URL would be the first connected proxy public URL
-		proxies, err := clt.GetProxies()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		proxies, _ := clt.GetProxies()
+		proxyHost, _ := services.GetProxyHost(proxies)
 
-		publicURL := ""
-		if len(proxies) > 0 {
-			publicURL = proxies[0].GetPublicAddr()
-
-			// if public_address under proxy_service in config is not set, it is empty
-			// in this case we manually build the URL using proxy's hostname and default port
-			if publicURL == "" {
-				publicURL = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-			}
-		}
-
-		nodes, err := clt.GetNodes(defaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		nodes, _ := clt.GetNodes(defaults.Namespace)
 
 		clusters = append(clusters, Cluster{
 			Name:          rclsr.GetName(),
 			LastConnected: rclsr.GetLastConnected(),
 			Status:        rclsr.GetStatus(),
 			NodeCount:     len(nodes),
-			PublicURL:     publicURL,
+			PublicURL:     proxyHost,
 		})
 	}
 

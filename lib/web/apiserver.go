@@ -2088,20 +2088,12 @@ func ok() interface{} {
 // CreateSignupLink generates and returns a URL which is given to a new
 // user to complete registration with Teleport via Web UI
 func CreateSignupLink(client auth.ClientI, token string) (string, string) {
-	proxyHost := "<proxyhost>:3080"
-
 	proxies, err := client.GetProxies()
 	if err != nil {
 		log.Errorf("Unable to retrieve proxy list: %v", err)
 	}
 
-	if len(proxies) > 0 {
-		proxyHost = proxies[0].GetPublicAddr()
-		if proxyHost == "" {
-			proxyHost = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-			log.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
-		}
-	}
+	proxyHost, err := services.GetProxyHost(proxies)
 
 	u := &url.URL{
 		Scheme: "https",
