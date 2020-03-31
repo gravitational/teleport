@@ -40,6 +40,7 @@ import (
 	"github.com/tstranex/u2f"
 )
 
+// Returns the server name for authenticator
 func (s *AuthServer) getTOTPLocation() string {
 	clusterName, err := s.GetClusterName()
 	if err == nil {
