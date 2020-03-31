@@ -29,6 +29,8 @@
 
 set -eu -o pipefail
 
+# Allow passing in common name and username in environment. If not provided,
+# use default.
 CN=${CN:-teleport}
 USER=${USER:-teleport}
 
