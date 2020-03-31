@@ -2032,7 +2032,8 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 				continue
 			}
 			if p.Config.Hostname == name {
-				lb.RemoveBackend(*utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr))
+				reverseTunnelPort := utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr).Port(0)
+				c.Assert(lb.RemoveBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(reverseTunnelPort)))), check.IsNil)
 				c.Assert(p.Close(), check.IsNil)
 				c.Assert(p.Wait(), check.IsNil)
 				return
@@ -2075,12 +2076,12 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	// create first numbered proxy
 	_, c0 := addNewMainProxy(pname(0))
 	// check that we now have two tunnel connections
-	waitForProxyCount(remote, "cluster-main", 2)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 2), check.IsNil)
 	// check that first numbered proxy is OK.
 	testProxyConn(&c0, false)
 	// remove the initial proxy.
-	lb.RemoveBackend(mainProxyAddr)
-	waitForProxyCount(remote, "cluster-main", 1)
+	c.Assert(lb.RemoveBackend(mainProxyAddr), check.IsNil)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 
 	// force bad state by iteratively removing previous proxy before
 	// adding next proxy; this ensures that discovery protocol's list of
@@ -2088,9 +2089,9 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	for i := 0; i < 6; i++ {
 		prev, next := pname(i), pname(i+1)
 		killMainProxy(prev)
-		waitForProxyCount(remote, "cluster-main", 0)
+		c.Assert(waitForProxyCount(remote, "cluster-main", 0), check.IsNil)
 		_, cn := addNewMainProxy(next)
-		waitForProxyCount(remote, "cluster-main", 1)
+		c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 		testProxyConn(&cn, false)
 	}
 
@@ -2188,7 +2189,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(output, check.Equals, "hello world\n")
 
 	// Now disconnect the main proxy and make sure it will reconnect eventually.
-	lb.RemoveBackend(mainProxyAddr)
+	c.Assert(lb.RemoveBackend(mainProxyAddr), check.IsNil)
 	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
 	// Requests going via main proxy should fail.
@@ -2220,7 +2221,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Wait for the remote cluster to detect the outbound connection is gone.
-	waitForProxyCount(remote, "cluster-main", 1)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 
 	// Stop both clusters and remaining nodes.
 	c.Assert(remote.Stop(true), check.IsNil)
@@ -2339,7 +2340,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	c.Assert(output, check.Equals, "hello world\n")
 
 	// Remove second proxy from LB.
-	lb.RemoveBackend(*proxyTwoBackend)
+	c.Assert(lb.RemoveBackend(*proxyTwoBackend), check.IsNil)
 	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
 
 	// Requests going via main proxy will succeed. Requests going via second
@@ -2394,16 +2395,16 @@ func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clu
 func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	var counts map[string]int
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 32; i++ {
 		counts = t.Pool.Counts()
 		if counts[clusterName] == count {
 			return nil
 		}
 
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(512 * time.Millisecond)
 	}
 
-	return trace.BadParameter("proxy count on %v: %v", clusterName, counts[clusterName])
+	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)
 }
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
