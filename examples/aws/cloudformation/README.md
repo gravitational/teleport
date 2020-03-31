@@ -7,7 +7,12 @@
 We provide these CloudFormation templates as an example of how to setup HA Teleport in
 AWS using our AMIs. The current template will create a Highly available Teleport setup
 using DynamoDB and S3 to store logs. This setup will acquire a Let's Encrypt x509 certificate
-for you. 
+for you.
+
+If you are using the enterprise template please ensure that you have an enterprise license
+available. Once the CloudFormation stack is complete you will need to place your enterprise
+license file onto each Auth server in   
+`/var/lib/teleport/license.pem`.
 
 ## Launch VPC
 In this example Teleport requires a VPC to install into.
