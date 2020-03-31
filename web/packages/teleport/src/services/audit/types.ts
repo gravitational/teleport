@@ -507,14 +507,14 @@ type RawEventOperation<T extends Code> = RawEvent<
  * A map of event formatters that provide short and long description
  */
 export type Formatters = {
-  [key in keyof RawEvents]: {
+  [key in Code]: {
     desc: string;
     format: (json: RawEvents[key]) => string;
   };
 };
 
 export type Events = {
-  [key in keyof RawEvents]: {
+  [key in Code]: {
     id: string;
     time: Date;
     user: string;
