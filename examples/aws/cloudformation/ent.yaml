@@ -13,6 +13,8 @@ Parameters:
     Default: t2.micro
     AllowedValues:
     - t2.micro
+    - m5.large
+    - m4.large
 
   DomainName:
     ConstraintDescription: Teleport Web UI Domain Name
@@ -65,17 +67,29 @@ Parameters:
 Mappings:
   AWSInstanceType2Arch:
     t2.micro: {Arch: HVM64}
+    m4.large: {Arch: HVM64}
+    m5.large: {Arch: HVM64}
 
   AWSRegionArch2AMI:
     # eu-west-1 = EU (Ireland)
     # us-east-1 = US East (N. Virginia)
     # us-east-2 = US East (Ohio)
     # us-west-2 = US West (Oregon)
-    # All AMIs from AWS - gravitational-teleport-ami-ent-4.0.4
-    eu-west-1: {HVM64 : ami-075c9f83d9d48f5ca}
-    us-east-1: {HVM64 : ami-0e53cd757bc98e23b}
-    us-east-2: {HVM64 : ami-0f7b4cc718ce99dce}
-    us-west-2: {HVM64 : ami-0792ee534d2e47623}
+    # All AMIs from AWS - gravitational-teleport-ami-ent-4.2.6
+    eu-west-1: {HVM64 : ami-0b509a6a63664db66}
+    eu-west-2: {HVM64 : ami-0eb5e9694088d0433}
+    us-east-1: {HVM64 : ami-090258a635fa31821}
+    us-east-2: {HVM64 : ami-047f1c2a098d9532e}
+    us-west-2: {HVM64 : ami-025e708a6b63f1aa4}
+    us-west-1: {HVM64 : ami-046006454f75bea51}
+    ap-south-1: {HVM64 : ami-0e2a3ca85d2461e34}
+    ap-northeast-2: {HVM64 : ami-06da7fe03b524adf4}
+    ap-southeast-1: {HVM64 : ami-00847220794745527}
+    ap-southeast-2: {HVM64 : ami-0f99b6fb0060b9085}
+    ap-northeast-1: {HVM64 : ami-0a2eb6931a7661b66}
+    ca-central-1: {HVM64 : ami-01aca16dbda4de6d4}
+    eu-central-1: {HVM64 : ami-01bffd502fb78103c}
+    sa-east-1: {HVM64 : ami-05e9e08642096bffa}
 
 Resources:
 # Auth server setup
@@ -478,7 +492,7 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Count: 2
-        Timeout: PT20M
+        Timeout: PT30M
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MaxBatchSize: 1
@@ -1001,4 +1015,4 @@ Outputs:
       Ref: Bucket
     Export:
       Name: S3BucketID
-
+      
