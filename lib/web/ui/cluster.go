@@ -52,7 +52,7 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 		// error is not handled b/c nil proxies means
 		// proxyHost will be set to an empty value
 		proxies, _ := clt.GetProxies()
-		proxyHost := services.GetConfiguredOrDefaultProxyHost(proxies)
+		proxyHost := services.GuessProxyHost(proxies)
 
 		// error is not handled b/c len(nil) is 0
 		nodes, _ := clt.GetNodes(defaults.Namespace)

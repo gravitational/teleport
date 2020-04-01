@@ -763,11 +763,12 @@ func (s SortedReverseTunnels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// GetConfiguredOrDefaultProxyHost finds and returns the first proxy with a configured
-// public address (non empty value). Other two cases:
-//   1. No proxies available, return empty value
-//   2. No proxy has a public address configured, return first proxy hostname w/ default port.
-func GetConfiguredOrDefaultProxyHost(proxies []Server) string {
+// GuessProxyHost tries to find the first proxy with a public
+// address configured. If no proxies are configured, it will return a
+// guessed value by concatenating the first proxy's hostname with default port number.
+//
+// Returns empty value if there are no proxies.
+func GuessProxyHost(proxies []Server) string {
 	if len(proxies) < 1 {
 		return ""
 	}
