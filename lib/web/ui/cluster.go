@@ -20,10 +20,12 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // Cluster describes a cluster
@@ -40,6 +42,10 @@ type Cluster struct {
 	PublicURL string `json:"publicURL"`
 }
 
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentProxy,
+})
+
 // NewClusters creates a slice of Cluster's, containing data about each cluster.
 func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 	clusters := []Cluster{}
@@ -51,7 +57,12 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 
 		// error is not handled b/c nil proxies means
 		// proxyHost will be set to an empty value
-		proxies, _ := clt.GetProxies()
+		proxies, err := clt.GetProxies()
+		if err != nil {
+			log.Errorf("Unable to retrieve proxy list: %v", err)
+			proxies = []services.Server{}
+		}
+
 		proxyHost := services.GuessProxyHost(proxies)
 
 		// error is not handled b/c len(nil) is 0
