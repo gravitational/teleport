@@ -330,12 +330,34 @@ func (p *proxyGroup) run(ctx context.Context, handle GroupHandle) {
 Outer:
 	for {
 		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ticks++
+			p.notifyGroup()
 		case <-p.releaseC:
 			// a lease has been relenquished, update activeLeases count and
 			// trigger recalculation of state.
 			activeLeases--
 			p.notifyGroup()
 			p.Debugf("Lease relenquished for %s", p.id)
+		case proxy := <-p.proxyC:
+			proxies := []string{proxy}
+			// Collect any additional proxy messages
+			// without blocking.
+		Collect:
+			for {
+				select {
+				case pr := <-p.proxyC:
+					proxies = append(proxies, pr)
+				default:
+					break Collect
+				}
+			}
+			count := p.RefreshProxy(proxies...)
+			if count > 0 {
+				p.notifyGroup()
+			}
 		case <-p.notifyC:
 			// drain the ticker, since it will just re-call notify
 			select {
@@ -376,6 +398,10 @@ Outer:
 					p.Debugf("Lease granted for %s", p.id)
 				case <-ctx.Done():
 					return
+				case <-ticker.C:
+					ticks++
+					p.notifyGroup()
+					continue Outer
 				}
 			}
 			// stable agent count; reset linear retry.
@@ -387,28 +413,7 @@ Outer:
 				lastLog = ticks
 				p.Debugf("SeekStates(states=%+v,id=%s,leases=%d)", p.GetStates(), p.id, activeLeases)
 			}
-		case <-ticker.C:
-			ticks++
-			p.notifyGroup()
-		case proxy := <-p.proxyC:
-			proxies := []string{proxy}
-			// Collect any additional proxy messages
-			// without blocking.
-		Collect:
-			for {
-				select {
-				case pr := <-p.proxyC:
-					proxies = append(proxies, pr)
-				default:
-					break Collect
-				}
-			}
-			count := p.RefreshProxy(proxies...)
-			if count > 0 {
-				p.notifyGroup()
-			}
-		case <-ctx.Done():
-			return
+
 		}
 	}
 }
