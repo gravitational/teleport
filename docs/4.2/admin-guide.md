@@ -153,9 +153,9 @@ numbers.
 
 |Port      | Service    | Description
 |----------|------------|-------------------------------------------
-|3022      | Node       | SSH port. This is Teleport's equivalent of port `#22` for SSH.
-|3023      | Proxy      | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination node.
-|3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
+|3022      | Node       | SSH port. This is Teleport's equivalent of port `22` for SSH.
+|3023      | Proxy      | SSH port clients connect to. A proxy will forward this connection to port `3022` on the destination node.
+|3024      | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server. Also used by nodes connecting via Teleport IoT/node tunneling.
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
 |3026      | Kubernetes Proxy      | HTTPS Kubernetes proxy (if enabled)
