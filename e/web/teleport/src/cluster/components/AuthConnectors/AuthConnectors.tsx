@@ -75,7 +75,7 @@ export default function AuthConnectors() {
               AUTHENTICATION CONNECTORS
             </Text>
             <Text typography="subtitle1" mb={3}>
-              Authentication connectors allow Gravity to authenticate users via
+              Authentication connectors allow Teleport to authenticate users via
               an external identity source such as Okta, Active Directory,
               Github, etc. This authentication method is frequently called
               single sign-on (SSO).
@@ -85,7 +85,7 @@ export default function AuthConnectors() {
               <Text
                 as="a"
                 color="light"
-                href="https://gravitational.com/gravity/docs/cluster/#configuring-openid-connect"
+                href="https://gravitational.com/teleport/docs/enterprise/ssh_sso/"
                 target="_blank"
               >
                 view our documentation
