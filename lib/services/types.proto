@@ -155,7 +155,7 @@ message ServerSpecV2 {
     // reverse tunnel.
     bool UseTunnel = 6 [ (gogoproto.jsontag) = "use_tunnel,omitempty" ];
     // TeleportVersion is the teleport version that the server is running on
-    string TeleportVersion = 7 [ (gogoproto.jsontag) = "teleport_version" ];
+    string Version = 7 [ (gogoproto.jsontag) = "version" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the

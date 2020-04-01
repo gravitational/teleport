@@ -93,9 +93,9 @@ func (s *ServerV2) GetVersion() string {
 	return s.Version
 }
 
-// GetTeleportVersion returns teleport version auth service is running on
+// GetTeleportVersion returns the teleport version the server is running on
 func (s *ServerV2) GetTeleportVersion() string {
-	return s.Spec.TeleportVersion
+	return s.Spec.Version
 }
 
 // GetKind returns resource kind

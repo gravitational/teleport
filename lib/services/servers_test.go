@@ -49,9 +49,9 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 			Labels:    map[string]string{"a": "b"},
 		},
 		Spec: ServerSpecV2{
-			Addr:            "localhost:3022",
-			CmdLabels:       map[string]CommandLabelV2{"a": CommandLabelV2{Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
-			TeleportVersion: "4.0.0",
+			Addr:      "localhost:3022",
+			CmdLabels: map[string]CommandLabelV2{"a": CommandLabelV2{Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
+			Version:   "4.0.0",
 		},
 	}
 	node.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
@@ -90,7 +90,7 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 
 	// TeleportVersion has changed
 	node2 = *node
-	node2.Spec.TeleportVersion = "5.0.0"
+	node2.Spec.Version = "5.0.0"
 	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// Rotation has changed

@@ -1156,9 +1156,9 @@ func (process *TeleportProcess) initAuthService() error {
 					Name:      process.Config.HostUUID,
 				},
 				Spec: services.ServerSpecV2{
-					Addr:            authAddr,
-					Hostname:        process.Config.Hostname,
-					TeleportVersion: teleport.Version,
+					Addr:     authAddr,
+					Hostname: process.Config.Hostname,
+					Version:  teleport.Version,
 				},
 			}
 			state, err := process.storage.GetState(teleport.RoleAdmin)
