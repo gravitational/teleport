@@ -17,13 +17,13 @@ limitations under the License.
 package ui
 
 import (
-	"fmt"
 	"sort"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -57,44 +57,23 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		nodes, err := clt.GetNodes(defaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		authServers, err := clt.GetAuthServers()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		authVersion := ""
-		if len(authServers) > 0 {
-			// use the first auth server
-			authVersion = authServers[0].GetTeleportVersion()
-		}
-
-		// public URL would be the first connected proxy public URL
 		proxies, err := clt.GetProxies()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.Errorf("Unable to retrieve proxy list: %v", err)
+			proxies = []services.Server{}
 		}
 
-		publicURL := ""
-		if len(proxies) > 0 {
-			publicURL = proxies[0].GetPublicAddr()
+		proxyHost := services.GuessProxyHost(proxies)
 
-			if publicURL == "" {
-				publicURL = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-				log.Debugf("public_address not set for proxy, returning default proxy's hostname: %q", publicURL)
-			}
-		}
+		// error is not handled b/c len(nil) is 0
+		nodes, _ := clt.GetNodes(defaults.Namespace)
 
 		clusters = append(clusters, Cluster{
 			Name:          rclsr.GetName(),
 			LastConnected: rclsr.GetLastConnected(),
 			Status:        rclsr.GetStatus(),
 			NodeCount:     len(nodes),
-			PublicURL:     publicURL,
+			PublicURL:     proxyHost,
 			AuthVersion:   authVersion,
 		})
 	}

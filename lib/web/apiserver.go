@@ -1335,7 +1335,7 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
 	clusters, err := ui.NewClusters(h.cfg.Proxy.GetSites())
 	if err != nil {
-		trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return clusters, nil

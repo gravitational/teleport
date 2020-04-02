@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -770,4 +771,25 @@ func (s SortedReverseTunnels) Less(i, j int) bool {
 
 func (s SortedReverseTunnels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
+}
+
+// GuessProxyHost tries to find the first proxy with a public
+// address configured. If no proxies are configured, it will return a
+// guessed value by concatenating the first proxy's hostname with default port number.
+//
+// Returns empty value if there are no proxies.
+func GuessProxyHost(proxies []Server) string {
+	if len(proxies) < 1 {
+		return ""
+	}
+
+	// find the first proxy with a public address set
+	for _, proxy := range proxies {
+		proxyHost := proxy.GetPublicAddr()
+		if proxyHost != "" {
+			return proxyHost
+		}
+	}
+
+	return fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
 }
