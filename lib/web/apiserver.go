@@ -1323,7 +1323,7 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 	return NewSessionResponse(ctx)
 }
 
-// getClusters returns a list of clusters
+// getClusters returns a list of cluster and its data.
 //
 // GET /v1/webapi/sites
 //
@@ -1332,7 +1332,12 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 // {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
 //
 func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
-	return ui.NewClusters(h.cfg.Proxy.GetSites()), nil
+	clusters, err := ui.NewClusters(h.cfg.Proxy.GetSites())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clusters, nil
 }
 
 type getSiteNamespacesResponse struct {
