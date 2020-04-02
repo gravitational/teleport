@@ -96,10 +96,10 @@ export default function ClustersList(props: ClusterListProps) {
         cell={<NameCell />}
       />
       <Column
-        columnKey="version"
+        columnKey="authVersion"
         header={
           <SortHeaderCell
-            sortDir={sortDir.version}
+            sortDir={sortDir.authVersion}
             onSortChange={onSortChange}
             title="Version"
           />
@@ -136,7 +136,7 @@ export default function ClustersList(props: ClusterListProps) {
 function filter(clusters: Cluster[], searchValue = '') {
   return clusters.filter(obj =>
     isMatch(obj, searchValue, {
-      searchableProps: ['clusterId', 'version'],
+      searchableProps: ['clusterId', 'authVersion'],
       cb: filterCb,
     })
   );

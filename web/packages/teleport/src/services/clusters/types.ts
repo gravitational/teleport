@@ -22,5 +22,5 @@ export interface Cluster {
   url: string;
   nodeCount: number;
   publicURL: string;
-  version: string;
+  authVersion: string;
 }

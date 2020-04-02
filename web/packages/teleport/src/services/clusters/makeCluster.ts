@@ -19,12 +19,20 @@ import { displayDateTime } from 'shared/services/loc';
 import { Cluster } from './types';
 
 export default function makeCluster(json): Cluster {
-  const [clusterId, lastConnected, status, nodeCount, publicURL] = at(json, [
+  const [
+    clusterId,
+    lastConnected,
+    status,
+    nodeCount,
+    publicURL,
+    authVersion,
+  ] = at(json, [
     'name',
     'lastConnected',
     'status',
     'nodeCount',
     'publicURL',
+    'authVersion',
   ]);
 
   const connectedText = displayDateTime(lastConnected);
@@ -35,9 +43,9 @@ export default function makeCluster(json): Cluster {
     connectedText,
     status,
     url: cfg.getClusterRoute(clusterId),
-    version: 'not implemented',
-    nodeCount: nodeCount,
-    publicURL: publicURL,
+    authVersion,
+    nodeCount,
+    publicURL,
   };
 }
 
