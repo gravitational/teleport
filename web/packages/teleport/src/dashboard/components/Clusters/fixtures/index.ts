@@ -18,7 +18,7 @@ export const clusters = [
   {
     clusterId: 'localhost',
     nodeCount: 30,
-    version: '1.2.3',
+    authVersion: '1.2.3',
     status: 'online',
     connectedText: '2019-08-30 17:40:04',
     lastConnected: new Date('2019-08-30T17:40:04.134157474Z'),
@@ -29,7 +29,7 @@ export const clusters = [
   {
     clusterId: 'nidvojik',
     nodeCount: 21,
-    version: '1.2.3',
+    authVersion: '1.2.3',
     status: 'online',
     connectedText: '2019-08-30 12:40:04',
     lastConnected: new Date('2019-08-30T12:40:04.134157474Z'),
@@ -40,7 +40,7 @@ export const clusters = [
   {
     clusterId: 'lidtabih',
     nodeCount: 35,
-    version: '1.2.3',
+    authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
     lastConnected: new Date('2019-08-30T11:40:04.134157474Z'),
@@ -51,7 +51,7 @@ export const clusters = [
   {
     clusterId: 'farovluv',
     nodeCount: 12,
-    version: '1.2.3',
+    authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
     lastConnected: new Date('2019-08-30T11:40:04.134157474Z'),
@@ -62,7 +62,7 @@ export const clusters = [
   {
     clusterId: 'rozpaari',
     nodeCount: 32,
-    version: '1.2.3',
+    authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
     lastConnected: new Date('2019-08-30T11:40:04.134157474Z'),
@@ -73,7 +73,7 @@ export const clusters = [
   {
     clusterId: 'wetjolune',
     nodeCount: 8,
-    version: '1.2.3',
+    authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
     lastConnected: new Date('2019-08-30T11:40:04.134157474Z'),
@@ -84,7 +84,7 @@ export const clusters = [
   {
     clusterId: 'dashawic',
     nodeCount: 11,
-    version: '1.2.3',
+    authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
     lastConnected: new Date('2019-08-30T11:40:04.134157474Z'),
@@ -95,7 +95,7 @@ export const clusters = [
   {
     clusterId: 'fugzucis',
     nodeCount: 23,
-    version: '1.2.3',
+    authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
     lastConnected: new Date('2019-08-30T11:40:04.134157474Z'),
