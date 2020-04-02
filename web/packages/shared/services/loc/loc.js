@@ -18,10 +18,17 @@ import moment from 'moment';
 import Logger from 'shared/libs/logger';
 import cfg from 'shared/config';
 
+const isTest = process.env.NODE_ENV === 'test';
+
 const logger = Logger.create('services/loc');
 
 export function displayDate(date) {
   try {
+    if (isTest) {
+      return moment(date)
+        .utc()
+        .format(cfg.dateFormat);
+    }
     return moment(date).format(cfg.dateFormat);
   } catch (err) {
     logger.error('displayDate()', err);
@@ -31,6 +38,11 @@ export function displayDate(date) {
 
 export function displayDateTime(date) {
   try {
+    if (isTest) {
+      return moment(date)
+        .utc()
+        .format(cfg.dateTimeFormat);
+    }
     return moment(date).format(cfg.dateTimeFormat);
   } catch (err) {
     logger.error('displayDateTime()', err);
