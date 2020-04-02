@@ -56,17 +56,28 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		
+		// error is not handled b/c len(nil) is 0
+		nodes, _ := clt.GetNodes(defaults.Namespace)
 
 		proxies, err := clt.GetProxies()
 		if err != nil {
 			log.Errorf("Unable to retrieve proxy list: %v", err)
 			proxies = []services.Server{}
 		}
-
+		
 		proxyHost := services.GuessProxyHost(proxies)
 
-		// error is not handled b/c len(nil) is 0
-		nodes, _ := clt.GetNodes(defaults.Namespace)
+		authServers, err := clt.GetAuthServers()
+		if err != nil {
+			log.Errorf("Unable to retrieve auth servers list: %v", err)
+		}
+		
+		authVersion := ""
+		if len(authServers) > 0 {
+			// use the first auth server
+			authVersion = authServers[0].GetTeleportVersion()
+		}
 
 		clusters = append(clusters, Cluster{
 			Name:          rclsr.GetName(),
