@@ -1,5 +1,6 @@
 FROM node:12-slim
 RUN apt-get update && apt-get install git -y
+ENV TZ=America/New_York
 
 RUN mkdir -p web-apps
 COPY yarn.lock web-apps/

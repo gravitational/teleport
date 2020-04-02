@@ -1,8 +1,9 @@
 # Gravitational Web Applications and Packages
 
-This mono-repository contains the source code for the
-[Teleport](https://github.com/gravitational/teleport) and
-[Gravity](https://github.com/gravitational/gravity) Web UI.
+This mono-repository contains the source code for the web UIs of the following projects:
+[Teleport](https://github.com/gravitational/teleport)
+[Gravity](https://github.com/gravitational/gravity)
+[Force](https://github.com/gravitational/force)
 
 The code is organized in terms of independent yarn packages which reside in
 the [packages directory](https://github.com/gravitational/webapps/tree/master/packages).
@@ -55,32 +56,50 @@ Then you need download and initialize these repository dependencies.
 $ yarn install
 ```
 
-To build Teleport Web UI
+To build the Teleport web UI
 
 ```
 $ yarn build-teleport
 ```
 
-To build Gravity Web UI
+To build the Gravity web UI
 
 ```
 $ yarn build-gravity
 ```
 
-The resulting output will be in `/packages/teleport/dist/` and `/packages/gravity/dist/`
+To build the Force web UI
+
+```
+$ yarn build-force
+```
+
+The resulting output will be in the `/packages/{package-name}/dist/` folders respectively.
 
 ### Docker Build
 
-To build Teleport Web UI
+To build all packages
 
 ```
-$ make teleport
+$ make all
 ```
 
-To build Gravity Web UI
+To build the Teleport web UI
 
 ```
-$ make gravity
+$ make packages/teleport/dist
+```
+
+To build the Gravity web UI
+
+```
+$ make packages/gravity/dist
+```
+
+To build the Force web UI
+
+```
+$ make packages/force/dist
 ```
 
 ## Development
@@ -140,3 +159,8 @@ $ yarn run storybook
 This command will open a new browser window with storybook in it. There
 you will see components from all packages so it makes it faster to work
 and iterate on shared functionality.
+
+
+### Deployment
+
+Deployment is automated through our CI system. Each commit to the `master` branch will be built & deployed.
