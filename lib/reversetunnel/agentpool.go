@@ -56,8 +56,7 @@ type AgentPool struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	// lastReport is the last time the agent has reported the stats
-	lastReport  time.Time
-	lastAgentID uint64
+	lastReport time.Time
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -91,9 +90,6 @@ type AgentPoolConfig struct {
 	ReverseTunnelServer Server
 	// ProxyAddr if set, points to the address of the ssh proxy
 	ProxyAddr string
-	// MaxPendingAgents is the maximum number of simultaneous connection
-	// attempts which may be active for a given endpoint.
-	MaxPendingAgents int
 	// Seek configures the proxy-seeking algorithm
 	Seek seek.Config
 }
@@ -117,9 +113,6 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
-	}
-	if cfg.MaxPendingAgents < 1 {
-		cfg.MaxPendingAgents = 3
 	}
 	if err := cfg.Seek.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -192,28 +185,6 @@ func (m *AgentPool) processSeekEvents() {
 		}
 	}
 }
-
-/*
-// addAgentIfNeeded adds an agent only if there are not too many
-// pending agents already.  Must be called with lock.
-func (m *AgentPool) addAgentIfNeeded(key agentKey) error {
-	agents, ok := m.agents[key]
-	if !ok {
-		// no agents present, add one.
-		return trace.Wrap(m.addAgent(key))
-	}
-	pending := 0
-	for _, agent := range agents {
-		if isPendingAgentState(agent.getState()) {
-			pending++
-		}
-	}
-	if pending < m.cfg.MaxPendingAgents {
-		return trace.Wrap(m.addAgent(key))
-	}
-	m.Debugf("Not addding agent for %v, limit exceeded (%d)", key, pending)
-	return nil
-}*/
 
 func foundInOneOf(proxy services.Server, agents []*Agent) bool {
 	for _, agent := range agents {
@@ -314,10 +285,7 @@ func (m *AgentPool) addAgent(lease *seek.Lease) error {
 	if key.tunnelType == string(services.NodeTunnel) {
 		clusterName = m.cfg.Cluster
 	}
-	m.lastAgentID++
-	agentID := m.lastAgentID
 	agent, err := NewAgent(AgentConfig{
-		ID:                  agentID,
 		Addr:                key.addr,
 		ClusterName:         clusterName,
 		Username:            m.cfg.HostUUID,
@@ -400,11 +368,11 @@ func (m *AgentPool) reportStats() {
 	}
 
 	for key, agents := range m.agents {
-		tunnelID := key.clusterName
-		if m.cfg.Component == teleport.ComponentNode {
-			tunnelID = m.cfg.HostUUID
-		}
-		m.Debugf("Outbound tunnel for %v connected to %v proxies.", tunnelID, len(agents))
+		//tunnelID := key.clusterName
+		//if m.cfg.Component == teleport.ComponentNode {
+		//	tunnelID = m.cfg.HostUUID
+		//}
+		//m.Debugf("Outbound tunnel for %v connected to %v proxies.", tunnelID, len(agents))
 
 		countPerState := map[string]int{
 			agentStateConnecting:   0,
@@ -424,6 +392,8 @@ func (m *AgentPool) reportStats() {
 		}
 		if logReport {
 			m.WithFields(log.Fields{"target": key.clusterName, "stats": countPerState}).Info("Outbound tunnel stats.")
+		} else {
+			m.WithFields(log.Fields{"target": key.clusterName, "stats": countPerState}).Debug("Outbound tunnel stats.")
 		}
 	}
 }

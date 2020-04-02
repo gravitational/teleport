@@ -17,7 +17,9 @@ limitations under the License.
 package seek
 
 import (
+	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // Lease is a per-agent lease; used to manage the number of simultaneously
@@ -27,6 +29,19 @@ type Lease struct {
 	GroupHandle
 	once    sync.Once
 	release chan<- struct{}
+	id      uint64
+}
+
+// WithProxy is used to wrap the connection-handling logic of an agent,
+// ensuring that it is run if and only if no other agent is already
+// handling this proxy.
+func (l *Lease) WithProxy(do func(), principals ...string) (did bool) {
+	return l.GroupHandle.WithProxy(do, l.ID(), principals...)
+}
+
+// ID returns the unique ID of this lease.
+func (l *Lease) ID() uint64 {
+	return l.id
 }
 
 // Release releases the lease.
@@ -39,9 +54,32 @@ func (l *Lease) Release() {
 	})
 }
 
+func (l *Lease) String() string {
+	return fmt.Sprintf("Lease(key=%v,id=%v)", l.Key(), l.id)
+}
+
+type counter struct {
+	value *uint64
+}
+
+func newCounter() counter {
+	return counter{
+		value: new(uint64),
+	}
+}
+
+func (c counter) Next() uint64 {
+	return atomic.AddUint64(c.value, 1)
+}
+
+func (c counter) Load() uint64 {
+	return atomic.LoadUint64(c.value)
+}
+
+/*
 type leases struct {
 	group   GroupHandle
 	active  int
 	grant   chan<- *Lease
 	release chan struct{}
-}
+}*/

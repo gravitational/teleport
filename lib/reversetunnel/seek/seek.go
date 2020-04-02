@@ -116,6 +116,7 @@ type Pool struct {
 	conf   Config
 	groups map[Key]GroupHandle
 	grantC chan *Lease
+	ids    counter
 	ctx    context.Context
 }
 
@@ -135,6 +136,7 @@ func NewPool(ctx context.Context, conf Config) (*Pool, error) {
 		conf:   conf,
 		groups: make(map[Key]GroupHandle),
 		grantC: make(chan *Lease),
+		ids:    newCounter(),
 		ctx:    ctx,
 	}, nil
 }
@@ -153,7 +155,7 @@ func (p *Pool) getOrStartGroup(key Key) GroupHandle {
 		return group
 	}
 	p.Infof("Starting seek group: %+v", key)
-	group := newGroupHandle(p.ctx, p.conf, p.grantC, key)
+	group := newGroupHandle(p.ctx, p.conf, p.grantC, p.ids, key)
 	p.groups[key] = group
 	return group
 }
@@ -214,7 +216,7 @@ type GroupHandle struct {
 	done   <-chan struct{}
 }
 
-func newGroupHandle(ctx context.Context, conf Config, grantC chan *Lease, id Key) GroupHandle {
+func newGroupHandle(ctx context.Context, conf Config, grantC chan *Lease, ids counter, key Key) GroupHandle {
 	ctx, cancel := context.WithCancel(ctx)
 	proxyC := make(chan string, 128)
 	statC := make(chan Status, 1)
@@ -228,7 +230,7 @@ func newGroupHandle(ctx context.Context, conf Config, grantC chan *Lease, id Key
 	}
 	seekers := &proxyGroup{
 		Entry:    entry,
-		id:       id,
+		key:      key,
 		conf:     conf,
 		states:   make(map[string]seeker),
 		proxyC:   proxyC,
@@ -236,6 +238,7 @@ func newGroupHandle(ctx context.Context, conf Config, grantC chan *Lease, id Key
 		releaseC: releaseC,
 		notifyC:  notifyC,
 		statC:    statC,
+		ids:      ids,
 	}
 	handle := GroupHandle{
 		inner:  seekers,
@@ -249,7 +252,7 @@ func newGroupHandle(ctx context.Context, conf Config, grantC chan *Lease, id Key
 }
 
 func (s *GroupHandle) Key() Key {
-	return s.inner.id
+	return s.inner.key
 }
 
 // Done returns a channel that is closed when this
@@ -261,8 +264,8 @@ func (s *GroupHandle) Done() <-chan struct{} {
 // WithProxy is used to wrap the connection-handling logic of an agent,
 // ensuring that it is run if and only if no other agent is already
 // handling this proxy.
-func (s *GroupHandle) WithProxy(do func(), principals ...string) (did bool) {
-	if !s.inner.TryAcquireProxy(principals...) {
+func (s *GroupHandle) WithProxy(do func(), leaseID uint64, principals ...string) (did bool) {
+	if !s.inner.TryAcquireProxy(leaseID, principals...) {
 		return false
 	}
 	defer s.inner.ReleaseProxy(principals...)
@@ -288,7 +291,7 @@ func (s *GroupHandle) Gossip() chan<- string {
 type proxyGroup struct {
 	sync.Mutex
 	*log.Entry
-	id       Key
+	key      Key
 	conf     Config
 	states   map[string]seeker
 	proxyC   <-chan string
@@ -297,6 +300,7 @@ type proxyGroup struct {
 	statC    chan Status
 	notifyC  chan struct{}
 	lastStat *Status
+	ids      counter
 }
 
 // run is the "main loop" for the seek process.
@@ -320,6 +324,7 @@ func (p *proxyGroup) run(ctx context.Context, handle GroupHandle) {
 	// backoff is a seek notification backoff channel.  The main tick
 	// loop applies backoff after generating seek notifications.
 	var backoff <-chan time.Time
+	var nextLease *Lease
 
 	// activeLeases tracks the number of leases that have been granted.
 	activeLeases := 0
@@ -340,7 +345,7 @@ Outer:
 			// trigger recalculation of state.
 			activeLeases--
 			p.notifyGroup()
-			p.Debugf("Lease relenquished for %s", p.id)
+			p.Debugf("Lease relenquished for %s", p.key)
 		case proxy := <-p.proxyC:
 			proxies := []string{proxy}
 			// Collect any additional proxy messages
@@ -388,14 +393,18 @@ Outer:
 					p.notifyGroup()
 					continue Outer
 				}
-				lease := &Lease{
-					GroupHandle: handle,
-					release:     p.releaseC,
+				if nextLease == nil {
+					nextLease = &Lease{
+						GroupHandle: handle,
+						release:     p.releaseC,
+						id:          p.ids.Next(),
+					}
 				}
 				select {
-				case p.grantC <- lease:
+				case p.grantC <- nextLease:
 					activeLeases++
-					p.Debugf("Lease granted for %s", p.id)
+					p.Debugf("Successfully granted: %v", nextLease)
+					nextLease = nil
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
@@ -411,7 +420,7 @@ Outer:
 			}
 			if ticks%logInterval == 0 && ticks != lastLog {
 				lastLog = ticks
-				p.Debugf("SeekStates(states=%+v,id=%s,leases=%d)", p.GetStates(), p.id, activeLeases)
+				p.Debugf("SeekStates(states=%+v,key=%s,leases=%d)", p.GetStates(), p.key, activeLeases)
 			}
 
 		}
@@ -472,10 +481,10 @@ func (p *proxyGroup) notifyStatus(s Status) {
 }
 
 // AcquireProxy attempts to acquire the specified proxy.
-func (p *proxyGroup) TryAcquireProxy(principals ...string) (ok bool) {
+func (p *proxyGroup) TryAcquireProxy(leaseID uint64, principals ...string) (ok bool) {
 	p.Lock()
 	defer p.Unlock()
-	return p.acquireProxy(time.Now(), principals...)
+	return p.acquireProxy(time.Now(), leaseID, principals...)
 }
 
 // ReleaseProxy attempts to release the specified proxy.
@@ -485,7 +494,7 @@ func (p *proxyGroup) ReleaseProxy(principals ...string) (ok bool) {
 	return p.releaseProxy(time.Now(), principals...)
 }
 
-func (p *proxyGroup) acquireProxy(t time.Time, principals ...string) (ok bool) {
+func (p *proxyGroup) acquireProxy(t time.Time, leaseID uint64, principals ...string) (ok bool) {
 	if len(principals) < 1 {
 		return false
 	}
@@ -494,6 +503,7 @@ func (p *proxyGroup) acquireProxy(t time.Time, principals ...string) (ok bool) {
 	if !s.transit(t, eventAcquire, &p.conf) {
 		return false
 	}
+	s.leaseID = leaseID
 	p.states[name] = s
 	return true
 }
@@ -507,6 +517,7 @@ func (p *proxyGroup) releaseProxy(t time.Time, principals ...string) (ok bool) {
 	if !s.transit(t, eventRelease, &p.conf) {
 		return false
 	}
+	s.leaseID = 0
 	if s.state == stateSeeking {
 		p.notifyGroup()
 	}
@@ -524,8 +535,8 @@ func (p *proxyGroup) resolveName(principals []string) string {
 	// default to using the first principal
 	name := principals[0]
 	// if we have a `.<cluster-name>` suffix, remove it.
-	if strings.HasSuffix(name, p.id.Cluster) {
-		t := strings.TrimSuffix(name, p.id.Cluster)
+	if strings.HasSuffix(name, p.key.Cluster) {
+		t := strings.TrimSuffix(name, p.key.Cluster)
 		if strings.HasSuffix(t, ".") {
 			name = strings.TrimSuffix(t, ".")
 		}
@@ -533,12 +544,12 @@ func (p *proxyGroup) resolveName(principals []string) string {
 	return name
 }
 
-func (p *proxyGroup) GetStates() map[string]seekState {
+func (p *proxyGroup) GetStates() map[string]seeker {
 	p.Lock()
 	defer p.Unlock()
-	collector := make(map[string]seekState, len(p.states))
+	collector := make(map[string]seeker, len(p.states))
 	for proxy, s := range p.states {
-		collector[proxy] = s.state
+		collector[proxy] = s
 	}
 	return collector
 }

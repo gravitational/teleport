@@ -176,6 +176,7 @@ Discover:
 			go proxies.Discover(lease)
 		case status := <-handle.Status():
 			c.Logf("Status: %+v", status)
+			c.Logf("States: %+v", handle.inner.GetStates())
 			if status.Sum() == proxyCount {
 				break Discover
 			}
@@ -263,7 +264,7 @@ func (s *StateSuite) TestUUIDHandling(c *check.C) {
 	go handle.WithProxy(func() {
 		c.Logf("Successfully claimed proxy")
 		<-ctx.Done()
-	}, "my-proxy.test-cluster")
+	}, 0, "my-proxy.test-cluster")
 
 	// Wait for proxy to be claimed
 Wait:

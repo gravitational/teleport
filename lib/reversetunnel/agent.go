@@ -53,20 +53,8 @@ const (
 	agentStateDisconnected = "disconnected"
 )
 
-// helper for checking if agent is in a "pending" state.
-func isPendingAgentState(state string) bool {
-	switch state {
-	case agentStateConnecting:
-		return true
-	default:
-		return false
-	}
-}
-
 // AgentConfig holds configuration for agent
 type AgentConfig struct {
-	// numeric id of agent
-	ID uint64
 	// Addr is target address to dial
 	Addr utils.NetAddr
 	// ClusterName is the name of the cluster the tunnel is connected to. When the
@@ -100,8 +88,8 @@ type AgentConfig struct {
 	ReverseTunnelServer Server
 	// LocalClusterName is the name of the cluster this agent is running in.
 	LocalClusterName string
-	// SeekGroup manages gossip and exclusive claims for agents.
-	//SeekGroup *seek.GroupHandle
+	// Lease manages gossip and exclusive claims.  Lease may be nil
+	// when used in the context of tests.
 	Lease *seek.Lease
 }
 
@@ -174,16 +162,23 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 	a.Entry = log.WithFields(log.Fields{
 		trace.Component: teleport.ComponentReverseTunnelAgent,
 		trace.ComponentFields: log.Fields{
-			"target": cfg.Addr.String(),
-			"id":     cfg.ID,
+			"target":  cfg.Addr.String(),
+			"leaseID": a.LeaseID(),
 		},
 	})
 	a.hostKeyCallback = a.checkHostSignature
 	return a, nil
 }
 
+func (a *Agent) LeaseID() uint64 {
+	if a.Lease == nil {
+		return 0
+	}
+	return a.Lease.ID()
+}
+
 func (a *Agent) String() string {
-	return fmt.Sprintf("agent(id=%d,state=%v) -> %v:%v", a.ID, a.getState(), a.ClusterName, a.Addr.String())
+	return fmt.Sprintf("agent(leaseID=%d,state=%v) -> %v:%v", a.LeaseID(), a.getState(), a.ClusterName, a.Addr.String())
 }
 
 func (a *Agent) getLastStateChange() time.Time {

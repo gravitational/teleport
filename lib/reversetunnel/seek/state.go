@@ -83,6 +83,11 @@ type seeker struct {
 	state   seekState
 	at      time.Time
 	backOff uint64
+	leaseID uint64
+}
+
+func (s seeker) String() string {
+	return fmt.Sprintf("%v(%d)", s.state, s.leaseID)
 }
 
 // transit attempts a state transition.  If transit returns true, then
