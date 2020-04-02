@@ -931,7 +931,7 @@ var react_default = /*#__PURE__*/__webpack_require__.n(react);
 // EXTERNAL MODULE: /web-apps/packages/design/src/index.js + 18 modules
 var design_src = __webpack_require__("6x4c");
 
-// EXTERNAL MODULE: /web-apps/packages/shared/components/Validation/index.js + 1 modules
+// EXTERNAL MODULE: /web-apps/packages/shared/components/Validation/index.js + 2 modules
 var Validation = __webpack_require__("bf5B");
 
 // EXTERNAL MODULE: /web-apps/packages/design/src/CardError/index.js + 1 modules
@@ -2045,8 +2045,8 @@ function fetchOpProgress(siteId, opId) {
     reactor["a" /* default */].dispatch(actionTypes["a" /* OP_PROGRESS_RECEIVE */], data);
   });
 }
-// EXTERNAL MODULE: /web-apps/node_modules/react-router/es/generatePath.js
-var generatePath = __webpack_require__("mlAs");
+// EXTERNAL MODULE: /web-apps/node_modules/react-router/esm/react-router.js + 1 modules
+var react_router = __webpack_require__("lkLo");
 
 // CONCATENATED MODULE: /web-apps/packages/gravity/src/installer/components/StepProgress/InstallLogsProvider/InstallLogsProvider.jsx
 function InstallLogsProvider_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { InstallLogsProvider_typeof = function _typeof(obj) { return typeof obj; }; } else { InstallLogsProvider_typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return InstallLogsProvider_typeof(obj); }
@@ -2204,7 +2204,7 @@ function createLogStreamer(siteId, opId) {
   var token = Object(api["c" /* getAccessToken */])();
   var hostport = location.hostname + (location.port ? ':' + location.port : '');
   var hostname = "wss://".concat(hostport);
-  var url = Object(generatePath["a" /* default */])(src_config["a" /* default */].api.operationLogsPath, {
+  var url = Object(react_router["f" /* generatePath */])(src_config["a" /* default */].api.operationLogsPath, {
     siteId: siteId,
     token: token,
     opId: opId
@@ -3414,8 +3414,8 @@ function labelText(count) {
 // EXTERNAL MODULE: /web-apps/packages/design/src/Alert/index.jsx + 1 modules
 var Alert = __webpack_require__("q1Gt");
 
-// EXTERNAL MODULE: /web-apps/packages/shared/hooks/index.js + 1 modules
-var hooks = __webpack_require__("wz1R");
+// EXTERNAL MODULE: /web-apps/packages/shared/hooks/index.ts + 2 modules
+var hooks = __webpack_require__("8U3f");
 
 // CONCATENATED MODULE: /web-apps/packages/gravity/src/installer/components/StepCapacity/Flavor/Flavor.jsx
 function Flavor_extends() { Flavor_extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Flavor_extends.apply(this, arguments); }
