@@ -166,7 +166,13 @@ func (s *AuthServer) newResetPasswordToken(req CreateResetPasswordTokenRequest) 
 		return nil, trace.Wrap(err)
 	}
 
-	url, err := formatResetPasswordTokenURL(s.publicURL(), tokenID, req.Type)
+	proxies, err := s.GetProxies()
+	if err != nil {
+		log.Errorf("Unable to retrieve proxy list: %v", err)
+	}
+
+	proxyHost := services.GuessProxyHost(proxies)
+	url, err := formatResetPasswordTokenURL(proxyHost, tokenID, req.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,31 +185,16 @@ func (s *AuthServer) newResetPasswordToken(req CreateResetPasswordTokenRequest) 
 	return &token, nil
 }
 
-func (s *AuthServer) publicURL() string {
-	proxyHost := "<proxyhost>:3080"
-	proxies, err := s.GetProxies()
-	if err != nil {
-		log.Errorf("Unable to retrieve proxy list: %v", err)
+func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType string) (string, error) {
+	if proxyHost == "" {
+		proxyHost = fmt.Sprintf("<proxyhost>:%v", defaults.HTTPListenPort)
 	}
 
-	if len(proxies) > 0 {
-		proxyHost = proxies[0].GetPublicAddr()
-		if proxyHost == "" {
-			proxyHost = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-			log.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
-		}
+	u := &url.URL{
+		Scheme: "https",
+		Host:   proxyHost,
 	}
 
-	return fmt.Sprintf("https://" + proxyHost)
-}
-
-func formatResetPasswordTokenURL(advertiseURL string, tokenID string, reqType string) (string, error) {
-	u, err := url.Parse(advertiseURL)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	u.RawQuery = ""
 	// We have 2 differen UI flows to process password reset tokens
 	if reqType == ResetPasswordTokenTypeInvite {
 		u.Path = fmt.Sprintf("/web/invite/%v", tokenID)

@@ -654,6 +654,7 @@ func (s *Server) GetInfo() services.Server {
 			Addr:      addr,
 			Hostname:  s.hostname,
 			UseTunnel: s.useTunnel,
+			Version:   teleport.Version,
 		},
 	}
 }
