@@ -114,6 +114,7 @@ type Pool struct {
 	*log.Entry
 	m      sync.Mutex
 	conf   Config
+	retry  utils.Retry
 	groups map[Key]GroupHandle
 	grantC chan *Lease
 	ids    counter
@@ -125,6 +126,14 @@ func NewPool(ctx context.Context, conf Config) (*Pool, error) {
 	if err := conf.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Step:   conf.TickRate / 4,
+		Max:    conf.TickRate * 2,
+		Jitter: utils.NewJitter(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	entry := conf.Logger
 	if entry == nil {
 		entry = log.WithFields(log.Fields{
@@ -134,6 +143,7 @@ func NewPool(ctx context.Context, conf Config) (*Pool, error) {
 	return &Pool{
 		Entry:  entry,
 		conf:   conf,
+		retry:  retry,
 		groups: make(map[Key]GroupHandle),
 		grantC: make(chan *Lease),
 		ids:    newCounter(),
@@ -155,7 +165,7 @@ func (p *Pool) getOrStartGroup(key Key) GroupHandle {
 		return group
 	}
 	p.Infof("Starting seek group: %+v", key)
-	group := newGroupHandle(p.ctx, p.conf, p.grantC, p.ids, key)
+	group := newGroupHandle(p.ctx, p.conf, p.grantC, p.ids, key, p.retry.Clone())
 	p.groups[key] = group
 	return group
 }
@@ -216,7 +226,7 @@ type GroupHandle struct {
 	done   <-chan struct{}
 }
 
-func newGroupHandle(ctx context.Context, conf Config, grantC chan *Lease, ids counter, key Key) GroupHandle {
+func newGroupHandle(ctx context.Context, conf Config, grantC chan *Lease, ids counter, key Key, retry utils.Retry) GroupHandle {
 	ctx, cancel := context.WithCancel(ctx)
 	proxyC := make(chan string, 128)
 	statC := make(chan Status, 1)
@@ -247,7 +257,7 @@ func newGroupHandle(ctx context.Context, conf Config, grantC chan *Lease, ids co
 		statC:  statC,
 		done:   ctx.Done(),
 	}
-	go seekers.run(ctx, handle)
+	go seekers.run(ctx, handle, retry)
 	return handle
 }
 
@@ -304,23 +314,12 @@ type proxyGroup struct {
 }
 
 // run is the "main loop" for the seek process.
-func (p *proxyGroup) run(ctx context.Context, handle GroupHandle) {
+func (p *proxyGroup) run(ctx context.Context, handle GroupHandle, retry utils.Retry) {
 	const logInterval int = 8
 	// ticker is the primary ticker used to schedule
 	// group-level "ticks".
 	ticker := time.NewTicker(p.conf.TickRate)
 	defer ticker.Stop()
-
-	// we use a jittered linear retry to limit the rate at which we generate
-	// successive leases.  This helps mitigate excessive connection attempts.
-	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step:   p.conf.TickRate / 4,
-		Max:    p.conf.TickRate * 2,
-		Jitter: utils.NewJitter(),
-	})
-	if err != nil {
-		panic(err) // TODO(fspmarshall): don't panic in prod
-	}
 	// backoff is a seek notification backoff channel.  The main tick
 	// loop applies backoff after generating seek notifications.
 	var backoff <-chan time.Time

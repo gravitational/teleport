@@ -24,23 +24,30 @@ import (
 	"math/rand"
 )
 
-// Jitter is a function which applies random jitter to
+// JitterFunc is a function which applies random jitter to
 // a duration.  Used to randomize backoff values.  An
-// instance of Jitter likely has internal state so
+// instance of JitterFunc likely has internal state so
 // concurrent usage must be managed via external mutex.
-type Jitter func(time.Duration) time.Duration
+type JitterFunc func(time.Duration) time.Duration
+
+// Jitter builds a JitterFunc.  The resulting JitterFunc may
+// have setup costs and therefure should be cached for efficency.
+// An instance of Jitter should be safe for concurrent usage.
+type Jitter func() JitterFunc
 
 // NewJitter returns the default jitter (currently jitters on
 // the range [n/2,n), but this is subject to change).
 func NewJitter() Jitter {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return func(d time.Duration) time.Duration {
-		// values less than 1 cause rng to panic, and some logic
-		// relies on treating zero duration as non-blocking case.
-		if d < 1 {
-			return 0
+	return func() JitterFunc {
+		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+		return func(d time.Duration) time.Duration {
+			// values less than 1 cause rng to panic, and some logic
+			// relies on treating zero duration as non-blocking case.
+			if d < 1 {
+				return 0
+			}
+			return (d / 2) + time.Duration(rng.Int63n(int64(d))/2)
 		}
-		return (d / 2) + time.Duration(rng.Int63n(int64(d))/2)
 	}
 }
 
@@ -57,6 +64,9 @@ type Retry interface {
 	// that fires after Duration delay,
 	// could fire right away if Duration is 0
 	After() <-chan time.Time
+	// Clone creates a copy of this retry in a
+	// reset state.
+	Clone() Retry
 }
 
 // LinearConfig sets up retry configuration
@@ -92,9 +102,19 @@ func NewLinear(cfg LinearConfig) (*Linear, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return newLinear(cfg), nil
+}
+
+// newLinear creates an instance of Linear from a
+// previously verified configuration.
+func newLinear(cfg LinearConfig) *Linear {
 	closedChan := make(chan time.Time)
 	close(closedChan)
-	return &Linear{LinearConfig: cfg, closedChan: closedChan}, nil
+	var jitter JitterFunc
+	if cfg.Jitter != nil {
+		jitter = cfg.Jitter()
+	}
+	return &Linear{LinearConfig: cfg, closedChan: closedChan, jitter: jitter}
 }
 
 // Linear is used to calculate retry period
@@ -107,11 +127,17 @@ type Linear struct {
 	LinearConfig
 	attempt    int64
 	closedChan chan time.Time
+	jitter     JitterFunc
 }
 
 // Reset resetes retry period to initial state
 func (r *Linear) Reset() {
 	r.attempt = 0
+}
+
+// Clone creates an identical copy of Linear with fresh state.
+func (r *Linear) Clone() Retry {
+	return newLinear(r.LinearConfig)
 }
 
 // Inc increments attempt counter
@@ -125,8 +151,8 @@ func (r *Linear) Duration() time.Duration {
 	if a < 1 {
 		return 0
 	}
-	if r.Jitter != nil {
-		a = r.Jitter(a)
+	if r.jitter != nil {
+		a = r.jitter(a)
 	}
 	if a <= r.Max {
 		return a
