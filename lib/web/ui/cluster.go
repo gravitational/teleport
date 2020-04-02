@@ -40,6 +40,8 @@ type Cluster struct {
 	NodeCount int `json:"nodeCount"`
 	// PublicURL is this cluster public URL (its first available proxy URL)
 	PublicURL string `json:"publicURL"`
+	// AuthVersion is the cluster auth's service version
+	AuthVersion string `json:"authVersion"`
 }
 
 var log = logrus.WithFields(logrus.Fields{
@@ -55,8 +57,6 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		// error is not handled b/c nil proxies means
-		// proxyHost will be set to an empty value
 		proxies, err := clt.GetProxies()
 		if err != nil {
 			log.Errorf("Unable to retrieve proxy list: %v", err)
@@ -74,6 +74,7 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 			Status:        rclsr.GetStatus(),
 			NodeCount:     len(nodes),
 			PublicURL:     proxyHost,
+			AuthVersion:   authVersion,
 		})
 	}
 
