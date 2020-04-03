@@ -5,7 +5,7 @@ SSH credentials to specific groups of users with a SAML Authentication Connector
 based access control (RBAC) it allows SSH administrators to define policies
 like:
 
-* Only members of "DBA" Google group can SSH into machines running PostgreSQL.
+* Only members of "DBA" Azure AD group can SSH into machines running PostgreSQL.
 * Developers must never SSH into production servers.
 * ... and many others.
 
@@ -13,7 +13,7 @@ The following steps configure an example SAML authentication connector matching 
 
 !!! warning "Version Warning"
 
-    This guide requires an enterprise version of Teleport. The open source
+    This guide requires an Enterprise version of Teleport. The open source
     edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
 
@@ -22,9 +22,9 @@ The following steps configure an example SAML authentication connector matching 
 Before you get started you’ll need:
 
 - An Enterprise version of Teleport v4.2 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/). 
-- Azure AD admin account with access to creating non-gallery applications (P2 License)
-- Register one or more users in the directory
-- Create at least two security groups in AzureAD and assign one or more users to each group
+- A Azure AD admin account with access to creating non-gallery applications (P2 License)
+- To register one or more users in the directory
+- To create at least two security groups in AzureAD and assign one or more users to each group
 
 
 
@@ -39,7 +39,7 @@ Before you get started you’ll need:
 3. Select a Non-gallery application
    ![Select Non-gallery application](img/azuread/azuread-3-selectnongalleryapp.png)
    
-4. Enter the display name (Ex: teleport)
+4. Enter the display name (Ex: Teleport)
    ![Enter application name](img/azuread/azuread-4-enterappname.png)
    
 5.Select properties under Manage and turn off User assignment required
@@ -48,28 +48,28 @@ Before you get started you’ll need:
 6. Select Single Sign-on under Manage and choose SAML
    ![Select SAML](img/azuread/azuread-6-selectsaml.png)
    
-7. Select to edit  Basic SAML Configuration
+7. Select to edit Basic SAML Configuration
    ![Edit Basic SAML Configuration](img/azuread/azuread-7-editbasicsaml.png)
    
-8. Put in the Entity ID and Reply URL the same proxy url https://proxy1:3080/v1/webapi/saml/acs
+8. Put in the Entity ID and Reply URL the same proxy url https://teleport.example.com:3080/v1/webapi/saml/acs
    ![Put in Entity ID and Reply URL](img/azuread/azuread-8-entityandreplyurl.png)
    
 9. Edit User Attributes & Claims
 
-a. Edit the Claim Name Change the name identifier format to Default Make sure the source attribute is user.userprincipalname
+a. Edit the Claim Name.  Change the name identifier format to Default. Make sure the source attribute is user.userprincipalname. 
    ![Confirm Name Identifier](img/azuread/azuread-9a-nameidentifier.png)
    
-b. Add a group Claim to have user security groups groups
+b. Add a group Claim to have user security groups available to the connector
    ![Put in Security group claim](img/azuread/azuread-9b-groupclaim.png)
    
-10. On the SAM Signing Certificate selec to SAML Download the Federation Metadata XML.  
+10. On the SAML Signing Certificate select to download SAML Download the Federation Metadata XML.  
    ![Download Federation Metadata XML](img/azuread/azuread-10-fedmeatadataxml.png)
 
-!!! warning "Important"  This a imporant document.  Treat this file as you would a password.
+!!! warning "Important"  This a important document.  Treat this file as you would a password.
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](admin-guide.md#resources).  Replace the <proxy address> with your teleport address and the group ids with the AzureAD group values.
+Now, create a SAML connector [resource](admin-guide.md#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded federation Metadata XML into the .
 Write down this template as `azure-connector.yaml`:
 
 ```yaml
@@ -77,12 +77,12 @@ kind: saml
 version: v2
 metadata:
   # the name of the connector
-  name: saml
+  name: azure-saml
 spec:
   display: "Microsoft"
   # acs is the Assertion Consumer Service URL. This should be the address of
   # the Teleport proxy that your identity provider will communicate with.
-  acs: https://<proxy address>:3080/v1/webapi/saml/acs
+  acs: https://teleport.example.com:3080/v1/webapi/saml/acs
   attributes_to_roles:
     - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 930210...>", roles: ["admin"]}
     - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 93b110...>", roles: ["dev"]}
@@ -95,7 +95,10 @@ Create the connector using `tctl` tool:
 ```bsh
 $ tctl create azure-connector.yaml
 ```
+!!!Note Teleport will automatically transform the contents of the connector when viewed from the web UI.
 
+ ![Sample Connector Transform](img/azuread/azuread-12-sampleconnector.png)
+ 
 ## Create Teleport Roles
 
 We are going to create 2 roles:
@@ -135,7 +138,7 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
+    logins: [ "{% raw %}{{external.userprincipalname}}{% endraw %}", ubuntu ]
     node_labels:
       access: relaxed
 ```
@@ -150,6 +153,12 @@ $ tctl create dev.yaml
 ## Testing
 ![Login with Microsoft](img/azuread/azure-11-loginwithmsft.png)
 
+Update the teleport settings to use the saml settings to make this the default.
+```yaml
+auth_service:
+  authentication:
+    type: saml
+```
 
 The Web UI will now contain a new button: "Login with Microsoft". The CLI is
 the same as before:
@@ -163,7 +172,7 @@ automatically in a browser).
 
 !!! tip "Tip"
 
-    Teleport can use multiple OIDC connectors. In this case a connector name
+    Teleport can use multiple SAML connectors. In this case a connector name
     can be passed via `tsh login --auth=connector_name`
 
 
@@ -175,7 +184,7 @@ default and it will contain the detailed reason why a user's login was denied.
 
 Example of a user being denied due as the role `clusteradmin` wasn't setup.
 ```json
-{"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"oidc","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
+{"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"saml","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
 ```
 
 
