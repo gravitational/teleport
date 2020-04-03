@@ -325,7 +325,7 @@ func (s *localSite) fanOutProxies(proxies []services.Server) {
 // the connection as invalid.
 func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	defer func() {
-		s.log.Infof("Cluster connection closed.")
+		s.log.Debugf("Cluster connection closed.")
 		rconn.Close()
 	}()
 
@@ -348,7 +348,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			}
 		case req := <-reqC:
 			if req == nil {
-				s.log.Infof("Cluster agent disconnected.")
+				s.log.Debugf("Cluster agent disconnected.")
 				rconn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				return
 			}
