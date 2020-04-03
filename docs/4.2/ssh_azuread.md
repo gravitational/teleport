@@ -32,29 +32,41 @@ Before you get started you’ll need:
 
 1. Select Enterprise Applications from the AzureAD Directory Home
   ![Select Enterprise Applications From Manage](img/azuread/azuread-1-home.png)
+  
 2. Select New application
   ![Select New Applications From Manage](img/azuread/azuread-2-newapp.png)
+  
 3. Select a Non-gallery application
    ![Select Non-gallery application](img/azuread/azuread-3-selectnongalleryapp.png)
+   
 4. Enter the display name (Ex: teleport)
-   ![Enter application ame](img/azuread/azuread-4-enterappname.png)
+   ![Enter application name](img/azuread/azuread-4-enterappname.png)
+   
 5.Select properties under Manage and turn off User assignment required
    ![Turn off user assignment](img/azuread/azuread-5-turnoffuserassign.png)
+   
 6. Select Single Sign-on under Manage and choose SAML
    ![Select SAML](img/azuread/azuread-6-selectsaml.png)
+   
 7. Select to edit  Basic SAML Configuration
    ![Edit Basic SAML Configuration](img/azuread/azuread-7-editbasicsaml.png)
+   
 8. Put in the Entity ID and Reply URL the same proxy url https://proxy1:3080/v1/webapi/saml/acs
    ![Put in Entity ID and Reply URL](img/azuread/azuread-8-entityandreplyurl.png)
+   
 9. Edit User Attributes & Claims
+
 a. Edit the Claim Name Change the name identifier format to Default Make sure the source attribute is user.userprincipalname
    ![Confirm Name Identifier](img/azuread/azuread-9a-nameidentifier.png)
+   
 b. Add a group Claim to have user security groups groups
    ![Put in Security group claim](img/azuread/azuread-9b-groupclaim.png)
+   
 10. On the SAM Signing Certificate selec to SAML Download the Federation Metadata XML.  
    ![Download Federation Metadata XML](img/azuread/azuread-10-fedmeatadataxml.png)
 
 !!! warning "Important"  This a imporant document.  Treat this file as you would a password.
+
 ## Create a SAML Connector
 
 Now, create a SAML connector [resource](admin-guide.md#resources).  Replace the <proxy address> with your teleport address and the group ids with the AzureAD group values.
