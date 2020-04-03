@@ -171,7 +171,7 @@ func (s *AuthServer) newResetPasswordToken(req CreateResetPasswordTokenRequest) 
 		log.Errorf("Unable to retrieve proxy list: %v", err)
 	}
 
-	proxyHost := services.GuessProxyHost(proxies)
+	proxyHost, _ := services.GuessProxyHostAndVersion(proxies)
 	url, err := formatResetPasswordTokenURL(proxyHost, tokenID, req.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
