@@ -155,7 +155,7 @@ $ tctl create dev.yaml
 ```
 
 ## Testing
-![Login with Microsoft](img/azuread/azure-11-loginwithmsft.png)
+
 
 Update the teleport settings to use the saml settings to make this the default.
 ```yaml
@@ -163,6 +163,7 @@ auth_service:
   authentication:
     type: saml
 ```
+![Login with Microsoft](img/azuread/azure-11-loginwithmsft.png)
 
 The Web UI will now contain a new button: "Login with Microsoft". The CLI is
 the same as before:
