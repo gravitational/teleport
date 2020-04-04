@@ -56,13 +56,13 @@ Before you get started you’ll need:
    
 9. Edit User Attributes & Claims
 
-a. Edit the Claim Name.  Change the name identifier format to Default. Make sure the source attribute is user.userprincipalname. 
+    i. Edit the Claim Name.  Change the name identifier format to Default. Make sure the source attribute is user.userprincipalname. 
    ![Confirm Name Identifier](img/azuread/azuread-9a-nameidentifier.png)
    
-b. Add a group Claim to have user security groups available to the connector
+    ii. Add a group Claim to have user security groups available to the connector
    ![Put in Security group claim](img/azuread/azuread-9b-groupclaim.png)
    
-c. Add a Claim to pass the username from transforming the AzureAD User name.
+    iii. Add a Claim to pass the username from transforming the AzureAD User name.
    ![Add a transformed username](img/azuread/azuread-9c-usernameclaim.png)
    
    
@@ -73,7 +73,7 @@ c. Add a Claim to pass the username from transforming the AzureAD User name.
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](admin-guide.md#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded federation Metadata XML into the .
+Now, create a SAML connector [resource](admin-guide.md#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the .
 Write down this template as `azure-connector.yaml`:
 
 ```yaml
