@@ -470,7 +470,7 @@ func (s *sessionCache) GetCertificateWithU2F(c client.CreateSSHCertWithU2FReq) (
 	})
 }
 
-func (s *sessionCache) GetUserInviteInfo(token string) (user string, otpQRCode []byte, err error) {
+func (s *sessionCache) GetUserInviteInfo(token string) (user string, otpQRCode []byte, otpKey string, err error) {
 	return s.proxyClient.GetSignupTokenData(token)
 }
 

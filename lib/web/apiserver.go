@@ -1195,6 +1195,7 @@ type renderUserInviteResponse struct {
 	InviteToken string `json:"invite_token"`
 	User        string `json:"user"`
 	QR          []byte `json:"qr"`
+	Key         string `json:"key"`
 }
 
 // renderUserInvite is called to show user the new user invitation page
@@ -1208,7 +1209,7 @@ type renderUserInviteResponse struct {
 //
 func (h *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	token := p[0].Value
-	user, qrCodeBytes, err := h.auth.GetUserInviteInfo(token)
+	user, qrCodeBytes, key, err := h.auth.GetUserInviteInfo(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1217,6 +1218,7 @@ func (h *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 		InviteToken: token,
 		User:        user,
 		QR:          qrCodeBytes,
+		Key:         key,
 	}, nil
 }
 

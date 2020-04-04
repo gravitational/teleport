@@ -1092,7 +1092,7 @@ func (a *AuthWithRoles) CreateSignupToken(user services.UserV1, ttl time.Duratio
 	return a.authServer.CreateSignupToken(user, ttl)
 }
 
-func (a *AuthWithRoles) GetSignupTokenData(token string) (user string, otpQRCode []byte, err error) {
+func (a *AuthWithRoles) GetSignupTokenData(token string) (user string, otpQRCode []byte, otpKey string, err error) {
 	// signup token are their own authz resource
 	return a.authServer.GetSignupTokenData(token)
 }

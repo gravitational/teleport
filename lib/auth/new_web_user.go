@@ -177,7 +177,7 @@ func (s *AuthServer) rotateAndFetchSignupToken(token string) (*services.SignupTo
 
 // GetSignupTokenData returns token data (username and QR code bytes) for a
 // valid signup token.
-func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byte, err error) {
+func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byte, otpKey string, err error) {
 	// Rotate OTP secret before the signup data is fetched (signup page is
 	// rendered). This mitigates attacks where an attacker just views the signup
 	// link, extracts the OTP secret from the QR code, then closes the window.
@@ -185,7 +185,7 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byt
 	// secret.
 	st, err := s.rotateAndFetchSignupToken(token)
 	if err != nil {
-		return "", nil, trace.Wrap(err)
+		return "", nil, "", trace.Wrap(err)
 	}
 
 	// TODO(rjones): Remove this check and use compare and swap in the Create*
@@ -193,10 +193,10 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byt
 	// https://en.wikipedia.org/wiki/Time_of_check_to_time_of_use
 	_, err = s.GetPasswordHash(st.User.Name)
 	if err == nil {
-		return "", nil, trace.Errorf("user %q already exists", st.User.Name)
+		return "", nil, "", trace.Errorf("user %q already exists", st.User.Name)
 	}
 
-	return st.User.Name, st.OTPQRCode, nil
+	return st.User.Name, st.OTPQRCode, st.OTPKey, nil
 }
 
 func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {

@@ -21,7 +21,8 @@ import { Record } from 'immutable';
 const Invite = new Record({
   invite_token: '',
   user: '',
-  qr: ''
+  qr: '',
+  key: ''
 });
 
 export default Store({

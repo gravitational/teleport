@@ -1229,13 +1229,14 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 type getSignupTokenDataResponse struct {
 	User  string `json:"user"`
 	QRImg []byte `json:"qrimg"`
+	Key   string `json:"key"`
 }
 
 // getSignupTokenData returns the signup data for a token.
 func (s *APIServer) getSignupTokenData(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token := p.ByName("token")
 
-	user, otpQRCode, err := auth.GetSignupTokenData(token)
+	user, otpQRCode, otpKey, err := auth.GetSignupTokenData(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1243,6 +1244,7 @@ func (s *APIServer) getSignupTokenData(auth ClientI, w http.ResponseWriter, r *h
 	return &getSignupTokenDataResponse{
 		User:  user,
 		QRImg: otpQRCode,
+		Key:   otpKey,
 	}, nil
 }
 

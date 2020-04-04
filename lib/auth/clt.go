@@ -1598,18 +1598,18 @@ func (c *Client) CreateSignupToken(user services.UserV1, ttl time.Duration) (str
 }
 
 // GetSignupTokenData returns token data for a valid token
-func (c *Client) GetSignupTokenData(token string) (user string, otpQRCode []byte, e error) {
+func (c *Client) GetSignupTokenData(token string) (user string, otpQRCode []byte, otpKey string, e error) {
 	out, err := c.Get(c.Endpoint("signuptokens", token), url.Values{})
 	if err != nil {
-		return "", nil, err
+		return "", nil, "", err
 	}
 
 	var tokenData getSignupTokenDataResponse
 	if err := json.Unmarshal(out.Bytes(), &tokenData); err != nil {
-		return "", nil, err
+		return "", nil, "", err
 	}
 
-	return tokenData.User, tokenData.QRImg, nil
+	return tokenData.User, tokenData.QRImg, tokenData.Key, nil
 }
 
 // GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
@@ -2778,7 +2778,7 @@ type IdentityService interface {
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
 	// GetSignupTokenData returns token data for a valid token
-	GetSignupTokenData(token string) (user string, otpQRCode []byte, e error)
+	GetSignupTokenData(token string) (user string, otpQRCode []byte, otpKey string, e error)
 
 	// CreateSignupToken creates one time token for creating account for the user
 	// For each token it creates username and OTP key

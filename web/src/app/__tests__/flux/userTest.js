@@ -57,7 +57,8 @@ describe('flux/user/actions', () => {
     const inviteInfoSample = {
       invite_token: inviteToken,
       qr: "iVBORw0KG",
-      user: "dada"
+      user: "dada",
+      key: "AABBCCDDEEFF"
     };
 
     it('should handle loading state', () => {

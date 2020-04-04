@@ -79,7 +79,8 @@ export class Invite extends React.Component {
           </div>
           <Invite2faData
             auth2faType={auth2faType}
-            qr={invite.qr} />
+            qr={invite.qr}
+            otpKey={invite.key} />
         </div>
       </div>
     );
@@ -251,7 +252,7 @@ export class InviteInputForm extends React.Component {
   }
 }
 
-const Invite2faData = ({auth2faType, qr}) => {
+const Invite2faData = ({auth2faType, qr, otpKey}) => {
   if (!needs2fa(auth2faType)) {
     return null;
   }
@@ -263,6 +264,8 @@ const Invite2faData = ({auth2faType, qr}) => {
           <small>Scan below to generate your two factor token</small>
         </h4>
         <img className="img-thumbnail" src={ `data:image/png;base64,${qr}` } />
+        <p>Or enter the secret key below directly</p>
+        <small>{otpKey}</small>
       </div>
     )
   }
