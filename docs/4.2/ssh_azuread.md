@@ -107,9 +107,9 @@ $ tctl create azure-connector.yaml
 
 We are going to create 2 roles:
 
--  Privileged role admin who is able to login as root and is capable of administrating
+-  Privileged role `admin` who is able to login as root and is capable of administrating
 the cluster
-- Non-privileged role dev
+- Non-privileged role `dev`
 
 ```yaml
 kind: role
