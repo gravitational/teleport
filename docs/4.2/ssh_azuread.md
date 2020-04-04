@@ -22,7 +22,7 @@ The following steps configure an example SAML authentication connector matching 
 Before you get started you’ll need:
 
 - An Enterprise version of Teleport v4.2 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/). 
-- A Azure AD admin account with access to creating non-gallery applications (P2 License)
+- An Azure AD admin account with access to creating non-gallery applications (P2 License)
 - To register one or more users in the directory
 - To create at least two security groups in AzureAD and assign one or more users to each group
 
@@ -61,6 +61,10 @@ a. Edit the Claim Name.  Change the name identifier format to Default. Make sure
    
 b. Add a group Claim to have user security groups available to the connector
    ![Put in Security group claim](img/azuread/azuread-9b-groupclaim.png)
+   
+c. Add a Claim to pass the username from transforming the AzureAD User name.
+   ![Add a transformed username](img/azuread/azuread-9c-usernameclaim.png)
+   
    
 10. On the SAML Signing Certificate select to download SAML Download the Federation Metadata XML.  
    ![Download Federation Metadata XML](img/azuread/azuread-10-fedmeatadataxml.png)
@@ -138,7 +142,7 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{% raw %}{{external.userprincipalname}}{% endraw %}", ubuntu ]
+    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
     node_labels:
       access: relaxed
 ```
