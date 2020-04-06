@@ -88,10 +88,22 @@ func (f *Fanout) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	return w, nil
 }
 
+func filterEventSecrets(event Event) Event {
+	r, ok := event.Resource.(ResourceWithSecrets)
+	if !ok {
+		return event
+	}
+	event.Resource = r.WithoutSecrets()
+	return event
+}
+
 func (f *Fanout) Emit(events ...Event) {
 	f.Lock()
 	defer f.Unlock()
-	for _, event := range events {
+	for _, fullEvent := range events {
+		// by default, we operate on a version of the event which
+		// has had secrets filtered out.
+		event := filterEventSecrets(fullEvent)
 		var remove []*fanoutWatcher
 	Inner:
 		for _, entry := range f.watchers[event.Resource.GetKind()] {
@@ -104,7 +116,13 @@ func (f *Fanout) Emit(events ...Event) {
 			if !match {
 				continue Inner
 			}
-			if err := entry.watcher.emit(event); err != nil {
+			emitEvent := event
+			// if this entry loads secrets, emit the
+			// full unfiltered event.
+			if entry.kind.LoadSecrets {
+				emitEvent = fullEvent
+			}
+			if err := entry.watcher.emit(emitEvent); err != nil {
 				remove = append(remove, entry.watcher)
 				continue Inner
 			}
