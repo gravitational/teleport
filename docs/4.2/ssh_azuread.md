@@ -73,7 +73,7 @@ Before you get started you’ll need:
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](admin-guide.md#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the .
+Now, create a SAML connector [resource](admin-guide.md#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
 Write down this template as `azure-connector.yaml`:
 
 ```yaml
@@ -99,7 +99,9 @@ Create the connector using `tctl` tool:
 ```bsh
 $ tctl create azure-connector.yaml
 ```
-!!!Note Teleport will automatically transform the contents of the connector when viewed from the web UI.
+!!! tip "FYI" 
+
+    Teleport will automatically transform the contents of the connector when viewed from the web UI.
 
  ![Sample Connector Transform](img/azuread/azuread-12-sampleconnector.png)
  
@@ -157,7 +159,7 @@ $ tctl create dev.yaml
 ## Testing
 
 
-Update the teleport settings to use the saml settings to make this the default.
+Update the Teleport settings to use the SAML settings to make this the default.
 ```yaml
 auth_service:
   authentication:
