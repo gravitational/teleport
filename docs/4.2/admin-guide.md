@@ -2327,7 +2327,9 @@ teleport:
 
     # This setting configures Teleport to send the audit events to three places:
     # To keep a copy on a local filesystem, in DynamoDB and to Stdout.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name', 'stdout://']
+    # NOTE: The DynamoDB events table has a different schema to the regular Teleport
+    # database table, so attempting to use same table for both will result in errors.
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://events_table_name', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
@@ -2335,6 +2337,9 @@ teleport:
 
 * Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
   with your own settings.  Teleport will create the table automatically.
+* `Example_TELEPORT_DYNAMO_TABLE_NAME` and `events_table_name` **must** be different
+  DynamoDB tables. The schema is different for each. Using the same table name for both
+  will result in errors.
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 * Audit log settings above are optional. If specified, Teleport will store the
@@ -2431,7 +2436,9 @@ teleport:
 
     # This setting configures Teleport to send the audit events to three places:
     # To keep a copy on a local filesystem, in Firestore and to Stdout.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://Example_TELEPORT_FIRESTORE_TABLE_NAME', 'stdout://']
+    # NOTE: The Firestore events table has a different schema to the regular Teleport
+    # database table, so attempting to use same table for both will result in errors.
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
     audit_sessions_uri: gs://Example_TELEPORT_S3_BUCKET/records
@@ -2439,6 +2446,11 @@ teleport:
 
 * Replace `Example_GCP_Project_Name` and `Example_TELEPORT_FIRESTORE_TABLE_NAME`
   with your own settings. Teleport will create the table automatically.
+  
+* `Example_TELEPORT_FIRESTORE_TABLE_NAME` and `Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME`
+  **must** be different Firestore tables. The schema is different for each. Using the same
+  table name for both will result in errors.
+  
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 
