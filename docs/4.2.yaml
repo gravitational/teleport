@@ -59,6 +59,7 @@ nav:
         - FedRAMP & FIPS: enterprise/ssh_fips.md        
         - RBAC: enterprise/ssh_rbac.md 
     - SSO Guides:
+        - Azure Active Directory (AD): ssh_azuread.md
         - Active Directory (ADFS): ssh_adfs.md
         - G Suite: ssh_gsuite.md
         - OneLogin: ssh_one_login.md
