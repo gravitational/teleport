@@ -43,7 +43,7 @@ nav:
         - Admin Manual: admin-guide.md
         - Production Guide: production.md
         - FAQ: faq.md
-    - Teleport Features: 
+    - Teleport Advanced Features: 
         - Enhanced Session Recording: features/enhanced_session_recording.md
         - Using Teleport with PAM: features/ssh_pam.md
     - Infrastructure Guides:
