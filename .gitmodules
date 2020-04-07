@@ -4,6 +4,6 @@
 [submodule "examples/chart/teleport-demo/secrets"]
 	path = examples/chart/teleport-demo/secrets
 	url = git@github.com:gravitational/ops.git
-[submodule "webapps"]
-	path = webapps
-	url = git@github.com:gravitational/webapps.git
+[submodule "webassets"]
+	path = webassets
+	url = https://github.com/gravitational/webassets.git
