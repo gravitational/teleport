@@ -23,12 +23,13 @@ import { Failed } from 'design/CardError';
 import { useTeleport } from 'teleport/teleportContextProvider';
 import cfg from 'teleport/config';
 import SideNav from './SideNav';
-import TopBar from './TopBar';
+import TopBar, { ClusterInfoDialog } from './TopBar';
 
 export default function Cluster() {
   const teleportCtx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const { isFailed, isSuccess, message } = attempt;
+  const [viewClusterInfo, setViewClusterInfo] = React.useState(() => false);
 
   React.useEffect(() => {
     attemptActions.do(() => {
@@ -48,6 +49,8 @@ export default function Cluster() {
     );
   }
 
+  const handleViewClusterInfo = () => setViewClusterInfo(!viewClusterInfo);
+
   // render allowed features
   const allowed = teleportCtx.features.filter(f => !f.isDisabled());
   const $features = allowed.map((item, index) => {
@@ -65,7 +68,7 @@ export default function Cluster() {
 
   return (
     <HorizontalSplit>
-      <TopBar />
+      <TopBar onClickClusterInfo={handleViewClusterInfo} />
       <VerticalSplit>
         <SideNav />
         <Switch>
@@ -77,6 +80,12 @@ export default function Cluster() {
           {$features}
         </Switch>
       </VerticalSplit>
+      {viewClusterInfo && (
+        <ClusterInfoDialog
+          onClose={handleViewClusterInfo}
+          {...teleportCtx.storeUser.state.cluster}
+        />
+      )}
     </HorizontalSplit>
   );
 }

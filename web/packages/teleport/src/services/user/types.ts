@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+import { Cluster } from '../../services/clusters';
 
 export type AuthType = 'local' | 'sso';
 
@@ -20,7 +21,7 @@ export interface User {
   authType: AuthType;
   acl: Acl;
   username: string;
-  version: string;
+  cluster: Cluster;
 }
 
 export interface Access {

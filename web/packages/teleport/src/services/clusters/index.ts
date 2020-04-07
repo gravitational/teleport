@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 import clusters from './clusters';
+import makeCluster from './makeCluster';
 
 export * from './types';
+export { makeCluster };
 export default clusters;

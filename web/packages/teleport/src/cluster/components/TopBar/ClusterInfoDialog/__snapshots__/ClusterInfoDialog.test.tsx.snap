@@ -1,0 +1,367 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`rendering of static texts 1`] = `
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  -webkit-transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #1B234A;
+  color: rgba(255,255,255,0.87);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 26px;
+  line-height: 40px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  width: 600px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  padding: 8px;
+  background-color: #222C59;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #00BFA5;
+  color: #FFFFFF;
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #00EAC3;
+}
+
+.c11:active {
+  background: #26A69A;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-inline-box;
+  display: -webkit-inline-flex;
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  -webkit-text-decoration: none;
+  text-decoration: none;
+  text-transform: uppercase;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: #FFFFFF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 32px;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #373F64;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c8 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  -webkit-flex: 1;
+  -ms-flex: 1;
+  flex: 1;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+.c13 {
+  box-sizing: border-box;
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="c4"
+        width="600px"
+      >
+        <div
+          class="c5"
+        >
+          <div
+            class="c6"
+            color="text.primary"
+          >
+            Cluster Information
+          </div>
+        </div>
+        <div
+          class="c7"
+        >
+          <label
+            class="c8"
+            font-size="0"
+          >
+            Public URL
+          </label>
+          <div
+            class="c9"
+          >
+            <div
+              class="c10"
+              style="word-break: break-all;"
+            >
+              some.kind.of.host:8080
+            </div>
+            <button
+              class="c11"
+              kind="primary"
+            >
+              Copy
+            </button>
+          </div>
+          <label
+            class="c8"
+            font-size="0"
+          >
+            Cluster Name
+          </label>
+          <div
+            class="c12"
+          >
+            applePie
+          </div>
+          <label
+            class="c8"
+            font-size="0"
+          >
+            Auth Service Version
+          </label>
+          <div
+            class="c12"
+          >
+            5.0.0
+          </div>
+          <label
+            class="c8"
+            font-size="0"
+          >
+            Proxy Service Version
+          </label>
+          <div
+            class="c12"
+          >
+            4.2.2
+          </div>
+        </div>
+        <div
+          class="c13"
+        >
+          <button
+            class="c14"
+            kind="secondary"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

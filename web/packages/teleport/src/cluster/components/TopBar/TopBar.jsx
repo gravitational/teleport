@@ -22,7 +22,7 @@ import { Text, ButtonOutlined, Flex } from 'design';
 import TopBar from 'teleport/components/TopBar';
 import cfg from 'teleport/config';
 
-export default function ClusterTopBar() {
+export default function ClusterTopBar({ onClickClusterInfo }) {
   const clusterId = cfg.clusterName;
   return (
     <TopBar>
@@ -46,7 +46,7 @@ export default function ClusterTopBar() {
         >
           {clusterId}
         </Text>
-        <ButtonOutlined width="120px" size="small">
+        <ButtonOutlined width="120px" size="small" onClick={onClickClusterInfo}>
           Cluster Info
         </ButtonOutlined>
       </Flex>

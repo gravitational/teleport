@@ -26,6 +26,7 @@ export default function makeCluster(json): Cluster {
     nodeCount,
     publicURL,
     authVersion,
+    proxyVersion,
   ] = at(json, [
     'name',
     'lastConnected',
@@ -33,6 +34,7 @@ export default function makeCluster(json): Cluster {
     'nodeCount',
     'publicURL',
     'authVersion',
+    'proxyVersion',
   ]);
 
   const connectedText = displayDateTime(lastConnected);
@@ -46,6 +48,7 @@ export default function makeCluster(json): Cluster {
     authVersion,
     nodeCount,
     publicURL,
+    proxyVersion,
   };
 }
 
