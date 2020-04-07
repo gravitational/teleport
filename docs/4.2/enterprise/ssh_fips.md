@@ -147,5 +147,5 @@ is emitted to the Audit Log.
 ## What else does the Teleport FIPS binary enforce? 
 * Supporting configurable TLS versions. This is to ensure that only TLS 1.2 is supported in FedRAMP mode.
 * Removes all uses of non-compliant algorithms like NaCl and replace with compliant algorithms like AES-GCM.
-* Teleport is complied  with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/Certificate/2964)
+* Teleport is compiled with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/Certificate/2964)
 * User and host certificates (and host keys for recording proxy mode) should only be 2048-bit RSA. For a certificate, the signer should also be.
