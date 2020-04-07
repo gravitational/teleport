@@ -75,11 +75,3 @@ func (c counter) Next() uint64 {
 func (c counter) Load() uint64 {
 	return atomic.LoadUint64(c.value)
 }
-
-/*
-type leases struct {
-	group   GroupHandle
-	active  int
-	grant   chan<- *Lease
-	release chan struct{}
-}*/

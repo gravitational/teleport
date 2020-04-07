@@ -62,17 +62,21 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 	return true, nil
 }
 
+// Fanout is a helper which allows a stream of events to be fanned-out to many
+// watchers.  Used by the cache layer to forward events.
 type Fanout struct {
 	sync.Mutex
 	watchers map[string][]fanoutEntry
 }
 
+// NewFanout creates a new Fanout instance.
 func NewFanout() *Fanout {
 	return &Fanout{
 		watchers: make(map[string][]fanoutEntry),
 	}
 }
 
+// NewWatcher attaches a new watcher to this fanout instance.
 func (f *Fanout) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	f.Lock()
 	defer f.Unlock()
@@ -97,6 +101,8 @@ func filterEventSecrets(event Event) Event {
 	return event
 }
 
+// Emit broadcasts events to all matching watchers that have been attached
+// to this fanout instance.
 func (f *Fanout) Emit(events ...Event) {
 	f.Lock()
 	defer f.Unlock()
@@ -134,6 +140,8 @@ func (f *Fanout) Emit(events ...Event) {
 	}
 }
 
+// CloseWatchers closes all attached watchers, effectively
+// resetting the Fanout instance.
 func (f *Fanout) CloseWatchers() {
 	f.Lock()
 	defer f.Unlock()
@@ -143,6 +151,8 @@ func (f *Fanout) CloseWatchers() {
 		}
 		delete(f.watchers, kind)
 	}
+	// watcher map was potentially quite large, so
+	// relenguish that memory.
 	f.watchers = make(map[string][]fanoutEntry)
 }
 

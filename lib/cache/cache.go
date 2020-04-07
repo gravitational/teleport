@@ -122,7 +122,6 @@ type Cache struct {
 	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
 	eventsFanout       *services.Fanout
-	//eventsCache        services.Events
 
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
@@ -277,7 +276,6 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
 		eventsFanout:       services.NewFanout(),
-		//eventsCache:        local.NewEventsService(config.Backend),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -308,7 +306,6 @@ func New(config Config) (*Cache, error) {
 // instead of reading from the backend.
 func (c *Cache) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
 	return c.eventsFanout.NewWatcher(ctx, watch)
-	//return c.eventsCache.NewWatcher(ctx, watch)
 }
 
 func (c *Cache) isClosed() bool {
@@ -340,7 +337,6 @@ func (c *Cache) update() {
 		// all watchers will be out of sync, because
 		// cache will reload its own watcher to the backend,
 		// so signal closure to reset the watchers
-		//c.Backend.CloseWatchers()
 		c.eventsFanout.CloseWatchers()
 		// events cache should be closed as well
 		c.Debugf("Reloading %v.", retry)

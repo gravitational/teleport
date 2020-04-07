@@ -368,12 +368,6 @@ func (m *AgentPool) reportStats() {
 	}
 
 	for key, agents := range m.agents {
-		//tunnelID := key.clusterName
-		//if m.cfg.Component == teleport.ComponentNode {
-		//	tunnelID = m.cfg.HostUUID
-		//}
-		//m.Debugf("Outbound tunnel for %v connected to %v proxies.", tunnelID, len(agents))
-
 		countPerState := map[string]int{
 			agentStateConnecting:   0,
 			agentStateConnected:    0,
@@ -417,9 +411,6 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	// add agents from added reverse tunnels
 	for _, key := range agentsToAdd {
 		m.seekPool.Start(agentToSeekKey(key))
-		//if err := m.addAgent(key); err != nil {
-		//	return trace.Wrap(err)
-		//}
 	}
 
 	// Remove disconnected agents from the list of agents.

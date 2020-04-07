@@ -315,7 +315,7 @@ type proxyGroup struct {
 
 // run is the "main loop" for the seek process.
 func (p *proxyGroup) run(ctx context.Context, handle GroupHandle, retry utils.Retry) {
-	const logInterval int = 8
+	const logInterval uint64 = 8
 	// ticker is the primary ticker used to schedule
 	// group-level "ticks".
 	ticker := time.NewTicker(p.conf.TickRate)
@@ -323,20 +323,21 @@ func (p *proxyGroup) run(ctx context.Context, handle GroupHandle, retry utils.Re
 	// backoff is a seek notification backoff channel.  The main tick
 	// loop applies backoff after generating seek notifications.
 	var backoff <-chan time.Time
+	// nextLease may hold the next lease to be granted if we were
+	// interrupted while blocking on the lease grant channel.
 	var nextLease *Lease
-
 	// activeLeases tracks the number of leases that have been granted.
 	activeLeases := 0
+	var ticks, lastLog uint64
 	// start the loop in a notified state
 	p.notifyGroup()
-	var ticks int
-	var lastLog int
-Outer:
 	for {
 		select {
 		case <-ctx.Done():
+			// this group is closing.
 			return
 		case <-ticker.C:
+			// when ticker fires, we should recalculate state.
 			ticks++
 			p.notifyGroup()
 		case <-p.releaseC:
@@ -346,6 +347,8 @@ Outer:
 			p.notifyGroup()
 			p.Debugf("Lease relenquished for %s", p.key)
 		case proxy := <-p.proxyC:
+			// one or more proxy identities habe been received via gossip
+			// messages.
 			proxies := []string{proxy}
 			// Collect any additional proxy messages
 			// without blocking.
@@ -359,6 +362,8 @@ Outer:
 				}
 			}
 			count := p.RefreshProxy(proxies...)
+			// if the returned count is greater than zero, we have previously unseen
+			// proxies and state should be recalculated.
 			if count > 0 {
 				p.notifyGroup()
 			}
@@ -369,18 +374,20 @@ Outer:
 				ticks++
 			default:
 			}
+			// recalculate state
 			stat := p.Tick()
 			p.notifyStatus(stat)
 			granting := false
 			// if the calculated status indicates that we need more
 			// agents, grant more leases.
+		Grant:
 			for stat.TargetCount() > activeLeases {
 				granting = true
 				if backoff == nil {
 					backoff = retry.After()
 				}
-				// wait for backoff before generating lease.  If ticker fires, yield
-				// priority back to outer loop.
+				// wait for backoff before generating lease.  If ticker fires, break
+				// the grant loop (this is OK since backoff and lease are cached).
 				select {
 				case <-backoff:
 					backoff = nil
@@ -390,7 +397,7 @@ Outer:
 				case <-ticker.C:
 					ticks++
 					p.notifyGroup()
-					continue Outer
+					break Grant
 				}
 				if nextLease == nil {
 					nextLease = &Lease{
@@ -409,7 +416,7 @@ Outer:
 				case <-ticker.C:
 					ticks++
 					p.notifyGroup()
-					continue Outer
+					break Grant
 				}
 			}
 			// stable agent count; reset linear retry.

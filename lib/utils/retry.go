@@ -31,7 +31,7 @@ import (
 type JitterFunc func(time.Duration) time.Duration
 
 // Jitter builds a JitterFunc.  The resulting JitterFunc may
-// have setup costs and therefure should be cached for efficency.
+// have setup costs and therefore should be cached for efficency.
 // An instance of Jitter should be safe for concurrent usage.
 type Jitter func() JitterFunc
 
