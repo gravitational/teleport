@@ -1,3 +1,3 @@
-webapps/* linguist-vendored
+webassets/* linguist-vendored
 docs/theme/js/* linguist-vendored
 docs/theme/js/theme.js linguist-vendored=false

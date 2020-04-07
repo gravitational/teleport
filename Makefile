@@ -243,7 +243,7 @@ tag:
 $(BUILDDIR)/webassets.zip:
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
-	cd webapps/packages/teleport/dist ; zip -qr ../../../../$(BUILDDIR)/webassets.zip .
+	cd webassets/teleport/ ; zip -qr ../../../../$(BUILDDIR)/webassets.zip .
 endif
 
 .PHONY: test-package
@@ -415,15 +415,15 @@ update-helm-charts:
 
 .PHONY: init-submodules
 init-submodules:
-	@if [ ! -d $(shell pwd)/webapps/packages/teleport/ ]; then \
-		echo "init git OSS submodules"; \
-		git submodule update --init webapps; \
+	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
+		echo "init git submodules"; \
+		git submodule update --init webassets; \
 	fi;
 
 .PHONY: init-submodules-e
 init-submodules-e:
-	@if [ ! -d $(shell pwd)/webapps/packages/webapps.e/teleport ] || [ ! -d $(shell pwd)/e/lib/ ]; then \
+	@if [ ! -d $(shell pwd)/webassets/e/teleport ] || [ ! -d $(shell pwd)/e/lib/ ]; then \
 		echo "init git enterprise submodules"; \
-		git submodule update --init --recursive webapps; \
+		git submodule update --init --recursive webassets; \
 		git submodule update --init e; \
 	fi;

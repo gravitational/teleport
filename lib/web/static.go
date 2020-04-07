@@ -65,10 +65,10 @@ func NewStaticFileSystem(debugMode bool) (http.FileSystem, error) {
 
 			if isEnterprise == true {
 				// enterprise web assets
-				debugAssetsPath = path.Join(exePath, "../../webapps/packages/webapps.e/teleport/dist")
+				debugAssetsPath = path.Join(exePath, "../../webassets/e/teleport")
 			} else {
 				// community web assets
-				debugAssetsPath = path.Join(exePath, "../webapps/packages/teleport/dist")
+				debugAssetsPath = path.Join(exePath, "../webassets/teleport")
 			}
 		}
 
