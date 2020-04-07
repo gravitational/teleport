@@ -243,7 +243,7 @@ tag:
 $(BUILDDIR)/webassets.zip:
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
-	cd webassets/teleport/ ; zip -qr ../../../../$(BUILDDIR)/webassets.zip .
+	cd webassets/teleport/ ; zip -qr ../../$(BUILDDIR)/webassets.zip .
 endif
 
 .PHONY: test-package
