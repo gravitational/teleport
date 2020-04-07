@@ -407,7 +407,11 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext.Version = teleport.Version
+	userContext.Cluster, err = ui.GetClusterDetails(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return userContext, nil
 }
 

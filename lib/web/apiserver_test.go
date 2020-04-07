@@ -86,9 +86,10 @@ func TestWeb(t *testing.T) {
 }
 
 type WebSuite struct {
-	node  *regular.Server
-	proxy *regular.Server
-	srvID string
+	node        *regular.Server
+	proxy       *regular.Server
+	proxyTunnel reversetunnel.Server
+	srvID       string
 
 	user      string
 	webServer *httptest.Server
@@ -217,6 +218,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		DataDir:               c.MkDir(),
 	})
 	c.Assert(err, IsNil)
+	s.proxyTunnel = revTunServer
 
 	// proxy server:
 	proxyPort := s.freePorts[len(s.freePorts)-1]
@@ -1613,6 +1615,28 @@ func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, f
 		}
 	}
 	return result
+}
+
+func (s *WebSuite) TestGetClusterDetails(c *C) {
+	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
+	c.Assert(err, IsNil)
+	c.Assert(site, NotNil)
+
+	cluster, err := ui.GetClusterDetails(site)
+	c.Assert(err, IsNil)
+	c.Assert(cluster.Name, Equals, s.server.ClusterName())
+	c.Assert(cluster.ProxyVersion, Equals, teleport.Version)
+	c.Assert(cluster.PublicURL, Equals, fmt.Sprintf("%v:%v", s.server.ClusterName(), defaults.HTTPListenPort))
+	c.Assert(cluster.Status, Equals, teleport.RemoteClusterStatusOnline)
+	c.Assert(cluster.LastConnected, NotNil)
+
+	nodes, err := s.proxyClient.GetNodes(defaults.Namespace)
+	c.Assert(err, IsNil)
+	c.Assert(nodes, HasLen, cluster.NodeCount)
+
+	// Expected empty, b/c test auth server doesn't set up
+	// heartbeat which where ServerSpecV2 version would've been set
+	c.Assert(cluster.AuthVersion, Equals, "")
 }
 
 type authProviderMock struct {
