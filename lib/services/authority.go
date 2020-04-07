@@ -160,8 +160,8 @@ func UnmarshalCertRoles(data string) ([]string, error) {
 // CertAuthority is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 type CertAuthority interface {
-	// Resource sets common resource properties
-	Resource
+	// ResourceWithSecrets sets common resource properties
+	ResourceWithSecrets
 	// GetID returns certificate authority ID -
 	// combined type and name
 	GetID() CertAuthID
@@ -401,6 +401,13 @@ func (c *CertAuthorityV2) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (c *CertAuthorityV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// WithoutSecrets returns an instance of resource without secrets.
+func (c *CertAuthorityV2) WithoutSecrets() Resource {
+	c2 := c.Clone()
+	RemoveCASecrets(c2)
+	return c2
 }
 
 // V2 returns V2 version of the resouirce - itself
