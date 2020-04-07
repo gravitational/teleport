@@ -13,14 +13,14 @@
 /docs/ @benarent @webvictim
 
 # Backend Engineering.
-/e/ @klizhentas @russjones @fspmarshall @webvictim
-/fixtures/ @klizhentas @russjones @fspmarshall @webvictim
-/integration/ @klizhentas @russjones @fspmarshall @webvictim
-/lib/ @klizhentas @russjones @fspmarshall @webvictim
-/modules/ @klizhentas @russjones @fspmarshall @webvictim
-/tool/ @klizhentas @russjones @fspmarshall @webvictim
-/vendor/ @klizhentas @russjones @fspmarshall @webvictim
+/e/ @klizhentas @russjones @fspmarshall @webvictim @awly
+/fixtures/ @klizhentas @russjones @fspmarshall @webvictim @awly
+/integration/ @klizhentas @russjones @fspmarshall @webvictim @awly
+/lib/ @klizhentas @russjones @fspmarshall @webvictim @awly
+/modules/ @klizhentas @russjones @fspmarshall @webvictim @awly
+/tool/ @klizhentas @russjones @fspmarshall @webvictim @awly
+/vendor/ @klizhentas @russjones @fspmarshall @webvictim @awly
 
 # Frontend Engineering.
-/lib/web/ @alex-kovoy @russjones @fspmarshall @webvictim
+/lib/web/ @alex-kovoy @russjones @fspmarshall @webvictim @awly
 /web/ @alex-kovoy
