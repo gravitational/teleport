@@ -55,7 +55,7 @@ $ which teleport
 
 **Tarball**
 ```bash
-$ curl https://get.gravitational.com/teleport-v{{ teleport.version }}linux-amd64-bin.tar.gz.sha256
+$ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz.sha256
 # <checksum> <filename>
 $ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
 $ shasum -a 256 teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
