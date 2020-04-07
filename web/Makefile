@@ -10,7 +10,7 @@ COMMIT_URL = https://github.com/gravitational/webapps/commit/$(COMMIT)
 .PHONY: build
 build:
 	@if [ -d "packages/webapps.e/" ]; then \
-		$(MAKE) docker-build NPM_CMD=build-all FROM=dist/ TO=dist/; \
+		$(MAKE) docker-build NPM_CMD=build FROM=dist/ TO=dist/; \
 	else \
 		$(MAKE) docker-build NPM_CMD=build-oss FROM=dist/ TO=dist/; \
 	fi;
@@ -23,13 +23,13 @@ test:
 build-force:
 	$(MAKE) docker-build NPM_CMD=build-force FROM=dist/force/ TO=dist/force
 
-.PHONY: build-gravity
-build-gravity:
-	$(MAKE) docker-build NPM_CMD=build-gravity FROM=dist/gravity/ TO=dist/gravity
+.PHONY: build-gravity-oss
+build-gravity-oss:
+	$(MAKE) docker-build NPM_CMD=build-gravity-oss FROM=dist/gravity/ TO=dist/gravity
 
-.PHONY: build-teleport
-build-teleport:
-	$(MAKE) docker-build NPM_CMD=build-teleport FROM=dist/teleport/ TO=dist/teleport
+.PHONY: build-teleport-oss
+build-teleport-oss:
+	$(MAKE) docker-build NPM_CMD=build-teleport-oss FROM=dist/teleport/ TO=dist/teleport
 
 .PHONY: build-gravity-e
 build-gravity-e:
@@ -37,7 +37,11 @@ build-gravity-e:
 
 .PHONY: build-teleport-e
 build-teleport-e:
-	$(MAKE) docker-build NPM_CMD=build-teleport-e; FROM=dist/e/teleport/ TO=dist/e/teleport;
+	$(MAKE) docker-build NPM_CMD=build-teleport-e FROM=dist/e/teleport/ TO=dist/e/teleport;
+
+.PHONY: build-teleport
+build-teleport:
+	$(MAKE) docker-build NPM_CMD=build-teleport FROM=dist/ TO=dist/;
 
 # builds package dists files in docker (TODO: move it to scripts/docker-build.sh)
 .PHONY: docker-build
@@ -60,33 +64,33 @@ docker-enter:
 docker-clean:
 	docker rmi --force $(IMAGE_NAME)
 
-# update webassets repository with the new /dist files
-.PHONY: update-webassets-repo
-update-webassets-repo:
+# update teleport repository with build assets
+.PHONY: update-teleport-repo
+update-teleport-repo:
 	@if [ -z "$(TELEPORT_TARGET)" ]; then \
 		echo "TELEPORT_TARGET is not set"; exit 1; \
 	fi
 	# prepare webassets repo
 	rm -rf dist && git clone git@github.com:gravitational/webassets.git dist
 	cd dist; git checkout $(BRANCH) || git checkout -b $(BRANCH)
+	cd dist; rm -fr */
 	# prepare webassets.e repo
 	cd dist; git submodule update --init --recursive
 	cd dist/e; git checkout $(BRANCH) || git checkout -b $(BRANCH)
-	# prepare teleport repo
+	cd dist/e; rm -fr */
+	# build the dist files
+	$(MAKE) build-teleport
+	# push dist files to webasset/e repositories
+	cd dist/e; git add -A .; git commit -am '$(COMMIT_DESC)' -m '$(COMMIT_URL)' --allow-empty; git push origin $(BRANCH)
+	cd dist; git add -A .; git commit -am '$(COMMIT_DESC)' -m '$(COMMIT_URL)' --allow-empty; git push origin $(BRANCH)
+	# use temporary file to store new webassets commit sha
+	cd dist; git rev-parse HEAD >> commit_sha;
+	# update teleport
 	echo teleport >> .gitignore
 	rm -rf teleport && git clone git@github.com:gravitational/teleport.git
 	cd teleport; git checkout $(TELEPORT_TARGET) || git checkout -b $(TELEPORT_TARGET)
 	cd teleport; git fetch --recurse-submodules && git submodule update --init webassets
-	# build the dist files
-	$(MAKE) build
-	# push dist files to webasset/e repositories
-	cd dist/e; git add -A .; git commit -am '$(COMMIT_DESC)' -m '$(COMMIT_URL)' --allow-empty; git push origin $(BRANCH)
-	cd dist; git add -A .; git commit -am '$(COMMIT_DESC)' -m '$(COMMIT_URL)' --allow-empty; git push origin $(BRANCH)
-	# use temporary file to store commit sha
-	cd dist; git rev-parse HEAD >> commit_sha;
-	$(eval WEBAPPS_HEAD=$(shell cat dist/commit_sha))
-	# update teleport
-	cd teleport/webassets; git checkout $(WEBAPPS_HEAD)
+	cd teleport/webassets; git checkout $$(cat -v ../../dist/commit_sha)
 	cd teleport; git add -A .; git commit -am 'Update webassets' -m '$(COMMIT_DESC) $(COMMIT_URL)' --allow-empty
 	cd teleport; git push origin $(TELEPORT_TARGET)
 
