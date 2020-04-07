@@ -42,6 +42,8 @@ type Cluster struct {
 	PublicURL string `json:"publicURL"`
 	// AuthVersion is the cluster auth's service version
 	AuthVersion string `json:"authVersion"`
+	// ProxyVersion is the cluster proxy's service version
+	ProxyVersion string `json:"proxyVersion"`
 }
 
 var log = logrus.WithFields(logrus.Fields{
@@ -51,42 +53,13 @@ var log = logrus.WithFields(logrus.Fields{
 // NewClusters creates a slice of Cluster's, containing data about each cluster.
 func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 	clusters := []Cluster{}
-	for _, rclsr := range remoteClusters {
-		clt, err := rclsr.CachingAccessPoint()
+	for _, site := range remoteClusters {
+		cluster, err := GetClusterDetails(site)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		
-		// error is not handled b/c len(nil) is 0
-		nodes, _ := clt.GetNodes(defaults.Namespace)
 
-		proxies, err := clt.GetProxies()
-		if err != nil {
-			log.Errorf("Unable to retrieve proxy list: %v", err)
-			proxies = []services.Server{}
-		}
-		
-		proxyHost := services.GuessProxyHost(proxies)
-
-		authServers, err := clt.GetAuthServers()
-		if err != nil {
-			log.Errorf("Unable to retrieve auth servers list: %v", err)
-		}
-		
-		authVersion := ""
-		if len(authServers) > 0 {
-			// use the first auth server
-			authVersion = authServers[0].GetTeleportVersion()
-		}
-
-		clusters = append(clusters, Cluster{
-			Name:          rclsr.GetName(),
-			LastConnected: rclsr.GetLastConnected(),
-			Status:        rclsr.GetStatus(),
-			NodeCount:     len(nodes),
-			PublicURL:     proxyHost,
-			AuthVersion:   authVersion,
-		})
+		clusters = append(clusters, *cluster)
 	}
 
 	sort.Slice(clusters, func(i, j int) bool {
@@ -94,4 +67,44 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 	})
 
 	return clusters, nil
+}
+
+// GetClusterDetails retrieves and sets details about a cluster
+func GetClusterDetails(site reversetunnel.RemoteSite) (*Cluster, error) {
+	clt, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nodes, err := clt.GetNodes(defaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxies, err := clt.GetProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyHost, proxyVersion := services.GuessProxyHostAndVersion(proxies)
+
+	authServers, err := clt.GetAuthServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authVersion := ""
+	if len(authServers) > 0 {
+		// use the first auth server
+		authVersion = authServers[0].GetTeleportVersion()
+	}
+
+	return &Cluster{
+		Name:          site.GetName(),
+		LastConnected: site.GetLastConnected(),
+		Status:        site.GetStatus(),
+		NodeCount:     len(nodes),
+		PublicURL:     proxyHost,
+		AuthVersion:   authVersion,
+		ProxyVersion:  proxyVersion,
+	}, nil
 }

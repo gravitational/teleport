@@ -382,6 +382,7 @@ const ServerSpecV2Schema = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
+	"version": {"type": "string"},
     "addr": {"type": "string"},
     "public_addr": {"type": "string"},
     "hostname": {"type": "string"},
@@ -773,23 +774,27 @@ func (s SortedReverseTunnels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// GuessProxyHost tries to find the first proxy with a public
-// address configured. If no proxies are configured, it will return a
-// guessed value by concatenating the first proxy's hostname with default port number.
+// GuessProxyHostAndVersion tries to find the first proxy with a public
+// address configured and return that public addr and version.
+// If no proxies are configured, it will return a guessed value by concatenating
+// the first proxy's hostname with default port number, and the first proxy's
+// version will also be returned.
 //
 // Returns empty value if there are no proxies.
-func GuessProxyHost(proxies []Server) string {
+func GuessProxyHostAndVersion(proxies []Server) (string, string) {
 	if len(proxies) < 1 {
-		return ""
+		return "", ""
 	}
 
 	// find the first proxy with a public address set
 	for _, proxy := range proxies {
 		proxyHost := proxy.GetPublicAddr()
 		if proxyHost != "" {
-			return proxyHost
+			return proxyHost, proxy.GetTeleportVersion()
 		}
 	}
 
-	return fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
+	guessProxyHost := fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
+
+	return guessProxyHost, proxies[0].GetTeleportVersion()
 }

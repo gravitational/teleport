@@ -110,3 +110,28 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 	}
 	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 }
+
+func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
+	// nil proxies
+	host, version := GuessProxyHostAndVersion(nil)
+	c.Assert(host, check.Equals, "")
+	c.Assert(version, check.Equals, "")
+
+	// no public addr set
+	proxyA := ServerV2{}
+	proxyA.Spec.Hostname = "test-A"
+	proxyA.Spec.Version = "test-A"
+
+	host, version = GuessProxyHostAndVersion([]Server{&proxyA})
+	c.Assert(host, check.Equals, fmt.Sprintf("%v:%v", proxyA.Spec.Hostname, defaults.HTTPListenPort))
+	c.Assert(version, check.Equals, proxyA.Spec.Version)
+
+	// with a proxy with public addr set
+	proxyB := ServerV2{}
+	proxyB.Spec.PublicAddr = "test-B"
+	proxyB.Spec.Version = "test-B"
+
+	host, version = GuessProxyHostAndVersion([]Server{&proxyA, &proxyB})
+	c.Assert(host, check.Equals, proxyB.Spec.PublicAddr)
+	c.Assert(version, check.Equals, proxyB.Spec.Version)
+}
