@@ -414,13 +414,9 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	// service is back and the new value has propagated
 	p.backend.SetReadError(nil)
 
-	// wait for watcher to restart
-	select {
-	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, WatcherStarted)
-	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
-	}
+	// wait for watcher to restart successfully; ignoring any failed
+	// attempts which ocurred before backend became healthy again.
+	waitForEvent(c, p.eventsC, WatcherStarted, WatcherFailed)
 
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
