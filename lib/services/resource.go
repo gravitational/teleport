@@ -639,6 +639,16 @@ type Resource interface {
 	SetResourceID(int64)
 }
 
+// ResourceWithSecrets includes additional properties which must
+// be provided by resources which *may* contain secrets.
+type ResourceWithSecrets interface {
+	Resource
+	// WithoutSecrets returns an instance of the resource which
+	// has had all secrets removed.  If the current resource has
+	// already had its secrets removed, this may be a no-op.
+	WithoutSecrets() Resource
+}
+
 // GetID returns resource ID
 func (m *Metadata) GetID() int64 {
 	return m.ID

@@ -20,6 +20,8 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/lib/backend"
+
+	"github.com/gravitational/trace"
 )
 
 // Watch sets up watch on the event
@@ -51,6 +53,36 @@ type WatchKind struct {
 	// Filter supplies custom event filter parameters that differ by
 	// resource (e.g. "state":"pending" for access requests).
 	Filter map[string]string
+}
+
+// Matches attempts to determine if the supplied event matches
+// this WatchKind.  If the WatchKind is misconfigured, or the
+// event appears malformed, an error is returned.
+func (kind WatchKind) Matches(e Event) (bool, error) {
+	if kind.Kind != e.Resource.GetKind() {
+		return false, nil
+	}
+	if kind.Name != "" && kind.Name != e.Resource.GetName() {
+		return false, nil
+	}
+	if len(kind.Filter) > 0 {
+		// no filters currently match delete events
+		if e.Type != backend.OpPut {
+			return false, nil
+		}
+		// Currently only access request make use of filters,
+		// so expect the resource to be an access request.
+		req, ok := e.Resource.(AccessRequest)
+		if !ok {
+			return false, trace.BadParameter("unfilterable resource type: %T", e.Resource)
+		}
+		var filter AccessRequestFilter
+		if err := filter.FromMap(kind.Filter); err != nil {
+			return false, trace.Wrap(err)
+		}
+		return filter.Match(req), nil
+	}
+	return true, nil
 }
 
 // Event represents an event that happened in the backend

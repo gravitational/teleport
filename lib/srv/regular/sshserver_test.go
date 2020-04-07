@@ -659,6 +659,9 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	err = agentPool.Start()
+	c.Assert(err, IsNil)
+
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
 	err = s.server.Auth().UpsertReverseTunnel(
