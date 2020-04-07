@@ -33,7 +33,7 @@ type StaticSuite struct {
 var _ = check.Suite(&StaticSuite{})
 
 func (s *StaticSuite) SetUpSuite(c *check.C) {
-	debugAssetsPath = "../../webapps/packages/teleport/dist"
+	debugAssetsPath = "../../webassets/teleport"
 }
 
 func (s *StaticSuite) TestDebugModeEnv(c *check.C) {

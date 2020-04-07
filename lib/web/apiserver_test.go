@@ -126,8 +126,8 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	os.Unsetenv(teleport.DebugEnvVar)
 	utils.InitLoggerForTests(testing.Verbose())
 
-	// configure tests to use static assets from webapps/packages/teleport/dist:
-	debugAssetsPath = "../../webapps/packages/teleport/dist"
+	// configure tests to use static assets from webassets/teleport:
+	debugAssetsPath = "../../webassets/teleport"
 	os.Setenv(teleport.DebugEnvVar, "true")
 
 	//sessionStreamPollPeriod = time.Millisecond
