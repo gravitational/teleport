@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "g-start",
-    "build": "tsc && (rm -rf ./dist; mkdir ./dist; g-build --progress --bail)",
+    "build": "g-build --progress --bail",
     "test": "npx jest",
     "tdd": "jest . --watch",
     "type-check": "tsc",

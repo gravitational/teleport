@@ -14,19 +14,13 @@ pipeline {
 		}
 		stage('test') {
 			steps {
-				sh "make clean check"
+				sh "make clean test"
 			}
 		}
 		stage('gather artifacts') {
 			steps {
-				sh "make dist packages/webapps.e/dist"
+				sh "make build"
 			}
-		}
-	}
-
-	post {
-		success {
-			archiveArtifacts artifacts: 'dist/**/*,packages/webapps.e/dist/**/*', fingerprint: true
 		}
 	}
 }

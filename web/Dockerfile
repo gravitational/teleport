@@ -1,6 +1,5 @@
 FROM node:12-slim
 RUN apt-get update && apt-get install git -y
-ENV TZ=America/New_York
 
 RUN mkdir -p web-apps
 COPY yarn.lock web-apps/
@@ -25,4 +24,6 @@ RUN yarn install
 # copy the rest of the files and run yarn build command
 COPY  . .
 ARG NPM_SCRIPT
-RUN yarn run $NPM_SCRIPT
+ARG OUTPUT
+# run npm script with optional --output-path parameter
+RUN yarn $NPM_SCRIPT $([ -z $OUTPUT ] || echo --output-path=$OUTPUT)
