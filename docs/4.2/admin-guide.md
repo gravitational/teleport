@@ -471,7 +471,9 @@ proxy_service:
     # command line (CLI) users via password+HOTP
     web_listen_addr: 0.0.0.0:3080
 
-    # The DNS name the proxy HTTPS endpoint as accessible by cluster users.
+    # The DNS name of the proxy HTTPS endpoint as accessible by cluster users,
+    # cluster clients, trusted clusters and nodes joining the cluster via
+    # Teleport IoT/node tunneling.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
     # (see public_addr section below)
@@ -482,6 +484,13 @@ proxy_service:
     # behind a load balancer, this name must point to the load balancer.
     # Use a TCP load balancer because this port uses SSH protocol.
     ssh_public_addr: proxy.example.com:3023
+    
+    # The DNS name of the tunnel SSH endpoint as accessible by trusted clusters and
+    # nodes joining the cluster via Teleport IoT/node tunneling.
+    # Defaults to the proxy's hostname if not specified. If running multiple proxies
+    # behind a load balancer, this name must point to the load balancer.
+    # Use a TCP load balancer because this port uses SSH protocol.
+    tunnel_public_addr: proxy.example.com:3024
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
