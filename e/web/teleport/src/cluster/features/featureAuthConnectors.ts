@@ -16,7 +16,7 @@ class FeatureAuthConnectors extends FeatureBase {
   }
 
   onload(context: Ctx) {
-    if (!context.isAuthConnectorEnabled()) {
+    if (!context.isAuthConnectorEnabled() || cfg.isLeafCluster()) {
       this.setDisabled();
       return;
     }

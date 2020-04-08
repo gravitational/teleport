@@ -16,7 +16,7 @@ export default class FeatureTrustedClusters extends FeatureBase {
   }
 
   onload(context: Ctx) {
-    if (!context.isTrustedClustersEnabled()) {
+    if (!context.isTrustedClustersEnabled() || cfg.isLeafCluster()) {
       this.setDisabled();
       return;
     }

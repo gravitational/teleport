@@ -16,7 +16,7 @@ export default class FeatureRoles extends FeatureBase {
   }
 
   onload(context: Ctx) {
-    if (!context.isRolesEnabled()) {
+    if (!context.isRolesEnabled() || cfg.isLeafCluster()) {
       this.setDisabled();
       return;
     }

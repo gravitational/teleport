@@ -15,6 +15,10 @@ const cfg = {
     removeResourcePath: '/v1/enterprise/sites/:clusterId/resources/:kind/:id',
   },
 
+  isLeafCluster() {
+    return teleCfg.proxyCluster !== teleCfg.clusterName;
+  },
+
   getResourcesUrl(kind?: Resource['kind']) {
     const clusterId = teleCfg.clusterName;
     return generatePath(cfg.api.resourcePath, { clusterId, kind });
