@@ -193,12 +193,10 @@ run-docs:
 # tests everything: called by Jenkins
 #
 .PHONY: test
-test: FLAGS ?=
+test: FLAGS ?= '-race'
+test: PACKAGES := $(shell go list ./... | grep -v integration)
 test: $(VERSRC)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./tool/tsh/... \
-			   ./lib/... \
-			   ./tool/teleport... $(FLAGS) $(ADDFLAGS)
-	go vet ./tool/... ./lib/...
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 #
 # integration tests. need a TTY to work and not compatible with a race detector
