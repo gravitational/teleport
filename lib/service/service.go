@@ -2360,12 +2360,6 @@ func (process *TeleportProcess) setReporter(reporter *backend.Reporter) {
 	process.reporter = reporter
 }
 
-func (process *TeleportProcess) getReporter() *backend.Reporter {
-	process.Lock()
-	defer process.Unlock()
-	return process.reporter
-}
-
 // WaitWithContext waits until all internal services stop.
 func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 	local, cancel := context.WithCancel(ctx)

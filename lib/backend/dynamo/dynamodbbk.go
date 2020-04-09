@@ -633,20 +633,6 @@ func (b *DynamoDBBackend) createTable(ctx context.Context, tableName string, ran
 	return trace.Wrap(err)
 }
 
-// deleteTable deletes DynamoDB table with a given name
-func (b *DynamoDBBackend) deleteTable(ctx context.Context, tableName string, wait bool) error {
-	tn := aws.String(tableName)
-	_, err := b.svc.DeleteTable(&dynamodb.DeleteTableInput{TableName: tn})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if wait {
-		return trace.Wrap(
-			b.svc.WaitUntilTableNotExists(&dynamodb.DescribeTableInput{TableName: tn}))
-	}
-	return nil
-}
-
 type getResult struct {
 	records []record
 	// lastEvaluatedKey is the primary key of the item where the operation stopped, inclusive of the

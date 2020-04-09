@@ -29,7 +29,6 @@ import (
 func TestFile(t *testing.T) { check.TestingT(t) }
 
 type FileSuite struct {
-	handler *Handler
 	test.HandlerSuite
 }
 

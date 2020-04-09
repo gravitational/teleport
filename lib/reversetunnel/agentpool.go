@@ -186,15 +186,6 @@ func (m *AgentPool) processSeekEvents() {
 	}
 }
 
-func foundInOneOf(proxy services.Server, agents []*Agent) bool {
-	for _, agent := range agents {
-		if agent.isDiscovering(proxy) || agent.connectedTo(proxy) {
-			return true
-		}
-	}
-	return false
-}
-
 // FetchAndSyncAgents executes one time fetch and sync request
 // (used in tests instead of polling)
 func (m *AgentPool) FetchAndSyncAgents() error {

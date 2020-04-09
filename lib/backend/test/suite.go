@@ -740,11 +740,3 @@ func ExpectItems(c *check.C, items, expected []backend.Item) {
 		c.Assert(string(items[i].Value), check.Equals, string(expected[i].Value))
 	}
 }
-
-func toSet(vals []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(vals))
-	for _, v := range vals {
-		out[v] = struct{}{}
-	}
-	return out
-}
