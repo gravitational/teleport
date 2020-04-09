@@ -38,8 +38,10 @@ export default function useSshSession(doc: DocumentSsh) {
       const tty = ctx.createTty(session);
 
       // subscribe to tty events to handle connect/disconnects events
-      tty.on(TermEventEnum.CLOSE, () => handleTtyDisconnect(ctx, doc.id));
-      tty.on(TermEventEnum.CONN_CLOSE, () => handleTtyDisconnect(ctx, doc.id));
+      tty.on(TermEventEnum.CLOSE, () => ctx.closeTab(doc));
+      tty.on(TermEventEnum.CONN_CLOSE, () =>
+        ctx.updateSshDocument(doc.id, { status: 'disconnected' })
+      );
       tty.on('open', () => handleTtyConnect(ctx, session, doc.id));
 
       // assign tty reference so it can be passed down to xterm
@@ -99,12 +101,6 @@ function handleTtyConnect(
   });
 
   ctx.gotoTab({ url });
-}
-
-function handleTtyDisconnect(ctx: ConsoleContext, docId: number) {
-  ctx.updateSshDocument(docId, {
-    status: 'disconnected',
-  });
 }
 
 type Status = 'initialized' | 'loading' | 'notfound' | 'error';

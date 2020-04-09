@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import * as Icons from 'design/Icon';
@@ -41,6 +41,13 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
     scpDialogs.close();
     refTerminal.current.terminal.term.focus();
   }
+
+  useEffect(() => {
+    if (refTerminal && refTerminal.current) {
+      // when switching tabs or closing tabs, focus on visible terminal
+      refTerminal.current.terminal.term.focus();
+    }
+  }, [visible]);
 
   return (
     <Document visible={visible} flexDirection="column">
