@@ -21,42 +21,41 @@ import history from 'teleport/services/history';
 import { Cluster } from 'teleport/services/clusters';
 import { sortBy } from 'lodash';
 import {
-  TablePaged,
-  Column,
   SortHeaderCell,
-  Cell,
   TextCell,
+  Cell,
+  Table,
+  Column,
   SortTypes,
 } from 'design/DataTable';
-import { ButtonSecondary, Text } from 'design';
+import {
+  usePages,
+  Pager,
+  StyledPanel,
+  StyledButtons,
+} from 'design/DataTable/Paged';
+import { Flex, ButtonSecondary, Text } from 'design';
 import { NavLink } from 'shared/components/Router';
 import * as Labels from 'design/Label';
 import cfg from 'teleport/config';
 
 export default function ClustersList(props: ClusterListProps) {
-  const { clusters, search = '', pageSize = 500 } = props;
-  const [sortDir, setSortDir] = React.useState<ClusterProps>({});
+  const { clusters, search = '', pageSize = 50 } = props;
+  const [sorting, setSorting] = React.useState<Sorting>({});
 
-  function onSortChange(columnKey, sortDir) {
-    setSortDir({ [columnKey]: sortDir });
+  function onSortChange(columnKey: SortCol, sortDir: string) {
+    setSorting({ [columnKey]: sortDir });
   }
 
   function sort(clusters: Cluster[]) {
-    const columnKey = Object.getOwnPropertyNames(sortDir)[0];
-    const sorted = sortBy(clusters, columnKey);
-    if (sortDir[columnKey] === SortTypes.DESC) {
-      return sortByRoot(sorted.reverse());
-    }
-
-    return clusters;
+    const columnName = Object.getOwnPropertyNames(sorting)[0] as SortCol;
+    const sorted = sortClusters(clusters, columnName, sorting[columnName]);
+    return rootFirst(sorted);
   }
 
   const filtered = filter(clusters, search);
-  const data = sort(filtered);
-  const tableProps = {
-    pageSize,
-    data,
-  };
+  const sorted = sort(filtered);
+  const paged = usePages({ pageSize, data: sorted });
 
   function onTableRowClick(e: MouseEvent) {
     if (e.ctrlKey || e.shiftKey || e.altKey) {
@@ -73,63 +72,74 @@ export default function ClustersList(props: ClusterListProps) {
     const rows = closest.parentElement.childNodes;
     for (var i = 0; i < rows.length; i++) {
       if (rows[i] === closest) {
-        history.push(clusters[i].url);
+        history.push(paged.data[i].url);
       }
     }
   }
 
   return (
-    <StyledTable {...tableProps} onClick={onTableRowClick}>
-      <Column
-        header={<Cell style={{ width: '40px' }} />}
-        cell={<RootLabelCell />}
-      />
-      <Column
-        columnKey="clusterId"
-        header={
-          <SortHeaderCell
-            sortDir={sortDir.clusterId}
-            onSortChange={onSortChange}
-            title="Name"
-          />
-        }
-        cell={<NameCell />}
-      />
-      <Column
-        columnKey="authVersion"
-        header={
-          <SortHeaderCell
-            sortDir={sortDir.authVersion}
-            onSortChange={onSortChange}
-            title="Version"
-          />
-        }
-        cell={<TextCell />}
-      />
-      <Column
-        columnKey="nodeCount"
-        header={
-          <SortHeaderCell
-            sortDir={sortDir.nodeCount}
-            onSortChange={onSortChange}
-            title="Nodes"
-          />
-        }
-        cell={<TextCell />}
-      />
-      <Column
-        columnKey="publicURL"
-        header={
-          <SortHeaderCell
-            sortDir={sortDir.publicURL}
-            onSortChange={onSortChange}
-            title="Public URL"
-          />
-        }
-        cell={<TextCell />}
-      />
-      <Column header={<Cell />} cell={<ActionCell />} />
-    </StyledTable>
+    <>
+      <Panel
+        borderTopRightRadius="3"
+        borderTopLeftRadius="3"
+        justifyContent="space-between"
+      >
+        <Flex alignItems="center" justifyContent="space-between" flex="1">
+          <Pager {...paged} />
+        </Flex>
+      </Panel>
+      <ClusterTable data={paged.data} onClick={onTableRowClick}>
+        <Column
+          header={<Cell style={{ width: '40px' }} />}
+          cell={<RootLabelCell />}
+        />
+        <Column
+          columnKey="clusterId"
+          header={
+            <SortHeaderCell
+              sortDir={sorting.clusterId}
+              onSortChange={onSortChange}
+              title="Name"
+            />
+          }
+          cell={<NameCell />}
+        />
+        <Column
+          columnKey="authVersion"
+          header={
+            <SortHeaderCell
+              sortDir={sorting.authVersion}
+              onSortChange={onSortChange}
+              title="Version"
+            />
+          }
+          cell={<TextCell />}
+        />
+        <Column
+          columnKey="nodeCount"
+          header={
+            <SortHeaderCell
+              sortDir={sorting.nodeCount}
+              onSortChange={onSortChange}
+              title="Nodes"
+            />
+          }
+          cell={<TextCell />}
+        />
+        <Column
+          columnKey="publicURL"
+          header={
+            <SortHeaderCell
+              sortDir={sorting.publicURL}
+              onSortChange={onSortChange}
+              title="Public URL"
+            />
+          }
+          cell={<TextCell />}
+        />
+        <Column header={<Cell />} cell={<ActionCell />} />
+      </ClusterTable>
+    </>
   );
 }
 
@@ -154,13 +164,21 @@ function filterCb(targetValue: any[], searchValue: string, propName: string) {
   }
 }
 
-function sortByRoot(clusters: Cluster[]) {
-  const proxyCluster = clusters.find(c => c.clusterId === cfg.proxyCluster);
-  if (proxyCluster) {
-    const tmp = clusters[0];
-    const index = clusters.indexOf(proxyCluster);
-    clusters[0] = clusters[index];
-    clusters[index] = tmp;
+function sortClusters(clusters: Cluster[], columnName: SortCol, dir: string) {
+  const sorted = sortBy(clusters, columnName);
+  if (dir === SortTypes.DESC) {
+    return sorted.reverse();
+  }
+
+  return sorted;
+}
+
+function rootFirst(clusters: Cluster[]) {
+  const rootIndex = clusters.findIndex(c => c.clusterId === cfg.proxyCluster);
+  if (rootIndex !== -1) {
+    const root = clusters[rootIndex];
+    clusters.splice(rootIndex, 1);
+    clusters.unshift(root);
   }
   return clusters;
 }
@@ -198,14 +216,8 @@ function ActionCell(props) {
   );
 }
 
-const StyledTable = styled(TablePaged)`
-  tr:hover {
-    cursor: pointer;
-    background-color: rgba(0, 0, 0, 0.075);
-  }
-`;
-
-type ClusterProps = {
+type SortCol = keyof Cluster;
+type Sorting = {
   [P in keyof Cluster]?: string;
 };
 
@@ -214,3 +226,16 @@ type ClusterListProps = {
   search: string;
   pageSize?: 500;
 };
+
+const ClusterTable = styled(Table)`
+  tr:hover {
+    cursor: pointer;
+    background-color: rgba(0, 0, 0, 0.075);
+  }
+`;
+
+const Panel = styled(StyledPanel)`
+  ${StyledButtons} {
+    margin-left: ${props => `${props.theme.space[3]}px`};
+  }
+`;

@@ -60,6 +60,10 @@ const cfg = {
     loginSuccess: '/web/msg/info/login_success',
     userInvite: '/web/invite/:tokenId',
     userReset: '/web/reset/:tokenId',
+    // whitelist sso handlers
+    oidcHandler: '/v1/webapi/oidc/*',
+    samlHandler: '/v1/webapi/saml/*',
+    githubHandler: '/v1/webapi/github/*',
   },
 
   api: {

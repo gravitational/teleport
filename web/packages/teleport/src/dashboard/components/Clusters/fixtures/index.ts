@@ -25,6 +25,7 @@ export const clusters = [
     url: '/localhost/1/lawnabza',
     publicURL: 'https://abc.example.com:333/web',
     labels: [],
+    proxyVersion: '1.28.3',
   },
   {
     clusterId: 'nidvojik',
@@ -36,6 +37,7 @@ export const clusters = [
     url: '/localhost/1/nidvojik',
     publicURL: 'https://abc.example.com:333/web',
     labels: [],
+    proxyVersion: '1.9.3',
   },
   {
     clusterId: 'lidtabih',
@@ -47,6 +49,7 @@ export const clusters = [
     url: '/localhost/1/lidtabih',
     publicURL: 'https://abc.example.com:333/web',
     labels: [],
+    proxyVersion: '1.21.3',
   },
   {
     clusterId: 'farovluv',
@@ -58,6 +61,7 @@ export const clusters = [
     url: '/localhost/1/lidtabih',
     publicURL: 'https://abc.example.com:333/web',
     labels: [],
+    proxyVersion: '1.34.3',
   },
   {
     clusterId: 'rozpaari',
@@ -69,6 +73,7 @@ export const clusters = [
     url: '/localhost/1/lidtabih',
     publicURL: 'https://abc.example.com:333/web',
     labels: [],
+    proxyVersion: '1.38.3',
   },
   {
     clusterId: 'wetjolune',
@@ -80,6 +85,7 @@ export const clusters = [
     url: '/localhost/1/lidtabih',
     publicURL: 'https://abc.example.com:333/web',
     labels: [],
+    proxyVersion: '1.11.3',
   },
   {
     clusterId: 'dashawic',
@@ -91,6 +97,7 @@ export const clusters = [
     url: '/localhost/1/lidtabih',
     publicURL: 'https://abc.example.com:333/web',
     labels: [],
+    proxyVersion: '1.6.3',
   },
   {
     clusterId: 'fugzucis',
@@ -102,5 +109,6 @@ export const clusters = [
     url: '/localhost/1/lidtabih',
     publicURL: 'https://abc.example.com:333/web',
     labels: [],
+    proxyVersion: '1.14.3',
   },
 ];

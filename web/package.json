@@ -22,10 +22,13 @@
     "build-teleport-e": "yarn workspace @gravitational/teleport.e build --output-path=../../../dist/e/teleport/app",
     "build-oss": "yarn build-force && yarn build-teleport-oss && yarn build-gravity-oss",
     "build-e": "yarn build-teleport-e && yarn build-gravity-e",
-    "build": "yarn type-check; yarn build-oss && yarn build-e",
+    "build": "yarn type-check && yarn build-oss && yarn build-e",
     "type-check": "yarn tsc"
   },
   "private": true,
+  "resolutions": {
+    "**/minimist": "^1.2.5"
+  },
   "workspaces": [
     "packages/*/**"
   ]
