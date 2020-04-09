@@ -129,7 +129,6 @@ type EtcdBackend struct {
 	nodes []string
 	*log.Entry
 	cfg              *Config
-	etcdKey          string
 	client           *clientv3.Client
 	cancelC          chan bool
 	stopC            chan bool

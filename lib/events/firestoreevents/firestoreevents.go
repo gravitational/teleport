@@ -36,7 +36,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 
-	"cloud.google.com/go/firestore/apiv1/admin"
+	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -521,11 +521,6 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	})
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
 	return err
-}
-
-// deleteAllItems deletes all items from the database, used in tests
-func (l *Log) deleteAllItems() {
-	firestorebk.DeleteAllDocuments(l.svcContext, l.svc, l.CollectionName)
 }
 
 // Close the Firestore driver

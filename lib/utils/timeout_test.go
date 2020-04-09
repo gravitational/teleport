@@ -31,8 +31,7 @@ import (
 // TimeoutSuite helps us to test ObeyTimeout mechanism. We use HTTP server/client
 // machinery to test timeouts
 type TimeoutSuite struct {
-	lastRequest *http.Request
-	server      *httptest.Server
+	server *httptest.Server
 }
 
 var _ = check.Suite(&TimeoutSuite{})
