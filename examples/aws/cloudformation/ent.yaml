@@ -10,11 +10,24 @@ Parameters:
     Description: Teleport EC2 instance type    
     ConstraintDescription: must be a valid EC2 instance type.
     Type: String    
-    Default: t2.micro
+    Default: m4.large
     AllowedValues:
-    - t2.micro
     - m5.large
+    - m3.2xlarge
+    - m3.large
+    - m3.medium
+    - m3.xlarge
+    - m4.2xlarge
+    - m4.4xlarge
+    - m4.10xlarge
+    - m4.16xlarge
     - m4.large
+    - m4.xlarge
+    - t2.large
+    - t2.medium
+    - t2.micro
+    - t2.small
+    - t2.xlarge
 
   DomainName:
     ConstraintDescription: Teleport Web UI Domain Name
@@ -66,9 +79,22 @@ Parameters:
 
 Mappings:
   AWSInstanceType2Arch:
-    t2.micro: {Arch: HVM64}
-    m4.large: {Arch: HVM64}
     m5.large: {Arch: HVM64}
+    m3.2xlarge: {Arch: HVM64}
+    m3.large: {Arch: HVM64}
+    m3.medium: {Arch: HVM64}
+    m3.xlarge: {Arch: HVM64}
+    m4.2xlarge: {Arch: HVM64}
+    m4.4xlarge: {Arch: HVM64}
+    m4.10xlarge: {Arch: HVM64}
+    m4.16xlarge: {Arch: HVM64}
+    m4.large: {Arch: HVM64}
+    m4.xlarge: {Arch: HVM64}
+    t2.large: {Arch: HVM64}
+    t2.medium: {Arch: HVM64}
+    t2.micro: {Arch: HVM64}
+    t2.small: {Arch: HVM64}
+    t2.xlarge: {Arch: HVM64}
 
   AWSRegionArch2AMI:
     # eu-west-1 = EU (Ireland)
@@ -1015,4 +1041,3 @@ Outputs:
       Ref: Bucket
     Export:
       Name: S3BucketID
-      
