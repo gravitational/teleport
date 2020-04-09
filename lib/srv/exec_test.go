@@ -24,7 +24,6 @@ import (
 	"os"
 	os_exec "os/exec"
 	"os/user"
-	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -324,18 +323,6 @@ func (s *ExecSuite) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Reques
 	return nil, nil, nil
 }
 func (s *ExecSuite) Wait() error { return nil }
-
-// findExecutable helper finds a given executable name (like 'ls') in $PATH
-// and returns the full path
-func findExecutable(execName string) string {
-	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
-		fp := path.Join(dir, execName)
-		if utils.IsFile(fp) {
-			return fp
-		}
-	}
-	return "not found in $PATH: " + execName
-}
 
 type fakeTerminal struct {
 	f *os.File

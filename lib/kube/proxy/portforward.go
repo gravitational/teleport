@@ -270,16 +270,6 @@ func (h *portForwardProxy) monitorStreamPair(p *httpStreamPair, timeout <-chan t
 	h.removeStreamPair(p.requestID)
 }
 
-// hasStreamPair returns a bool indicating if a stream pair for requestID
-// exists.
-func (h *portForwardProxy) hasStreamPair(requestID string) bool {
-	h.streamPairsLock.RLock()
-	defer h.streamPairsLock.RUnlock()
-
-	_, ok := h.streamPairs[requestID]
-	return ok
-}
-
 // removeStreamPair removes the stream pair identified by requestID from streamPairs.
 func (h *portForwardProxy) removeStreamPair(requestID string) {
 	h.streamPairsLock.Lock()

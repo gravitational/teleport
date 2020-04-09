@@ -765,12 +765,6 @@ func closeAll(closers ...io.Closer) error {
 	return trace.NewAggregate(errs...)
 }
 
-type closerFunc func() error
-
-func (f closerFunc) Close() error {
-	return f()
-}
-
 // NewTrackingReader returns a new instance of
 // activity tracking reader.
 func NewTrackingReader(ctx *ServerContext, r io.Reader) *TrackingReader {

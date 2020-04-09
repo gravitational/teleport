@@ -115,11 +115,6 @@ type event struct {
 	EventNamespace string
 }
 
-type keyLookup struct {
-	HashKey  string
-	FullPath string
-}
-
 const (
 	// keyExpires is a key used for TTL specification
 	keyExpires = "Expires"
@@ -132,9 +127,6 @@ const (
 
 	// keyEventNamespace
 	keyEventNamespace = "EventNamespace"
-
-	// sectionDefault
-	sectionDefault = "default"
 
 	// keyCreatedAt identifies created at key
 	keyCreatedAt = "CreatedAt"
@@ -585,53 +577,6 @@ func (b *Log) createTable(tableName string) error {
 	return trace.Wrap(err)
 }
 
-// deleteAllItems deletes all items from the database, used in tests
-func (b *Log) deleteAllItems() error {
-	out, err := b.svc.Scan(&dynamodb.ScanInput{TableName: aws.String(b.Tablename)})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	var requests []*dynamodb.WriteRequest
-	for _, item := range out.Items {
-		requests = append(requests, &dynamodb.WriteRequest{
-			DeleteRequest: &dynamodb.DeleteRequest{
-				Key: map[string]*dynamodb.AttributeValue{
-					keySessionID:  item[keySessionID],
-					keyEventIndex: item[keyEventIndex],
-				},
-			},
-		})
-	}
-	if len(requests) == 0 {
-		return nil
-	}
-	req, _ := b.svc.BatchWriteItemRequest(&dynamodb.BatchWriteItemInput{
-		RequestItems: map[string][]*dynamodb.WriteRequest{
-			b.Tablename: requests,
-		},
-	})
-	err = req.Send()
-	err = convertError(err)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// deleteTable deletes DynamoDB table with a given name
-func (b *Log) deleteTable(tableName string, wait bool) error {
-	tn := aws.String(tableName)
-	_, err := b.svc.DeleteTable(&dynamodb.DeleteTableInput{TableName: tn})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if wait {
-		return trace.Wrap(
-			b.svc.WaitUntilTableNotExists(&dynamodb.DescribeTableInput{TableName: tn}))
-	}
-	return nil
-}
-
 // Close the DynamoDB driver
 func (b *Log) Close() error {
 	return nil
@@ -659,21 +604,4 @@ func convertError(err error) error {
 	default:
 		return err
 	}
-}
-
-type eventlist []event
-
-// Len is part of sort.Interface.
-func (e eventlist) Len() int {
-	return len(e)
-}
-
-// Swap is part of sort.Interface.
-func (e eventlist) Swap(i, j int) {
-	e[i], e[j] = e[j], e[i]
-}
-
-// Less is part of sort.Interface.
-func (e eventlist) Less(i, j int) bool {
-	return e[i].EventIndex < e[j].EventIndex
 }

@@ -258,7 +258,6 @@ func newFakeAnnouncer(ctx context.Context) *fakeAnnouncer {
 
 type fakeAnnouncer struct {
 	err         error
-	srv         services.Server
 	upsertCalls map[HeartbeatMode]int
 	closeCalls  int
 	ctx         context.Context

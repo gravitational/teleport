@@ -218,10 +218,6 @@ func urlToNetAddr(u string) NetAddr {
 	return *MustParseAddr(parsed.Host)
 }
 
-func localURL(port string) string {
-	return fmt.Sprintf("http://127.0.0.1:%v", port)
-}
-
 func localAddr(port string) NetAddr {
 	return *MustParseAddr(fmt.Sprintf("127.0.0.1:%v", port))
 }

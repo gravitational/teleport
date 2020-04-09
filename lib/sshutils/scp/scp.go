@@ -504,25 +504,6 @@ func (cmd *command) receiveDir(st *state, fc newFileCmd, ch io.ReadWriter) error
 	return nil
 }
 
-// sendError gets called during all errors during SCP transmission.
-// It writes it back to the SCP client
-func (cmd *command) sendError(ch io.ReadWriter, err error) error {
-	if err == nil {
-		return nil
-	}
-	cmd.log.Error(err)
-	message := err.Error()
-	bytes := make([]byte, 0, len(message)+2)
-	bytes = append(bytes, ErrByte)
-	bytes = append(bytes, message...)
-	bytes = append(bytes, []byte{'\n'}...)
-	_, writeErr := ch.Write(bytes)
-	if writeErr != nil {
-		cmd.log.Error(writeErr)
-	}
-	return trace.Wrap(err)
-}
-
 type newFileCmd struct {
 	Mode   int64
 	Length uint64
