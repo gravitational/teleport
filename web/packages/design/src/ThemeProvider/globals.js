@@ -35,11 +35,6 @@ const GlobalStyle = createGlobalStyle`
   }
 
   ${({ theme }) => {
-    // let mac platforms to handle the scrollbar styles
-    if (isMac) {
-      return;
-    }
-
     // custom scrollbars
     return `
       ::-webkit-scrollbar {
