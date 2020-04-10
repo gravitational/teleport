@@ -206,6 +206,22 @@ integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	go test -v -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/...
 
+#
+# Lint the Go code.
+# By default lint scans the entire repo. Pass FLAGS='--new' to only scan local
+# changes (or last commit).
+#
+.PHONY: lint
+lint: FLAGS ?=
+lint:
+	golangci-lint run \
+		--disable-all \
+		--exclude-use-default \
+		--skip-dirs vendor \
+		--max-issues-per-linter 0 \
+		--enable unused \
+		$(FLAGS)
+
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
