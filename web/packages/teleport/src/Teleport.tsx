@@ -27,7 +27,7 @@ import Player from 'teleport/player';
 import cfg from 'teleport/config';
 import CommunityCluster from './cluster';
 import { useFavicon } from 'shared/hooks';
-const teleportIco = require('./favicon.ico');
+const teleportIco = require('./favicon.ico').default;
 
 const Teleport = ({ history, children }) => {
   useFavicon(teleportIco);
