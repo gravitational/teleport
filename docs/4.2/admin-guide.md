@@ -318,7 +318,8 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', and 'saml' for Enterprise.
-        # 'false' is required for FedRAMP / FIPS, see 
+        #  To support FedRAMP / FIPS, local_auth needs to be turned off by setting it to 'false' and a SSO   
+        #  connector is required to log into Teleport, see 
         #  https://gravitational.com/teleport/docs/enterprise/ssh_fips#teleport-auth-server
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
