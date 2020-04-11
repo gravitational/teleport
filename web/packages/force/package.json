@@ -8,8 +8,8 @@
     "build": "g-build --config webpack.config.js --progress --bail",
     "test": "npx jest",
     "tdd": "jest . --watch",
-    "type-check": "tsc",
-    "type-watch": "tsc --watch"
+    "type-check": "yarn tsc",
+    "type-watch": "yarn tsc --watch"
   },
   "author": "",
   "license": "Apache-2.0",
