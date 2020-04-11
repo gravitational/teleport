@@ -18,6 +18,6 @@ import React from 'react';
 import { storiesOf } from '@storybook/react';
 import Dashboard from './Dashboard';
 
-storiesOf('Force/Dashboard', module).add('Dashboard', (): JSX.Element => {
+storiesOf('Force/Dashboard', module).add('Dashboard', () => {
   return <Dashboard />;
 });

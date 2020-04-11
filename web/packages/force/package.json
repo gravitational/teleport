@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "g-start",
-    "build": "g-build --progress --bail",
+    "build": "g-build --config webpack.config.js --progress --bail",
     "test": "npx jest",
     "tdd": "jest . --watch",
     "type-check": "tsc",
@@ -17,16 +17,22 @@
     "type" : "git",
     "url" : "https://github.com/gravitational/webapps/webapps.git",
     "directory": "packages/force"
-
   },
   "dependencies": {
     "cross-env": "5.0.5",
     "@gravitational/shared": "1.0.0",
-    "@gravitational/design": "1.0.0"
+    "@gravitational/design": "1.0.0",
+    "@types/google-protobuf": "^3.7.2",
+    "@improbable-eng/grpc-web": "^0.12.0",
+    "ts-protoc-gen": "^0.12.0",
+    "typescript": "3.7.5",
+    "google-protobuf": "^3.11.4",
+    "string-replace-loader": "^2.2.0"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
     "file-loader": "6.0.0",
-    "url-loader": "4.0.0"
+    "url-loader": "4.0.0",
+    "typescript": "3.7.5"
   }
 }

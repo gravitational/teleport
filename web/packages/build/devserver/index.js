@@ -77,6 +77,8 @@ const server = new WebpackDevServer(compiler.webpackCompiler, {
     '/v1/*': getTargetOptions(),
     '/app/*': getTargetOptions(),
     '/sites/v1/*': getTargetOptions(),
+    '/api/*': getTargetOptions(),
+    '/proto.TickService/*': getTargetOptions(),
   },
   publicPath: ROOT + '/app',
   hot: true,

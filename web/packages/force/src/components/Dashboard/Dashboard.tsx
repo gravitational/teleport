@@ -15,12 +15,14 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box } from 'design';
+import { Box } from '@gravitational/design/src';
+import Ticker from './Ticker';
 
 export default function Dashboard(): JSX.Element {
   return (
-    <Box bg="yellow" color="black">
+    <Box bg="yellow" color="red">
       Hello World
+      <Ticker />
     </Box>
   );
 }
