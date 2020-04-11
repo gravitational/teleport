@@ -15,10 +15,7 @@ limitations under the License.
 */
 
 import { createGlobalStyle } from 'styled-components';
-import { getPlatform } from 'design/theme/utils';
 import './../assets/ubuntu/style.css';
-
-const { isMac } = getPlatform();
 
 const GlobalStyle = createGlobalStyle`
 
