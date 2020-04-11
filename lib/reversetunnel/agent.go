@@ -190,12 +190,6 @@ func (a *Agent) String() string {
 	return fmt.Sprintf("agent(id=%d,state=%v) -> %v:%v, discover %v", a.ID, a.getState(), a.ClusterName, a.Addr.String(), Proxies(a.DiscoverProxies))
 }
 
-func (a *Agent) getLastStateChange() time.Time {
-	a.RLock()
-	defer a.RUnlock()
-	return a.stateChange
-}
-
 func (a *Agent) setStateAndPrincipals(state string, principals []string) {
 	a.Lock()
 	defer a.Unlock()
@@ -234,21 +228,6 @@ func (a *Agent) Start() {
 // Wait waits until all outstanding operations are completed
 func (a *Agent) Wait() error {
 	return nil
-}
-
-func (a *Agent) isDiscovering(proxy services.Server) bool {
-	for _, discoverProxy := range a.DiscoverProxies {
-		if a.getState() != agentStateDiscovering && a.getState() != agentStateConnecting {
-			continue
-		}
-
-		proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.ClusterName)
-		discoverID := fmt.Sprintf("%v.%v", discoverProxy.GetName(), a.ClusterName)
-		if proxyID == discoverID {
-			return true
-		}
-	}
-	return false
 }
 
 // connectedTo returns true if connected services.Server passed in.

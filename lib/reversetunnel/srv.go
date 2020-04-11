@@ -655,60 +655,12 @@ func (s *server) findLocalCluster(sconn *ssh.ServerConn) (*localSite, error) {
 	return nil, trace.BadParameter("local cluster %v not found", clusterName)
 }
 
-// isHostAuthority is called during checking the client key, to see if the signing
-// key is the real host CA authority key.
-func (s *server) isHostAuthority(auth ssh.PublicKey, address string) bool {
-	keys, err := s.getTrustedCAKeys(services.HostCA)
-	if err != nil {
-		s.Errorf("failed to retrieve trusted keys, err: %v", err)
-		return false
-	}
-	for _, k := range keys {
-		if sshutils.KeysEqual(k, auth) {
-			return true
-		}
-	}
-	return false
-}
-
-// isUserAuthority is called during checking the client key, to see if the signing
-// key is the real user CA authority key.
-func (s *server) isUserAuthority(auth ssh.PublicKey) bool {
-	keys, err := s.getTrustedCAKeys(services.UserCA)
-	if err != nil {
-		s.Errorf("failed to retrieve trusted keys, err: %v", err)
-		return false
-	}
-	for _, k := range keys {
-		if sshutils.KeysEqual(k, auth) {
-			return true
-		}
-	}
-	return false
-}
-
 func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, error) {
 	ca, err := s.localAccessPoint.GetCertAuthority(id, false, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ca.Checkers()
-}
-
-func (s *server) getTrustedCAKeys(certType services.CertAuthType) ([]ssh.PublicKey, error) {
-	cas, err := s.localAccessPoint.GetCertAuthorities(certType, false, services.SkipValidation())
-	if err != nil {
-		return nil, err
-	}
-	out := []ssh.PublicKey{}
-	for _, ca := range cas {
-		checkers, err := ca.Checkers()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, checkers...)
-	}
-	return out, nil
 }
 
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -1009,38 +961,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	go remoteSite.periodicUpdateCertAuthorities()
 
 	return remoteSite, nil
-}
-
-// sendVersionRequest sends a request for the version remote Teleport cluster.
-// If a response is not received within one second, it's assumed it's a legacy
-// cluster.
-func sendVersionRequest(sconn ssh.Conn, closeContext context.Context) (string, error) {
-	errorCh := make(chan error, 1)
-	versionCh := make(chan string, 1)
-
-	go func() {
-		ok, payload, err := sconn.SendRequest(versionRequest, true, nil)
-		if err != nil {
-			errorCh <- err
-			return
-		}
-		if !ok {
-			errorCh <- trace.BadParameter("no response to %v request", versionRequest)
-			return
-		}
-		versionCh <- string(payload)
-	}()
-
-	select {
-	case ver := <-versionCh:
-		return ver, nil
-	case err := <-errorCh:
-		return "", trace.Wrap(err)
-	case <-time.After(defaults.ReadHeadersTimeout):
-		return "", trace.BadParameter("timeout waiting for version")
-	case <-closeContext.Done():
-		return "", closeContext.Err()
-	}
 }
 
 const (

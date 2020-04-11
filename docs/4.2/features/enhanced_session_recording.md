@@ -75,7 +75,7 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 | Enterprise Linux 8  |          4.18.0-147 ✅ 🚧 Feature in Alpha  |
 
 ### Amazon Linux 
-We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
+We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 or 5.4 using
 `sudo amazon-linux-extras install kernel-ng` and rebooting your instance. 
 
 ### archlinux 
@@ -85,14 +85,42 @@ We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
 
 ## 2. Install BCC Tools 
 
-Run the following script to download the prerequisites to build BCC tools, building LLVM and Clang targeting BPF byte code, and then building and installing BCC tools.
+### Script to Install BCC Tools on Amazon 2 Linux
+**Example Script to install relevant bcc packages for Amazon 2 Linux**
+
+
+Make sure the the machine is at Kernel 4.19+/5+ (```uname -r```). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required kernel-devel package for the Kernel version and install the BCC tools.
+
+```sh
+#!/bin/bash
+#Enable BCC within the Amazon Linux Extras
+sudo amazon-linux-extras enable BCC
+#Install the kernal devel package for this kernel
+sudo yum install -y kernel-devel-$(uname -r)
+# Install BCC
+sudo yum install -y bcc
+```
+You should see output similar to below:
+```
+Installed:
+  bcc.x86_64 0:0.10.0-1.amzn2.0.1
+
+Dependency Installed:
+  bcc-tools.x86_64 0:0.10.0-1.amzn2.0.1                                                                                       python2-bcc.x86_64 0:0.10.0-1.amzn2.0.1
+```
+BCC is now enabled and no reboot is required. Proceed to Step 3.
+
 
 !!! note
 
-    We plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
+    For the below Linux distributions we plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
+
 
 ### Script to Install BCC Tools on Ubuntu and Debian 
 **Example Script to install relevant bcc packages for Ubuntu and Debian**
+
+Run the following script to download the prerequisites to build BCC tools, building LLVM and Clang targeting BPF byte code, and then building and installing BCC tools.
+
 
 ```sh
 #!/bin/bash

@@ -428,14 +428,6 @@ func (h *AuthHandlers) isProxy() bool {
 	return false
 }
 
-func (h *AuthHandlers) isTeleportNode() bool {
-	if h.Component == teleport.ComponentNode {
-		return true
-	}
-
-	return false
-}
-
 // extractRolesFromCert extracts roles from certificate metadata extensions.
 func extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]

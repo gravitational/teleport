@@ -672,11 +672,6 @@ func (b *FirestoreBackend) getIndexParent() string {
 	return "projects/" + b.ProjectID + "/databases/(default)/collectionGroups/" + b.CollectionName
 }
 
-// deleteAllItems deletes all items from the database, used in tests
-func (b *FirestoreBackend) deleteAllItems() {
-	DeleteAllDocuments(b.clientContext, b.svc, b.CollectionName)
-}
-
 // DeleteAllDocuments will delete all documents in a collection.
 func DeleteAllDocuments(ctx context.Context, svc *firestore.Client, collectionName string) {
 	docs, _ := svc.Collection(collectionName).Documents(ctx).GetAll()

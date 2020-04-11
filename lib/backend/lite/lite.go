@@ -185,9 +185,6 @@ type LiteBackend struct {
 	Config
 	*log.Entry
 	db *sql.DB
-	// tx stores the current transaction if this backend instance
-	// is bound to transaction
-	tx *sql.Tx
 	// clock is used to generate time,
 	// could be swapped in tests for fixed time
 	clock clockwork.Clock
@@ -878,10 +875,6 @@ func expires(t time.Time) interface{} {
 	return t.UTC()
 }
 
-func nop() error {
-	return nil
-}
-
 func convertError(err error) error {
 	origError := trace.Unwrap(err)
 	if isClosedError(origError) {
@@ -916,14 +909,6 @@ func isInterrupt(err error) bool {
 		return false
 	}
 	return e.Code == sqlite3.ErrInterrupt
-}
-
-func isRetryError(err error) bool {
-	e, ok := trace.Unwrap(err).(sqlite3.Error)
-	if !ok {
-		return false
-	}
-	return e.Code == sqlite3.ErrBusy || e.Code == sqlite3.ErrLocked
 }
 
 func isReadonlyError(err error) bool {

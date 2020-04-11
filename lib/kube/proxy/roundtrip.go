@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -66,10 +65,6 @@ type SpdyRoundTripper struct {
 
 	// dialWithContext is the function used connect to remote address
 	dialWithContext func(context context.Context, network, address string) (net.Conn, error)
-
-	// proxier knows which proxy to use given a request, defaults to http.ProxyFromEnvironment
-	// Used primarily for mocking the proxy discovery in tests.
-	proxier func(req *http.Request) (*url.URL, error)
 
 	// followRedirects indicates if the round tripper should examine responses for redirects and
 	// follow them.
@@ -170,16 +165,6 @@ func (s *SpdyRoundTripper) dialWithoutProxy(url *url.URL) (net.Conn, error) {
 	}
 
 	return conn, nil
-}
-
-// proxyAuth returns, for a given proxy URL, the value to be used for the Proxy-Authorization header
-func (s *SpdyRoundTripper) proxyAuth(proxyURL *url.URL) string {
-	if proxyURL == nil || proxyURL.User == nil {
-		return ""
-	}
-	credentials := proxyURL.User.String()
-	encodedAuth := base64.StdEncoding.EncodeToString([]byte(credentials))
-	return fmt.Sprintf("Basic %s", encodedAuth)
 }
 
 // RoundTrip executes the Request and upgrades it. After a successful upgrade,

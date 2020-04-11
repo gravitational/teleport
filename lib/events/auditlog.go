@@ -57,9 +57,6 @@ const (
 	// SymlinkFilename is a name of the symlink pointing to the last
 	// current log file
 	SymlinkFilename = "events.log"
-
-	// sessionsMigratedEvent is a sessions migration event used internally
-	sessionsMigratedEvent = "sessions.migrated"
 )
 
 var (
@@ -109,10 +106,6 @@ type AuditLog struct {
 
 	// playbackDir is a directory used for unpacked session recordings
 	playbackDir string
-
-	// fileTime is a rounded (to a day, by default) timestamp of the
-	// currently opened file
-	fileTime time.Time
 
 	// activeDownloads helps to serialize simultaneous downloads
 	// from the session record server
@@ -930,19 +923,6 @@ func (l *AuditLog) EmitAuditEvent(event Event, fields EventFields) error {
 	}
 
 	return nil
-}
-
-// emitEvent emits event for test purposes
-func (l *AuditLog) emitEvent(e AuditLogEvent) {
-	if l.EventsC == nil {
-		return
-	}
-	select {
-	case l.EventsC <- &e:
-		return
-	default:
-		l.Warningf("Blocked on the events channel.")
-	}
 }
 
 // auditDirs returns directories used for audit log storage

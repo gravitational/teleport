@@ -55,7 +55,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/mailgun/ttlmap"
 	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
@@ -67,7 +66,6 @@ type Handler struct {
 	httprouter.Router
 	cfg                     Config
 	auth                    *sessionCache
-	sites                   *ttlmap.TtlMap
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
 }
@@ -1413,11 +1411,6 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 	}, nil
 }
 
-type nodeWithSessions struct {
-	Node     services.ServerV1 `json:"node"`
-	Sessions []session.Session `json:"sessions"`
-}
-
 func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
@@ -1537,10 +1530,6 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	req.Session.Namespace = namespace
 	log.Infof("Generated session: %#v", req.Session)
 	return siteSessionGenerateResponse{Session: req.Session}, nil
-}
-
-type siteSessionUpdateReq struct {
-	TerminalParams session.TerminalParams `json:"terminal_params"`
 }
 
 type siteSessionsGetResponse struct {
@@ -1724,10 +1713,6 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
 	}
 	return limit, nil
-}
-
-type siteSessionStreamGetResponse struct {
-	Bytes []byte `json:"bytes"`
 }
 
 // siteSessionStreamGet returns a byte array from a session's stream
