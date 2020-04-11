@@ -193,12 +193,10 @@ run-docs:
 # tests everything: called by Jenkins
 #
 .PHONY: test
-test: FLAGS ?=
+test: FLAGS ?= '-race'
+test: PACKAGES := $(shell go list ./... | grep -v integration)
 test: $(VERSRC)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./tool/tsh/... \
-			   ./lib/... \
-			   ./tool/teleport... $(FLAGS) $(ADDFLAGS)
-	go vet ./tool/... ./lib/...
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 #
 # integration tests. need a TTY to work and not compatible with a race detector
@@ -207,6 +205,22 @@ test: $(VERSRC)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	go test -v -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/...
+
+#
+# Lint the Go code.
+# By default lint scans the entire repo. Pass FLAGS='--new' to only scan local
+# changes (or last commit).
+#
+.PHONY: lint
+lint: FLAGS ?=
+lint:
+	golangci-lint run \
+		--disable-all \
+		--exclude-use-default \
+		--skip-dirs vendor \
+		--max-issues-per-linter 0 \
+		--enable unused \
+		$(FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile

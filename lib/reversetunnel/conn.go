@@ -26,7 +26,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -176,14 +175,6 @@ func (c *remoteConn) setLastHeartbeat(tm time.Time) {
 	atomic.StoreInt64(&c.lastHeartbeat, tm.UnixNano())
 }
 
-func (c *remoteConn) getLastHeartbeat() time.Time {
-	unixNano := atomic.LoadInt64(&c.lastHeartbeat)
-	if unixNano == 0 {
-		return time.Time{}
-	}
-	return time.Unix(0, unixNano)
-}
-
 // isReady returns true when connection is ready to be tried,
 // it returns true when connection has received the first heartbeat
 func (c *remoteConn) isReady() bool {
@@ -256,9 +247,4 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 	}
 
 	return nil
-}
-
-func (c *remoteConn) isOnline(conn services.TunnelConnection) bool {
-	tunnelStatus := services.TunnelConnectionStatus(c.clock, conn, c.offlineThreshold)
-	return tunnelStatus == teleport.RemoteClusterStatusOnline
 }

@@ -40,9 +40,6 @@ type CertAuthorityV2 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains cert authority specification
 	Spec CertAuthoritySpecV2 `json:"spec"`
-	// rawObject is object that is raw object stored in DB
-	// without any conversions applied, used in migrations
-	rawObject interface{}
 }
 
 // Rotation is a status of the rotation of the certificate authority

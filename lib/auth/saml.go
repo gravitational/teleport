@@ -202,7 +202,7 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 				"NameID in assertion or remove local user and try again.", existingUser.GetName())
 		}
 
-		log.Debugf("Overwriting exisiting user '%v' created with %v connector %v.",
+		log.Debugf("Overwriting existing user '%v' created with %v connector %v.",
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
 	}
 

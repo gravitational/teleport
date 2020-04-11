@@ -258,13 +258,6 @@ func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
 	}
 }
 
-func max(a, b int) int {
-	if a > b {
-		return b
-	}
-	return a
-}
-
 // BufferWatcher is a watcher connected to the
 // buffer and receiving fan-out events from the watcher
 type BufferWatcher struct {

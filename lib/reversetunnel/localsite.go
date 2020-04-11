@@ -17,7 +17,6 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -77,12 +76,9 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 type localSite struct {
 	sync.Mutex
 
-	authServer  string
-	log         *log.Entry
-	domainName  string
-	connections []*remoteConn
-	lastUsed    int
-	srv         *server
+	log        *log.Entry
+	domainName string
+	srv        *server
 
 	// client provides access to the Auth Server API of the local cluster.
 	client auth.ClientI
@@ -95,9 +91,6 @@ type localSite struct {
 
 	// remoteConns maps UUID to a remote connection.
 	remoteConns map[string]*remoteConn
-
-	// closeContext is used to signal when the site is shutting down.
-	closeContext context.Context
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
