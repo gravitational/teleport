@@ -17,7 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"io"
 	"net"
 	"sync"
 	"time"
@@ -26,13 +25,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
-
-// Implements a fake "socket" (net.Listener interface) on top of existing ssh.Channel
-type fakeSocket struct {
-	closed      chan int
-	connections chan net.Conn
-	closeOnce   sync.Once
-}
 
 // FakeSSHConnection implements net.Conn interface on top of the ssh.Cnahhel
 // object. This allows us to run non-SSH servers (like HTTP) on top of an
@@ -81,30 +73,4 @@ func (conn *FakeSSHConnection) SetReadDeadline(t time.Time) error {
 // SetWriteDeadline is needed to implement net.Conn interface
 func (conn *FakeSSHConnection) SetWriteDeadline(t time.Time) error {
 	return nil
-}
-
-// Accept waits for new connections to arrive (via CreateBridge) and returns them to
-// the blocked http.Serve()
-func (socket *fakeSocket) Accept() (c net.Conn, err error) {
-	select {
-	case newConnection := <-socket.connections:
-		return newConnection, nil
-	case <-socket.closed:
-		return nil, io.EOF
-	}
-}
-
-// Close closes the listener.
-// Any blocked Accept operations will be unblocked and return errors.
-func (socket *fakeSocket) Close() error {
-	socket.closeOnce.Do(func() {
-		// broadcast that listener has closed to all listening parties
-		close(socket.closed)
-	})
-	return nil
-}
-
-// Addr returns the listener's network address.
-func (socket *fakeSocket) Addr() net.Addr {
-	return &utils.NetAddr{AddrNetwork: "tcp", Addr: "socket.over.ssh"}
 }

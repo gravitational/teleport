@@ -69,7 +69,7 @@ bbox-fips:
 		--tag $(BBOXFIPS) -f Dockerfile-fips .
 
 #
-# Builds a Docker container for CentOS 6 builds 
+# Builds a Docker container for CentOS 6 builds
 #
 .PHONY:bbox-centos6
 bbox-centos6:
@@ -124,6 +124,14 @@ test: bbox
 integration: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
+
+#
+# Runs linters on new changes inside a build container.
+#
+.PHONY:lint
+lint: bbox
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
+		/bin/bash -c "make -C $(SRCDIR) lint"
 
 #
 # Builds docs

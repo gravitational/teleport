@@ -153,9 +153,9 @@ numbers.
 
 |Port      | Service    | Description
 |----------|------------|-------------------------------------------
-|3022      | Node       | SSH port. This is Teleport's equivalent of port `#22` for SSH.
-|3023      | Proxy      | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination node.
-|3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
+|3022      | Node       | SSH port. This is Teleport's equivalent of port `22` for SSH.
+|3023      | Proxy      | SSH port clients connect to. A proxy will forward this connection to port `3022` on the destination node.
+|3024      | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server. Also used by nodes connecting via Teleport IoT/node tunneling.
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
 |3026      | Kubernetes Proxy      | HTTPS Kubernetes proxy (if enabled)
@@ -471,7 +471,9 @@ proxy_service:
     # command line (CLI) users via password+HOTP
     web_listen_addr: 0.0.0.0:3080
 
-    # The DNS name the proxy HTTPS endpoint as accessible by cluster users.
+    # The DNS name of the proxy HTTPS endpoint as accessible by cluster users,
+    # cluster clients, trusted clusters and nodes joining the cluster via
+    # Teleport IoT/node tunneling.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
     # (see public_addr section below)
@@ -482,6 +484,13 @@ proxy_service:
     # behind a load balancer, this name must point to the load balancer.
     # Use a TCP load balancer because this port uses SSH protocol.
     ssh_public_addr: proxy.example.com:3023
+    
+    # The DNS name of the tunnel SSH endpoint as accessible by trusted clusters and
+    # nodes joining the cluster via Teleport IoT/node tunneling.
+    # Defaults to the proxy's hostname if not specified. If running multiple proxies
+    # behind a load balancer, this name must point to the load balancer.
+    # Use a TCP load balancer because this port uses SSH protocol.
+    tunnel_public_addr: proxy.example.com:3024
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
@@ -2327,7 +2336,9 @@ teleport:
 
     # This setting configures Teleport to send the audit events to three places:
     # To keep a copy on a local filesystem, in DynamoDB and to Stdout.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name', 'stdout://']
+    # NOTE: The DynamoDB events table has a different schema to the regular Teleport
+    # database table, so attempting to use same table for both will result in errors.
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://events_table_name', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
@@ -2335,6 +2346,9 @@ teleport:
 
 * Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
   with your own settings.  Teleport will create the table automatically.
+* `Example_TELEPORT_DYNAMO_TABLE_NAME` and `events_table_name` **must** be different
+  DynamoDB tables. The schema is different for each. Using the same table name for both
+  will result in errors.
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 * Audit log settings above are optional. If specified, Teleport will store the
@@ -2431,7 +2445,9 @@ teleport:
 
     # This setting configures Teleport to send the audit events to three places:
     # To keep a copy on a local filesystem, in Firestore and to Stdout.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://Example_TELEPORT_FIRESTORE_TABLE_NAME', 'stdout://']
+    # NOTE: The Firestore events table has a different schema to the regular Teleport
+    # database table, so attempting to use same table for both will result in errors.
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
     audit_sessions_uri: gs://Example_TELEPORT_S3_BUCKET/records
@@ -2439,6 +2455,11 @@ teleport:
 
 * Replace `Example_GCP_Project_Name` and `Example_TELEPORT_FIRESTORE_TABLE_NAME`
   with your own settings. Teleport will create the table automatically.
+  
+* `Example_TELEPORT_FIRESTORE_TABLE_NAME` and `Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME`
+  **must** be different Firestore tables. The schema is different for each. Using the same
+  table name for both will result in errors.
+  
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 

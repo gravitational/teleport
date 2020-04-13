@@ -74,10 +74,6 @@ func (proxies Proxies) Equal(other []services.Server) bool {
 	return true
 }
 
-func (r discoveryRequest) key() agentKey {
-	return agentKey{clusterName: r.ClusterName, tunnelType: r.Type, addr: r.ClusterAddr}
-}
-
 func (r discoveryRequest) String() string {
 	return fmt.Sprintf("discovery request, cluster name: %v, address: %v, proxies: %v",
 		r.ClusterName, r.ClusterAddr, Proxies(r.Proxies))

@@ -19,11 +19,12 @@ package seek
 import (
 	"context"
 	"fmt"
-	"gopkg.in/check.v1"
 	pr "math/rand"
 	"sync"
 	"testing"
 	"time"
+
+	"gopkg.in/check.v1"
 )
 
 type simpleTestProxies struct {
@@ -111,13 +112,6 @@ func newTestProxy(life time.Duration) testProxy {
 		principals = append(principals, p)
 	}
 	return testProxy{principals, life}
-}
-
-// prMillis generates a pseudorandom duration
-// of [0,max) milliseconds.
-func prMillis(min int64, max int64) time.Duration {
-	n := time.Duration(pr.Int63n(max-min) + min)
-	return n * time.Millisecond
 }
 
 func prDuration(min time.Duration, max time.Duration) time.Duration {

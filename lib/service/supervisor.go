@@ -119,7 +119,6 @@ type LocalSupervisor struct {
 	sync.Mutex
 	wg           *sync.WaitGroup
 	services     []Service
-	errors       []error
 	events       map[string]Event
 	eventsC      chan Event
 	eventWaiters map[string][]*waiter
@@ -467,5 +466,5 @@ type ServiceFunc func() error
 
 const (
 	stateCreated = iota
-	stateStarted = iota
+	stateStarted
 )

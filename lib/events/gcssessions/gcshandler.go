@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/api/iterator"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -246,27 +245,6 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.
 		return trace.NotFound("recording for %v is not found", sessionID)
 	}
 	return nil
-}
-
-// delete bucket deletes bucket and all it's contents and is used in tests
-// this app should not have the authority to create/destroy resources
-func (h *Handler) deleteBucket() error {
-	objectsIterator := h.gcsClient.Bucket(h.Config.Bucket).Objects(h.clientContext, nil)
-	for {
-		attrs, err := objectsIterator.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return convertGCSError(err)
-		}
-		err = h.gcsClient.Bucket(h.Config.Bucket).Object(attrs.Name).Delete(h.clientContext)
-		if err != nil {
-			return convertGCSError(err)
-		}
-	}
-	err := h.gcsClient.Bucket(h.Config.Bucket).Delete(h.clientContext)
-	return convertGCSError(err)
 }
 
 func (h *Handler) path(sessionID session.ID) string {

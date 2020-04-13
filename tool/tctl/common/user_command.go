@@ -41,7 +41,6 @@ type UserCommand struct {
 	allowedLogins string
 	kubeGroups    string
 	roles         string
-	identities    []string
 	ttl           time.Duration
 
 	// format is the output format, e.g. text or json

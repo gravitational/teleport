@@ -113,26 +113,6 @@ func (s *ServicesTestSuite) Users() services.UsersService {
 	return s.UsersS
 }
 
-func (s *ServicesTestSuite) collectChanges(c *check.C, expected int) []interface{} {
-	changes := make([]interface{}, expected)
-	for i := range changes {
-		select {
-		case changes[i] = <-s.ChangesC:
-			// successfully collected changes
-		case <-time.After(2 * time.Second):
-			c.Fatalf("Timeout occurred waiting for events")
-		}
-	}
-	return changes
-}
-
-func (s *ServicesTestSuite) expectChanges(c *check.C, expected ...interface{}) {
-	changes := s.collectChanges(c, len(expected))
-	for i, ch := range changes {
-		c.Assert(ch, check.DeepEquals, expected[i])
-	}
-}
-
 func userSlicesEqual(c *check.C, a []services.User, b []services.User) {
 	comment := check.Commentf("a: %#v b: %#v", a, b)
 	c.Assert(len(a), check.Equals, len(b), comment)
