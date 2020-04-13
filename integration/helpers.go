@@ -26,7 +26,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -57,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -1416,24 +1414,6 @@ func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	}
 
 	return nil
-}
-
-// createWebClient builds a *client.WebClient that is used to simulate
-// browser requests.
-func createWebClient(cluster *TeleInstance, opts ...roundtrip.ClientParam) (*client.WebClient, error) {
-	// Craft URL to Web UI.
-	u := &url.URL{
-		Scheme: "https",
-		Host:   cluster.Config.Proxy.WebAddr.Addr,
-	}
-
-	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	wc, err := client.NewWebClient(u.String(), opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return wc, nil
 }
 
 func fatalIf(err error) {

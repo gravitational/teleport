@@ -25,6 +25,7 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
+GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -219,8 +220,10 @@ lint:
 		--disable-all \
 		--exclude-use-default \
 		--skip-dirs vendor \
+		--uniq-by-line=false \
+		--max-same-issues=0 \
 		--max-issues-per-linter 0 \
-		--enable unused \
+		--enable $(GO_LINTERS) \
 		$(FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
