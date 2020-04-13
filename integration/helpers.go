@@ -1441,12 +1441,3 @@ func fatalIf(err error) {
 		log.Fatalf("%v at %v", string(debug.Stack()), err)
 	}
 }
-
-func makeKey() (priv, pub []byte) {
-	k, err := native.New(context.TODO(), native.PrecomputeKeys(0))
-	if err != nil {
-		panic(err)
-	}
-	priv, pub, _ = k.GenerateKeyPair("")
-	return priv, pub
-}

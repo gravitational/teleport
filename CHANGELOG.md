@@ -1,5 +1,43 @@
 # Changelog
 
+## 4.2.8
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed issue where `^C` would not terminate `tsh`. [#3456](https://github.com/gravitational/teleport/pull/3456)
+* Fixed an issue where enhanced session recording could cause Teleport to panic. [#3506](https://github.com/gravitational/teleport/pull/3506)
+
+## 4.2.7
+
+As part of a routine security audit of Teleport, a security vulnerability was discovered that affects all recent releases of Teleport. We strongly suggest upgrading to the latest patched release to mitigate this vulnerability.
+
+### Details
+
+Due to a flaw in how the Teleport Web UI handled host certificate validation, host certificate validation was disabled for clusters where connections were terminated at the node. This means that an attacker could impersonate a Teleport node without detection when connecting through the Web UI.
+
+Clusters where sessions were terminated at the proxy (recording proxy mode) are not affected.
+
+Command line programs like `tsh` (or `ssh`) are not affected by this vulnerability.
+
+### Actions
+
+To mitigate this issue, upgrade and restart all Teleport proxy processes.
+
+## 4.2.6
+
+This release of Teleport contains a bug fix.
+
+* Fixed a regression in certificate reissuance that could cause nodes to not start. [#3449](https://github.com/gravitational/teleport/pull/3449)
+
+## 4.2.5
+
+This release of Teleport contains multiple bug fixes.
+
+* Added support for custom OIDC prompts. [#3409](https://github.com/gravitational/teleport/pull/3409)
+* Added support for `kubernetes_users` in roles. [#3409](https://github.com/gravitational/teleport/pull/3404)
+* Added support for extended variable interpolation. [#3409](https://github.com/gravitational/teleport/pull/3404)
+* Added SameSite attribute to CSRF cookie. [#3441](https://github.com/gravitational/teleport/pull/3441)
+
 ## 4.2.4
 
 This release of Teleport contains bug fixes.
@@ -52,6 +90,22 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](https://gravitational.com/teleport/docs/ver/4.2/trustedclusters/).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](https://gravitational.com/teleport/docs/ver/4.2/enterprise/ssh_fips/).
+
+## 4.1.10
+
+As part of a routine security audit of Teleport, a security vulnerability was discovered that affects all recent releases of Teleport. We strongly suggest upgrading to the latest patched release to mitigate this vulnerability.
+
+### Details
+
+Due to a flaw in how the Teleport Web UI handled host certificate validation, host certificate validation was disabled for clusters where connections were terminated at the node. This means that an attacker could impersonate a Teleport node without detection when connecting through the Web UI.
+
+Clusters where sessions were terminated at the proxy (recording proxy mode) are not affected.
+
+Command line programs like `tsh` (or `ssh`) are not affected by this vulnerability.
+
+### Actions
+
+To mitigate this issue, upgrade and restart all Teleport proxy processes.
 
 ## 4.1.9
 
@@ -132,6 +186,22 @@ This is a major Teleport release with a focus on stability and bug fixes.
 * tsh status does not show correct cluster name. [#2671](https://github.com/gravitational/teleport/issues/2671)
 * Teleport truncates MOTD with PAM. [#2477](https://github.com/gravitational/teleport/issues/2477)
 * Miscellaneous fixes around error handling and reporting.
+
+## 4.0.16
+
+As part of a routine security audit of Teleport, a security vulnerability was discovered that affects all recent releases of Teleport. We strongly suggest upgrading to the latest patched release to mitigate this vulnerability.
+
+### Details
+
+Due to a flaw in how the Teleport Web UI handled host certificate validation, host certificate validation was disabled for clusters where connections were terminated at the node. This means that an attacker could impersonate a Teleport node without detection when connecting through the Web UI.
+
+Clusters where sessions were terminated at the proxy (recording proxy mode) are not affected.
+
+Command line programs like `tsh` (or `ssh`) are not affected by this vulnerability.
+
+### Actions
+
+To mitigate this issue, upgrade and restart all Teleport proxy processes.
 
 ## 4.0.15
 

@@ -134,9 +134,9 @@ $ tctl tokens ls
 $ tctl tokens rm ba4825847f0378bcdfe18113c4998498
 ```
 
-Users of Teleport will recognize that this is the same way you would add any
-node to a cluster.  The token created above can be used multiple times and has
-an expiration time of 5 minutes.
+The token created above can be used multiple times and has an expiration time of 5 minutes.
+
+[Example of how to use a cluster join token.](admin-guide.md#example-configuration)
 
 ### Security Implications
 
@@ -311,6 +311,37 @@ and set `enabled` to "false", then update it:
 ```bsh
 $ tctl create --force cluster.yaml
 ```
+
+## Sharing Kubernetes groups between Trusted Clusters
+
+Below is an example of how to share a kubernetes group between trusted clusters. 
+
+In this example, we have a root trusted cluster with a role `root` and kubernetes groups:
+
+```yaml
+kubernetes_groups: ["system:masters"] 
+```
+SSH logins:
+
+```yaml
+logins: ["root"]
+```
+The leaf cluster can choose to map this `root` cluster to its own cluster. The `admin` cluster in the trusted cluster config:
+
+```yaml
+role_map:
+  - remote: "root"
+    local: [admin] 
+```
+The role `admin` of the leaf cluster can now be set up to use the root cluster role logins and `kubernetes_groups` using the following variables:
+
+```yaml
+logins: ["{% raw %}{{internal.logins}}{% endraw %}"]
+kubernetes_groups: ["{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
+```
+!!! tip "Note"
+
+    In order to pass logins from a root trusted cluster to a leaf cluster, you must use the variable `{% raw %}{{internal.logins}}{% endraw %}`. 
 
 ## How does it work?
 

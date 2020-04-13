@@ -42,6 +42,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	// randomTokenLenBytes is the length of random token generated for the example config
+	randomTokenLenBytes = 24
+)
+
 var (
 	// all possible valid YAML config keys
 	// true  = has sub-keys
@@ -243,20 +248,24 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 
 // MakeSampleFileConfig returns a sample config structure populated by defaults,
 // useful to generate sample configuration files
-func MakeSampleFileConfig() (fc *FileConfig) {
+func MakeSampleFileConfig() (fc *FileConfig, err error) {
 	conf := service.MakeDefaultConfig()
+
+	// generate a secure random token
+	randomJoinToken, err := utils.CryptoRandomHex(randomTokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// sample global config:
 	var g Global
 	g.NodeName = conf.Hostname
-	g.AuthToken = "cluster-join-token"
+	g.AuthToken = randomJoinToken
+	g.CAPin = "sha256:ca-pin-hash-goes-here"
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
-	g.AuthServers = []string{defaults.AuthListenAddr().Addr}
-	g.Limits.MaxConnections = defaults.LimiterMaxConnections
-	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
+	g.AuthServers = []string{fmt.Sprintf("%s:%d", defaults.Localhost, defaults.AuthListenPort)}
 	g.DataDir = defaults.DataDir
-	g.PIDFile = "/var/run/teleport.pid"
 
 	// sample SSH config:
 	var s SSH
@@ -283,7 +292,8 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	var a Auth
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
 	a.EnabledFlag = "yes"
-	a.StaticTokens = []StaticToken{"proxy,node:cluster-join-token"}
+	a.StaticTokens = []StaticToken{StaticToken(fmt.Sprintf("proxy,node:%s", randomJoinToken))}
+	a.LicenseFile = "/path/to/license-if-using-teleport-enterprise.pem"
 
 	// sample proxy config:
 	var p Proxy
@@ -291,8 +301,6 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	p.ListenAddress = conf.Proxy.SSHAddr.Addr
 	p.WebAddr = conf.Proxy.WebAddr.Addr
 	p.TunAddr = conf.Proxy.ReverseTunnelListenAddr.Addr
-	p.CertFile = "/var/lib/teleport/webproxy_cert.pem"
-	p.KeyFile = "/var/lib/teleport/webproxy_key.pem"
 
 	fc = &FileConfig{
 		Global: g,
@@ -300,7 +308,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 		SSH:    s,
 		Auth:   a,
 	}
-	return fc
+	return fc, nil
 }
 
 // DebugDumpToYAML allows for quick YAML dumping of the config
@@ -505,7 +513,7 @@ type Auth struct {
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
 
 	// SessionRecording determines where the session is recorded: node, proxy, or off.
-	SessionRecording string `yaml:"session_recording"`
+	SessionRecording string `yaml:"session_recording,omitempty"`
 
 	// ProxyChecksHostKeys is used when the proxy is in recording mode and
 	// determines if the proxy will check the host key of the client or not.
@@ -547,11 +555,11 @@ type Auth struct {
 	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 
 	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
-	ClientIdleTimeout services.Duration `yaml:"client_idle_timeout"`
+	ClientIdleTimeout services.Duration `yaml:"client_idle_timeout,omitempty"`
 
 	// DisconnectExpiredCert provides disconnect expired certificate setting -
 	// if true, connections with expired client certificates will get disconnected
-	DisconnectExpiredCert services.Bool `yaml:"disconnect_expired_cert"`
+	DisconnectExpiredCert services.Bool `yaml:"disconnect_expired_cert,omitempty"`
 
 	// KubeconfigFile is an optional path to kubeconfig file,
 	// if specified, teleport will use API server address and
@@ -564,7 +572,7 @@ type Auth struct {
 
 	// KeepAliveCountMax set the number of keep-alive messages that can be
 	// missed before the server disconnects the client.
-	KeepAliveCountMax int64 `yaml:"keep_alive_count_max"`
+	KeepAliveCountMax int64 `yaml:"keep_alive_count_max,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

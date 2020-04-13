@@ -239,13 +239,12 @@ func (s *GroupHandle) Gossip() chan<- string {
 // proxyGroup manages all proxy seekers for a group.
 type proxyGroup struct {
 	sync.Mutex
-	id       Key
-	conf     Config
-	states   map[string]seeker
-	proxyC   <-chan string
-	seekC    chan<- Key
-	statC    chan Status
-	lastStat *Status
+	id     Key
+	conf   Config
+	states map[string]seeker
+	proxyC <-chan string
+	seekC  chan<- Key
+	statC  chan Status
 }
 
 // run is the "main loop" for the seek process.

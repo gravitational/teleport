@@ -361,6 +361,18 @@ const (
 	DebugLevel = "debug"
 )
 
+const (
+	// These values are from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+
+	// OIDCPromptSelectAccount instructs the Authorization Server to
+	// prompt the End-User to select a user account.
+	OIDCPromptSelectAccount = "select_account"
+
+	// OIDCAccessTypeOnline indicates that OIDC flow should be performed
+	// with Authorization server and user connected online
+	OIDCAccessTypeOnline = "online"
+)
+
 // Component generates "component:subcomponent1:subcomponent2" strings used
 // in debugging
 func Component(components ...string) string {
@@ -444,6 +456,10 @@ const (
 	// TraitKubeGroups is the name the role variable used to store
 	// allowed kubernetes groups
 	TraitKubeGroups = "kubernetes_groups"
+
+	// TraitKubeUsers is the name the role variable used to store
+	// allowed kubernetes users
+	TraitKubeUsers = "kubernetes_users"
 
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.

@@ -21,7 +21,6 @@ markdown_extensions:
   - footnotes
   - toc:
       marker: '[TOC]'
-      toc_depth: 2
 extra_css: []
 plugins:
     - search:
@@ -32,9 +31,9 @@ extra_javascript: []
 extra:
     version: 4.2
     teleport:
-        version: 4.2.3
+        version: 4.2.8
         golang: 1.13
-        sha: 1c14362c9ba10f28088c7228b357dc6a70072d3d4afaa5510c70a8734068684c
+        sha: 52c176e403fa330012ba371abe71d9867f76277c0e3e01402fd29e6b95d34fe5
 nav:
     - Documentation:
         - Introduction: index.md
@@ -44,7 +43,7 @@ nav:
         - Admin Manual: admin-guide.md
         - Production Guide: production.md
         - FAQ: faq.md
-    - Teleport Features: 
+    - Teleport Advanced Features: 
         - Enhanced Session Recording: features/enhanced_session_recording.md
         - Using Teleport with PAM: features/ssh_pam.md
     - Infrastructure Guides:
@@ -60,6 +59,7 @@ nav:
         - FedRAMP & FIPS: enterprise/ssh_fips.md        
         - RBAC: enterprise/ssh_rbac.md 
     - SSO Guides:
+        - Azure Active Directory (AD): ssh_azuread.md
         - Active Directory (ADFS): ssh_adfs.md
         - G Suite: ssh_gsuite.md
         - OneLogin: ssh_one_login.md

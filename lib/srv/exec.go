@@ -33,7 +33,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -121,10 +120,6 @@ type localExec struct {
 
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
-
-	// sessionContext holds the BPF session context used to lookup and interact
-	// with BPF sessions.
-	sessionContext *bpf.SessionContext
 }
 
 // GetCommand returns the command string.

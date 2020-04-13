@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Teleport Documentation
+    url: https://gravitational.com/teleport/docs/
+    about: Check out the Teleport documentation for answers to common questions
+  - name: Gravitational Teleport community
+    url: https://community.gravitational.com/c/teleport
+    about: Ask Teleport related questions, answered by the Team and community. 
+  - name: Request a Demo
+    url: https://gravitational.com/teleport/demo/
+    about: Want to see the full power of Teleport? Our team is happy to give a demo. 

@@ -600,27 +600,6 @@ func startRollingBackRotation(ca services.CertAuthority) error {
 	return nil
 }
 
-// completeRollingBackRotation completes rollback of the rotation and sets it to the standby state
-func completeRollingBackRotation(clock clockwork.Clock, ca services.CertAuthority) error {
-	rotation := ca.GetRotation()
-
-	// clean up the state
-	rotation.Started = time.Time{}
-	rotation.State = services.RotationStateStandby
-	rotation.Phase = services.RotationPhaseStandby
-	rotation.Mode = ""
-	rotation.Schedule = services.RotationSchedule{}
-
-	keyPairs := ca.GetTLSKeyPairs()
-	// only keep the original certificate authority as trusted
-	// and remove everything else.
-	keyPairs = []services.TLSKeyPair{keyPairs[0]}
-
-	ca.SetTLSKeyPairs(keyPairs)
-	ca.SetRotation(rotation)
-	return nil
-}
-
 // completeRotation completes the certificate authority rotation.
 func completeRotation(clock clockwork.Clock, ca services.CertAuthority) error {
 	rotation := ca.GetRotation()

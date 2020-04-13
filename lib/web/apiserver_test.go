@@ -68,7 +68,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/beevik/etree"
-	"github.com/gokyle/hotp"
 	"github.com/golang/protobuf/proto"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
@@ -270,7 +269,6 @@ type authPack struct {
 	otpSecret string
 	user      string
 	login     string
-	otp       *hotp.HOTP
 	session   *CreateSessionResponse
 	clt       *client.WebClient
 	cookies   []*http.Cookie
@@ -465,6 +463,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
 	c.Assert(err, IsNil)
 	err = connector.CheckAndSetDefaults()
+	c.Assert(err, IsNil)
 
 	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
 		Options: services.RoleOptions{
@@ -493,10 +492,12 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after;connector_id=` + connector.GetName())
 	c.Assert(err, IsNil)
 	req, err := http.NewRequest("GET", baseURL.String(), nil)
+	c.Assert(err, IsNil)
 	addCSRFCookieToReq(req, csrfToken)
 	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
 		return clt.Client.HTTPClient().Do(req)
 	})
+	c.Assert(err, IsNil)
 
 	// we got a redirect
 	locationURL := re.Headers().Get("Location")
@@ -992,6 +993,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 		events.SessionEventID: sid.String(),
 		events.TerminalSize:   params.Serialize(),
 	})
+	c.Assert(err, IsNil)
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketResize,
@@ -1778,6 +1780,9 @@ func (s *WebSuite) client(opts ...roundtrip.ClientParam) *client.WebClient {
 func (s *WebSuite) login(clt *client.WebClient, cookieToken string, reqToken string, reqData interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)
+		if err != nil {
+			return nil, err
+		}
 		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err

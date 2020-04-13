@@ -20,6 +20,7 @@ package web
 
 import (
 	"compress/gzip"
+	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -54,7 +55,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/mailgun/ttlmap"
 	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
@@ -66,7 +66,6 @@ type Handler struct {
 	httprouter.Router
 	cfg                     Config
 	auth                    *sessionCache
-	sites                   *ttlmap.TtlMap
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
 }
@@ -280,6 +279,30 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/web", http.StatusFound)
 			return
+		}
+
+		// check proxy and auth node versions (breaking change from v5).
+		// If there is a mismatch with the current proxy client, redirect users to an error page to update proxy.
+		//
+		// DELETE IN 5.0: this block only serves to notify users of v4.3+ to upgrade to v5.0.0
+		if strings.HasPrefix(r.URL.Path, "/web/newuser") {
+			res, err := h.auth.Ping(context.TODO())
+			if err != nil {
+				log.WithError(err).Debugf("Could not ping auth server")
+			} else {
+				isProxyV4x := strings.Index(teleport.Version, "4.") == 0
+				isAuthV5x := strings.Index(res.GetServerVersion(), "5.") == 0
+
+				if isAuthV5x && isProxyV4x {
+					message := fmt.Sprintf("Your Teleport proxy and auth service versions are incompatible. Please upgrade your Teleport proxy service to version %v", res.GetServerVersion())
+					pathToError := url.URL{
+						Path:     "/web/msg/error",
+						RawQuery: url.Values{"details": []string{message}}.Encode(),
+					}
+					http.Redirect(w, r, pathToError.String(), http.StatusFound)
+					return
+				}
+			}
 		}
 
 		// serve Web UI:
@@ -1388,11 +1411,6 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 	}, nil
 }
 
-type nodeWithSessions struct {
-	Node     services.ServerV1 `json:"node"`
-	Sessions []session.Session `json:"sessions"`
-}
-
 func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
@@ -1512,10 +1530,6 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	req.Session.Namespace = namespace
 	log.Infof("Generated session: %#v", req.Session)
 	return siteSessionGenerateResponse{Session: req.Session}, nil
-}
-
-type siteSessionUpdateReq struct {
-	TerminalParams session.TerminalParams `json:"terminal_params"`
 }
 
 type siteSessionsGetResponse struct {
@@ -1699,10 +1713,6 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
 	}
 	return limit, nil
-}
-
-type siteSessionStreamGetResponse struct {
-	Bytes []byte `json:"bytes"`
 }
 
 // siteSessionStreamGet returns a byte array from a session's stream

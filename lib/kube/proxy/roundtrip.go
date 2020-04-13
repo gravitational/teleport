@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -32,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -65,10 +65,6 @@ type SpdyRoundTripper struct {
 
 	// dialWithContext is the function used connect to remote address
 	dialWithContext func(context context.Context, network, address string) (net.Conn, error)
-
-	// proxier knows which proxy to use given a request, defaults to http.ProxyFromEnvironment
-	// Used primarily for mocking the proxy discovery in tests.
-	proxier func(req *http.Request) (*url.URL, error)
 
 	// followRedirects indicates if the round tripper should examine responses for redirects and
 	// follow them.
@@ -171,16 +167,6 @@ func (s *SpdyRoundTripper) dialWithoutProxy(url *url.URL) (net.Conn, error) {
 	return conn, nil
 }
 
-// proxyAuth returns, for a given proxy URL, the value to be used for the Proxy-Authorization header
-func (s *SpdyRoundTripper) proxyAuth(proxyURL *url.URL) string {
-	if proxyURL == nil || proxyURL.User == nil {
-		return ""
-	}
-	credentials := proxyURL.User.String()
-	encodedAuth := base64.StdEncoding.EncodeToString([]byte(credentials))
-	return fmt.Sprintf("Basic %s", encodedAuth)
-}
-
 // RoundTrip executes the Request and upgrades it. After a successful upgrade,
 // clients may call SpdyRoundTripper.Connection() to retrieve the upgraded
 // connection.
@@ -189,18 +175,8 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	header.Add(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
 	header.Add(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
 
-	// impersonation for remote clusters is handled by remote proxies
-	if !s.authCtx.cluster.isRemote {
-		header.Add("Impersonate-User", s.authCtx.User.GetName())
-		log.Debugf("Impersonate User: %v", s.authCtx.User)
-		for _, group := range s.authCtx.kubeGroups {
-			header.Add("Impersonate-Group", group)
-			log.Debugf("Impersonate Group: %v", group)
-		}
-		if s.bearerToken != "" {
-			log.Debugf("Using Bearer Token Auth")
-			header.Set("Authorization", fmt.Sprintf("Bearer %v", s.bearerToken))
-		}
+	if err := setupImpersonationHeaders(log.StandardLogger(), &s.authCtx, header, s.bearerToken); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var (

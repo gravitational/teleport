@@ -64,18 +64,21 @@ Leave Service account permissions as blank.
 This JSON file will need to be uploaded to the Authentication server, and will be later referenced by 
 the OIDC Connector, under `google_service_account_uri`. 
 
-!!! note:  
+!!! note
+
     Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
     up in a HA config. 
 
 ## API Scopes:
+Before setting the Manage API client access capture the client ID of the service account. 
+Within GSuite to access the Manage API client access go to Security -> Settings.  Navigate to Advanced Settings and open Manage API client access.  Put the client ID in the Client Name field and the below permissions in the API scopes as a single comma separated line.  Press Authorize. 
 
-Client name: Use Email from Service account creation ( this will be converted to numbers after it’s authorized )
+!!! note:  Do not use the email of the service account.  The configuration display will look the same but the service account will not have the domain-wide delegation required.  A indicator of that is if you see `Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested.` in your log.
 
 `https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://www.googleapis.com/auth/admin.directory.group.readonly, https://www.googleapis.com/auth/admin.directory.user.readonly`
 
 ![Manage API Client Access](img/gsuite/gsuite-6-manage-api-access.png)
-Once saved, Google with convert the Client Name into the Client ID. 
+Google will display the client id and resolve the permission definitions.
 ![Create OAuth Creds](img/gsuite/gsuite-6a-manage-access.png)
 
 
@@ -159,7 +162,8 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip":
+!!! tip "Tip"
+
     Teleport can use multiple OIDC connectors. In this case a connector name
     can be passed via `tsh login --auth=connector_name`
 

@@ -17,11 +17,9 @@ limitations under the License.
 package services
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -76,6 +74,10 @@ type OIDCConnector interface {
 	SetIssuerURL(string)
 	// SetRedirectURL sets RedirectURL
 	SetRedirectURL(string)
+	// SetPrompt sets OIDC prompt value
+	SetPrompt(string)
+	// GetPrompt returns OIDC prompt value,
+	GetPrompt() string
 	// SetACR sets the Authentication Context Class Reference (ACR) value.
 	SetACR(string)
 	// SetProvider sets the identity provider.
@@ -239,7 +241,23 @@ type OIDCConnectorV2 struct {
 	Spec OIDCConnectorSpecV2 `json:"spec"`
 }
 
-// GetGoogleServiceAccountFile returns an optional path to google service account file
+// SetPrompt sets OIDC prompt value
+func (o *OIDCConnectorV2) SetPrompt(p string) {
+	o.Spec.Prompt = &p
+}
+
+// GetPrompt returns OIDC prompt value,
+// * if not set, in this case defaults to select_account for backwards compatibility
+// * set to empty string, in this case it will be omitted
+// * and any non empty value, passed as is
+func (o *OIDCConnectorV2) GetPrompt() string {
+	if o.Spec.Prompt == nil {
+		return teleport.OIDCPromptSelectAccount
+	}
+	return *o.Spec.Prompt
+}
+
+// GetGoogleServiceAccountURI returns an optional path to google service account file
 func (o *OIDCConnectorV2) GetGoogleServiceAccountURI() string {
 	return o.Spec.GoogleServiceAccountURI
 }
@@ -471,40 +489,6 @@ func (o *OIDCConnectorV2) MapClaims(claims jose.Claims) []string {
 	return utils.Deduplicate(roles)
 }
 
-func executeStringTemplate(raw string, claims jose.Claims) (string, error) {
-	tmpl, err := template.New("dynamic-roles").Parse(raw)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var buf bytes.Buffer
-	err = tmpl.Execute(&buf, claims)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return buf.String(), nil
-}
-
-func executeSliceTemplate(raw []string, claims jose.Claims) ([]string, error) {
-	var sl []string
-
-	for _, v := range raw {
-		tmpl, err := template.New("dynamic-roles").Parse(v)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, claims)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		sl = append(sl, buf.String())
-	}
-
-	return sl, nil
-}
-
 // Check returns nil if all parameters are great, err otherwise
 func (o *OIDCConnectorV2) Check() error {
 	if o.Metadata.Name == "" {
@@ -586,7 +570,10 @@ const OIDCConnectorV2SchemaTemplate = `{
 }`
 
 // OIDCConnectorSpecV2 specifies configuration for Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
+// identity provider:
+//
+// https://openid.net/specs/openid-connect-core-1_0.html
+//
 type OIDCConnectorSpecV2 struct {
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
 	IssuerURL string `json:"issuer_url"`
@@ -608,6 +595,10 @@ type OIDCConnectorSpecV2 struct {
 	Display string `json:"display,omitempty"`
 	// Scope is additional scopes set by provder
 	Scope []string `json:"scope,omitempty"`
+	// Prompt is optional OIDC prompt, empty string omits prompt
+	// if not specified, defaults to select_account for backwards compatibility
+	// otherwise, is set to a value specified in this field
+	Prompt *string `json:"prompt,omitempty"`
 	// ClaimsToRoles specifies dynamic mapping from claims to roles
 	ClaimsToRoles []ClaimMapping `json:"claims_to_roles,omitempty"`
 	// GoogleServiceAccountURI is a path to google service account uri
@@ -629,6 +620,7 @@ var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
     "acr_values": {"type": "string"},
     "provider": {"type": "string"},
     "display": {"type": "string"},
+    "prompt": {"type": "string"},
     "google_service_account_uri": {"type": "string"},
     "google_admin_email": {"type": "string"},
     "scope": {

@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"go.etcd.io/etcd/clientv3"
 	"gopkg.in/check.v1"
 )
 
@@ -37,7 +36,6 @@ func TestEtcd(t *testing.T) { check.TestingT(t) }
 type EtcdSuite struct {
 	bk     *EtcdBackend
 	suite  test.BackendSuite
-	client *clientv3.Client
 	config backend.Params
 	skip   bool
 }
