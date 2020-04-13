@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"runtime"
@@ -23,22 +24,21 @@ var log = logrus.WithFields(logrus.Fields{
 
 // UpdateKubeconfig adds Teleport configuration to kubeconfig.
 func UpdateKubeconfig(tc *client.TeleportClient) error {
-	config, err := LoadKubeConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	clusterName, proxyPort := tc.KubeProxyHostPort()
 	clusterAddr := fmt.Sprintf("https://%v:%v", clusterName, proxyPort)
 	if tc.SiteName != "" {
 		clusterName = tc.SiteName
 	}
-
 	creds, err := tc.LocalAgent().GetKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	certAuthorities, err := tc.LocalAgent().GetCertsPEM()
+
+	return updateKubeconfigWithValues(clusterName, clusterAddr, creds)
+}
+
+func updateKubeconfigWithValues(clusterName, clusterAddr string, creds *client.Key) error {
+	config, err := LoadKubeConfig()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -49,7 +49,7 @@ func UpdateKubeconfig(tc *client.TeleportClient) error {
 	}
 	config.Clusters[clusterName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
-		CertificateAuthorityData: certAuthorities,
+		CertificateAuthorityData: bytes.Join(creds.TLSCAs(), []byte("\n")),
 	}
 
 	lastContext := config.Contexts[clusterName]
