@@ -1426,6 +1426,7 @@ skiploop:
 	}
 
 	for _, tc := range testCases {
+		c.Logf("test case %q", tc.name)
 		resource := tc.crud()
 
 		ExpectResource(c, w, 3*time.Second, resource)
