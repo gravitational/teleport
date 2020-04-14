@@ -319,8 +319,9 @@ auth_service:
 
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
-        #  and 'oidc', 'saml' and 'false' for Enterprise.
-        # 'false' is required for FedRAMP / FIPS, see 
+        #  and 'oidc', and 'saml' for Enterprise.
+        #  To support FedRAMP / FIPS, local_auth needs to be turned off by setting it to 'false' and a SSO   
+        #  connector is required to log into Teleport, see 
         #  https://gravitational.com/teleport/docs/enterprise/ssh_fips#teleport-auth-server
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
@@ -1220,8 +1221,8 @@ session recording works. By default, the recording is not available if a cluster
 runs `sshd` (the OpenSSH daemon) on the nodes.
 
 To enable session recording for `sshd` nodes, the cluster must be switched to
-"recording proxy" mode. In this mode, the recording will be done on the proxy
-level:
+["recording proxy" mode](architecture/teleport_proxy.md#recording_proxy_mode).
+In this mode, the recording will be done on the proxy level:
 
 ``` yaml
 # snippet from /etc/teleport.yaml
