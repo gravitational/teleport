@@ -21,11 +21,11 @@ practices like:
 - No need to distribute keys: Teleport uses certificate-based access with automatic certificate expiration time.
 - 2nd factor authentication (2FA) for SSH and Kubernetes.
 - Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for SSH/Kubernetes and your organization identities via 
+- Single sign-on (SSO) for SSH/Kubernetes and your organization identities via
   Github Auth, OpenID Connect or SAML with endpoints like Okta or Active Directory.
 - Cluster introspection: every SSH node and its status can be queried via CLI and Web UI.
 
-Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) 
+Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh)
 implementation and it is _fully compatible with OpenSSH_ and can be used with
 `sshd` servers and `ssh` clients.
 
@@ -41,17 +41,17 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 
 ## Installing and Running
 
-Download the [latest binary release](https://gravitational.com/teleport/download/), 
-unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into 
+Download the [latest binary release](https://gravitational.com/teleport/download/),
+unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into
 `/usr/local/bin`.
 
 Then you can run Teleport as a single-node cluster:
 
 ```bash
-$ sudo teleport start 
+$ sudo teleport start
 ```
 
-In a production environment Teleport must run as root. But to play, just do `chown $USER /var/lib/teleport` 
+In a production environment Teleport must run as root. But to play, just do `chown $USER /var/lib/teleport`
 and run it under `$USER`, in this case you will not be able to login as someone else though.
 
 ## Docker
@@ -71,8 +71,7 @@ Follow instructions at [docker/README](docker/README.md)
 ## Building Teleport
 
 Teleport source code consists of the actual Teleport daemon binary written in Golang, and also
-it has a web UI (located in /web directory) written in Javascript. The WebUI is not changed often
-and we keep it checked into Git under `/dist`, so you only need to build Golang:
+of a web UI (a git submodule located in /webassets directory) written in Javascript.
 
 Make sure you have Golang `v1.13` or newer, then run:
 
@@ -89,7 +88,7 @@ $ sudo mkdir -p /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 
-If the build succeeds the binaries will be placed in 
+If the build succeeds the binaries will be placed in
 `$GOPATH/src/github.com/gravitational/teleport/build`
 
 NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need
@@ -100,14 +99,25 @@ NOTE: This will build the latest version of Teleport, regardless of whether it i
 
 ### Rebuilding Web UI
 
-To enable speedy iterations on the Web UI, teleport can load the web UI assets 
-from the source directory. To enable this behavior, set the environment variable 
-`DEBUG=1` and rebuild with the default target:
+Teleport Web UI is located in the [Gravitational Webapps](https://github.com/gravitational/webapps.) monorepo.
+You can clone that repository and rebuild teleport UI package with:
 
 ```bash
-$ make
+$ git clone git@github.com:gravitational/webapps.git
+$ cd webapps
+$ make build-teleport
+```
 
-# Run Teleport as a single-node cluster in development mode: 
+Then you can replace Teleport web UI files with the one found in the generated `/dist` folder.
+
+To enable speedy iterations on the Web UI, you can run a
+[local web-dev server](https://github.com/gravitational/webapps/tree/master/packages/teleport).
+
+You can also tell teleport to load the web UI assets from the source directory.
+To enable this behavior, set the environment variable `DEBUG=1` and rebuild with the default target:
+
+```bash
+# Run Teleport as a single-node cluster in development mode:
 $ DEBUG=1 ./build/teleport start -d
 ```
 
@@ -134,7 +144,7 @@ expensive to maintain. Additionally, most organizations use multiple
 infrastructure form factors such as several cloud providers, multiple cloud
 accounts, servers in colocation, and even smart devices. Some of those devices
 run on untrusted networks, behind third party firewalls. This only magnifies
-complexity and increases operational overhead. 
+complexity and increases operational overhead.
 
 We had a choice, either to start a security consulting business or build a
 solution that’s dead-easy to use and understand, something that creates an
@@ -160,11 +170,11 @@ We offer a few different options for support. First of all, we try to provide cl
 ## Is Teleport Secure and Production Ready?
 
 Teleport has completed several security audits from the nationally recognized
-technology security companies. [Some](https://gravitational.com/blog/teleport-release-2-2/) of 
-[them](https://gravitational.com/blog/teleport-security-audit/) have been made public. 
+technology security companies. [Some](https://gravitational.com/blog/teleport-release-2-2/) of
+[them](https://gravitational.com/blog/teleport-security-audit/) have been made public.
 We are comfortable with the use of Teleport from a security perspective.
 
-You can see the list of companies who use Teleport in production on the Teleport 
+You can see the list of companies who use Teleport in production on the Teleport
 [product page](https://gravitational.com/teleport#customerlist).
 
 However, Teleport is still a relatively young product so you may experience
@@ -177,11 +187,11 @@ The latest stable Teleport build can be found in [Releases](https://gravitationa
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://gravitational.com). We have
-built Teleport by borrowing from our previous experiences at Rackspace. It has 
+built Teleport by borrowing from our previous experiences at Rackspace. It has
 been extracted from [Gravity](https://gravitational.com/gravity/), our
-Kubernetes distribution optimized for deploying and remotely controlling complex 
+Kubernetes distribution optimized for deploying and remotely controlling complex
 applications into multiple environments _at the same time_:
 
 * Multiple cloud regions
-* Colocation 
+* Colocation
 * Private enterprise clouds located behind firewalls
