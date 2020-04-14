@@ -25,7 +25,7 @@ This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
 environment, and showcase a few basic tasks you can do with Teleport. For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
 
 !!! note "IMPORTANT"
-    You should not follow this guide if you want to set up Teleport in production. Instead follow the [Admin Guide](admin-guide.md). 
+    You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.md). 
 
 ## Step 1: Install Teleport
 
