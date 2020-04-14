@@ -88,7 +88,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport:
+$(BUILDDIR)/teleport: ensure-webassets
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
@@ -413,17 +413,24 @@ update-helm-charts:
 	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport/values.yaml
 	sed -i -E "s/^teleportVersion: [a-z0-9.-]+$$/teleportVersion: $(VERSION)/" examples/chart/teleport-demo/values.yaml
 
-.PHONY: init-submodules
-init-submodules:
+.PHONY: ensure-webassets
+ensure-webassets:
 	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
-		echo "init git submodules"; \
-		git submodule update --init webassets; \
+		$(MAKE) init-webapps-submodules; \
 	fi;
 
-.PHONY: init-submodules-e
-init-submodules-e:
-	@if [ ! -d $(shell pwd)/webassets/e/teleport ] || [ ! -d $(shell pwd)/e/lib/ ]; then \
-		echo "init git enterprise submodules"; \
-		git submodule update --init --recursive webassets; \
-		git submodule update --init e; \
+.PHONY: ensure-webassets-e
+ensure-webassets-e:
+	@if [ ! -d $(shell pwd)/webassets/e/teleport ]; then \
+		$(MAKE) init-webapps-submodules-e; \
 	fi;
+
+.PHONY: init-webapps-submodules
+init-webapps-submodules:
+	echo "init webassets submodule"
+	git submodule update --init webassets
+
+.PHONY: init-webapps-submodules-e
+init-webapps-submodules-e:
+	echo "init webassets oss and enterprise submodules"
+	git submodule update --init --recursive webassets
