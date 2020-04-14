@@ -191,7 +191,4 @@ const (
 	// errLicenseParse is displayed on license parsing error
 	errLicenseParse = "the provided license file %v could not be parsed, " +
 		"please contact support@gravitational.com for assistance"
-	// errLicenseProduct is displayed when license product name is invalid
-	errLicenseProduct = "the provided license file %v has invalid product " +
-		"name %q, please contact support@gravitational.com for assistance"
 )

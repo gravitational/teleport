@@ -11,7 +11,6 @@ import (
 )
 
 type LicenseLegacySuite struct {
-	enforcer *Enforcer
 }
 
 var _ = check.Suite(&LicenseLegacySuite{})

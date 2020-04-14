@@ -1,6 +1,8 @@
 package pro
 
 import (
+	"fmt"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -10,7 +12,6 @@ import (
 
 	check "gopkg.in/check.v1"
 
-	"fmt"
 	"github.com/gravitational/trace"
 )
 
