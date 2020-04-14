@@ -15,23 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
 import { Cell } from 'design/DataTable';
-import { ButtonPrimary } from 'design';
-import cfg from 'teleport/config';
 
-export default function ActionCell({ rowIndex, data }) {
-  const { sid } = data[rowIndex];
-  const url = cfg.getSshSessionRoute({ sid });
-  return (
-    <Cell align="right">
-      <ButtonPrimary
-        as={NavLink}
-        to={url}
-        size="small"
-        width="90px"
-        children="join"
-      />
-    </Cell>
-  );
+export default function UserCell(props: any) {
+  const { rowIndex, data } = props;
+  const { parties } = data[rowIndex];
+  const users = parties.map(({ user }) => user).join(', ');
+  return <Cell>{users}</Cell>;
 }

@@ -17,7 +17,8 @@ limitations under the License.
 import React from 'react';
 import { Cell } from 'design/DataTable';
 
-export default function DescCell({ rowIndex, data, nodes }) {
+export default function DescCell(props: any) {
+  const { rowIndex, data, nodes } = props;
   const { serverId, login } = data[rowIndex];
   const server = nodes[serverId];
   const hostname = server ? server.hostname : serverId;

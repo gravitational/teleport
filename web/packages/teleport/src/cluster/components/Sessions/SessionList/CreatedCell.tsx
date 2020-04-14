@@ -18,7 +18,8 @@ import React from 'react';
 import { Cell } from 'design/DataTable';
 import { displayDateTime } from 'shared/services/loc';
 
-export default function CreatedCell({ rowIndex, data }) {
+export default function CreatedCell(props: any) {
+  const { rowIndex, data } = props;
   const { created } = data[rowIndex];
   return <Cell>{displayDateTime(created)}</Cell>;
 }
