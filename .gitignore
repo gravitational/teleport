@@ -46,6 +46,7 @@ _testmain.go
 flymake*
 
 # mkdocs
+docs/latest
 docs/latest.yaml
 
 # terraform
