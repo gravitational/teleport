@@ -193,6 +193,7 @@ run-docs:
 # tests everything: called by Jenkins
 #
 .PHONY: test
+test: ensure-webassets
 test: FLAGS ?= '-race'
 test: PACKAGES := $(shell go list ./... | grep -v integration)
 test: $(VERSRC)
@@ -434,3 +435,8 @@ init-webapps-submodules:
 init-webapps-submodules-e:
 	echo "init webassets oss and enterprise submodules"
 	git submodule update --init --recursive webassets
+
+.PHONY: init-submodules-e
+init-submodules-e: init-webapps-submodules-e
+	git submodule init e
+	git submodule update
