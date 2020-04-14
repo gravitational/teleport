@@ -486,12 +486,15 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
 		},
-		Login:      ctx.Identity.Login,
-		Created:    time.Now().UTC(),
-		LastActive: time.Now().UTC(),
-		ServerID:   ctx.srv.ID(),
-		Namespace:  r.srv.GetNamespace(),
+		Login:          ctx.Identity.Login,
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		ServerID:       ctx.srv.ID(),
+		Namespace:      r.srv.GetNamespace(),
+		ServerHostname: ctx.srv.GetInfo().GetHostname(),
+		ServerAddr:     ctx.srv.GetInfo().GetAddr(),
 	}
+
 	term := ctx.GetTerm()
 	if term != nil {
 		winsize, err := term.GetWinSize()
