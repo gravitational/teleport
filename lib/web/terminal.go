@@ -152,9 +152,6 @@ type TerminalHandler struct {
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession *ssh.Session
 
-	// teleportClient is the client used to form the connection.
-	teleportClient *client.TeleportClient
-
 	// terminalContext is used to signal when the terminal sesson is closing.
 	terminalContext context.Context
 

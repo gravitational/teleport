@@ -44,11 +44,6 @@ const (
 	// in a terminal) to be instanly replayed to the newly joining
 	// parties
 	instantReplayLen = 20
-
-	// maxTermSyncErrorCount defines how many subsequent erorrs
-	// we should tolerate before giving up trying to sync the
-	// term size
-	maxTermSyncErrorCount = 5
 )
 
 var (
@@ -460,10 +455,6 @@ type session struct {
 	// temporarily dropped the connection and will reconnect (or a browser-based
 	// client hits "page refresh").
 	lingerTTL time.Duration
-
-	// termSizeC is used to push terminal resize events from SSH "on-size-changed"
-	// event handler into "push-to-web-client" loop.
-	termSizeC chan []byte
 
 	// login stores the login of the initial session creator
 	login string

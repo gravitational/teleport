@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"path/filepath"
@@ -33,13 +34,14 @@ func main() {
 
 	// Teleport HTTPS client uses TLS client authentication
 	// so we have to set up certificates there
-	tlsConfig, err := setupClientTLS()
+	tlsConfig, err := setupClientTLS(context.Background())
 	if err != nil {
 		log.Fatalf("Failed to parse TLS config: %v", err)
 	}
-
 	authServerAddr := []utils.NetAddr{*utils.MustParseAddr("127.0.0.1:3025")}
-	client, err := auth.NewTLSClient(authServerAddr, tlsConfig)
+	clientConfig := auth.ClientConfig{Addrs: authServerAddr, TLS: tlsConfig}
+
+	client, err := auth.NewTLSClient(clientConfig)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
@@ -61,8 +63,8 @@ func main() {
 // and Teleport Auth server. This function uses hardcoded certificate paths,
 // assuming program runs alongside auth server, but it can be ran
 // on a remote location, assuming client has all the client certificates.
-func setupClientTLS() (*tls.Config, error) {
-	storage, err := auth.NewProcessStorage(filepath.Join("/var/lib/teleport", teleport.ComponentProcess))
+func setupClientTLS(ctx context.Context) (*tls.Config, error) {
+	storage, err := auth.NewProcessStorage(ctx, filepath.Join("/var/lib/teleport", teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

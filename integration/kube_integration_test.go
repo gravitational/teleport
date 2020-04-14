@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -1167,8 +1167,6 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 }
 
 const (
-	testTimeout = 1 * time.Minute
-
 	testNamespace = "teletest"
 )
 
@@ -1189,10 +1187,6 @@ type kubeExecArgs struct {
 	stderr       io.Writer
 	stdin        io.Reader
 	tty          bool
-}
-
-func toBoolString(val bool) string {
-	return fmt.Sprintf("%t", val)
 }
 
 type kubePortForwardArgs struct {

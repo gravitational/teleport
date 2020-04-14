@@ -68,7 +68,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/beevik/etree"
-	"github.com/gokyle/hotp"
 	"github.com/golang/protobuf/proto"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
@@ -270,7 +269,6 @@ type authPack struct {
 	otpSecret string
 	user      string
 	login     string
-	otp       *hotp.HOTP
 	session   *CreateSessionResponse
 	clt       *client.WebClient
 	cookies   []*http.Cookie

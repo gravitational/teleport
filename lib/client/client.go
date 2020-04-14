@@ -383,27 +383,6 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	return clt, nil
 }
 
-// closerConn wraps connection and attaches additional closers to it
-type closerConn struct {
-	net.Conn
-	closers []io.Closer
-}
-
-// addCloser adds any closer in ctx that will be called
-// whenever server closes session channel
-func (c *closerConn) addCloser(closer io.Closer) {
-	c.closers = append(c.closers, closer)
-}
-
-func (c *closerConn) Close() error {
-	var errors []error
-	for _, closer := range c.closers {
-		errors = append(errors, closer.Close())
-	}
-	errors = append(errors, c.Conn.Close())
-	return trace.NewAggregate(errors...)
-}
-
 // nodeName removes the port number from the hostname, if present
 func nodeName(node string) string {
 	n, _, err := net.SplitHostPort(node)

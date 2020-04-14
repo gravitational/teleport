@@ -99,9 +99,8 @@ func makeFileInfo(filePath string) (FileInfo, error) {
 
 // localFileInfo is implementation of FileInfo for local files
 type localFileInfo struct {
-	isRecursive bool
-	filePath    string
-	fileInfo    os.FileInfo
+	filePath string
+	fileInfo os.FileInfo
 }
 
 // IsDir tells this is a directory

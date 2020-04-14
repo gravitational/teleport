@@ -33,5 +33,8 @@ ENV GOPATH="/gopath" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/gopath/bin:/gopath/src/github.com/gravitational/teleport/build"
 
+# Install meta-linter.
+RUN go get github.com/golangci/golangci-lint/cmd/golangci-lint
+
 VOLUME ["/gopath/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

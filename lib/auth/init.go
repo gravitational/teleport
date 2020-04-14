@@ -446,20 +446,6 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	return nil
 }
 
-// checkRules returns true if any of the provided rules contain specified resource/verbs.
-func checkRules(rules []services.Rule, kind string, verbs []string) bool {
-	for _, rule := range rules {
-		if rule.HasResource(kind) || rule.HasResource(services.Wildcard) {
-			for _, verb := range verbs {
-				if rule.HasVerb(verb) || rule.HasVerb(services.Wildcard) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
 func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {

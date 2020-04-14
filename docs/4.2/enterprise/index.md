@@ -20,7 +20,7 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
 
 ## RBAC
 
-Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to users. An example of an RBAC policy might be:  _"admins can do anything, 
+Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to users. An example of an RBAC policy might be:  "admins can do anything,
 developers must never touch production servers, and interns can only SSH into
 staging servers as guests".
 
@@ -135,7 +135,7 @@ spec:
 ```
 
 **DBA Role**
-This role lets the contractor request the role DBA. 
+This role limits the contractor to request the role DBA for 1hr.
 
 ```yaml
 kind: role

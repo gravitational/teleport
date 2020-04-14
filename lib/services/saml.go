@@ -800,20 +800,3 @@ type SigningKeyPair struct {
 	// Cert is certificate in OpenSSH authorized keys format
 	Cert string `json:"cert"`
 }
-
-// buildAssertionMap takes an saml2.AssertionInfo and builds a friendly map
-// that can be used to access assertion/value pairs. If multiple values are
-// returned for an assertion, they are joined into a string by ",".
-func buildAssertionMap(assertionInfo saml2.AssertionInfo) map[string]string {
-	assertionMap := make(map[string]string)
-
-	for _, assr := range assertionInfo.Values {
-		var vals []string
-		for _, v := range assr.Values {
-			vals = append(vals, v.Value)
-		}
-		assertionMap[assr.Name] = strings.Join(vals, ",")
-	}
-
-	return assertionMap
-}

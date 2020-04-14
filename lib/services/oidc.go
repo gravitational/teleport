@@ -17,11 +17,9 @@ limitations under the License.
 package services
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -489,40 +487,6 @@ func (o *OIDCConnectorV2) MapClaims(claims jose.Claims) []string {
 		}
 	}
 	return utils.Deduplicate(roles)
-}
-
-func executeStringTemplate(raw string, claims jose.Claims) (string, error) {
-	tmpl, err := template.New("dynamic-roles").Parse(raw)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var buf bytes.Buffer
-	err = tmpl.Execute(&buf, claims)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return buf.String(), nil
-}
-
-func executeSliceTemplate(raw []string, claims jose.Claims) ([]string, error) {
-	var sl []string
-
-	for _, v := range raw {
-		tmpl, err := template.New("dynamic-roles").Parse(v)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, claims)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		sl = append(sl, buf.String())
-	}
-
-	return sl, nil
 }
 
 // Check returns nil if all parameters are great, err otherwise
