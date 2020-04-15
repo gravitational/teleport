@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3792,70 +3791,6 @@ func (s *IntSuite) TestList(c *check.C) {
 				c.Fatalf("Got nodes: %v, want: %v.", nodes, tt.outNodes)
 			}
 		}
-	}
-}
-
-// TestMultipleSignup makes sure that multiple users can create Teleport accounts.
-func (s *IntSuite) TestMultipleSignup(c *check.C) {
-	tr := utils.NewTracer(utils.ThisFunction()).Start()
-	defer tr.Stop()
-
-	type createNewUserReq struct {
-		InviteToken string `json:"invite_token"`
-		Pass        string `json:"pass"`
-	}
-
-	// Create and start a Teleport cluster.
-	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordAtNode,
-			LocalAuth:        services.NewBool(true),
-		})
-		c.Assert(err, check.IsNil)
-
-		tconf := service.MakeDefaultConfig()
-		tconf.Auth.Preference.SetSecondFactor("off")
-		tconf.Auth.Enabled = true
-		tconf.Auth.ClusterConfig = clusterConfig
-		tconf.Proxy.Enabled = true
-		tconf.Proxy.DisableWebService = false
-		tconf.Proxy.DisableWebInterface = true
-		tconf.SSH.Enabled = true
-		return c, nil, nil, tconf
-	}
-	main := s.newTeleportWithConfig(makeConfig())
-	defer main.Stop(true)
-
-	mainAuth := main.Process.GetAuthServer()
-
-	// Create a few users to make sure the proxy uses the correct identity
-	// when connecting to the auth server.
-	for i := 0; i < 5; i++ {
-		// Create a random username.
-		username, err := utils.CryptoRandomHex(16)
-		c.Assert(err, check.IsNil)
-
-		// Create signup token, this is like doing "tctl users add foo foo".
-		token, err := mainAuth.CreateSignupToken(services.UserV1{
-			Name:          username,
-			AllowedLogins: []string{username},
-		}, backend.Forever)
-		c.Assert(err, check.IsNil)
-
-		// Create client that will simulate web browser.
-		clt, err := createWebClient(main)
-		c.Assert(err, check.IsNil)
-
-		// Render the signup page.
-		_, err = clt.Get(context.Background(), clt.Endpoint("webapi", "users", "invites", token), url.Values{})
-		c.Assert(err, check.IsNil)
-
-		// Make sure signup is successful.
-		_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "users"), createNewUserReq{
-			InviteToken: token,
-			Pass:        "fake-password-123",
-		})
-		c.Assert(err, check.IsNil)
 	}
 }
 
