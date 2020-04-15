@@ -43,7 +43,7 @@ func (m *SessionSlice) Reset()         { *m = SessionSlice{} }
 func (m *SessionSlice) String() string { return proto.CompactTextString(m) }
 func (*SessionSlice) ProtoMessage()    {}
 func (*SessionSlice) Descriptor() ([]byte, []int) {
-	return fileDescriptor_slice_c27e90ee7997b6d0, []int{0}
+	return fileDescriptor_slice_fde4e6ff9bad9f4f, []int{0}
 }
 func (m *SessionSlice) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -104,7 +104,8 @@ func (m *SessionSlice) GetVersion() int64 {
 type SessionChunk struct {
 	// Time is the occurence of this event
 	Time int64 `protobuf:"varint,2,opt,name=Time,proto3" json:"Time,omitempty"`
-	// Data is captured data, contains event fields in case of event, session data otherwise
+	// Data is captured data, contains event fields in case of event, session data
+	// otherwise
 	Data []byte `protobuf:"bytes,3,opt,name=Data,proto3" json:"Data,omitempty"`
 	// EventType is event type
 	EventType string `protobuf:"bytes,4,opt,name=EventType,proto3" json:"EventType,omitempty"`
@@ -125,7 +126,7 @@ func (m *SessionChunk) Reset()         { *m = SessionChunk{} }
 func (m *SessionChunk) String() string { return proto.CompactTextString(m) }
 func (*SessionChunk) ProtoMessage()    {}
 func (*SessionChunk) Descriptor() ([]byte, []int) {
-	return fileDescriptor_slice_c27e90ee7997b6d0, []int{1}
+	return fileDescriptor_slice_fde4e6ff9bad9f4f, []int{1}
 }
 func (m *SessionChunk) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -972,9 +973,9 @@ var (
 	ErrIntOverflowSlice   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("slice.proto", fileDescriptor_slice_c27e90ee7997b6d0) }
+func init() { proto.RegisterFile("slice.proto", fileDescriptor_slice_fde4e6ff9bad9f4f) }
 
-var fileDescriptor_slice_c27e90ee7997b6d0 = []byte{
+var fileDescriptor_slice_fde4e6ff9bad9f4f = []byte{
 	// 329 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x5c, 0x91, 0xc1, 0x4e, 0xc2, 0x40,
 	0x10, 0x86, 0x59, 0x0b, 0x05, 0x16, 0x0e, 0x66, 0x43, 0xc8, 0x06, 0x4d, 0xd3, 0x70, 0xea, 0xc1,
