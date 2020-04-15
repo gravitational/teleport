@@ -65,7 +65,7 @@ export default function Roles() {
             Role based access control
           </Text>
           <Text typography="subtitle1" mb={3}>
-            Kubernetes and SSH authentication in one place. A Gravity role can
+            Kubernetes and SSH authentication in one place. A Teleport role can
             be assigned based on user identity when used with single sign-on
             (SSO).
           </Text>
@@ -75,7 +75,7 @@ export default function Roles() {
               as="a"
               color="light"
               target="_blank"
-              href="https://gravitational.com/gravity/docs/cluster/#rbac"
+              href="https://gravitational.com/teleport/docs/enterprise/ssh_rbac/"
             >
               cluster management (RBAC)
             </Text>{' '}
@@ -85,7 +85,7 @@ export default function Roles() {
       </Flex>
       {(resources.status === 'creating' || resources.status === 'editing') && (
         <ResourceEditor
-          docsURL="https://gravitational.com/gravity/docs/cluster/#rbac"
+          docsURL="https://gravitational.com/teleport/docs/enterprise/ssh_rbac/"
           title={title}
           text={resources.item.content}
           name={resources.item.name}
