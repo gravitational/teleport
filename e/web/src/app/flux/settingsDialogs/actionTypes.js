@@ -1,3 +1,0 @@
-export const SET_RES_TO_DELETE = 'SETTINGS_SET_RES_TO_DELETE';
-
-

@@ -7,6 +7,7 @@ This file implements the enterprise version of `tctl users` subcommands
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -24,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// implements common.CLICommand interface
+// UserCommandE implements common.CLICommand interface
 type UserCommandE struct {
 	// OSS implementation of 'tctl users'
 	common.UserCommand
@@ -53,9 +54,10 @@ func (cmd *UserCommandE) Initialize(app *kingpin.Application, cfg *service.Confi
 	cmd.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix)
 	cmd.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&cmd.username)
 	cmd.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&cmd.roles)
-	cmd.userAdd.Flag("logins", "List of allowed logins for the new user").StringsVar(&cmd.allowedLogins)
-	cmd.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
-		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
+	// --logins flag needs to be removed from the enterprise Teleport. rjones?
+	cmd.userAdd.Flag("logins", "List of allowed logins for the new user").Hidden().StringsVar(&cmd.allowedLogins)
+	cmd.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
+		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&cmd.ttl)
 	cmd.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&cmd.format)
 	cmd.userAdd.Alias(AddUserHelp)
@@ -114,7 +116,13 @@ func (cmd *UserCommandE) Add(client auth.ClientI) error {
 	cmd.roles = flattenSlice(cmd.roles)
 	cmd.allowedLogins = flattenSlice(cmd.allowedLogins)
 
-	// validate roles (server does not do this yet)
+	// Make sure that user does not exist.
+	_, err := client.GetUser(cmd.username, false)
+	if err == nil {
+		return trace.BadParameter("user(%v) already registered", cmd.username)
+	}
+
+	// Validate roles (server does not do this yet).
 	for _, roleName := range cmd.roles {
 		_, err := client.GetRole(roleName)
 		if err != nil {
@@ -122,20 +130,36 @@ func (cmd *UserCommandE) Add(client auth.ClientI) error {
 		}
 	}
 
-	user := services.UserV1{
-		Name:          cmd.username,
-		Roles:         cmd.roles,
-		AllowedLogins: cmd.allowedLogins,
+	traits := map[string][]string{
+		teleport.TraitLogins: cmd.allowedLogins,
 	}
-	token, err := client.CreateSignupToken(user, cmd.ttl)
+
+	user, err := services.NewUser(cmd.username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cmd.UserCommand.PrintSignupURL(client, token, cmd.ttl, cmd.format)
-	if cmd.format == teleport.Text {
-		fmt.Printf("When the user '%s' activates their account, they will be assigned roles %s\n",
-			cmd.username, cmd.roles)
+
+	user.SetTraits(traits)
+	user.SetRoles(cmd.roles)
+	err = client.UpsertUser(user)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+		Name: cmd.username,
+		TTL:  cmd.ttl,
+		Type: auth.ResetPasswordTokenTypeInvite,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = cmd.UserCommand.PrintResetPasswordTokenAsInvite(token, cmd.format)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 

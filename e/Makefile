@@ -42,7 +42,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport:
+$(BUILDDIR)/teleport: ensure-webassets-e
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
@@ -93,7 +93,9 @@ full: check-build-vars all $(BUILDDIR)/webassets.zip
 # appended to teleport binary
 $(BUILDDIR)/webassets.zip:
 	@echo "---> Building Enterprise web assets."
-	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	cd ../webassets/e/teleport/ ; zip -qr ../../../e/$(BUILDDIR)/webassets.zip .
+
+
 
 .PHONY: check-build-vars
 check-build-vars:
@@ -239,4 +241,9 @@ deb:
 	cp ../build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
+.PHONY: ensure-webassets-e
+ensure-webassets-e:
+	$(MAKE) -s -C .. ensure-webassets-e
+
 

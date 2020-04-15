@@ -1,7 +1,7 @@
 # Teleport Enterprise
 
 This repository keeps the proprietary bits of Teleport enterprise. It is not
-meant to exist independently, it is meant to be cloned into `e` subdirectory 
+meant to exist independently, it is meant to be cloned into `e` subdirectory
 of Teleport repo as a git submodule.
 
 The filesystem layout of Teleport source code:
@@ -11,14 +11,13 @@ $GOHOME/gravitational/teleport  <-- open source public Teleport repo
    |
    |- lib
    |- tool
-   |- web
    |- e                         <-- this repo cloned into 'e'
 ```
 
 ## Houston API
 
 Teleport Enterprise (with some licenses) reports user's usage to Houston API.
-By default the API endpoint is https://dashboard-api.gravitational.com:443/api 
+By default the API endpoint is https://dashboard-api.gravitational.com:443/api
 
 If you want to point it to a staging/dev server, you can change the Houston API
 hostname via setting `HOUSTON_HOSTPORT` to something like "localhost:5000"
@@ -46,16 +45,14 @@ This will create a regular OSS Teleport repo, so any Github user can clone,
 compile, modify and send pull requests.
 
 If you want to start working on Enterprise, you need to initialize the
-enterprise submodule:
+enterprise submodules:
 
 ```
-$ git clone git@github.com:gravitational/teleport.git
 $ cd teleport
-$ git submodule init e
-$ git submodule update
+$ make init-submodules-e
 ```
 
-This will populate `e` subdirectory.
+This will populate `e` and `webassets` directories with enterprise submodules.
 
 ## Submodules
 
@@ -68,12 +65,12 @@ Read these two articles and you'll be fine:
 
 The parent OSS repository always "knows" which branch of the `e` submodule is
 current.  Say, you want to introduce a new feature which spans across both
-repositories, so ideally you'd like to keep it in your own "safe place", often in your own branch. 
+repositories, so ideally you'd like to keep it in your own "safe place", often in your own branch.
 
 How to create such "safe place" with two repositories when one of them is a
 submodule of another?
 
-Lets use "Ev wants to add feature foo" scenario as an example. 
+Lets use "Ev wants to add feature foo" scenario as an example.
 Here's the sequence of steps:
 
 1. Create branch `ev/foo` in OSS Teleport.

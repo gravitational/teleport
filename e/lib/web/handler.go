@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 
@@ -31,17 +32,17 @@ func InitPlugin() {
 
 // AddHandlers registeres Plugin handlers
 func (p *Plugin) AddHandlers(h *web.Handler) {
-	h.GET("/enterprise/resources/:kind", h.WithAuth(p.getResourceHandle))
-	h.PUT("/enterprise/resources", h.WithAuth(p.upsertResourceHandle))
-	h.POST("/enterprise/resources", h.WithAuth(p.upsertResourceHandle))
-	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResourceHandle))
+	h.GET("/enterprise/sites/:site/resources/:kind", h.WithClusterAuth(p.getResourceHandle))
+	h.PUT("/enterprise/sites/:site/resources", h.WithClusterAuth(p.upsertResourceHandle))
+	h.POST("/enterprise/sites/:site/resources", h.WithClusterAuth(p.upsertResourceHandle))
+	h.DELETE("/enterprise/sites/:site/resources/:kind/:name", h.WithClusterAuth(p.deleteResourceHandle))
 	h.GET("/enterprise/license/status", httplib.MakeHandler(p.getLicenseCheckStatusHandle))
 	p.ProxyClient = h.GetProxyClient()
 }
 
 // getResourceHandle is GET handler that returns ConfigItems for requested resource kind
-func (p *Plugin) getResourceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
+func (p *Plugin) getResourceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := c.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -55,13 +56,13 @@ func (p *Plugin) getResourceHandle(w http.ResponseWriter, r *http.Request, param
 }
 
 // upsertResourceHandle is POST|PUT handler that upserts a new resource
-func (p *Plugin) upsertResourceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
+func (p *Plugin) upsertResourceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	var itemToUpsert ui.ConfigItem
 	if err := httplib.ReadJSON(r, &itemToUpsert); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := c.GetClient()
+	clt, err := c.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,7 +82,7 @@ func (p *Plugin) upsertResourceHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.Wrap(err)
 	}
 
-	exists, err := checkIfResourceExists(*rawRes, client)
+	exists, err := checkIfResourceExists(*rawRes, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -94,7 +95,7 @@ func (p *Plugin) upsertResourceHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.NotFound("Cannot find resource with a name %q", rawRes.Metadata.Name)
 	}
 
-	items, err := upsertResource(*rawRes, client)
+	items, err := upsertResource(*rawRes, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,15 +104,15 @@ func (p *Plugin) upsertResourceHandle(w http.ResponseWriter, r *http.Request, pa
 }
 
 // deleteResourceHandle is DELETE handler that removes a resource by its kind and name values
-func (p *Plugin) deleteResourceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	client, err := c.GetClient()
+func (p *Plugin) deleteResourceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := c.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	resourceKind := params.ByName("kind")
 	resourceName := params.ByName("name")
-	if err := deleteResource(resourceKind, resourceName, client); err != nil {
+	if err := deleteResource(resourceKind, resourceName, clt); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
