@@ -12,6 +12,7 @@ COPY packages/design/package.json web-apps/packages/design/
 COPY packages/gravity/package.json web-apps/packages/gravity/
 COPY packages/shared/package.json web-apps/packages/shared/
 COPY packages/teleport/package.json web-apps/packages/teleport/
+COPY packages/force/package.json web-apps/packages/force/
 
 # copy enterprise package.json files if present
 COPY README.md packages/webapps.e/gravity/package.jso[n] web-apps/packages/webapps.e/gravity/
