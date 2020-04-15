@@ -28,7 +28,7 @@ spec:
   # values that specifies whether the Authorization Server prompts the End-User for 
   # reauthentication and consent. https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest 
   # Default is 
-  # prompt: 'login consent'
+  # prompt: 'select_account'
   # Prompt value is set to empty string, it will be omitted
   # from the auth request.
   # prompt: ''
