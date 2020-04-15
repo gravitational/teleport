@@ -62,9 +62,10 @@ func NewAuditLog(config AuditLogConfig) (*AuditLog, error) {
 	}, nil
 }
 
-// EmitAuditEvent sends the anonymized usage metrics to the control plane and
+// EmitAuditEventLegacy sends the anonymized usage metrics to the control plane and
 // then calls EmitAuditEvent on the logger it wraps
-func (l *AuditLog) EmitAuditEvent(event events.Event, fields events.EventFields) error {
+// !!!FIXEVENTS!!!
+func (l *AuditLog) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
 	switch event.Name {
 	case events.UserLoginEvent:
 		l.Debugf("Recoding audit event %q.", event.Name)
@@ -77,7 +78,7 @@ func (l *AuditLog) EmitAuditEvent(event events.Event, fields events.EventFields)
 	default:
 		l.Debugf("Ignoring event %q.", event.Name)
 	}
-	return trace.Wrap(l.Inner.EmitAuditEvent(event, fields))
+	return trace.Wrap(l.Inner.EmitAuditEventLegacy(event, fields))
 }
 
 func (l *AuditLog) PostSessionSlice(slice events.SessionSlice) error {
