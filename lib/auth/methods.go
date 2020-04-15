@@ -184,22 +184,21 @@ func (s *AuthServer) AuthenticateWebUser(req AuthenticateUserRequest) (services.
 		}
 		return session, nil
 	}
+
 	if err := s.AuthenticateUser(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	user, err := s.GetUser(req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// It's safe to extract the roles and traits directly from services.User as
-	// this endpoint is only used for local accounts.
-	sess, err := s.NewWebSession(req.Username, user.GetRoles(), user.GetTraits())
+
+	sess, err := s.createUserWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.UpsertWebSession(req.Username, sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -363,6 +362,21 @@ func (s *AuthServer) emitNoLocalAuthEvent(username string) {
 	}
 
 	s.IAuditLog.EmitAuditEvent(events.AuthAttemptFailure, fields)
+}
+
+func (s *AuthServer) createUserWebSession(user services.User) (services.WebSession, error) {
+	// It's safe to extract the roles and traits directly from services.User as	this method
+	// is only used for local accounts.
+	sess, err := s.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = s.UpsertWebSession(user.GetName(), sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
 }
 
 const noLocalAuth = "local auth disabled"

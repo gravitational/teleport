@@ -310,6 +310,12 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
+const (
+	principalLocalhost  = "localhost"
+	principalLoopbackV4 = "127.0.0.1"
+	principalLoopbackV6 = "::1"
+)
+
 // BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
 // principals to insert into a certificate. This function is backward compatible with
 // older clients which means:
@@ -338,6 +344,15 @@ func BuildPrincipals(hostID string, nodeName string, clusterName string, roles t
 		principals = append(principals, fmt.Sprintf("%s.%s", nodeName, clusterName))
 		principals = append(principals, nodeName)
 	}
+
+	// Add localhost and loopback addresses to allow connecting to proxy/host
+	// on the local machine. This should only matter for quickstart and local
+	// development.
+	principals = append(principals,
+		string(teleport.PrincipalLocalhost),
+		string(teleport.PrincipalLoopbackV4),
+		string(teleport.PrincipalLoopbackV6),
+	)
 
 	// deduplicate (in-case hostID and nodeName are the same) and return
 	return utils.Deduplicate(principals)

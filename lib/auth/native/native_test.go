@@ -100,48 +100,70 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	tests := []struct {
+		desc               string
 		inHostID           string
 		inNodeName         string
 		inClusterName      string
 		inRoles            teleport.Roles
 		outValidPrincipals []string
 	}{
-		// 0 - admin role
 		{
-			"00000000-0000-0000-0000-000000000000",
-			"auth",
-			"example.com",
-			teleport.Roles{teleport.RoleAdmin},
-			[]string{"00000000-0000-0000-0000-000000000000"},
+			desc:               "admin role",
+			inHostID:           "00000000-0000-0000-0000-000000000000",
+			inNodeName:         "auth",
+			inClusterName:      "example.com",
+			inRoles:            teleport.Roles{teleport.RoleAdmin},
+			outValidPrincipals: []string{"00000000-0000-0000-0000-000000000000"},
 		},
-		// 1 - backward compatibility
 		{
-			"11111111-1111-1111-1111-111111111111",
-			"",
-			"example.com",
-			teleport.Roles{teleport.RoleNode},
-			[]string{"11111111-1111-1111-1111-111111111111.example.com", "11111111-1111-1111-1111-111111111111"},
+			desc:          "backward compatibility",
+			inHostID:      "11111111-1111-1111-1111-111111111111",
+			inNodeName:    "",
+			inClusterName: "example.com",
+			inRoles:       teleport.Roles{teleport.RoleNode},
+			outValidPrincipals: []string{
+				"11111111-1111-1111-1111-111111111111.example.com",
+				"11111111-1111-1111-1111-111111111111",
+				string(teleport.PrincipalLocalhost),
+				string(teleport.PrincipalLoopbackV4),
+				string(teleport.PrincipalLoopbackV6),
+			},
 		},
-		// 2 - dual principals
 		{
-			"22222222-2222-2222-2222-222222222222",
-			"proxy",
-			"example.com",
-			teleport.Roles{teleport.RoleProxy},
-			[]string{"22222222-2222-2222-2222-222222222222.example.com", "22222222-2222-2222-2222-222222222222", "proxy.example.com", "proxy"},
+			desc:          "dual principals",
+			inHostID:      "22222222-2222-2222-2222-222222222222",
+			inNodeName:    "proxy",
+			inClusterName: "example.com",
+			inRoles:       teleport.Roles{teleport.RoleProxy},
+			outValidPrincipals: []string{
+				"22222222-2222-2222-2222-222222222222.example.com",
+				"22222222-2222-2222-2222-222222222222",
+				"proxy.example.com",
+				"proxy",
+				string(teleport.PrincipalLocalhost),
+				string(teleport.PrincipalLoopbackV4),
+				string(teleport.PrincipalLoopbackV6),
+			},
 		},
-		// 3 - deduplicate principals
 		{
-			"33333333-3333-3333-3333-333333333333",
-			"33333333-3333-3333-3333-333333333333",
-			"example.com",
-			teleport.Roles{teleport.RoleProxy},
-			[]string{"33333333-3333-3333-3333-333333333333.example.com", "33333333-3333-3333-3333-333333333333"},
+			desc:          "deduplicate principals",
+			inHostID:      "33333333-3333-3333-3333-333333333333",
+			inNodeName:    "33333333-3333-3333-3333-333333333333",
+			inClusterName: "example.com",
+			inRoles:       teleport.Roles{teleport.RoleProxy},
+			outValidPrincipals: []string{
+				"33333333-3333-3333-3333-333333333333.example.com",
+				"33333333-3333-3333-3333-333333333333",
+				string(teleport.PrincipalLocalhost),
+				string(teleport.PrincipalLoopbackV4),
+				string(teleport.PrincipalLoopbackV6),
+			},
 		},
 	}
 
 	// run tests
 	for _, tt := range tests {
+		c.Logf("Running test case: %q", tt.desc)
 		hostCertificateBytes, err := s.suite.A.GenerateHostCert(
 			services.HostCertParams{
 				PrivateCASigningKey: caPrivateKey,
