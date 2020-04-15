@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -34,6 +35,8 @@ import (
 type Server interface {
 	// Resource provides common resource headers
 	Resource
+	// GetTeleportVersion returns the teleport version the server is running on
+	GetTeleportVersion() string
 	// GetAddr return server address
 	GetAddr() string
 	// GetHostname returns server hostname
@@ -89,6 +92,11 @@ func ServersToV1(in []Server) []ServerV1 {
 // GetVersion returns resource version
 func (s *ServerV2) GetVersion() string {
 	return s.Version
+}
+
+// GetTeleportVersion returns the teleport version the server is running on
+func (s *ServerV2) GetTeleportVersion() string {
+	return s.Spec.Version
 }
 
 // GetKind returns resource kind
@@ -307,7 +315,7 @@ const (
 	Equal = iota
 	// OnlyTimestampsDifferent is true when only timestamps are different
 	OnlyTimestampsDifferent = iota
-	// Differnt means that some fields are different
+	// Different means that some fields are different
 	Different = iota
 )
 
@@ -345,6 +353,9 @@ func CompareServers(a, b Server) int {
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
 	return Equal
 }
 
@@ -371,6 +382,7 @@ const ServerSpecV2Schema = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
+	"version": {"type": "string"},
     "addr": {"type": "string"},
     "public_addr": {"type": "string"},
     "hostname": {"type": "string"},
@@ -760,4 +772,29 @@ func (s SortedReverseTunnels) Less(i, j int) bool {
 
 func (s SortedReverseTunnels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
+}
+
+// GuessProxyHostAndVersion tries to find the first proxy with a public
+// address configured and return that public addr and version.
+// If no proxies are configured, it will return a guessed value by concatenating
+// the first proxy's hostname with default port number, and the first proxy's
+// version will also be returned.
+//
+// Returns empty value if there are no proxies.
+func GuessProxyHostAndVersion(proxies []Server) (string, string) {
+	if len(proxies) < 1 {
+		return "", ""
+	}
+
+	// find the first proxy with a public address set
+	for _, proxy := range proxies {
+		proxyHost := proxy.GetPublicAddr()
+		if proxyHost != "" {
+			return proxyHost, proxy.GetTeleportVersion()
+		}
+	}
+
+	guessProxyHost := fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
+
+	return guessProxyHost, proxies[0].GetTeleportVersion()
 }

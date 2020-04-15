@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
@@ -244,6 +245,84 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (*services.ResetPasswordTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if req == nil {
+		req = &proto.CreateResetPasswordTokenRequest{}
+	}
+
+	token, err := auth.CreateResetPasswordToken(ctx, CreateResetPasswordTokenRequest{
+		Name: req.Name,
+		TTL:  time.Duration(req.TTL),
+		Type: req.Type,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := token.(*services.ResetPasswordTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", token)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
+}
+
+func (g *GRPCServer) RotateResetPasswordTokenSecrets(ctx context.Context, req *proto.RotateResetPasswordTokenSecretsRequest) (*services.ResetPasswordTokenSecretsV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	tokenID := ""
+	if req != nil {
+		tokenID = req.TokenID
+	}
+
+	secrets, err := auth.RotateResetPasswordTokenSecrets(ctx, tokenID)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	r, ok := secrets.(*services.ResetPasswordTokenSecretsV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordTokenSecrets type %T", secrets)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
+}
+
+func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetResetPasswordTokenRequest) (*services.ResetPasswordTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	tokenID := ""
+	if req != nil {
+		tokenID = req.TokenID
+	}
+
+	token, err := auth.GetResetPasswordToken(ctx, tokenID)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	r, ok := token.(*services.ResetPasswordTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", token)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.

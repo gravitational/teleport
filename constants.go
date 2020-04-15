@@ -636,3 +636,18 @@ const (
 
 // RSAKeySize is the size of the RSA key.
 const RSAKeySize = 2048
+
+// A principal name for use in SSH certificates.
+type Principal string
+
+const (
+	// The localhost domain, for talking to a proxy or node on the same
+	// machine.
+	PrincipalLocalhost Principal = "localhost"
+	// The IPv4 loopback address, for talking to a proxy or node on the same
+	// machine.
+	PrincipalLoopbackV4 Principal = "127.0.0.1"
+	// The IPv6 loopback address, for talking to a proxy or node on the same
+	// machine.
+	PrincipalLoopbackV6 Principal = "::1"
+)
