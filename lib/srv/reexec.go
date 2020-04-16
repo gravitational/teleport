@@ -461,6 +461,9 @@ func buildCommand(c *execCommand, tty *os.File, pty *os.File, pamEnvironment []s
 			uid, gid, groups)
 	}
 
+	// Perform OS-specific tweaks to the command.
+	userCommandOSTweaks(&cmd)
+
 	return &cmd, nil
 }
 
@@ -510,7 +513,7 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	args := []string{executable, subCommand}
 
 	// Build the "teleport exec" command.
-	return &exec.Cmd{
+	cmd := &exec.Cmd{
 		Path: executable,
 		Args: args,
 		Dir:  executableDir,
@@ -518,5 +521,10 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 			ctx.cmdr,
 			ctx.contr,
 		},
-	}, nil
+	}
+
+	// Perform OS-specific tweaks to the command.
+	reexecCommandOSTweaks(cmd)
+
+	return cmd, nil
 }
