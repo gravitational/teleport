@@ -354,7 +354,7 @@ func (s *AuthServer) changeUserSecondFactor(req ChangePasswordWithTokenRequest, 
 		u2fRes := req.U2FRegisterResponse
 		reg, err := u2f.Register(u2fRes, *challenge, &u2f.Config{SkipAttestationVerify: true})
 		if err != nil {
-			return trace.AccessDenied(err.Error())
+			return trace.BadParameter(err.Error())
 		}
 
 		err = s.UpsertU2FRegistration(username, reg)
