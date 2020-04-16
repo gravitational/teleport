@@ -111,6 +111,7 @@ func NewAdminRole() Role {
 		},
 	}
 	role.SetLogins(Allow, modules.GetModules().DefaultAllowedLogins())
+	role.SetKubeUsers(Allow, modules.GetModules().DefaultKubeUsers())
 	role.SetKubeGroups(Allow, modules.GetModules().DefaultKubeGroups())
 	return role
 }
@@ -2281,7 +2282,7 @@ const RoleSpecV3SchemaTemplate = `{
         "cert_format": { "type": "string" },
         "client_idle_timeout": { "type": "string" },
         "disconnect_expired_cert": { "type": ["boolean", "string"] },
-        "enhanced_recording": { 
+        "enhanced_recording": {
           "type": "array",
           "items": { "type": "string" }
         }
