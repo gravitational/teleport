@@ -224,6 +224,7 @@ lint:
 		--uniq-by-line=false \
 		--max-same-issues=0 \
 		--max-issues-per-linter 0 \
+		--timeout=5m \
 		--enable $(GO_LINTERS) \
 		$(FLAGS)
 
