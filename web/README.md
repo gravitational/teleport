@@ -12,39 +12,6 @@ the [packages directory](https://github.com/gravitational/webapps/tree/master/pa
 
 You can make production builds locally or you can use Docker to do that.
 
-### Setup Prettier on VSCode
-
-1. Install plugin: https://github.com/prettier/prettier-vscode
-1. Go to Command Palette: CMD/CTRL + SHIFT + P (or F1)
-1. Type `open settings`
-1. Select `Open Settings (JSON)`
-1. Include the below snippet and save:
-
-```js
-
-// Autoformat on save
-"editor.formatOnSave": false,
-
-// Specify prettier configuration file
-"prettier.configPath": ".prettierrc",
-
-"[javascript]": {
-    "editor.formatOnSave": true
-},
-
-"[javascriptreact]": {
-    "editor.tabSize": 2,
-    "editor.formatOnSave": true,
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-},
-
-"[html]": {
-    "editor.tabSize": 2,
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-}
-
-```
-
 ### Local Build
 
 Make sure that [you have yarn installed](https://yarnpkg.com/lang/en/docs/install/#debian-stable)
@@ -160,3 +127,34 @@ This command will open a new browser window with storybook in it. There
 you will see components from all packages so it makes it faster to work
 and iterate on shared functionality.
 
+### Setup Prettier on VSCode
+
+1. Install plugin: https://github.com/prettier/prettier-vscode
+1. Go to Command Palette: CMD/CTRL + SHIFT + P (or F1)
+1. Type `open settings`
+1. Select `Open Settings (JSON)`
+1. Include the below snippet and save:
+
+```js
+
+// Autoformat on save
+"editor.formatOnSave": false,
+
+// Specify prettier configuration file
+"prettier.configPath": ".prettierrc",
+
+"[javascript]": {
+    "editor.formatOnSave": true
+},
+
+"[javascriptreact]": {
+    "editor.tabSize": 2,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+},
+
+"[html]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+}
+```
