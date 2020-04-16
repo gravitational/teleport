@@ -28,7 +28,9 @@ export default function makeSession(json): Session {
   const parties = map(json.parties, makeParticipant);
   const serverId = json.server_id;
   const sid = json.id;
-  const hostname = serverId;
+  const hostname = json.server_hostname;
+  const addr = json.server_addr;
+
   return {
     sid,
     namespace,
@@ -39,6 +41,7 @@ export default function makeSession(json): Session {
     hostname,
     clusterId,
     parties,
+    addr,
   };
 }
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,9 +17,10 @@ limitations under the License.
 import React from 'react';
 import { Cell } from 'design/DataTable';
 import { displayDateTime } from 'shared/services/loc';
+import { Session } from 'teleport/services/ssh';
 
 export default function CreatedCell(props: any) {
   const { rowIndex, data } = props;
-  const { created } = data[rowIndex];
+  const { created } = data[rowIndex] as Session;
   return <Cell>{displayDateTime(created)}</Cell>;
 }

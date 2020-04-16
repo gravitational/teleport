@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,11 +18,12 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Cell } from 'design/DataTable';
 import { ButtonPrimary } from 'design';
+import { Session } from 'teleport/services/ssh';
 import cfg from 'teleport/config';
 
 export default function ActionCell(props: any) {
   const { rowIndex, data } = props;
-  const { sid } = data[rowIndex];
+  const { sid } = data[rowIndex] as Session;
   const url = cfg.getSshSessionRoute({ sid });
   return (
     <Cell align="right">

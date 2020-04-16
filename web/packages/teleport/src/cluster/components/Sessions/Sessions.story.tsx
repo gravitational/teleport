@@ -62,6 +62,7 @@ const sessions = [
     clusterId: '',
     hostname: 'localhost',
     sid: 'sid0',
+    addr: '1.1.1.1:1111',
     parties: [
       {
         user: 'hehwawe@aw.sg',
@@ -77,15 +78,6 @@ const sessions = [
 
 const nodes = keyBy(
   [
-    {
-      clusterId: 'localhost',
-      tunnel: false,
-      tags: [],
-      addr: '232.232.323.232',
-      advertiseIp: '10.128.0.6',
-      hostname: 'demo.gravitational.io',
-      id: '10_128_0_6.demo.gravitational.io',
-    },
     {
       clusterId: 'localhost',
       tunnel: false,

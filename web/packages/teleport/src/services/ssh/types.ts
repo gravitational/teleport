@@ -29,6 +29,7 @@ export interface Session {
   hostname: string;
   clusterId: string;
   parties: Participant[];
+  addr: string;
 }
 
 export type ParticipantList = Record<string, Participant[]>;

@@ -217,6 +217,12 @@ exports[`loaded 1`] = `
               User
             </th>
             <th>
+              Hostname
+            </th>
+            <th>
+              Address
+            </th>
+            <th>
               Created
             </th>
             <th />
@@ -244,6 +250,12 @@ exports[`loaded 1`] = `
             </td>
             <td>
               hehwawe@aw.sg, ma@pewu.tz
+            </td>
+            <td>
+              localhost
+            </td>
+            <td>
+              1.1.1.1:1111
             </td>
             <td>
               2019-04-22 00:00:51

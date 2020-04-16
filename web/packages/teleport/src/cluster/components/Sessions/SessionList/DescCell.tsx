@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,10 +16,11 @@ limitations under the License.
 
 import React from 'react';
 import { Cell } from 'design/DataTable';
+import { Session } from 'teleport/services/ssh';
 
 export default function DescCell(props: any) {
   const { rowIndex, data, nodes } = props;
-  const { serverId, login } = data[rowIndex];
+  const { serverId, login } = data[rowIndex] as Session;
   const server = nodes[serverId];
   const hostname = server ? server.hostname : serverId;
   return <Cell>Session started at {`${login}@${hostname}`}</Cell>;

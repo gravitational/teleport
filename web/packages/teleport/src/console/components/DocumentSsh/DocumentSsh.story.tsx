@@ -96,4 +96,5 @@ const session = {
   hostname: '',
   clusterId: '',
   parties: [],
+  addr: '1.1.1.1:1111',
 };
