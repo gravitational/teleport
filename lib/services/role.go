@@ -111,6 +111,7 @@ func NewAdminRole() Role {
 		},
 	}
 	role.SetLogins(Allow, modules.GetModules().DefaultAllowedLogins())
+	role.SetKubeUsers(Allow, modules.GetModules().DefaultKubeUsers())
 	role.SetKubeGroups(Allow, modules.GetModules().DefaultKubeGroups())
 	return role
 }
@@ -391,7 +392,8 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		return []string{val}, nil
 	}
 
-	// For internal traits, only internal.logins and internal.kubernetes_groups is supported at the moment.
+	// For internal traits, only internal.logins, internal.kubernetes_users and
+	// internal.kubernetes_groups is supported at the moment.
 	if variable.Namespace() == teleport.TraitInternalPrefix {
 		if variable.Name() != teleport.TraitLogins && variable.Name() != teleport.TraitKubeGroups && variable.Name() != teleport.TraitKubeUsers {
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
@@ -2281,7 +2283,7 @@ const RoleSpecV3SchemaTemplate = `{
         "cert_format": { "type": "string" },
         "client_idle_timeout": { "type": "string" },
         "disconnect_expired_cert": { "type": ["boolean", "string"] },
-        "enhanced_recording": { 
+        "enhanced_recording": {
           "type": "array",
           "items": { "type": "string" }
         }

@@ -35,6 +35,8 @@ type Modules interface {
 	EmptyRolesHandler() error
 	// DefaultAllowedLogins returns default allowed logins for a new admin role
 	DefaultAllowedLogins() []string
+	// DefaultKubeUsers returns default kuberentes users for a new admin role
+	DefaultKubeUsers() []string
 	// DefaultKubeGroups returns default kuberentes groups for a new admin role
 	DefaultKubeGroups() []string
 	// PrintVersion prints teleport version
@@ -71,6 +73,11 @@ type defaultModules struct{}
 // is created, no-op by default
 func (p *defaultModules) EmptyRolesHandler() error {
 	return nil
+}
+
+// DefaultKubeUsers returns default kuberentes users for a new admin role
+func (p *defaultModules) DefaultKubeUsers() []string {
+	return []string{teleport.TraitInternalKubeUsersVariable}
 }
 
 // DefaultKubeGroups returns default kuberentes groups for a new admin role
