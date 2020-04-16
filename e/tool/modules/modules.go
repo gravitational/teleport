@@ -40,6 +40,11 @@ func (p *enterpriseModules) SupportsKubernetes() bool {
 	return p.license.GetSupportsKubernetes().Value()
 }
 
+// DefaultKubeUsers returns default kuberentes users for a new admin role
+func (p *enterpriseModules) DefaultKubeUsers() []string {
+	return []string{teleport.TraitInternalKubeUsersVariable}
+}
+
 // DefaultKubeGroups returns default kuberentes groups for a new admin role
 func (p *enterpriseModules) DefaultKubeGroups() []string {
 	return []string{teleport.TraitInternalKubeGroupsVariable}
