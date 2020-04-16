@@ -1006,6 +1006,16 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 
 	c.Assert(len(sessResp.Sessions), Equals, 1)
 	c.Assert(sessResp.Sessions[0].ID, Equals, sid)
+	c.Assert(sessResp.Sessions[0].Namespace, Equals, s.node.GetNamespace())
+	c.Assert(sessResp.Sessions[0].Parties, NotNil)
+	c.Assert(sessResp.Sessions[0].TerminalParams.H > 0, Equals, true)
+	c.Assert(sessResp.Sessions[0].TerminalParams.W > 0, Equals, true)
+	c.Assert(sessResp.Sessions[0].Login, Equals, pack.login)
+	c.Assert(sessResp.Sessions[0].Created.IsZero(), Equals, false)
+	c.Assert(sessResp.Sessions[0].LastActive.IsZero(), Equals, false)
+	c.Assert(sessResp.Sessions[0].ServerID, Equals, s.srvID)
+	c.Assert(sessResp.Sessions[0].ServerHostname, Equals, s.node.GetInfo().GetHostname())
+	c.Assert(sessResp.Sessions[0].ServerAddr, Equals, s.node.GetInfo().GetAddr())
 }
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
