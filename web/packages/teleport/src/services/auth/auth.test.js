@@ -84,8 +84,9 @@ describe('services/auth', () => {
       await auth.loginWithU2f(email, password);
     } catch (err) {
       expect(window.u2f.sign).toHaveBeenCalled();
+      expect(err.message).not.toBeUndefined();
     }
-    expect.assertions(1);
+    expect.assertions(2);
   });
 
   test('resetPassword()', async () => {

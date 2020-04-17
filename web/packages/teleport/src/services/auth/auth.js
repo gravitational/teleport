@@ -161,11 +161,7 @@ const auth = {
 
     let message = `Please check your U2F settings, make sure it is plugged in and you are using the supported browser.\nU2F error: ${errorMsg}`;
 
-    return {
-      responseJSON: {
-        message,
-      },
-    };
+    return new Error(message);
   },
 };
 

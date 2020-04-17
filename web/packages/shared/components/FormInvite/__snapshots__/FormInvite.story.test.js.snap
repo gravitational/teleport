@@ -1094,7 +1094,7 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
           <div
             class="c13"
           >
-            Press the button on the U2F key after you press the sign up button
+            Press the button on the U2F key after you press the create account button
           </div>
           <div
             class="c13"

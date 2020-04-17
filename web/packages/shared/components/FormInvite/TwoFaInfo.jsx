@@ -45,7 +45,8 @@ export default function TwoFAData(props) {
         </Text>
         <Box color="text.primary">
           <Text typography="paragraph2" mb={3}>
-            Press the button on the U2F key after you press the sign up button
+            Press the button on the U2F key after you press the create account
+            button
           </Text>
           <Text typography="paragraph2" mb={3}>
             <StyledLink target="_blank" href={U2F_HELP_URL}>
