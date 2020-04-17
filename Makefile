@@ -201,12 +201,13 @@ test: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 #
-# integration tests. need a TTY to work and not compatible with a race detector
+# Integration tests. Need a TTY to work.
 #
 .PHONY: integration
+integration: FLAGS ?= -v -race
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -v -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/...
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/... $(FLAGS)
 
 #
 # Lint the Go code.
