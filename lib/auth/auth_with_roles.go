@@ -1113,9 +1113,6 @@ func (a *AuthWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangeP
 }
 
 func (a *AuthWithRoles) UpsertUser(u services.User) error {
-	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1127,6 +1124,20 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 		})
 	}
 	return a.authServer.UpsertUser(u)
+}
+
+func (a *AuthWithRoles) CreateUser(u services.User) error {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	createdBy := u.GetCreatedBy()
+	if createdBy.IsEmpty() {
+		u.SetCreatedBy(services.CreatedBy{
+			User: services.UserRef{Name: a.user.GetName()},
+		})
+	}
+	return a.authServer.CreateUser(u)
 }
 
 func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector) error {
