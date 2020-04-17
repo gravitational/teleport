@@ -3614,19 +3614,22 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	// waitForOutput checks the output of the passed in terminal of a string until
-	// some timeout has occurred.
-	waitForOutput := func(t *Terminal, s string) error {
+	// waitForOutput checks that the output of the passed in terminal contains
+	// one of the strings in `outputs` until some timeout has occurred.
+	waitForOutput := func(t *Terminal, outputs ...string) error {
 		tickerCh := time.Tick(500 * time.Millisecond)
 		timeoutCh := time.After(30 * time.Second)
 		for {
 			select {
 			case <-tickerCh:
-				if strings.Contains(t.Output(500), s) {
-					return nil
+				out := t.Output(5000)
+				for _, s := range outputs {
+					if strings.Contains(out, s) {
+						return nil
+					}
 				}
 			case <-timeoutCh:
-				return trace.BadParameter("timed out waiting for output")
+				return trace.BadParameter("timed out waiting for output, last output: %q doesn't contain any of the expected substrings: %q", t.Output(5000), outputs)
 			}
 		}
 
@@ -3637,8 +3640,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	// Use the "printf" command to print the terminal size on the screen and
 	// make sure it is 80x25.
-	personA.Type("\aprintf '%s %s\n' $(tput cols) $(tput lines)\n\r\a")
-	err := waitForOutput(personA, "80 25")
+	personA.Type("\atput cols; tput lines\n\r\a")
+	err := waitForOutput(personA, "80\r\n25", "80\n\r25", "80\n25")
 	c.Assert(err, check.IsNil)
 
 	// As soon as person B joins the session, the terminal is resized to 160x48.
@@ -3648,8 +3651,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	// Use the "printf" command to print the window size again and make sure it's
 	// 160x48.
-	personA.Type("\aprintf '%s %s\n' $(tput cols) $(tput lines)\n\r\a")
-	err = waitForOutput(personA, "160 48")
+	personA.Type("\atput cols; tput lines\n\r\a")
+	err = waitForOutput(personA, "160\r\n48", "160\n\r48", "160\n48")
 	c.Assert(err, check.IsNil)
 
 	// Close the session.
