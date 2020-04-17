@@ -42,6 +42,7 @@ const events = [
     user: 'admin@example.com',
     participants: ['one', 'two'],
     server_id: 'serverId',
+    server_hostname: 'apple-node',
   },
   {
     code: 'T2004I',
@@ -54,6 +55,7 @@ const events = [
     user: 'admin@example.com',
     participants: ['one', 'two'],
     server_id: 'serverId',
+    server_hostname: 'peach-node',
   },
   {
     code: 'T2004I',
@@ -66,6 +68,7 @@ const events = [
     user: 'admin@example.com',
     participants: ['one', 'two'],
     server_id: 'serverId',
+    server_hostname: 'pear-node',
   },
 ];
 

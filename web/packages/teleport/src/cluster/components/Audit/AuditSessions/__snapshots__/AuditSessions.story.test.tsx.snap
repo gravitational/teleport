@@ -258,7 +258,7 @@ exports[`rendering of Audit Sessions 1`] = `
           one, two
         </td>
         <td>
-          serverId
+          pear-node
         </td>
         <td>
           2019-04-22 00:00:51
@@ -297,7 +297,7 @@ exports[`rendering of Audit Sessions 1`] = `
           one, two
         </td>
         <td>
-          serverId
+          peach-node
         </td>
         <td>
           2019-04-22 00:00:51
@@ -336,7 +336,7 @@ exports[`rendering of Audit Sessions 1`] = `
           one, two
         </td>
         <td>
-          serverId
+          apple-node
         </td>
         <td>
           2019-04-22 00:00:51

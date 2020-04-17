@@ -43,7 +43,7 @@ const searchableProps = [
   'createdText',
   'users',
   'durationText',
-  'serverId',
+  'hostname',
 ];
 
 export default function SessionList(props: SessionListProps) {
@@ -119,7 +119,7 @@ export default function SessionList(props: SessionListProps) {
           cell={<DataTable.TextCell />}
         />
         <DataTable.Column
-          columnKey="serverId"
+          columnKey="hostname"
           header={<DataTable.Cell>Node</DataTable.Cell>}
           cell={<DataTable.TextCell />}
         />
@@ -148,14 +148,13 @@ export default function SessionList(props: SessionListProps) {
 function makeRows(event: SessionEnd) {
   const { time, raw } = event;
   const users = raw?.participants || [];
-  const serverId = raw.server_id;
   return {
-    sid: event.raw.sid,
+    sid: raw.sid,
     created: time,
     createdText: displayDateTime(time),
     users: users.join(', '),
     durationText: 'not implemented',
-    serverId,
+    hostname: raw.server_hostname,
   };
 }
 

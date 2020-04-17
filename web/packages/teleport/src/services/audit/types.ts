@@ -343,6 +343,7 @@ export type RawEvents = {
       sid: string;
       server_id: string;
       participants?: string[];
+      server_hostname: string;
     }
   >;
   [CodeEnum.SESSION_LEAVE]: RawEvent<
