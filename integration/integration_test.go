@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -303,8 +304,8 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 				ForwardAgent: tt.inForwardAgent,
 			})
 			c.Assert(err, check.IsNil)
-			cl.Stdout = &myTerm
-			cl.Stdin = &myTerm
+			cl.Stdout = myTerm
+			cl.Stdin = myTerm
 			err = cl.SSH(context.TODO(), []string{}, false)
 			endC <- err
 		}()
@@ -694,8 +695,8 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	openSession := func() {
 		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &personA
-		cl.Stdin = &personA
+		cl.Stdout = personA
+		cl.Stdin = personA
 		// Person A types something into the terminal (including "exit")
 		personA.Type("\aecho hi\n\r\aexit\n\r\a")
 		err = cl.SSH(context.TODO(), []string{}, false)
@@ -718,9 +719,9 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		}
 		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &personB
+		cl.Stdout = personB
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), &personB)
+			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), personB)
 			if err == nil {
 				break
 			}
@@ -761,8 +762,8 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 	openSession := func() {
 		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &person
-		cl.Stdin = &person
+		cl.Stdout = person
+		cl.Stdin = person
 
 		go func() {
 			for command := range commandsC {
@@ -919,8 +920,8 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 		defer sessionCancel()
 		cl, err := t.NewClient(ClientConfig{Login: username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &person
-		cl.Stdin = &person
+		cl.Stdout = person
+		cl.Stdin = person
 
 		go func() {
 			for command := range commandsC {
@@ -936,7 +937,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	go openSession()
 
-	enterInput(c, &person, "echo start \r\n", ".*start.*")
+	enterInput(c, person, "echo start \r\n", ".*start.*")
 	time.Sleep(tc.disconnectTimeout)
 	select {
 	case <-time.After(tc.disconnectTimeout):
@@ -2787,8 +2788,8 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 			Port:    t.GetPortSSHInt(),
 		})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &myTerm
-		cl.Stdin = &myTerm
+		cl.Stdout = myTerm
+		cl.Stdin = myTerm
 		err = cl.SSH(context.TODO(), []string{}, false)
 		endCh <- err
 	}()
@@ -2922,8 +2923,8 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			})
 			c.Assert(err, check.IsNil)
 
-			cl.Stdout = &termSession
-			cl.Stdin = &termSession
+			cl.Stdout = termSession
+			cl.Stdin = termSession
 
 			termSession.Type("\aecho hi\n\r\aexit\n\r\a")
 			err = cl.SSH(context.TODO(), []string{}, false)
@@ -3563,8 +3564,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 		})
 		c.Assert(err, check.IsNil)
 
-		cl.Stdout = &personA
-		cl.Stdin = &personA
+		cl.Stdout = personA
+		cl.Stdin = personA
 
 		err = cl.SSH(context.TODO(), []string{}, false)
 		c.Assert(err, check.IsNil)
@@ -3592,8 +3593,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 		})
 		c.Assert(err, check.IsNil)
 
-		cl.Stdout = &personB
-		cl.Stdin = &personB
+		cl.Stdout = personB
+		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
 		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
@@ -3605,7 +3606,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 		}
 
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), &personB)
+			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), personB)
 			if err == nil {
 				break
 			}
@@ -3615,7 +3616,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	// waitForOutput checks the output of the passed in terminal of a string until
 	// some timeout has occurred.
-	waitForOutput := func(t Terminal, s string) error {
+	waitForOutput := func(t *Terminal, s string) error {
 		tickerCh := time.Tick(500 * time.Millisecond)
 		timeoutCh := time.After(30 * time.Second)
 		for {
@@ -3926,8 +3927,8 @@ func (s *IntSuite) TestBPFInteractive(c *check.C) {
 			c.Assert(err, check.IsNil)
 
 			// Connect terminal to std{in,out} of client.
-			client.Stdout = &term
-			client.Stdin = &term
+			client.Stdout = term
+			client.Stdin = term
 
 			// "Type" a command into the terminal.
 			term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
@@ -4120,7 +4121,7 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 	doneCh := make(chan bool, 2)
 
 	// Open a terminal and type "ls" into both and exit.
-	writeTerm := func(term Terminal) {
+	writeTerm := func(term *Terminal) {
 		client, err := main.NewClient(ClientConfig{
 			Login:   s.me.Username,
 			Cluster: Site,
@@ -4130,8 +4131,8 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 		c.Assert(err, check.IsNil)
 
 		// Connect terminal to std{in,out} of client.
-		client.Stdout = &term
-		client.Stdin = &term
+		client.Stdout = term
+		client.Stdin = term
 
 		// "Type" a command into the terminal.
 		term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
@@ -4299,17 +4300,16 @@ func (s *IntSuite) getPorts(num int) []int {
 
 // Terminal emulates stdin+stdout for integration testing
 type Terminal struct {
-	io.Writer
-	io.Reader
-
-	written *bytes.Buffer
 	typed   chan byte
+	mu      *sync.Mutex
+	written *bytes.Buffer
 }
 
-func NewTerminal(capacity int) Terminal {
-	return Terminal{
+func NewTerminal(capacity int) *Terminal {
+	return &Terminal{
 		typed:   make(chan byte, capacity),
-		written: bytes.NewBuffer([]byte{}),
+		mu:      &sync.Mutex{},
+		written: bytes.NewBuffer(nil),
 	}
 }
 
@@ -4321,6 +4321,8 @@ func (t *Terminal) Type(data string) {
 
 // Output returns a number of first 'limit' bytes printed into this fake terminal
 func (t *Terminal) Output(limit int) string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	buff := t.written.Bytes()
 	if len(buff) > limit {
 		buff = buff[:limit]
@@ -4330,6 +4332,8 @@ func (t *Terminal) Output(limit int) string {
 }
 
 func (t *Terminal) Write(data []byte) (n int, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return t.written.Write(data)
 }
 
