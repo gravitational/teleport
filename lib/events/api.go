@@ -144,11 +144,14 @@ const (
 	// LoginMethodGithub represents login with Github
 	LoginMethodGithub = "github"
 
-	// UserUpdatedEvent is emitted when the user is created or updated (upsert).
+	// UserUpdatedEvent is emitted when the user is updated.
 	UserUpdatedEvent = "user.update"
 
 	// UserDeleteEvent is emitted when the user is deleted.
 	UserDeleteEvent = "user.delete"
+
+	// UserCreateEvent is emitted when the user is created.
+	UserCreateEvent = "user.create"
 
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
