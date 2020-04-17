@@ -239,7 +239,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 		command:      []string{"/bin/sh"},
 		stdout:       out,
 		tty:          true,
-		stdin:        &term,
+		stdin:        term,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -281,7 +281,7 @@ loop:
 		command:      []string{"/bin/sh"},
 		stdout:       out,
 		tty:          true,
-		stdin:        &term,
+		stdin:        term,
 	})
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Matches, ".*impersonation request has been denied.*")
@@ -298,7 +298,7 @@ loop:
 		command:      []string{"/bin/sh"},
 		stdout:       out,
 		tty:          true,
-		stdin:        &term,
+		stdin:        term,
 	})
 	c.Assert(err, check.IsNil)
 }
@@ -610,7 +610,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		command:      []string{"/bin/sh"},
 		stdout:       out,
 		tty:          true,
-		stdin:        &term,
+		stdin:        term,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -652,7 +652,7 @@ loop:
 		command:      []string{"/bin/sh"},
 		stdout:       out,
 		tty:          true,
-		stdin:        &term,
+		stdin:        term,
 	})
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Matches, ".*impersonation request has been denied.*")
@@ -871,7 +871,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		command:      []string{"/bin/sh"},
 		stdout:       out,
 		tty:          true,
-		stdin:        &term,
+		stdin:        term,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -913,7 +913,7 @@ loop:
 		command:      []string{"/bin/sh"},
 		stdout:       out,
 		tty:          true,
-		stdin:        &term,
+		stdin:        term,
 	})
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Matches, ".*impersonation request has been denied.*")
@@ -1058,14 +1058,14 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 			podNamespace: pod.Namespace,
 			container:    kubeDNSContainer,
 			command:      []string{"/bin/sh"},
-			stdout:       &term,
+			stdout:       term,
 			tty:          true,
-			stdin:        &term,
+			stdin:        term,
 		})
 	}()
 
 	// lets type something followed by "enter" and then hang the session
-	enterInput(c, &term, "echo boring platapus\r\n", ".*boring platapus.*")
+	enterInput(c, term, "echo boring platapus\r\n", ".*boring platapus.*")
 	time.Sleep(tc.disconnectTimeout)
 	select {
 	case <-time.After(tc.disconnectTimeout):
