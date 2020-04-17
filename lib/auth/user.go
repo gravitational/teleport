@@ -31,23 +31,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CreateUser inserts a user and emits a UserCreated event
-func (s *AuthServer) CreateUser(user services.User) error {
-	err := s.Identity.CreateUser(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.EmitAuditEvent(events.UserCreate, events.EventFields{
-		events.EventUser:     user.GetName(),
-		events.UserExpires:   user.Expiry(),
-		events.UserRoles:     user.GetRoles(),
-		events.UserConnector: getUserAuthenticationConnector(user),
-	})
-
-	return nil
-}
-
 // UpsertUser upserts user
 func (s *AuthServer) UpsertUser(user services.User) error {
 	err := s.Identity.UpsertUser(user)
@@ -55,11 +38,18 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 
+	// If the user was successfully upserted, emit an event.
+	var connectorName string
+	if user.GetCreatedBy().Connector == nil {
+		connectorName = teleport.Local
+	} else {
+		connectorName = user.GetCreatedBy().Connector.ID
+	}
 	s.EmitAuditEvent(events.UserUpdate, events.EventFields{
 		events.EventUser:     user.GetName(),
 		events.UserExpires:   user.Expiry(),
 		events.UserRoles:     user.GetRoles(),
-		events.UserConnector: getUserAuthenticationConnector(user),
+		events.UserConnector: connectorName,
 	})
 
 	return nil
@@ -91,21 +81,4 @@ func (s *AuthServer) DeleteUser(user string) error {
 	})
 
 	return nil
-}
-
-// getUserAuthenticationConnector returns the type of connector
-// users authenticate by when logging in.
-func getUserAuthenticationConnector(user services.User) string {
-	if user == nil {
-		return ""
-	}
-
-	var connectorName string
-	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
-	} else {
-		connectorName = user.GetCreatedBy().Connector.ID
-	}
-
-	return connectorName
 }

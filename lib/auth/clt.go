@@ -1318,16 +1318,6 @@ func (c *Client) UpsertUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PutJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
-	return trace.Wrap(err)
-}
-
-// CreateUser user inserts a user entry
-func (c *Client) CreateUser(user services.User) error {
-	data, err := services.GetUserMarshaler().MarshalUser(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
 }
@@ -2724,9 +2714,6 @@ type IdentityService interface {
 
 	// DeleteUser deletes a user by username
 	DeleteUser(user string) error
-
-	// CreateUser inserts a new user entry
-	CreateUser(user services.User) error
 
 	// GetUsers returns a list of usernames registered in the system
 	GetUsers(withSecrets bool) ([]services.User, error)

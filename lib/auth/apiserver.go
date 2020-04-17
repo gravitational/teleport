@@ -93,8 +93,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/keypair", srv.withAuth(srv.generateKeyPair))
 
 	// Passwords and sessions
-	srv.POST("/:version/users", srv.withAuth(srv.createUser))
-	srv.PUT("/:version/users", srv.withAuth(srv.upsertUser))
+	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
 	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
 	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
 	srv.POST("/:version/users/:user/web/password/check", srv.withRate(srv.withAuth(srv.checkPassword)))
@@ -844,23 +843,6 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("'%v' user upserted", user.GetName())), nil
-}
-
-func (s *APIServer) createUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertUserRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := services.GetUserMarshaler().UnmarshalUser(req.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.CreateUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("'%v' user created", user.GetName())), nil
 }
 
 type checkPasswordReq struct {
