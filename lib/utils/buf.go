@@ -25,13 +25,16 @@ import (
 func NewSyncBuffer() *SyncBuffer {
 	reader, writer := io.Pipe()
 	buf := &bytes.Buffer{}
+	copyDone := make(chan struct{})
 	go func() {
+		defer close(copyDone)
 		io.Copy(buf, reader)
 	}()
 	return &SyncBuffer{
-		reader: reader,
-		writer: writer,
-		buf:    buf,
+		reader:   reader,
+		writer:   writer,
+		buf:      buf,
+		copyDone: copyDone,
 	}
 }
 
@@ -41,6 +44,9 @@ type SyncBuffer struct {
 	reader *io.PipeReader
 	writer *io.PipeWriter
 	buf    *bytes.Buffer
+	// copyDone makes SyncBuffer.Close block until io.Copy goroutine finishes.
+	// This prevents data races between io.Copy and SyncBuffer.String/Bytes.
+	copyDone chan struct{}
 }
 
 func (b *SyncBuffer) Write(data []byte) (n int, err error) {
@@ -65,6 +71,10 @@ func (b *SyncBuffer) Bytes() []byte {
 func (b *SyncBuffer) Close() error {
 	err := b.reader.Close()
 	err2 := b.writer.Close()
+
+	// Explicitly wait for io.Copy goroutine to finish.
+	<-b.copyDone
+
 	if err != nil {
 		return err
 	}
