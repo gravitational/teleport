@@ -297,6 +297,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 			events.SessionInteractive:       true,
 			events.SessionEnhancedRecording: sess.hasEnhancedRecording,
 			events.SessionParticipants:      sess.exportParticipants(),
+			events.SessionServerHostname:    s.srv.GetInfo().GetHostname(),
 		}
 		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
 
@@ -863,6 +864,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			events.SessionParticipants: []string{
 				ctx.Identity.TeleportUser,
 			},
+			events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
 		}
 		s.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
 

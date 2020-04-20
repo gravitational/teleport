@@ -26,6 +26,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"testing"
 	"time"
 
@@ -168,6 +169,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Args, check.DeepEquals, []string{"-sh"})
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
+	c.Assert(cmd.SysProcAttr.Pdeathsig, check.Equals, syscall.SIGKILL)
 
 	// Non-empty command (exec a prog).
 	s.ctx.ExecRequest.SetCommand("ls -lh /etc")
@@ -180,6 +182,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "ls -lh /etc"})
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
+	c.Assert(cmd.SysProcAttr.Pdeathsig, check.Equals, syscall.SIGKILL)
 
 	// Command without args.
 	s.ctx.ExecRequest.SetCommand("top")
@@ -189,6 +192,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
 	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "top"})
+	c.Assert(cmd.SysProcAttr.Pdeathsig, check.Equals, syscall.SIGKILL)
 }
 
 func (s *ExecSuite) TestLoginDefsParser(c *check.C) {
