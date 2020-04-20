@@ -194,6 +194,7 @@ func waitForStatus(diagAddr string, statusCodes ...int) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			resp.Body.Close()
 			for _, statusCode := range statusCodes {
 				if resp.StatusCode == statusCode {
 					return nil
