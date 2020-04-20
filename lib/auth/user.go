@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CreateUser inserts a new entry in the backend
+// CreateUser inserts a new entry in a backend.
 func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 	err := s.Identity.CreateUser(user)
 	if err != nil {
@@ -49,7 +49,7 @@ func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 	return nil
 }
 
-// UpsertUser upserts user
+// UpsertUser updates a user.
 func (s *AuthServer) UpsertUser(user services.User) error {
 	err := s.Identity.UpsertUser(user)
 	if err != nil {
@@ -65,7 +65,7 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 	return nil
 }
 
-// DeleteUser deletes user
+// DeleteUser deletes a user.
 func (s *AuthServer) DeleteUser(user string) error {
 	role, err := s.Access.GetRole(services.RoleNameForUser(user))
 	if err != nil {

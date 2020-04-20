@@ -60,7 +60,7 @@ func (x Operation) String() string {
 	return proto.EnumName(Operation_name, int32(x))
 }
 func (Operation) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{0}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{0}
 }
 
 // Event returns cluster event
@@ -93,7 +93,7 @@ func (m *Event) Reset()         { *m = Event{} }
 func (m *Event) String() string { return proto.CompactTextString(m) }
 func (*Event) ProtoMessage()    {}
 func (*Event) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{0}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{0}
 }
 func (m *Event) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -583,7 +583,7 @@ func (m *Watch) Reset()         { *m = Watch{} }
 func (m *Watch) String() string { return proto.CompactTextString(m) }
 func (*Watch) ProtoMessage()    {}
 func (*Watch) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{1}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{1}
 }
 func (m *Watch) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -641,7 +641,7 @@ func (m *WatchKind) Reset()         { *m = WatchKind{} }
 func (m *WatchKind) String() string { return proto.CompactTextString(m) }
 func (*WatchKind) ProtoMessage()    {}
 func (*WatchKind) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{2}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{2}
 }
 func (m *WatchKind) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -713,7 +713,7 @@ func (m *Certs) Reset()         { *m = Certs{} }
 func (m *Certs) String() string { return proto.CompactTextString(m) }
 func (*Certs) ProtoMessage()    {}
 func (*Certs) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{3}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{3}
 }
 func (m *Certs) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -787,7 +787,7 @@ func (m *UserCertsRequest) Reset()         { *m = UserCertsRequest{} }
 func (m *UserCertsRequest) String() string { return proto.CompactTextString(m) }
 func (*UserCertsRequest) ProtoMessage()    {}
 func (*UserCertsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{4}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{4}
 }
 func (m *UserCertsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -873,7 +873,7 @@ func (m *GetUserRequest) Reset()         { *m = GetUserRequest{} }
 func (m *GetUserRequest) String() string { return proto.CompactTextString(m) }
 func (*GetUserRequest) ProtoMessage()    {}
 func (*GetUserRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{5}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{5}
 }
 func (m *GetUserRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -929,7 +929,7 @@ func (m *GetUsersRequest) Reset()         { *m = GetUsersRequest{} }
 func (m *GetUsersRequest) String() string { return proto.CompactTextString(m) }
 func (*GetUsersRequest) ProtoMessage()    {}
 func (*GetUsersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{6}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{6}
 }
 func (m *GetUsersRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -977,7 +977,7 @@ func (m *AccessRequests) Reset()         { *m = AccessRequests{} }
 func (m *AccessRequests) String() string { return proto.CompactTextString(m) }
 func (*AccessRequests) ProtoMessage()    {}
 func (*AccessRequests) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{7}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{7}
 }
 func (m *AccessRequests) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1025,7 +1025,7 @@ func (m *PluginDataSeq) Reset()         { *m = PluginDataSeq{} }
 func (m *PluginDataSeq) String() string { return proto.CompactTextString(m) }
 func (*PluginDataSeq) ProtoMessage()    {}
 func (*PluginDataSeq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{8}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{8}
 }
 func (m *PluginDataSeq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1075,7 +1075,7 @@ func (m *RequestStateSetter) Reset()         { *m = RequestStateSetter{} }
 func (m *RequestStateSetter) String() string { return proto.CompactTextString(m) }
 func (*RequestStateSetter) ProtoMessage()    {}
 func (*RequestStateSetter) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{9}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{9}
 }
 func (m *RequestStateSetter) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1130,7 +1130,7 @@ func (m *RequestID) Reset()         { *m = RequestID{} }
 func (m *RequestID) String() string { return proto.CompactTextString(m) }
 func (*RequestID) ProtoMessage()    {}
 func (*RequestID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{10}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{10}
 }
 func (m *RequestID) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1180,7 +1180,7 @@ func (m *RotateResetPasswordTokenSecretsRequest) Reset() {
 func (m *RotateResetPasswordTokenSecretsRequest) String() string { return proto.CompactTextString(m) }
 func (*RotateResetPasswordTokenSecretsRequest) ProtoMessage()    {}
 func (*RotateResetPasswordTokenSecretsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{11}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{11}
 }
 func (m *RotateResetPasswordTokenSecretsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1228,7 +1228,7 @@ func (m *GetResetPasswordTokenRequest) Reset()         { *m = GetResetPasswordTo
 func (m *GetResetPasswordTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*GetResetPasswordTokenRequest) ProtoMessage()    {}
 func (*GetResetPasswordTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{12}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{12}
 }
 func (m *GetResetPasswordTokenRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1282,7 +1282,7 @@ func (m *CreateResetPasswordTokenRequest) Reset()         { *m = CreateResetPass
 func (m *CreateResetPasswordTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateResetPasswordTokenRequest) ProtoMessage()    {}
 func (*CreateResetPasswordTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{13}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{13}
 }
 func (m *CreateResetPasswordTokenRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1343,7 +1343,7 @@ func (m *PingRequest) Reset()         { *m = PingRequest{} }
 func (m *PingRequest) String() string { return proto.CompactTextString(m) }
 func (*PingRequest) ProtoMessage()    {}
 func (*PingRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{14}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{14}
 }
 func (m *PingRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1387,7 +1387,7 @@ func (m *PingResponse) Reset()         { *m = PingResponse{} }
 func (m *PingResponse) String() string { return proto.CompactTextString(m) }
 func (*PingResponse) ProtoMessage()    {}
 func (*PingResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_ead35e96b04a9683, []int{15}
+	return fileDescriptor_auth_0e621cd9ab7021b1, []int{15}
 }
 func (m *PingResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1497,7 +1497,7 @@ type AuthServiceClient interface {
 	GetResetPasswordToken(ctx context.Context, in *GetResetPasswordTokenRequest, opts ...grpc.CallOption) (*services.ResetPasswordTokenV3, error)
 	// CreateResetPasswordToken creates ResetPasswordToken.
 	CreateResetPasswordToken(ctx context.Context, in *CreateResetPasswordTokenRequest, opts ...grpc.CallOption) (*services.ResetPasswordTokenV3, error)
-	// CreateUser inserts new users to a backend
+	// CreateUser inserts a new entry to a backend.
 	CreateUser(ctx context.Context, in *services.UserV2, opts ...grpc.CallOption) (*empty.Empty, error)
 }
 
@@ -1771,7 +1771,7 @@ type AuthServiceServer interface {
 	GetResetPasswordToken(context.Context, *GetResetPasswordTokenRequest) (*services.ResetPasswordTokenV3, error)
 	// CreateResetPasswordToken creates ResetPasswordToken.
 	CreateResetPasswordToken(context.Context, *CreateResetPasswordTokenRequest) (*services.ResetPasswordTokenV3, error)
-	// CreateUser inserts new users to a backend
+	// CreateUser inserts a new entry to a backend.
 	CreateUser(context.Context, *services.UserV2) (*empty.Empty, error)
 }
 
@@ -5557,9 +5557,9 @@ var (
 	ErrIntOverflowAuth   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("auth.proto", fileDescriptor_auth_ead35e96b04a9683) }
+func init() { proto.RegisterFile("auth.proto", fileDescriptor_auth_0e621cd9ab7021b1) }
 
-var fileDescriptor_auth_ead35e96b04a9683 = []byte{
+var fileDescriptor_auth_0e621cd9ab7021b1 = []byte{
 	// 1706 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x57, 0xdd, 0x6e, 0xdb, 0xc8,
 	0x15, 0x0e, 0x25, 0xcb, 0x96, 0x8e, 0x6c, 0x45, 0x19, 0x3b, 0x36, 0xa3, 0x38, 0xa6, 0xa1, 0x60,

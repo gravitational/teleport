@@ -1312,7 +1312,7 @@ func (c *Client) UpsertPassword(user string, password []byte) error {
 	return nil
 }
 
-// CreateUser inserts a new user in the backend
+// CreateUser inserts a new entry in a backend.
 func (c *Client) CreateUser(ctx context.Context, user services.User) error {
 	clt, err := c.grpc()
 	if err != nil {
@@ -1327,7 +1327,7 @@ func (c *Client) CreateUser(ctx context.Context, user services.User) error {
 	return nil
 }
 
-// UpsertUser user updates user entry
+// UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user services.User) error {
 	data, err := services.GetUserMarshaler().MarshalUser(user)
 	if err != nil {
@@ -2724,7 +2724,7 @@ type IdentityService interface {
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (services.User, error)
 
-	// CreateUser inserts a new entry in the backend
+	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user services.User) error
 
 	// UpsertUser user updates or inserts user entry
