@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	kubeclient "github.com/gravitational/teleport/lib/kube/client"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -435,7 +435,7 @@ func onLogin(cf *CLIConf) {
 				utils.FatalError(err)
 			}
 			tc.SaveProfile("", "")
-			if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+			if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -479,7 +479,7 @@ func onLogin(cf *CLIConf) {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+		if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 			utils.FatalError(err)
 		}
 	}
@@ -583,7 +583,7 @@ func onLogout(cf *CLIConf) {
 
 		// Remove Teleport related entries from kubeconfig.
 		log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", clusterName)
-		err = kubeclient.RemoveKubeconifg(tc, clusterName)
+		err = kubeconfig.Remove("", clusterName)
 		if err != nil {
 			utils.FatalError(err)
 			return
@@ -605,7 +605,7 @@ func onLogout(cf *CLIConf) {
 		// Remove Teleport related entries from kubeconfig for all clusters.
 		for _, profile := range profiles {
 			log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", profile.Cluster)
-			err = kubeclient.RemoveKubeconifg(tc, profile.Cluster)
+			err = kubeconfig.Remove("", profile.Cluster)
 			if err != nil {
 				utils.FatalError(err)
 				return
@@ -1304,7 +1304,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.SaveProfile("", ""); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+	if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
