@@ -311,13 +311,11 @@ func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 		filePath = principals[0]
 	}
 
-	err = client.MakeIdentityFile(filePath, key, a.outputFormat, nil)
+	filesWritten, err := client.MakeIdentityFile(filePath, key, a.outputFormat, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if a.output != "" {
-		fmt.Printf("\nThe certificate has been written to %s\n", a.output)
-	}
+	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
 	return nil
 }
 
@@ -356,13 +354,11 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 	}
 
 	// write the cert+private key to the output:
-	err = client.MakeIdentityFile(a.output, key, a.outputFormat, certAuthorities)
+	filesWritten, err := client.MakeIdentityFile(a.output, key, a.outputFormat, certAuthorities)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if a.output != "" {
-		fmt.Printf("\nThe certificate has been written to %s\n", a.output)
-	}
+	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
 	return nil
 }
 

@@ -64,8 +64,11 @@ const (
 )
 
 // MakeIdentityFile takes a username + their credentials and saves them to disk
-// in a specified format
-func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, certAuthorities []services.CertAuthority) (err error) {
+// in a specified format.
+//
+// filePath is used as a base to generate output file names; these names are
+// returned in filesWritten.
+func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, certAuthorities []services.CertAuthority) (filesWritten []string, err error) {
 	const (
 		// the files and the dir will be created with these permissions:
 		fileMode = 0600
@@ -73,31 +76,32 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 	)
 
 	if filePath == "" {
-		return trace.BadParameter("identity location is not specified")
+		return nil, trace.BadParameter("identity location is not specified")
 	}
 
 	var output io.Writer = os.Stdout
 	switch format {
 	// dump user identity into a single file:
 	case IdentityFormatFile:
+		filesWritten = append(filesWritten, filePath)
 		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileMode)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		output = f
 		defer f.Close()
 
 		// write key:
 		if _, err = output.Write(key.Priv); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		// append ssh cert:
 		if _, err = output.Write(key.Cert); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		// append tls cert:
 		if _, err = output.Write(key.TLSCert); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		// append trusted host certificate authorities
 		for _, ca := range certAuthorities {
@@ -105,19 +109,19 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 			for _, publicKey := range ca.GetCheckingKeys() {
 				data, err := sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), publicKey, nil)
 				if err != nil {
-					return trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
 				if _, err = output.Write([]byte(data)); err != nil {
-					return trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
 				if _, err = output.Write([]byte("\n")); err != nil {
-					return trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
 			}
 			// append tls ca certificates
 			for _, keyPair := range ca.GetTLSKeyPairs() {
 				if _, err = output.Write(keyPair.Cert); err != nil {
-					return trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
 			}
 		}
@@ -126,30 +130,32 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 	case IdentityFormatOpenSSH:
 		keyPath := filePath
 		certPath := keyPath + "-cert.pub"
+		filesWritten = append(filesWritten, keyPath, certPath)
 
 		err = ioutil.WriteFile(certPath, key.Cert, fileMode)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		err = ioutil.WriteFile(keyPath, key.Priv, fileMode)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 	case IdentityFormatTLS:
 		keyPath := filePath + ".key"
 		certPath := filePath + ".crt"
 		casPath := filePath + ".cas"
+		filesWritten = append(filesWritten, keyPath, certPath, casPath)
 
 		err = ioutil.WriteFile(certPath, key.TLSCert, fileMode)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		err = ioutil.WriteFile(keyPath, key.Priv, fileMode)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
 		for _, ca := range certAuthorities {
@@ -159,13 +165,13 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 		}
 		err = ioutil.WriteFile(casPath, caCerts, fileMode)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	default:
-		return trace.BadParameter("unsupported identity format: %q, use one of %q, %q, or %q",
+		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, or %q",
 			format, IdentityFormatFile, IdentityFormatOpenSSH, IdentityFormatTLS)
 	}
-	return nil
+	return filesWritten, nil
 }
 
 // IdentityFile represents the basic components of an identity file.
