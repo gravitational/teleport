@@ -24,12 +24,30 @@ limitations under the License.
 package auth
 
 import (
-	"github.com/gravitational/teleport"
+	"context"
+
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 )
+
+// CreateUser inserts a new entry in the backend
+func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
+	err := s.Identity.CreateUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.EmitAuditEvent(events.UserCreate, events.EventFields{
+		events.EventUser:       user.GetCreatedBy().User.Name,
+		events.UserExpires:     user.Expiry(),
+		events.UserRoles:       user.GetRoles(),
+		events.UserCreatedName: user.GetName(),
+	})
+
+	return nil
+}
 
 // UpsertUser upserts user
 func (s *AuthServer) UpsertUser(user services.User) error {
@@ -38,18 +56,10 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 
-	// If the user was successfully upserted, emit an event.
-	var connectorName string
-	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
-	} else {
-		connectorName = user.GetCreatedBy().Connector.ID
-	}
 	s.EmitAuditEvent(events.UserUpdate, events.EventFields{
-		events.EventUser:     user.GetName(),
-		events.UserExpires:   user.Expiry(),
-		events.UserRoles:     user.GetRoles(),
-		events.UserConnector: connectorName,
+		events.EventUser:   user.GetName(),
+		events.UserExpires: user.Expiry(),
+		events.UserRoles:   user.GetRoles(),
 	})
 
 	return nil
