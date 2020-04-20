@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -34,7 +35,6 @@ import (
 
 	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
-	"testing"
 )
 
 type AuthInitSuite struct {

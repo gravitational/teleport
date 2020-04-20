@@ -46,6 +46,7 @@ type Cluster struct {
 	ProxyVersion string `json:"proxyVersion"`
 }
 
+//nolint:unused,deadcode
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentProxy,
 })

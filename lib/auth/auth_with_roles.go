@@ -1091,7 +1091,7 @@ func (a *AuthWithRoles) CreateResetPasswordToken(ctx context.Context, req Create
 	a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
 		events.ResetPasswordTokenFor: req.Name,
 		events.ResetPasswordTokenTTL: req.TTL.String(),
-		events.EventUser:    a.user.GetName(),
+		events.EventUser:             a.user.GetName(),
 	})
 
 	return a.authServer.CreateResetPasswordToken(ctx, req)

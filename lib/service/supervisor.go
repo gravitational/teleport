@@ -145,6 +145,7 @@ func NewSupervisor(id string) Supervisor {
 	reloadContext, signalReload := context.WithCancel(context.TODO())
 
 	srv := &LocalSupervisor{
+		state:        stateCreated,
 		id:           id,
 		services:     []Service{},
 		wg:           &sync.WaitGroup{},

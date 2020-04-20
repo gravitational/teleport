@@ -313,9 +313,11 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 func (m *AgentPool) Counts() map[string]int {
 	out := make(map[string]int)
 
-	for key, agents := range m.agents {
-		out[key.clusterName] += len(agents)
-	}
+	m.withLock(func() {
+		for key, agents := range m.agents {
+			out[key.clusterName] += len(agents)
+		}
+	})
 
 	return out
 }

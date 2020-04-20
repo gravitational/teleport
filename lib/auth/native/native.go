@@ -310,12 +310,6 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-const (
-	principalLocalhost  = "localhost"
-	principalLoopbackV4 = "127.0.0.1"
-	principalLoopbackV6 = "::1"
-)
-
 // BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
 // principals to insert into a certificate. This function is backward compatible with
 // older clients which means:
