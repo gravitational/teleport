@@ -153,11 +153,15 @@ const (
 	// UserCreateEvent is emitted when the user is created.
 	UserCreateEvent = "user.create"
 
+	// UserCreatedName is the name of the created user.
+	UserCreatedName = "created_user"
+
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
 
 	// UserRoles is a list of roles for the user.
 	UserRoles = "roles"
+
 	// IdentityAttributes is a map of user attributes
 	// received from identity provider
 	IdentityAttributes = "attributes"
