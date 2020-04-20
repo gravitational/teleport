@@ -230,4 +230,6 @@ service AuthService {
     // CreateResetPasswordToken creates ResetPasswordToken.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
         returns (services.ResetPasswordTokenV3);
+    // CreateUser inserts new users to a backend
+    rpc CreateUser(services.UserV2) returns (google.protobuf.Empty);
 }
