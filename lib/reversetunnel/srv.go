@@ -968,7 +968,6 @@ const (
 	extCertType     = "certtype@teleport"
 	extAuthority    = "auth@teleport"
 	extCertTypeHost = "host"
-	extCertTypeUser = "user"
 	extCertRole     = "role"
 
 	versionRequest = "x-teleport-version"

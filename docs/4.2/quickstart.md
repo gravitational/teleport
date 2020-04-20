@@ -22,10 +22,10 @@ VM.
   the best place to start!
 
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
-environment, and showcase a few basic tasks you can do with Teleport.
+environment, and showcase a few basic tasks you can do with Teleport. For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
 
-**You should not follow this guide if you want to set up Teleport in production.
-Instead follow the [Admin Guide](admin-guide.md)**
+!!! note "IMPORTANT"
+    You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.md). 
 
 ## Step 1: Install Teleport
 
@@ -177,16 +177,12 @@ accessible IP.
     `--insecure` flag which allows us to skip configuring the HTTP/TLS
     certificate for Teleport proxy.
 
-    **Caution**: the `--insecure` flag does **not** skip TLS validation for the Auth Server. The self-signed Auth Server certificate expects to be accessed via one of a set of hostnames (ex. `grav-00` ). If you attempt to access via `localhost` you will probably get this error: `principal "localhost" not in the set of valid principals for given certificate` .
-
-    To resolve this error find your hostname with the `hostname` command and use that instead of `localhost` .
-
     Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.md#ssltls-for-teleport-proxy)
 
 
 ``` bash
 # here grav-00 is a resolvable hostname on the same network
-# --proxy can be an IP, hostname, or URL
+# --proxy can be an IP, hostname, or URL; you can also use "localhost" for this quickstart
 # --user (not shown) by default, is implicitly set to your last login, or primary OS username
 # if your primary OS user isn't teleport, you need to explicitly set by including: --user=teleport
 [teleport@grav-00 ~]$ tsh --proxy=grav-00 --insecure login

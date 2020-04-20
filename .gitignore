@@ -9,9 +9,6 @@ darwin
 *.gz
 *.zip
 
-# built web assets
-web/dist/app/app
-
 # editors
 .vscode
 
@@ -46,6 +43,7 @@ _testmain.go
 flymake*
 
 # mkdocs
+docs/latest
 docs/latest.yaml
 
 # terraform

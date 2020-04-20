@@ -25,6 +25,7 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
+GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -88,7 +89,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport:
+$(BUILDDIR)/teleport: ensure-webassets
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
@@ -193,18 +194,20 @@ run-docs:
 # tests everything: called by Jenkins
 #
 .PHONY: test
+test: ensure-webassets
 test: FLAGS ?= '-race'
 test: PACKAGES := $(shell go list ./... | grep -v integration)
 test: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 #
-# integration tests. need a TTY to work and not compatible with a race detector
+# Integration tests. Need a TTY to work.
 #
 .PHONY: integration
+integration: FLAGS ?= -v -race
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -v -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/...
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/... $(FLAGS)
 
 #
 # Lint the Go code.
@@ -218,8 +221,11 @@ lint:
 		--disable-all \
 		--exclude-use-default \
 		--skip-dirs vendor \
+		--uniq-by-line=false \
+		--max-same-issues=0 \
 		--max-issues-per-linter 0 \
-		--enable unused \
+		--timeout=5m \
+		--enable $(GO_LINTERS) \
 		$(FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
@@ -243,7 +249,7 @@ tag:
 $(BUILDDIR)/webassets.zip:
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
-	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	cd webassets/teleport/ ; zip -qr ../../$(BUILDDIR)/webassets.zip .
 endif
 
 .PHONY: test-package
@@ -305,6 +311,8 @@ grpc: buildbox
 buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
+	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+
 	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
     *.proto
@@ -402,3 +410,38 @@ deb:
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
+# update Helm chart versions
+# this isn't a 'proper' semver regex but should cover most cases
+# the order of parameters in sed's extended regex mode matters; the
+# dash (-) must be the last character for this to work as expected
+.PHONY: update-helm-charts
+update-helm-charts:
+	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport/values.yaml
+	sed -i -E "s/^teleportVersion: [a-z0-9.-]+$$/teleportVersion: $(VERSION)/" examples/chart/teleport-demo/values.yaml
+
+.PHONY: ensure-webassets
+ensure-webassets:
+	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
+		$(MAKE) init-webapps-submodules; \
+	fi;
+
+.PHONY: ensure-webassets-e
+ensure-webassets-e:
+	@if [ ! -d $(shell pwd)/webassets/e/teleport ]; then \
+		$(MAKE) init-webapps-submodules-e; \
+	fi;
+
+.PHONY: init-webapps-submodules
+init-webapps-submodules:
+	echo "init webassets submodule"
+	git submodule update --init webassets
+
+.PHONY: init-webapps-submodules-e
+init-webapps-submodules-e:
+	echo "init webassets oss and enterprise submodules"
+	git submodule update --init --recursive webassets
+
+.PHONY: init-submodules-e
+init-submodules-e: init-webapps-submodules-e
+	git submodule init e
+	git submodule update

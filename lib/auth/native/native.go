@@ -339,6 +339,15 @@ func BuildPrincipals(hostID string, nodeName string, clusterName string, roles t
 		principals = append(principals, nodeName)
 	}
 
+	// Add localhost and loopback addresses to allow connecting to proxy/host
+	// on the local machine. This should only matter for quickstart and local
+	// development.
+	principals = append(principals,
+		string(teleport.PrincipalLocalhost),
+		string(teleport.PrincipalLoopbackV4),
+		string(teleport.PrincipalLoopbackV6),
+	)
+
 	// deduplicate (in-case hostID and nodeName are the same) and return
 	return utils.Deduplicate(principals)
 }

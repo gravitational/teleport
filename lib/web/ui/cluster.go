@@ -20,7 +20,12 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // Cluster describes a cluster
@@ -28,39 +33,79 @@ type Cluster struct {
 	// Name is the cluster name
 	Name string `json:"name"`
 	// LastConnected is the cluster last connected time
-	LastConnected time.Time `json:"last_connected"`
+	LastConnected time.Time `json:"lastConnected"`
 	// Status is the cluster status
 	Status string `json:"status"`
+	// NodeCount is this cluster number of registered servers
+	NodeCount int `json:"nodeCount"`
+	// PublicURL is this cluster public URL (its first available proxy URL)
+	PublicURL string `json:"publicURL"`
+	// AuthVersion is the cluster auth's service version
+	AuthVersion string `json:"authVersion"`
+	// ProxyVersion is the cluster proxy's service version
+	ProxyVersion string `json:"proxyVersion"`
 }
 
-// AvailableClusters describes all available clusters
-type AvailableClusters struct {
-	// Current describes current cluster
-	Current Cluster `json:"current"`
-	// Trusted describes trusted clusters
-	Trusted []Cluster `json:"trusted"`
-}
+//nolint:unused,deadcode
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentProxy,
+})
 
-// NewAvailableClusters returns all available clusters
-func NewAvailableClusters(currentClusterName string, remoteClusters []reversetunnel.RemoteSite) *AvailableClusters {
-	out := AvailableClusters{}
-	for _, item := range remoteClusters {
-		cluster := Cluster{
-			Name:          item.GetName(),
-			LastConnected: item.GetLastConnected(),
-			Status:        item.GetStatus(),
+// NewClusters creates a slice of Cluster's, containing data about each cluster.
+func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
+	clusters := []Cluster{}
+	for _, site := range remoteClusters {
+		cluster, err := GetClusterDetails(site)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		if item.GetName() == currentClusterName {
-			out.Current = cluster
-		} else {
-			out.Trusted = append(out.Trusted, cluster)
-		}
+		clusters = append(clusters, *cluster)
 	}
 
-	sort.Slice(out.Trusted, func(i, j int) bool {
-		return out.Trusted[i].Name < out.Trusted[j].Name
+	sort.Slice(clusters, func(i, j int) bool {
+		return clusters[i].Name < clusters[j].Name
 	})
 
-	return &out
+	return clusters, nil
+}
+
+// GetClusterDetails retrieves and sets details about a cluster
+func GetClusterDetails(site reversetunnel.RemoteSite) (*Cluster, error) {
+	clt, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nodes, err := clt.GetNodes(defaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxies, err := clt.GetProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyHost, proxyVersion := services.GuessProxyHostAndVersion(proxies)
+
+	authServers, err := clt.GetAuthServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authVersion := ""
+	if len(authServers) > 0 {
+		// use the first auth server
+		authVersion = authServers[0].GetTeleportVersion()
+	}
+
+	return &Cluster{
+		Name:          site.GetName(),
+		LastConnected: site.GetLastConnected(),
+		Status:        site.GetStatus(),
+		NodeCount:     len(nodes),
+		PublicURL:     proxyHost,
+		AuthVersion:   authVersion,
+		ProxyVersion:  proxyVersion,
+	}, nil
 }

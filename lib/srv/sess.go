@@ -297,6 +297,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 			events.SessionInteractive:       true,
 			events.SessionEnhancedRecording: sess.hasEnhancedRecording,
 			events.SessionParticipants:      sess.exportParticipants(),
+			events.SessionServerHostname:    s.srv.GetInfo().GetHostname(),
 		}
 		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
 
@@ -477,12 +478,15 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
 		},
-		Login:      ctx.Identity.Login,
-		Created:    time.Now().UTC(),
-		LastActive: time.Now().UTC(),
-		ServerID:   ctx.srv.ID(),
-		Namespace:  r.srv.GetNamespace(),
+		Login:          ctx.Identity.Login,
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		ServerID:       ctx.srv.ID(),
+		Namespace:      r.srv.GetNamespace(),
+		ServerHostname: ctx.srv.GetInfo().GetHostname(),
+		ServerAddr:     ctx.srv.GetInfo().GetAddr(),
 	}
+
 	term := ctx.GetTerm()
 	if term != nil {
 		winsize, err := term.GetWinSize()
@@ -860,6 +864,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			events.SessionParticipants: []string{
 				ctx.Identity.TeleportUser,
 			},
+			events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
 		}
 		s.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
 
