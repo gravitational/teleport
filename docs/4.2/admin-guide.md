@@ -188,8 +188,10 @@ Docs](cli-docs.md#teleport-start) or run `teleport start --help`
 
 ### Configuration File
 
-Teleport uses the YAML file format for configuration. A sample configuration
-file is shown below. By default, it is stored in `/etc/teleport.yaml`
+Teleport uses the YAML file format for configuration. A sample configuration file is shown below. By default, it is stored in `/etc/teleport.yaml`. 
+
+For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
+
 
 !!! note "IMPORTANT"
 
