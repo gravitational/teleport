@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/sshutils"
 
 	"github.com/gravitational/trace"
@@ -48,7 +49,7 @@ func LoadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 	defer f.Close()
-	ident, err := client.DecodeIdentityFile(f)
+	ident, err := identityfile.Decode(f)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "failed to parse identity file")
 	}
