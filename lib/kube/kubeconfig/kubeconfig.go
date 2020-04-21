@@ -3,7 +3,6 @@ package kubeconfig
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -41,8 +40,8 @@ type Values struct {
 // If `path` is empty, UpdateWithClient will try to guess it based on the
 // environment or known defaults.
 func UpdateWithClient(path string, tc *client.TeleportClient) error {
-	clusterName, proxyPort := tc.KubeProxyHostPort()
-	clusterAddr := fmt.Sprintf("https://%v:%v", clusterName, proxyPort)
+	clusterAddr := tc.KubeClusterAddr()
+	clusterName, _ := tc.KubeProxyHostPort()
 	if tc.SiteName != "" {
 		clusterName = tc.SiteName
 	}
@@ -143,7 +142,8 @@ func load(path string) (*clientcmdapi.Config, error) {
 	}
 	config, err := clientcmd.LoadFromFile(filename)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, trace.ConvertSystemError(err)
+		err = trace.ConvertSystemError(err)
+		return nil, trace.WrapWithMessage(err, "failed to parse existing kubeconfig %q: %v", filename, err)
 	}
 	if config == nil {
 		config = clientcmdapi.NewConfig()

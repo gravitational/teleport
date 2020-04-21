@@ -696,6 +696,13 @@ func (c *Config) KubeProxyHostPort() (string, int) {
 	return webProxyHost, defaults.KubeProxyListenPort
 }
 
+// KubeClusterAddr returns a public HTTPS address of the proxy for use by
+// Kubernetes clients.
+func (c *Config) KubeClusterAddr() string {
+	host, port := c.KubeProxyHostPort()
+	return fmt.Sprintf("https://%s:%d", host, port)
+}
+
 // WebProxyHostPort returns the host and port of the web proxy.
 func (c *Config) WebProxyHostPort() (string, int) {
 	if c.WebProxyAddr != "" {
