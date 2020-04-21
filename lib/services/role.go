@@ -393,7 +393,7 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 	}
 
 	// For internal traits, only internal.logins, internal.kubernetes_users and
-	// internal.kubernetes_groups is supported at the moment.
+	// internal.kubernetes_groups are supported at the moment.
 	if variable.Namespace() == teleport.TraitInternalPrefix {
 		if variable.Name() != teleport.TraitLogins && variable.Name() != teleport.TraitKubeGroups && variable.Name() != teleport.TraitKubeUsers {
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
