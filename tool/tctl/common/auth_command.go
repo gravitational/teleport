@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,7 +36,7 @@ type AuthCommand struct {
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
 	output                     string
-	outputFormat               client.IdentityFileFormat
+	outputFormat               identityfile.Format
 	compatVersion              string
 	compatibility              string
 
@@ -70,12 +71,18 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, or %q", client.IdentityFormatFile, client.IdentityFormatOpenSSH, client.IdentityFormatTLS)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&a.outputFormat))
-	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&a.genTTL)
+	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, or %q", identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatTLS)).
+		Default(string(identityfile.DefaultFormat)).
+		StringVar((*string)(&a.outputFormat))
+	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").
+		Default(fmt.Sprintf("%v", defaults.CertDuration)).
+		DurationVar(&a.genTTL)
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
-	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).DurationVar(&a.rotateGracePeriod)
+	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
+		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
+		DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
 	a.authRotate.Flag("type", "Certificate authority to rotate, rotates both host and user CA by default").StringVar(&a.rotateType)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(services.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
@@ -279,8 +286,8 @@ func (a *AuthCommand) RotateCertAuthority(client auth.ClientI) error {
 
 func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 	// only format=openssh is supported
-	if a.outputFormat != client.IdentityFormatOpenSSH {
-		return trace.BadParameter("invalid --format flag %q, only %q is supported", a.outputFormat, client.IdentityFormatOpenSSH)
+	if a.outputFormat != identityfile.FormatOpenSSH {
+		return trace.BadParameter("invalid --format flag %q, only %q is supported", a.outputFormat, identityfile.FormatOpenSSH)
 	}
 
 	// split up comma separated list
@@ -311,7 +318,7 @@ func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 		filePath = principals[0]
 	}
 
-	filesWritten, err := client.MakeIdentityFile(filePath, key, a.outputFormat, nil)
+	filesWritten, err := identityfile.Write(filePath, key, a.outputFormat, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -346,7 +353,7 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 	key.TLSCert = certs.TLS
 
 	var certAuthorities []services.CertAuthority
-	if a.outputFormat != client.IdentityFormatOpenSSH {
+	if a.outputFormat != identityfile.FormatOpenSSH {
 		certAuthorities, err = clusterApi.GetCertAuthorities(services.HostCA, false)
 		if err != nil {
 			return trace.Wrap(err)
@@ -354,7 +361,7 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 	}
 
 	// write the cert+private key to the output:
-	filesWritten, err := client.MakeIdentityFile(a.output, key, a.outputFormat, certAuthorities)
+	filesWritten, err := identityfile.Write(a.output, key, a.outputFormat, certAuthorities)
 	if err != nil {
 		return trace.Wrap(err)
 	}

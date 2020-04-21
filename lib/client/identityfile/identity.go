@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+// Package identityfile handles formatting and parsing of identity files.
+package identityfile
 
 import (
 	"bufio"
@@ -23,52 +24,38 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 
 	"github.com/gravitational/trace"
 )
 
-// NewKey generates a new unsigned key. Such key must be signed by a
-// Teleport CA (auth server) before it becomes useful.
-func NewKey() (key *Key, err error) {
-	priv, pub, err := native.GenerateKeyPair("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &Key{
-		Priv: priv,
-		Pub:  pub,
-	}, nil
-}
-
-// IdentityFileFormat describes possible file formats how a user identity can be sotred
-type IdentityFileFormat string
+// Format describes possible file formats how a user identity can be stored.
+type Format string
 
 const (
-	// IdentityFormatFile is when a key + cert are stored concatenated into a single file
-	IdentityFormatFile IdentityFileFormat = "file"
+	// FormatFile is when a key + cert are stored concatenated into a single file
+	FormatFile Format = "file"
 
-	// IdentityFormatOpenSSH is OpenSSH-compatible format, when a key and a cert are stored in
+	// FormatOpenSSH is OpenSSH-compatible format, when a key and a cert are stored in
 	// two different files (in the same directory)
-	IdentityFormatOpenSSH IdentityFileFormat = "openssh"
+	FormatOpenSSH Format = "openssh"
 
-	// IdentityFormatTLS is a standard TLS format used by common TLS clients (e.g. GRPC) where
+	// FormatTLS is a standard TLS format used by common TLS clients (e.g. GRPC) where
 	// certificate and key are stored in separate files.
-	IdentityFormatTLS IdentityFileFormat = "tls"
+	FormatTLS Format = "tls"
 
-	// DefaultIdentityFormat is what Teleport uses by default
-	DefaultIdentityFormat = IdentityFormatFile
+	// DefaultFormat is what Teleport uses by default
+	DefaultFormat = FormatFile
 )
 
-// MakeIdentityFile takes a username + their credentials and saves them to disk
+// Write takes a username + their credentials and saves them to disk
 // in a specified format.
 //
 // filePath is used as a base to generate output file names; these names are
 // returned in filesWritten.
-func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, certAuthorities []services.CertAuthority) (filesWritten []string, err error) {
+func Write(filePath string, key *client.Key, format Format, certAuthorities []services.CertAuthority) (filesWritten []string, err error) {
 	const (
 		// the files and the dir will be created with these permissions:
 		fileMode = 0600
@@ -82,7 +69,7 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 	var output io.Writer = os.Stdout
 	switch format {
 	// dump user identity into a single file:
-	case IdentityFormatFile:
+	case FormatFile:
 		filesWritten = append(filesWritten, filePath)
 		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileMode)
 		if err != nil {
@@ -127,7 +114,7 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 		}
 
 	// dump user identity into separate files:
-	case IdentityFormatOpenSSH:
+	case FormatOpenSSH:
 		keyPath := filePath
 		certPath := keyPath + "-cert.pub"
 		filesWritten = append(filesWritten, keyPath, certPath)
@@ -142,7 +129,7 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 			return nil, trace.Wrap(err)
 		}
 
-	case IdentityFormatTLS:
+	case FormatTLS:
 		keyPath := filePath + ".key"
 		certPath := filePath + ".crt"
 		casPath := filePath + ".cas"
@@ -169,7 +156,7 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat, cert
 		}
 	default:
 		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, or %q",
-			format, IdentityFormatFile, IdentityFormatOpenSSH, IdentityFormatTLS)
+			format, FormatFile, FormatOpenSSH, FormatTLS)
 	}
 	return filesWritten, nil
 }
@@ -187,9 +174,9 @@ type IdentityFile struct {
 	}
 }
 
-// DecodeIdentityFile attempts to break up the contents of an identity file
+// Decode attempts to break up the contents of an identity file
 // into its respective components.
-func DecodeIdentityFile(r io.Reader) (*IdentityFile, error) {
+func Decode(r io.Reader) (*IdentityFile, error) {
 	scanner := bufio.NewScanner(r)
 	var ident IdentityFile
 	// Subslice of scanner's buffer pointing to current line

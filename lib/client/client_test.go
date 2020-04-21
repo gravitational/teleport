@@ -18,7 +18,6 @@ limitations under the License.
 package client
 
 import (
-	"io/ioutil"
 	"os"
 
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -76,37 +75,4 @@ func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	c.Assert(ses.env, check.DeepEquals, env)
 	// the session ID must be taken from tne environ map, if passed:
 	c.Assert(string(ses.id), check.Equals, "session-id")
-}
-
-func (s *ClientTestSuite) TestIdentityFileMaking(c *check.C) {
-	keyFilePath := c.MkDir() + "openssh"
-
-	var key Key
-	key.Cert = []byte("cert")
-	key.Priv = []byte("priv")
-	key.Pub = []byte("pub")
-
-	// test OpenSSH-compatible identity file creation:
-	_, err := MakeIdentityFile(keyFilePath, &key, IdentityFormatOpenSSH, nil)
-	c.Assert(err, check.IsNil)
-
-	// key is OK:
-	out, err := ioutil.ReadFile(keyFilePath)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out), check.Equals, "priv")
-
-	// cert is OK:
-	out, err = ioutil.ReadFile(keyFilePath + "-cert.pub")
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out), check.Equals, "cert")
-
-	// test standard Teleport identity file creation:
-	keyFilePath = c.MkDir() + "file"
-	_, err = MakeIdentityFile(keyFilePath, &key, IdentityFormatFile, nil)
-	c.Assert(err, check.IsNil)
-
-	// key+cert are OK:
-	out, err = ioutil.ReadFile(keyFilePath)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out), check.Equals, "privcert")
 }
