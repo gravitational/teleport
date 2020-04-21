@@ -527,11 +527,12 @@ func (s *server) Shutdown(ctx context.Context) error {
 	return s.srv.Shutdown(ctx)
 }
 
-func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
+func (s *server) HandleNewChan(ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
 	// Apply read/write timeouts to the server connection.
-	conn = utils.ObeyIdleTimeout(conn,
+	conn := utils.ObeyIdleTimeout(ccx.NetConn,
 		s.offlineThreshold,
 		"reverse tunnel server")
+	sconn := ccx.ServerConn
 
 	channelType := nch.ChannelType()
 	switch channelType {

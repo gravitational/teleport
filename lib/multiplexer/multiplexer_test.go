@@ -80,7 +80,7 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 	defer backend1.Close()
 
 	called := false
-	sshHandler := sshutils.NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	sshHandler := sshutils.NewChanHandlerFunc(func(_ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 		called = true
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
@@ -373,7 +373,7 @@ func (s *MuxSuite) TestDisableTLS(c *check.C) {
 	defer backend1.Close()
 
 	called := false
-	sshHandler := sshutils.NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	sshHandler := sshutils.NewChanHandlerFunc(func(_ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 		called = true
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
