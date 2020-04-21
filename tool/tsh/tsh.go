@@ -263,9 +263,11 @@ func Run(args []string, underTest bool) {
 	login := app.Command("login", "Log in to a cluster and retrieve the session certificate")
 	login.Flag("bind-addr", "Address in the form of host:port to bind to for login command webhook").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
-	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
+	login.Flag("format", fmt.Sprintf("Identity format: %s, %s (for OpenSSH compatibility) or %s (for kubeconfig)",
 		identityfile.DefaultFormat,
-		identityfile.FormatOpenSSH)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
+		identityfile.FormatOpenSSH,
+		identityfile.FormatKubernetes,
+	)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Alias(loginUsageFooter)
@@ -393,7 +395,9 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
 	}
 
-	if cf.IdentityFormat != identityfile.FormatOpenSSH && cf.IdentityFormat != identityfile.FormatFile {
+	switch cf.IdentityFormat {
+	case identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatKubernetes:
+	default:
 		utils.FatalError(trace.BadParameter("invalid identity format: %s", cf.IdentityFormat))
 	}
 
@@ -473,7 +477,8 @@ func onLogin(cf *CLIConf) {
 		if err != nil {
 			utils.FatalError(err)
 		}
-		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities)
+
+		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities, tc.KubeClusterAddr())
 		if err != nil {
 			utils.FatalError(err)
 		}

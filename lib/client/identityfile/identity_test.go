@@ -21,7 +21,7 @@ func (s *IdentityfileTestSuite) TestWrite(c *check.C) {
 	key.Pub = []byte("pub")
 
 	// test OpenSSH-compatible identity file creation:
-	_, err := Write(keyFilePath, &key, FormatOpenSSH, nil)
+	_, err := Write(keyFilePath, &key, FormatOpenSSH, nil, "")
 	c.Assert(err, check.IsNil)
 
 	// key is OK:
@@ -36,7 +36,7 @@ func (s *IdentityfileTestSuite) TestWrite(c *check.C) {
 
 	// test standard Teleport identity file creation:
 	keyFilePath = c.MkDir() + "file"
-	_, err = Write(keyFilePath, &key, FormatFile, nil)
+	_, err = Write(keyFilePath, &key, FormatFile, nil, "")
 	c.Assert(err, check.IsNil)
 
 	// key+cert are OK:

@@ -25,6 +25,7 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 
@@ -46,6 +47,10 @@ const (
 	// certificate and key are stored in separate files.
 	FormatTLS Format = "tls"
 
+	// FormatKubernetes is a standard Kubernetes format, with all credentials
+	// stored in a "kubeconfig" file.
+	FormatKubernetes Format = "kubernetes"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
@@ -53,9 +58,12 @@ const (
 // Write takes a username + their credentials and saves them to disk
 // in a specified format.
 //
+// certAuthorities is only used with FormatFile and FormatTLS.
+// clusterAddr is only used with FormatKubernetes.
+//
 // filePath is used as a base to generate output file names; these names are
 // returned in filesWritten.
-func Write(filePath string, key *client.Key, format Format, certAuthorities []services.CertAuthority) (filesWritten []string, err error) {
+func Write(filePath string, key *client.Key, format Format, certAuthorities []services.CertAuthority, clusterAddr string) (filesWritten []string, err error) {
 	const (
 		// the files and the dir will be created with these permissions:
 		fileMode = 0600
@@ -154,6 +162,17 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+	case FormatKubernetes:
+		filesWritten = append(filesWritten, filePath)
+		if err := kubeconfig.Update(filePath, kubeconfig.Values{
+			Name:        key.ClusterName,
+			ClusterAddr: clusterAddr,
+			Credentials: key,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 	default:
 		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, or %q",
 			format, FormatFile, FormatOpenSSH, FormatTLS)
