@@ -1247,11 +1247,11 @@ func (s *discardServer) Stop() {
 	s.sshServer.Close()
 }
 
-func (s *discardServer) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, newChannel ssh.NewChannel) {
+func (s *discardServer) HandleNewChan(ccx *sshutils.ConnectionContext, newChannel ssh.NewChannel) {
 	channel, reqs, err := newChannel.Accept()
 	if err != nil {
-		sconn.Close()
-		conn.Close()
+		ccx.ServerConn.Close()
+		ccx.NetConn.Close()
 		return
 	}
 

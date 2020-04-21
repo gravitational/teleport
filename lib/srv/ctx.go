@@ -174,6 +174,8 @@ type ServerContext struct {
 
 	sync.RWMutex
 
+	Parent *sshutils.ConnectionContext
+
 	// env is a list of environment variables passed to the session.
 	env map[string]string
 
@@ -185,12 +187,6 @@ type ServerContext struct {
 
 	// term holds PTY if it was requested by the session.
 	term Terminal
-
-	// agent is a client to remote SSH agent.
-	agent agent.Agent
-
-	// agentCh is SSH channel using SSH agent protocol.
-	agentChannel ssh.Channel
 
 	// session holds the active session (if there's an active one).
 	session *session
@@ -291,7 +287,7 @@ type ServerContext struct {
 
 // NewServerContext creates a new *ServerContext which is used to pass and
 // manage resources.
-func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext IdentityContext) (*ServerContext, error) {
+func NewServerContext(ccx *sshutils.ConnectionContext, srv Server, identityContext IdentityContext) (*ServerContext, error) {
 	clusterConfig, err := srv.GetAccessPoint().GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -300,13 +296,15 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 	cancelContext, cancel := context.WithCancel(context.TODO())
 
 	ctx := &ServerContext{
+		Parent:            ccx,
 		id:                int(atomic.AddInt32(&ctxID, int32(1))),
 		env:               make(map[string]string),
 		srv:               srv,
-		Conn:              conn,
+		Connection:        ccx.NetConn,
+		Conn:              ccx.ServerConn,
 		ExecResultCh:      make(chan ExecResult, 10),
 		SubsystemResultCh: make(chan SubsystemResult, 10),
-		ClusterName:       conn.Permissions.Extensions[utils.CertTeleportClusterName],
+		ClusterName:       ccx.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		ClusterConfig:     clusterConfig,
 		Identity:          identityContext,
 		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
@@ -320,8 +318,8 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 	}
 
 	fields := log.Fields{
-		"local":        conn.LocalAddr(),
-		"remote":       conn.RemoteAddr(),
+		"local":        ctx.Conn.LocalAddr(),
+		"remote":       ctx.Conn.RemoteAddr(),
 		"login":        ctx.Identity.Login,
 		"teleportUser": ctx.Identity.TeleportUser,
 		"id":           ctx.id,
@@ -343,7 +341,7 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 			ClientIdleTimeout:     ctx.clientIdleTimeout,
 			Clock:                 ctx.srv.GetClock(),
 			Tracker:               ctx,
-			Conn:                  conn,
+			Conn:                  ctx.Conn,
 			Context:               cancelContext,
 			TeleportUser:          ctx.Identity.TeleportUser,
 			Login:                 ctx.Identity.Login,
@@ -373,6 +371,9 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 	}
 	ctx.AddCloser(ctx.contr)
 	ctx.AddCloser(ctx.contw)
+
+	// gather environment variables from parent.
+	ctx.ImportParentEnv()
 
 	return ctx, nil
 }
@@ -447,30 +448,22 @@ func (c *ServerContext) AddCloser(closer io.Closer) {
 	c.closers = append(c.closers, closer)
 }
 
-// GetAgent returns a agent.Agent which represents the capabilities of an SSH agent.
+// GetAgent returns a agent.Agent which represents the capabilities of an SSH agent,
+// or nil if no agent is available in this context.
 func (c *ServerContext) GetAgent() agent.Agent {
-	c.RLock()
-	defer c.RUnlock()
-	return c.agent
-}
-
-// GetAgentChannel returns the channel over which communication with the agent occurs.
-func (c *ServerContext) GetAgentChannel() ssh.Channel {
-	c.RLock()
-	defer c.RUnlock()
-	return c.agentChannel
-}
-
-// SetAgent sets the agent and channel over which communication with the agent occurs.
-func (c *ServerContext) SetAgent(a agent.Agent, channel ssh.Channel) {
-	c.Lock()
-	defer c.Unlock()
-	if c.agentChannel != nil {
-		c.Infof("closing previous agent channel")
-		c.agentChannel.Close()
+	if c.Parent == nil {
+		return nil
 	}
-	c.agentChannel = channel
-	c.agent = a
+	return c.Parent.GetAgent()
+}
+
+// GetAgentChannel returns the channel over which communication with the agent occurs,
+// or nil if no agent is available in this context.
+func (c *ServerContext) GetAgentChannel() ssh.Channel {
+	if c.Parent == nil {
+		return nil
+	}
+	return c.Parent.GetAgentChannel()
 }
 
 // GetTerm returns a Terminal.
@@ -500,6 +493,12 @@ func (c *ServerContext) GetEnv(key string) (string, bool) {
 	return val, ok
 }
 
+// ImportParentEnv is used to re-synchronize env vars after
+// parent context has been updated.
+func (c *ServerContext) ImportParentEnv() {
+	c.Parent.ExportEnv(c.env)
+}
+
 // takeClosers returns all resources that should be closed and sets the properties to null
 // we do this to avoid calling Close() under lock to avoid potential deadlocks
 func (c *ServerContext) takeClosers() []io.Closer {
@@ -511,10 +510,6 @@ func (c *ServerContext) takeClosers() []io.Closer {
 	if c.term != nil {
 		closers = append(closers, c.term)
 		c.term = nil
-	}
-	if c.agentChannel != nil {
-		closers = append(closers, c.agentChannel)
-		c.agentChannel = nil
 	}
 	closers = append(closers, c.closers...)
 	c.closers = nil
