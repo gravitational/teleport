@@ -1319,7 +1319,12 @@ func (c *Client) CreateUser(ctx context.Context, user services.User) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = clt.CreateUser(ctx, user.(*services.UserV2))
+	userV2, ok := user.(*services.UserV2)
+	if !ok {
+		return trace.BadParameter("unsupported user type %T", user)
+	}
+
+	_, err = clt.CreateUser(ctx, userV2)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
