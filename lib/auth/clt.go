@@ -1312,7 +1312,7 @@ func (c *Client) UpsertPassword(user string, password []byte) error {
 	return nil
 }
 
-// CreateUser inserts a new entry in a backend.
+// CreateUser inserts a new user entry in a backend.
 func (c *Client) CreateUser(ctx context.Context, user services.User) error {
 	clt, err := c.grpc()
 	if err != nil {
@@ -1324,8 +1324,7 @@ func (c *Client) CreateUser(ctx context.Context, user services.User) error {
 		return trace.BadParameter("unsupported user type %T", user)
 	}
 
-	_, err = clt.CreateUser(ctx, userV2)
-	if err != nil {
+	if _, err := clt.CreateUser(ctx, userV2); err != nil {
 		return trail.FromGRPC(err)
 	}
 

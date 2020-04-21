@@ -32,10 +32,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CreateUser inserts a new entry in a backend.
+// CreateUser inserts a new user entry in a backend.
 func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
-	err := s.Identity.CreateUser(user)
-	if err != nil {
+	if err := s.Identity.CreateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
