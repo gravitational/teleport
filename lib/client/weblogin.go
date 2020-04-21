@@ -335,7 +335,7 @@ func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
+func SSHAgentSSOLogin(login SSHLogin, tc *TeleportClient) (*auth.SSHLoginResponse, error) {
 	rd, err := NewRedirector(login)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -354,19 +354,19 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 	// macOS.
 	case teleport.DarwinOS:
 		path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-		if err == nil {
+		if err == nil && !tc.Config.NoBrowser {
 			execCmd = exec.Command(path, clickableURL)
 		}
 	// Windows.
 	case teleport.WindowsOS:
 		path, err := exec.LookPath(teleport.OpenBrowserWindows)
-		if err == nil {
+		if err == nil && !tc.Config.NoBrowser {
 			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)
 		}
 	// Linux or any other operating system.
 	default:
 		path, err := exec.LookPath(teleport.OpenBrowserLinux)
-		if err == nil {
+		if err == nil && !tc.Config.NoBrowser {
 			execCmd = exec.Command(path, clickableURL)
 		}
 	}
@@ -375,8 +375,12 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 	}
 
 	// Print to screen in-case the command that launches the browser did not run.
-	fmt.Printf("If browser window does not open automatically, open it by ")
-	fmt.Printf("clicking on the link:\n %v\n", clickableURL)
+	if !tc.Config.NoBrowser {
+		fmt.Printf("If browser window does not open automatically, open it by ")
+		fmt.Printf("clicking on the link:\n %v\n", clickableURL)
+	} else {
+		fmt.Printf("Use the following URL to authenticate:\n %v\n", clickableURL)
+	}
 
 	select {
 	case err := <-rd.ErrorC():
