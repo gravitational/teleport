@@ -39,7 +39,7 @@ documented on the identity providers website. Here are a few links:
 
 !!! note 
     
-    For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly  
+    For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly.  
 
 
 Add your OIDC connector information to `teleport.yaml`. A few examples are
