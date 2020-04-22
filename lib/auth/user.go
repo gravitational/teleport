@@ -26,6 +26,7 @@ package auth
 import (
 	"context"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -38,11 +39,19 @@ func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 		return trace.Wrap(err)
 	}
 
+	var connectorName string
+	if user.GetCreatedBy().Connector == nil {
+		connectorName = teleport.Local
+	} else {
+		connectorName = user.GetCreatedBy().Connector.ID
+	}
+
 	s.EmitAuditEvent(events.UserCreate, events.EventFields{
 		events.EventUser:       user.GetCreatedBy().User.Name,
 		events.UserExpires:     user.Expiry(),
 		events.UserRoles:       user.GetRoles(),
 		events.UserCreatedName: user.GetName(),
+		events.UserConnector:   connectorName,
 	})
 
 	return nil
@@ -55,10 +64,18 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 
+	var connectorName string
+	if user.GetCreatedBy().Connector == nil {
+		connectorName = teleport.Local
+	} else {
+		connectorName = user.GetCreatedBy().Connector.ID
+	}
+
 	s.EmitAuditEvent(events.UserUpdate, events.EventFields{
-		events.EventUser:   user.GetName(),
-		events.UserExpires: user.Expiry(),
-		events.UserRoles:   user.GetRoles(),
+		events.EventUser:     user.GetName(),
+		events.UserExpires:   user.Expiry(),
+		events.UserRoles:     user.GetRoles(),
+		events.UserConnector: connectorName,
 	})
 
 	return nil
