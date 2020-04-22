@@ -57,8 +57,9 @@ type Config struct {
 	// Token is used to register this Teleport instance with the auth server
 	Token string
 
-	// AuthServers is a list of auth servers nodes, proxies and peer auth servers
-	// connect to
+	// AuthServers is a list of auth servers, proxies and peer auth servers to
+	// connect to. Yes, this is not just auth servers, the field name is
+	// misleading.
 	AuthServers []utils.NetAddr
 
 	// Identities is an optional list of pre-generated key pairs
