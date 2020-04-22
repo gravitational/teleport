@@ -1112,6 +1112,19 @@ func (a *AuthWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangeP
 	return a.authServer.ChangePasswordWithToken(ctx, req)
 }
 
+// CreateUser inserts a new user entry in a backend.
+func (a *AuthWithRoles) CreateUser(ctx context.Context, user services.User) error {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	user.SetCreatedBy(services.CreatedBy{
+		User: services.UserRef{Name: a.user.GetName()},
+	})
+
+	return a.authServer.CreateUser(ctx, user)
+}
+
 func (a *AuthWithRoles) UpsertUser(u services.User) error {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
 		return trace.Wrap(err)

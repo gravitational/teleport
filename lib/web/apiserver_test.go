@@ -367,7 +367,7 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
 
-	err = s.server.Auth().UpsertUser(teleUser)
+	err = s.server.Auth().CreateUser(context.TODO(), teleUser)
 	c.Assert(err, IsNil)
 
 	err = s.server.Auth().UpsertPassword(user, []byte(pass))
