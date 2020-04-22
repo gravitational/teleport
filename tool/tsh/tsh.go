@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
@@ -137,7 +138,7 @@ type CLIConf struct {
 	IdentityFileOut string
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
 	// format to use with --out to store a fershly retreived certificate
-	IdentityFormat client.IdentityFileFormat
+	IdentityFormat identityfile.Format
 
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
@@ -267,8 +268,8 @@ func Run(args []string, underTest bool) {
 	login.Flag("bind-addr", "Address in the form of host:port to bind to for login command webhook").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
-		client.DefaultIdentityFormat,
-		client.IdentityFormatOpenSSH)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
+		identityfile.DefaultFormat,
+		identityfile.FormatOpenSSH)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("disable-browser", noBrowserHelp).BoolVar(&cf.NoBrowser)
@@ -397,7 +398,7 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
 	}
 
-	if cf.IdentityFormat != client.IdentityFormatOpenSSH && cf.IdentityFormat != client.IdentityFormatFile {
+	if cf.IdentityFormat != identityfile.FormatOpenSSH && cf.IdentityFormat != identityfile.FormatFile {
 		utils.FatalError(trace.BadParameter("invalid identity format: %s", cf.IdentityFormat))
 	}
 
@@ -477,8 +478,11 @@ func onLogin(cf *CLIConf) {
 		if err != nil {
 			utils.FatalError(err)
 		}
-		client.MakeIdentityFile(cf.IdentityFileOut, key, cf.IdentityFormat, authorities)
-		fmt.Printf("\nThe certificate has been written to %s\n", cf.IdentityFileOut)
+		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities)
+		if err != nil {
+			utils.FatalError(err)
+		}
+		fmt.Printf("\nThe certificate has been written to %s\n", strings.Join(filesWritten, ","))
 		return
 	}
 
