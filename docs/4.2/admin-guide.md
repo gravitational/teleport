@@ -188,8 +188,10 @@ Docs](cli-docs.md#teleport-start) or run `teleport start --help`
 
 ### Configuration File
 
-Teleport uses the YAML file format for configuration. A sample configuration
-file is shown below. By default, it is stored in `/etc/teleport.yaml`
+Teleport uses the YAML file format for configuration. A sample configuration file is shown below. By default, it is stored in `/etc/teleport.yaml`. 
+
+For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
+
 
 !!! note "IMPORTANT"
 
@@ -326,15 +328,14 @@ auth_service:
         type: local
         # second_factor can be off, otp, or u2f
         second_factor: otp
-        # this section is used if second_factor is set to 'u2f'
+        # u2f section is required if second_factor is set to 'u2f'
         u2f:
             # app_id must point to the URL of the Teleport Web UI (proxy) accessible
             # by the end users
             app_id: https://localhost:3080
             # facets must list all proxy servers if there are more than one deployed
             facets:
-
-            - https://localhost:3080
+              - https://localhost:3080
 
     # IP and the port to bind to. Other Teleport nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
@@ -600,7 +601,7 @@ auth_service:
 Teleport implements OpenID Connect (OIDC) authentication, which is similar to
 SAML in principle. This feature is only available for Teleport Enterprise.
 
-Here is an example of this setting in the `teleport.yaml` :
+Here is an example of this setting in the `teleport.yaml`:
 
 ``` yaml
 auth_service:
@@ -614,12 +615,11 @@ Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. By default U2F is disabled. To
 start using U2F:
 
-* Enable U2F in Teleport configuration `/etc/teleport.yaml` .
+* Enable U2F in Teleport configuration `/etc/teleport.yaml`.
 
 * For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
 
-* For web-based logins you have to use Google Chrome and Firefox 67 or greater, are the only 
-   supported U2F browsers at this time.
+* For web-based logins, the only supported U2F browsers at this time are: Google Chrome and Firefox 67+.
 
 ``` yaml
 # snippet from /etc/teleport.yaml to show an example configuration of U2F:
@@ -627,14 +627,14 @@ auth_service:
   authentication:
     type: local
     second_factor: u2f
-    # this section is needed only if second_factor is set to 'u2f'
+    # u2f section is required when second_factor is set to 'u2f'
     u2f:
        # app_id must point to the URL of the Teleport Web UI (proxy) accessible
        # by the end users
        app_id: https://localhost:3080
        # facets must list all proxy servers if there are more than one deployed
        facets:
-       - https://localhost:3080
+         - https://localhost:3080
 ```
 
 For single-proxy setups, the `app_id` setting can be equal to the domain name of

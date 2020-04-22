@@ -354,7 +354,9 @@ func (s *AuthServer) changeUserSecondFactor(req ChangePasswordWithTokenRequest, 
 		u2fRes := req.U2FRegisterResponse
 		reg, err := u2f.Register(u2fRes, *challenge, &u2f.Config{SkipAttestationVerify: true})
 		if err != nil {
-			return trace.Wrap(err)
+			// U2F is a 3rd party library and sends back a string based error. Wrap this error with a
+			// trace.BadParameter error to allow the Web UI to unmarshal it correctly.
+			return trace.BadParameter(err.Error())
 		}
 
 		err = s.UpsertU2FRegistration(username, reg)

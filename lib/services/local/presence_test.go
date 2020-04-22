@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"gopkg.in/check.v1"
-	"testing"
 )
 
 type PresenceSuite struct {

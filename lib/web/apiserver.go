@@ -282,30 +282,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			return
 		}
 
-		// check proxy and auth node versions (breaking change from v5).
-		// If there is a mismatch with the current proxy client, redirect users to an error page to update proxy.
-		//
-		// DELETE IN 5.0: this block only serves to notify users of v4.3+ to upgrade to v5.0.0
-		if strings.HasPrefix(r.URL.Path, "/web/newuser") {
-			res, err := h.auth.Ping(context.TODO())
-			if err != nil {
-				log.WithError(err).Debugf("Could not ping auth server")
-			} else {
-				isProxyV4x := strings.Index(teleport.Version, "4.") == 0
-				isAuthV5x := strings.Index(res.GetServerVersion(), "5.") == 0
-
-				if isAuthV5x && isProxyV4x {
-					message := fmt.Sprintf("Your Teleport proxy and auth service versions are incompatible. Please upgrade your Teleport proxy service to version %v", res.GetServerVersion())
-					pathToError := url.URL{
-						Path:     "/web/msg/error",
-						RawQuery: url.Values{"details": []string{message}}.Encode(),
-					}
-					http.Redirect(w, r, pathToError.String(), http.StatusFound)
-					return
-				}
-			}
-		}
-
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
 			httplib.SetStaticFileHeaders(w.Header())
