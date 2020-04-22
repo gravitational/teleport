@@ -210,7 +210,7 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 
 	user.SetTraits(traits)
 	user.AddRole(teleport.AdminRoleName)
-	err = client.UpsertUser(user)
+	err = client.CreateUser(context.TODO(), user)
 	if err != nil {
 		return trace.Wrap(err)
 	}

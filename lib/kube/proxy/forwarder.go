@@ -940,10 +940,7 @@ func (f *Forwarder) serializedNewClusterSession(authContext authContext) (*clust
 }
 
 func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) {
-	pool := x509.NewCertPool()
-	tlsConfig := &tls.Config{
-		RootCAs: pool,
-	}
+	var tlsConfig *tls.Config
 	// for remote clusters, retrieve a client certificate
 	if ctx.cluster.isRemote {
 		response, err := f.requestCertificate(ctx)
@@ -955,24 +952,20 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		pool := x509.NewCertPool()
 		for _, certAuthority := range response.certAuthorities {
 			ok := pool.AppendCertsFromPEM(certAuthority)
 			if !ok {
 				return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
 			}
 		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
-		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConfig = &tls.Config{
+			RootCAs:      pool,
+			Certificates: []tls.Certificate{cert},
+			ClientAuth:   tls.RequireAndVerifyClientCert,
+		}
 	} else {
-		ok := pool.AppendCertsFromPEM(f.creds.caPEM)
-		if !ok {
-			return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
-		}
-		if f.creds.cert != nil {
-			f.Debugf("Local Cluster: using TLS client certificates.")
-			tlsConfig.Certificates = []tls.Certificate{*f.creds.cert}
-			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-		}
+		tlsConfig = f.creds.tlsConfig
 	}
 	tlsConfig.BuildNameToCertificate()
 
@@ -1122,19 +1115,18 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
 }
 
 type kubeCreds struct {
-	// clt is a working kubernetes client
+	// cfg is a raw k8s config loaded from kubeconfig.
 	cfg *rest.Config
-	// caPEM is a PEM encoded certificate authority
-	// of the kubernetes API server
-	caPEM []byte
-	// targetAddr is a target address of the
-	// kubernetes cluster read from config
+	// tlsConfig is generated from cfg with all authentication fields set as
+	// needed.
+	tlsConfig *tls.Config
+	// targetAddr is a target address of the kubernetes cluster read from
+	// config
 	targetAddr string
-	// cert is a client certificate
-	cert *tls.Certificate
 }
 
 func getKubeCreds(kubeconfigPath string) (*kubeCreds, error) {
+	var cfg *rest.Config
 	// no kubeconfig is set, assume auth server is running in the cluster
 	if kubeconfigPath == "" {
 		caPEM, err := ioutil.ReadFile(teleport.KubeCAPath)
@@ -1144,63 +1136,36 @@ running in a kubernetes cluster, but %v mounted in pods could not be read: %v,
 set kubeconfig_file if auth server is running outside of the cluster`, teleport.KubeCAPath, err)
 		}
 
-		cfg, err := kubeutils.GetKubeConfig(os.Getenv(teleport.EnvKubeConfig))
+		cfg, err = kubeutils.GetKubeConfig(os.Getenv(teleport.EnvKubeConfig))
 		if err != nil {
 			return nil, trace.BadParameter(`auth server assumed that it is
 running in a kubernetes cluster, but could not init in-cluster kubernetes client: %v`, err)
 		}
+		cfg.CAData = caPEM
+	} else {
+		log.Debugf("Reading configuration from kubeconfig file %v.", kubeconfigPath)
 
-		targetAddr, err := parseKubeHost(cfg.Host)
+		var err error
+		cfg, err = kubeutils.GetKubeConfig(kubeconfigPath)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse kubernetes host %q", cfg.Host)
+			return nil, trace.Wrap(err)
 		}
-
-		return &kubeCreds{
-			cfg:        cfg,
-			caPEM:      caPEM,
-			targetAddr: targetAddr,
-		}, nil
-	}
-
-	log.Debugf("Reading configuration from kubeconfig file %v.", kubeconfigPath)
-
-	cfg, err := kubeutils.GetKubeConfig(kubeconfigPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	targetAddr, err := parseKubeHost(cfg.Host)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse kubernetes host")
 	}
-
-	var caPEM []byte
-	if len(cfg.CAData) == 0 {
-		if cfg.CAFile == "" {
-			return nil, trace.BadParameter("can't find trusted certificates in %v", kubeconfigPath)
-		}
-		caPEM, err = ioutil.ReadFile(cfg.CAFile)
-		if err != nil {
-			return nil, trace.BadParameter("failed to read trusted certificates from %v: %v", cfg.CAFile, err)
-		}
-	} else {
-		caPEM = cfg.CAData
+	tlsConfig, err := rest.TLSConfigFor(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig")
 	}
 
-	creds := &kubeCreds{
+	return &kubeCreds{
 		cfg:        cfg,
-		caPEM:      caPEM,
+		tlsConfig:  tlsConfig,
 		targetAddr: targetAddr,
-	}
-
-	if len(cfg.CertData) != 0 && len(cfg.KeyData) != 0 {
-		cert, err := tls.X509KeyPair(cfg.CertData, cfg.KeyData)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		creds.cert = &cert
-	}
-	return creds, nil
+	}, nil
 }
 
 // parseKubeHost parses and formats kubernetes hostname
