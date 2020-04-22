@@ -1,4 +1,4 @@
-package client
+package kubeconfig
 
 import (
 	"crypto/x509/pkix"
@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
@@ -24,7 +23,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-func TestKubeClient(t *testing.T) { check.TestingT(t) }
+func TestKubeconfig(t *testing.T) { check.TestingT(t) }
 
 type KubeconfigSuite struct {
 	kubeconfigPath string
@@ -111,20 +110,19 @@ func (s *KubeconfigSuite) SetUpTest(c *check.C) {
 	}
 
 	s.kubeconfigPath = f.Name()
-	os.Setenv(teleport.EnvKubeConfig, s.kubeconfigPath)
 }
 
 func (s *KubeconfigSuite) TearDownTest(c *check.C) {
 	os.Remove(s.kubeconfigPath)
 }
 
-func (s *KubeconfigSuite) TestLoadKubeConfig(c *check.C) {
-	config, err := LoadKubeConfig()
+func (s *KubeconfigSuite) TestLoad(c *check.C) {
+	config, err := load(s.kubeconfigPath)
 	c.Assert(err, check.IsNil)
 	c.Assert(*config, check.DeepEquals, s.initialConfig)
 }
 
-func (s *KubeconfigSuite) TestSaveKubeConfig(c *check.C) {
+func (s *KubeconfigSuite) TestSave(c *check.C) {
 	cfg := clientcmdapi.Config{
 		CurrentContext: "a",
 		Clusters: map[string]*clientcmdapi.Cluster{
@@ -155,22 +153,26 @@ func (s *KubeconfigSuite) TestSaveKubeConfig(c *check.C) {
 		Extensions: map[string]runtime.Object{},
 	}
 
-	err := SaveKubeConfig(cfg)
+	err := save(s.kubeconfigPath, cfg)
 	c.Assert(err, check.IsNil)
 
-	config, err := LoadKubeConfig()
+	config, err := load(s.kubeconfigPath)
 	c.Assert(err, check.IsNil)
 	c.Assert(*config, check.DeepEquals, cfg)
 }
 
-func (s *KubeconfigSuite) TestUpdateKubeconfigWithValues(c *check.C) {
+func (s *KubeconfigSuite) TestUpdate(c *check.C) {
 	const (
 		clusterName = "teleport-cluster"
 		clusterAddr = "https://1.2.3.6:3080"
 	)
 	creds, caCertPEM, err := s.genUserKey()
 	c.Assert(err, check.IsNil)
-	err = updateKubeconfigWithValues(clusterName, clusterAddr, creds)
+	err = Update(s.kubeconfigPath, Values{
+		Name:        clusterName,
+		ClusterAddr: clusterAddr,
+		Credentials: creds,
+	})
 	c.Assert(err, check.IsNil)
 
 	wantConfig := s.initialConfig
@@ -194,7 +196,7 @@ func (s *KubeconfigSuite) TestUpdateKubeconfigWithValues(c *check.C) {
 	}
 	wantConfig.CurrentContext = clusterName
 
-	config, err := LoadKubeConfig()
+	config, err := load(s.kubeconfigPath)
 	c.Assert(err, check.IsNil)
 	c.Assert(*config, check.DeepEquals, wantConfig)
 }

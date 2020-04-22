@@ -36,8 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
-	kubeclient "github.com/gravitational/teleport/lib/kube/client"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -137,7 +138,7 @@ type CLIConf struct {
 	IdentityFileOut string
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
 	// format to use with --out to store a fershly retreived certificate
-	IdentityFormat client.IdentityFileFormat
+	IdentityFormat identityfile.Format
 
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
@@ -263,8 +264,8 @@ func Run(args []string, underTest bool) {
 	login.Flag("bind-addr", "Address in the form of host:port to bind to for login command webhook").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
-		client.DefaultIdentityFormat,
-		client.IdentityFormatOpenSSH)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
+		identityfile.DefaultFormat,
+		identityfile.FormatOpenSSH)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Alias(loginUsageFooter)
@@ -392,7 +393,7 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
 	}
 
-	if cf.IdentityFormat != client.IdentityFormatOpenSSH && cf.IdentityFormat != client.IdentityFormatFile {
+	if cf.IdentityFormat != identityfile.FormatOpenSSH && cf.IdentityFormat != identityfile.FormatFile {
 		utils.FatalError(trace.BadParameter("invalid identity format: %s", cf.IdentityFormat))
 	}
 
@@ -435,7 +436,7 @@ func onLogin(cf *CLIConf) {
 				utils.FatalError(err)
 			}
 			tc.SaveProfile("", "")
-			if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+			if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -472,14 +473,17 @@ func onLogin(cf *CLIConf) {
 		if err != nil {
 			utils.FatalError(err)
 		}
-		client.MakeIdentityFile(cf.IdentityFileOut, key, cf.IdentityFormat, authorities)
-		fmt.Printf("\nThe certificate has been written to %s\n", cf.IdentityFileOut)
+		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities)
+		if err != nil {
+			utils.FatalError(err)
+		}
+		fmt.Printf("\nThe certificate has been written to %s\n", strings.Join(filesWritten, ","))
 		return
 	}
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+		if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 			utils.FatalError(err)
 		}
 	}
@@ -583,7 +587,7 @@ func onLogout(cf *CLIConf) {
 
 		// Remove Teleport related entries from kubeconfig.
 		log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", clusterName)
-		err = kubeclient.RemoveKubeconifg(tc, clusterName)
+		err = kubeconfig.Remove("", clusterName)
 		if err != nil {
 			utils.FatalError(err)
 			return
@@ -605,7 +609,7 @@ func onLogout(cf *CLIConf) {
 		// Remove Teleport related entries from kubeconfig for all clusters.
 		for _, profile := range profiles {
 			log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", profile.Cluster)
-			err = kubeclient.RemoveKubeconifg(tc, profile.Cluster)
+			err = kubeconfig.Remove("", profile.Cluster)
 			if err != nil {
 				utils.FatalError(err)
 				return
@@ -1304,7 +1308,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.SaveProfile("", ""); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+	if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
