@@ -37,7 +37,9 @@ documented on the identity providers website. Here are a few links:
    * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
    * [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#_client_registration)
 
-!!! note For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly  
+!!! note 
+    
+    For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly  
 
 
 Add your OIDC connector information to `teleport.yaml`. A few examples are
