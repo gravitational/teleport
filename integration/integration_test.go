@@ -840,6 +840,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:      services.NewBool(true),
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: time.Second,
@@ -855,6 +856,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:          services.NewBool(true),
 				DisconnectExpiredCert: services.NewBool(true),
 				MaxSessionTTL:         services.NewDuration(2 * time.Second),
 			},
@@ -862,11 +864,6 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		},
 	}
 	for _, tc := range testCases {
-		// TODO: fix the test to work with RecordAtProxy
-		if tc.recordingMode == services.RecordAtProxy {
-			c.Log("Skipping test case with recoridngMode=services.RecodtAtProxy due to https://github.com/gravitational/teleport/issues/3606")
-			continue
-		}
 		s.runDisconnectTest(c, tc)
 	}
 }
