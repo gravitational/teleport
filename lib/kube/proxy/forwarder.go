@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -1060,11 +1059,15 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 		return nil, trace.Wrap(err, "failed to parse private key")
 	}
 
+	// Note: ctx.Identity can potentially have temporary roles granted via
+	// workflow API. Always use the Subject() method to preserve the roles from
+	// caller's certificate.
+	subject, err := ctx.Identity.Subject()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	csr := &x509.CertificateRequest{
-		Subject: pkix.Name{
-			CommonName:   ctx.User.GetName(),
-			Organization: utils.StringsSliceFromSet(ctx.kubeGroups),
-		},
+		Subject: subject,
 	}
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
 	if err != nil {
