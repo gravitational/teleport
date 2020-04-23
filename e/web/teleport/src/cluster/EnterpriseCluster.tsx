@@ -21,6 +21,7 @@ import FeatureAccount from 'teleport/features/featureAccount';
 import FeatureAudit from 'teleport/cluster/features/featureAudit';
 import FeatureNodes from 'teleport/cluster/features/featureNodes';
 import FeatureSessions from 'teleport/cluster/features/featureSessions';
+import FeatureSupport from 'teleport/cluster/features/featureSupport';
 import FeatureAuthConnectors from 'e-teleport/cluster/features/featureAuthConnectors';
 import FeatureRoles from 'e-teleport/cluster/features/featureRoles';
 import FeatureTrustedClusters from 'e-teleport/cluster/features/featureTrustedClusters';
@@ -38,6 +39,7 @@ export default function EnterpriseCluster() {
       new FeatureAuthConnectors(),
       new FeatureRoles(),
       new FeatureTrustedClusters(),
+      new FeatureSupport(),
     ];
     return new TeleportContext({ clusterId, features });
   });

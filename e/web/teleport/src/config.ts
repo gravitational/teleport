@@ -45,7 +45,7 @@ const cfg = {
   },
 
   init(json: object) {
-    teleCfg.init(json);
+    teleCfg.init({ isEnterprise: true, ...json });
   },
 };
 
