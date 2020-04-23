@@ -69,7 +69,7 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	c.Assert(ok, check.Equals, true)
 
-	s.tlsca, err = newSelfSignedCA(pemBytes)
+	s.tlsca, _, err = newSelfSignedCA(pemBytes)
 	c.Assert(err, check.IsNil)
 
 	// temporary key to use during tests
