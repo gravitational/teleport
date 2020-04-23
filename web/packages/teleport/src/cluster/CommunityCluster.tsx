@@ -20,6 +20,7 @@ import FeatureAccount from 'teleport/features/featureAccount';
 import FeatureAudit from 'teleport/cluster/features/featureAudit';
 import FeatureNodes from 'teleport/cluster/features/featureNodes';
 import FeatureSessions from 'teleport/cluster/features/featureSessions';
+import FeatureSupport from 'teleport/cluster/features/featureSupport';
 import Cluster from 'teleport/cluster/components/Cluster';
 import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/teleportContextProvider';
@@ -32,6 +33,7 @@ export default function CommunityCluster() {
       new FeatureNodes(),
       new FeatureSessions(),
       new FeatureAudit(),
+      new FeatureSupport(),
     ];
     return new TeleportContext({ clusterId, features });
   });

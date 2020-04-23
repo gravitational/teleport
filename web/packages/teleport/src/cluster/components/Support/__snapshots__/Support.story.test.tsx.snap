@@ -1,0 +1,1035 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`support Enterprise 1`] = `
+.c8 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c5 {
+  box-sizing: border-box;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-bottom: 72px;
+  margin-top: 56px;
+  padding: 32px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
+}
+
+.c15 {
+  box-sizing: border-box;
+  width: 130px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding-bottom: 40px;
+  padding-top: 4px;
+  padding-left: 32px;
+  padding-right: 32px;
+  background-color: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c11 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  -webkit-text-decoration: underline;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #222C59;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 30px;
+  margin: 0px;
+  padding-right: 8px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  text-transform: uppercase;
+  margin: 0px;
+  font-weight: 600;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-bottom: 24px;
+  font-weight: 600;
+}
+
+.c4 {
+  box-sizing: border-box;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+  -webkit-flex-wrap: wrap;
+  -ms-flex-wrap: wrap;
+  flex-wrap: wrap;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #0C143D;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  margin-top: 24px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 56px;
+  margin: 0px;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <h1
+      class="c2"
+    >
+      Help & Support
+    </h1>
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+    >
+      <div
+        class="c5"
+      >
+        <div
+          class="c6"
+          width="210"
+        >
+          <div
+            class="c7"
+            font-size="30"
+          >
+            <span
+              class="icon icon-stars  c8"
+              color="light"
+            />
+          </div>
+          <h5
+            class="c9"
+            font-weight="bold"
+          >
+            Support
+          </h5>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.zendesk.com/hc/en-us/requests/new"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Create a Support Ticket
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://community.gravitational.com/"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Ask the Community Questions
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://github.com/gravitational/teleport/issues/new/choose"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Request a New Feature
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="mailto:teleport-feedback@gravitational.com"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Send Product Feedback
+          </a>
+        </div>
+      </div>
+      <div
+        class="c5"
+      >
+        <div
+          class="c6"
+          width="210"
+        >
+          <div
+            class="c7"
+            font-size="30"
+          >
+            <span
+              class="icon icon-stars  c8"
+              color="light"
+            />
+          </div>
+          <h5
+            class="c9"
+            font-weight="bold"
+          >
+            Resources
+          </h5>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/quickstart?utm_source=teleport&utm_medium=e_5.0.0"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Quickstart Guide
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/user-manual?utm_source=teleport&utm_medium=e_5.0.0"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            tsh User Guide
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=e_5.0.0"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Admin Guide
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://dashboard.gravitational.com/web/downloads "
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Download Page
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/faq?utm_source=teleport&utm_medium=e_5.0.0"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            FAQ
+          </a>
+        </div>
+      </div>
+      <div
+        class="c5"
+      >
+        <div
+          class="c6"
+          width="210"
+        >
+          <div
+            class="c7"
+            font-size="30"
+          >
+            <span
+              class="icon icon-stars  c8"
+              color="light"
+            />
+          </div>
+          <h5
+            class="c9"
+            font-weight="bold"
+          >
+            Troubleshooting
+          </h5>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=e_5.0.0#troubleshooting"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Monitoring Teleport
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=e_5.0.0#troubleshooting"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Collecting Debug Data
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=e_5.0.0#troubleshooting"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Troubleshooting FAQ
+          </a>
+        </div>
+      </div>
+      <div
+        class="c5"
+      >
+        <div
+          class="c6"
+          width="210"
+        >
+          <div
+            class="c7"
+            font-size="30"
+          >
+            <span
+              class="icon icon-stars  c8"
+              color="light"
+            />
+          </div>
+          <h5
+            class="c9"
+            font-weight="bold"
+          >
+            Updates
+          </h5>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Product Changelog
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/blog/"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Gravitational Blog
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    class="c12"
+  >
+    <h5
+      class="c13"
+      font-weight="bold"
+    >
+      Cluster Information
+    </h5>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        width="130"
+      >
+        Cluster Name
+        : 
+      </div>
+      test cluster name
+    </div>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        width="130"
+      >
+        Teleport Version
+        : 
+      </div>
+      5.0.0
+    </div>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        width="130"
+      >
+        Public Address
+        : 
+      </div>
+      test/public/url
+    </div>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        width="130"
+      >
+        Connected Nodes
+        : 
+      </div>
+      50
+    </div>
+  </div>
+</div>
+`;
+
+exports[`support OSS 1`] = `
+.c8 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c5 {
+  box-sizing: border-box;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-bottom: 72px;
+  margin-top: 56px;
+  padding: 32px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
+}
+
+.c15 {
+  box-sizing: border-box;
+  width: 130px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding-bottom: 40px;
+  padding-top: 4px;
+  padding-left: 32px;
+  padding-right: 32px;
+  background-color: #222C59;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c11 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  -webkit-text-decoration: underline;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #222C59;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 30px;
+  margin: 0px;
+  padding-right: 8px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  text-transform: uppercase;
+  margin: 0px;
+  font-weight: 600;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-bottom: 24px;
+  font-weight: 600;
+}
+
+.c4 {
+  box-sizing: border-box;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: justify;
+  -webkit-justify-content: space-between;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+  -webkit-flex-wrap: wrap;
+  -ms-flex-wrap: wrap;
+  flex-wrap: wrap;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #0C143D;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  margin-top: 24px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 56px;
+  margin: 0px;
+  -webkit-flex-shrink: 0;
+  -ms-flex-negative: 0;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <h1
+      class="c2"
+    >
+      Help & Support
+    </h1>
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+    >
+      <div
+        class="c5"
+      >
+        <div
+          class="c6"
+          width="210"
+        >
+          <div
+            class="c7"
+            font-size="30"
+          >
+            <span
+              class="icon icon-stars  c8"
+              color="light"
+            />
+          </div>
+          <h5
+            class="c9"
+            font-weight="bold"
+          >
+            Support
+          </h5>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://community.gravitational.com/"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Ask the Community Questions
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://github.com/gravitational/teleport/issues/new/choose"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Request a New Feature
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="mailto:teleport-feedback@gravitational.com"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Send Product Feedback
+          </a>
+        </div>
+      </div>
+      <div
+        class="c5"
+      >
+        <div
+          class="c6"
+          width="210"
+        >
+          <div
+            class="c7"
+            font-size="30"
+          >
+            <span
+              class="icon icon-stars  c8"
+              color="light"
+            />
+          </div>
+          <h5
+            class="c9"
+            font-weight="bold"
+          >
+            Resources
+          </h5>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/quickstart?utm_source=teleport&utm_medium=oss_5.0.0"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Quickstart Guide
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/user-manual?utm_source=teleport&utm_medium=oss_5.0.0"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            tsh User Guide
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=oss_5.0.0"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Admin Guide
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/download"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Download Page
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/faq?utm_source=teleport&utm_medium=oss_5.0.0"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            FAQ
+          </a>
+        </div>
+      </div>
+      <div
+        class="c5"
+      >
+        <div
+          class="c6"
+          width="210"
+        >
+          <div
+            class="c7"
+            font-size="30"
+          >
+            <span
+              class="icon icon-stars  c8"
+              color="light"
+            />
+          </div>
+          <h5
+            class="c9"
+            font-weight="bold"
+          >
+            Troubleshooting
+          </h5>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=oss_5.0.0#troubleshooting"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Monitoring Teleport
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=oss_5.0.0#troubleshooting"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Collecting Debug Data
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=oss_5.0.0#troubleshooting"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Troubleshooting FAQ
+          </a>
+        </div>
+      </div>
+      <div
+        class="c5"
+      >
+        <div
+          class="c6"
+          width="210"
+        >
+          <div
+            class="c7"
+            font-size="30"
+          >
+            <span
+              class="icon icon-stars  c8"
+              color="light"
+            />
+          </div>
+          <h5
+            class="c9"
+            font-weight="bold"
+          >
+            Updates
+          </h5>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Product Changelog
+          </a>
+        </div>
+        <div
+          class="c10"
+        >
+          <a
+            class="c11"
+            href="https://gravitational.com/blog/"
+            style="text-decoration: none;"
+            target="_blank"
+          >
+            Gravitational Blog
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    class="c12"
+  >
+    <h5
+      class="c13"
+      font-weight="bold"
+    >
+      Cluster Information
+    </h5>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        width="130"
+      >
+        Cluster Name
+        : 
+      </div>
+      test cluster name
+    </div>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        width="130"
+      >
+        Teleport Version
+        : 
+      </div>
+      5.0.0
+    </div>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        width="130"
+      >
+        Public Address
+        : 
+      </div>
+      test/public/url
+    </div>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        width="130"
+      >
+        Connected Nodes
+        : 
+      </div>
+      50
+    </div>
+  </div>
+</div>
+`;

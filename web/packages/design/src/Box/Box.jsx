@@ -20,6 +20,7 @@ import {
   overflow,
   borders,
   borderRadius,
+  borderColor,
   flex,
   height,
   maxWidth,
@@ -51,6 +52,7 @@ const Box = styled.div`
   ${borders}
   ${borderRadius}
   ${overflow}
+  ${borderColor}
 `;
 
 Box.displayName = 'Box';
