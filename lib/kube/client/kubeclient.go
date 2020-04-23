@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"runtime"
@@ -49,7 +50,7 @@ func UpdateKubeconfig(tc *client.TeleportClient) error {
 	}
 	config.Clusters[clusterName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
-		CertificateAuthorityData: certAuthorities,
+		CertificateAuthorityData: bytes.Join(certAuthorities, []byte("\n")),
 	}
 
 	lastContext := config.Contexts[clusterName]

@@ -251,7 +251,7 @@ func (a *LocalKeyAgent) GetCerts() (*x509.CertPool, error) {
 	return a.keyStore.GetCerts(a.proxyHost)
 }
 
-func (a *LocalKeyAgent) GetCertsPEM() ([]byte, error) {
+func (a *LocalKeyAgent) GetCertsPEM() ([][]byte, error) {
 	return a.keyStore.GetCertsPEM(a.proxyHost)
 }
 
