@@ -1588,12 +1588,14 @@ func (process *TeleportProcess) initSSH() error {
 				warnOnErr(s.Shutdown(payloadContext(payload)))
 			}
 		}
-		if conn.UseTunnel() {
+		if conn != nil && conn.UseTunnel() {
 			agentPool.Stop()
 		}
 
-		// Close BPF service.
-		warnOnErr(ebpf.Close())
+		if ebpf != nil {
+			// Close BPF service.
+			warnOnErr(ebpf.Close())
+		}
 
 		log.Infof("Exited.")
 	})

@@ -1404,11 +1404,15 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.EmitAuditEvent(events.AccessRequestUpdated, events.EventFields{
+	fields := events.EventFields{
 		events.AccessRequestID:       reqID,
 		events.AccessRequestState:    state.String(),
 		events.AccessRequestUpdateBy: updateBy,
-	})
+	}
+	if delegator := getDelegator(ctx); delegator != "" {
+		fields[events.AccessRequestDelegator] = delegator
+	}
+	err = a.EmitAuditEvent(events.AccessRequestUpdated, fields)
 	return trace.Wrap(err)
 }
 
