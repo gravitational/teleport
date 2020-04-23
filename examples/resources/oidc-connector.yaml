@@ -24,13 +24,13 @@ spec:
   redirect_url: https://<cluster-url>.example.com:3080/v1/webapi/oidc/callback
   redirect_timeout: 90s
    
-  # prompt values are optional. These case sensitive list of ASCII string
+  # prompt values are optional. These case-sensitive list of ASCII string
   # values that specifies whether the Authorization Server prompts the End-User for 
   # reauthentication and consent. https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest 
   # Default is 
   # prompt: 'select_account'
-  # Prompt value is set to empty string, it will be omitted
-  # from the auth request.
+  # if you need to override the default 'select_account'
+  # behaviour, you should set this to an empty string.
   # prompt: ''
 
   # acr_values are optional (for OIDC providers that require them).
