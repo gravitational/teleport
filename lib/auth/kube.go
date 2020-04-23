@@ -17,7 +17,8 @@ limitations under the License.
 package auth
 
 import (
-	"github.com/gravitational/teleport"
+	"time"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -84,29 +85,23 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := s.GetUser(req.Username, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	roles, err := services.FetchRoles(user.GetRoles(), s, user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ttl := roles.AdjustSessionTTL(defaults.CertDuration)
-
-	// extract and encode the kubernetes groups of the authenticated
-	// user in the newly issued certificate
-	kubernetesGroups, kubernetesUsers, err := roles.CheckKubeGroupsAndUsers(0)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Extract user roles from the CSR. Pass zero time for id.Expiry, it won't
+	// be used here.
+	id, err := tlsca.FromSubject(csr.Subject, time.Time{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles, err := services.FetchRoles(id.Groups, s, id.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Get the correct cert TTL based on roles.
+	ttl := roles.AdjustSessionTTL(defaults.CertDuration)
 
 	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
@@ -121,25 +116,14 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	identity := tlsca.Identity{
-		Username: user.GetName(),
-		Groups:   roles.RoleNames(),
-		// Generate a certificate restricted for
-		// use against a kubernetes endpoint, and not the API server endpoint
-		// otherwise proxies can generate certs for any user.
-		Usage:            []string{teleport.UsageKubeOnly},
-		KubernetesGroups: kubernetesGroups,
-		KubernetesUsers:  kubernetesUsers,
-	}
-	subject, err := identity.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,
 		PublicKey: csr.PublicKey,
-		Subject:   subject,
-		NotAfter:  s.clock.Now().UTC().Add(ttl),
+		// Always trust the Subject sent by the proxy. A user may have received
+		// temporary extra roles via workflow API, we must preserve those. The
+		// storage backend doesn't record temporary granted roles.
+		Subject:  csr.Subject,
+		NotAfter: s.clock.Now().UTC().Add(ttl),
 	}
 	tlsCert, err := tlsAuthority.GenerateCertificate(certRequest)
 	if err != nil {
