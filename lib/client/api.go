@@ -1509,8 +1509,8 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 		proxyPrincipal = tc.JumpHosts[0].Username
 	}
 	// see if we already have a signed key in the cache, we'll use that instead
-	if !tc.Config.SkipLocalAuth && tc.LocalAgent() != nil {
-		signers, err := tc.LocalAgent().Signers()
+	if !tc.Config.SkipLocalAuth && tc.localAgent != nil {
+		signers, err := tc.localAgent.Signers()
 		if err != nil || len(signers) == 0 {
 			return proxyPrincipal
 		}
@@ -1526,8 +1526,8 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 // can use to try to authenticate
 func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
 	m := append([]ssh.AuthMethod(nil), tc.Config.AuthMethods...)
-	if tc.LocalAgent() != nil {
-		m = append(m, tc.LocalAgent().AuthMethods()...)
+	if tc.localAgent != nil {
+		m = append(m, tc.localAgent.AuthMethods()...)
 	}
 	return m
 }
@@ -1614,8 +1614,10 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 // Logout removes certificate and key for the currently logged in user from
 // the filesystem and agent.
 func (tc *TeleportClient) Logout() error {
-	err := tc.localAgent.DeleteKey()
-	if err != nil {
+	if tc.localAgent == nil {
+		return nil
+	}
+	if err := tc.localAgent.DeleteKey(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1625,8 +1627,10 @@ func (tc *TeleportClient) Logout() error {
 // LogoutAll removes all certificates for all users from the filesystem
 // and agent.
 func (tc *TeleportClient) LogoutAll() error {
-	err := tc.localAgent.DeleteKeys()
-	if err != nil {
+	if tc.localAgent == nil {
+		return nil
+	}
+	if err := tc.localAgent.DeleteKeys(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1728,7 +1732,7 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	key.ClusterName = response.HostSigners[0].ClusterName
 	tc.SiteName = response.HostSigners[0].ClusterName
 
-	if activateKey {
+	if activateKey && tc.localAgent != nil {
 		// save the list of CAs client trusts to ~/.tsh/known_hosts
 		err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
 		if err != nil {
@@ -1782,6 +1786,9 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
 // and updates ~/.tsh/keys/proxy/certs.pem and ~/.tsh/known_hosts.
 func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName string) error {
+	if tc.localAgent == nil {
+		return trace.BadParameter("TeleportClient.UpdateTrustedCA called on a client without localAgent")
+	}
 	// Get the list of host certificates that this cluster knows about.
 	hostCerts, err := tc.GetTrustedCA(ctx, clusterName)
 	if err != nil {
@@ -1833,10 +1840,12 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		}
 		tc.WebProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.HTTPListenPort)))
 
-		// Update local agent (that reads/writes to ~/.tsh) with the new address
-		// of the web proxy. This will control where the keys are stored on disk
-		// after login.
-		tc.localAgent.UpdateProxyHost(addr.Host())
+		if tc.localAgent != nil {
+			// Update local agent (that reads/writes to ~/.tsh) with the new address
+			// of the web proxy. This will control where the keys are stored on disk
+			// after login.
+			tc.localAgent.UpdateProxyHost(addr.Host())
+		}
 	}
 	// Read in settings for the SSH endpoint of the proxy.
 	//
@@ -1891,7 +1900,10 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor string, p
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
 func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
-	err := tc.LocalAgent().AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+	if tc.localAgent == nil {
+		return trace.BadParameter("TeleportClient.AddTrustedCA called on a client without localAgent")
+	}
+	err := tc.localAgent.AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1899,7 +1911,7 @@ func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
 	// only host CA has TLS certificates, user CA will overwrite trusted certs
 	// to empty file if called
 	if ca.GetType() == services.HostCA {
-		err = tc.LocalAgent().SaveCerts(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+		err = tc.localAgent.SaveCerts(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1908,8 +1920,11 @@ func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
 	return nil
 }
 
-// AddKey adds a key to the client's local agent
+// AddKey adds a key to the client's local agent, used in tests.
 func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error) {
+	if tc.localAgent == nil {
+		return nil, trace.BadParameter("TeleportClient.AddKey called on a client without localAgent")
+	}
 	return tc.localAgent.AddKey(key)
 }
 
