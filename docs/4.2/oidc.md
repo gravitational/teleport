@@ -127,8 +127,8 @@ $ tctl create role-dev.yaml
 
 ### Optional: Prompt
 
-By default Teleport will require end users with a prompt to select an account each time
-even if the user has only one account.
+By default, Teleport will prompt end users to select an account each time they log in 
+even if the user only has one account.
 
 Teleport 4.2 now lets Teleport Admins configure this option. Since `prompt` is optional,
 by setting the variable to an empty string Teleport will override the default `select_account`.
