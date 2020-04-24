@@ -202,7 +202,7 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 			},
 		}
 		for _, input := range testCase.inputs {
-			comment := check.Commentf("OIDC Test case %v %v, input %#v", i, testCase.comment, input)
+			comment := check.Commentf("OIDC Test case %v %q, input %q", i, testCase.comment, input.comment)
 			outRoles := conn.MapClaims(input.claims)
 			c.Assert(outRoles, check.DeepEquals, input.roles, comment)
 		}

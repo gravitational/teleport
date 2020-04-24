@@ -90,7 +90,8 @@ type LocalKeyStore interface {
 	GetCerts(proxy string) (*x509.CertPool, error)
 
 	// GetCertsPEM gets trusted TLS certificates of certificate authorities.
-	GetCertsPEM(proxy string) ([]byte, error)
+	// Each returned byte slice contains an individual PEM block.
+	GetCertsPEM(proxy string) ([][]byte, error)
 }
 
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem.
@@ -233,8 +234,22 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost string, username string) (*Key, erro
 		fs.log.Error(err)
 		return nil, trace.Wrap(err)
 	}
+	tlsCA, err := fs.GetCertsPEM(proxyHost)
+	if err != nil {
+		fs.log.Error(err)
+		return nil, trace.Wrap(err)
+	}
 
-	key := &Key{Pub: pub, Priv: priv, Cert: cert, ProxyHost: proxyHost, TLSCert: tlsCert}
+	key := &Key{
+		Pub:       pub,
+		Priv:      priv,
+		Cert:      cert,
+		ProxyHost: proxyHost,
+		TLSCert:   tlsCert,
+		TrustedCA: []auth.TrustedCerts{{
+			TLSCertificates: tlsCA,
+		}},
+	}
 
 	// Validate the key loaded from disk.
 	err = key.CheckCert()
@@ -289,34 +304,47 @@ func (fs *FSLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) erro
 	return nil
 }
 
-// GetCertsPEM returns trusted TLS certificates of certificate authorities PEM block
-func (fs *FSLocalKeyStore) GetCertsPEM(proxy string) ([]byte, error) {
+// GetCertsPEM returns trusted TLS certificates of certificate authorities PEM
+// blocks.
+func (fs *FSLocalKeyStore) GetCertsPEM(proxy string) ([][]byte, error) {
 	dir, err := fs.dirFor(proxy, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ioutil.ReadFile(filepath.Join(dir, fileNameTLSCerts))
-}
-
-// GetCerts returns trusted TLS certificates of certificate authorities
-func (fs *FSLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) {
-	dir, err := fs.dirFor(proxy, false)
+	data, err := ioutil.ReadFile(filepath.Join(dir, fileNameTLSCerts))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bytes, err := ioutil.ReadFile(filepath.Join(dir, fileNameTLSCerts))
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	pool := x509.NewCertPool()
-	for len(bytes) > 0 {
-		var block *pem.Block
-		block, bytes = pem.Decode(bytes)
+	var blocks [][]byte
+	for len(data) > 0 {
+		block, rest := pem.Decode(data)
 		if block == nil {
 			break
 		}
 		if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
 			fs.log.Debugf("Skipping PEM block type=%v headers=%v.", block.Type, block.Headers)
+			continue
+		}
+		// rest contains the remainder of data after reading a block.
+		// Therefore, the block length is len(data) - len(rest).
+		// Use that length to slice the block from the start of data.
+		blocks = append(blocks, data[:len(data)-len(rest)])
+		data = rest
+	}
+	return blocks, nil
+}
+
+// GetCerts returns trusted TLS certificates of certificate authorities as
+// x509.CertPool.
+func (fs *FSLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) {
+	blocks, err := fs.GetCertsPEM(proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pool := x509.NewCertPool()
+	for _, bytes := range blocks {
+		block, _ := pem.Decode(bytes)
+		if block == nil {
 			continue
 		}
 

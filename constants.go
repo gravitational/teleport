@@ -468,6 +468,10 @@ const (
 	// TraitInternalKubeGroupsVariable is the variable used to store allowed
 	// kubernetes groups for local accounts.
 	TraitInternalKubeGroupsVariable = "{{internal.kubernetes_groups}}"
+
+	// TraitInternalKubeUsersVariable is the variable used to store allowed
+	// kubernetes users for local accounts.
+	TraitInternalKubeUsersVariable = "{{internal.kubernetes_users}}"
 )
 
 const (

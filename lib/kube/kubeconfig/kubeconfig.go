@@ -68,13 +68,26 @@ func Update(path string, v Values) error {
 		return trace.Wrap(err)
 	}
 
+	cas := bytes.Join(v.Credentials.TLSCAs(), []byte("\n"))
+	// Validate the provided credentials, to avoid partially-populated
+	// kubeconfig.
+	if len(v.Credentials.Priv) == 0 {
+		return trace.BadParameter("private key missing in provided credentials")
+	}
+	if len(v.Credentials.TLSCert) == 0 {
+		return trace.BadParameter("TLS certificate missing in provided credentials")
+	}
+	if len(cas) == 0 {
+		return trace.BadParameter("TLS trusted CAs missing in provided credentials")
+	}
+
 	config.AuthInfos[v.Name] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: v.Credentials.TLSCert,
 		ClientKeyData:         v.Credentials.Priv,
 	}
 	config.Clusters[v.Name] = &clientcmdapi.Cluster{
 		Server:                   v.ClusterAddr,
-		CertificateAuthorityData: bytes.Join(v.Credentials.TLSCAs(), []byte("\n")),
+		CertificateAuthorityData: cas,
 	}
 
 	lastContext := config.Contexts[v.Name]
