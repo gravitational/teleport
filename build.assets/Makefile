@@ -120,11 +120,16 @@ test: bbox
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
+#
+# Runs integration tests inside a build container.
+# Used by CI.
+#
 .PHONY:integration
 integration: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
-
+		/bin/bash -c \
+		"cd $(SRCDIR) && make FLAGS='-cover -race' integration"
+		
 #
 # Runs linters on new changes inside a build container.
 #
