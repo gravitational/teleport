@@ -30,7 +30,7 @@ export
 
 
 #
-# Build 'teleport' release inside a docker container
+# Build 'teleport' release tarball inside a docker container
 #
 .PHONY:build
 build: bbox
@@ -38,7 +38,7 @@ build: bbox
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' release
 
 #
-# Build 'teleport' release inside a docker container
+# Build 'teleport' binaries inside a docker container
 #
 .PHONY:build-binaries
 build-binaries: bbox
@@ -96,10 +96,10 @@ bbox-centos6-fips:
 .PHONY:
 docsbox:
 	docker build --build-arg UID=$$(id -u) \
-		         --build-arg GID=$$(id -g) \
-		         --build-arg USER=jenkins \
+		     --build-arg GID=$$(id -g) \
+		     --build-arg USER=jenkins \
 	             --build-arg WORKDIR=$(DOCSDIR) \
-		         --tag $(DOCSBOX) -f docs.dockerfile .
+		     --tag $(DOCSBOX) -f docs.dockerfile .
 
 #
 # Removes the docker image
@@ -127,8 +127,7 @@ test: bbox
 .PHONY:integration
 integration: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
-		/bin/bash -c \
-		"cd $(SRCDIR) && make integration"
+		/bin/bash -c "cd $(SRCDIR) && make integration"
 		
 #
 # Runs linters on new changes inside a build container.
@@ -136,7 +135,7 @@ integration: bbox
 .PHONY:lint
 lint: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
-		/bin/bash -c "make -C $(SRCDIR) lint"
+		/bin/bash -c "cd $(SRCDIR) && make lint"
 
 #
 # Builds docs
