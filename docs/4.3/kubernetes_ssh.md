@@ -129,6 +129,12 @@ configured. In this guide we'll look at two common configurations:
   In this case, we'll need to map users' groups that come from Okta to Kubernetes
   groups.
 
+## Kubernetes Groups and Users
+
+Teleport provides support for Kubernetes Group `kubernetes_groups: ["system:masters"]` 
+and Kubernetes Users, using `kubernetes_users: ['IAM#barent', 'IAM#jane']`. If a Kubernetes
+user isn't set the user will impersonate themselves. 
+
 ### Github Auth
 
 When configuring Teleport to authenticate against Github, you have to create a
@@ -159,6 +165,10 @@ spec:
         - root
       # list of Kubernetes groups this Github team is allowed to connect to
       kubernetes_groups: ["system:masters"]
+      # Optional: If not set users will imperonsate themseleves. 
+      # impersonate a kubernetes user with IAM prefix
+      kubernetes_users: ['IAM#barent', 'IAM#jane']
+
 ```
 To obtain client ID and client secret from Github, please follow [Github documentation](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) on how to create and register an OAuth app. Be sure to set the "Authorization callback URL" to the same value as redirect_url in the resource spec.
 
@@ -178,6 +188,7 @@ Teleport will log the audit record and record the session.
 !!! note
 
     For more information on integrating Teleport with Github SSO, please see the [Github section in the Admin Manual](admin-guide.md#github-oauth-20).
+
 
 ### Okta Auth
 
@@ -220,6 +231,9 @@ $ tctl create -f admin.yaml
     need to define Kubernetes group membership in Okta (as a trait) and use
     that trait name in the Teleport role.
 
+    Teleport 4.3 has an option to extract the local part from an email claim. This can be helpful
+    since some operating systems don't support the @ symbol. This means by using `logins: ['{% raw %}{{email.local(external.email)}}{% endraw %}']` the resulting output will be `dave.smith` if the email was dave.smith@acme.com. 
+
 Once this is complete, when users execute `tsh login` and go through the usual Okta login
 sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
@@ -227,6 +241,4 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
     For more information on integrating Teleport with Okta, please see the
     [Okta integration guide](ssh_okta.md).
-
-    For more information on integrating Teleport with Okta, please see the [Okta  integration guide](ssh_okta.md).
 

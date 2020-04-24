@@ -119,6 +119,31 @@ spec:
       '*': '*'
 ```
 
+## Working with External Email Identity
+
+Along with sending groups, an SSO provider will also provide a users email address. 
+This can be accessed via `{% raw %}{{external.email}}{% endraw %}`. This is helpful to 
+have a continuation of identity, but often the first part of the email. The local part. 
+Is useful to send to other systems as it's unique.  Teleport 4.3 has extended the variable
+interpolation, to extract this local part. 
+
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: sso_user
+spec:
+  allow:
+    logins:
+    # Extracts the local part of dave.smith@acme.com, so the login will
+    # now support dave.smith. 
+    - '{% raw %}{{email.local(external.email)}}{% endraw %}'
+    node_labels:
+      '*': '*'
+```
+
+
 ## Multiple SSO Providers
 
 Teleport can also support multiple connectors, i.e. a Teleport administrator
@@ -152,6 +177,7 @@ SAML and OIDC types:
 * [SSH Authentication with OneLogin](../ssh_one_login.md)
 * [SSH Authentication with ADFS](../ssh_adfs.md)
 * [SSH Authentication with OAuth2 / OpenID Connect](../oidc.md)
+
 
 ## SSO Customization 
 
