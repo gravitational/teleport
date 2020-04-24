@@ -128,7 +128,7 @@ test: bbox
 integration: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
 		/bin/bash -c "cd $(SRCDIR) && make integration"
-		
+
 #
 # Runs linters on new changes inside a build container.
 #
