@@ -854,15 +854,17 @@ func (a *AuthWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}, nil
 }
 
+type accessRequestContextKey string
+
 // withUpdateBy creates a child context with the AccessRequestUpdateBy
 // value set.  Expected by AuthServer.SetAccessRequestState.
 func withUpdateBy(ctx context.Context, user string) context.Context {
-	return context.WithValue(ctx, events.AccessRequestUpdateBy, user)
+	return context.WithValue(ctx, accessRequestContextKey(events.AccessRequestUpdateBy), user)
 }
 
 // getUpdateBy attempts to load the context value AccessRequestUpdateBy.
 func getUpdateBy(ctx context.Context) (string, error) {
-	updateBy, ok := ctx.Value(events.AccessRequestUpdateBy).(string)
+	updateBy, ok := ctx.Value(accessRequestContextKey(events.AccessRequestUpdateBy)).(string)
 	if !ok || updateBy == "" {
 		return "", trace.BadParameter("missing value %q", events.AccessRequestUpdateBy)
 	}
@@ -873,13 +875,13 @@ func getUpdateBy(ctx context.Context) (string, error) {
 // value set.  Optionally used by AuthServer.SetAccessRequestState to log
 // a delegating identity.
 func WithDelegator(ctx context.Context, delegator string) context.Context {
-	return context.WithValue(ctx, events.AccessRequestDelegator, delegator)
+	return context.WithValue(ctx, accessRequestContextKey(events.AccessRequestDelegator), delegator)
 }
 
 // getDelegator attempts to load the context value AccessRequestDelegator,
 // returning the empty string if no value was found.
 func getDelegator(ctx context.Context) string {
-	delegator, ok := ctx.Value(events.AccessRequestDelegator).(string)
+	delegator, ok := ctx.Value(accessRequestContextKey(events.AccessRequestDelegator)).(string)
 	if !ok {
 		return ""
 	}

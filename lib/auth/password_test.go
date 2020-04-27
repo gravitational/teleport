@@ -228,6 +228,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
 		Name: username,
 	})
+	c.Assert(err, IsNil)
 
 	secrets, err := s.a.RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)

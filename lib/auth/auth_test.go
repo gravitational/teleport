@@ -116,7 +116,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -128,7 +128,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 	err = s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 
-	ws, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -157,7 +157,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -170,7 +170,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	c.Assert(err, IsNil)
 
 	// successful log in
-	ws, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -239,9 +239,6 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `node "bad-node-name" \[bad-host-id\] can not join the cluster, the token does not allow "Proxy" role`)
-
-	roles, err = s.a.ValidateToken(tok)
-	c.Assert(err, IsNil)
 
 	// generate predefined token
 	customToken := "custom-token"
