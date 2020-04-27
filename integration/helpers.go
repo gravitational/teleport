@@ -198,6 +198,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	tlsCA, err := tlsca.New(tlsCACert, tlsCAKey)
 	fatalIf(err)
 	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
+	fatalIf(err)
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
 		Groups:   []string{string(teleport.RoleAdmin)},
@@ -396,7 +397,6 @@ func SetupUser(process *service.TeleportProcess, username string, roles []servic
 			return trace.Wrap(err)
 		}
 		teleUser.AddRole(role.GetMetadata().Name)
-		roles = append(roles, role)
 	} else {
 		for _, role := range roles {
 			err := auth.UpsertRole(role)
@@ -579,7 +579,6 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// set hardcode traits to trigger new style certificates
 		teleUser.SetTraits(map[string][]string{"testing": []string{"integration"}})
-		var roles []services.Role
 		if len(user.Roles) == 0 {
 			role := services.RoleForUser(teleUser)
 			role.SetLogins(services.Allow, user.AllowedLogins)
@@ -594,9 +593,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 				return trace.Wrap(err)
 			}
 			teleUser.AddRole(role.GetMetadata().Name)
-			roles = append(roles, role)
 		} else {
-			roles = user.Roles
 			for _, role := range user.Roles {
 				err := auth.UpsertRole(role)
 				if err != nil {

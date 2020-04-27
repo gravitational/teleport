@@ -167,7 +167,7 @@ type CLIConf struct {
 
 func main() {
 	cmdLineOrig := os.Args[1:]
-	cmdLine := []string{}
+	var cmdLine []string
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"

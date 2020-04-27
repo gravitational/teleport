@@ -87,6 +87,7 @@ func (s *MainTestSuite) TestRolesFlag(c *check.C) {
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
 	c.Assert(conf.Proxy.Enabled, check.Equals, false)
+	c.Assert(cmd, check.Equals, "start")
 
 	cmd, conf = Run(Options{
 		Args:     []string{"start", "--roles=proxy"},
@@ -95,6 +96,7 @@ func (s *MainTestSuite) TestRolesFlag(c *check.C) {
 	c.Assert(conf.SSH.Enabled, check.Equals, false)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
 	c.Assert(conf.Proxy.Enabled, check.Equals, true)
+	c.Assert(cmd, check.Equals, "start")
 
 	cmd, conf = Run(Options{
 		Args:     []string{"start", "--roles=auth"},

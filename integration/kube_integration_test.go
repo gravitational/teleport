@@ -158,6 +158,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 			KubeUsers:  []string{"alice@example.com"},
 		},
 	})
+	c.Assert(err, check.IsNil)
 	t.AddUserWithRole(username, role)
 
 	err = t.CreateEx(nil, tconf)
@@ -329,6 +330,7 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 			KubeUsers:  []string{"alice@example.com"},
 		},
 	})
+	c.Assert(err, check.IsNil)
 	t.AddUserWithRole(username, role)
 
 	err = t.CreateEx(nil, tconf)
@@ -369,6 +371,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 			KubeGroups: []string{teleport.KubeSystemMasters},
 		},
 	})
+	c.Assert(err, check.IsNil)
 	t.AddUserWithRole(username, role)
 
 	err = t.CreateEx(nil, tconf)
@@ -386,6 +389,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	pods, err := s.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
+	c.Assert(err, check.IsNil)
 	c.Assert(len(pods.Items), check.Not(check.Equals), int(0))
 
 	pod := pods.Items[0]
@@ -468,6 +472,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 			KubeGroups: []string{teleport.KubeSystemMasters},
 		},
 	})
+	c.Assert(err, check.IsNil)
 	main.AddUserWithRole(username, mainRole)
 
 	clusterAux := "cluster-aux"
@@ -545,7 +550,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -579,6 +584,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
+	c.Assert(err, check.IsNil)
 	c.Assert(len(pods.Items), check.Not(check.Equals), int(0))
 
 	// Exec through proxy and collect output
@@ -730,6 +736,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 			KubeGroups: []string{teleport.KubeSystemMasters},
 		},
 	})
+	c.Assert(err, check.IsNil)
 	main.AddUserWithRole(username, mainRole)
 
 	clusterAux := "cluster-aux"
@@ -811,7 +818,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -840,6 +847,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
+	c.Assert(err, check.IsNil)
 	c.Assert(len(pods.Items), check.Not(check.Equals), int(0))
 
 	// Exec through proxy and collect output
@@ -1012,6 +1020,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 			KubeGroups: []string{teleport.KubeSystemMasters},
 		},
 	})
+	c.Assert(err, check.IsNil)
 	t.AddUserWithRole(username, role)
 
 	err = t.CreateEx(nil, tconf)

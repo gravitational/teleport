@@ -160,7 +160,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal token")
 		}
-		fmt.Printf(string(out))
+		fmt.Print(string(out))
 	}
 	return nil
 }
