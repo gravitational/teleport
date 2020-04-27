@@ -6,9 +6,7 @@ This tutorial will guide you through the steps needed to install and run
 Teleport on a single node, which could be your local machine but we recommend a
 VM.
 
-**Table of Contents**
 
-[TOC]
 
 ### Prerequisites
 
@@ -22,10 +20,10 @@ VM.
   the best place to start!
 
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
-environment, and showcase a few basic tasks you can do with Teleport.
+environment, and showcase a few basic tasks you can do with Teleport. For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
 
-**You should not follow this guide if you want to set up Teleport in production.
-Instead follow the [Admin Guide](admin-guide.md)**
+!!! note "IMPORTANT"
+    You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.md). 
 
 ## Step 1: Install Teleport
 

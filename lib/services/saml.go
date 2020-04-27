@@ -42,8 +42,8 @@ import (
 
 // SAMLConnector specifies configuration for SAML 2.0 dentity providers
 type SAMLConnector interface {
-	// Resource provides common methods for objects
-	Resource
+	// ResourceWithSecrets provides common methods for objects
+	ResourceWithSecrets
 	// GetDisplay returns display - friendly name for this provider.
 	GetDisplay() string
 	// SetDisplay sets friendly name for this provider.
@@ -262,6 +262,19 @@ func (o *SAMLConnectorV2) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (o *SAMLConnectorV2) SetResourceID(id int64) {
 	o.Metadata.ID = id
+}
+
+// WithoutSecrets returns an instance of resource without secrets.
+func (o *SAMLConnectorV2) WithoutSecrets() Resource {
+	k := o.GetSigningKeyPair()
+	if k == nil {
+		return o
+	}
+	k2 := *k
+	k2.PrivateKey = ""
+	o2 := *o
+	o2.SetSigningKeyPair(&k2)
+	return &o2
 }
 
 // GetServiceProviderIssuer returns service provider issuer

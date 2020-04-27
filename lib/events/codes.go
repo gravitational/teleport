@@ -45,7 +45,7 @@ var (
 		Name: UserLoginEvent,
 		Code: UserSSOLoginFailureCode,
 	}
-	// UserUpdate is emitted when a user is upserted.
+	// UserUpdate is emitted when a user is updated.
 	UserUpdate = Event{
 		Name: UserUpdatedEvent,
 		Code: UserUpdateCode,
@@ -54,6 +54,11 @@ var (
 	UserDelete = Event{
 		Name: UserDeleteEvent,
 		Code: UserDeleteCode,
+	}
+	// UserCreate is emitted when a user is created.
+	UserCreate = Event{
+		Name: UserCreateEvent,
+		Code: UserCreateCode,
 	}
 	// SessionStart is emitted when a user starts a new session.
 	SessionStart = Event{
@@ -196,6 +201,8 @@ var (
 	UserUpdateCode = "T1002I"
 	// UserDeleteCode is the user delete event code.
 	UserDeleteCode = "T1003I"
+	// UserCreateCode is the user create event code.
+	UserCreateCode = "T1004I"
 	// SessionStartCode is the session start event code.
 	SessionStartCode = "T2000I"
 	// SessionJoinCode is the session join event code.

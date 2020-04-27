@@ -298,12 +298,11 @@ func (p *transport) start() {
 		errorCh <- err
 	}()
 
+	// wait for both io.Copy goroutines to finish, or for
+	// the context to be canceled.
 	for i := 0; i < 2; i++ {
 		select {
-		case err := <-errorCh:
-			if err != nil && err != io.EOF {
-				p.log.Warnf("Proxy transport failed: %v %T.", trace.DebugReport(err), err)
-			}
+		case <-errorCh:
 		case <-p.closeContext.Done():
 			p.log.Warnf("Proxy transport failed: closing context.")
 			return

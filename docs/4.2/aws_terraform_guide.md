@@ -3,7 +3,6 @@
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami)
 and describe how to use and administrate the resulting Teleport deployment.
 
-[TOC]
 
 ## Prerequisites
 
