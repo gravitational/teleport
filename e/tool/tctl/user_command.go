@@ -105,7 +105,7 @@ func (cmd *UserCommandE) List(client auth.ClientI) error {
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
-		fmt.Printf(string(out))
+		fmt.Print(string(out))
 	}
 	return nil
 }

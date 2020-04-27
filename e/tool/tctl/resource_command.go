@@ -84,7 +84,6 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 	var (
 		connectorName string
 		exists        bool
-		err           error
 	)
 	switch raw.Kind {
 
@@ -119,7 +118,9 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 			return trace.Wrap(err)
 		}
 
-		err = client.UpsertSAMLConnector(conn)
+		if err = client.UpsertSAMLConnector(conn); err != nil {
+			return trace.Wrap(err)
+		}
 
 	// OpenID connect
 	case services.KindOIDCConnector:
@@ -139,16 +140,15 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 		if cmd.base.IsForced() == false && exists {
 			return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
 		}
-		err = client.UpsertOIDCConnector(conn)
+		if err = client.UpsertOIDCConnector(conn); err != nil {
+			return trace.Wrap(err)
+		}
 
 	// unknown connector type
 	default:
-		err = trace.BadParameter("unknown connector type: '%s'", raw.Kind)
+		return trace.BadParameter("unknown connector type: '%s'", raw.Kind)
 	}
 
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, common.UpsertVerb(exists, cmd.base.IsForced()))
 	return nil
 }
