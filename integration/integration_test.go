@@ -1089,7 +1089,7 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 
 		// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 		abortTime := time.Now().Add(time.Second * 10)
-		for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+		for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
 			time.Sleep(time.Millisecond * 200)
 			if time.Now().After(abortTime) {
 				c.Fatalf("Two clusters do not see each other: tunnels are not working.")
@@ -1423,7 +1423,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1627,6 +1627,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 			Logins: []string{"superuser"},
 		},
 	})
+	c.Assert(err, check.IsNil)
 
 	main.AddUserWithRole(username, devsRole, adminsRole)
 
@@ -1688,7 +1689,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1892,7 +1893,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -2182,7 +2183,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
 	// Requests going via main proxy should fail.
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
+	_, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.NotNil)
 
 	// Requests going via second proxy should succeed.
@@ -2337,7 +2338,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
+	_, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
 	c.Assert(err, check.NotNil)
 
 	// Add second proxy to LB, both should have a connection.
