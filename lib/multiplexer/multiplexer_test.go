@@ -166,7 +166,7 @@ func (s *MuxSuite) TestProxy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 	// send proxy line first before establishing TLS connection
-	_, err = fmt.Fprintf(conn, proxyLine.String())
+	_, err = fmt.Fprint(conn, proxyLine.String())
 	c.Assert(err, check.IsNil)
 
 	// upgrade connection to TLS
@@ -218,7 +218,7 @@ func (s *MuxSuite) TestDisabledProxy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 	// send proxy line first before establishing TLS connection
-	_, err = fmt.Fprintf(conn, proxyLine.String())
+	_, err = fmt.Fprint(conn, proxyLine.String())
 	c.Assert(err, check.IsNil)
 
 	// upgrade connection to TLS

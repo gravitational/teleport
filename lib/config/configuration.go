@@ -126,10 +126,10 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 // ReadResources loads a set of resources from a file.
 func ReadResources(filePath string) ([]services.Resource, error) {
 	reader, err := utils.OpenFile(filePath)
-	defer reader.Close()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer reader.Close()
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
 	var resources []services.Resource
 	for {

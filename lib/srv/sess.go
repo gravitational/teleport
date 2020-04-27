@@ -718,6 +718,9 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// the "exit-status" to the client.
 	go func() {
 		result, err := s.term.Wait()
+		if err != nil {
+			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
+		}
 
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
