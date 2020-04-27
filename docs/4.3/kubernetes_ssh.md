@@ -132,7 +132,7 @@ configured. In this guide we'll look at two common configurations:
 ## Kubernetes Groups and Users
 
 Teleport provides support for Kubernetes Group `kubernetes_groups: ["system:masters"]` 
-and Kubernetes Users, using `kubernetes_users: ['IAM#barent', 'IAM#jane']`. If a Kubernetes
+and Kubernetes Users, using `kubernetes_users: ['barent', 'jane']`. If a Kubernetes
 user isn't set the user will impersonate themselves. 
 
 ### Github Auth
@@ -167,7 +167,7 @@ spec:
       kubernetes_groups: ["system:masters"]
       # Optional: If not set users will imperonsate themseleves. 
       # impersonate a kubernetes user with IAM prefix
-      kubernetes_users: ['IAM#barent', 'IAM#jane']
+      kubernetes_users: ['barent', 'jane']
 
 ```
 To obtain client ID and client secret from Github, please follow [Github documentation](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) on how to create and register an OAuth app. Be sure to set the "Authorization callback URL" to the same value as redirect_url in the resource spec.
