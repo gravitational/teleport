@@ -2467,6 +2467,8 @@ func message(msg string) map[string]interface{} {
 	return map[string]interface{}{"message": msg}
 }
 
+type contextParamsKey string
+
 // contextParams is the name of of the key that holds httprouter.Params in
 // a context.
-const contextParams = "params"
+const contextParams contextParamsKey = "params"

@@ -295,7 +295,7 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		events.AuthAttemptSuccess: true,
 		events.LoginMethod:        events.LoginMethodSAML,
 	}
-	if re != nil && re.attributeStatements != nil {
+	if re.attributeStatements != nil {
 		fields[events.IdentityAttributes] = re.attributeStatements
 	}
 	a.EmitAuditEvent(events.UserSSOLogin, fields)

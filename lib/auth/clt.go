@@ -56,6 +56,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -291,11 +292,11 @@ func (c *Client) grpc() (proto.AuthServiceClient, error) {
 	if c.grpcClient != nil {
 		return c.grpcClient, nil
 	}
-	dialer := grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
-		c, err := c.Dialer.DialContext(context.TODO(), "tcp", addr)
+		c, err := c.Dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			log.Debugf("Dial to addr %v failed: %v.", addr, err)
 		}
@@ -1459,7 +1460,7 @@ func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
 	if err == nil {
 		return user, nil
 	}
-	if grpc.Code(err) != codes.Unimplemented {
+	if status.Code(err) != codes.Unimplemented {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
@@ -1497,7 +1498,7 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 	if err == nil {
 		return users, nil
 	}
-	if grpc.Code(err) != codes.Unimplemented {
+	if status.Code(err) != codes.Unimplemented {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
