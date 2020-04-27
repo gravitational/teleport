@@ -88,8 +88,8 @@ func (s *ServerSuite) TestShutdown(c *check.C) {
 	closeContext, cancel := context.WithCancel(context.TODO())
 	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
 		ch, _, err := nch.Accept()
-		defer ch.Close()
 		c.Assert(err, check.IsNil)
+		defer ch.Close()
 		select {
 		case <-closeContext.Done():
 			conn.Close()
@@ -160,7 +160,7 @@ func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
 		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
-	clt, err := ssh.Dial("tcp", srv.Addr(), &cc)
+	_, err = ssh.Dial("tcp", srv.Addr(), &cc)
 	c.Assert(err, check.NotNil, check.Commentf("cipher mismatch, should fail, got nil"))
 
 	// client only speaks aes128-ctr, should succeed
@@ -171,7 +171,7 @@ func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
 		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
-	clt, err = ssh.Dial("tcp", srv.Addr(), &cc)
+	clt, err := ssh.Dial("tcp", srv.Addr(), &cc)
 	c.Assert(err, check.IsNil, check.Commentf("cipher match, should not fail, got error: %v", err))
 	defer clt.Close()
 }

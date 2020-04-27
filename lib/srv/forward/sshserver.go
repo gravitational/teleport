@@ -452,7 +452,7 @@ func (s *Server) Serve() {
 	if err != nil {
 		// Reject the connection with an error so the client doesn't hang then
 		// close the connection.
-		s.rejectChannel(chans, err)
+		s.rejectChannel(chans, err.Error())
 		sconn.Close()
 
 		s.targetConn.Close()
@@ -573,13 +573,13 @@ func (s *Server) handleConnection(chans <-chan ssh.NewChannel, reqs <-chan *ssh.
 	}
 }
 
-func (s *Server) rejectChannel(chans <-chan ssh.NewChannel, err error) {
-	for newChannel := range chans {
-		err := newChannel.Reject(ssh.ConnectionFailed, err.Error())
-		if err != nil {
-			s.log.Errorf("Unable to reject and close connection.")
-		}
+func (s *Server) rejectChannel(chans <-chan ssh.NewChannel, errMessage string) {
+	newChannel, ok := <-chans
+	if !ok {
 		return
+	}
+	if err := newChannel.Reject(ssh.ConnectionFailed, errMessage); err != nil {
+		s.log.Errorf("Unable to reject and close connection.")
 	}
 }
 
