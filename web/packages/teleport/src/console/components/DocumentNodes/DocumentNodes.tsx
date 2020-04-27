@@ -69,14 +69,13 @@ export default function DocumentNodes({ visible, doc }) {
         px="5"
       >
         <Flex justifyContent="space-between">
+          <QuickLaunch mb="5" onPress={onQuickLaunchEnter} mr="3" />
           <ClusterSelector
             value={doc.clusterId}
             width="400px"
             maxMenuHeight={200}
             onChange={onChangeCluster}
-            mr="3"
           />
-          <QuickLaunch mb="5" onPress={onQuickLaunchEnter} />
         </Flex>
         {isProcessing && (
           <Box textAlign="center" m={10}>

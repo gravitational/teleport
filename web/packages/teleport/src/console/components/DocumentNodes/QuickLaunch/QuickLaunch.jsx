@@ -47,6 +47,7 @@ export default function FieldInputSsh({ onPress, ...boxProps }) {
         color="text.primary"
         placeholder="login@host"
         onKeyPress={onKeyPress}
+        autoFocus
       />
     </Box>
   );

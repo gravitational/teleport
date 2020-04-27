@@ -19,6 +19,7 @@ import { Flex } from 'design';
 import Tty from 'teleport/lib/term/tty';
 import XTermCtrl from 'teleport/lib/term/terminal';
 import StyledXterm from '../../StyledXterm';
+import { getMappedAction } from 'teleport/console/useKeyboardNav';
 
 export default class Terminal extends React.Component<{ tty: Tty }> {
   terminal: XTermCtrl;
@@ -31,6 +32,14 @@ export default class Terminal extends React.Component<{ tty: Tty }> {
     });
 
     this.terminal.open();
+
+    // TODO deprecated, use attachCustomKeyEventHandler when we upgrade xterm
+    this.terminal.term.attachCustomKeydownHandler(event => {
+      const { tabSwitch } = getMappedAction(event);
+      if (tabSwitch) {
+        return false;
+      }
+    });
   }
 
   componentWillUnmount() {

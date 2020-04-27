@@ -3,14 +3,14 @@
 exports[`render DocumentNodes 1`] = `
 .c4 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
   margin-right: 16px;
-  width: 400px;
 }
 
-.c8 {
+.c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
+  width: 400px;
 }
 
 .c15 {
@@ -20,7 +20,7 @@ exports[`render DocumentNodes 1`] = `
   color: #FFFFFF;
 }
 
-.c9 {
+.c6 {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
@@ -40,23 +40,23 @@ exports[`render DocumentNodes 1`] = `
   height: 34px;
 }
 
-.c9::-ms-clear {
+.c6::-ms-clear {
   display: none;
 }
 
-.c9::-webkit-input-placeholder {
+.c6::-webkit-input-placeholder {
   opacity: 0.24;
 }
 
-.c9::-moz-placeholder {
+.c6::-moz-placeholder {
   opacity: 0.24;
 }
 
-.c9:-ms-input-placeholder {
+.c6:-ms-input-placeholder {
   opacity: 0.24;
 }
 
-.c9::placeholder {
+.c6::placeholder {
   opacity: 0.24;
 }
 
@@ -331,12 +331,12 @@ exports[`render DocumentNodes 1`] = `
   vertical-align: baseline;
 }
 
-.c7 .react-select__control,
-.c7 .react-select__control--is-focused {
+.c9 .react-select__control,
+.c9 .react-select__control--is-focused {
   min-height: 40px;
 }
 
-.c7 .react-select-container {
+.c9 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   border: none;
@@ -350,19 +350,19 @@ exports[`render DocumentNodes 1`] = `
   border-radius: 4px;
 }
 
-.c7 .react-select__menu {
+.c9 .react-select__menu {
   margin-top: 0px;
 }
 
-.c7 .react-select__indicator-separator {
+.c9 .react-select__indicator-separator {
   display: none;
 }
 
-.c7 .react-select__control:hover {
+.c9 .react-select__control:hover {
   border-color: transparent;
 }
 
-.c7 .react-select__control--is-focused {
+.c9 .react-select__control--is-focused {
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -371,33 +371,33 @@ exports[`render DocumentNodes 1`] = `
   box-shadow: none;
 }
 
-.c7 .react-select__option--is-selected {
+.c9 .react-select__option--is-selected {
   background-color: #cfd8dc;
   color: inherit;
 }
 
-.c6 {
+.c8 {
   box-sizing: border-box;
 }
 
-.c6 .react-select__control,
-.c6 .react-select__control--is-focused {
+.c8 .react-select__control,
+.c8 .react-select__control--is-focused {
   min-height: 40px;
 }
 
-.c6 .react-select__menu {
+.c8 .react-select__menu {
   margin-top: 0px;
 }
 
-.c6 .react-select-container {
+.c8 .react-select-container {
   background-color: transparent;
 }
 
-.c6 .react-select__indicator-separator {
+.c8 .react-select__indicator-separator {
   display: none;
 }
 
-.c6 .react-select__control--is-focused {
+.c8 .react-select__control--is-focused {
   background-color: white;
   border-color: transparent;
   border-radius: 4px;
@@ -407,49 +407,49 @@ exports[`render DocumentNodes 1`] = `
   border-color: rgba(255,255,255,0.87);
 }
 
-.c6 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c8 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.87);
 }
 
-.c6 .react-select__option--is-selected {
+.c8 .react-select__option--is-selected {
   background-color: #cfd8dc;
   color: inherit;
 }
 
-.c6 .react-select__single-value {
+.c8 .react-select__single-value {
   color: white;
 }
 
-.c6 .react-select__dropdown-indicator {
+.c8 .react-select__dropdown-indicator {
   color: #0C143D;
 }
 
-.c6 .react-select__input {
+.c8 .react-select__input {
   color: white;
   font-size: 16px;
 }
 
-.c6 .react-select__control {
+.c8 .react-select__control {
   border-radius: 4px;
   border-color: #0C143D;
   background-color: #1B234A;
   color: rgba(255,255,255,0.56);
 }
 
-.c6 .react-select__control:hover {
+.c8 .react-select__control:hover {
   border-color: rgba(255,255,255,0.87);
 }
 
-.c6 .react-select__control:hover .react-select__dropdown-indicator {
+.c8 .react-select__control:hover .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.87);
 }
 
-.c6 .react-select__option--is-selected {
+.c8 .react-select__option--is-selected {
   background-color: #cfd8dc;
   color: inherit;
 }
 
-.c6 .react-select__menu {
+.c8 .react-select__menu {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -472,6 +472,23 @@ exports[`render DocumentNodes 1`] = `
       >
         <div
           class="c4"
+        >
+          <label
+            class="c5"
+            font-size="0"
+          >
+            Quick Launch
+          </label>
+          <input
+            class="c6"
+            color="text.primary"
+            height="34px"
+            placeholder="login@host"
+            width="240px"
+          />
+        </div>
+        <div
+          class="c7"
           width="400px"
         >
           <label
@@ -481,10 +498,10 @@ exports[`render DocumentNodes 1`] = `
              Clusters 
           </label>
           <div
-            class="c6"
+            class="c8"
           >
             <div
-              class="c7"
+              class="c9"
             >
               <div
                 class="react-select-container css-2b097c-container"
@@ -553,23 +570,6 @@ exports[`render DocumentNodes 1`] = `
               </div>
             </div>
           </div>
-        </div>
-        <div
-          class="c8"
-        >
-          <label
-            class="c5"
-            font-size="0"
-          >
-            Quick Launch
-          </label>
-          <input
-            class="c9"
-            color="text.primary"
-            height="34px"
-            placeholder="login@host"
-            width="240px"
-          />
         </div>
       </div>
       <div
