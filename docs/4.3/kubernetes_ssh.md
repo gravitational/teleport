@@ -165,9 +165,8 @@ spec:
         - root
       # list of Kubernetes groups this Github team is allowed to connect to
       kubernetes_groups: ["system:masters"]
-      # Optional: If not set users will imperonsate themseleves. 
-      # impersonate a kubernetes user with IAM prefix
-      kubernetes_users: ['barent', 'jane']
+      # Optional: If not set, users will impersonate themselves.
+      # kubernetes_users: ['barent']
 
 ```
 To obtain client ID and client secret from Github, please follow [Github documentation](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) on how to create and register an OAuth app. Be sure to set the "Authorization callback URL" to the same value as redirect_url in the resource spec.

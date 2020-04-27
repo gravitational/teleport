@@ -121,12 +121,18 @@ spec:
 
 ## Working with External Email Identity
 
-Along with sending groups, an SSO provider will also provide a users email address. 
-This can be accessed via `{% raw %}{{external.email}}{% endraw %}`. This is helpful to 
-have a continuation of identity, but often the first part of the email. The local part. 
-Is useful to send to other systems as it's unique.  Teleport 4.3 has extended the variable
-interpolation, to extract this local part. 
+Along with sending groups, an SSO provider will also provide a user's email address. 
+In many organizations, the username that a person uses to log into a system is the 
+same as the first part of their email address - the 'local' part. For example, `dave.smith@acme.com`
+ might log in with the username `dave.smith`. Teleport 4.2.6+ adds an easy way to 
+ extract the first part of an email address so it can be used as a username - this 
+ is the `{% raw %}{{email.local}}{% endraw %}` function.
 
+If the email claim from the identity provider (which can be accessed via `{% raw %}{{external.email}}{% endraw %}`) 
+is sent and contains an email address, you can extract the 'local' part of the email 
+address before the @ sign like this: `{% raw %}{{email.local(external.email)}}{% endraw %}`
+
+Here's how this looks in a Teleport role:
 
 ```yaml
 kind: role
