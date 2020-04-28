@@ -1730,8 +1730,9 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	if len(response.HostSigners) <= 0 {
 		return nil, trace.BadParameter("bad response from the server: expected at least one certificate, got 0")
 	}
+
+	// Add the cluster name into the key from the host certificate.
 	key.ClusterName = response.HostSigners[0].ClusterName
-	tc.SiteName = response.HostSigners[0].ClusterName
 
 	if activateKey {
 		// save the list of CAs client trusts to ~/.tsh/known_hosts
@@ -1752,13 +1753,56 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 			return nil, trace.Wrap(err)
 		}
 
-		// Connect to the Auth Server of the main cluster
-		// and fetch the known hosts for this cluster.
+		// Connect to the Auth Server of the main cluster and fetch the known hosts
+		// for this cluster.
 		if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Update the cluster name (which will be saved in the profile) with the
+		// name of the cluster the caller requested to connect to.
+		tc.SiteName, err = updateClusterName(ctx, tc, tc.SiteName, response.HostSigners)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	return key, nil
+}
+
+// certGetter is used in updateClusterName to control the response of
+// GetTrustedCA in testing.
+type certGetter interface {
+	// GetTrustedCA returns a list of trusted clusters.
+	GetTrustedCA(context.Context, string) ([]services.CertAuthority, error)
+}
+
+// updateClusterName returns the name of the cluster the user is connected to.
+func updateClusterName(ctx context.Context, certGetter certGetter, clusterName string, certificates []auth.TrustedCerts) (string, error) {
+	// Extract the name of the cluster the caller actually connected to.
+	if len(certificates) == 0 {
+		return "", trace.BadParameter("missing host certificates")
+	}
+	certificateClusterName := certificates[0].ClusterName
+
+	// The caller did not specify a cluster name, for example "tsh login", or
+	// requested the same name that is on the host certificate. In this case
+	// return the cluster name on the host certificate returned.
+	if clusterName == "" || clusterName == certificateClusterName {
+		return certificateClusterName, nil
+	}
+
+	// If the caller requested login to a leaf cluster, make sure the cluster
+	// exists.
+	leafClusters, err := certGetter.GetTrustedCA(ctx, certificateClusterName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, leafCluster := range leafClusters {
+		if leafCluster.GetClusterName() == clusterName {
+			return clusterName, nil
+		}
+	}
+	return "", trace.BadParameter(`unknown cluster: %q, run "tsh clusters" for a list of clusters`, clusterName)
 }
 
 // GetTrustedCA returns a list of host certificate authorities
