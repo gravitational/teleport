@@ -97,7 +97,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
-	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(formatYAML).StringVar(&rc.format)
+	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
 	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&rc.namespace)
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
 
@@ -162,7 +162,7 @@ func (rc *ResourceCommand) Get(client auth.ClientI) error {
 }
 
 func (rc *ResourceCommand) GetMany(client auth.ClientI) error {
-	if rc.format != formatYAML {
+	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
 	var resources []services.Resource
@@ -532,12 +532,6 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 	}
 	return nil, trace.BadParameter("'%v' is not supported", rc.ref.Kind)
 }
-
-const (
-	formatYAML = "yaml"
-	formatText = "text"
-	formatJSON = "json"
-)
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
 func UpsertVerb(exists bool, force bool) string {

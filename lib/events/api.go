@@ -144,17 +144,24 @@ const (
 	// LoginMethodGithub represents login with Github
 	LoginMethodGithub = "github"
 
-	// UserUpdatedEvent is emitted when the user is created or updated (upsert).
+	// UserUpdatedEvent is emitted when the user is updated.
 	UserUpdatedEvent = "user.update"
 
 	// UserDeleteEvent is emitted when the user is deleted.
 	UserDeleteEvent = "user.delete"
+
+	// UserCreateEvent is emitted when the user is created.
+	UserCreateEvent = "user.create"
+
+	// UserCreatedName is the name of the created user.
+	UserCreatedName = "created_user"
 
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
 
 	// UserRoles is a list of roles for the user.
 	UserRoles = "roles"
+
 	// IdentityAttributes is a map of user attributes
 	// received from identity provider
 	IdentityAttributes = "attributes"
@@ -168,6 +175,9 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestUpdateBy indicates the user that updated the request state.
 	AccessRequestUpdateBy = "updated_by"
+	// AccessRequestDelegator is used by teleport plugins to indicate the identity
+	// which caused them to update state.
+	AccessRequestDelegator = "delegator"
 	// AccessRequestState is the state of a request.
 	AccessRequestState = "state"
 	// AccessRequestID is the ID of an access request.

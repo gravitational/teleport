@@ -297,6 +297,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 			events.SessionInteractive:       true,
 			events.SessionEnhancedRecording: sess.hasEnhancedRecording,
 			events.SessionParticipants:      sess.exportParticipants(),
+			events.SessionServerHostname:    s.srv.GetInfo().GetHostname(),
 		}
 		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
 
@@ -717,6 +718,9 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// the "exit-status" to the client.
 	go func() {
 		result, err := s.term.Wait()
+		if err != nil {
+			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
+		}
 
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
@@ -863,6 +867,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			events.SessionParticipants: []string{
 				ctx.Identity.TeleportUser,
 			},
+			events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
 		}
 		s.recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, eventFields)
 

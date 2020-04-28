@@ -241,6 +241,9 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
+	if req.Delegator != "" {
+		ctx = WithDelegator(ctx, req.Delegator)
+	}
 	if err := auth.AuthWithRoles.SetAccessRequestState(ctx, req.ID, req.State); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -375,6 +378,22 @@ func (g *GRPCServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 		return nil, trail.ToGRPC(err)
 	}
 	return &rsp, nil
+}
+
+// CreateUser inserts a new user entry in a backend.
+func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.CreateUser(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	log.Infof("%q user created", req.GetName())
+
+	return &empty.Empty{}, nil
 }
 
 type grpcContext struct {

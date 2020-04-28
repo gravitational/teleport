@@ -869,6 +869,23 @@ func getUpdateBy(ctx context.Context) (string, error) {
 	return updateBy, nil
 }
 
+// WithDelegator creates a child context with the AccessRequestDelegator
+// value set.  Optionally used by AuthServer.SetAccessRequestState to log
+// a delegating identity.
+func WithDelegator(ctx context.Context, delegator string) context.Context {
+	return context.WithValue(ctx, events.AccessRequestDelegator, delegator)
+}
+
+// getDelegator attempts to load the context value AccessRequestDelegator,
+// returning the empty string if no value was found.
+func getDelegator(ctx context.Context) string {
+	delegator, ok := ctx.Value(events.AccessRequestDelegator).(string)
+	if !ok {
+		return ""
+	}
+	return delegator
+}
+
 func (a *AuthWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
 	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
@@ -1091,7 +1108,7 @@ func (a *AuthWithRoles) CreateResetPasswordToken(ctx context.Context, req Create
 	a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
 		events.ResetPasswordTokenFor: req.Name,
 		events.ResetPasswordTokenTTL: req.TTL.String(),
-		events.EventUser:    a.user.GetName(),
+		events.EventUser:             a.user.GetName(),
 	})
 
 	return a.authServer.CreateResetPasswordToken(ctx, req)
@@ -1110,6 +1127,19 @@ func (a *AuthWithRoles) RotateResetPasswordTokenSecrets(ctx context.Context, tok
 func (a *AuthWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
 	// Token is it's own authentication, no need to double check.
 	return a.authServer.ChangePasswordWithToken(ctx, req)
+}
+
+// CreateUser inserts a new user entry in a backend.
+func (a *AuthWithRoles) CreateUser(ctx context.Context, user services.User) error {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	user.SetCreatedBy(services.CreatedBy{
+		User: services.UserRef{Name: a.user.GetName()},
+	})
+
+	return a.authServer.CreateUser(ctx, user)
 }
 
 func (a *AuthWithRoles) UpsertUser(u services.User) error {
