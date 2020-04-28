@@ -201,7 +201,7 @@ release-fips: bbox-fips
 #
 .PHONY:release-centos6
 release-centos6: bbox-centos6
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BBOXCENTOS6) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXCENTOS6) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
 #
@@ -210,7 +210,7 @@ release-centos6: bbox-centos6
 #
 .PHONY:release-centos6-fips
 release-centos6-fips: bbox-centos6-fips
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BBOXCENTOS6FIPS) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXCENTOS6FIPS) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes
 
 #
