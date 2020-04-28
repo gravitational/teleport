@@ -19,6 +19,7 @@ package auth
 import (
 	"bytes"
 	"compress/flate"
+	"context"
 	"encoding/base64"
 	"io/ioutil"
 
@@ -162,14 +163,14 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 			Roles:  p.roles,
 			Traits: p.traits,
 			SAMLIdentities: []services.ExternalIdentity{
-				services.ExternalIdentity{
+				{
 					ConnectorID: p.connectorName,
 					Username:    p.username,
 				},
 			},
 			CreatedBy: services.CreatedBy{
 				User: services.UserRef{
-					Name: "system",
+					Name: teleport.UserSystem,
 				},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
@@ -186,11 +187,11 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 
 	// Get the user to check if it already exists or not.
 	existingUser, err := a.Identity.GetUser(p.username, false)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
 	}
+
+	ctx := context.TODO()
 
 	// Overwrite exisiting user if it was created from an external identity provider.
 	if existingUser != nil {
@@ -198,18 +199,21 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 
 		// If the exisiting user is a local user, fail and advise how to fix the problem.
 		if connectorRef == nil {
-			return nil, trace.AlreadyExists("local user with name '%v' already exists. Either change "+
+			return nil, trace.AlreadyExists("local user with name %q already exists. Either change "+
 				"NameID in assertion or remove local user and try again.", existingUser.GetName())
 		}
 
-		log.Debugf("Overwriting existing user '%v' created with %v connector %v.",
+		log.Debugf("Overwriting existing user %q created with %v connector %v.",
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
-	}
 
-	// Upsert the new user creating or updating whatever is in the database.
-	err = a.UpsertUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		updatedCtx := withUpdateBy(context.TODO(), teleport.UserSystem)
+		if err := a.UpdateUser(updatedCtx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.CreateUser(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return user, nil

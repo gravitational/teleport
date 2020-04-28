@@ -652,3 +652,6 @@ const (
 	// machine.
 	PrincipalLoopbackV6 Principal = "::1"
 )
+
+// UserSystem defines a user as system.
+const UserSystem = "system"
