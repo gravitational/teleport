@@ -271,3 +271,13 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 
 	return lastErr
 }
+
+// Addr returns the listening address of this LoadBalancer.
+func (l *LoadBalancer) Addr() net.Addr {
+	l.Lock()
+	defer l.Unlock()
+	if l.listener == nil {
+		return nil
+	}
+	return l.listener.Addr()
+}
