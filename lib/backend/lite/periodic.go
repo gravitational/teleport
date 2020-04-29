@@ -27,7 +27,7 @@ import (
 
 const notSet = -2
 
-func (l *LiteBackend) runPeriodicOperations() {
+func (l *Backend) runPeriodicOperations() {
 	t := time.NewTicker(l.PollStreamPeriod)
 	defer t.Stop()
 
@@ -63,7 +63,7 @@ func (l *LiteBackend) runPeriodicOperations() {
 	}
 }
 
-func (l *LiteBackend) removeExpiredKeys() error {
+func (l *Backend) removeExpiredKeys() error {
 	// In mirror mode, don't expire any elements. This allows the cache to setup
 	// a watch and expire elements as the events roll in.
 	if l.Mirror {
@@ -101,7 +101,7 @@ func (l *LiteBackend) removeExpiredKeys() error {
 	})
 }
 
-func (l *LiteBackend) removeOldEvents() error {
+func (l *Backend) removeOldEvents() error {
 	expiryTime := l.clock.Now().UTC().Add(-1 * backend.DefaultEventsTTL)
 	return l.inTransaction(l.ctx, func(tx *sql.Tx) error {
 		stmt, err := tx.PrepareContext(l.ctx, "DELETE FROM events WHERE created <= ?")
@@ -116,7 +116,7 @@ func (l *LiteBackend) removeOldEvents() error {
 	})
 }
 
-func (l *LiteBackend) pollEvents(rowid int64) (int64, error) {
+func (l *Backend) pollEvents(rowid int64) (int64, error) {
 	if rowid == notSet {
 		err := l.inTransaction(l.ctx, func(tx *sql.Tx) error {
 			q, err := tx.PrepareContext(

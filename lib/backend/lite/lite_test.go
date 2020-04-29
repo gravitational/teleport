@@ -32,7 +32,7 @@ import (
 func TestLite(t *testing.T) { check.TestingT(t) }
 
 type LiteSuite struct {
-	bk    *LiteBackend
+	bk    *Backend
 	suite test.BackendSuite
 }
 
@@ -52,7 +52,7 @@ func (s *LiteSuite) SetUpSuite(c *check.C) {
 func (s *LiteSuite) SetUpTest(c *check.C) {
 	bk, err := s.suite.NewBackend()
 	c.Assert(err, check.IsNil)
-	s.bk = bk.(*LiteBackend)
+	s.bk = bk.(*Backend)
 	s.suite.B = s.bk
 }
 
@@ -111,7 +111,7 @@ func (s *LiteSuite) TestImport(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer backendI.Close()
 
-	b := backendI.(*LiteBackend)
+	b := backendI.(*Backend)
 
 	imported, err := b.Imported(ctx)
 	c.Assert(err, check.IsNil)

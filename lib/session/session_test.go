@@ -55,7 +55,7 @@ func (s *SessionSuite) SetUpTest(c *C) {
 	s.bk, err = lite.New(context.TODO(), backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
 
-	(s.bk.(*lite.LiteBackend)).SetClock(s.clock)
+	(s.bk.(*lite.Backend)).SetClock(s.clock)
 
 	srv, err := New(s.bk)
 	srv.(*server).clock = s.clock

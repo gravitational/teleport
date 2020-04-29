@@ -30,7 +30,7 @@ import (
 )
 
 type LiteMemSuite struct {
-	bk    *LiteBackend
+	bk    *Backend
 	suite test.BackendSuite
 }
 
@@ -52,7 +52,7 @@ func (s *LiteMemSuite) SetUpSuite(c *check.C) {
 func (s *LiteMemSuite) SetUpTest(c *check.C) {
 	bk, err := s.suite.NewBackend()
 	c.Assert(err, check.IsNil)
-	s.bk = bk.(*LiteBackend)
+	s.bk = bk.(*Backend)
 	s.suite.B = s.bk
 }
 

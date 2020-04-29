@@ -38,7 +38,7 @@ type shardEvent struct {
 	err     error
 }
 
-func (b *DynamoDBBackend) asyncPollStreams(ctx context.Context) error {
+func (b *Backend) asyncPollStreams(ctx context.Context) error {
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step: b.RetryPeriod / 10,
 		Max:  b.RetryPeriod,
@@ -70,7 +70,7 @@ func (b *DynamoDBBackend) asyncPollStreams(ctx context.Context) error {
 	}
 }
 
-func (b *DynamoDBBackend) pollStreams(externalCtx context.Context) error {
+func (b *Backend) pollStreams(externalCtx context.Context) error {
 	ctx, cancel := context.WithCancel(externalCtx)
 	defer cancel()
 
@@ -130,7 +130,7 @@ func (b *DynamoDBBackend) pollStreams(externalCtx context.Context) error {
 	}
 }
 
-func (b *DynamoDBBackend) findStream(ctx context.Context) (*string, error) {
+func (b *Backend) findStream(ctx context.Context) (*string, error) {
 	status, err := b.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(b.Tablename),
 	})
@@ -143,7 +143,7 @@ func (b *DynamoDBBackend) findStream(ctx context.Context) (*string, error) {
 	return status.Table.LatestStreamArn, nil
 }
 
-func (b *DynamoDBBackend) pollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent) error {
+func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent) error {
 	shardIterator, err := b.streams.GetShardIteratorWithContext(ctx, &dynamodbstreams.GetShardIteratorInput{
 		ShardId:           shard.ShardId,
 		ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeLatest),
@@ -199,7 +199,7 @@ func (b *DynamoDBBackend) pollShard(ctx context.Context, streamArn *string, shar
 }
 
 // collectActiveShards collects shards
-func (b *DynamoDBBackend) collectActiveShards(ctx context.Context, streamArn *string) ([]*dynamodbstreams.Shard, error) {
+func (b *Backend) collectActiveShards(ctx context.Context, streamArn *string) ([]*dynamodbstreams.Shard, error) {
 	var out []*dynamodbstreams.Shard
 
 	input := &dynamodbstreams.DescribeStreamInput{
@@ -279,7 +279,7 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 	}
 }
 
-func (b *DynamoDBBackend) asyncPollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent) {
+func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent) {
 	var err error
 	defer func() {
 		if err == nil {
@@ -296,7 +296,7 @@ func (b *DynamoDBBackend) asyncPollShard(ctx context.Context, streamArn *string,
 	return
 }
 
-func (b *DynamoDBBackend) turnOnTimeToLive(ctx context.Context) error {
+func (b *Backend) turnOnTimeToLive(ctx context.Context) error {
 	status, err := b.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
 		TableName: aws.String(b.Tablename),
 	})
@@ -317,7 +317,7 @@ func (b *DynamoDBBackend) turnOnTimeToLive(ctx context.Context) error {
 	return convertError(err)
 }
 
-func (b *DynamoDBBackend) turnOnStreams(ctx context.Context) error {
+func (b *Backend) turnOnStreams(ctx context.Context) error {
 	status, err := b.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(b.Tablename),
 	})

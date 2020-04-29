@@ -87,8 +87,8 @@ func (cfg *backendConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// FirestoreBackend is a Firestore-backed key value backend implementation.
-type FirestoreBackend struct {
+// Backend is a Firestore-backed key value backend implementation.
+type Backend struct {
 	*log.Entry
 	backendConfig
 	// svc is the primary Firestore client
@@ -154,7 +154,7 @@ func GetName() string {
 }
 
 // keep this here to test interface conformance
-var _ backend.Backend = &FirestoreBackend{}
+var _ backend.Backend = &Backend{}
 
 // CreateFirestoreClients creates a firestore admin and normal client given the supplied parameters
 func CreateFirestoreClients(ctx context.Context, projectID string, endPoint string, credentialsFile string) (*apiv1.FirestoreAdminClient, *firestore.Client, error) {
@@ -181,7 +181,7 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, params backend.Params) (*FirestoreBackend, error) {
+func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
 	var cfg *backendConfig
 	err := utils.ObjectToStruct(params, &cfg)
@@ -205,7 +205,7 @@ func New(ctx context.Context, params backend.Params) (*FirestoreBackend, error) 
 		return nil, trace.Wrap(err)
 	}
 	watchStarted, signalWatchStart := context.WithCancel(ctx)
-	b := &FirestoreBackend{
+	b := &Backend{
 		svc:              firestoreClient,
 		Entry:            l,
 		backendConfig:    *cfg,
@@ -236,7 +236,7 @@ func New(ctx context.Context, params backend.Params) (*FirestoreBackend, error) 
 }
 
 // Create creates item if it does not exist
-func (b *FirestoreBackend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	var r record
 	r.Key = string(item.Key)
 	r.Value = string(item.Value)
@@ -248,13 +248,12 @@ func (b *FirestoreBackend) Create(ctx context.Context, item backend.Item) (*back
 	_, err := b.svc.Collection(b.CollectionName).Doc(b.convertKeyToSupportedDocumentID(item.Key)).Create(ctx, r)
 	if err != nil {
 		return nil, ConvertGRPCError(err)
-	} else {
-		return b.newLease(item), nil
 	}
+	return b.newLease(item), nil
 }
 
 // Put puts value into backend (creates if it does not exists, updates it otherwise)
-func (b *FirestoreBackend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	var r record
 	r.Key = string(item.Key)
 	r.Value = string(item.Value)
@@ -266,13 +265,12 @@ func (b *FirestoreBackend) Put(ctx context.Context, item backend.Item) (*backend
 	_, err := b.svc.Collection(b.CollectionName).Doc(b.convertKeyToSupportedDocumentID(item.Key)).Set(ctx, r)
 	if err != nil {
 		return nil, ConvertGRPCError(err)
-	} else {
-		return b.newLease(item), nil
 	}
+	return b.newLease(item), nil
 }
 
 // Update updates value in the backend
-func (b *FirestoreBackend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	var r record
 	r.Key = string(item.Key)
 	r.Value = string(item.Value)
@@ -288,12 +286,11 @@ func (b *FirestoreBackend) Update(ctx context.Context, item backend.Item) (*back
 	_, err = b.svc.Collection(b.CollectionName).Doc(b.convertKeyToSupportedDocumentID(item.Key)).Set(ctx, r)
 	if err != nil {
 		return nil, ConvertGRPCError(err)
-	} else {
-		return b.newLease(item), nil
 	}
+	return b.newLease(item), nil
 }
 
-func (b *FirestoreBackend) getRangeDocs(ctx context.Context, startKey []byte, endKey []byte, limit int) ([]*firestore.DocumentSnapshot, error) {
+func (b *Backend) getRangeDocs(ctx context.Context, startKey []byte, endKey []byte, limit int) ([]*firestore.DocumentSnapshot, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -310,7 +307,7 @@ func (b *FirestoreBackend) getRangeDocs(ctx context.Context, startKey []byte, en
 }
 
 // GetRange returns range of elements
-func (b *FirestoreBackend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
 	docSnaps, err := b.getRangeDocs(ctx, startKey, endKey, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -339,7 +336,7 @@ func (b *FirestoreBackend) GetRange(ctx context.Context, startKey []byte, endKey
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey
-func (b *FirestoreBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
 	docSnaps, err := b.getRangeDocs(ctx, startKey, endKey, backend.DefaultLargeLimit)
 	if err != nil {
 		return trace.Wrap(err)
@@ -360,7 +357,7 @@ func (b *FirestoreBackend) DeleteRange(ctx context.Context, startKey, endKey []b
 }
 
 // Get returns a single item or not found error
-func (b *FirestoreBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if len(key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
@@ -378,9 +375,8 @@ func (b *FirestoreBackend) Get(ctx context.Context, key []byte) (*backend.Item, 
 		err = b.Delete(ctx, key)
 		if err != nil {
 			return nil, ConvertGRPCError(err)
-		} else {
-			return nil, trace.NotFound("the supplied key: `%v` does not exist", string(key))
 		}
+		return nil, trace.NotFound("the supplied key: `%v` does not exist", string(key))
 	}
 
 	item := &backend.Item{
@@ -397,7 +393,7 @@ func (b *FirestoreBackend) Get(ctx context.Context, key []byte) (*backend.Item, 
 // CompareAndSwap compares and swap values in atomic operation
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
-func (b *FirestoreBackend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
+func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
 	if len(expected.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
@@ -436,13 +432,12 @@ func (b *FirestoreBackend) CompareAndSwap(ctx context.Context, expected backend.
 	_, err = expectedDocSnap.Ref.Set(ctx, r)
 	if err != nil {
 		return nil, ConvertGRPCError(err)
-	} else {
-		return b.newLease(replaceWith), nil
 	}
+	return b.newLease(replaceWith), nil
 }
 
 // Delete deletes item by key
-func (b *FirestoreBackend) Delete(ctx context.Context, key []byte) error {
+func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -461,7 +456,7 @@ func (b *FirestoreBackend) Delete(ctx context.Context, key []byte) error {
 }
 
 // NewWatcher returns a new event watcher
-func (b *FirestoreBackend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
+func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
 	select {
 	case <-b.watchStarted.Done():
 	case <-ctx.Done():
@@ -474,7 +469,7 @@ func (b *FirestoreBackend) NewWatcher(ctx context.Context, watch backend.Watch) 
 // expires contains the new expiry to set on the lease,
 // some backends may ignore expires based on the implementation
 // in case if the lease managed server side
-func (b *FirestoreBackend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
+func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
 	if len(lease.Key) == 0 {
 		return trace.BadParameter("lease is missing key")
 	}
@@ -506,7 +501,7 @@ func (b *FirestoreBackend) KeepAlive(ctx context.Context, lease backend.Lease, e
 }
 
 // Close closes the Firestore client contexts and releases associated resources
-func (b *FirestoreBackend) Close() error {
+func (b *Backend) Close() error {
 	b.clientCancel()
 	err := b.buf.Close()
 	if err != nil {
@@ -516,16 +511,16 @@ func (b *FirestoreBackend) Close() error {
 }
 
 // CloseWatchers closes all the watchers without closing the backend
-func (b *FirestoreBackend) CloseWatchers() {
+func (b *Backend) CloseWatchers() {
 	b.buf.Reset()
 }
 
 // Clock returns wall clock
-func (b *FirestoreBackend) Clock() clockwork.Clock {
+func (b *Backend) Clock() clockwork.Clock {
 	return b.clock
 }
 
-func (b *FirestoreBackend) newLease(item backend.Item) *backend.Lease {
+func (b *Backend) newLease(item backend.Item) *backend.Lease {
 	var lease backend.Lease
 	if item.Expires.IsZero() {
 		return &lease
@@ -535,7 +530,7 @@ func (b *FirestoreBackend) newLease(item backend.Item) *backend.Lease {
 }
 
 // convertKeyToSupportedDocumentID converts the key for the stored member to one supported by Firestore
-func (b *FirestoreBackend) convertKeyToSupportedDocumentID(key []byte) string {
+func (b *Backend) convertKeyToSupportedDocumentID(key []byte) string {
 	return strings.Replace(strings.Replace(string(key), documentNameLockIllegalCharacter, documentNameLockReplacementCharacter, 1),
 		documentNameIllegalCharacter, documentNameReplacementCharacter, -1)
 }
@@ -564,7 +559,7 @@ func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig utils.LinearCo
 }
 
 // watchCollection watches a firestore collection for changes and pushes those changes, events into the buffer for watchers
-func (b *FirestoreBackend) watchCollection() error {
+func (b *Backend) watchCollection() error {
 	var snaps *firestore.QuerySnapshotIterator
 	if b.LimitWatchQuery {
 		snaps = b.svc.Collection(b.CollectionName).Query.Where(timestampDocProperty, ">=", b.clock.Now().UTC().Unix()).Snapshots(b.clientContext)
@@ -619,7 +614,7 @@ func (b *FirestoreBackend) watchCollection() error {
 }
 
 // purgeExpiredDocuments ticks on configured interval and removes expired documents from firestore
-func (b *FirestoreBackend) purgeExpiredDocuments() error {
+func (b *Backend) purgeExpiredDocuments() error {
 	t := time.NewTicker(b.PurgeExpiredDocumentsPollInterval)
 	defer t.Stop()
 	for {
@@ -668,7 +663,7 @@ func ConvertGRPCError(err error, args ...interface{}) error {
 	}
 }
 
-func (b *FirestoreBackend) getIndexParent() string {
+func (b *Backend) getIndexParent() string {
 	return "projects/" + b.ProjectID + "/databases/(default)/collectionGroups/" + b.CollectionName
 }
 
@@ -682,7 +677,7 @@ func DeleteAllDocuments(ctx context.Context, svc *firestore.Client, collectionNa
 	_, _ = batch.Commit(ctx)
 }
 
-func (b *FirestoreBackend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
+func (b *Backend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	defer adminSvc.Close()
 	tuples := make([]*IndexTuple, 0)
 	tuples = append(tuples, &IndexTuple{
