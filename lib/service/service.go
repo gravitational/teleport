@@ -345,6 +345,9 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 				return nil, trace.Wrap(err)
 			}
 			i, err = auth.GenerateIdentity(process.localAuth, id, principals, dnsNames)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		} else {
 			// try to locate static identity provided in the file
 			i, err = process.findStaticIdentity(id)

@@ -840,6 +840,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:      services.NewBool(true),
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: time.Second,
@@ -855,6 +856,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:          services.NewBool(true),
 				DisconnectExpiredCert: services.NewBool(true),
 				MaxSessionTTL:         services.NewDuration(2 * time.Second),
 			},
@@ -876,7 +878,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 		Pub:         s.pub,
 	})
 
-	// devs role gets disconnected after 1 second idle time
 	username := s.me.Username
 	role, err := services.NewRole("devs", services.RoleSpecV3{
 		Options: tc.options,
@@ -888,7 +889,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	t.AddUserWithRole(username, role)
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
+		SessionRecording: tc.recordingMode,
 		LocalAuth:        services.NewBool(true),
 	})
 	c.Assert(err, check.IsNil)
@@ -911,9 +912,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	person := NewTerminal(250)
 
-	// commandsC receive commands
-	commandsC := make(chan string, 0)
-
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	sessionCtx, sessionCancel := context.WithCancel(context.TODO())
 	openSession := func() {
@@ -922,12 +920,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 		c.Assert(err, check.IsNil)
 		cl.Stdout = person
 		cl.Stdin = person
-
-		go func() {
-			for command := range commandsC {
-				person.Type(command)
-			}
-		}()
 
 		err = cl.SSH(context.TODO(), []string{}, false)
 		if err != nil && err != io.EOF {
@@ -938,7 +930,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	go openSession()
 
 	enterInput(c, person, "echo start \r\n", ".*start.*")
-	time.Sleep(tc.disconnectTimeout)
 	select {
 	case <-time.After(tc.disconnectTimeout):
 		c.Fatalf("timeout waiting for session to exit")

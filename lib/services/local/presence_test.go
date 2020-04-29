@@ -105,7 +105,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// make sure it's really gone
-	gotTC, err = presenceBackend.GetTrustedCluster("foo")
+	_, err = presenceBackend.GetTrustedCluster("foo")
 	c.Assert(err, check.NotNil)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }

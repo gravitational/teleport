@@ -181,7 +181,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, ".*failed to open file.*")
 	// bad content:
-	conf, err = ReadFromFile(s.configFileBadContent)
+	_, err = ReadFromFile(s.configFileBadContent)
 	c.Assert(err, check.NotNil)
 	// mpty config (must not fail)
 	conf, err = ReadFromFile(s.configFileNoContent)

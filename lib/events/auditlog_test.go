@@ -98,6 +98,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 	fileHandler, err := filesessions.NewHandler(filesessions.Config{
 		Directory: storageDir,
 	})
+	c.Assert(err, check.IsNil)
 
 	alog, err := NewAuditLog(AuditLogConfig{
 		Clock:          fakeClock,
@@ -119,6 +120,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 
 	uploadDir := c.MkDir()
 	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+	c.Assert(err, check.IsNil)
 	sessionID := string(session.NewID())
 	forwarder, err := NewForwarder(ForwarderConfig{
 		Namespace:      defaults.Namespace,
@@ -224,6 +226,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	fileHandler, err := filesessions.NewHandler(filesessions.Config{
 		Directory: storageDir,
 	})
+	c.Assert(err, check.IsNil)
 
 	now := time.Now().In(time.UTC).Round(time.Second)
 
@@ -244,6 +247,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 
 	uploadDir := c.MkDir()
 	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+	c.Assert(err, check.IsNil)
 	forwarder, err := NewForwarder(ForwarderConfig{
 		Namespace:      defaults.Namespace,
 		SessionID:      session.ID(sessionID),
@@ -381,6 +385,7 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 	fileHandler, err := filesessions.NewHandler(filesessions.Config{
 		Directory: storageDir,
 	})
+	c.Assert(err, check.IsNil)
 
 	fakeClock := clockwork.NewFakeClock()
 	alog, err := NewAuditLog(AuditLogConfig{
@@ -403,6 +408,7 @@ func (a *AuditTestSuite) TestExternalLog(c *check.C) {
 	fileHandler, err := filesessions.NewHandler(filesessions.Config{
 		Directory: storageDir,
 	})
+	c.Assert(err, check.IsNil)
 
 	fileLog, err := NewFileLog(FileLogConfig{
 		Dir: c.MkDir(),
@@ -429,6 +435,7 @@ func (a *AuditTestSuite) TestExternalLog(c *check.C) {
 func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock, alog IAuditLog) {
 	uploadDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+	c.Assert(err, check.IsNil)
 
 	sessionID := session.NewID()
 	forwarder, err := NewForwarder(ForwarderConfig{
