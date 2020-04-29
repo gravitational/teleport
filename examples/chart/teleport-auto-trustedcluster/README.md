@@ -10,16 +10,31 @@ By default this chart is configured as follows:
 
 - 1 replica
 - Record ssh/k8s exec and attach session to the `emptyDir` of the Teleport pod
+  - These sessions will also be stored on the root cluster, if used to access this Helm-configured cluster remotely
 - The assumed externally accessible hostname of Teleport is `teleport.example.com`
-- Teleport is accessible only from within your cluster. You need `kubectl port-forward` for external access.
+- Teleport will be deployed using a Kubernetes LoadBalancer
+  - This is a requirement for a trusted cluster setup
 - TLS is enabled by default on the Proxy
 
 See the comments in the default `values.yaml` and also the Teleport documentation for more options.
 
+### Setting up your trusted cluster configuration
+
+This version of the chart has been modified to automatically connect back to a "root" Teleport cluster when started. This
+enables remote access to and management of this "leaf" Teleport cluster when deployed on a customer site.
+
+You will need to edit the values in the `trustedCluster.extraVars` section of `values.yaml` as appropriate for your cluster.
+There are comments in the file describing what the values need to be set to.
+
 ## Prerequisites
 
+- Helm v2.16+
 - Kubernetes 1.10+
-- A Teleport license file stored as a Kubernetes Secret object(See below)
+- A Teleport license file stored as a Kubernetes Secret object - see below
+- Valid TLS private key and certificate chain which validates against a known root CA, stored in the `tls-web` secret.
+  - Private key should be called `privkey.pem`
+  - Certificate chain should be called `fullchain.pem`
+  - Providers like Let's Encrypt are good for providing these certificates.
 
 ### Prepare the license file
 
@@ -35,54 +50,45 @@ Store it as a Kubernetes secret:
 kubectl create secret generic license --from-file=license-enterprise.pem
 ```
 
+### Prepare the tls-web secret
+
+You should issue valid TLS certificates for the public-facing name of this cluster. You can do this with a provider like Let's Encrypt, using the `certbot` client.
+
+Install `certbot`:
+
+```console
+# RHEL/CentOS
+$ yum -y install certbot
+
+# Debian/Ubuntu
+$ apt-get -y install certbot
+
+# Generic installation via Python PIP
+$ pip3 install certbot
+```
+
+Issue the certificate using certbot in manual mode:
+
+```console
+$ certbot -d teleport.example.com --manual --logs-dir . --config-dir . --work-dir . --preferred-challenges dns certonly
+```
+
+You will need to configure a DNS TXT record on the DNS provider for `teleport.example.com` so that the checks will validate.
+Certificates issued by LetsEncrypt expire every 90 days, so the renewal process for these certificates should be automated.
+
+Add the certificate and private key as a Kubernetes secret:
+
+```console
+$ kubectl create secret tls tls-web --cert=fullchain.pem --key=privkey.pem
+```
+
+Another good option for automatically issuing certificates inside a cluster is [cert-manager](https://github.com/jetstack/cert-manager).
+Teleport needs access to the generated private key and certificate chain itself. It can't easily be used with a Kubernetes `Ingress`.
+
 ## Installing the chart
 
 To install the chart with the release name `teleport`, run:
 
 ```
 $ helm install --name teleport ./
-```
-
-Teleport proxy generates a TLS key and a cert of its own by default.
-In order to instruct the proxy to use the TLS assets brought by you, prepare the following files:
-
-- Your CA cert named `ca.pem`
-- Your proxy server cert named `proxy-server.pem`
-- Your proxy server key named `proxy-server-key.pem`
-
-Then run:
-
-```
-$ kubectl create secret tls tls-web --cert=proxy-server.pem --key=proxy-server-key.pem
-$ kubectl create configmap ca-certs --from-file=ca.pem
-$ helm upgrade --install --name teleport ./
-```
-
-## Running locally on minikube
-
-Grab the test setup from the community project [teleport-on-minikube](http://github.com/mumoshu/teleport-on-minikube) and run:
-
-```
-path/to/teleport-on-minikube//scripts/install-on-minikube
-```
-
-Type your desired password, capture the barcode with your MFA device like Google Authenticator, type the OTP.
-
-Now, you can run various `tsh` commands against your local Teleport installation via `teleport.example.com`:
-
-```
-$ tsh login --auth=local --user=$USER login
-```
-
-## Contributing
-
-### Building the cli yourself
-
-```console
-$ git clone git@github.com:gravitational/teleport.git ~/go/src/github.com/gravitational/teleport
-cd $_
-
-$ make full
-
-$ build/tsh --proxy=teleport.example.com --auth=local --user=admin login
 ```

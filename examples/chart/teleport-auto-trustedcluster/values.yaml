@@ -26,8 +26,6 @@ config:
   auth_service:
     enabled: yes
     license_file: /var/lib/license/license-enterprise.pem
-    authentication:
-      type: oidc
     public_addr: add-customer-dns-here:3025
     # This will be the name that appears in the root cluster for management, so
     # it should be descriptive and contain the name of the customer.
@@ -53,17 +51,20 @@ config:
       public_addr: [add-customer-dns-here:3026]
 
 # Trusted cluster configuration
-# Set these values as appropriate for the root cluster you want to join this leaf cluster back to
+# See https://gravitational.com/teleport/docs/trustedclusters for help
+# INSTRUCTIONS
+# Set these values as appropriate for the root cluster you want to join this leaf cluster back to.
 trustedCluster:
   extraVars:
-    # The name of the role on the root cluster which should have admin permissions on this leaf cluster
+    # The name of the role on the root cluster which should be granted admin permissions on this leaf cluster
     ROOT_CLUSTER_ADMIN_ROLE: "admin"
     # A trusted cluster join token, generated on the root cluster with 'tctl tokens add --type=trusted_cluster'
-    ROOT_CLUSTER_JOIN_TOKEN: "b35b9cf525db57152a762a50d2d227a5"
+    # See https://gravitational.com/teleport/docs/trustedclusters/#static-join-tokens for static tokens
+    ROOT_CLUSTER_JOIN_TOKEN: "trusted-cluster-join-token-goes-here"
     # The tunnel address of the root cluster (usually on port 3024)
-    ROOT_CLUSTER_TUNNEL_ADDRESS: "gus-main.gravitational.co:3024"
+    ROOT_CLUSTER_TUNNEL_ADDRESS: "root-cluster.example.com:3024"
     # The web proxy address of the root cluster (usually on port 3080 or 443)
-    ROOT_CLUSTER_WEB_ADDRESS: "gus-main.gravitational.co:3080"      
+    ROOT_CLUSTER_WEB_ADDRESS: "root-cluster.example.com:3080"
 
 # Hopefully shouldn't need to change anything below here!
 labels: {}
