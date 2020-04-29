@@ -52,7 +52,9 @@ kubectl create secret generic license --from-file=license-enterprise.pem
 
 ### Prepare the tls-web secret
 
-You should issue valid TLS certificates for the public-facing name of this cluster. You can do this with a provider like Let's Encrypt, using the `certbot` client.
+You will need to  issue valid TLS certificates for the public-facing name of this cluster.
+
+You can do this with a provider like Let's Encrypt. This is an example of how to do this using the `certbot` client.
 
 Install `certbot`:
 
@@ -73,14 +75,18 @@ Issue the certificate using certbot in manual mode:
 $ certbot -d teleport.example.com --manual --logs-dir . --config-dir . --work-dir . --preferred-challenges dns certonly
 ```
 
-You will need to configure a DNS TXT record on the DNS provider for `teleport.example.com` so that the checks will validate.
-Certificates issued by LetsEncrypt expire every 90 days, so the renewal process for these certificates should be automated.
-
 Add the certificate and private key as a Kubernetes secret:
 
 ```console
 $ kubectl create secret tls tls-web --cert=fullchain.pem --key=privkey.pem
 ```
+#### Important information
+
+In manual mode, you will need to configure a DNS TXT record on the DNS provider for `teleport.example.com` so that the
+checks will validate. Certificates issued by LetsEncrypt expire every 90 days, so the renewal process for these certificates
+will need to be automated.
+
+**WARNING**: If your certificates expire, connections from the root cluster to this leaf cluster will stop working.
 
 Another good option for automatically issuing certificates inside a cluster is [cert-manager](https://github.com/jetstack/cert-manager).
 Teleport needs access to the generated private key and certificate chain itself. It can't easily be used with a Kubernetes `Ingress`.
