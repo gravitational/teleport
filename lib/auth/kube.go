@@ -19,6 +19,7 @@ package auth
 import (
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -90,12 +91,21 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract user roles from the CSR. Pass zero time for id.Expiry, it won't
-	// be used here.
+	// Extract identity from the CSR. Pass zero time for id.Expiry, it won't be
+	// used here.
 	id, err := tlsca.FromSubject(csr.Subject, time.Time{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Enforce only k8s usage on generated cert, keep all other fields.
+	id.Usage = []string{teleport.UsageKubeOnly}
+	// Re-encode the identity to subject, with updated Usage.
+	subject, err := id.Subject()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract user roles from the identity (from the CSR Subject).
 	roles, err := services.FetchRoles(id.Groups, s, id.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -119,10 +129,11 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,
 		PublicKey: csr.PublicKey,
-		// Always trust the Subject sent by the proxy. A user may have received
-		// temporary extra roles via workflow API, we must preserve those. The
-		// storage backend doesn't record temporary granted roles.
-		Subject:  csr.Subject,
+		// Always trust the Subject sent by the proxy (minus the Usage field).
+		// A user may have received temporary extra roles via workflow API, we
+		// must preserve those. The storage backend doesn't record temporary
+		// granted roles.
+		Subject:  subject,
 		NotAfter: s.clock.Now().UTC().Add(ttl),
 	}
 	tlsCert, err := tlsAuthority.GenerateCertificate(certRequest)

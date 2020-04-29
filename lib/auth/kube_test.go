@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -67,7 +68,11 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 	// should match.
 	gotUserID, err := tlsca.FromSubject(cert.Subject, time.Time{})
 	c.Assert(err, check.IsNil)
-	c.Assert(*gotUserID, check.DeepEquals, userID)
+
+	wantUserID := userID
+	// Auth server should overwrite the Usage field and enforce UsageKubeOnly.
+	wantUserID.Usage = []string{teleport.UsageKubeOnly}
+	c.Assert(*gotUserID, check.DeepEquals, wantUserID)
 }
 
 // newTestCSR creates and PEM-encodes an x509 CSR with given subject.
