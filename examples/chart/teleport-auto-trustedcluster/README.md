@@ -21,7 +21,7 @@ See the comments in the default `values.yaml` and also the Teleport documentatio
 ### Setting up your trusted cluster configuration
 
 This version of the chart has been modified to automatically connect back to a "root" Teleport cluster when started. This
-enables remote access to and management of this "leaf" Teleport cluster when deployed on a customer site.
+enables remote access to and management of this Teleport cluster (the "leaf" cluster) when deployed on a customer site.
 
 You will need to edit the values in the `trustedCluster.extraVars` section of `values.yaml` as appropriate for your cluster.
 There are comments in the file describing what the values need to be set to.
