@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -316,11 +317,33 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	userName := user.GetName()
-	if err := client.UpsertUser(user); err != nil {
+	_, err = client.GetUser(userName, false)
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("user '%s' has been updated\n", userName)
+	exists := (err == nil)
+
+	ctx := context.TODO()
+	if exists {
+		if rc.force == false {
+			return trace.AlreadyExists("user %q already exists", userName)
+		}
+
+		if err := client.UpdateUser(ctx, user); err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Printf("user %q has been updated\n", userName)
+	} else {
+		if err := client.CreateUser(ctx, user); err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Printf("user %q has been created\n", userName)
+	}
+
 	return nil
 }
 
