@@ -17,8 +17,12 @@ limitations under the License.
 package shell
 
 import (
+	"testing"
+
 	"gopkg.in/check.v1"
 )
+
+func Test(t *testing.T) { check.TestingT(t) }
 
 type ShellSuite struct {
 }
@@ -30,14 +34,11 @@ func (s *ShellSuite) TestGetShell(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(shell == "/bin/bash" || shell == "/bin/sh", check.Equals, true)
 
-	_, err = GetLoginShell("non-existent-user")
-	c.Assert(err, check.NotNil)
-	c.Assert(err.Error(), check.Matches, "user: unknown user non-existent-user")
-
-	shell, err = GetLoginShell("daemon")
+	shell, err = GetLoginShell("non-existent-user")
 	c.Assert(err, check.IsNil)
-	c.Assert(shell == "/usr/sbin/nologin" ||
-		shell == "/sbin/nologin" ||
-		shell == "/usr/bin/nologin" ||
-		shell == "/usr/bin/false", check.Equals, true)
+	c.Assert(shell, check.Equals, DefaultShell)
+
+	shell, err = GetLoginShell("nobody")
+	c.Assert(err, check.IsNil)
+	c.Assert(shell, check.Matches, ".*(nologin|false)")
 }
