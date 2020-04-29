@@ -433,7 +433,24 @@ func init() {
 		}
 		return rsc, nil
 	})
-
+	RegisterResourceMarshaler(KindReverseTunnel, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(ReverseTunnel)
+		if !ok {
+			return nil, trace.BadParameter("expected ReverseTunnel, got %T", r)
+		}
+		raw, err := GetReverseTunnelMarshaler().MarshalReverseTunnel(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindReverseTunnel, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := GetReverseTunnelMarshaler().UnmarshalReverseTunnel(b, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
 	RegisterResourceMarshaler(KindGithubConnector, func(r Resource, opts ...MarshalOption) ([]byte, error) {
 		rsc, ok := r.(GithubConnector)
 		if !ok {

@@ -89,6 +89,8 @@ func itemsFromResource(resource services.Resource) ([]backend.Item, error) {
 		item, err = itemFromCertAuthority(r)
 	case services.TrustedCluster:
 		item, err = itemFromTrustedCluster(r)
+	case services.ReverseTunnel:
+		item, err = itemFromReverseTunnel(r)
 	case services.GithubConnector:
 		item, err = itemFromGithubConnector(r)
 	case services.Role:
@@ -152,6 +154,8 @@ func itemToResource(item backend.Item) (services.Resource, error) {
 		rsc, err = itemToCertAuthority(item)
 	case services.KindTrustedCluster:
 		rsc, err = itemToTrustedCluster(item)
+	case services.KindReverseTunnel:
+		rsc, err = itemToReverseTunnel(item)
 	case services.KindGithubConnector:
 		rsc, err = itemToGithubConnector(item)
 	case services.KindRole:
@@ -274,6 +278,39 @@ func itemToTrustedCluster(item backend.Item) (services.TrustedCluster, error) {
 		return nil, trace.Wrap(err)
 	}
 	return tc, nil
+}
+
+// itemFromReverseTunnel attempts to encode the supplied reverse tunnel
+// as an instance of `backend.Item` suitable for storage.
+func itemFromReverseTunnel(rt services.ReverseTunnel) (*backend.Item, error) {
+	if err := rt.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(rt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := &backend.Item{
+		Key:     backend.Key(reverseTunnelsPrefix, rt.GetName()),
+		Value:   value,
+		Expires: rt.Expiry(),
+		ID:      rt.GetResourceID(),
+	}
+	return item, nil
+}
+
+// itemToReverseTunnel attempts to decode the supplied `backend.Item` as
+// a reverse tunnel resource.
+func itemToReverseTunnel(item backend.Item) (services.ReverseTunnel, error) {
+	rt, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rt, nil
 }
 
 // itemFromGithubConnector attempts to encode the supplied github connector
