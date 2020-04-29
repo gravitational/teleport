@@ -125,11 +125,11 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 		Challenge: req.Challenge,
 		Origin:    req.AppID,
 	}
-	clientDataJson, err := json.Marshal(clientData)
+	clientDataJSON, err := json.Marshal(clientData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clientDataHash := sha256.Sum256(clientDataJson)
+	clientDataHash := sha256.Sum256(clientDataJSON)
 
 	marshalledPublickey := elliptic.Marshal(elliptic.P256(), muk.privatekey.PublicKey.X, muk.privatekey.PublicKey.Y)
 
@@ -158,7 +158,7 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 
 	return &u2f.RegisterResponse{
 		RegistrationData: encodeBase64(regData),
-		ClientData:       encodeBase64(clientDataJson),
+		ClientData:       encodeBase64(clientDataJSON),
 	}, nil
 }
 
@@ -175,18 +175,18 @@ func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
 
 	counterBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(counterBytes, muk.counter)
-	muk.counter += 1
+	muk.counter++
 
 	clientData := u2f.ClientData{
 		Typ:       "navigator.id.getAssertion",
 		Challenge: req.Challenge,
 		Origin:    req.AppID,
 	}
-	clientDataJson, err := json.Marshal(clientData)
+	clientDataJSON, err := json.Marshal(clientData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clientDataHash := sha256.Sum256(clientDataJson)
+	clientDataHash := sha256.Sum256(clientDataJSON)
 
 	var dataToSign []byte
 	dataToSign = append(dataToSign, appIDHash[:]...)
@@ -210,7 +210,7 @@ func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
 	return &u2f.SignResponse{
 		KeyHandle:     req.KeyHandle,
 		SignatureData: encodeBase64(signData),
-		ClientData:    encodeBase64(clientDataJson),
+		ClientData:    encodeBase64(clientDataJSON),
 	}, nil
 }
 

@@ -209,7 +209,7 @@ type TeleportProcess struct {
 	Config *Config
 	// localAuth has local auth server listed in case if this process
 	// has started with auth server role enabled
-	localAuth *auth.AuthServer
+	localAuth *auth.Server
 	// backend is the process' backend
 	backend backend.Backend
 	// auditLog is the initialized audit log
@@ -268,7 +268,7 @@ func nextProcessID() int32 {
 }
 
 // GetAuthServer returns the process' auth server
-func (process *TeleportProcess) GetAuthServer() *auth.AuthServer {
+func (process *TeleportProcess) GetAuthServer() *auth.Server {
 	return process.localAuth
 }
 
@@ -734,13 +734,13 @@ func (process *TeleportProcess) notifyParent() {
 	}
 }
 
-func (process *TeleportProcess) setLocalAuth(a *auth.AuthServer) {
+func (process *TeleportProcess) setLocalAuth(a *auth.Server) {
 	process.Lock()
 	defer process.Unlock()
 	process.localAuth = a
 }
 
-func (process *TeleportProcess) getLocalAuth() *auth.AuthServer {
+func (process *TeleportProcess) getLocalAuth() *auth.Server {
 	process.Lock()
 	defer process.Unlock()
 	return process.localAuth
@@ -1029,10 +1029,10 @@ func (process *TeleportProcess) initAuthService() error {
 		AuditLog:       process.auditLog,
 	}
 
-	var authCache auth.AuthCache
+	var authCache auth.Cache
 	if process.Config.CachePolicy.Enabled {
 		cache, err := process.newAccessCache(accessCacheConfig{
-			services:  authServer.AuthServices,
+			services:  authServer.Services,
 			setup:     cache.ForAuth,
 			cacheName: []string{teleport.ComponentAuth},
 			inMemory:  true,
@@ -1043,7 +1043,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		authCache = cache
 	} else {
-		authCache = authServer.AuthServices
+		authCache = authServer.Services
 	}
 	authServer.SetCache(authCache)
 

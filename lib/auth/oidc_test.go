@@ -32,7 +32,7 @@ import (
 )
 
 type OIDCSuite struct {
-	a *AuthServer
+	a *Server
 	b backend.Backend
 	c clockwork.FakeClock
 }
@@ -65,7 +65,7 @@ func (s *OIDCSuite) SetUpSuite(c *check.C) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	s.a, err = NewAuthServer(authConfig)
+	s.a, err = NewServer(authConfig)
 	c.Assert(err, check.IsNil)
 }
 

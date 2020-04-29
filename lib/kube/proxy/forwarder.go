@@ -220,7 +220,7 @@ func (f *Forwarder) Close() error {
 // authContext is a context of authenticated user,
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
-	auth.AuthContext
+	auth.Context
 	kubeGroups    map[string]struct{}
 	kubeUsers     map[string]struct{}
 	cluster       cluster
@@ -345,7 +345,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 	})
 }
 
-func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemoteUser bool, certExpires time.Time) (*authContext, error) {
+func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUser bool, certExpires time.Time) (*authContext, error) {
 	roles := ctx.Checker
 
 	clusterConfig, err := f.AccessPoint.GetClusterConfig()
@@ -416,7 +416,7 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 	authCtx := &authContext{
 		clientIdleTimeout: roles.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
-		AuthContext:       ctx,
+		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
 		clusterConfig:     clusterConfig,

@@ -37,7 +37,7 @@ import (
 )
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
-func (s *AuthServer) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
+func (s *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
 	connector, err := s.Identity.GetGithubConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -81,8 +81,8 @@ type GithubAuthResponse struct {
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
-	re, err := a.validateGithubAuthCallback(q)
+func (s *Server) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
+	re, err := s.validateGithubAuthCallback(q)
 	if err != nil {
 		fields := events.EventFields{
 			events.LoginMethod:        events.LoginMethodGithub,
@@ -92,7 +92,7 @@ func (a *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 		if re != nil && re.claims != nil {
 			fields[events.IdentityAttributes] = re.claims
 		}
-		a.EmitAuditEvent(events.UserSSOLoginFailure, fields)
+		s.EmitAuditEvent(events.UserSSOLoginFailure, fields)
 		return nil, trace.Wrap(err)
 	}
 	fields := events.EventFields{
@@ -103,7 +103,7 @@ func (a *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 	if re.claims != nil {
 		fields[events.IdentityAttributes] = re.claims
 	}
-	a.EmitAuditEvent(events.UserSSOLogin, fields)
+	s.EmitAuditEvent(events.UserSSOLogin, fields)
 	return &re.auth, nil
 }
 
@@ -113,7 +113,7 @@ type githubAuthResponse struct {
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error) {
+func (s *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error) {
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 	error := q.Get("error")
 	if error != "" {
@@ -229,7 +229,7 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*githubAuthRespon
 	return re, nil
 }
 
-func (s *AuthServer) createWebSession(user services.User, sessionTTL time.Duration) (services.WebSession, error) {
+func (s *Server) createWebSession(user services.User, sessionTTL time.Duration) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
@@ -253,7 +253,7 @@ func (s *AuthServer) createWebSession(user services.User, sessionTTL time.Durati
 	return session, nil
 }
 
-func (s *AuthServer) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility string) ([]byte, []byte, error) {
+func (s *Server) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility string) ([]byte, []byte, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
@@ -305,7 +305,7 @@ type createUserParams struct {
 	sessionTTL time.Duration
 }
 
-func (s *AuthServer) calculateGithubUser(connector services.GithubConnector, claims *services.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
+func (s *Server) calculateGithubUser(connector services.GithubConnector, claims *services.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      claims.Username,
@@ -332,7 +332,7 @@ func (s *AuthServer) calculateGithubUser(connector services.GithubConnector, cla
 	return &p, nil
 }
 
-func (s *AuthServer) createGithubUser(p *createUserParams) (services.User, error) {
+func (s *Server) createGithubUser(p *createUserParams) (services.User, error) {
 
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Generating dynamic identity %v/%v with logins: %v.",
@@ -421,7 +421,7 @@ func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, erro
 	return claims, nil
 }
 
-func (s *AuthServer) getGithubOAuth2Client(connector services.GithubConnector) (*oauth2.Client, error) {
+func (s *Server) getGithubOAuth2Client(connector services.GithubConnector) (*oauth2.Client, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	config := oauth2.Config{
@@ -464,7 +464,7 @@ type githubAPIClient struct {
 	// token is the access token retrieved during OAuth2 flow
 	token string
 	// authServer points to the Auth Server.
-	authServer *AuthServer
+	authServer *Server
 }
 
 // userResponse represents response from "user" API call

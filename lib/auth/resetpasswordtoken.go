@@ -94,7 +94,7 @@ func (r *CreateResetPasswordTokenRequest) CheckAndSetDefaults() error {
 }
 
 // CreateResetPasswordToken creates a reset password token
-func (s *AuthServer) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
+func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
 	err := req.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -134,7 +134,7 @@ func (s *AuthServer) CreateResetPasswordToken(ctx context.Context, req CreateRes
 // This ensures that an attacker that gains the ResetPasswordToken link can not view it,
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
-func (s *AuthServer) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error) {
+func (s *Server) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error) {
 	token, err := s.GetResetPasswordToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -160,7 +160,7 @@ func (s *AuthServer) RotateResetPasswordTokenSecrets(ctx context.Context, tokenI
 	return &secrets, nil
 }
 
-func (s *AuthServer) newResetPasswordToken(req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
+func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
 	tokenID, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -205,7 +205,7 @@ func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType strin
 	return u.String(), nil
 }
 
-func (s *AuthServer) deleteResetPasswordTokens(ctx context.Context, username string) error {
+func (s *Server) deleteResetPasswordTokens(ctx context.Context, username string) error {
 	tokens, err := s.GetResetPasswordTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)

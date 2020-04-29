@@ -141,7 +141,7 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCerts
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	certs, err := auth.AuthWithRoles.GenerateUserCerts(ctx, *req)
+	certs, err := auth.GenerateUserCerts(ctx, *req)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -153,7 +153,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*s
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	user, err := auth.AuthWithRoles.GetUser(req.Name, req.WithSecrets)
+	user, err := auth.GetUser(req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -170,7 +170,7 @@ func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthServi
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	users, err := auth.AuthWithRoles.GetUsers(req.WithSecrets)
+	users, err := auth.GetUsers(req.WithSecrets)
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
@@ -196,7 +196,7 @@ func (g *GRPCServer) GetAccessRequests(ctx context.Context, f *services.AccessRe
 	if f != nil {
 		filter = *f
 	}
-	reqs, err := auth.AuthWithRoles.GetAccessRequests(ctx, filter)
+	reqs, err := auth.GetAccessRequests(ctx, filter)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -219,7 +219,7 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *services.Acce
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	if err := auth.AuthWithRoles.CreateAccessRequest(ctx, req); err != nil {
+	if err := auth.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
@@ -230,7 +230,7 @@ func (g *GRPCServer) DeleteAccessRequest(ctx context.Context, id *proto.RequestI
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	if err := auth.AuthWithRoles.DeleteAccessRequest(ctx, id.ID); err != nil {
+	if err := auth.DeleteAccessRequest(ctx, id.ID); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
@@ -244,7 +244,7 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	if req.Delegator != "" {
 		ctx = WithDelegator(ctx, req.Delegator)
 	}
-	if err := auth.AuthWithRoles.SetAccessRequestState(ctx, req.ID, req.State); err != nil {
+	if err := auth.SetAccessRequestState(ctx, req.ID, req.State); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
@@ -336,7 +336,7 @@ func (g *GRPCServer) GetPluginData(ctx context.Context, filter *services.PluginD
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	data, err := auth.AuthWithRoles.GetPluginData(ctx, *filter)
+	data, err := auth.GetPluginData(ctx, *filter)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -362,7 +362,7 @@ func (g *GRPCServer) UpdatePluginData(ctx context.Context, params *services.Plug
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	if err := auth.AuthWithRoles.UpdatePluginData(ctx, *params); err != nil {
+	if err := auth.UpdatePluginData(ctx, *params); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
@@ -397,8 +397,8 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*emp
 }
 
 type grpcContext struct {
-	*AuthContext
-	*AuthWithRoles
+	*Context
+	*serverWithRoles
 }
 
 // authenticate extracts authentication context and returns initialized auth server
@@ -419,8 +419,8 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		return nil, trace.AccessDenied("[10] access denied")
 	}
 	return &grpcContext{
-		AuthContext: authContext,
-		AuthWithRoles: &AuthWithRoles{
+		Context: authContext,
+		serverWithRoles: &serverWithRoles{
 			authServer: g.AuthServer,
 			user:       authContext.User,
 			checker:    authContext.Checker,

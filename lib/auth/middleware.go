@@ -99,7 +99,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &AuthMiddleware{
+	authMiddleware := &Middleware{
 		AccessPoint:   cfg.AccessPoint,
 		AcceptedUsage: cfg.AcceptedUsage,
 	}
@@ -167,8 +167,8 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	return tlsCopy, nil
 }
 
-// AuthMiddleware is authentication middleware checking every request
-type AuthMiddleware struct {
+// Middleware is authentication middleware checking every request
+type Middleware struct {
 	// AccessPoint is a caching access point for auth server
 	AccessPoint AccessCache
 	// Handler is HTTP handler called after the middleware checks requests
@@ -183,12 +183,12 @@ type AuthMiddleware struct {
 }
 
 // Wrap sets next handler in chain
-func (a *AuthMiddleware) Wrap(h http.Handler) {
+func (a *Middleware) Wrap(h http.Handler) {
 	a.Handler = h
 }
 
 // GetUser returns authenticated user based on request metadata set by HTTP server
-func (a *AuthMiddleware) GetUser(r *http.Request) (IdentityGetter, error) {
+func (a *Middleware) GetUser(r *http.Request) (IdentityGetter, error) {
 	peers := r.TLS.PeerCertificates
 	if len(peers) > 1 {
 		// when turning intermediaries on, don't forget to verify
@@ -301,7 +301,7 @@ func findSystemRole(roles []string) *teleport.Role {
 }
 
 // ServeHTTP serves HTTP requests
-func (a *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	baseContext := r.Context()
 	if baseContext == nil {
 		baseContext = context.TODO()

@@ -58,7 +58,7 @@ type KubeCSRResponse struct {
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if sucessful.
-func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if !modules.GetModules().SupportsKubernetes() {
 		return nil, trace.AccessDenied(
 			"this teleport cluster does not support kubernetes, please contact system administrator for support")

@@ -195,18 +195,18 @@ type rotationReq struct {
 // It is possible to switch from automatic to manual by setting the phase
 // to the rollback phase.
 //
-func (a *AuthServer) RotateCertAuthority(req RotateRequest) error {
-	if err := req.CheckAndSetDefaults(a.clock); err != nil {
+func (s *Server) RotateCertAuthority(req RotateRequest) error {
+	if err := req.CheckAndSetDefaults(s.clock); err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName()
+	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	caTypes := req.Types()
 	for _, caType := range caTypes {
-		existing, err := a.Trust.GetCertAuthority(services.CertAuthID{
+		existing, err := s.Trust.GetCertAuthority(services.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -215,17 +215,17 @@ func (a *AuthServer) RotateCertAuthority(req RotateRequest) error {
 		}
 		rotated, err := processRotationRequest(rotationReq{
 			ca:          existing,
-			clock:       a.clock,
+			clock:       s.clock,
 			targetPhase: req.TargetPhase,
 			schedule:    *req.Schedule,
 			gracePeriod: *req.GracePeriod,
 			mode:        req.Mode,
-			privateKey:  a.privateKey,
+			privateKey:  s.privateKey,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.CompareAndSwapCertAuthority(rotated, existing); err != nil {
+		if err := s.CompareAndSwapCertAuthority(rotated, existing); err != nil {
 			return trace.Wrap(err)
 		}
 		rotation := rotated.GetRotation()
@@ -242,11 +242,11 @@ func (a *AuthServer) RotateCertAuthority(req RotateRequest) error {
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is called by remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
-func (a *AuthServer) RotateExternalCertAuthority(ca services.CertAuthority) error {
+func (s *Server) RotateExternalCertAuthority(ca services.CertAuthority) error {
 	if ca == nil {
 		return trace.BadParameter("missing certificate authority")
 	}
-	clusterName, err := a.GetClusterName()
+	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -257,7 +257,7 @@ func (a *AuthServer) RotateExternalCertAuthority(ca services.CertAuthority) erro
 		return trace.BadParameter("can not rotate local certificate authority")
 	}
 
-	existing, err := a.Trust.GetCertAuthority(services.CertAuthID{
+	existing, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       ca.GetType(),
 		DomainName: ca.GetClusterName(),
 	}, false)
@@ -272,7 +272,7 @@ func (a *AuthServer) RotateExternalCertAuthority(ca services.CertAuthority) erro
 
 	// use compare and swap to protect from concurrent updates
 	// by trusted cluster API
-	if err := a.CompareAndSwapCertAuthority(updated, existing); err != nil {
+	if err := s.CompareAndSwapCertAuthority(updated, existing); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -282,27 +282,27 @@ func (a *AuthServer) RotateExternalCertAuthority(ca services.CertAuthority) erro
 // autoRotateCertAuthorities automatically rotates cert authorities,
 // does nothing if no rotation parameters were set up
 // or it is too early to rotate per schedule
-func (a *AuthServer) autoRotateCertAuthorities() error {
-	clusterName, err := a.GetClusterName()
+func (s *Server) autoRotateCertAuthorities() error {
+	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, caType := range []services.CertAuthType{services.HostCA, services.UserCA} {
-		ca, err := a.Trust.GetCertAuthority(services.CertAuthID{
+		ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.autoRotate(ca); err != nil {
+		if err := s.autoRotate(ca); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
+func (s *Server) autoRotate(ca services.CertAuthority) error {
 	rotation := ca.GetRotation()
 	// rotation mode is not automatic, nothing to do
 	if rotation.Mode != services.RotationModeAuto {
@@ -316,11 +316,11 @@ func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
 	var req *rotationReq
 	switch rotation.Phase {
 	case services.RotationPhaseInit:
-		if rotation.Schedule.UpdateClients.After(a.clock.Now()) {
+		if rotation.Schedule.UpdateClients.After(s.clock.Now()) {
 			return nil
 		}
 		req = &rotationReq{
-			clock:       a.clock,
+			clock:       s.clock,
 			ca:          ca,
 			targetPhase: services.RotationPhaseUpdateClients,
 			mode:        services.RotationModeAuto,
@@ -328,11 +328,11 @@ func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
 			schedule:    rotation.Schedule,
 		}
 	case services.RotationPhaseUpdateClients:
-		if rotation.Schedule.UpdateServers.After(a.clock.Now()) {
+		if rotation.Schedule.UpdateServers.After(s.clock.Now()) {
 			return nil
 		}
 		req = &rotationReq{
-			clock:       a.clock,
+			clock:       s.clock,
 			ca:          ca,
 			targetPhase: services.RotationPhaseUpdateServers,
 			mode:        services.RotationModeAuto,
@@ -340,11 +340,11 @@ func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
 			schedule:    rotation.Schedule,
 		}
 	case services.RotationPhaseUpdateServers:
-		if rotation.Schedule.Standby.After(a.clock.Now()) {
+		if rotation.Schedule.Standby.After(s.clock.Now()) {
 			return nil
 		}
 		req = &rotationReq{
-			clock:       a.clock,
+			clock:       s.clock,
 			ca:          ca,
 			targetPhase: services.RotationPhaseStandby,
 			mode:        services.RotationModeAuto,
@@ -359,7 +359,7 @@ func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.CompareAndSwapCertAuthority(rotated, ca); err != nil {
+	if err := s.CompareAndSwapCertAuthority(rotated, ca); err != nil {
 		return trace.Wrap(err)
 	}
 	logger.Infof("Cert authority rotation request is completed")

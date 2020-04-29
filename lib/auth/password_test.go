@@ -40,7 +40,7 @@ import (
 
 type PasswordSuite struct {
 	bk backend.Backend
-	a  *AuthServer
+	a  *Server
 }
 
 var _ = fmt.Printf
@@ -70,7 +70,7 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	s.a, err = NewAuthServer(authConfig)
+	s.a, err = NewServer(authConfig)
 	c.Assert(err, IsNil)
 
 	err = s.a.SetClusterName(clusterName)

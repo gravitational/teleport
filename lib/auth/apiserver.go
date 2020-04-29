@@ -45,13 +45,13 @@ import (
 )
 
 type APIConfig struct {
-	AuthServer     *AuthServer
+	AuthServer     *Server
 	SessionService session.Service
 	AuditLog       events.IAuditLog
 	Authorizer     Authorizer
 }
 
-// APIServer implements http API server for AuthServer interface
+// APIServer implements http API server for Server interface
 type APIServer struct {
 	APIConfig
 	httprouter.Router
@@ -258,7 +258,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 
 			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
 		}
-		auth := &AuthWithRoles{
+		auth := &serverWithRoles{
 			authServer: s.AuthServer,
 			user:       authContext.User,
 			checker:    authContext.Checker,

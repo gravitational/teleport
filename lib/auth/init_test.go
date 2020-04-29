@@ -164,7 +164,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 }
 
-// TestAuthPreference ensures that the act of creating an AuthServer sets
+// TestAuthPreference ensures that the act of creating an Server sets
 // the AuthPreference (type and second factor) on the backend.
 func (s *AuthInitSuite) TestAuthPreference(c *C) {
 	bk, err := lite.New(context.TODO(), backend.Params{"path": s.tempDir})

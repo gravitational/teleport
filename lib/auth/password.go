@@ -32,7 +32,7 @@ type ChangePasswordWithTokenRequest struct {
 }
 
 // ChangePasswordWithToken changes password with token
-func (s *AuthServer) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
+func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
 	user, err := s.changePasswordWithToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -49,7 +49,7 @@ func (s *AuthServer) ChangePasswordWithToken(ctx context.Context, req ChangePass
 // ResetPassword securely generates a new random password and assigns it to user.
 // This method is used to invalidate existing user password during password
 // reset process.
-func (s *AuthServer) ResetPassword(username string) (string, error) {
+func (s *Server) ResetPassword(username string) (string, error) {
 	user, err := s.GetUser(username, false)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -69,7 +69,7 @@ func (s *AuthServer) ResetPassword(username string) (string, error) {
 }
 
 // ChangePassword changes user passsword
-func (s *AuthServer) ChangePassword(req services.ChangePasswordReq) error {
+func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 	// validate new password
 	err := services.VerifyPassword(req.NewPassword)
 	if err != nil {
@@ -110,7 +110,7 @@ func (s *AuthServer) ChangePassword(req services.ChangePasswordReq) error {
 
 // CheckPasswordWOToken checks just password without checking OTP tokens
 // used in case of SSH authentication, when token has been validated.
-func (s *AuthServer) CheckPasswordWOToken(user string, password []byte) error {
+func (s *Server) CheckPasswordWOToken(user string, password []byte) error {
 	const errMsg = "invalid username or password"
 
 	err := services.VerifyPassword(password)
@@ -136,7 +136,7 @@ func (s *AuthServer) CheckPasswordWOToken(user string, password []byte) error {
 }
 
 // CheckPassword checks the password and OTP token. Called by tsh or lib/web/*.
-func (s *AuthServer) CheckPassword(user string, password []byte, otpToken string) error {
+func (s *Server) CheckPassword(user string, password []byte, otpToken string) error {
 	err := s.CheckPasswordWOToken(user, password)
 	if err != nil {
 		return trace.Wrap(err)
@@ -148,7 +148,7 @@ func (s *AuthServer) CheckPassword(user string, password []byte, otpToken string
 
 // CheckOTP determines the type of OTP token used (for legacy HOTP support), fetches the
 // appropriate type from the backend, and checks if the token is valid.
-func (s *AuthServer) CheckOTP(user string, otpToken string) error {
+func (s *Server) CheckOTP(user string, otpToken string) error {
 	var err error
 
 	otpType, err := s.getOTPType(user)
@@ -217,7 +217,7 @@ func (s *AuthServer) CheckOTP(user string, otpToken string) error {
 }
 
 // CreateSignupU2FRegisterRequest creates U2F requests
-func (s *AuthServer) CreateSignupU2FRegisterRequest(tokenID string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
 	cap, err := s.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -249,7 +249,7 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(tokenID string) (u2fRegister
 
 // getOTPType returns the type of OTP token used, HOTP or TOTP.
 // Deprecated: Remove this method once HOTP support has been removed from Gravity.
-func (s *AuthServer) getOTPType(user string) (string, error) {
+func (s *Server) getOTPType(user string) (string, error) {
 	_, err := s.GetHOTP(user)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -260,7 +260,7 @@ func (s *AuthServer) getOTPType(user string) (string, error) {
 	return teleport.HOTP, nil
 }
 
-func (s *AuthServer) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.User, error) {
+func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.User, error) {
 	// Get cluster configuration and check if local auth is allowed.
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
@@ -312,7 +312,7 @@ func (s *AuthServer) changePasswordWithToken(ctx context.Context, req ChangePass
 	return user, nil
 }
 
-func (s *AuthServer) changeUserSecondFactor(req ChangePasswordWithTokenRequest, ResetPasswordToken services.ResetPasswordToken) error {
+func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, ResetPasswordToken services.ResetPasswordToken) error {
 	username := ResetPasswordToken.GetUser()
 	cap, err := s.GetAuthPreference()
 	if err != nil {

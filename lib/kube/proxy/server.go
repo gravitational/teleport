@@ -93,7 +93,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &auth.AuthMiddleware{
+	authMiddleware := &auth.Middleware{
 		AccessPoint:   cfg.AccessPoint,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}

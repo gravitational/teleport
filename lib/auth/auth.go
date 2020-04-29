@@ -57,11 +57,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// AuthServerOption allows setting options as functional arguments to AuthServer
-type AuthServerOption func(*AuthServer)
+// ServerOption allows setting options as functional arguments to Server
+type ServerOption func(*Server)
 
-// NewAuthServer creates and configures a new AuthServer instance
-func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
+// NewServer creates and configures a new Server instance
+func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
@@ -98,7 +98,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
-	as := AuthServer{
+	as := Server{
 		bk:              cfg.Backend,
 		limiter:         limiter,
 		Authority:       cfg.Authority,
@@ -108,7 +108,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		githubClients:   make(map[string]*githubClient),
 		cancelFunc:      cancelFunc,
 		closeCtx:        closeCtx,
-		AuthServices: AuthServices{
+		Services: Services{
 			Trust:                cfg.Trust,
 			Presence:             cfg.Presence,
 			Provisioner:          cfg.Provisioner,
@@ -130,7 +130,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	return &as, nil
 }
 
-type AuthServices struct {
+type Services struct {
 	services.Trust
 	services.Presence
 	services.Provisioner
@@ -172,14 +172,14 @@ var (
 	)
 )
 
-// AuthServer keeps the cluster together. It acts as a certificate authority (CA) for
+// Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
 //	 - invites other SSH nodes to a cluster, by issuing invite tokens
 //	 - adds other SSH nodes to a cluster, by checking their token and signing their keys
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
-type AuthServer struct {
+type Server struct {
 	lock          sync.RWMutex
 	oidcClients   map[string]*oidcClient
 	samlProviders map[string]*samlProvider
@@ -197,9 +197,9 @@ type AuthServer struct {
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
 
-	// AuthServices encapsulate services - provisioner, trust, etc
+	// Services encapsulate services - provisioner, trust, etc
 	// used by the auth server in a separate structure
-	AuthServices
+	Services
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
@@ -210,46 +210,46 @@ type AuthServer struct {
 	// cache is a fast cache that allows auth server
 	// to use cache for most frequent operations,
 	// if not set, cache uses itself
-	cache AuthCache
+	cache Cache
 
 	limiter *limiter.ConnectionsLimiter
 }
 
 // SetCache sets cache used by auth server
-func (a *AuthServer) SetCache(clt AuthCache) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.cache = clt
+func (s *Server) SetCache(clt Cache) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.cache = clt
 }
 
-// GetCache returns cache used by auth server
-func (a *AuthServer) GetCache() AuthCache {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
-	if a.cache == nil {
-		return &a.AuthServices
+// getCache returns cache used by auth server
+func (s *Server) getCache() Cache {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	if s.cache == nil {
+		return &s.Services
 	}
-	return a.cache
+	return s.cache
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
-func (a *AuthServer) runPeriodicOperations() {
+func (s *Server) runPeriodicOperations() {
 	// run periodic functions with a semi-random period
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
 	// to update the same resources.
-	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
+	r := rand.New(rand.NewSource(s.GetClock().Now().UnixNano()))
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
 	ticker := time.NewTicker(period)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-a.closeCtx.Done():
+		case <-s.closeCtx.Done():
 			return
 		case <-ticker.C:
-			err := a.autoRotateCertAuthorities()
+			err := s.autoRotateCertAuthorities()
 			if err != nil {
 				if trace.IsCompareFailed(err) {
 					log.Debugf("Cert authority has been updated concurrently: %v.", err)
@@ -261,47 +261,47 @@ func (a *AuthServer) runPeriodicOperations() {
 	}
 }
 
-func (a *AuthServer) Close() error {
-	a.cancelFunc()
-	if a.bk != nil {
-		return trace.Wrap(a.bk.Close())
+func (s *Server) Close() error {
+	s.cancelFunc()
+	if s.bk != nil {
+		return trace.Wrap(s.bk.Close())
 	}
 	return nil
 }
 
-func (a *AuthServer) GetClock() clockwork.Clock {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
-	return a.clock
+func (s *Server) GetClock() clockwork.Clock {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	return s.clock
 }
 
 // SetClock sets clock, used in tests
-func (a *AuthServer) SetClock(clock clockwork.Clock) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.clock = clock
+func (s *Server) SetClock(clock clockwork.Clock) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.clock = clock
 }
 
 // SetAuditLog sets the server's audit log
-func (a *AuthServer) SetAuditLog(auditLog events.IAuditLog) {
-	a.IAuditLog = auditLog
+func (s *Server) SetAuditLog(auditLog events.IAuditLog) {
+	s.IAuditLog = auditLog
 }
 
 // GetClusterConfig gets ClusterConfig from the backend.
-func (a *AuthServer) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
-	return a.GetCache().GetClusterConfig(opts...)
+func (s *Server) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
+	return s.getCache().GetClusterConfig(opts...)
 }
 
 // GetClusterName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
-func (a *AuthServer) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
-	return a.GetCache().GetClusterName(opts...)
+func (s *Server) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
+	return s.getCache().GetClusterName(opts...)
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
-func (a *AuthServer) GetDomainName() (string, error) {
-	clusterName, err := a.GetClusterName()
+func (s *Server) GetDomainName() (string, error) {
+	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -315,13 +315,13 @@ type LocalCAResponse struct {
 }
 
 // GetClusterCACert returns the CAs for the local cluster without signing keys.
-func (a *AuthServer) GetClusterCACert() (*LocalCAResponse, error) {
-	clusterName, err := a.GetClusterName()
+func (s *Server) GetClusterCACert() (*LocalCAResponse, error) {
+	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Extract the TLS CA for this cluster.
-	hostCA, err := a.GetCache().GetCertAuthority(services.CertAuthID{
+	hostCA, err := s.getCache().GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
@@ -346,7 +346,7 @@ func (a *AuthServer) GetClusterCACert() (*LocalCAResponse, error) {
 
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
 // (along with meta data like host ID, node name, roles, and ttl) to generate a host certificate.
-func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
+func (s *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
 	domainName, err := s.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -419,16 +419,16 @@ type certRequest struct {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
-	user, err := a.Identity.GetUser(username, false)
+func (s *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
+	user, err := s.Identity.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	checker, err := services.FetchRoles(user.GetRoles(), s.Access, user.GetTraits())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	certs, err := a.generateUserCert(certRequest{
+	certs, err := s.generateUserCert(certRequest{
 		user:           user,
 		ttl:            ttl,
 		compatibility:  compatibility,
@@ -444,7 +444,7 @@ func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time
 }
 
 // generateUserCert generates user certificates
-func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
+func (s *Server) generateUserCert(req certRequest) (*certs, error) {
 	// reuse the same RSA keys for SSH and TLS keys
 	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
 	if err != nil {
@@ -566,7 +566,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 // this is done to avoid potential user lockouts due to backend failures
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
-func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) error {
+func (s *Server) WithUserLock(username string, authenticateFn func() error) error {
 	user, err := s.Identity.GetUser(username, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -621,7 +621,7 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
 // already checked before issuing the second factor challenge
-func (s *AuthServer) PreAuthenticatedSignIn(user string, identity *tlsca.Identity) (services.WebSession, error) {
+func (s *Server) PreAuthenticatedSignIn(user string, identity *tlsca.Identity) (services.WebSession, error) {
 	roles, traits, err := services.ExtractFromIdentity(s, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -636,7 +636,7 @@ func (s *AuthServer) PreAuthenticatedSignIn(user string, identity *tlsca.Identit
 	return sess.WithoutSecrets(), nil
 }
 
-func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+func (s *Server) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
 	cap, err := s.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -672,7 +672,7 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 	return u2fSignReq, nil
 }
 
-func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
+func (s *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
 	// before trying to register a user, see U2F is actually setup on the backend
 	cap, err := s.GetAuthPreference()
 	if err != nil {
@@ -713,7 +713,7 @@ func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignRespons
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID,
 // method is used to renew the web session for a user
-func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identity *tlsca.Identity) (services.WebSession, error) {
+func (s *Server) ExtendWebSession(user string, prevSessionID string, identity *tlsca.Identity) (services.WebSession, error) {
 	prevSession, err := s.GetWebSession(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -750,7 +750,7 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identit
 
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
-func (s *AuthServer) CreateWebSession(user string) (services.WebSession, error) {
+func (s *Server) CreateWebSession(user string) (services.WebSession, error) {
 	u, err := s.GetUser(user, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -800,7 +800,7 @@ func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
 }
 
 // GenerateToken generates multi-purpose authentication token
-func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
+func (s *Server) GenerateToken(req GenerateTokenRequest) (string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -875,7 +875,7 @@ func (req *GenerateServerKeysRequest) CheckAndSetDefaults() error {
 
 // GenerateServerKeys generates new host private keys and certificates (signed
 // by the host certificate authority) for a node.
-func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
+func (s *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -942,9 +942,9 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	}
 
 	// get the certificate authority that will be signing the public key of the host,
-	client := s.GetCache()
+	client := s.getCache()
 	if req.NoCache {
-		client = &s.AuthServices
+		client = &s.Services
 	}
 	ca, err := client.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
@@ -1038,8 +1038,8 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume, or an error if the token
 // cannot be found.
-func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
-	tkns, err := s.GetCache().GetStaticTokens()
+func (s *Server) ValidateToken(token string) (roles teleport.Roles, e error) {
+	tkns, err := s.getCache().GetStaticTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1054,7 +1054,7 @@ func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error)
 
 	// If it's not a static token, check if it's a ephemeral token in the backend.
 	// If a ephemeral token is found, make sure it's still valid.
-	tok, err := s.GetCache().GetToken(token)
+	tok, err := s.getCache().GetToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1067,7 +1067,7 @@ func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error)
 
 // checkTokenTTL checks if the token is still valid. If it is not, the token
 // is removed from the backend and returns false. Otherwise returns true.
-func (s *AuthServer) checkTokenTTL(tok services.ProvisionToken) bool {
+func (s *Server) checkTokenTTL(tok services.ProvisionToken) bool {
 	now := s.clock.Now().UTC()
 	if tok.Expiry().Before(now) {
 		err := s.DeleteToken(tok.GetName())
@@ -1129,7 +1129,7 @@ func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
 // If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
 // If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
 // after a successful registration.
-func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
+func (s *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
 	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
 
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -1168,7 +1168,7 @@ func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedK
 	return keys, nil
 }
 
-func (s *AuthServer) RegisterNewAuthServer(token string) error {
+func (s *Server) RegisterNewAuthServer(token string) error {
 	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1182,7 +1182,7 @@ func (s *AuthServer) RegisterNewAuthServer(token string) error {
 	return nil
 }
 
-func (s *AuthServer) DeleteToken(token string) (err error) {
+func (s *Server) DeleteToken(token string) (err error) {
 	tkns, err := s.GetStaticTokens()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1207,7 +1207,7 @@ func (s *AuthServer) DeleteToken(token string) (err error) {
 
 // GetTokens returns all tokens (machine provisioning ones and user invitation tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
-func (s *AuthServer) GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error) {
+func (s *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error) {
 	// get node tokens:
 	tokens, err = s.Provisioner.GetTokens()
 	if err != nil {
@@ -1238,7 +1238,7 @@ func (s *AuthServer) GetTokens(opts ...services.MarshalOption) (tokens []service
 	return tokens, nil
 }
 
-func (s *AuthServer) NewWebSession(username string, roles []string, traits wrappers.Traits) (services.WebSession, error) {
+func (s *Server) NewWebSession(username string, roles []string, traits wrappers.Traits) (services.WebSession, error) {
 	user, err := s.GetUser(username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1283,15 +1283,15 @@ func (s *AuthServer) NewWebSession(username string, roles []string, traits wrapp
 	}), nil
 }
 
-func (s *AuthServer) UpsertWebSession(user string, sess services.WebSession) error {
+func (s *Server) UpsertWebSession(user string, sess services.WebSession) error {
 	return s.Identity.UpsertWebSession(user, sess.GetName(), sess)
 }
 
-func (s *AuthServer) GetWebSession(userName string, id string) (services.WebSession, error) {
+func (s *Server) GetWebSession(userName string, id string) (services.WebSession, error) {
 	return s.Identity.GetWebSession(userName, id)
 }
 
-func (s *AuthServer) GetWebSessionInfo(userName string, id string) (services.WebSession, error) {
+func (s *Server) GetWebSessionInfo(userName string, id string) (services.WebSession, error) {
 	sess, err := s.Identity.GetWebSession(userName, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1299,7 +1299,7 @@ func (s *AuthServer) GetWebSessionInfo(userName string, id string) (services.Web
 	return sess.WithoutSecrets(), nil
 }
 
-func (s *AuthServer) DeleteNamespace(namespace string) error {
+func (s *Server) DeleteNamespace(namespace string) error {
 	if namespace == defaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
@@ -1313,20 +1313,20 @@ func (s *AuthServer) DeleteNamespace(namespace string) error {
 	return s.Presence.DeleteNamespace(namespace)
 }
 
-func (s *AuthServer) DeleteWebSession(user string, id string) error {
+func (s *Server) DeleteWebSession(user string, id string) error {
 	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }
 
 // NewWatcher returns a new event watcher. In case of an auth server
 // this watcher will return events as seen by the auth server's
 // in memory cache, not the backend.
-func (a *AuthServer) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
-	return a.GetCache().NewWatcher(ctx, watch)
+func (s *Server) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+	return s.getCache().NewWatcher(ctx, watch)
 }
 
-func (a *AuthServer) DeleteRole(name string) error {
+func (s *Server) DeleteRole(name string) error {
 	// check if this role is used by CA or Users
-	users, err := a.Identity.GetUsers(false)
+	users, err := s.Identity.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1342,7 +1342,7 @@ func (a *AuthServer) DeleteRole(name string) error {
 	}
 	// check if it's used by some external cert authorities, e.g.
 	// cert authorities related to external cluster
-	cas, err := a.Trust.GetCertAuthorities(services.UserCA, false)
+	cas, err := s.Trust.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1356,18 +1356,18 @@ func (a *AuthServer) DeleteRole(name string) error {
 			}
 		}
 	}
-	return a.Access.DeleteRole(name)
+	return s.Access.DeleteRole(name)
 }
 
-func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := services.ValidateAccessRequest(a, req); err != nil {
+func (s *Server) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+	if err := services.ValidateAccessRequest(s, req); err != nil {
 		return trace.Wrap(err)
 	}
-	ttl, err := a.calculateMaxAccessTTL(req)
+	ttl, err := s.calculateMaxAccessTTL(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	now := a.clock.Now().UTC()
+	now := s.clock.Now().UTC()
 	req.SetCreationTime(now)
 	exp := now.Add(ttl)
 	// Set acccess expiry if an allowable default was not provided.
@@ -1384,10 +1384,10 @@ func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.Acces
 			req.SetExpiry(pexp)
 		}
 	}
-	if err := a.DynamicAccess.CreateAccessRequest(ctx, req); err != nil {
+	if err := s.DynamicAccess.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.EmitAuditEvent(events.AccessRequestCreated, events.EventFields{
+	err = s.EmitAuditEvent(events.AccessRequestCreated, events.EventFields{
 		events.AccessRequestID:    req.GetName(),
 		events.EventUser:          req.GetUser(),
 		events.UserRoles:          req.GetRoles(),
@@ -1396,8 +1396,8 @@ func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.Acces
 	return trace.Wrap(err)
 }
 
-func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
-	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
+func (s *Server) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
+	if err := s.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
 		return trace.Wrap(err)
 	}
 	updateBy, err := getUpdateBy(ctx)
@@ -1412,17 +1412,17 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 	if delegator := getDelegator(ctx); delegator != "" {
 		fields[events.AccessRequestDelegator] = delegator
 	}
-	err = a.EmitAuditEvent(events.AccessRequestUpdated, fields)
+	err = s.EmitAuditEvent(events.AccessRequestUpdated, fields)
 	return trace.Wrap(err)
 }
 
 // calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
 // based on the MaxSessionTTLs of the roles being requested (a access request's life cannot
 // exceed the smallest allowable MaxSessionTTL value of the roles that it requests).
-func (a *AuthServer) calculateMaxAccessTTL(req services.AccessRequest) (time.Duration, error) {
+func (s *Server) calculateMaxAccessTTL(req services.AccessRequest) (time.Duration, error) {
 	minTTL := defaults.MaxAccessDuration
 	for _, roleName := range req.GetRoles() {
-		role, err := a.GetRole(roleName)
+		role, err := s.GetRole(roleName)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
@@ -1435,10 +1435,10 @@ func (a *AuthServer) calculateMaxAccessTTL(req services.AccessRequest) (time.Dur
 }
 
 // NewKeepAliver returns a new instance of keep aliver
-func (a *AuthServer) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
+func (s *Server) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	k := &authKeepAliver{
-		a:           a,
+		s:           s,
 		ctx:         cancelCtx,
 		cancel:      cancel,
 		keepAlivesC: make(chan services.KeepAlive),
@@ -1449,89 +1449,89 @@ func (a *AuthServer) NewKeepAliver(ctx context.Context) (services.KeepAliver, er
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (a *AuthServer) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
-	return a.GetCache().GetCertAuthority(id, loadSigningKeys, opts...)
+func (s *Server) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
+	return s.getCache().GetCertAuthority(id, loadSigningKeys, opts...)
 }
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (a *AuthServer) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error) {
-	return a.GetCache().GetCertAuthorities(caType, loadSigningKeys, opts...)
+func (s *Server) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error) {
+	return s.getCache().GetCertAuthorities(caType, loadSigningKeys, opts...)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
-func (a *AuthServer) GetStaticTokens() (services.StaticTokens, error) {
-	return a.GetCache().GetStaticTokens()
+func (s *Server) GetStaticTokens() (services.StaticTokens, error) {
+	return s.getCache().GetStaticTokens()
 }
 
 // GetToken finds and returns token by ID
-func (a *AuthServer) GetToken(token string) (services.ProvisionToken, error) {
-	return a.GetCache().GetToken(token)
+func (s *Server) GetToken(token string) (services.ProvisionToken, error) {
+	return s.getCache().GetToken(token)
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetRoles() ([]services.Role, error) {
-	return a.GetCache().GetRoles()
+func (s *Server) GetRoles() ([]services.Role, error) {
+	return s.getCache().GetRoles()
 }
 
 // GetRole is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetRole(name string) (services.Role, error) {
-	return a.GetCache().GetRole(name)
+func (s *Server) GetRole(name string) (services.Role, error) {
+	return s.getCache().GetRole(name)
 }
 
 // GetNamespace returns namespace
-func (a *AuthServer) GetNamespace(name string) (*services.Namespace, error) {
-	return a.GetCache().GetNamespace(name)
+func (s *Server) GetNamespace(name string) (*services.Namespace, error) {
+	return s.getCache().GetNamespace(name)
 }
 
 // GetNamespaces is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetNamespaces() ([]services.Namespace, error) {
-	return a.GetCache().GetNamespaces()
+func (s *Server) GetNamespaces() ([]services.Namespace, error) {
+	return s.getCache().GetNamespaces()
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	return a.GetCache().GetNodes(namespace, opts...)
+func (s *Server) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return s.getCache().GetNodes(namespace, opts...)
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
-	return a.GetCache().GetReverseTunnels(opts...)
+func (s *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
+	return s.getCache().GetReverseTunnels(opts...)
 }
 
 // GetProxies is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetProxies() ([]services.Server, error) {
-	return a.GetCache().GetProxies()
+func (s *Server) GetProxies() ([]services.Server, error) {
+	return s.getCache().GetProxies()
 }
 
 // GetUser is a part of auth.AccessPoint implementation.
-func (a *AuthServer) GetUser(name string, withSecrets bool) (user services.User, err error) {
-	return a.GetCache().GetUser(name, withSecrets)
+func (s *Server) GetUser(name string, withSecrets bool) (user services.User, err error) {
+	return s.getCache().GetUser(name, withSecrets)
 }
 
 // GetUsers is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetUsers(withSecrets bool) (users []services.User, err error) {
-	return a.GetCache().GetUsers(withSecrets)
+func (s *Server) GetUsers(withSecrets bool) (users []services.User, err error) {
+	return s.getCache().GetUsers(withSecrets)
 }
 
 // GetTunnelConnections is a part of auth.AccessPoint implementation
 // GetTunnelConnections are not using recent cache as they are designed
 // to be called periodically and always return fresh data
-func (a *AuthServer) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
-	return a.GetCache().GetTunnelConnections(clusterName, opts...)
+func (s *Server) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
+	return s.getCache().GetTunnelConnections(clusterName, opts...)
 }
 
 // GetAllTunnelConnections is a part of auth.AccessPoint implementation
 // GetAllTunnelConnections are not using recent cache, as they are designed
 // to be called periodically and always return fresh data
-func (a *AuthServer) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
-	return a.GetCache().GetAllTunnelConnections(opts...)
+func (s *Server) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
+	return s.getCache().GetAllTunnelConnections(opts...)
 }
 
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex
-	a           *AuthServer
+	s           *Server
 	ctx         context.Context
 	cancel      context.CancelFunc
 	keepAlivesC chan services.KeepAlive
@@ -1546,13 +1546,13 @@ func (k *authKeepAliver) KeepAlives() chan<- services.KeepAlive {
 func (k *authKeepAliver) forwardKeepAlives() {
 	for {
 		select {
-		case <-k.a.closeCtx.Done():
+		case <-k.s.closeCtx.Done():
 			k.Close()
 			return
 		case <-k.ctx.Done():
 			return
 		case keepAlive := <-k.keepAlivesC:
-			err := k.a.KeepAliveNode(k.ctx, keepAlive)
+			err := k.s.KeepAliveNode(k.ctx, keepAlive)
 			if err != nil {
 				k.closeWithError(err)
 				return

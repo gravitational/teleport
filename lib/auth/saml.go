@@ -33,15 +33,15 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 )
 
-func (s *AuthServer) UpsertSAMLConnector(connector services.SAMLConnector) error {
+func (s *Server) UpsertSAMLConnector(connector services.SAMLConnector) error {
 	return s.Identity.UpsertSAMLConnector(connector)
 }
 
-func (s *AuthServer) DeleteSAMLConnector(connectorName string) error {
+func (s *Server) DeleteSAMLConnector(connectorName string) error {
 	return s.Identity.DeleteSAMLConnector(connectorName)
 }
 
-func (s *AuthServer) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
+func (s *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
 	connector, err := s.Identity.GetSAMLConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -74,7 +74,7 @@ func (s *AuthServer) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*servi
 	return &req, nil
 }
 
-func (s *AuthServer) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
+func (s *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -95,7 +95,7 @@ func (s *AuthServer) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLSe
 }
 
 // buildSAMLRoles takes a connector and claims and returns a slice of roles.
-func (a *AuthServer) buildSAMLRoles(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo) ([]string, error) {
+func (s *Server) buildSAMLRoles(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo) ([]string, error) {
 	roles := connector.MapAttributes(assertionInfo)
 	if len(roles) == 0 {
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
@@ -120,7 +120,7 @@ func assertionsToTraitMap(assertionInfo saml2.AssertionInfo) map[string][]string
 	return traits
 }
 
-func (a *AuthServer) calculateSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
+func (s *Server) calculateSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
 	var err error
 
 	p := createUserParams{
@@ -128,14 +128,14 @@ func (a *AuthServer) calculateSAMLUser(connector services.SAMLConnector, asserti
 		username:      assertionInfo.NameID,
 	}
 
-	p.roles, err = a.buildSAMLRoles(connector, assertionInfo)
+	p.roles, err = s.buildSAMLRoles(connector, assertionInfo)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	p.traits = assertionsToTraitMap(assertionInfo)
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	roles, err := services.FetchRoles(p.roles, s.Access, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -145,8 +145,8 @@ func (a *AuthServer) calculateSAMLUser(connector services.SAMLConnector, asserti
 	return &p, nil
 }
 
-func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) {
-	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
+func (s *Server) createSAMLUser(p *createUserParams) (services.User, error) {
+	expires := s.GetClock().Now().UTC().Add(p.sessionTTL)
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
 
@@ -171,7 +171,7 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 				User: services.UserRef{
 					Name: "system",
 				},
-				Time: a.clock.Now().UTC(),
+				Time: s.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
 					Type:     teleport.ConnectorSAML,
 					ID:       p.connectorName,
@@ -185,7 +185,7 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Identity.GetUser(p.username, false)
+	existingUser, err := s.Identity.GetUser(p.username, false)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -207,7 +207,7 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 	}
 
 	// Upsert the new user creating or updating whatever is in the database.
-	err = a.UpsertUser(user)
+	err = s.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -276,8 +276,8 @@ type SAMLAuthResponse struct {
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
-func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
-	re, err := a.validateSAMLResponse(samlResponse)
+func (s *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
+	re, err := s.validateSAMLResponse(samlResponse)
 	if err != nil {
 		fields := events.EventFields{
 			events.LoginMethod:        events.LoginMethodSAML,
@@ -287,7 +287,7 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		if re != nil && re.attributeStatements != nil {
 			fields[events.IdentityAttributes] = re.attributeStatements
 		}
-		a.EmitAuditEvent(events.UserSSOLoginFailure, fields)
+		s.EmitAuditEvent(events.UserSSOLoginFailure, fields)
 		return nil, trace.Wrap(err)
 	}
 	fields := events.EventFields{
@@ -298,7 +298,7 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 	if re.attributeStatements != nil {
 		fields[events.IdentityAttributes] = re.attributeStatements
 	}
-	a.EmitAuditEvent(events.UserSSOLogin, fields)
+	s.EmitAuditEvent(events.UserSSOLogin, fields)
 	return &re.auth, nil
 }
 
@@ -307,20 +307,20 @@ type samlAuthResponse struct {
 	attributeStatements map[string][]string
 }
 
-func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthResponse, error) {
+func (s *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, error) {
 	requestID, err := parseSAMLInResponseTo(samlResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	request, err := a.Identity.GetSAMLAuthRequest(requestID)
+	request, err := s.Identity.GetSAMLAuthRequest(requestID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := a.Identity.GetSAMLConnector(request.ConnectorID, true)
+	connector, err := s.Identity.GetSAMLConnector(request.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	provider, err := a.getSAMLProvider(connector)
+	provider, err := s.getSAMLProvider(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -362,11 +362,11 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthRespons
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateSAMLUser(connector, *assertionInfo, request)
+	params, err := s.calculateSAMLUser(connector, *assertionInfo, request)
 	if err != nil {
 		return re, trace.Wrap(err)
 	}
-	user, err := a.createSAMLUser(params)
+	user, err := s.createSAMLUser(params)
 	if err != nil {
 		return re, trace.Wrap(err)
 	}
@@ -383,7 +383,7 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthRespons
 
 	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
-		session, err := a.createWebSession(user, params.sessionTTL)
+		session, err := s.createWebSession(user, params.sessionTTL)
 		if err != nil {
 			return re, trace.Wrap(err)
 		}
@@ -393,11 +393,11 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthRespons
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(request.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility)
+		sshCert, tlsCert, err := s.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		clusterName, err := a.GetClusterName()
+		clusterName, err := s.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -405,7 +405,7 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthRespons
 		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(services.CertAuthID{
+		authority, err := s.GetCertAuthority(services.CertAuthID{
 			Type:       services.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)
