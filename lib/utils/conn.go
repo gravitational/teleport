@@ -105,11 +105,8 @@ type TrackingConn struct {
 	// net.Conn is the underlying net.Conn.
 	net.Conn
 
-	// txBytes keeps track of how many bytes were transmitted.
-	txBytes uint64
-
-	// rxBytes keeps track of how many bytes were received.
-	rxBytes uint64
+	r *TrackingReader
+	w *TrackingWriter
 }
 
 // NewTrackingConn returns a net.Conn that can keep track of how much data was
@@ -117,22 +114,66 @@ type TrackingConn struct {
 func NewTrackingConn(conn net.Conn) *TrackingConn {
 	return &TrackingConn{
 		Conn: conn,
+		r:    NewTrackingReader(conn),
+		w:    NewTrackingWriter(conn),
 	}
 }
 
 // Stat returns the transmitted (TX) and received (RX) bytes over the net.Conn.
-func (s *TrackingConn) Stat() (uint64, uint64) {
-	return atomic.LoadUint64(&s.txBytes), atomic.LoadUint64(&s.rxBytes)
+func (s *TrackingConn) Stat() (tx uint64, rx uint64) {
+	return s.w.Count(), s.r.Count()
 }
 
 func (s *TrackingConn) Read(b []byte) (n int, err error) {
-	n, err = s.Conn.Read(b)
-	atomic.AddUint64(&s.rxBytes, uint64(n))
-	return n, trace.Wrap(err)
+	return s.r.Read(b)
 }
 
 func (s *TrackingConn) Write(b []byte) (n int, err error) {
-	n, err = s.Conn.Write(b)
-	atomic.AddUint64(&s.txBytes, uint64(n))
+	return s.w.Write(b)
+}
+
+// TrackingReader wraps an io.Reader and keeps track of how many bytes were
+// read.
+type TrackingReader struct {
+	io.Reader
+	count uint64
+}
+
+// NewTrackingReader returns a TrackingReader wrapping r.
+func NewTrackingReader(r io.Reader) *TrackingReader {
+	return &TrackingReader{Reader: r}
+}
+
+func (r *TrackingReader) Read(b []byte) (n int, err error) {
+	n, err = r.Reader.Read(b)
+	atomic.AddUint64(&r.count, uint64(n))
 	return n, trace.Wrap(err)
+}
+
+// Count returns the number of bytes read from r so far.
+func (r *TrackingReader) Count() uint64 {
+	return atomic.LoadUint64(&r.count)
+}
+
+// TrackingWriter wraps an io.Writer and keeps track of how many bytes were
+// written.
+type TrackingWriter struct {
+	io.Writer
+	count uint64
+}
+
+// NewTrackingWriter returns a TrackingWriter wrapping w.
+func NewTrackingWriter(w io.Writer) *TrackingWriter {
+	return &TrackingWriter{Writer: w}
+}
+
+func (w *TrackingWriter) Write(b []byte) (n int, err error) {
+	n, err = w.Writer.Write(b)
+	atomic.AddUint64(&w.count, uint64(n))
+	return n, trace.Wrap(err)
+}
+
+// Count returns the number of bytes written to w so far.
+func (w *TrackingWriter) Count() uint64 {
+	return atomic.LoadUint64(&w.count)
 }

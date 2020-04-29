@@ -513,15 +513,20 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			H: 100,
 		}
 		recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, events.EventFields{
-			events.EventProtocol:   events.EventProtocolKube,
-			events.EventNamespace:  f.Namespace,
-			events.SessionEventID:  string(sessionID),
-			events.SessionServerID: f.ServerID,
-			events.EventLogin:      ctx.User.GetName(),
-			events.EventUser:       ctx.User.GetName(),
-			events.LocalAddr:       sess.cluster.targetAddr,
-			events.RemoteAddr:      req.RemoteAddr,
-			events.TerminalSize:    termParams.Serialize(),
+			events.EventProtocol:     events.EventProtocolKube,
+			events.EventNamespace:    f.Namespace,
+			events.SessionEventID:    string(sessionID),
+			events.SessionServerID:   f.ServerID,
+			events.EventLogin:        ctx.User.GetName(),
+			events.EventUser:         ctx.User.GetName(),
+			events.LocalAddr:         sess.cluster.targetAddr,
+			events.RemoteAddr:        req.RemoteAddr,
+			events.TerminalSize:      termParams.Serialize(),
+			events.KubeContainerName: request.containerName,
+			events.KubePodName:       request.podName,
+			events.KubePodNamespace:  request.podNamespace,
+			events.KubeUsers:         utils.StringsSliceFromSet(ctx.kubeUsers),
+			events.KubeGroups:        utils.StringsSliceFromSet(ctx.kubeGroups),
 		})
 	}
 
@@ -543,6 +548,14 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 	streamOptions := proxy.options()
 
+	// Wrap stdin/out/err to track the amount of data sent and received.
+	trackIn := utils.NewTrackingReader(streamOptions.Stdin)
+	streamOptions.Stdin = trackIn
+	trackOut := utils.NewTrackingWriter(streamOptions.Stdout)
+	streamOptions.Stdout = trackOut
+	trackErr := utils.NewTrackingWriter(streamOptions.Stderr)
+	streamOptions.Stderr = trackErr
+
 	if request.tty {
 		// capture stderr and stdout writes to session recorder
 		streamOptions.Stdout = utils.NewBroadcastWriter(streamOptions.Stdout, recorder)
@@ -562,18 +575,33 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			events.SessionEventID: sessionID,
 			events.EventUser:      ctx.User.GetName(),
 			events.EventNamespace: f.Namespace,
+			// Note:
+			// - "transmitted" here means from user to pod.
+			// - "received" here means from pod to user.
+			events.DataTransmitted: trackIn.Count(),
+			events.DataReceived:    trackOut.Count() + trackErr.Count(),
 		})
 	} else {
 		f.Debugf("No tty, sending exec event.")
 		// send an exec event
 		fields := events.EventFields{
-			events.EventProtocol:    events.EventProtocolKube,
-			events.ExecEventCommand: strings.Join(request.cmd, " "),
-			events.EventLogin:       ctx.User.GetName(),
-			events.EventUser:        ctx.User.GetName(),
-			events.LocalAddr:        sess.cluster.targetAddr,
-			events.RemoteAddr:       req.RemoteAddr,
-			events.EventNamespace:   f.Namespace,
+			events.EventProtocol:     events.EventProtocolKube,
+			events.ExecEventCommand:  strings.Join(request.cmd, " "),
+			events.EventLogin:        ctx.User.GetName(),
+			events.EventUser:         ctx.User.GetName(),
+			events.LocalAddr:         sess.cluster.targetAddr,
+			events.RemoteAddr:        req.RemoteAddr,
+			events.EventNamespace:    f.Namespace,
+			events.KubeContainerName: request.containerName,
+			events.KubePodName:       request.podName,
+			events.KubePodNamespace:  request.podNamespace,
+			events.KubeUsers:         utils.StringsSliceFromSet(ctx.kubeUsers),
+			events.KubeGroups:        utils.StringsSliceFromSet(ctx.kubeGroups),
+			// Note:
+			// - "transmitted" here means from user to pod.
+			// - "received" here means from pod to user.
+			events.DataTransmitted: trackIn.Count(),
+			events.DataReceived:    trackOut.Count() + trackErr.Count(),
 		}
 		if err != nil {
 			fields[events.ExecEventError] = err.Error()

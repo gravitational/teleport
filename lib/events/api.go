@@ -282,6 +282,17 @@ const (
 
 	// TCPVersion is the version of TCP (4 or 6).
 	TCPVersion = "version"
+
+	// Kubernetes-specific labels for exec sessions over the kubernetes API.
+	KubeContainerName = "k8s_container_name"
+	KubePodName       = "k8s_pod_name"
+	KubePodNamespace  = "k8s_pod_namespace"
+	// KubeUsers are kubernetes User principals presented by the proxy to the
+	// kubernetes API.
+	KubeUsers = "k8s_auth_users"
+	// KubeGroups are kubernetes Group principals presented by the proxy to the
+	// kubernetes API.
+	KubeGroups = "k8s_auth_groups"
 )
 
 const (
