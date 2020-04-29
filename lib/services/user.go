@@ -32,8 +32,8 @@ import (
 
 // User represents teleport embedded user or external user
 type User interface {
-	// Resource provides common resource properties
-	Resource
+	// ResourceWithSecrets provides common resource properties
+	ResourceWithSecrets
 	// GetOIDCIdentities returns a list of connected OIDC identities
 	GetOIDCIdentities() []ExternalIdentity
 	// GetSAMLIdentities returns a list of connected SAML identities
@@ -215,6 +215,16 @@ func (u *UserV2) GetName() string {
 // SetName sets the name of the User
 func (u *UserV2) SetName(e string) {
 	u.Metadata.Name = e
+}
+
+// WithoutSecrets returns an instance of resource without secrets.
+func (u *UserV2) WithoutSecrets() Resource {
+	if u.Spec.LocalAuth == nil {
+		return u
+	}
+	u2 := *u
+	u2.Spec.LocalAuth = nil
+	return &u2
 }
 
 // WebSessionInfo returns web session information about user

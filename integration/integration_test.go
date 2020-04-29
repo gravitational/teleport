@@ -840,6 +840,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:      services.NewBool(true),
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: time.Second,
@@ -855,6 +856,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:          services.NewBool(true),
 				DisconnectExpiredCert: services.NewBool(true),
 				MaxSessionTTL:         services.NewDuration(2 * time.Second),
 			},
@@ -876,7 +878,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 		Pub:         s.pub,
 	})
 
-	// devs role gets disconnected after 1 second idle time
 	username := s.me.Username
 	role, err := services.NewRole("devs", services.RoleSpecV3{
 		Options: tc.options,
@@ -888,7 +889,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	t.AddUserWithRole(username, role)
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
+		SessionRecording: tc.recordingMode,
 		LocalAuth:        services.NewBool(true),
 	})
 	c.Assert(err, check.IsNil)
@@ -911,9 +912,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	person := NewTerminal(250)
 
-	// commandsC receive commands
-	commandsC := make(chan string, 0)
-
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	sessionCtx, sessionCancel := context.WithCancel(context.TODO())
 	openSession := func() {
@@ -922,12 +920,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 		c.Assert(err, check.IsNil)
 		cl.Stdout = person
 		cl.Stdin = person
-
-		go func() {
-			for command := range commandsC {
-				person.Type(command)
-			}
-		}()
 
 		err = cl.SSH(context.TODO(), []string{}, false)
 		if err != nil && err != io.EOF {
@@ -938,7 +930,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	go openSession()
 
 	enterInput(c, person, "echo start \r\n", ".*start.*")
-	time.Sleep(tc.disconnectTimeout)
 	select {
 	case <-time.After(tc.disconnectTimeout):
 		c.Fatalf("timeout waiting for session to exit")
@@ -2030,7 +2021,8 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 				continue
 			}
 			if p.Config.Hostname == name {
-				lb.RemoveBackend(*utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr))
+				reverseTunnelPort := utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr).Port(0)
+				c.Assert(lb.RemoveBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(reverseTunnelPort)))), check.IsNil)
 				c.Assert(p.Close(), check.IsNil)
 				c.Assert(p.Wait(), check.IsNil)
 				return
@@ -2073,12 +2065,12 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	// create first numbered proxy
 	_, c0 := addNewMainProxy(pname(0))
 	// check that we now have two tunnel connections
-	waitForProxyCount(remote, "cluster-main", 2)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 2), check.IsNil)
 	// check that first numbered proxy is OK.
 	testProxyConn(&c0, false)
 	// remove the initial proxy.
-	lb.RemoveBackend(mainProxyAddr)
-	waitForProxyCount(remote, "cluster-main", 1)
+	c.Assert(lb.RemoveBackend(mainProxyAddr), check.IsNil)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 
 	// force bad state by iteratively removing previous proxy before
 	// adding next proxy; this ensures that discovery protocol's list of
@@ -2086,9 +2078,9 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	for i := 0; i < 6; i++ {
 		prev, next := pname(i), pname(i+1)
 		killMainProxy(prev)
-		waitForProxyCount(remote, "cluster-main", 0)
+		c.Assert(waitForProxyCount(remote, "cluster-main", 0), check.IsNil)
 		_, cn := addNewMainProxy(next)
-		waitForProxyCount(remote, "cluster-main", 1)
+		c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 		testProxyConn(&cn, false)
 	}
 
@@ -2186,7 +2178,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(output, check.Equals, "hello world\n")
 
 	// Now disconnect the main proxy and make sure it will reconnect eventually.
-	lb.RemoveBackend(mainProxyAddr)
+	c.Assert(lb.RemoveBackend(mainProxyAddr), check.IsNil)
 	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
 	// Requests going via main proxy should fail.
@@ -2218,7 +2210,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Wait for the remote cluster to detect the outbound connection is gone.
-	waitForProxyCount(remote, "cluster-main", 1)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 
 	// Stop both clusters and remaining nodes.
 	c.Assert(remote.StopAll(), check.IsNil)
@@ -2337,7 +2329,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	c.Assert(output, check.Equals, "hello world\n")
 
 	// Remove second proxy from LB.
-	lb.RemoveBackend(*proxyTwoBackend)
+	c.Assert(lb.RemoveBackend(*proxyTwoBackend), check.IsNil)
 	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
 
 	// Requests going via main proxy will succeed. Requests going via second
@@ -2391,17 +2383,17 @@ func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clu
 // reach some value.
 func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	var counts map[string]int
-
-	for i := 0; i < 20; i++ {
+	start := time.Now()
+	for time.Since(start) < 17*time.Second {
 		counts = t.Pool.Counts()
 		if counts[clusterName] == count {
 			return nil
 		}
 
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	return trace.BadParameter("proxy count on %v: %v", clusterName, counts[clusterName])
+	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)
 }
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
@@ -3031,7 +3023,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3059,7 +3051,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
@@ -3080,7 +3072,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client still works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3175,7 +3167,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3205,7 +3197,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3323,7 +3315,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	clt, err := main.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
 
-	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Setting rotation state to %v", services.RotationPhaseInit)
@@ -3375,7 +3367,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old client should work as is
-	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3402,7 +3394,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
@@ -3425,7 +3417,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	l.Infof("Phase completed.")
 
 	// new client still works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3525,6 +3517,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 	for i := 0; i < attempts; i++ {
 		err = tc.SSH(context.TODO(), command, false)
 		if err != nil {
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		out := output.String()
@@ -3534,7 +3527,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 			return nil
 		}
 		err = trace.CompareFailed("output %q did not match pattern %q", out, pattern)
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 	return err
 }

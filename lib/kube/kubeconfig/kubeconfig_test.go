@@ -232,6 +232,9 @@ func (s *KubeconfigSuite) genUserKey() (*client.Key, []byte, error) {
 		},
 		NotAfter: clock.Now().UTC().Add(time.Minute),
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	return &client.Key{
 		Priv:    priv,

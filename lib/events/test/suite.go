@@ -91,6 +91,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		events.EventUser:          "bob",
 		events.EventTime:          s.Clock.Now().UTC(),
 	})
+	c.Assert(err, check.IsNil)
 
 	// For eventually consistent queries
 	if s.QueryDelay != 0 {

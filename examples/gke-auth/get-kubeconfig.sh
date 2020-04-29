@@ -43,6 +43,10 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
     REQUEST_ID=$(uuidgen)
     BASE64_DECODE_FLAG="-D"
     BASE64_WRAP_FLAG=""
+elif [[ "$OSTYPE" == "linux-musl" ]]; then
+    REQUEST_ID=$(uuidgen)
+    BASE64_DECODE_FLAG="-d"
+    BASE64_WRAP_FLAG=""
 else
     echo "Unknown OS ${OSTYPE}"
     exit 1

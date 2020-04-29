@@ -37,6 +37,11 @@ documented on the identity providers website. Here are a few links:
    * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
    * [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#_client_registration)
 
+!!! note 
+    
+    For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly.  
+
+
 Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.
 
@@ -124,6 +129,39 @@ Create both roles:
 $ tctl create role-admin.yaml
 $ tctl create role-dev.yaml
 ```
+
+### Optional: Prompt
+
+By default, Teleport will prompt end users to select an account each time they log in 
+even if the user only has one account.
+
+Teleport 4.2 now lets Teleport Admins configure this option. Since `prompt` is optional,
+by setting the variable to an empty string Teleport will override the default `select_account`.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  prompt: ''
+```
+
+The below example will prompt the end-user for reauthentication and will require consent
+from the client.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  prompt: 'login consent'
+```
+
+A list of available optional prompt parameters are available from the 
+[OpenID website](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest). 
+ 
 
 ### Optional: ACR Values
 

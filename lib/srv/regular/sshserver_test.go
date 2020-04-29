@@ -352,8 +352,21 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	err = client.Close()
 	c.Assert(err, IsNil)
 
-	// make sure the socket is gone after we closed the session
-	se.Close()
+	// make sure the socket persists after the session is closed.
+	// (agents are started from specific sessions, but apply to all
+	// sessions on the connection).
+	err = se.Close()
+	c.Assert(err, IsNil)
+	// Pause to allow closure to propagate.
+	time.Sleep(150 * time.Millisecond)
+	_, err = net.Dial("unix", socketPath)
+	c.Assert(err, IsNil)
+
+	// make sure the socket is gone after we closed the connection.
+	err = s.clt.Close()
+	c.Assert(err, IsNil)
+	// clt must be nullified to prevent double-close during test cleanup
+	s.clt = nil
 	for i := 0; i < 4; i++ {
 		_, err = net.Dial("unix", socketPath)
 		if err != nil {
@@ -654,6 +667,9 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		AccessPoint: s.proxyClient,
 		Component:   teleport.ComponentProxy,
 	})
+	c.Assert(err, IsNil)
+
+	err = agentPool.Start()
 	c.Assert(err, IsNil)
 
 	// Create a reverse tunnel and remote cluster simulating what the trusted

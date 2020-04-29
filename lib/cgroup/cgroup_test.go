@@ -108,16 +108,14 @@ func (s *Suite) TestCleanup(c *check.C) {
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
 	dir, err := ioutil.TempDir("", "cgroup-test")
 	c.Assert(err, check.IsNil)
-	if err != nil {
-	}
 	defer os.RemoveAll(dir)
 
 	// Start cgroup service.
 	service, err := New(&Config{
 		MountPath: dir,
 	})
-	defer service.Close()
 	c.Assert(err, check.IsNil)
+	defer service.Close()
 
 	// Create fake session ID and cgroup.
 	sessionID := uuid.New()
