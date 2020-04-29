@@ -1332,6 +1332,25 @@ func (c *Client) CreateUser(ctx context.Context, user services.User) error {
 	return nil
 }
 
+// UpdateUser updates an existing user in a backend.
+func (c *Client) UpdateUser(ctx context.Context, user services.User) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userV2, ok := user.(*services.UserV2)
+	if !ok {
+		return trace.BadParameter("unsupported user type %T", user)
+	}
+
+	if _, err := clt.UpdateUser(ctx, userV2); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
 // UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user services.User) error {
 	data, err := services.GetUserMarshaler().MarshalUser(user)
@@ -2735,6 +2754,9 @@ type IdentityService interface {
 
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user services.User) error
+
+	// UpdateUser updates an existing user in a backend.
+	UpdateUser(ctx context.Context, user services.User) error
 
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user services.User) error

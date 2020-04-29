@@ -396,6 +396,22 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*emp
 	return &empty.Empty{}, nil
 }
 
+// UpdateUser updates an existing user in a backend.
+func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.UpdateUser(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	log.Infof("%q user updated", req.GetName())
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

@@ -1142,6 +1142,17 @@ func (a *AuthWithRoles) CreateUser(ctx context.Context, user services.User) erro
 	return a.authServer.CreateUser(ctx, user)
 }
 
+// UpdateUser updates an existing user in a backend.
+func (a *AuthWithRoles) UpdateUser(ctx context.Context, user services.User) error {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	updatedCtx := withUpdateBy(ctx, a.user.GetName())
+
+	return a.authServer.UpdateUser(updatedCtx, user)
+}
+
 func (a *AuthWithRoles) UpsertUser(u services.User) error {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
