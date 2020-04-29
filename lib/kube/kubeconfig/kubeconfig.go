@@ -62,7 +62,7 @@ func UpdateWithClient(path string, tc *client.TeleportClient) error {
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
 func Update(path string, v Values) error {
-	config, err := load(path)
+	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -109,7 +109,7 @@ func Update(path string, v Values) error {
 // known defaults.
 func Remove(path, name string) error {
 	// Load existing kubeconfig from disk.
-	config, err := load(path)
+	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -133,9 +133,9 @@ func Remove(path, name string) error {
 	return save(path, *config)
 }
 
-// load tries to read a kubeconfig file and if it can't, returns an error.
+// Load tries to read a kubeconfig file and if it can't, returns an error.
 // One exception, missing files result in empty configs, not an error.
-func load(path string) (*clientcmdapi.Config, error) {
+func Load(path string) (*clientcmdapi.Config, error) {
 	filename, err := finalPath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)

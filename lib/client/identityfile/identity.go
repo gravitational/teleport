@@ -20,6 +20,7 @@ package identityfile
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -87,15 +88,15 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 		defer f.Close()
 
 		// write key:
-		if _, err = output.Write(key.Priv); err != nil {
+		if err := writeWithNewline(output, key.Priv); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append ssh cert:
-		if _, err = output.Write(key.Cert); err != nil {
+		if err := writeWithNewline(output, key.Cert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append tls cert:
-		if _, err = output.Write(key.TLSCert); err != nil {
+		if err := writeWithNewline(output, key.TLSCert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append trusted host certificate authorities
@@ -106,16 +107,13 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				if _, err = output.Write([]byte(data)); err != nil {
-					return nil, trace.Wrap(err)
-				}
-				if _, err = output.Write([]byte("\n")); err != nil {
+				if err := writeWithNewline(output, []byte(data)); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
 			// append tls ca certificates
 			for _, keyPair := range ca.GetTLSKeyPairs() {
-				if _, err = output.Write(keyPair.Cert); err != nil {
+				if err := writeWithNewline(output, keyPair.Cert); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -178,6 +176,18 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 			format, FormatFile, FormatOpenSSH, FormatTLS)
 	}
 	return filesWritten, nil
+}
+
+func writeWithNewline(w io.Writer, data []byte) error {
+	if _, err := w.Write(data); err != nil {
+		return trace.Wrap(err)
+	}
+	if !bytes.HasSuffix(data, []byte{'\n'}) {
+		if _, err := fmt.Fprintln(w); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // IdentityFile represents the basic components of an identity file.
