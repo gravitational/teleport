@@ -156,7 +156,8 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 
 // PrintAccessRequests prints access requests
 func (c *AccessRequestCommand) PrintAccessRequests(client auth.ClientI, reqs []services.AccessRequest, format string) error {
-	if format == teleport.Text {
+	switch format {
+	case teleport.Text:
 		table := asciitable.MakeTable([]string{"Token", "Requestor", "Metadata", "Created At (UTC)", "Status"})
 		now := time.Now()
 		for _, req := range reqs {
@@ -172,14 +173,19 @@ func (c *AccessRequestCommand) PrintAccessRequests(client auth.ClientI, reqs []s
 				req.GetState().String(),
 			})
 		}
-		_, err := table.AsBuffer().WriteTo(os.Stdout)
-		return trace.Wrap(err)
-	} else {
+		if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
+			return trace.Wrap(err)
+		}
+
+	case teleport.JSON:
 		out, err := json.MarshalIndent(reqs, "", "  ")
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal requests")
 		}
 		fmt.Printf("%s\n", out)
+
+	default:
+		return trace.BadParameter("unknown format %q, must be either %q or %q", format, teleport.Text, teleport.JSON)
 	}
 	return nil
 }

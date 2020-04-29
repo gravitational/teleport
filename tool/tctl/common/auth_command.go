@@ -251,12 +251,12 @@ func (a *AuthCommand) GenerateKeys() error {
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
-func (a *AuthCommand) GenerateAndSignKeys(clusterApi auth.ClientI) error {
+func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
 	switch {
 	case a.genUser != "" && a.genHost == "":
-		return a.generateUserKeys(clusterApi)
+		return a.generateUserKeys(clusterAPI)
 	case a.genUser == "" && a.genHost != "":
-		return a.generateHostKeys(clusterApi)
+		return a.generateHostKeys(clusterAPI)
 	default:
 		return trace.BadParameter("--user or --host must be specified")
 	}
@@ -286,7 +286,7 @@ func (a *AuthCommand) RotateCertAuthority(client auth.ClientI) error {
 	return nil
 }
 
-func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
+func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 	// only format=openssh is supported
 	if a.outputFormat != identityfile.FormatOpenSSH {
 		return trace.BadParameter("invalid --format flag %q, only %q is supported", a.outputFormat, identityfile.FormatOpenSSH)
@@ -301,13 +301,13 @@ func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	cn, err := clusterApi.GetClusterName()
+	cn, err := clusterAPI.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	clusterName := cn.GetClusterName()
 
-	key.Cert, err = clusterApi.GenerateHostCert(key.Pub,
+	key.Cert, err = clusterAPI.GenerateHostCert(key.Pub,
 		"", "", principals,
 		clusterName, teleport.Roles{teleport.RoleNode}, 0)
 	if err != nil {

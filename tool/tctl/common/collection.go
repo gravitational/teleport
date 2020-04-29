@@ -44,11 +44,12 @@ type roleCollection struct {
 	roles []services.Role
 }
 
-func (c *roleCollection) resources() (r []services.Resource) {
-	for _, resource := range c.roles {
-		r = append(r, resource)
+func (r *roleCollection) resources() []services.Resource {
+	res := make([]services.Resource, 0, len(r.roles))
+	for _, resource := range r.roles {
+		res = append(res, resource)
 	}
-	return r
+	return res
 }
 
 func (r *roleCollection) writeText(w io.Writer) error {
@@ -91,8 +92,9 @@ type namespaceCollection struct {
 	namespaces []services.Namespace
 }
 
-func (c *namespaceCollection) resources() (r []services.Resource) {
-	for _, resource := range c.namespaces {
+func (n *namespaceCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(n.namespaces))
+	for _, resource := range n.namespaces {
 		r = append(r, &resource)
 	}
 	return r
@@ -150,8 +152,9 @@ type serverCollection struct {
 	servers []services.Server
 }
 
-func (c *serverCollection) resources() (r []services.Resource) {
-	for _, resource := range c.servers {
+func (s *serverCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(s.servers))
+	for _, resource := range s.servers {
 		r = append(r, resource)
 	}
 	return r
@@ -184,16 +187,17 @@ func (s *serverCollection) toMarshal() interface{} {
 	return s.servers
 }
 
-func (r *serverCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, r.toMarshal())
+func (s *serverCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, s.toMarshal())
 }
 
 type userCollection struct {
 	users []services.User
 }
 
-func (c *userCollection) resources() (r []services.Resource) {
-	for _, resource := range c.users {
+func (s *userCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(s.users))
+	for _, resource := range s.users {
 		r = append(r, resource)
 	}
 	return r
@@ -224,16 +228,17 @@ func (s *userCollection) toMarshal() interface{} {
 	return s.users
 }
 
-func (r *userCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, r.toMarshal())
+func (s *userCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, s.toMarshal())
 }
 
 type authorityCollection struct {
 	cas []services.CertAuthority
 }
 
-func (c *authorityCollection) resources() (r []services.Resource) {
-	for _, resource := range c.cas {
+func (a *authorityCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(a.cas))
+	for _, resource := range a.cas {
 		r = append(r, resource)
 	}
 	return r
@@ -289,11 +294,12 @@ type reverseTunnelCollection struct {
 	tunnels []services.ReverseTunnel
 }
 
-func (c *reverseTunnelCollection) resources() (r []services.Resource) {
-	for _, resource := range c.tunnels {
-		r = append(r, resource)
+func (r *reverseTunnelCollection) resources() []services.Resource {
+	res := make([]services.Resource, 0, len(r.tunnels))
+	for _, resource := range r.tunnels {
+		res = append(res, resource)
 	}
-	return r
+	return res
 }
 
 func (r *reverseTunnelCollection) writeText(w io.Writer) error {
@@ -331,7 +337,8 @@ type oidcCollection struct {
 	connectors []services.OIDCConnector
 }
 
-func (c *oidcCollection) resources() (r []services.Resource) {
+func (c *oidcCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(c.connectors))
 	for _, resource := range c.connectors {
 		r = append(r, resource)
 	}
@@ -373,7 +380,8 @@ type samlCollection struct {
 	connectors []services.SAMLConnector
 }
 
-func (c *samlCollection) resources() (r []services.Resource) {
+func (c *samlCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(c.connectors))
 	for _, resource := range c.connectors {
 		r = append(r, resource)
 	}
@@ -415,7 +423,8 @@ type connectorsCollection struct {
 	github []services.GithubConnector
 }
 
-func (c *connectorsCollection) resources() (r []services.Resource) {
+func (c *connectorsCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(c.oidc)+len(c.saml)+len(c.github))
 	for _, resource := range c.oidc {
 		r = append(r, resource)
 	}
@@ -501,7 +510,8 @@ type trustedClusterCollection struct {
 	trustedClusters []services.TrustedCluster
 }
 
-func (c *trustedClusterCollection) resources() (r []services.Resource) {
+func (c *trustedClusterCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(c.trustedClusters))
 	for _, resource := range c.trustedClusters {
 		r = append(r, resource)
 	}
@@ -549,7 +559,8 @@ type githubCollection struct {
 	connectors []services.GithubConnector
 }
 
-func (c *githubCollection) resources() (r []services.Resource) {
+func (c *githubCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(c.connectors))
 	for _, resource := range c.connectors {
 		r = append(r, resource)
 	}
@@ -599,7 +610,8 @@ type remoteClusterCollection struct {
 	remoteClusters []services.RemoteCluster
 }
 
-func (c *remoteClusterCollection) resources() (r []services.Resource) {
+func (c *remoteClusterCollection) resources() []services.Resource {
+	r := make([]services.Resource, 0, len(c.remoteClusters))
 	for _, resource := range c.remoteClusters {
 		r = append(r, resource)
 	}
