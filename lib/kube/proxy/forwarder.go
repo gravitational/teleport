@@ -54,7 +54,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
@@ -150,6 +152,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	kubeClient, err := kubernetes.NewForConfig(creds.cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	clusterSessions, err := ttlmap.New(defaults.ClientCacheSize)
 	if err != nil {
@@ -157,7 +163,8 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	}
 	closeCtx, close := context.WithCancel(cfg.Context)
 	fwd := &Forwarder{
-		creds: *creds,
+		creds:      *creds,
+		kubeClient: kubeClient,
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.ComponentKube),
 		}),
@@ -207,7 +214,8 @@ type Forwarder struct {
 	ctx context.Context
 	// creds contain kubernetes credentials shared with a proxy process,
 	// could be a service account token or client X509 credentials
-	creds kubeCreds
+	creds      kubeCreds
+	kubeClient kubernetes.Interface
 }
 
 // Close signals close to all outstanding or background operations
@@ -512,7 +520,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			W: 100,
 			H: 100,
 		}
-		recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, events.EventFields{
+		fields := events.EventFields{
 			events.EventProtocol:     events.EventProtocolKube,
 			events.EventNamespace:    f.Namespace,
 			events.SessionEventID:    string(sessionID),
@@ -527,7 +535,23 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			events.KubePodNamespace:  request.podNamespace,
 			events.KubeUsers:         utils.StringsSliceFromSet(ctx.kubeUsers),
 			events.KubeGroups:        utils.StringsSliceFromSet(ctx.kubeGroups),
-		})
+			events.KubeAPIAddr:       f.creds.targetAddr,
+		}
+		pod, err := f.kubeClient.CoreV1().Pods(request.podNamespace).Get(request.podName, metav1.GetOptions{})
+		if err != nil {
+			f.Warningf("Failed to fetch pod object from k8s API, some audit event labels will be omitted: %v", err)
+		} else {
+			fields[events.KubeLabels] = pod.Labels
+			fields[events.KubeNode] = pod.Spec.NodeName
+			fields[events.KubeServiceAccount] = pod.Spec.ServiceAccountName
+			for _, c := range pod.Spec.Containers {
+				if c.Name == request.containerName {
+					fields[events.KubeContainerImage] = c.Image
+					break
+				}
+			}
+		}
+		recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, fields)
 	}
 
 	if err := f.setupForwardingHeaders(ctx, sess, req); err != nil {

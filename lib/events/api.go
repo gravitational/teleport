@@ -284,9 +284,14 @@ const (
 	TCPVersion = "version"
 
 	// Kubernetes-specific labels for exec sessions over the kubernetes API.
-	KubeContainerName = "k8s_container_name"
-	KubePodName       = "k8s_pod_name"
-	KubePodNamespace  = "k8s_pod_namespace"
+	KubeContainerName  = "k8s_container_name"
+	KubePodName        = "k8s_pod_name"
+	KubePodNamespace   = "k8s_pod_namespace"
+	KubeLabels         = "k8s_labels"
+	KubeAPIAddr        = "k8s_api_addr"
+	KubeNode           = "k8s_node"
+	KubeServiceAccount = "k8s_service_account"
+	KubeContainerImage = "k8s_container_image"
 	// KubeUsers are kubernetes User principals presented by the proxy to the
 	// kubernetes API.
 	KubeUsers = "k8s_auth_users"
