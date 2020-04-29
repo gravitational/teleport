@@ -238,4 +238,6 @@ service AuthService {
         returns (services.ResetPasswordTokenV3);
     // CreateUser inserts a new user entry to a backend.
     rpc CreateUser(services.UserV2) returns (google.protobuf.Empty);
+    // UpdateUser updates an existing user in a backend.
+    rpc UpdateUser(services.UserV2) returns (google.protobuf.Empty);
 }
