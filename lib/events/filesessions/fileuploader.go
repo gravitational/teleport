@@ -81,7 +81,6 @@ func (l *Handler) Close() error {
 // file from local directory
 func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
 	path := l.path(sessionID)
-	_, err := os.Stat(filepath.Dir(path))
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.ConvertSystemError(err)

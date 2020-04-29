@@ -154,6 +154,7 @@ func (s *BackendSuite) Range(c *check.C) {
 
 	// range match
 	result, err = s.B.GetRange(ctx, prefix("/prefix/c/c1"), backend.RangeEnd(prefix("/prefix/c/cz")), backend.NoLimit)
+	c.Assert(err, check.IsNil)
 	ExpectItems(c, result.Items, expected)
 
 	// pagination

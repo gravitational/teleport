@@ -30,7 +30,7 @@ func (s *ShellSuite) TestGetShell(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(shell == "/bin/bash" || shell == "/bin/sh", check.Equals, true)
 
-	shell, err = GetLoginShell("non-existent-user")
+	_, err = GetLoginShell("non-existent-user")
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Matches, "user: unknown user non-existent-user")
 

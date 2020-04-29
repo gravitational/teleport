@@ -1561,8 +1561,6 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 // connectToProxy will dial to the proxy server and return a ProxyClient when
 // successful.
 func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, error) {
-	var err error
-
 	proxyPrincipal := tc.getProxySSHPrincipal()
 	sshConfig := &ssh.ClientConfig{
 		User:            proxyPrincipal,
@@ -1590,6 +1588,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		}
 	}
 	successMsg := fmt.Sprintf("Successful auth with proxy %v", sshProxyAddr)
+	var err error
 	// try to authenticate using every non interactive auth method we have:
 	for i, m := range tc.authMethods() {
 		log.Infof("Connecting proxy=%v login='%v' method=%d", sshProxyAddr, sshConfig.User, i)
@@ -1598,7 +1597,9 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		sshConfig.Auth = []ssh.AuthMethod{m}
 		sshClient, err = ssh.Dial("tcp", sshProxyAddr, sshConfig)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.Warningf("Failed to authenticate with proxy: %v", err)
+			err = trace.BadParameter("failed to authenticate with proxy %v: %v", sshProxyAddr, err)
+			continue
 		}
 		log.Infof(successMsg)
 		return makeProxyClient(sshClient, m), nil

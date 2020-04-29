@@ -135,7 +135,7 @@ func (s *KeyStoreTestSuite) TestKeyCRUD(c *check.C) {
 	// Delete & verify that it's gone
 	err = s.store.DeleteKey("host.a", "bob")
 	c.Assert(err, check.IsNil)
-	keyCopy, err = s.store.GetKey("host.a", "bob")
+	_, err = s.store.GetKey("host.a", "bob")
 	c.Assert(err, check.NotNil)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 

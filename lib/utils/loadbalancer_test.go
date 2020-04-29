@@ -131,7 +131,7 @@ func (s *LBSuite) TestOneFailingBackend(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.Equals, "backend 1")
 
-	out, err = Roundtrip(frontend.String())
+	_, err = Roundtrip(frontend.String())
 	c.Assert(err, check.NotNil)
 
 	out, err = Roundtrip(frontend.String())
@@ -206,7 +206,7 @@ func (s *LBSuite) TestDropConnections(c *check.C) {
 
 	// removing backend results in dropped connection to this backend
 	lb.RemoveBackend(backendAddr)
-	out, err = RoundtripWithConn(conn)
+	_, err = RoundtripWithConn(conn)
 	c.Assert(err, check.NotNil)
 }
 

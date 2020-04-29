@@ -18,6 +18,7 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -81,8 +82,9 @@ func (s *TimeoutSuite) TestNormalOperation(c *check.C) {
 // which drops itself after N idle time
 func newClient(timeout time.Duration) *http.Client {
 	var t http.Transport
-	t.Dial = func(network string, addr string) (net.Conn, error) {
-		conn, err := net.Dial(network, addr)
+	t.DialContext = func(ctx context.Context, network string, addr string) (net.Conn, error) {
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, network, addr)
 		if err != nil {
 			return nil, err
 		}
