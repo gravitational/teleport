@@ -43,8 +43,8 @@ config:
     # These files will be loaded from the tls-web secret that the customer defines in Kubernetes.
     # These certificates must be capable of being validated against a known root CA - something
     # like Let's Encrypt works well, or other commercial providers like Comodo, Verisign etc.
-    https_key_file: /var/lib/certs/privkey.pem
-    https_cert_file: /var/lib/certs/fullchain.pem
+    https_key_file: /var/lib/certs/tls.key
+    https_cert_file: /var/lib/certs/tls.crt
     kubernetes:
       enabled: yes
       listen_addr: 0.0.0.0:3026
