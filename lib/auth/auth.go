@@ -249,13 +249,15 @@ func (a *AuthServer) runPeriodicOperations() {
 		case <-a.closeCtx.Done():
 			return
 		case <-ticker.C:
-			err := a.autoRotateCertAuthorities()
-			if err != nil {
+			if err := a.autoRotateCertAuthorities(); err != nil {
 				if trace.IsCompareFailed(err) {
 					log.Debugf("Cert authority has been updated concurrently: %v.", err)
 				} else {
 					log.Errorf("Failed to perform cert rotation check: %v.", err)
 				}
+			}
+			if err := a.ensureTrustedClusters(); err != nil {
+				log.Errorf("Periodic trusted cluster ops failr: %v", err)
 			}
 		}
 	}

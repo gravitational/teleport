@@ -147,6 +147,69 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 	return a.Presence.UpsertTrustedCluster(trustedCluster)
 }
 
+// ensureTrustedClusters attempts to ensure that all currently registered
+// trsuted clusters configurations have been correctly applied.
+func (a *AuthServer) ensureTrustedClusters() error {
+	tcs, err := a.GetTrustedClusters()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var errs []error
+	for _, tc := range tcs {
+		if tc.GetEnabled() {
+			err = a.ensureEnabled(tc)
+		} else {
+			err = a.ensureDisabled(tc)
+		}
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return trace.NewAggregate(errs...)
+}
+
+// ensureEnabled ensures that the supplied trsuted cluster has its
+// associated state enabled.  This function will automatically establish
+// trust if trust was not previously established.
+func (a *AuthServer) ensureEnabled(tc services.TrustedCluster) error {
+	err := a.activateCertAuthority(tc)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if trace.IsNotFound(err) {
+		// if we could not find CAs to activate, they are either aleardy activated,
+		// or trust has not yet been established.
+		cas, err := a.getCertAuthorities(tc)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		if trace.IsNotFound(err) {
+			// no active or inactive CAs, trust has not been established
+			cas, err = a.establishTrust(tc)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := a.addCertAuthorities(tc, cas); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return trace.Wrap(a.createReverseTunnel(tc))
+}
+
+// ensureDisabled ensures that the supplied trusted cluster has had its associated
+// state disabled.  This function does not differentiate between associated state
+// which is already disabled, and assocaited state which does not exist.
+func (a *AuthServer) ensureDisabled(tc services.TrustedCluster) error {
+	if err := a.deactivateCertAuthority(tc); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if err := a.DeleteReverseTunnel(tc.GetName()); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func (a *AuthServer) checkLocalRoles(roleMap services.RoleMap) error {
 	for _, mapping := range roleMap {
 		for _, localRole := range mapping.Local {
@@ -613,6 +676,23 @@ func (a *AuthServer) activateCertAuthority(t services.TrustedCluster) error {
 	}
 
 	return trace.Wrap(a.ActivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: t.GetName()}))
+}
+
+// getCertAuthorities loads the user and host CAs associated with a trusted cluster.
+func (a *AuthServer) getCertAuthorities(t services.TrustedCluster) ([]services.CertAuthority, error) {
+	userCA, err := a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: t.GetName()}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hostCA, err := a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: t.GetName()}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []services.CertAuthority{
+		userCA,
+		hostCA,
+	}, nil
 }
 
 // deactivateCertAuthority will deactivate both the user and host certificate
