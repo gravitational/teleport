@@ -12,7 +12,6 @@ By default this chart is configured as follows:
 - 1 replica
 - Record ssh/k8s exec and attach session to the `emptyDir` of the Teleport pod
   - These sessions will also be stored on the root cluster, if used to access this Helm-configured cluster remotely
-- The assumed externally accessible hostname of Teleport is `teleport.example.com`
 - Teleport will be deployed using a Kubernetes LoadBalancer
   - This is a requirement for a trusted cluster setup
 - TLS is enabled by default on the Proxy
@@ -32,14 +31,12 @@ There are comments in the file describing what the values need to be set to.
 - Helm v2.16+
 - Kubernetes 1.10+
 - A Teleport license file stored as a Kubernetes Secret object - see below
-- Valid TLS private key and certificate chain which validates against a known root CA, stored in the `tls-web` secret.
-  - Providers like Let's Encrypt are good for providing these certificates.
 
 ### Prepare the license file
 
 Download the `license.pem` from the Teleport dashboard, and then rename it to the filename that this chart expects:
 
-```
+```console
 cp ~/Downloads/license.pem license-enterprise.pem
 ```
 
@@ -49,55 +46,10 @@ Store it as a Kubernetes secret:
 kubectl create secret generic license --from-file=license-enterprise.pem
 ```
 
-### Prepare the tls-web secret
-
-You will need to  issue valid TLS certificates for the public-facing name of this cluster.
-
-You can do this with a provider like Let's Encrypt. This is an example of how to do this using the `certbot` client.
-
-Install `certbot`:
-
-```console
-# RHEL/CentOS
-$ yum -y install certbot
-
-# Debian/Ubuntu
-$ apt-get -y install certbot
-
-# Generic installation via Python PIP
-$ pip3 install certbot
-```
-
-Issue the certificate using certbot in manual mode:
-
-```console
-$ certbot -d teleport.example.com --manual --logs-dir . --config-dir . --work-dir . --preferred-challenges dns certonly
-```
-
-Add the certificate and private key as a Kubernetes secret.
-
-Note: `privkey.pem` will be renamed to `tls.key` and `fullchain.pem` will be renamed to `tls.crt` when stored as a TLS
-secret by Kubernetes. The Teleport config expects these names. Using a secret type other than `tls` will result in an error.
-
-```console
-$ kubectl create secret tls tls-web --cert=fullchain.pem --key=privkey.pem
-```
-
-#### Important information
-
-In manual mode, you will need to configure a DNS TXT record on the DNS provider for `teleport.example.com` so that the
-checks will validate. Certificates issued by LetsEncrypt expire every 90 days, so the renewal process for these certificates
-will need to be automated.
-
-**WARNING**: If your certificates expire, connections from the root cluster to this leaf cluster will stop working.
-
-Another good option for automatically issuing certificates inside a cluster is [cert-manager](https://github.com/jetstack/cert-manager).
-Teleport needs access to the generated private key and certificate chain itself. It can't easily be used with a Kubernetes `Ingress`.
-
 ## Installing the chart
 
 To install the chart with the release name `teleport`, run:
 
-```
+```console
 $ helm install --name teleport ./
 ```
