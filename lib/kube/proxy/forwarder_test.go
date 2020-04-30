@@ -53,9 +53,8 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	b, err := f.requestCertificate(ctx)
 	c.Assert(err, check.IsNil)
 	// All fields except b.key are predictable.
-	c.Assert(b.cert, check.DeepEquals, cl.csrResp.Cert)
-	c.Assert(b.certAuthorities, check.DeepEquals, cl.csrResp.CertAuthorities)
-	c.Assert(b.targetAddr, check.DeepEquals, cl.csrResp.TargetAddr)
+	c.Assert(b.Certificates[0].Certificate[0], check.DeepEquals, cl.csrResp.Cert)
+	c.Assert(len(b.RootCAs.Subjects()), check.Equals, 1)
 
 	// Check the KubeCSR fields.
 	c.Assert(cl.gotCSR.Username, check.DeepEquals, ctx.User.GetName())
