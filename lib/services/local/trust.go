@@ -139,7 +139,7 @@ func (s *CA) ActivateCertAuthority(id services.CertAuthID) error {
 	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.BadParameter("can not activate cert authority %q which has not been deactivated", id.DomainName)
+			return trace.NotFound("no inactive CA matching %q", id.DomainName)
 		}
 		return trace.Wrap(err)
 	}
