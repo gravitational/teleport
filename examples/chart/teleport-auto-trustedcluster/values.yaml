@@ -106,7 +106,7 @@ tolerations: []
 #   effect: "NoSchedule"
 
 service:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
     proxyweb:
       port: 3080
