@@ -12,9 +12,8 @@ By default this chart is configured as follows:
 - 1 replica
 - Record ssh/k8s exec and attach session to the `emptyDir` of the Teleport pod
   - These sessions will also be stored on the root cluster, if used to access this Helm-configured cluster remotely
-- Teleport will be deployed using a Kubernetes LoadBalancer
-  - This is a requirement for a trusted cluster setup
 - TLS is enabled by default on the Proxy
+  - The leaf cluster will generate its own self-signed certificates
 
 See the comments in the default `values.yaml` and also the Teleport documentation for more options.
 
@@ -48,7 +47,7 @@ kubectl create secret generic license --from-file=license-enterprise.pem
 
 ## Installing the chart
 
-Make sure you read `values.yaml` and edit the appropriate sections (particularly the root cluster configuration) before 
+Make sure you read `values.yaml` and edit the appropriate sections (particularly the root cluster configuration) before
 installing the chart.
 
 To install the chart with the release name `teleport`, run:
@@ -56,6 +55,21 @@ To install the chart with the release name `teleport`, run:
 ```console
 helm install --name teleport ./
 ```
+
+You can view debug logs for the cluster with this command:
+
+```console
+kubectl logs deploy/teleport -c teleport
+```
+
+If you have any issues with the leaf cluster not appearing on the root cluster, look at the logs for the `teleport-sidecar`
+container:
+
+```console
+kubectl logs deploy/teleport -c teleport-sidecar
+```
+
+## Deleting the configured cluster
 
 If you need to delete the chart, you can use:
 
