@@ -48,7 +48,6 @@ config:
     kubernetes:
       enabled: yes
       listen_addr: 0.0.0.0:3026
-      public_addr: [add-customer-dns-here:3026]
 
 # Trusted cluster configuration
 # See https://gravitational.com/teleport/docs/trustedclusters for help
