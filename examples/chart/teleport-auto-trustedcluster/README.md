@@ -54,11 +54,11 @@ installing the chart.
 To install the chart with the release name `teleport`, run:
 
 ```console
-$ helm install --name teleport ./
+helm install --name teleport ./
 ```
 
 If you need to delete the chart, you can use:
 
 ```console
-$ helm delete --purge teleport
+helm delete --purge teleport
 ```
