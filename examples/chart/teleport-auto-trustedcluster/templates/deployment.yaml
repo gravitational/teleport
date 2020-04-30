@@ -71,11 +71,6 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 10 }}
         volumeMounts:
-{{- if .Values.proxy.tls.enabled }}
-        - mountPath: /var/lib/certs
-          name: {{ template "teleport.fullname" . }}-tls-web
-          readOnly: true
-{{- end }}
         - mountPath: /etc/teleport
           name: {{ template "teleport.fullname" . }}-config
           readOnly: true
@@ -90,11 +85,6 @@ spec:
 {{ toYaml .Values.extraVolumeMounts | indent 8 }}
 {{- end }}
       volumes:
-{{- if .Values.proxy.tls.enabled }}
-      - name: {{ template "teleport.fullname" . }}-tls-web
-        secret:
-          secretName: {{ .Values.proxy.tls.secretName }}
-{{- end }}
 {{- if .Values.license.enabled }}
       - name: {{ template "teleport.fullname" . }}-license
         secret:

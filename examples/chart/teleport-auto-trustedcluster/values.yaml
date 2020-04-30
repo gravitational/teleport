@@ -19,32 +19,21 @@ config:
     log:
       output: stderr
       severity: DEBUG
-    data_dir: /var/lib/teleport
-    storage:
-      type: dir
 
   auth_service:
     enabled: yes
     license_file: /var/lib/license/license-enterprise.pem
-    public_addr: add-customer-dns-here:3025
     # This will be the name that appears in the root cluster for management, so
     # it should be descriptive and contain the name of the customer.
     cluster_name: add-customer-name-here
 
   ssh_service:
     enabled: yes
-    public_addr: add-customer-dns-here:3022
 
   proxy_service:
     enabled: yes
-    public_addr: add-customer-dns-here:3080
     web_listen_addr: 0.0.0.0:3080
     listen_addr: 0.0.0.0:3023
-    # These files will be loaded from the tls-web secret that the customer defines in Kubernetes.
-    # These certificates must be capable of being validated against a known root CA - something
-    # like Let's Encrypt works well, or other commercial providers like Comodo, Verisign etc.
-    https_key_file: /var/lib/certs/tls.key
-    https_cert_file: /var/lib/certs/tls.crt
     kubernetes:
       enabled: yes
       listen_addr: 0.0.0.0:3026
@@ -183,8 +172,6 @@ proxy:
   tls:
     # We assume TLS is terminated in front of the proxy by default
     enabled: true
-    # tweak this if you have multiple proxies in a single namespace
-    secretName: tls-web
 
 license:
   ## Set false to run Teleport in Community edition mode
