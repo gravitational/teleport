@@ -33,8 +33,6 @@ There are comments in the file describing what the values need to be set to.
 - Kubernetes 1.10+
 - A Teleport license file stored as a Kubernetes Secret object - see below
 - Valid TLS private key and certificate chain which validates against a known root CA, stored in the `tls-web` secret.
-  - Private key should be called `privkey.pem`
-  - Certificate chain should be called `fullchain.pem`
   - Providers like Let's Encrypt are good for providing these certificates.
 
 ### Prepare the license file
@@ -76,11 +74,15 @@ Issue the certificate using certbot in manual mode:
 $ certbot -d teleport.example.com --manual --logs-dir . --config-dir . --work-dir . --preferred-challenges dns certonly
 ```
 
-Add the certificate and private key as a Kubernetes secret:
+Add the certificate and private key as a Kubernetes secret.
+
+Note: `privkey.pem` will be renamed to `tls.key` and `fullchain.pem` will be renamed to `tls.crt` when stored as a TLS
+secret by Kubernetes. The Teleport config expects these names. Using a secret type other than `tls` will result in an error.
 
 ```console
 $ kubectl create secret tls tls-web --cert=fullchain.pem --key=privkey.pem
 ```
+
 #### Important information
 
 In manual mode, you will need to configure a DNS TXT record on the DNS provider for `teleport.example.com` so that the
