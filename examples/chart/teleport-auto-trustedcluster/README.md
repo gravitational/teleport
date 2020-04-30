@@ -48,8 +48,17 @@ kubectl create secret generic license --from-file=license-enterprise.pem
 
 ## Installing the chart
 
+Make sure you read `values.yaml` and edit the appropriate sections (particularly the root cluster configuration) before 
+installing the chart.
+
 To install the chart with the release name `teleport`, run:
 
 ```console
 $ helm install --name teleport ./
+```
+
+If you need to delete the chart, you can use:
+
+```console
+$ helm delete --purge teleport
 ```
