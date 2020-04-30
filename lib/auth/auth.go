@@ -257,7 +257,7 @@ func (a *AuthServer) runPeriodicOperations() {
 				}
 			}
 			if err := a.ensureTrustedClusters(); err != nil {
-				log.Errorf("Periodic trusted cluster ops failr: %v", err)
+				log.Errorf("Periodic trusted cluster ops failure: %v", err)
 			}
 		}
 	}

@@ -148,7 +148,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 }
 
 // ensureTrustedClusters attempts to ensure that all currently registered
-// trsuted clusters configurations have been correctly applied.
+// trusted clusters configurations have been correctly applied.
 func (a *AuthServer) ensureTrustedClusters() error {
 	tcs, err := a.GetTrustedClusters()
 	if err != nil {
@@ -168,7 +168,7 @@ func (a *AuthServer) ensureTrustedClusters() error {
 	return trace.NewAggregate(errs...)
 }
 
-// ensureEnabled ensures that the supplied trsuted cluster has its
+// ensureEnabled ensures that the supplied trusted cluster has its
 // associated state enabled.  This function will automatically establish
 // trust if trust was not previously established.
 func (a *AuthServer) ensureEnabled(tc services.TrustedCluster) error {
@@ -177,7 +177,7 @@ func (a *AuthServer) ensureEnabled(tc services.TrustedCluster) error {
 		return trace.Wrap(err)
 	}
 	if trace.IsNotFound(err) {
-		// if we could not find CAs to activate, they are either aleardy activated,
+		// if we could not find CAs to activate, they are either already activated,
 		// or trust has not yet been established.
 		cas, err := a.getCertAuthorities(tc)
 		if err != nil && !trace.IsNotFound(err) {
