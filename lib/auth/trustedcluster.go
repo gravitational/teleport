@@ -147,22 +147,37 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 	return a.Presence.UpsertTrustedCluster(trustedCluster)
 }
 
-// ensureTrustedClusters attempts to ensure that all currently registered
+// EnsureTrustedClusters attempts to ensure that all currently registered
 // trusted clusters configurations have been correctly applied.
-func (a *AuthServer) ensureTrustedClusters() error {
+func (a *AuthServer) EnsureTrustedClusters() error {
 	tcs, err := a.GetTrustedClusters()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	var errs []error
 	for _, tc := range tcs {
+		name := tc.GetName()
+		renamed := false
 		if tc.GetEnabled() {
-			err = a.ensureEnabled(tc)
+			renamed, err = a.ensureEnabled(tc)
 		} else {
 			err = a.ensureDisabled(tc)
 		}
 		if err != nil {
 			errs = append(errs, err)
+		}
+		if !renamed {
+			continue
+		}
+		// if the trusted cluster was renamed, first store it, then delete
+		// the entry under the old name.
+		if _, err = a.Presence.UpsertTrustedCluster(tc); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if err := a.Presence.DeleteTrustedCluster(name); err != nil {
+			errs = append(errs, err)
+			continue
 		}
 	}
 	return trace.NewAggregate(errs...)
@@ -170,31 +185,37 @@ func (a *AuthServer) ensureTrustedClusters() error {
 
 // ensureEnabled ensures that the supplied trusted cluster has its
 // associated state enabled.  This function will automatically establish
-// trust if trust was not previously established.
-func (a *AuthServer) ensureEnabled(tc services.TrustedCluster) error {
-	err := a.activateCertAuthority(tc)
+// trust if trust was not previously established.  If establishing trust
+// for the first time, the TrustedCluster resource may be renamed to match
+// the true cluster name.
+func (a *AuthServer) ensureEnabled(tc services.TrustedCluster) (renamed bool, err error) {
+	err = a.activateCertAuthority(tc)
 	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+		return renamed, trace.Wrap(err)
 	}
 	if trace.IsNotFound(err) {
 		// if we could not find CAs to activate, they are either already activated,
 		// or trust has not yet been established.
 		cas, err := a.getCertAuthorities(tc)
 		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+			return renamed, trace.Wrap(err)
 		}
 		if trace.IsNotFound(err) {
 			// no active or inactive CAs, trust has not been established
 			cas, err = a.establishTrust(tc)
 			if err != nil {
-				return trace.Wrap(err)
+				return renamed, trace.Wrap(err)
+			}
+			if name := cas[0].GetClusterName(); name != tc.GetName() {
+				tc.SetName(name)
+				renamed = true
 			}
 			if err := a.addCertAuthorities(tc, cas); err != nil {
-				return trace.Wrap(err)
+				return renamed, trace.Wrap(err)
 			}
 		}
 	}
-	return trace.Wrap(a.createReverseTunnel(tc))
+	return renamed, trace.Wrap(a.createReverseTunnel(tc))
 }
 
 // ensureDisabled ensures that the supplied trusted cluster has had its associated

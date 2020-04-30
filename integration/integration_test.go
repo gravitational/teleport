@@ -1567,6 +1567,34 @@ func tryCreateTrustedCluster(c *check.C, authServer *auth.AuthServer, trustedClu
 	c.Fatalf("Timeout creating trusted cluster")
 }
 
+// tryCreateTrustedClusterInvalid directly injects a trusted cluster resource into
+// the backend and then waits for the auth server's self-healing to converge
+// to a consistent configuration state.
+func tryCreateTrustedClusterInvalid(c *check.C, authServer *auth.AuthServer, trustedCluster services.TrustedCluster) {
+	tunnels, err := authServer.GetReverseTunnels()
+	if err != nil {
+		c.Fatalf("Failed to load reverse tunnels: %v", err)
+	}
+	if _, err := authServer.Presence.UpsertTrustedCluster(trustedCluster); err != nil {
+		c.Fatalf("Failed to directly inject trusted cluster: %v", trustedCluster)
+	}
+	for i := 0; i < 10; i++ {
+		// run self-healing routines
+		authServer.EnsureTrustedClusters()
+		// check if an additional reversetunnel has been created (this is the last step
+		// in establishing an active trusted cluster configuration).  We don't attempt
+		// to load the tunnel by name because the tunnel is stored under the true cluster
+		// name, which may not match the name of the TrustedCluster resource.
+		if t, err := authServer.GetReverseTunnels(); err == nil {
+			if len(t) > len(tunnels) {
+				return
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	c.Fatalf("Timeout waiting for trusted cluster healing")
+}
+
 // trustedClusterTest is a test setup for trusted clusters tests
 type trustedClusterTest struct {
 	// multiplex sets up multiplexing of the reversetunnel SSH
@@ -1575,6 +1603,16 @@ type trustedClusterTest struct {
 	// useJumpHost turns on jump host mode for the access
 	// to the proxy instead of the proxy command
 	useJumpHost bool
+
+	// startInvalid directly injects the trusted cluster resource
+	// into the backend without correctly configuring the
+	// auth server and then verifies that the auth server's
+	// periodic operations cause a convergence toward
+	// correct configuration.  this propery is relied upon
+	// by the --bootstrap flag, and for healing auth servers
+	// which experience an error in the middle of a trusted-cluster
+	// state transition.
+	startInvalid bool
 }
 
 // TestTrustedClusters tests remote clusters scenarios
@@ -1584,6 +1622,15 @@ func (s *IntSuite) TestTrustedClusters(c *check.C) {
 	defer tr.Stop()
 
 	s.trustedClusters(c, trustedClusterTest{multiplex: false})
+}
+
+// TestTrustedClusterHealing tests self-healing property of
+// trusted cluster configuration object.
+func (s *IntSuite) TestTrustedClusterHealing(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	s.trustedClusters(c, trustedClusterTest{startInvalid: true})
 }
 
 // TestJumpTrustedClusters tests remote clusters scenarios
@@ -1670,9 +1717,12 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
+	// trustedClusterName is the real name of the trusted cluster
+	trustedClusterName := main.Secrets.SiteName
+
 	// modify trusted cluster resource name so it would not
 	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+	trustedCluster.SetName(trustedClusterName + "-cluster")
 
 	c.Assert(main.Start(), check.IsNil)
 	c.Assert(aux.Start(), check.IsNil)
@@ -1680,8 +1730,14 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	err = trustedCluster.CheckAndSetDefaults()
 	c.Assert(err, check.IsNil)
 
-	// try and upsert a trusted cluster
-	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	if test.startInvalid {
+		// try and directly inject a trusted cluster resource into the backend
+		// and then wait for self-healing to repair inconsistent configuration.
+		tryCreateTrustedClusterInvalid(c, aux.Process.GetAuthServer(), trustedCluster)
+	} else {
+		// try and upsert a trusted cluster
+		tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	}
 
 	nodePorts := s.getPorts(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
@@ -1764,7 +1820,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// remove trusted cluster from aux cluster side, and recrete right after
 	// this should re-establish connection
-	err = aux.Process.GetAuthServer().DeleteTrustedCluster(trustedCluster.GetName())
+	err = aux.Process.GetAuthServer().DeleteTrustedCluster(trustedClusterName)
 	c.Assert(err, check.IsNil)
 	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
 	c.Assert(err, check.IsNil)

@@ -256,7 +256,7 @@ func (a *AuthServer) runPeriodicOperations() {
 					log.Errorf("Failed to perform cert rotation check: %v.", err)
 				}
 			}
-			if err := a.ensureTrustedClusters(); err != nil {
+			if err := a.EnsureTrustedClusters(); err != nil {
 				log.Errorf("Periodic trusted cluster ops failure: %v", err)
 			}
 		}
