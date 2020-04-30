@@ -34,6 +34,21 @@
   revision = "d6e3b3328b783f23731bc4d058875b0371ff8109"
 
 [[projects]]
+  digest = "1:5b9056586bd3b298d30f3d466223eebd89a765dba3b7c2193b636a8589a66142"
+  name = "github.com/Azure/go-autorest"
+  packages = [
+    "autorest",
+    "autorest/adal",
+    "autorest/azure",
+    "autorest/date",
+    "logger",
+    "tracing",
+  ]
+  pruneopts = "NUT"
+  revision = "e727cfcfc902307f3a34d6f6ce50748ca944786a"
+  version = "v14.0.1"
+
+[[projects]]
   digest = "1:99632bb2b4e2c066233ee9d19c1370a695ebd2be18625e31390476d356db5d8a"
   name = "github.com/Microsoft/go-winio"
   packages = ["."]
@@ -216,6 +231,14 @@
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:7a6852b35eb5bbc184561443762d225116ae630c26a7c4d90546619f1e7d2ad2"
+  name = "github.com/dgrijalva/jwt-go"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
+  version = "v3.2.0"
+
+[[projects]]
   digest = "1:5c709df1e94c6dbee6fdd9699b11e3cdfa06870b1e828e9311e4e879b2ae6a4a"
   name = "github.com/docker/docker"
   packages = [
@@ -376,6 +399,23 @@
   pruneopts = "NUT"
   revision = "7c663266750e7d82587642f65e60bc4083f1f84e"
   version = "v0.2.0"
+
+[[projects]]
+  digest = "1:3146c4b8d29494fa43c40e0d5a6661f34d5a5acabb84ca689e63444d58e5c476"
+  name = "github.com/gophercloud/gophercloud"
+  packages = [
+    ".",
+    "openstack",
+    "openstack/identity/v2/tenants",
+    "openstack/identity/v2/tokens",
+    "openstack/identity/v3/extensions/ec2tokens",
+    "openstack/identity/v3/tokens",
+    "openstack/utils",
+    "pagination",
+  ]
+  pruneopts = "NUT"
+  revision = "65804fe9b24146be66c170c01caee23013862d88"
+  version = "v0.10.0"
 
 [[projects]]
   digest = "1:3c8c26bb118e3f02230d4f5f30b972dbfe0c6b371acea8f190aa99ceaaae7028"
@@ -1268,7 +1308,7 @@
   version = "v0.17.3"
 
 [[projects]]
-  digest = "1:a8a2953b840fc9a187f12b3dfed27a568b345259be7d66d7d24df55c995f02a6"
+  digest = "1:eeb28d904c2d8a762f2ecd078aab90303df9d0d8c124208821431d22c8de5322"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -1318,9 +1358,15 @@
     "pkg/apis/clientauthentication/v1alpha1",
     "pkg/apis/clientauthentication/v1beta1",
     "pkg/version",
+    "plugin/pkg/client/auth",
+    "plugin/pkg/client/auth/azure",
     "plugin/pkg/client/auth/exec",
+    "plugin/pkg/client/auth/gcp",
+    "plugin/pkg/client/auth/oidc",
+    "plugin/pkg/client/auth/openstack",
     "rest",
     "rest/watch",
+    "third_party/forked/golang/template",
     "tools/auth",
     "tools/clientcmd",
     "tools/clientcmd/api",
@@ -1337,6 +1383,7 @@
     "util/exec",
     "util/flowcontrol",
     "util/homedir",
+    "util/jsonpath",
     "util/keyutil",
   ]
   pruneopts = "NUT"
@@ -1453,6 +1500,7 @@
     "go.etcd.io/etcd/clientv3",
     "go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes",
     "go.etcd.io/etcd/mvcc/mvccpb",
+    "go.uber.org/atomic",
     "golang.org/x/crypto/bcrypt",
     "golang.org/x/crypto/ssh",
     "golang.org/x/crypto/ssh/agent",
@@ -1466,7 +1514,6 @@
     "golang.org/x/sys/unix",
     "golang.org/x/text/encoding",
     "golang.org/x/text/encoding/unicode",
-    "google.golang.org/api/iterator",
     "google.golang.org/api/option",
     "google.golang.org/genproto/googleapis/firestore/admin/v1",
     "google.golang.org/grpc",
@@ -1493,6 +1540,7 @@
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/apimachinery/third_party/forked/golang/netutil",
     "k8s.io/client-go/kubernetes",
+    "k8s.io/client-go/plugin/pkg/client/auth",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/clientcmd",
     "k8s.io/client-go/tools/clientcmd/api",

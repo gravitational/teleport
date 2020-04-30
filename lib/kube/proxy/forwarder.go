@@ -59,6 +59,10 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	utilexec "k8s.io/client-go/util/exec"
+
+	// Load all kubeconfig auth plugins (gcp/azure/etc).
+	// Without this, users can't provide a kubeconfig using those.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 // ForwarderConfig specifies configuration for proxy forwarder
