@@ -548,9 +548,6 @@ const (
 	// EnvUserProfile is the home directory environment variable on Windows.
 	EnvUserProfile = "USERPROFILE"
 
-	// KubeServiceAddr is an address for kubernetes endpoint service
-	KubeServiceAddr = "kubernetes.default.svc.cluster.local:443"
-
 	// KubeCAPath is a hardcode of mounted CA inside every pod of K8s
 	KubeCAPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
