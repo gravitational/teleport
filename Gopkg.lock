@@ -401,23 +401,6 @@
   version = "v0.2.0"
 
 [[projects]]
-  digest = "1:3146c4b8d29494fa43c40e0d5a6661f34d5a5acabb84ca689e63444d58e5c476"
-  name = "github.com/gophercloud/gophercloud"
-  packages = [
-    ".",
-    "openstack",
-    "openstack/identity/v2/tenants",
-    "openstack/identity/v2/tokens",
-    "openstack/identity/v3/extensions/ec2tokens",
-    "openstack/identity/v3/tokens",
-    "openstack/utils",
-    "pagination",
-  ]
-  pruneopts = "NUT"
-  revision = "65804fe9b24146be66c170c01caee23013862d88"
-  version = "v0.10.0"
-
-[[projects]]
   digest = "1:3c8c26bb118e3f02230d4f5f30b972dbfe0c6b371acea8f190aa99ceaaae7028"
   name = "github.com/gorilla/mux"
   packages = ["."]
@@ -1308,7 +1291,7 @@
   version = "v0.17.3"
 
 [[projects]]
-  digest = "1:eeb28d904c2d8a762f2ecd078aab90303df9d0d8c124208821431d22c8de5322"
+  digest = "1:146f86d6fc7b6c301f667bba532c1827463dc60d4445e0f39a499cf5b47d8cc9"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -1358,12 +1341,9 @@
     "pkg/apis/clientauthentication/v1alpha1",
     "pkg/apis/clientauthentication/v1beta1",
     "pkg/version",
-    "plugin/pkg/client/auth",
     "plugin/pkg/client/auth/azure",
     "plugin/pkg/client/auth/exec",
     "plugin/pkg/client/auth/gcp",
-    "plugin/pkg/client/auth/oidc",
-    "plugin/pkg/client/auth/openstack",
     "rest",
     "rest/watch",
     "third_party/forked/golang/template",
@@ -1540,7 +1520,8 @@
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/apimachinery/third_party/forked/golang/netutil",
     "k8s.io/client-go/kubernetes",
-    "k8s.io/client-go/plugin/pkg/client/auth",
+    "k8s.io/client-go/plugin/pkg/client/auth/azure",
+    "k8s.io/client-go/plugin/pkg/client/auth/gcp",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/clientcmd",
     "k8s.io/client-go/tools/clientcmd/api",
