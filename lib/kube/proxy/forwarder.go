@@ -24,11 +24,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -55,14 +52,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"k8s.io/apimachinery/pkg/util/httpstream"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	utilexec "k8s.io/client-go/util/exec"
-
-	// Load all kubeconfig auth plugins (gcp/azure/etc).
-	// Without this, users can't provide a kubeconfig using those.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 // ForwarderConfig specifies configuration for proxy forwarder
@@ -659,7 +651,7 @@ const (
 )
 
 func (f *Forwarder) setupForwardingHeaders(ctx *authContext, sess *clusterSession, req *http.Request) error {
-	if err := setupImpersonationHeaders(f.Entry, ctx, req.Header, f.creds.cfg.BearerToken); err != nil {
+	if err := setupImpersonationHeaders(f.Entry, ctx, req.Header); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -678,7 +670,7 @@ func (f *Forwarder) setupForwardingHeaders(ctx *authContext, sess *clusterSessio
 }
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
-func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers http.Header, bearerToken string) error {
+func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers http.Header) error {
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
@@ -744,6 +736,7 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers ht
 				"please select a user to impersonate, refusing to select a user due to several kuberenetes_users set up for this user")
 		}
 	}
+
 	if len(impersonateGroups) == 0 {
 		for group := range ctx.kubeGroups {
 			impersonateGroups = append(impersonateGroups, group)
@@ -751,12 +744,13 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers ht
 	}
 
 	if !ctx.cluster.isRemote {
-		headers.Add("Impersonate-User", impersonateUser)
+		headers.Set(ImpersonateUserHeader, impersonateUser)
+
+		// Make sure to overwrite the exiting headers, instead of appending to
+		// them.
+		headers[ImpersonateGroupHeader] = nil
 		for _, group := range impersonateGroups {
-			headers.Add("Impersonate-Group", group)
-		}
-		if bearerToken != "" {
-			headers.Set("Authorization", fmt.Sprintf("Bearer %v", bearerToken))
+			headers.Add(ImpersonateGroupHeader, group)
 		}
 	}
 	return nil
@@ -788,9 +782,12 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 		dial:            sess.DialWithContext,
 		tlsConfig:       sess.tlsConfig,
 		followRedirects: true,
-		bearerToken:     f.creds.cfg.BearerToken,
 	})
-	return remotecommand.NewSPDYExecutorForTransports(upgradeRoundTripper, upgradeRoundTripper, req.Method, req.URL)
+	rt, err := f.creds.wrapTransport(upgradeRoundTripper)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 }
 
 func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
@@ -800,10 +797,13 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		dial:            sess.DialWithContext,
 		tlsConfig:       sess.tlsConfig,
 		followRedirects: true,
-		bearerToken:     f.creds.cfg.BearerToken,
 	})
+	rt, err := f.creds.wrapTransport(upgradeRoundTripper)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	client := &http.Client{
-		Transport: upgradeRoundTripper,
+		Transport: rt,
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
@@ -939,34 +939,19 @@ func (f *Forwarder) serializedNewClusterSession(authContext authContext) (*clust
 }
 
 func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) {
-	var tlsConfig *tls.Config
-	// for remote clusters, retrieve a client certificate
+	tlsConfig := f.creds.tlsConfig
+
+	// For remote (trusted) clusters, generate a new teleport TLS client
+	// certificate for the user via auth server. Effectively, impersonate the
+	// user to the remote proxy.
 	if ctx.cluster.isRemote {
-		response, err := f.requestCertificate(ctx)
+		var err error
+		tlsConfig, err = f.requestCertificate(ctx)
 		if err != nil {
 			f.Warningf("Failed to get certificate for %v: %v.", ctx, err)
 			return nil, trace.AccessDenied("access denied: failed to authenticate with auth server")
 		}
-		cert, err := tls.X509KeyPair(response.cert, response.key)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		pool := x509.NewCertPool()
-		for _, certAuthority := range response.certAuthorities {
-			ok := pool.AppendCertsFromPEM(certAuthority)
-			if !ok {
-				return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
-			}
-		}
-		tlsConfig = &tls.Config{
-			RootCAs:      pool,
-			Certificates: []tls.Certificate{cert},
-			ClientAuth:   tls.RequireAndVerifyClientCert,
-		}
-	} else {
-		tlsConfig = f.creds.tlsConfig
 	}
-	tlsConfig.BuildNameToCertificate()
 
 	// remote clusters use special hardcoded URL,
 	// and use a special dialer
@@ -984,14 +969,18 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 
 	var transport http.RoundTripper = f.newTransport(sess.Dial, tlsConfig)
 
-	// when running inside Kubernetes cluster, kubeconfig provides a
-	// transport wrapper that adds service account token to requests
+	// When running inside Kubernetes cluster or using auth/exec providers,
+	// kubeconfig provides a transport wrapper that adds a bearer token to
+	// requests
 	//
-	// when forwarding request to a remote cluster, this is not needed
-	// as the proxy uses client cert auth to reach out to remote proxy
-	// which will then use its own transport wrapper
-	if !ctx.cluster.isRemote && f.creds.cfg.WrapTransport != nil {
-		transport = f.creds.cfg.WrapTransport(transport)
+	// When forwarding request to a remote cluster, this is not needed
+	// as the proxy uses client cert auth to reach out to remote proxy.
+	if !ctx.cluster.isRemote {
+		var err error
+		transport, err = f.creds.wrapTransport(transport)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	fwd, err := forward.New(
@@ -1037,13 +1026,6 @@ func (f *Forwarder) newTransport(dial DialFunc, tlsConfig *tls.Config) *http.Tra
 	}
 }
 
-type bundle struct {
-	cert            []byte
-	key             []byte
-	certAuthorities [][]byte
-	targetAddr      string
-}
-
 // getOrCreateRequestContext creates a new certificate request for a given context,
 // if there is no active CSR request in progress, or returns an existing one.
 // if the new context has been created, cancel function is returned as a
@@ -1066,7 +1048,7 @@ func (f *Forwarder) getOrCreateRequestContext(key string) (context.Context, cont
 	}
 }
 
-func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
+func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	f.Debugf("Requesting K8s cert for %v.", ctx)
 	keyPEM, _, err := f.Keygen.GenerateKeyPair("")
 	if err != nil {
@@ -1098,80 +1080,25 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	f.Debugf("Received valid K8s cert for %v.", ctx)
-	return &bundle{
-		cert:            response.Cert,
-		certAuthorities: response.CertAuthorities,
-		targetAddr:      response.TargetAddr,
-		key:             keyPEM,
-	}, nil
-}
 
-type kubeCreds struct {
-	// cfg is a raw k8s config loaded from kubeconfig.
-	cfg *rest.Config
-	// tlsConfig is generated from cfg with all authentication fields set as
-	// needed.
-	tlsConfig *tls.Config
-	// targetAddr is a target address of the kubernetes cluster read from
-	// config
-	targetAddr string
-}
-
-func getKubeCreds(kubeconfigPath string) (*kubeCreds, error) {
-	var cfg *rest.Config
-	// no kubeconfig is set, assume auth server is running in the cluster
-	if kubeconfigPath == "" {
-		caPEM, err := ioutil.ReadFile(teleport.KubeCAPath)
-		if err != nil {
-			return nil, trace.BadParameter(`auth server assumed that it is
-running in a kubernetes cluster, but %v mounted in pods could not be read: %v,
-set kubeconfig_file if auth server is running outside of the cluster`, teleport.KubeCAPath, err)
-		}
-
-		cfg, err = kubeutils.GetKubeConfig(os.Getenv(teleport.EnvKubeConfig))
-		if err != nil {
-			return nil, trace.BadParameter(`auth server assumed that it is
-running in a kubernetes cluster, but could not init in-cluster kubernetes client: %v`, err)
-		}
-		cfg.CAData = caPEM
-	} else {
-		log.Debugf("Reading configuration from kubeconfig file %v.", kubeconfigPath)
-
-		var err error
-		cfg, err = kubeutils.GetKubeConfig(kubeconfigPath)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	cert, err := tls.X509KeyPair(response.Cert, keyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pool := x509.NewCertPool()
+	for _, certAuthority := range response.CertAuthorities {
+		ok := pool.AppendCertsFromPEM(certAuthority)
+		if !ok {
+			return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
 		}
 	}
+	tlsConfig := &tls.Config{
+		RootCAs:      pool,
+		Certificates: []tls.Certificate{cert},
+	}
+	tlsConfig.BuildNameToCertificate()
 
-	targetAddr, err := parseKubeHost(cfg.Host)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse kubernetes host")
-	}
-	tlsConfig, err := rest.TLSConfigFor(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig")
-	}
-
-	return &kubeCreds{
-		cfg:        cfg,
-		tlsConfig:  tlsConfig,
-		targetAddr: targetAddr,
-	}, nil
-}
-
-// parseKubeHost parses and formats kubernetes hostname
-// to host:port format, if no port it set,
-// it assumes default HTTPS port
-func parseKubeHost(host string) (string, error) {
-	u, err := url.Parse(host)
-	if err != nil {
-		return "", trace.Wrap(err, "failed to parse kubernetes host")
-	}
-	if _, _, err := net.SplitHostPort(u.Host); err != nil {
-		// add default HTTPS port
-		return fmt.Sprintf("%v:443", u.Host), nil
-	}
-	return u.Host, nil
+	return tlsConfig, nil
 }
