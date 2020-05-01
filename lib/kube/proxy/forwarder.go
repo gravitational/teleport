@@ -77,8 +77,6 @@ type ForwarderConfig struct {
 	Auth auth.Authorizer
 	// Client is a proxy client
 	Client auth.ClientI
-	// TargetAddr is a target address
-	TargetAddr string
 	// DataDir is a data dir to store logs
 	DataDir string
 	// Namespace is a namespace of the proxy server (not a K8s namespace)
@@ -127,9 +125,6 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.ServerID == "" {
 		return trace.BadParameter("missing parameter ServerID")
-	}
-	if f.TargetAddr == "" {
-		f.TargetAddr = teleport.KubeServiceAddr
 	}
 	if f.Namespace == "" {
 		f.Namespace = defaults.Namespace
@@ -427,7 +422,7 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 		cluster: cluster{
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 			RemoteSite: targetCluster,
-			targetAddr: f.TargetAddr,
+			targetAddr: f.creds.targetAddr,
 			isRemote:   isRemoteCluster,
 		},
 	}
@@ -978,13 +973,7 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	if ctx.cluster.isRemote {
 		ctx.cluster.targetAddr = reversetunnel.RemoteKubeProxy
 	} else {
-		// auth server supplied target API address to dial,
-		// use it for dialing
-		if f.creds.targetAddr != "" {
-			ctx.cluster.targetAddr = f.creds.targetAddr
-		} else { // otherwise, use supplied defaults
-			ctx.cluster.targetAddr = f.TargetAddr
-		}
+		ctx.cluster.targetAddr = f.creds.targetAddr
 	}
 
 	sess := &clusterSession{
