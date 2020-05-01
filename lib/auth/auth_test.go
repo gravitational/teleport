@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -44,9 +45,10 @@ import (
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
-	bk      backend.Backend
-	a       *AuthServer
-	dataDir string
+	bk             backend.Backend
+	a              *AuthServer
+	dataDir        string
+	mockedAuditLog *events.MockAuditLog
 }
 
 var _ = Suite(&AuthSuite{})
@@ -58,6 +60,7 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 
 func (s *AuthSuite) SetUpTest(c *C) {
 	var err error
+	s.mockedAuditLog = events.NewMockAuditLog(0)
 	s.dataDir = c.MkDir()
 	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: s.dataDir})
 	c.Assert(err, IsNil)
@@ -567,4 +570,53 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 		Token: "bar",
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}}))
+}
+
+func (s *AuthSuite) TestUpdateByWithContext(c *C) {
+	ctx := withUpdateBy(context.TODO(), "some-user")
+	updatedBy, err := getUpdateBy(ctx)
+	c.Assert(err, IsNil)
+	c.Assert(updatedBy, Equals, "some-user")
+
+	// trigger error
+	ctx = withUpdateBy(context.TODO(), "")
+	updatedBy, err = getUpdateBy(ctx)
+	c.Assert(trace.IsBadParameter(err), Equals, true)
+	c.Assert(err, ErrorMatches, `missing value "updated_by"`)
+	c.Assert(updatedBy, Equals, "")
+}
+
+func (s *AuthSuite) TestCreateAndUpdateUser(c *C) {
+	s.a.IAuditLog = s.mockedAuditLog
+	user, err := services.NewUser("some-user")
+	c.Assert(err, IsNil)
+
+	// test create user
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		c.Assert(event.Code, Equals, events.UserCreateCode)
+		c.Assert(fields[events.EventUser], Equals, "some-auth-user")
+		return nil
+	}
+
+	// trigger error
+	err = s.a.CreateUser(context.TODO(), user)
+	c.Assert(err, ErrorMatches, `created by is not set for new user "some-user"`)
+
+	// happy path
+	user.SetCreatedBy(services.CreatedBy{
+		User: services.UserRef{Name: "some-auth-user"},
+	})
+	err = s.a.CreateUser(context.TODO(), user)
+	c.Assert(err, IsNil)
+
+	// test update user
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		c.Assert(event.Code, Equals, events.UserUpdateCode)
+		c.Assert(fields[events.EventUser], Equals, "some-context-user")
+		return nil
+	}
+	ctx := withUpdateBy(context.TODO(), "some-context-user")
+	c.Assert(ctx, NotNil)
+	err = s.a.UpdateUser(ctx, user)
+	c.Assert(err, IsNil)
 }
