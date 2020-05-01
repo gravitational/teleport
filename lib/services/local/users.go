@@ -124,8 +124,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
-		err = s.upsertLocalAuthSecrets(user.GetName(), *auth)
-		if err != nil {
+		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -152,8 +151,7 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) er
 		return trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
-		err = s.upsertLocalAuthSecrets(user.GetName(), *auth)
-		if err != nil {
+		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -180,8 +178,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
-		err = s.upsertLocalAuthSecrets(user.GetName(), *auth)
-		if err != nil {
+		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
 			return trace.Wrap(err)
 		}
 	}

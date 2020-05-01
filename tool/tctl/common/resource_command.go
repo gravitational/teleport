@@ -325,19 +325,18 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 	}
 	exists := (err == nil)
 
-	ctx := context.TODO()
 	if exists {
 		if rc.force == false {
 			return trace.AlreadyExists("user %q already exists", userName)
 		}
 
-		if err := client.UpdateUser(ctx, user); err != nil {
+		if err := client.UpdateUser(context.TODO(), user); err != nil {
 			return trace.Wrap(err)
 		}
 
 		fmt.Printf("user %q has been updated\n", userName)
 	} else {
-		if err := client.CreateUser(ctx, user); err != nil {
+		if err := client.CreateUser(context.TODO(), user); err != nil {
 			return trace.Wrap(err)
 		}
 
