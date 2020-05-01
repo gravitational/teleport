@@ -206,8 +206,8 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 		log.Debugf("Overwriting existing user %q created with %v connector %v.",
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
 
-		updatedCtx := withUpdateBy(context.TODO(), teleport.UserSystem)
-		if err := a.UpdateUser(updatedCtx, user); err != nil {
+		ctx = withUpdateBy(ctx, teleport.UserSystem)
+		if err := a.UpdateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {

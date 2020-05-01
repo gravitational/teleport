@@ -806,8 +806,8 @@ func (a *AuthWithRoles) SetAccessRequestState(ctx context.Context, reqID string,
 	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	updateCtx := withUpdateBy(ctx, a.user.GetName())
-	return a.authServer.SetAccessRequestState(updateCtx, reqID, state)
+	ctx = withUpdateBy(ctx, a.user.GetName())
+	return a.authServer.SetAccessRequestState(ctx, reqID, state)
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -1106,7 +1106,7 @@ func (a *AuthWithRoles) CreateResetPasswordToken(ctx context.Context, req Create
 	}
 
 	a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
-		events.ResetPasswordTokenFor: req.Name,
+		events.ActionOnBehalfOf:      req.Name,
 		events.ResetPasswordTokenTTL: req.TTL.String(),
 		events.EventUser:             a.user.GetName(),
 	})
@@ -1143,14 +1143,15 @@ func (a *AuthWithRoles) CreateUser(ctx context.Context, user services.User) erro
 }
 
 // UpdateUser updates an existing user in a backend.
+// Captures the auth user who modified the user record.
 func (a *AuthWithRoles) UpdateUser(ctx context.Context, user services.User) error {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
-	updatedCtx := withUpdateBy(ctx, a.user.GetName())
+	ctx = withUpdateBy(ctx, a.user.GetName())
 
-	return a.authServer.UpdateUser(updatedCtx, user)
+	return a.authServer.UpdateUser(ctx, user)
 }
 
 func (a *AuthWithRoles) UpsertUser(u services.User) error {

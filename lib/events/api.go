@@ -147,17 +147,11 @@ const (
 	// UserUpdatedEvent is emitted when the user is updated.
 	UserUpdatedEvent = "user.update"
 
-	// UserUpdatedName is the name of the user that has been updated.
-	UserUpdatedName = "updated_user"
-
 	// UserDeleteEvent is emitted when the user is deleted.
 	UserDeleteEvent = "user.delete"
 
 	// UserCreateEvent is emitted when the user is created.
 	UserCreateEvent = "user.create"
-
-	// UserCreatedName is the name of the created user.
-	UserCreatedName = "created_user"
 
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
@@ -193,8 +187,10 @@ const (
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
-	// ResetPasswordTokenFor is a user name of reset password token.
-	ResetPasswordTokenFor = "entity"
+
+	// ActionOnBehalfOf is the name of the user, whom record is being modified:
+	// resetting passwords, creating/updating user, etc.
+	ActionOnBehalfOf = "entity"
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
