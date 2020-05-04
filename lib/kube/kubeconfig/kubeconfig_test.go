@@ -117,7 +117,7 @@ func (s *KubeconfigSuite) TearDownTest(c *check.C) {
 }
 
 func (s *KubeconfigSuite) TestLoad(c *check.C) {
-	config, err := load(s.kubeconfigPath)
+	config, err := Load(s.kubeconfigPath)
 	c.Assert(err, check.IsNil)
 	c.Assert(*config, check.DeepEquals, s.initialConfig)
 }
@@ -156,7 +156,7 @@ func (s *KubeconfigSuite) TestSave(c *check.C) {
 	err := save(s.kubeconfigPath, cfg)
 	c.Assert(err, check.IsNil)
 
-	config, err := load(s.kubeconfigPath)
+	config, err := Load(s.kubeconfigPath)
 	c.Assert(err, check.IsNil)
 	c.Assert(*config, check.DeepEquals, cfg)
 }
@@ -196,7 +196,7 @@ func (s *KubeconfigSuite) TestUpdate(c *check.C) {
 	}
 	wantConfig.CurrentContext = clusterName
 
-	config, err := load(s.kubeconfigPath)
+	config, err := Load(s.kubeconfigPath)
 	c.Assert(err, check.IsNil)
 	c.Assert(*config, check.DeepEquals, wantConfig)
 }

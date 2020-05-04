@@ -40,7 +40,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-func TestResourceHelpers(t *testing.T) { check.TestingT(t) }
+func Test(t *testing.T) { check.TestingT(t) }
 
 type ResourceSuite struct {
 	bk backend.Backend

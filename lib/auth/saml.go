@@ -295,7 +295,7 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		events.AuthAttemptSuccess: true,
 		events.LoginMethod:        events.LoginMethodSAML,
 	}
-	if re != nil && re.attributeStatements != nil {
+	if re.attributeStatements != nil {
 		fields[events.IdentityAttributes] = re.attributeStatements
 	}
 	a.EmitAuditEvent(events.UserSSOLogin, fields)
@@ -326,7 +326,7 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthRespons
 	}
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		log.Warnf("Failed to retrieve SAML AssertionInfo from response: %v.", err)
+		log.Warnf("Received response with incorrect or no claims/attribute statements. Please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://gravitational.com/teleport/docs/enterprise/ssh_sso/>. Failed to retrieve SAML AssertionInfo from response: %v.", err)
 		return nil, trace.AccessDenied("bad SAML response")
 	}
 

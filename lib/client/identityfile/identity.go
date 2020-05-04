@@ -20,11 +20,13 @@ package identityfile
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 
@@ -46,6 +48,10 @@ const (
 	// certificate and key are stored in separate files.
 	FormatTLS Format = "tls"
 
+	// FormatKubernetes is a standard Kubernetes format, with all credentials
+	// stored in a "kubeconfig" file.
+	FormatKubernetes Format = "kubernetes"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
@@ -53,9 +59,12 @@ const (
 // Write takes a username + their credentials and saves them to disk
 // in a specified format.
 //
+// certAuthorities is only used with FormatFile and FormatTLS.
+// clusterAddr is only used with FormatKubernetes.
+//
 // filePath is used as a base to generate output file names; these names are
 // returned in filesWritten.
-func Write(filePath string, key *client.Key, format Format, certAuthorities []services.CertAuthority) (filesWritten []string, err error) {
+func Write(filePath string, key *client.Key, format Format, certAuthorities []services.CertAuthority, clusterAddr string) (filesWritten []string, err error) {
 	const (
 		// the files and the dir will be created with these permissions:
 		fileMode = 0600
@@ -79,15 +88,15 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 		defer f.Close()
 
 		// write key:
-		if _, err = output.Write(key.Priv); err != nil {
+		if err := writeWithNewline(output, key.Priv); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append ssh cert:
-		if _, err = output.Write(key.Cert); err != nil {
+		if err := writeWithNewline(output, key.Cert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append tls cert:
-		if _, err = output.Write(key.TLSCert); err != nil {
+		if err := writeWithNewline(output, key.TLSCert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append trusted host certificate authorities
@@ -98,16 +107,13 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				if _, err = output.Write([]byte(data)); err != nil {
-					return nil, trace.Wrap(err)
-				}
-				if _, err = output.Write([]byte("\n")); err != nil {
+				if err := writeWithNewline(output, []byte(data)); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
 			// append tls ca certificates
 			for _, keyPair := range ca.GetTLSKeyPairs() {
-				if _, err = output.Write(keyPair.Cert); err != nil {
+				if err := writeWithNewline(output, keyPair.Cert); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -154,11 +160,34 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+	case FormatKubernetes:
+		filesWritten = append(filesWritten, filePath)
+		if err := kubeconfig.Update(filePath, kubeconfig.Values{
+			Name:        key.ClusterName,
+			ClusterAddr: clusterAddr,
+			Credentials: key,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 	default:
 		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, or %q",
 			format, FormatFile, FormatOpenSSH, FormatTLS)
 	}
 	return filesWritten, nil
+}
+
+func writeWithNewline(w io.Writer, data []byte) error {
+	if _, err := w.Write(data); err != nil {
+		return trace.Wrap(err)
+	}
+	if !bytes.HasSuffix(data, []byte{'\n'}) {
+		if _, err := fmt.Fprintln(w); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // IdentityFile represents the basic components of an identity file.

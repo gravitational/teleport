@@ -483,8 +483,10 @@ func contextForLocalUser(u LocalUser, identity services.UserGetter, access servi
 	}, nil
 }
 
+type contextUserKey string
+
 // ContextUser is a user set in the context of the request
-const ContextUser = "teleport-user"
+const ContextUser contextUserKey = "teleport-user"
 
 // LocalUser is a local user
 type LocalUser struct {

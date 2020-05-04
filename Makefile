@@ -277,10 +277,15 @@ sloccount:
 remove-temp-files:
 	find . -name flymake_* -delete
 
-# Dockerized build: usefule for making Linux releases on OSX
+# Dockerized build: useful for making Linux releases on OSX
 .PHONY:docker
 docker:
-	make -C build.assets
+	make -C build.assets build
+
+# Dockerized build: useful for making Linux binaries on OSX
+.PHONY:docker-binaries
+docker-binaries:
+	make -C build.assets build-binaries
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
 .PHONY:enter
@@ -346,14 +351,16 @@ install: build
 	mkdir -p $(DATADIR)
 
 
+# Docker image build. Always build the binaries themselves within docker (see
+# the "docker" rule) to avoid dependencies on the host libc version.
 .PHONY: image
-image:
+image: docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish
-publish:
+publish: image
 	docker push $(DOCKER_IMAGE):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
 

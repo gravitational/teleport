@@ -107,6 +107,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 
 	// after trust is established, things are good
 	err = s.server.AuthServer.Trust(remoteServer, nil)
+	c.Assert(err, check.IsNil)
 
 	_, err = remoteProxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
@@ -193,6 +194,7 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 
 	// after trust is established, things are good
 	err = s.server.AuthServer.Trust(remoteServer, nil)
+	c.Assert(err, check.IsNil)
 
 	remoteProxy, err := remoteServer.NewRemoteClient(
 		TestBuiltin(teleport.RoleProxy), s.server.Addr(), certPool)
@@ -357,7 +359,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	newProxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	_, err = s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
@@ -377,7 +379,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	newProxy, err = s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	newProxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	_, err = newProxy.GetNodes(defaults.Namespace, services.SkipValidation())
@@ -386,6 +388,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	// complete rotation - advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
+	c.Assert(err, check.IsNil)
 	ca, err = s.server.Auth().GetCertAuthority(services.CertAuthID{
 		DomainName: s.server.ClusterName(),
 		Type:       services.HostCA,
@@ -1072,6 +1075,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	// emit two events: "one" and "two" for this session, and event "three"
 	// for some other session
 	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+	c.Assert(err, check.IsNil)
 	forwarder, err := events.NewForwarder(events.ForwarderConfig{
 		Namespace:      defaults.Namespace,
 		SessionID:      sess.ID,
@@ -1261,6 +1265,7 @@ func (s *TLSSuite) TestWebSessions(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 
 	err = clt.UpsertPassword(user, pass)
+	c.Assert(err, check.IsNil)
 
 	// success with password set up
 	ws, err := proxy.AuthenticateWebUser(req)
@@ -1694,6 +1699,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 		Expires:   time.Now().Add(1 * time.Hour).UTC(),
 		Format:    teleport.CertificateFormatStandard,
 	})
+	c.Assert(err, check.IsNil)
 	parsedCert, _ = parseCert(userCerts.SSH)
 
 	// user should get agent forwarding
