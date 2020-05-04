@@ -47,13 +47,15 @@ export default function TrustedClusters() {
             width="240px"
             onClick={() => resources.create('trusted_cluster')}
           >
-            ADD TRUSTED CLUSTER
+            Connect to Root Cluster
           </ButtonPrimary>
         )}
       </FeatureHeader>
       {tclusters.isFailed && <Danger>{tclusters.message} </Danger>}
       <Flex alignItems="start">
-        {isEmpty && <CardEmpty title="No Trusted Clusters Found"></CardEmpty>}
+        {isEmpty && (
+          <CardEmpty title="Not sharing cluster access to a root cluster"></CardEmpty>
+        )}
         {!isEmpty && (
           <TrustedList
             mt="4"
@@ -75,14 +77,15 @@ export default function TrustedClusters() {
           <Text typography="subtitle1" mb={3}>
             Trusted Clusters allows Teleport administrators to connect multiple
             clusters together and establish trust between them. Users of trusted
-            clusters can seamlessly SSH into the nodes of this cluster.
+            clusters can seamlessly access the nodes of the cluster from the
+            root cluster.
           </Text>
           <Text typography="subtitle1" mb={2}>
             Please{' '}
             <Text
               as="a"
               color="light"
-              href="https://gravitational.co/teleport/docs/trustedclusters/"
+              href="https://gravitational.com/teleport/docs/trustedclusters/"
               target="_blank"
             >
               view our documentation
