@@ -21,7 +21,7 @@
     "create-react-class": "^15.6.3",
     "es6-shim": "^0.35.1",
     "ip-subnet-calculator": "^1.1.8",
-    "jquery": "3.4.1",
+    "jquery": "3.5.0",
     "nuclear-js": "1.4.0",
     "u2f-api-polyfill": "^0.4.3",
     "xterm": "https://github.com/gravitational/xterm.js#v2.4.0",
