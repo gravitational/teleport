@@ -17,17 +17,21 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tsh/common"
 
@@ -36,7 +40,7 @@ import (
 
 // bootstrap check
 func TestTshMain(t *testing.T) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 	check.TestingT(t)
 }
 
@@ -95,6 +99,56 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 			SrcPort: 8080,
 		},
 	})
+
+	// Set up a test proxy service.
+	ports, err := utils.GetFreeTCPPorts(3)
+	c.Assert(err, check.IsNil)
+	authAddr := utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", ports.Pop()))
+	proxyWebAddr := utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", ports.Pop()))
+	proxyPublicSSHAddr := utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", ports.Pop()))
+
+	cfg := service.MakeDefaultConfig()
+	cfg.DataDir = c.MkDir()
+	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.SSH.Enabled = false
+	cfg.Auth.Enabled = true
+	cfg.Auth.SSHAddr = *authAddr
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.WebAddr = *proxyWebAddr
+	cfg.Proxy.SSHPublicAddrs = []utils.NetAddr{*proxyPublicSSHAddr}
+	cfg.Proxy.DisableReverseTunnel = true
+	cfg.Proxy.DisableWebInterface = true
+
+	proxy, err := service.NewTeleport(cfg)
+	c.Assert(err, check.IsNil)
+	c.Assert(proxy.Start(), check.IsNil)
+	defer proxy.Close()
+
+	// Wait for proxy to become ready.
+	eventCh := make(chan service.Event, 1)
+	proxy.WaitForEvent(proxy.ExitContext(), service.ProxyWebServerReady, eventCh)
+	select {
+	case <-eventCh:
+	case <-time.After(10 * time.Second):
+		c.Fatal("proxy web server didn't start after 10s")
+	}
+
+	// With provided identity file.
+	//
+	// makeClient should call Ping on the proxy to fetch SSHProxyAddr, which is
+	// different from the default.
+	conf = CLIConf{
+		Proxy:              proxyWebAddr.String(),
+		IdentityFileIn:     "../../fixtures/certs/identities/key-cert-ca.pem",
+		Context:            context.Background(),
+		InsecureSkipVerify: true,
+	}
+	tc, err = makeClient(&conf, true)
+	c.Assert(err, check.IsNil)
+	c.Assert(tc, check.NotNil)
+	c.Assert(tc.Config.WebProxyAddr, check.Equals, proxyWebAddr.String())
+	c.Assert(tc.Config.SSHProxyAddr, check.Equals, proxyPublicSSHAddr.String())
 }
 
 func (s *MainTestSuite) TestIdentityRead(c *check.C) {

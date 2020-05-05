@@ -892,7 +892,7 @@ func onSCP(cf *CLIConf) {
 
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
-func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
+func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, error) {
 	// Parse OpenSSH style options.
 	options, err := parseOptions(cf.Options)
 	if err != nil {
@@ -1072,7 +1072,22 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	// Don't execute remote command, used when port forwarding.
 	c.NoRemoteExec = cf.NoRemoteExec
 
-	return client.NewClient(c)
+	tc, err := client.NewClient(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// If identity file was provided, we skip loading the local profile info
+	// (above). This profile info provides the proxy-advertised listening
+	// addresses.
+	// To compensate, when using an identity file, explicitly fetch these
+	// addresses from the proxy (this is what Ping does).
+	if cf.IdentityFileIn != "" {
+		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
+		if _, err := tc.Ping(cf.Context); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return tc, nil
 }
 
 func parseCertificateCompatibilityFlag(compatibility string, certificateFormat string) (string, error) {
