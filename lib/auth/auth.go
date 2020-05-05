@@ -1405,9 +1405,9 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 		return trace.Wrap(err)
 	}
 	fields := events.EventFields{
-		events.AccessRequestID:       reqID,
-		events.AccessRequestState:    state.String(),
-		events.AccessRequestUpdateBy: updateBy,
+		events.AccessRequestID:    reqID,
+		events.AccessRequestState: state.String(),
+		events.UpdatedBy:          updateBy,
 	}
 	if delegator := getDelegator(ctx); delegator != "" {
 		fields[events.AccessRequestDelegator] = delegator

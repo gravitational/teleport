@@ -153,9 +153,6 @@ const (
 	// UserCreateEvent is emitted when the user is created.
 	UserCreateEvent = "user.create"
 
-	// UserCreatedName is the name of the created user.
-	UserCreatedName = "created_user"
-
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
 
@@ -173,8 +170,6 @@ const (
 	AccessRequestCreateEvent = "access_request.create"
 	// AccessRequestUpdateEvent is emitted when a request's state is updated.
 	AccessRequestUpdateEvent = "access_request.update"
-	// AccessRequestUpdateBy indicates the user that updated the request state.
-	AccessRequestUpdateBy = "updated_by"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -183,12 +178,19 @@ const (
 	// AccessRequestID is the ID of an access request.
 	AccessRequestID = "id"
 
+	// UpdatedBy indicates the user who modified some resource:
+	//  - updating a request state
+	//  - updating a user record
+	UpdatedBy = "updated_by"
+
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
-	// ResetPasswordTokenFor is a user name of reset password token.
-	ResetPasswordTokenFor = "entity"
+
+	// ActionOnBehalfOf is the name of the user, whom record is being modified:
+	// resetting passwords, creating/updating user, etc.
+	ActionOnBehalfOf = "entity"
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side

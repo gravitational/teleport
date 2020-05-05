@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -356,7 +357,7 @@ func (s *AuthServer) createGithubUser(p *createUserParams) (services.User, error
 				Username:    p.username,
 			}},
 			CreatedBy: services.CreatedBy{
-				User: services.UserRef{Name: "system"},
+				User: services.UserRef{Name: teleport.UserSystem},
 				Time: s.GetClock().Now().UTC(),
 				Connector: &services.ConnectorRef{
 					Type:     teleport.ConnectorGithub,
@@ -374,17 +375,26 @@ func (s *AuthServer) createGithubUser(p *createUserParams) (services.User, error
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
+
+	ctx := context.TODO()
+
 	if existingUser != nil {
 		ref := user.GetCreatedBy().Connector
 		if !ref.IsSameProvider(existingUser.GetCreatedBy().Connector) {
-			return nil, trace.AlreadyExists("user %q already exists and is not Github user",
+			return nil, trace.AlreadyExists("local user %q already exists and is not a Github user",
 				existingUser.GetName())
 		}
+
+		ctx = withUpdateBy(ctx, teleport.UserSystem)
+		if err := s.UpdateUser(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := s.CreateUser(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	err = s.UpsertUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return user, nil
 }
 

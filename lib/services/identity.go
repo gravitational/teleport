@@ -40,9 +40,11 @@ type UserGetter interface {
 	GetUser(user string, withSecrets bool) (User, error)
 }
 
-// UserService is reponsible for basic user management
+// UsersService is reponsible for basic user management
 type UsersService interface {
 	UserGetter
+	// UpdateUser updates an existing user.
+	UpdateUser(ctx context.Context, user User) error
 	// UpsertUser updates parameters about user
 	UpsertUser(user User) error
 	// DeleteUser deletes a user with all the keys from the backend

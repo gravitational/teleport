@@ -110,7 +110,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 	if err := user.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetUserMarshaler().MarshalUser(user)
+	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,20 +124,46 @@ func (s *IdentityService) CreateUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
-		err = s.upsertLocalAuthSecrets(user.GetName(), *auth)
-		if err != nil {
+		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-// UpsertUser updates parameters about user
+// UpdateUser updates an existing user.
+func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) error {
+	if err := user.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:   value,
+		Expires: user.Expiry(),
+		ID:      user.GetResourceID(),
+	}
+	_, err = s.Update(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if auth := user.GetLocalAuth(); auth != nil {
+		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// UpsertUser updates parameters about user, or creates an entry if not exist.
 func (s *IdentityService) UpsertUser(user services.User) error {
 	if err := user.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetUserMarshaler().MarshalUser(user)
+	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -152,8 +178,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
-		err = s.upsertLocalAuthSecrets(user.GetName(), *auth)
-		if err != nil {
+		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
 			return trace.Wrap(err)
 		}
 	}

@@ -35,6 +35,14 @@ import (
 
 // CreateUser inserts a new user entry in a backend.
 func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
+	createdBy := user.GetCreatedBy()
+	if createdBy.IsEmpty() {
+		return trace.BadParameter("created by is not set for new user %q", user.GetName())
+	}
+
+	// TODO: ctx is being swallowed here because the current implementation of
+	// s.Identity.CreateUser is an older implementation that does not curently
+	// accept a context.
 	if err := s.Identity.CreateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
@@ -47,11 +55,40 @@ func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 	}
 
 	s.EmitAuditEvent(events.UserCreate, events.EventFields{
-		events.EventUser:       user.GetCreatedBy().User.Name,
-		events.UserExpires:     user.Expiry(),
-		events.UserRoles:       user.GetRoles(),
-		events.UserCreatedName: user.GetName(),
-		events.UserConnector:   connectorName,
+		events.EventUser:        createdBy.User.Name,
+		events.UserExpires:      user.Expiry(),
+		events.UserRoles:        user.GetRoles(),
+		events.ActionOnBehalfOf: user.GetName(),
+		events.UserConnector:    connectorName,
+	})
+
+	return nil
+}
+
+// UpdateUser updates an existing user in a backend.
+func (s *AuthServer) UpdateUser(ctx context.Context, user services.User) error {
+	updateBy, err := getUpdateBy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.Identity.UpdateUser(ctx, user); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var connectorName string
+	if user.GetCreatedBy().Connector == nil {
+		connectorName = teleport.Local
+	} else {
+		connectorName = user.GetCreatedBy().Connector.ID
+	}
+
+	s.EmitAuditEvent(events.UserUpdate, events.EventFields{
+		events.EventUser:        updateBy,
+		events.UserExpires:      user.Expiry(),
+		events.UserRoles:        user.GetRoles(),
+		events.ActionOnBehalfOf: user.GetName(),
+		events.UserConnector:    connectorName,
 	})
 
 	return nil
