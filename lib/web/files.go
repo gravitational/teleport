@@ -72,7 +72,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	if isUpload {
 		err = ft.upload(req, r)
 	} else {
-		err = ft.download(req, w)
+		err = ft.download(req, r, w)
 	}
 
 	if err != nil {
@@ -89,7 +89,7 @@ type fileTransfer struct {
 	proxyHostPort string
 }
 
-func (f *fileTransfer) download(req fileTransferRequest, w http.ResponseWriter) error {
+func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, w http.ResponseWriter) error {
 	cmd, err := scp.CreateHTTPDownload(scp.HTTPTransferRequest{
 		RemoteLocation: req.remoteLocation,
 		HTTPResponse:   w,
@@ -99,7 +99,7 @@ func (f *fileTransfer) download(req fileTransferRequest, w http.ResponseWriter) 
 		return trace.Wrap(err)
 	}
 
-	tc, err := f.createClient(req)
+	tc, err := f.createClient(req, httpReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -123,7 +123,7 @@ func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) er
 		return trace.Wrap(err)
 	}
 
-	tc, err := f.createClient(req)
+	tc, err := f.createClient(req, httpReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -136,7 +136,7 @@ func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) er
 	return nil
 }
 
-func (f *fileTransfer) createClient(req fileTransferRequest) (*client.TeleportClient, error) {
+func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request) (*client.TeleportClient, error) {
 	if !services.IsValidNamespace(req.namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", req.namespace)
 	}
@@ -166,6 +166,7 @@ func (f *fileTransfer) createClient(req fileTransferRequest) (*client.TeleportCl
 	cfg.ParseProxyHost(f.proxyHostPort)
 	cfg.Host = hostName
 	cfg.HostPort = hostPort
+	cfg.ClientAddr = httpReq.RemoteAddr
 
 	tc, err := client.NewClient(cfg)
 	if err != nil {
