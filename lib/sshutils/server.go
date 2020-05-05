@@ -466,12 +466,6 @@ type RequestHandler interface {
 	HandleRequest(r *ssh.Request)
 }
 
-type RequestHandlerFunc func(*ssh.Request)
-
-func (f RequestHandlerFunc) HandleRequest(r *ssh.Request) {
-	f(r)
-}
-
 type NewChanHandler interface {
 	HandleNewChan(*ConnectionContext, ssh.NewChannel)
 }

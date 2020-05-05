@@ -549,12 +549,6 @@ func (s *session) PID() int {
 	return s.term.PID()
 }
 
-// Recorder returns a events.SessionRecorder which can be used to emit events
-// to a session as well as the audit log.
-func (s *session) Recorder() events.SessionRecorder {
-	return s.recorder
-}
-
 // Close ends the active session forcing all clients to disconnect and freeing all resources
 func (s *session) Close() error {
 	serverSessions.Dec()

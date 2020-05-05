@@ -1805,15 +1805,3 @@ func NewAdminAuthServer(authServer *AuthServer, sessions session.Service, alog e
 		sessions:   sessions,
 	}, nil
 }
-
-// NewAuthWithRoles creates new auth server with access control
-func NewAuthWithRoles(ctx AuthContext, authServer *AuthServer, sessions session.Service, alog events.IAuditLog) *AuthWithRoles {
-	return &AuthWithRoles{
-		authServer: authServer,
-		checker:    ctx.Checker,
-		sessions:   sessions,
-		user:       ctx.User,
-		identity:   ctx.Identity,
-		alog:       alog,
-	}
-}

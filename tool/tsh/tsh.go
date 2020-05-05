@@ -79,8 +79,6 @@ type CLIConf struct {
 	InsecureSkipVerify bool
 	// IsUnderTest is set to true for unit testing
 	IsUnderTest bool
-	// AgentSocketAddr is address for agent listeing socket
-	AgentSocketAddr utils.NetAddrVal
 	// Remote SSH session to join
 	SessionID string
 	// Src:dest parameter for SCP

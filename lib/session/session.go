@@ -190,12 +190,6 @@ func (p *TerminalParams) Winsize() *term.Winsize {
 	}
 }
 
-// Bool returns pointer to a boolean variable
-func Bool(val bool) *bool {
-	f := val
-	return &f
-}
-
 // UpdateRequest is a session update request
 type UpdateRequest struct {
 	ID             ID              `json:"id"`

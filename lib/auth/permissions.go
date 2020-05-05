@@ -37,26 +37,6 @@ func NewAdminContext() (*AuthContext, error) {
 	return authContext, nil
 }
 
-// NewRoleAuthorizer authorizes everyone as predefined role, used in tests
-func NewRoleAuthorizer(clusterName string, clusterConfig services.ClusterConfig, r teleport.Role) (Authorizer, error) {
-	authContext, err := contextForBuiltinRole(clusterName, clusterConfig, r, fmt.Sprintf("%v", r))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &contextAuthorizer{authContext: *authContext}, nil
-}
-
-// contextAuthorizer is a helper struct that always authorizes
-// based on predefined context, helpful for tests
-type contextAuthorizer struct {
-	authContext AuthContext
-}
-
-// Authorize authorizes user based on identity supplied via context
-func (r *contextAuthorizer) Authorize(ctx context.Context) (*AuthContext, error) {
-	return &r.authContext, nil
-}
-
 // NewAuthorizer returns new authorizer using backends
 func NewAuthorizer(access services.Access, identity services.UserGetter, trust services.Trust) (Authorizer, error) {
 	if access == nil {
