@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	saml2 "github.com/russellhaering/gosaml2"
@@ -583,7 +584,7 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 		return nil, trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
 	}
 	if o.Spec.Cert != "" {
-		cert, err := utils.ParseCertificatePEM([]byte(o.Spec.Cert))
+		cert, err := tlsca.ParseCertificatePEM([]byte(o.Spec.Cert))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

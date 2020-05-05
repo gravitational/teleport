@@ -18,7 +18,6 @@ limitations under the License.
 package test
 
 import (
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -30,8 +29,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
-
-func TestAuth(t *testing.T) { check.TestingT(t) }
 
 type AuthSuite struct {
 	A     sshca.Authority

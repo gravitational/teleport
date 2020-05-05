@@ -40,15 +40,6 @@ func ClusterName(subject pkix.Name) (string, error) {
 	return subject.Organization[0], nil
 }
 
-// GenerateRSAPrivateKeyPEM generates new RSA private key and returns PEM encoded bytes
-func GenerateRSAPrivateKeyPEM() ([]byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}), nil
-}
-
 // GenerateSelfSignedCA generates self-signed certificate authority used for internal inter-node communications
 func GenerateSelfSignedCAWithPrivateKey(priv *rsa.PrivateKey, entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
 	notBefore := time.Now()

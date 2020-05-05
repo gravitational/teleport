@@ -159,14 +159,6 @@ func (l *LoadBalancer) Close() error {
 	return nil
 }
 
-// ListenAndServe starts listening socket and serves connections on it
-func (l *LoadBalancer) ListenAndServe() error {
-	if err := l.Listen(); err != nil {
-		return trace.Wrap(err)
-	}
-	return l.Serve()
-}
-
 // Listen creates a listener on the frontend addr
 func (l *LoadBalancer) Listen() error {
 	var err error

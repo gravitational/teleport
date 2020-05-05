@@ -672,16 +672,6 @@ func (b *FirestoreBackend) getIndexParent() string {
 	return "projects/" + b.ProjectID + "/databases/(default)/collectionGroups/" + b.CollectionName
 }
 
-// DeleteAllDocuments will delete all documents in a collection.
-func DeleteAllDocuments(ctx context.Context, svc *firestore.Client, collectionName string) {
-	docs, _ := svc.Collection(collectionName).Documents(ctx).GetAll()
-	batch := svc.Batch()
-	for _, snap := range docs {
-		batch.Delete(snap.Ref)
-	}
-	_, _ = batch.Commit(ctx)
-}
-
 func (b *FirestoreBackend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	defer adminSvc.Close()
 	tuples := make([]*IndexTuple, 0)

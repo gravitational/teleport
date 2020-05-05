@@ -83,16 +83,6 @@ func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection, offlin
 	return teleport.RemoteClusterStatusOffline
 }
 
-// MustCreateTunnelConnection returns new connection from V2 spec or panics if
-// parameters are incorrect
-func MustCreateTunnelConnection(name string, spec TunnelConnectionSpecV2) TunnelConnection {
-	conn, err := NewTunnelConnection(name, spec)
-	if err != nil {
-		panic(err)
-	}
-	return conn
-}
-
 // NewTunnelConnection returns new connection from V2 spec
 func NewTunnelConnection(name string, spec TunnelConnectionSpecV2) (TunnelConnection, error) {
 	conn := &TunnelConnectionV2{

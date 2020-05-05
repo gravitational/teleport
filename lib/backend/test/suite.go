@@ -20,9 +20,7 @@ package test
 
 import (
 	"context"
-	"fmt"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -32,10 +30,6 @@ import (
 	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 )
-
-var _ = fmt.Printf
-
-func TestBackend(t *testing.T) { check.TestingT(t) }
 
 type BackendSuite struct {
 	B backend.Backend

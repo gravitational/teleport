@@ -119,10 +119,6 @@ type RewritingHandler struct {
 	handler *Handler
 }
 
-func (r *RewritingHandler) GetHandler() *Handler {
-	return r.handler
-}
-
 func (r *RewritingHandler) Close() error {
 	return r.handler.Close()
 }
@@ -2071,32 +2067,6 @@ func message(msg string) interface{} {
 
 func ok() interface{} {
 	return message("ok")
-}
-
-// CreateSignupLink generates and returns a URL which is given to a new
-// user to complete registration with Teleport via Web UI
-func CreateSignupLink(client auth.ClientI, token string) (string, string) {
-	proxyHost := "<proxyhost>:3080"
-
-	proxies, err := client.GetProxies()
-	if err != nil {
-		log.Errorf("Unable to retrieve proxy list: %v", err)
-	}
-
-	if len(proxies) > 0 {
-		proxyHost = proxies[0].GetPublicAddr()
-		if proxyHost == "" {
-			proxyHost = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-			log.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
-		}
-	}
-
-	u := &url.URL{
-		Scheme: "https",
-		Host:   proxyHost,
-		Path:   "web/newuser/" + token,
-	}
-	return u.String(), proxyHost
 }
 
 type responseData struct {
