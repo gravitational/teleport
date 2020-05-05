@@ -107,10 +107,6 @@ func (s *SCPSuite) TestHTTPReceiveFile(c *C) {
 func (s *SCPSuite) TestSendFile(c *C) {
 	dir := c.MkDir()
 	target := filepath.Join(dir, "target")
-	contents := []byte("hello, send file!")
-
-	err := ioutil.WriteFile(target, contents, 0666)
-	c.Assert(err, IsNil)
 
 	cmd, err := CreateCommand(
 		Config{
@@ -123,7 +119,20 @@ func (s *SCPSuite) TestSendFile(c *C) {
 	)
 	c.Assert(err, IsNil)
 
+	// Source file is missing, expect an error.
 	outDir := c.MkDir()
+	err = runSCP(cmd, "scp", "-v", "-t", outDir)
+	c.Assert(err, NotNil)
+
+	_, err = ioutil.ReadFile(filepath.Join(outDir, "target"))
+	c.Assert(os.IsNotExist(err), Equals, true)
+
+	// Write the source file.
+	contents := []byte("hello, send file!")
+	err = ioutil.WriteFile(target, contents, 0666)
+	c.Assert(err, IsNil)
+
+	// Source file is present, should send fine.
 	err = runSCP(cmd, "scp", "-v", "-t", outDir)
 	c.Assert(err, IsNil)
 
@@ -135,10 +144,6 @@ func (s *SCPSuite) TestSendFile(c *C) {
 func (s *SCPSuite) TestReceiveFile(c *C) {
 	dir := c.MkDir()
 	source := filepath.Join(dir, "target")
-	contents := []byte("hello, file contents!")
-
-	err := ioutil.WriteFile(source, contents, 0666)
-	c.Assert(err, IsNil)
 
 	outDir := c.MkDir() + "/"
 	cmd, err := CreateCommand(Config{
@@ -150,6 +155,19 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// Source file is missing, expect an error.
+	err = runSCP(cmd, "scp", "-v", "-f", source)
+	c.Assert(err, NotNil)
+
+	_, err = ioutil.ReadFile(filepath.Join(outDir, "target"))
+	c.Assert(os.IsNotExist(err), Equals, true)
+
+	// Write the source file.
+	contents := []byte("hello, file contents!")
+	err = ioutil.WriteFile(source, contents, 0666)
+	c.Assert(err, IsNil)
+
+	// Source file is present, should send fine.
 	err = runSCP(cmd, "scp", "-v", "-f", source)
 	c.Assert(err, IsNil)
 
@@ -159,16 +177,7 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 }
 
 func (s *SCPSuite) TestSendDir(c *C) {
-	dir := c.MkDir()
-	c.Assert(os.Mkdir(filepath.Join(dir, "target_dir"), 0777), IsNil)
-
-	err := ioutil.WriteFile(
-		filepath.Join(dir, "target_dir", "target1"), []byte("file 1"), 0666)
-	c.Assert(err, IsNil)
-
-	err = ioutil.WriteFile(
-		filepath.Join(dir, "target2"), []byte("file 2"), 0666)
-	c.Assert(err, IsNil)
+	dir := filepath.Join(c.MkDir(), "target_dir")
 
 	cmd, err := CreateCommand(Config{
 		User: "test-user",
@@ -180,12 +189,30 @@ func (s *SCPSuite) TestSendDir(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// Source directory is missing, expect an error.
 	outDir := c.MkDir()
+	err = runSCP(cmd, "scp", "-v", "-r", "-t", outDir)
+	c.Assert(err, NotNil)
+	_, err = os.Stat(filepath.Join(outDir, filepath.Base(dir)))
+	c.Assert(os.IsNotExist(err), Equals, true)
+
+	// Create an populate source directory.
+	c.Assert(os.MkdirAll(filepath.Join(dir, "nested_dir"), 0777), IsNil)
+
+	err = ioutil.WriteFile(
+		filepath.Join(dir, "nested_dir", "target1"), []byte("file 1"), 0666)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(
+		filepath.Join(dir, "target2"), []byte("file 2"), 0666)
+	c.Assert(err, IsNil)
+
+	// Source directory is present, should send fine.
 	err = runSCP(cmd, "scp", "-v", "-r", "-t", outDir)
 	c.Assert(err, IsNil)
 
 	name := filepath.Base(dir)
-	bytes, err := ioutil.ReadFile(filepath.Join(outDir, name, "target_dir", "target1"))
+	bytes, err := ioutil.ReadFile(filepath.Join(outDir, name, "nested_dir", "target1"))
 	c.Assert(err, IsNil)
 	c.Assert(string(bytes), Equals, string("file 1"))
 
@@ -195,16 +222,7 @@ func (s *SCPSuite) TestSendDir(c *C) {
 }
 
 func (s *SCPSuite) TestReceiveDir(c *C) {
-	dir := c.MkDir()
-	c.Assert(os.Mkdir(filepath.Join(dir, "target_dir"), 0777), IsNil)
-
-	err := ioutil.WriteFile(
-		filepath.Join(dir, "target_dir", "target1"), []byte("file 1"), 0666)
-	c.Assert(err, IsNil)
-
-	err = ioutil.WriteFile(
-		filepath.Join(dir, "target2"), []byte("file 2"), 0666)
-	c.Assert(err, IsNil)
+	dir := filepath.Join(c.MkDir(), "target_dir")
 
 	outDir := c.MkDir() + "/"
 	cmd, err := CreateCommand(Config{
@@ -217,12 +235,27 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// Source directory is missing, expect an error.
+	err = runSCP(cmd, "scp", "-v", "-r", "-f", dir)
+	c.Assert(err, NotNil)
+
+	// Create an populate source directory.
+	c.Assert(os.MkdirAll(filepath.Join(dir, "nested_dir"), 0777), IsNil)
+
+	err = ioutil.WriteFile(
+		filepath.Join(dir, "nested_dir", "target1"), []byte("file 1"), 0666)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(
+		filepath.Join(dir, "target2"), []byte("file 2"), 0666)
+	c.Assert(err, IsNil)
+
+	// Source directory is present, should send fine.
 	err = runSCP(cmd, "scp", "-v", "-r", "-f", dir)
 	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 300)
 
 	name := filepath.Base(dir)
-	bytes, err := ioutil.ReadFile(filepath.Join(outDir, name, "target_dir", "target1"))
+	bytes, err := ioutil.ReadFile(filepath.Join(outDir, name, "nested_dir", "target1"))
 	c.Assert(err, IsNil)
 	c.Assert(string(bytes), Equals, string("file 1"))
 
