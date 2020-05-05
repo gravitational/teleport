@@ -17,16 +17,16 @@ limitations under the License.
 import React from 'react';
 import { TablePaged, Column, Cell, TextCell } from 'design/DataTable';
 import { Box } from 'design';
-import TypeCell from './TypeCell';
+import IconCell from './IconCell';
 import UserCell from './UserCell';
 import ActionCell from './ActionCell';
 import CreatedCell from './CreatedCell';
-import DescCell from './DescCell';
+import NodeCell from './NodeCell';
 import { Session } from 'teleport/services/ssh';
 import { Node } from 'teleport/services/nodes';
 
 export default function SessionList(props: Props) {
-  const { sessions, nodes, pageSize = 100, ...rest } = props;
+  const { sessions, pageSize = 100, ...rest } = props;
 
   const tableProps = {
     data: sessions,
@@ -37,24 +37,24 @@ export default function SessionList(props: Props) {
   return (
     <Box {...rest}>
       <TablePaged {...tableProps}>
-        <Column header={<Cell>Type</Cell>} cell={<TypeCell />} />
+        <Column header={<Cell />} cell={<IconCell />} />
         <Column
-          nodes={nodes}
           header={<Cell>Description</Cell>}
-          cell={<DescCell />}
+          cell={<Cell>Session is in progress...</Cell>}
         />
-        <Column header={<Cell>User</Cell>} cell={<UserCell />} />
+        <Column header={<Cell>Users</Cell>} cell={<UserCell />} />
+        <Column header={<Cell>Node</Cell>} cell={<NodeCell />} />
+        <Column header={<Cell>Started (UTC)</Cell>} cell={<CreatedCell />} />
         <Column
-          columnKey="hostname"
-          header={<Cell>Hostname</Cell>}
+          columnKey="durationText"
+          header={<Cell>Duration</Cell>}
           cell={<TextCell />}
         />
         <Column
-          columnKey="addr"
-          header={<Cell>Address</Cell>}
+          columnKey="sid"
+          header={<Cell>Session ID</Cell>}
           cell={<TextCell />}
         />
-        <Column header={<Cell>Created</Cell>} cell={<CreatedCell />} />
         <Column header={<Cell />} cell={<ActionCell />} />
       </TablePaged>
     </Box>

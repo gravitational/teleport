@@ -27,7 +27,6 @@ export interface Session {
   durationText: string;
   serverId: string;
   hostname: string;
-  clusterId: string;
   parties: Participant[];
   addr: string;
 }

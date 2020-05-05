@@ -15,31 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components';
 import { Cell } from 'design/DataTable';
-import Icon, * as Icons from 'design/Icon/Icon';
+import { Session } from 'teleport/services/ssh';
 
-export default function TypeCell() {
+export default function DescCell(props: any) {
+  const { rowIndex, data } = props;
+  const { hostname, addr } = data[rowIndex] as Session;
   return (
-    <Cell style={{ fontSize: '14px' }}>
-      <StyledEventType>
-        <StyledIcon p="1" mr="3" bg="bgTerminal" as={Icons.Cli} fontSize="4" />
-        Session in progress...
-      </StyledEventType>
+    <Cell>
+      {hostname} [{addr}]
     </Cell>
   );
 }
-
-const StyledIcon = styled(Icon)`
-  border-radius: 50%;
-`;
-
-const StyledEventType = styled.div`
-  display: flex;
-  align-items: center;
-  min-width: 130px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 24px;
-  white-space: nowrap;
-`;

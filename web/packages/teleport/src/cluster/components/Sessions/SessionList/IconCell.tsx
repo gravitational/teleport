@@ -15,13 +15,24 @@ limitations under the License.
 */
 
 import React from 'react';
+import styled from 'styled-components';
 import { Cell } from 'design/DataTable';
-import { Session } from 'teleport/services/ssh';
+import Icon, * as Icons from 'design/Icon/Icon';
 
-export default function DescCell(props: any) {
-  const { rowIndex, data, nodes } = props;
-  const { serverId, login } = data[rowIndex] as Session;
-  const server = nodes[serverId];
-  const hostname = server ? server.hostname : serverId;
-  return <Cell>Session started at {`${login}@${hostname}`}</Cell>;
+export default function TypeCell() {
+  return (
+    <Cell>
+      <StyledEventType>
+        <StyledIcon p="1" bg="bgTerminal" as={Icons.Cli} fontSize="4" />
+      </StyledEventType>
+    </Cell>
+  );
 }
+
+const StyledIcon = styled(Icon)`
+  border-radius: 50%;
+`;
+
+const StyledEventType = styled.div`
+  width: 0;
+`;

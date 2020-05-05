@@ -65,7 +65,6 @@ exports[`loaded 1`] = `
   display: inline-block;
   -webkit-transition: color .3s;
   transition: color .3s;
-  margin-right: 16px;
   padding: 4px;
   color: #FFFFFF;
   background-color: #010B1C;
@@ -162,7 +161,6 @@ exports[`loaded 1`] = `
   display: inline-block;
   -webkit-transition: color .3s;
   transition: color .3s;
-  margin-right: 16px;
   padding: 4px;
   color: #FFFFFF;
   background-color: #010B1C;
@@ -171,19 +169,7 @@ exports[`loaded 1`] = `
 }
 
 .c5 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
-  display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  min-width: 130px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 24px;
-  white-space: nowrap;
+  width: 0;
 }
 
 <div
@@ -207,32 +193,31 @@ exports[`loaded 1`] = `
       >
         <thead>
           <tr>
-            <th>
-              Type
-            </th>
+            <th />
             <th>
               Description
             </th>
             <th>
-              User
+              Users
             </th>
             <th>
-              Hostname
+              Node
             </th>
             <th>
-              Address
+              Started (UTC)
             </th>
             <th>
-              Created
+              Duration
+            </th>
+            <th>
+              Session ID
             </th>
             <th />
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td
-              style="font-size: 14px;"
-            >
+            <td>
               <div
                 class="c5"
               >
@@ -241,24 +226,28 @@ exports[`loaded 1`] = `
                   color="light"
                   font-size="4"
                 />
-                Session in progress...
               </div>
             </td>
             <td>
-              Session started at 
-              root@demo.gravitational.io
+              Session is in progress...
             </td>
             <td>
-              hehwawe@aw.sg, ma@pewu.tz
+              hehwawe@aw.sg [129.232.123.132], ma@pewu.tz [129.232.123.132]
             </td>
             <td>
               localhost
-            </td>
-            <td>
+               [
               1.1.1.1:1111
+              ]
             </td>
             <td>
               2019-04-22 00:00:51
+            </td>
+            <td>
+              12 min
+            </td>
+            <td>
+              sid0
             </td>
             <td
               align="right"

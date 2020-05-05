@@ -21,6 +21,8 @@ import { Session } from 'teleport/services/ssh';
 export default function UserCell(props: any) {
   const { rowIndex, data } = props;
   const { parties } = data[rowIndex] as Session;
-  const users = parties.map(({ user }) => user).join(', ');
+  const users = parties
+    .map(({ user, remoteAddr }) => `${user} [${remoteAddr}]`)
+    .join(', ');
   return <Cell>{users}</Cell>;
 }

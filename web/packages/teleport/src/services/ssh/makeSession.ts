@@ -19,7 +19,6 @@ import { map } from 'lodash';
 import { Session, Participant } from './types';
 
 export default function makeSession(json): Session {
-  const clusterId = json.siteId;
   const created = new Date(json.created);
   const duration = moment(new Date()).diff(created);
   const durationText = moment.duration(duration).humanize();
@@ -29,7 +28,7 @@ export default function makeSession(json): Session {
   const serverId = json.server_id;
   const sid = json.id;
   const hostname = json.server_hostname;
-  const addr = json.server_addr;
+  const addr = json.server_addr.replace(PORT_REGEX, '');
 
   return {
     sid,
@@ -39,7 +38,6 @@ export default function makeSession(json): Session {
     durationText,
     serverId,
     hostname,
-    clusterId,
     parties,
     addr,
   };
