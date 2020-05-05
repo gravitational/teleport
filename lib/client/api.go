@@ -744,7 +744,8 @@ func (c *Config) ProxySpecified() bool {
 }
 
 // TeleportClient is a wrapper around SSH client with teleport specific
-// workflow built in
+// workflow built in.
+// TeleportClient is NOT safe for concurrent use.
 type TeleportClient struct {
 	Config
 	localAgent *LocalKeyAgent
@@ -756,6 +757,10 @@ type TeleportClient struct {
 	// eventsCh is a channel used to inform clients about events have that
 	// occurred during the session.
 	eventsCh chan events.EventFields
+
+	// Note: there's no mutex guarding this or localAgent, making
+	// TeleportClient NOT safe for concurrent use.
+	lastPing *PingResponse
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -1650,29 +1655,13 @@ func (tc *TeleportClient) LogoutAll() error {
 // keystore (and into the ssh-agent) for future use.
 //
 func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, error) {
-	// Ping the endpoint to see if it's up and find the type of authentication
-	// supported.
-	pr, err := Ping(
-		ctx,
-		tc.WebProxyAddr,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr),
-		tc.AuthConnector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If version checking was requested and the server advertises a minimum version.
-	if tc.CheckVersions && pr.MinClientVersion != "" {
-		if err := utils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	// preserve original web proxy host that could have
 	webProxyHost, _ := tc.WebProxyHostPort()
 
-	if err := tc.applyProxySettings(pr.Proxy); err != nil {
+	// Ping the endpoint to see if it's up and find the type of authentication
+	// supported.
+	pr, err := tc.Ping(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1774,6 +1763,46 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 		}
 	}
 	return key, nil
+}
+
+// Ping makes a ping request to the proxy, and updates tc based on the
+// response. The successful ping response is cached, multiple calls to Ping
+// will return the original response and skip the round-trip.
+//
+// Ping can be called for its side-effect of applying the proxy-provided
+// settings (such as various listening addresses).
+func (tc *TeleportClient) Ping(ctx context.Context) (*PingResponse, error) {
+	// If, at some point, there's a need to bypass this caching, consider
+	// adding a bool argument. At the time of writing this we always want to
+	// cache.
+	if tc.lastPing != nil {
+		return tc.lastPing, nil
+	}
+	pr, err := Ping(
+		ctx,
+		tc.WebProxyAddr,
+		tc.InsecureSkipVerify,
+		loopbackPool(tc.WebProxyAddr),
+		tc.AuthConnector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If version checking was requested and the server advertises a minimum version.
+	if tc.CheckVersions && pr.MinClientVersion != "" {
+		if err := utils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Update tc with proxy settings specified in Ping response.
+	if err := tc.applyProxySettings(pr.Proxy); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tc.lastPing = pr
+
+	return pr, nil
 }
 
 // certGetter is used in updateClusterName to control the response of
