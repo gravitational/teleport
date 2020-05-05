@@ -19,6 +19,7 @@ import { map } from 'lodash';
 import { Session, Participant } from './types';
 
 export default function makeSession(json): Session {
+  const clusterId = json.cluster_name;
   const created = new Date(json.created);
   const duration = moment(new Date()).diff(created);
   const durationText = moment.duration(duration).humanize();
@@ -38,6 +39,7 @@ export default function makeSession(json): Session {
     durationText,
     serverId,
     hostname,
+    clusterId,
     parties,
     addr,
   };

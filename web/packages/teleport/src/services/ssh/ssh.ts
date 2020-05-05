@@ -42,20 +42,11 @@ const service = {
   },
 
   fetchSession({ clusterId, sid }: FetchSessionParams) {
-    // To retrieve a hostname, we are fetching all cluster nodes.
-    // TODO: optimize it by adding hostname attribute to the session (backend)
     return Promise.all([
       api.get(cfg.getTerminalSessionUrl({ sid, clusterId })),
-      api.get(cfg.getClusterNodesUrl(clusterId)),
     ]).then(response => {
-      const [sessionJson, serversJson] = response;
-      const server = serversJson.items.find(
-        s => s.id === sessionJson.server_id
-      );
-      const session = makeSession(sessionJson);
-      session.hostname = server.hostname;
-      session.clusterId = clusterId;
-      return session;
+      const [sessionJson] = response;
+      return makeSession(sessionJson);
     });
   },
 
