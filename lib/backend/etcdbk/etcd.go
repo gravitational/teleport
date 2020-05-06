@@ -161,7 +161,7 @@ type Config struct {
 	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 	// Username is an optional username for HTTPS basic authentication
 	Username string `json:"username,omitempty"`
-	// Password is initalized from password file, and is not read from the config
+	// Password is initialized from password file, and is not read from the config
 	Password string `json:"-"`
 	// PasswordFile is an optional password file for HTTPS basic authentication,
 	// expects path to a file

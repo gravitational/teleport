@@ -201,7 +201,7 @@ func RunCommand() (io.Writer, int, error) {
 
 	// Wait for the command to exit. It doesn't make sense to print an error
 	// message here because the shell has successfully started. If an error
-	// occured during shell execution or the shell exits with an error (like
+	// occurred during shell execution or the shell exits with an error (like
 	// running exit 2), the shell will print an error if appropriate and return
 	// an exit code.
 	err = cmd.Wait()

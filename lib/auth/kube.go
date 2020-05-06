@@ -59,7 +59,7 @@ type KubeCSRResponse struct {
 }
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if sucessful.
+// signed certificate if successful.
 func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if !modules.GetModules().SupportsKubernetes() {
 		return nil, trace.AccessDenied(

@@ -46,7 +46,7 @@ type RuleContext interface {
 }
 
 var (
-	// ResourceNameExpr is the identifer that specifies resource name.
+	// ResourceNameExpr is the identifier that specifies resource name.
 	ResourceNameExpr = builder.Identifier("resource.metadata.name")
 	// CertAuthorityTypeExpr is a function call that returns
 	// cert authority type.
@@ -186,7 +186,7 @@ func (ctx *Context) String() string {
 const (
 	// UserIdentifier represents user registered identifier in the rules
 	UserIdentifier = "user"
-	// ResourceIdentifier represents resource registered identifer in the rules
+	// ResourceIdentifier represents resource registered identifier in the rules
 	ResourceIdentifier = "resource"
 )
 

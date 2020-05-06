@@ -82,7 +82,7 @@ func (s *WorkSuite) TestFull(c *check.C) {
 	// release their leases.
 	g1done := make(chan struct{})
 	// timeout channel indicating all of group one should
-	// have acquired thier leases.
+	// have acquired their leases.
 	g1timeout := make(chan struct{})
 	go func() {
 		time.Sleep(time.Millisecond * 500)
