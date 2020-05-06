@@ -601,7 +601,13 @@ func (s *remoteSite) connThroughTunnel(req *dialReq) (*utils.ChConn, error) {
 	// Didn't connect and no error? This means we didn't have any connected
 	// tunnels to try.
 	if err == nil {
-		err = trace.ConnectionProblem(nil, "%v is offline", s.GetName())
+		// Return the appropriate message if the user is trying to connect to a
+		// cluster or a node.
+		message := fmt.Sprintf("cluster %v is offline", s.GetName())
+		if req.Address != RemoteAuthServer {
+			message = fmt.Sprintf("node %v is offline", req.Address)
+		}
+		err = trace.ConnectionProblem(nil, message)
 	}
 	return nil, err
 }
