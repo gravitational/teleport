@@ -28,8 +28,8 @@ There are comments in the file describing what the values need to be set to.
 ### DaemonSet information
 
 This version of the chart has also been modified to deploy a Kubernetes `DaemonSet` which will run a privileged pod with a large
-number of host filesystem mounts on every Kubernetes worker node. Each pod will install and set up Teleport to run on the worker node
-itself as a `systemd` service, so that `ssh`-like access to these nodes is possible by logging into the leaf cluster.
+number of host filesystem mounts on every Kubernetes worker node. Each pod will install and set up Teleport to run on the worker
+node itself as a `systemd` service, so that `ssh`-like access to these nodes is possible by logging into the leaf cluster.
 
 The configuration for this is set up in the `daemonset` section of `values.yaml`. You should configure a node join token here.
 
