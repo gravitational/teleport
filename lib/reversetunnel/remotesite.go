@@ -326,7 +326,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		case proxies := <-conn.newProxiesC:
 			req := discoveryRequest{
 				ClusterName: s.srv.ClusterName,
-				Type:        string(conn.tunnelType),
+				Type:        conn.tunnelType,
 				Proxies:     proxies,
 			}
 			if err := conn.sendDiscoveryRequest(req); err != nil {

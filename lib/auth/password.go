@@ -299,7 +299,7 @@ func (s *AuthServer) changePasswordWithToken(ctx context.Context, req ChangePass
 	}
 
 	// Set a new password.
-	err = s.UpsertPassword(username, []byte(req.Password))
+	err = s.UpsertPassword(username, req.Password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

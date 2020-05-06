@@ -627,7 +627,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	data := out.Bytes()
-	c.Assert(string(data), check.Equals, string(pod.Namespace))
+	c.Assert(string(data), check.Equals, pod.Namespace)
 
 	// interactive command, allocate pty
 	term := NewTerminal(250)
@@ -897,7 +897,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	data := out.Bytes()
-	c.Assert(string(data), check.Equals, string(pod.Namespace))
+	c.Assert(string(data), check.Equals, pod.Namespace)
 
 	// interactive command, allocate pty
 	term := NewTerminal(250)

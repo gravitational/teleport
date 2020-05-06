@@ -215,7 +215,7 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	priv, pub, _ = s.keygen.GenerateKeyPair("")
 	username := "vincento"
 	allowedLogins := []string{username, "root"}
-	ttl := time.Duration(time.Minute * 20)
+	ttl := 20 * time.Minute
 	if makeExpired {
 		ttl = -ttl
 	}

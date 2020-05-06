@@ -486,7 +486,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 	upload(c, uploadDir, fakeClock, alog)
 
 	compare := func() error {
-		history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
+		history, err := alog.GetSessionEvents(defaults.Namespace, sessionID, 0, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -503,7 +503,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		}
 
 		// fetch all bytes
-		buff, err := alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 0, 5000)
+		buff, err := alog.GetSessionChunk(defaults.Namespace, sessionID, 0, 5000)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -512,7 +512,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		}
 
 		// with offset
-		buff, err = alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 2, 5000)
+		buff, err = alog.GetSessionChunk(defaults.Namespace, sessionID, 2, 5000)
 		if err != nil {
 			return trace.Wrap(err)
 		}

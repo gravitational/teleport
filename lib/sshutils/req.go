@@ -79,7 +79,7 @@ func (p *PTYReqParams) TerminalModes() (ssh.TerminalModes, error) {
 	chunkSize := 5
 	for i := 0; i < len(p.Modes); i = i + chunkSize {
 		// the first byte of the chunk is the key
-		key := uint8(p.Modes[i])
+		key := p.Modes[i]
 
 		// a key with value 0 means is the termination of the stream
 		if key == 0 {

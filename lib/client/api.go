@@ -2234,7 +2234,7 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 // passwordFromConsole reads from stdin without echoing typed characters to stdout
 func passwordFromConsole() (string, error) {
 	fd := syscall.Stdin
-	state, err := terminal.GetState(int(fd))
+	state, err := terminal.GetState(fd)
 
 	// intercept Ctr+C and restore terminal
 	sigCh := make(chan os.Signal, 1)
@@ -2246,7 +2246,7 @@ func passwordFromConsole() (string, error) {
 		go func() {
 			select {
 			case <-sigCh:
-				terminal.Restore(int(fd), state)
+				terminal.Restore(fd, state)
 				os.Exit(1)
 			case <-closeCh:
 			}
@@ -2256,7 +2256,7 @@ func passwordFromConsole() (string, error) {
 		close(closeCh)
 	}()
 
-	bytes, err := terminal.ReadPassword(int(fd))
+	bytes, err := terminal.ReadPassword(fd)
 	return string(bytes), err
 }
 
