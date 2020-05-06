@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+import MenuAction, { MenuItem } from 'shared/components/ActionMenu';
 import { NavLink } from 'react-router-dom';
 import { Cell } from 'design/DataTable';
-import { ButtonPrimary } from 'design';
 import { Session } from 'teleport/services/ssh';
 import cfg from 'teleport/config';
 
@@ -25,15 +25,14 @@ export default function ActionCell(props: any) {
   const { rowIndex, data } = props;
   const { sid } = data[rowIndex] as Session;
   const url = cfg.getSshSessionRoute({ sid });
+
   return (
     <Cell align="right">
-      <ButtonPrimary
-        as={NavLink}
-        to={url}
-        size="small"
-        width="90px"
-        children="join"
-      />
+      <MenuAction>
+        <MenuItem as={NavLink} to={url}>
+          Join Session
+        </MenuItem>
+      </MenuAction>
     </Cell>
   );
 }

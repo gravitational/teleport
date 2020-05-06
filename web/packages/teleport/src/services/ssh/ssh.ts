@@ -42,12 +42,9 @@ const service = {
   },
 
   fetchSession({ clusterId, sid }: FetchSessionParams) {
-    return Promise.all([
-      api.get(cfg.getTerminalSessionUrl({ sid, clusterId })),
-    ]).then(response => {
-      const [sessionJson] = response;
-      return makeSession(sessionJson);
-    });
+    return api
+      .get(cfg.getTerminalSessionUrl({ sid, clusterId }))
+      .then(response => makeSession(response));
   },
 
   fetchSessions(clusterId = cfg.clusterName) {

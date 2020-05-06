@@ -5,62 +5,6 @@ exports[`loaded 1`] = `
   box-sizing: border-box;
 }
 
-.c9 {
-  line-height: 1.5;
-  margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
-  display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
-  justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  -webkit-text-decoration: none;
-  text-decoration: none;
-  text-transform: uppercase;
-  -webkit-transition: all 0.3s;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #00BFA5;
-  color: #FFFFFF;
-  font-size: 10px;
-  min-height: 24px;
-  padding: 0px 16px;
-  width: 90px;
-}
-
-.c9:active {
-  opacity: 0.56;
-}
-
-.c9:hover,
-.c9:focus {
-  background: #00EAC3;
-}
-
-.c9:active {
-  background: #26A69A;
-}
-
-.c9:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
 .c8 {
   display: inline-block;
   -webkit-transition: color .3s;
@@ -69,6 +13,62 @@ exports[`loaded 1`] = `
   color: #FFFFFF;
   background-color: #010B1C;
   font-size: 18px;
+}
+
+.c10 {
+  display: inline-block;
+  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c9 {
+  -webkit-align-items: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  text-align: center;
+  -webkit-flex: 0 0 auto;
+  -ms-flex: 0 0 auto;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  -webkit-transition: all .3s;
+  transition: all .3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+}
+
+.c9 .c6 {
+  color: inherit;
+}
+
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
+}
+
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
+}
+
+.c9:hover,
+.c9:focus {
+  background: rgba(255,255,255,0.1);
 }
 
 .c1 {
@@ -181,7 +181,7 @@ exports[`loaded 1`] = `
     <h1
       class="c2"
     >
-      Sessions
+      Active Sessions
     </h1>
   </div>
   <div
@@ -252,15 +252,15 @@ exports[`loaded 1`] = `
             <td
               align="right"
             >
-              <a
+              <button
                 class="c9"
-                href="/web/cluster/localhost/console/session/sid0"
-                kind="primary"
-                theme="[object Object]"
-                width="90px"
+                data-testid="button"
               >
-                join
-              </a>
+                <span
+                  class="icon icon-ellipsis  c6 c10"
+                  color="light"
+                />
+              </button>
             </td>
           </tr>
         </tbody>
