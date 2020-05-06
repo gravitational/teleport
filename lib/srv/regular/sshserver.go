@@ -623,7 +623,7 @@ func (s *Server) AdvertiseAddr() string {
 	if aport == "" {
 		aport = port
 	}
-	return net.JoinHostPort(ahost, port)
+	return net.JoinHostPort(ahost, aport)
 }
 
 func (s *Server) getRole() teleport.Role {
