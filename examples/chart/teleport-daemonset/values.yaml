@@ -84,6 +84,9 @@ daemonset:
 
     proxy_service:
       enabled: no
+  # Change this to true to run a Teleport node on Kubernetes masters.
+  # This has not been tested and may not work.
+  runOnMasters: false
 
 # Hopefully shouldn't need to change anything below here!
 labels: {}

@@ -8,10 +8,6 @@ metadata:
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
 spec:
-  tolerations:
-  - key: node-role.kubernetes.io/master
-    operator: "Exists"
-    effect: "NoSchedule"
   selector:
     matchLabels:
       app: {{ template "teleport.name" . }}-node
@@ -27,11 +23,15 @@ spec:
 {{ toYaml .Values.daemonset.Annotations | indent 8 }}
 {{- end }}
     spec:
+      {{- if .Values.daemonset.runOnMasters }}
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: "Exists"
+        effect: "NoSchedule"
+    {{- end }}
       hostPID: true
       hostIPC: true
       hostNetwork: true
-      securityContext:
-        privileged: true
       containers:
       - name: {{ .Chart.Name }}-systemd-installer
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
