@@ -31,7 +31,11 @@ This version of the chart has also been modified to deploy a Kubernetes `DaemonS
 number of host filesystem mounts on every Kubernetes worker node. Each pod will install and set up Teleport to run on the worker
 node itself as a `systemd` service, so that `ssh`-like access to these nodes is possible by logging into the leaf cluster.
 
-The configuration for this is set up in the `daemonset` section of `values.yaml`. You should configure a node join token here.
+The configuration for this is set up in the `daemonset` section of `values.yaml`. You must configure a secure node join token here.
+
+Each node connects back to the auth server of the Teleport leaf cluster running inside Kubernetes by using an exposed `NodePort`.
+This setup may not survive failures of the `kubelet` or other underlying node services, so it should **not** be relied on for
+emergency 'break-glass' access in the event of a failure.
 
 ## Prerequisites
 
@@ -56,7 +60,7 @@ kubectl create secret generic license --from-file=license-enterprise.pem
 ## Installing the chart
 
 Make sure you read `values.yaml` and edit the appropriate sections (particularly the root cluster configuration) before
-installing the chart.
+installing the chart. You must also set a secure node join token for use by your Kubernetes worker nodes.
 
 To install the chart with the release name `teleport`, run:
 
@@ -77,7 +81,7 @@ container:
 kubectl logs deploy/teleport -c teleport-sidecar
 ```
 
-You can view debug logs for the node-level Teleport service with this command:
+You can view debug logs for the Teleport service running on the Kubernetes worker nodes with this command:
 
 ```console
 kubectl logs daemonset/teleport-node
