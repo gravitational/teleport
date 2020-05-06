@@ -30,7 +30,7 @@ func InitPlugin() {
 	web.SetPlugin(&Plugin{})
 }
 
-// AddHandlers registeres Plugin handlers
+// AddHandlers registries Plugin handlers
 func (p *Plugin) AddHandlers(h *web.Handler) {
 	h.GET("/enterprise/sites/:site/resources/:kind", h.WithClusterAuth(p.getResourceHandle))
 	h.PUT("/enterprise/sites/:site/resources", h.WithClusterAuth(p.upsertResourceHandle))
