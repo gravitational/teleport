@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ template "teleport.fullname" . }}-daemonset
+  name: {{ template "teleport.fullname" . }}-node
   labels:
 {{ include "teleport.labels" . | indent 4 }}
 {{- if .Values.labels }}
@@ -13,11 +13,11 @@ spec:
     effect: NoSchedule
   selector:
     matchLabels:
-      app: {{ template "teleport.name" . }}-daemonset
+      app: {{ template "teleport.name" . }}-node
   template:
     metadata:
       labels:
-        app: {{ template "teleport.name" . }}-daemonset
+        app: {{ template "teleport.name" . }}-node
         release: {{ .Release.Name }}
         heritage: {{ .Release.Service }}
       annotations:
@@ -45,25 +45,25 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 10 }}
         volumeMounts:
-        - mountPath: /etc/teleport
-          name: {{ template "teleport.fullname" . }}-daemonset-config
-          readOnly: true
 {{- if .Values.license.enabled }}
         - mountPath: {{ .Values.license.mountPath }}
           name: {{ template "teleport.fullname" . }}-license
           readOnly: true
 {{- end }}
+        - mountPath: /etc/teleport
+          name: {{ template "teleport.fullname" . }}-daemonset-config
+          readOnly: true
         - mountPath: /usr/local/bin/teleport-scripts
           name: {{ template "teleport.fullname" . }}-bootstrap-scripts
           readOnly: true
         - mountPath: /host/etc/teleport
           name: {{ template "teleport.fullname" . }}-daemonset-host-config
-        - mountPath: /host/var/lib/teleport
-          name: {{ template "teleport.fullname" . }}-daemonset-host-storage
         - mountPath: /etc/systemd/system
           name: {{ template "teleport.fullname" . }}-daemonset-host-etc-systemd-system
         - mountPath: /run
           name: {{ template "teleport.fullname" . }}-daemonset-host-run
+        - mountPath: /host/var/lib/teleport
+          name: {{ template "teleport.fullname" . }}-daemonset-host-storage
         - mountPath: /sys/fs/cgroup
           name: {{ template "teleport.fullname" . }}-daemonset-host-sys-fs-cgroup
           readOnly: true
@@ -71,10 +71,10 @@ spec:
           name: {{ template "teleport.fullname" . }}-daemonset-host-sys-fs-cgroup-systemd
         - mountPath: /host/usr/local/bin
           name: {{ template "teleport.fullname" . }}-daemonset-host-usr-local-bin
-        - mountPath: /var/run/dbus
-          name: {{ template "teleport.fullname" . }}-daemonset-host-var-run-dbus
         - mountPath: /var/log/teleport.log
           name: {{ template "teleport.fullname" . }}-daemonset-host-var-log-teleportlog
+        - mountPath: /var/run/dbus
+          name: {{ template "teleport.fullname" . }}-daemonset-host-var-run-dbus
 {{- if .Values.daemonset.extraVolumeMounts }}
 {{ toYaml .Values.daemonset.extraVolumeMounts | indent 8 }}
 {{- end }}
@@ -94,10 +94,6 @@ spec:
         hostPath:
           path: /etc/teleport
           type: DirectoryOrCreate
-      - name: {{ template "teleport.fullname" . }}-daemonset-host-storage
-        hostPath:
-          path: /var/lib/teleport
-          type: DirectoryOrCreate
       - name: {{ template "teleport.fullname" . }}-daemonset-host-etc-systemd-system
         hostPath:
           path: /etc/systemd/system
@@ -106,6 +102,10 @@ spec:
         hostPath:
           path: /run
           type: Directory
+      - name: {{ template "teleport.fullname" . }}-daemonset-host-storage
+        hostPath:
+          path: /var/lib/teleport
+          type: DirectoryOrCreate
       - name: {{ template "teleport.fullname" . }}-daemonset-host-sys-fs-cgroup
         hostPath:
           path: /sys/fs/cgroup
@@ -118,13 +118,13 @@ spec:
         hostPath:
           path: /usr/local/bin
           type: DirectoryOrCreate
-      - name: {{ template "teleport.fullname" . }}-daemonset-host-var-run-dbus
-        hostPath:
-          path: /var/run/dbus
       - name: {{ template "teleport.fullname" . }}-daemonset-host-var-log-teleportlog
         hostPath:
           path: /var/log/teleport.log
           type: FileOrCreate
+      - name: {{ template "teleport.fullname" . }}-daemonset-host-var-run-dbus
+        hostPath:
+          path: /var/run/dbus
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
 {{- end }}

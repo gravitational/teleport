@@ -79,6 +79,7 @@ daemonset:
     ssh_service:
       enabled: yes
       labels:
+        node-type: kubernetes-worker
         running-on: host
 
     proxy_service:
