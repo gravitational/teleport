@@ -44,7 +44,7 @@ const service = {
   fetchSession({ clusterId, sid }: FetchSessionParams) {
     return api
       .get(cfg.getTerminalSessionUrl({ sid, clusterId }))
-      .then(response => makeSession(response));
+      .then(makeSession);
   },
 
   fetchSessions(clusterId = cfg.clusterName) {
