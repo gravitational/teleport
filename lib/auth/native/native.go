@@ -219,7 +219,7 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	}
 	cert.Permissions.Extensions = make(map[string]string)
 	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Roles.String()
-	cert.Permissions.Extensions[utils.CertExtensionAuthority] = string(c.ClusterName)
+	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
 
 	// sign host certificate with private signing key of certificate authority
 	if err := cert.SignCert(rand.Reader, signer); err != nil {

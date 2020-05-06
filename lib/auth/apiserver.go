@@ -959,7 +959,7 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return string(token), nil
+	return token, nil
 }
 
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {

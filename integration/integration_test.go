@@ -736,8 +736,8 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	waitFor(sessionEndC, time.Second*10)
 
 	// make sure the output of B is mirrored in A
-	outputOfA := string(personA.Output(100))
-	outputOfB := string(personB.Output(100))
+	outputOfA := personA.Output(100)
+	outputOfB := personB.Output(100)
 	c.Assert(strings.Contains(outputOfA, outputOfB), check.Equals, true)
 }
 
@@ -784,7 +784,7 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 		var matched bool
 		var output string
 		for {
-			output = string(replaceNewlines(person.Output(1000)))
+			output = replaceNewlines(person.Output(1000))
 			matched, _ = regexp.MatchString(pattern, output)
 			if matched {
 				break
@@ -944,7 +944,7 @@ func enterInput(c *check.C, person *Terminal, command, pattern string) {
 	var matched bool
 	var output string
 	for {
-		output = string(replaceNewlines(person.Output(1000)))
+		output = replaceNewlines(person.Output(1000))
 		matched, _ = regexp.MatchString(pattern, output)
 		if matched {
 			break
@@ -2936,7 +2936,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		// If any output is expected, check to make sure it was output.
 		if len(tt.outContains) > 0 {
 			for _, expectedOutput := range tt.outContains {
-				output := string(termSession.Output(100))
+				output := termSession.Output(100)
 				c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
 			}
 		}
@@ -3522,7 +3522,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 			continue
 		}
 		out := output.String()
-		out = string(replaceNewlines(out))
+		out = replaceNewlines(out)
 		matched, _ := regexp.MatchString(pattern, out)
 		if matched {
 			return nil

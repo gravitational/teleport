@@ -192,7 +192,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		NodeName:            cfg.NodeName,
 		ClusterName:         cfg.ClusterName,
 		Roles:               teleport.Roles{teleport.RoleAdmin},
-		TTL:                 time.Duration(time.Hour * 24),
+		TTL:                 24 * time.Hour,
 	})
 	fatalIf(err)
 	tlsCA, err := tlsca.New(tlsCACert, tlsCAKey)

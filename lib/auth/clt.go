@@ -2038,7 +2038,7 @@ func (c *Client) PostSessionSlice(slice events.SessionSlice) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", string(slice.SessionID), "slice"), bytes.NewReader(data))
+	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", slice.SessionID, "slice"), bytes.NewReader(data))
 	if err != nil {
 		return trace.Wrap(err)
 	}

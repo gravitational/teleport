@@ -2194,7 +2194,7 @@ func (b *BoolOption) UnmarshalJSON(data []byte) error {
 
 // MarshalYAML marshals bool into yaml value
 func (b *BoolOption) MarshalYAML() (interface{}, error) {
-	return bool(b.Value), nil
+	return b.Value, nil
 }
 
 func (b *BoolOption) UnmarshalYAML(unmarshal func(interface{}) error) error {

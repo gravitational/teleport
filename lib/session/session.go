@@ -501,7 +501,7 @@ func NewTerminalParamsFromInt(w int, h int) (*TerminalParams, error) {
 	if h > maxSize || h < minSize {
 		return nil, trace.BadParameter("bad height")
 	}
-	return &TerminalParams{W: int(w), H: int(h)}, nil
+	return &TerminalParams{W: w, H: h}, nil
 }
 
 const (
