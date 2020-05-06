@@ -24,3 +24,25 @@ spec:
   selector:
     app: {{ template "teleport.name" . }}
     release: {{ .Release.Name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "teleport.fullname" . }}-auth-nodeport
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+{{- if .Values.service.labels }}
+{{ toYaml .Values.service.annotations | indent 4 }}
+{{- end }}
+{{- if .Values.service.annotations }}
+  annotations:
+{{ toYaml .Values.service.annotations | indent 4 }}
+{{- end }}
+spec:
+  type: NodePort
+  ports:
+    - port: {{ .Values.service.ports.authssh.port }}
+      nodePort: 32025
+  selector:
+    app: {{ template "teleport.name" . }}
+    release: {{ .Release.Name }}

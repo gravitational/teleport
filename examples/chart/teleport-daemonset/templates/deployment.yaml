@@ -40,7 +40,7 @@ spec:
         {{- end}}
         volumeMounts:
         - mountPath: /usr/local/bin/teleport-scripts
-          name: {{ template "teleport.fullname" . }}-bootstrap-script
+          name: {{ template "teleport.fullname" . }}-bootstrap-scripts
           readOnly: true
         - mountPath: /etc/teleport
           name: {{ template "teleport.fullname" . }}-config
@@ -100,6 +100,9 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      - name: {{ template "teleport.fullname" . }}-bootstrap-scripts
+        configMap:
+          name: {{ template "teleport.fullname" . }}-bootstrap-scripts
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
 {{- end }}

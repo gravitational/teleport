@@ -22,6 +22,10 @@ config:
   auth_service:
     enabled: yes
     license_file: /var/lib/license/license-enterprise.pem
+    tokens:
+    - "node:static-join-token-for-nodes-edit-and-copy-to-daemonset-config-below"
+    # this needs to be set to localhost so the daemonset's node can join the cluster successfully
+    public_addr: ['localhost']
     # This will be the name that appears in the root cluster for management, so
     # it should be descriptive.
     cluster_name: add-leaf-cluster-name-here
@@ -52,6 +56,33 @@ trustedCluster:
     ROOT_CLUSTER_TUNNEL_ADDRESS: "root-cluster.example.com:3024"
     # The web proxy address of the root cluster (usually on port 3080 or 443)
     ROOT_CLUSTER_WEB_ADDRESS: "root-cluster.example.com:3080"
+
+# Daemonset Teleport node configuration
+# INSTRUCTIONS
+# The auth_token here MUST match the value of auth_service.tokens.node above so that the node can join the cluster
+# The public_addr of auth_service must also be set to 'localhost' to allow a connection from the host to the
+# in-cluster auth service's NodePort
+daemonset:
+  config:
+    teleport:
+      log:
+        # WARNING: Do not change this path or the daemonset will fail to run
+        output: /var/log/teleport.log
+        severity: DEBUG
+      auth_token: "static-join-token-for-nodes-edit-and-copy-to-daemonset-config-below"
+      auth_servers:
+      - localhost:32025
+
+    auth_service:
+      enabled: no
+
+    ssh_service:
+      enabled: yes
+      labels:
+        running-on: host
+
+    proxy_service:
+      enabled: no
 
 # Hopefully shouldn't need to change anything below here!
 labels: {}
@@ -188,10 +219,7 @@ extraVars: {}
   # SSL_CERT_FILE: "/var/lib/ca-certs/ca.pem"
 
 # Add additional volumes and mounts, for example to read other log files on the host
-extraVolumes:
-  - name: teleport-bootstrap-script
-    configMap:
-      name: teleport-bootstrap-script
+extraVolumes: []
   # - name: ca-certs
   #   configMap:
   #     name: ca-certs
