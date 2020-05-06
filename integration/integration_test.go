@@ -1161,8 +1161,7 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 		// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 		a.StopAuth(false)
 		err = tc.SSH(context.TODO(), cmd, false)
-		// debug mode will add more lines, so this check has to be flexible
-		c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Matches, fmt.Sprintf(`.*%v is offline.*`, a.Secrets.SiteName))
+		c.Assert(err, check.FitsTypeOf, trace.ConnectionProblem(nil, ""))
 
 		// Reset and start "Site-A" again
 		a.Reset()
