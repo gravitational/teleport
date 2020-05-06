@@ -1008,17 +1008,20 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 	}
 
 	c.Assert(len(sessResp.Sessions), Equals, 1)
-	c.Assert(sessResp.Sessions[0].ID, Equals, sid)
-	c.Assert(sessResp.Sessions[0].Namespace, Equals, s.node.GetNamespace())
-	c.Assert(sessResp.Sessions[0].Parties, NotNil)
-	c.Assert(sessResp.Sessions[0].TerminalParams.H > 0, Equals, true)
-	c.Assert(sessResp.Sessions[0].TerminalParams.W > 0, Equals, true)
-	c.Assert(sessResp.Sessions[0].Login, Equals, pack.login)
-	c.Assert(sessResp.Sessions[0].Created.IsZero(), Equals, false)
-	c.Assert(sessResp.Sessions[0].LastActive.IsZero(), Equals, false)
-	c.Assert(sessResp.Sessions[0].ServerID, Equals, s.srvID)
-	c.Assert(sessResp.Sessions[0].ServerHostname, Equals, s.node.GetInfo().GetHostname())
-	c.Assert(sessResp.Sessions[0].ServerAddr, Equals, s.node.GetInfo().GetAddr())
+
+	sess := sessResp.Sessions[0]
+	c.Assert(sess.ID, Equals, sid)
+	c.Assert(sess.Namespace, Equals, s.node.GetNamespace())
+	c.Assert(sess.Parties, NotNil)
+	c.Assert(sess.TerminalParams.H > 0, Equals, true)
+	c.Assert(sess.TerminalParams.W > 0, Equals, true)
+	c.Assert(sess.Login, Equals, pack.login)
+	c.Assert(sess.Created.IsZero(), Equals, false)
+	c.Assert(sess.LastActive.IsZero(), Equals, false)
+	c.Assert(sess.ServerID, Equals, s.srvID)
+	c.Assert(sess.ServerHostname, Equals, s.node.GetInfo().GetHostname())
+	c.Assert(sess.ServerAddr, Equals, s.node.GetInfo().GetAddr())
+	c.Assert(sess.ClusterName, Equals, s.server.ClusterName())
 }
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {

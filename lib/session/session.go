@@ -103,6 +103,8 @@ type Session struct {
 	ServerHostname string `json:"server_hostname"`
 	// ServerAddr of session
 	ServerAddr string `json:"server_addr"`
+	// ClusterName is the name of cluster that this session belongs to.
+	ClusterName string `json:"cluster_name"`
 }
 
 // RemoveParty helper allows to remove a party by it's ID from the
