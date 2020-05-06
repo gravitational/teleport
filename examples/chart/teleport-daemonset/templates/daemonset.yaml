@@ -10,7 +10,8 @@ metadata:
 spec:
   tolerations:
   - key: node-role.kubernetes.io/master
-    effect: NoSchedule
+    operator: "Exists"
+    effect: "NoSchedule"
   selector:
     matchLabels:
       app: {{ template "teleport.name" . }}-node
