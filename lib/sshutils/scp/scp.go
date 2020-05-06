@@ -217,11 +217,9 @@ func (cmd *command) GetRemoteShellCmd() (string, error) {
 	}
 
 	// "impersonate" scp to a server
-	shellCmd := "/usr/bin/scp -t"
-	if cmd.Flags.Source == true {
+	shellCmd := "/usr/bin/scp -f"
+	if cmd.Flags.Source {
 		shellCmd = "/usr/bin/scp -t"
-	} else {
-		shellCmd = "/usr/bin/scp -f"
 	}
 
 	if cmd.Flags.Recursive {

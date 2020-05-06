@@ -75,7 +75,6 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 		return nil, trace.BadParameter("identity location is not specified")
 	}
 
-	var output io.Writer = os.Stdout
 	switch format {
 	// dump user identity into a single file:
 	case FormatFile:
@@ -84,19 +83,18 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		output = f
 		defer f.Close()
 
 		// write key:
-		if err := writeWithNewline(output, key.Priv); err != nil {
+		if err := writeWithNewline(f, key.Priv); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append ssh cert:
-		if err := writeWithNewline(output, key.Cert); err != nil {
+		if err := writeWithNewline(f, key.Cert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append tls cert:
-		if err := writeWithNewline(output, key.TLSCert); err != nil {
+		if err := writeWithNewline(f, key.TLSCert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append trusted host certificate authorities
@@ -107,13 +105,13 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				if err := writeWithNewline(output, []byte(data)); err != nil {
+				if err := writeWithNewline(f, []byte(data)); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
 			// append tls ca certificates
 			for _, keyPair := range ca.GetTLSKeyPairs() {
-				if err := writeWithNewline(output, keyPair.Cert); err != nil {
+				if err := writeWithNewline(f, keyPair.Cert); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
