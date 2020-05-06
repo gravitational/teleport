@@ -87,7 +87,7 @@ type ForwarderConfig struct {
 	Context context.Context
 	// KubeconfigPath is a path to kubernetes configuration
 	KubeconfigPath string
-	// Clock is a server clock, could be overriden in tests
+	// Clock is a server clock, could be overridden in tests
 	Clock clockwork.Clock
 }
 

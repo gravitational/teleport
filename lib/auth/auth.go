@@ -1017,7 +1017,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
-	// Unlike additional pricinpals, DNS Names is x509 specific
+	// Unlike additional principals, DNS Names is x509 specific
 	// and is limited to auth servers and proxies
 	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)

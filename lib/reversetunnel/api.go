@@ -44,7 +44,7 @@ type DialParams struct {
 	// validates the host certificate.
 	Address string
 
-	// Principals are additonal principals that need to be added to the host
+	// Principals are additional principals that need to be added to the host
 	// certificate. Used by the recording proxy to correctly generate a host
 	// certificate.
 	Principals []string

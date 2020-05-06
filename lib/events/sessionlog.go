@@ -633,7 +633,7 @@ func newGzipWriter(file *os.File) *gzipWriter {
 }
 
 const (
-	// eventsSuffix is the suffix of the archive that contians session events.
+	// eventsSuffix is the suffix of the archive that contains session events.
 	eventsSuffix = "events.gz"
 
 	// chunksSuffix is the suffix of the archive that contains session chunks.

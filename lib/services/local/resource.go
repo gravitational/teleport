@@ -512,7 +512,7 @@ func itemsFromLocalAuthSecrets(user string, auth services.LocalAuthSecrets) ([]b
 // TODO: convert username/suffix ops to work on bytes by default; string/byte conversion
 // has order N cost.
 
-// fullUsersPrefix is the entire string preceeding the name of a user in a key
+// fullUsersPrefix is the entire string preceding the name of a user in a key
 var fullUsersPrefix string = string(backend.Key(webPrefix, usersPrefix)) + "/"
 
 // splitUsernameAndSuffix is a helper for extracting usernames and suffixes from

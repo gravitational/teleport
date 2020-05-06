@@ -40,7 +40,7 @@ type UserGetter interface {
 	GetUser(user string, withSecrets bool) (User, error)
 }
 
-// UsersService is reponsible for basic user management
+// UsersService is responsible for basic user management
 type UsersService interface {
 	UserGetter
 	// UpdateUser updates an existing user.

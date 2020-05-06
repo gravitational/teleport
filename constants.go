@@ -424,7 +424,7 @@ const (
 const MaxEnvironmentFileLines = 1000
 
 // MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
-// typically only enforced aginst resources that are likely to arbitrarily grow (e.g. PluginData).
+// typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
 const MaxResourceSize = 1000000
 
 const (

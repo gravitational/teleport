@@ -357,7 +357,7 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 }
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if sucessful.
+// signed certificate if successful.
 func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -2888,7 +2888,7 @@ type ClientI interface {
 	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-	// signed certificate if sucessful.
+	// signed certificate if successful.
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 
 	// Ping gets basic info about the auth server.

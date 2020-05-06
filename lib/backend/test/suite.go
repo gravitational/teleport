@@ -90,7 +90,7 @@ func (s *BackendSuite) CRUD(c *check.C) {
 	err = s.B.Delete(ctx, item.Key)
 	fixtures.ExpectNotFound(c, err)
 
-	// put new item suceeds
+	// put new item succeeds
 	item = backend.Item{Key: prefix("/put"), Value: []byte("world")}
 	_, err = s.B.Put(ctx, item)
 	c.Assert(err, check.IsNil)

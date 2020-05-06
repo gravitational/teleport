@@ -314,7 +314,7 @@ loop:
 }
 
 // TestKubeDeny makes sure that deny rule conflicting with allow
-// rule takes precendence
+// rule takes precedence
 func (s *KubeSuite) TestKubeDeny(c *check.C) {
 	tconf := s.teleKubeConfig(Host)
 

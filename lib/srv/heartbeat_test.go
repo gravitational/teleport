@@ -236,7 +236,7 @@ func (s *HeartbeatSuite) heartbeatAnnounce(c *check.C, mode HeartbeatMode, kind 
 	c.Assert(hb.state, check.Equals, HeartbeatStateAnnounceWait)
 	c.Assert(hb.nextAnnounce, check.Equals, clock.Now().UTC().Add(hb.KeepAlivePeriod))
 
-	// once announce is successfull, next announce is set on schedule
+	// once announce is successful, next announce is set on schedule
 	announcer.err = nil
 	clock.Advance(hb.KeepAlivePeriod + time.Second)
 	err = hb.fetchAndAnnounce()

@@ -415,7 +415,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	p.backend.SetReadError(nil)
 
 	// wait for watcher to restart successfully; ignoring any failed
-	// attempts which ocurred before backend became healthy again.
+	// attempts which occurred before backend became healthy again.
 	waitForEvent(c, p.eventsC, WatcherStarted, WatcherFailed)
 
 	// new value is available now
