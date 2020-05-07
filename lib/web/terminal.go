@@ -71,6 +71,9 @@ type TerminalRequest struct {
 
 	// InteractiveCommand is a command to execut.e
 	InteractiveCommand []string `json:"-"`
+
+	// KeepAliveInterval is the interval for sending ping frames to web client.
+	KeepAliveInterval time.Duration
 }
 
 // AuthProvider is a subset of the full Auth API.
@@ -215,6 +218,8 @@ func (t *TerminalHandler) Close() error {
 // pumps raw events and audit events back to the client until the SSH session
 // is complete.
 func (t *TerminalHandler) handler(ws *websocket.Conn) {
+	defer ws.Close()
+
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
 	tc, err := t.makeClient(ws)
@@ -230,6 +235,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 	t.terminalContext, t.terminalCancel = context.WithCancel(context.Background())
 
 	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
+
+	// Start sending ping frames through websocket to client.
+	go t.startPingLoop(ws)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
@@ -284,10 +292,42 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
 		t.windowChange(&t.params.Term)
+
 		return false, nil
 	}
 
 	return tc, nil
+}
+
+// startPingLoop starts a loop that will continuously send a ping frame through the websocket
+// to prevent the connection between web client and teleport proxy from becoming idle.
+// Interval is determined by the keep_alive_interval config set by user (or default).
+// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
+func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
+	// Define our own marshal func to just return a ping payload type.
+	codec := websocket.Codec{Marshal: func(v interface{}) (data []byte, payloadType byte, err error) {
+		return nil, websocket.PingFrame, nil
+	}}
+
+	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
+	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
+	defer tickerCh.Stop()
+
+	for {
+		select {
+		case <-tickerCh.C:
+			// Pongs are internally handled by the websocket library.
+			// https://github.com/golang/net/blob/master/websocket/hybi.go#L291
+			if err := codec.Send(ws, nil); err != nil {
+				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+				t.Close()
+				return
+			}
+		case <-t.terminalContext.Done():
+			t.log.Debugf("Terminating websocket ping loop.")
+			return
+		}
+	}
 }
 
 // streamTerminal opens a SSH connection to the remote host and streams
