@@ -39,9 +39,19 @@ emergency 'break-glass' access in the event of a failure.
 
 ## Prerequisites
 
-- Helm v2.16+
+- Helm v2.16 (Helm v3 is not currently supported)
+  - You must have Tiller working and configured properly inside your cluster
 - Kubernetes 1.10+
 - A Teleport license file stored as a Kubernetes Secret object - see below
+
+On many cloud providers, the `default` service account doesn't have sufficient privileges to deploy charts when used to run
+Tiller. In this situation, you will need to deploy Tiller with `cluster-admin` privileges like this:
+
+```console
+kubectl create serviceaccount --namespace kube-system tiller
+kubectl create clusterrolebinding tiller --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+helm init --service-account tiller --upgrade --wait
+```
 
 ### Prepare the license file
 
@@ -62,10 +72,14 @@ kubectl create secret generic license --from-file=license-enterprise.pem
 Make sure you read `values.yaml` and edit the appropriate sections (particularly the root cluster configuration) before
 installing the chart. You must also set a secure node join token for use by your Kubernetes worker nodes.
 
-To install the chart with the release name `teleport`, run:
+We recommend copying all the parts of `values.yaml` which you need to change to another file called `teleport-values.yaml`,
+then providing this file to Helm using the `-f` parameter on the command line. Helm will take the defaults from
+`values.yaml` and merge them with your changes from the `teleport-values.yaml` file.
+
+To install the chart with the release name `teleport` and extra values from `teleport-values.yaml`, run:
 
 ```console
-helm install --name teleport ./
+helm install --name teleport -f teleport-values.yaml ./
 ```
 
 You can view debug logs for the cluster with this command:
@@ -87,7 +101,7 @@ You can view debug logs for the Teleport service running on the Kubernetes worke
 kubectl logs daemonset/teleport-node
 ```
 
-## Deleting the configured cluster
+## Deleting the chart
 
 If you need to delete the chart, you can use:
 
