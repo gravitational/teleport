@@ -964,6 +964,40 @@ func (s *WebSuite) TestTerminal(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *WebSuite) TestWebsocketPingLoop(c *C) {
+	// change cluster default config for keep alive interval to be ran faster
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording:    services.RecordAtNode,
+		ProxyChecksHostKeys: services.HostKeyCheckYes,
+		KeepAliveInterval:   services.NewDuration(250 * time.Millisecond),
+		LocalAuth:           services.NewBool(true),
+	})
+	c.Assert(err, IsNil)
+
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	c.Assert(err, IsNil)
+
+	// flush out raw event (pty texts)
+	err = s.waitForRawEvent(ws, 1*time.Second)
+	c.Assert(err, IsNil)
+
+	// next frames should be just pings sent out by ping loop
+	// b/c nothing else should be sending anything at this point
+	frame, err := ws.NewFrameReader()
+	c.Assert(err, IsNil)
+	c.Assert(int(frame.PayloadType()), Equals, websocket.PingFrame)
+
+	frame, err = ws.NewFrameReader()
+	c.Assert(err, IsNil)
+	c.Assert(int(frame.PayloadType()), Equals, websocket.PingFrame)
+
+	err = ws.Close()
+	c.Assert(err, IsNil)
+}
+
 func (s *WebSuite) TestWebAgentForward(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
@@ -1844,7 +1878,7 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 	for {
 		select {
 		case <-timeoutContext.Done():
-			return trace.BadParameter("timeout waiting for resize event")
+			return trace.BadParameter("timeout waiting for raw event")
 		case <-doneContext.Done():
 			return nil
 		}
