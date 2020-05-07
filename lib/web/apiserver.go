@@ -1425,6 +1425,20 @@ func (h *Handler) siteNodeConnect(
 	log.Debugf("[WEB] new terminal request for ns=%s, server=%s, login=%s, sid=%s",
 		req.Namespace, req.Server, req.Login, req.SessionID)
 
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		log.Debugf("Unable to auth access point: %v.", err)
+		return nil, trace.Wrap(err)
+	}
+
+	clusterConfig, err := authAccessPoint.GetClusterConfig()
+	if err != nil {
+		log.Debugf("Unable to fetch cluster config: %v.", err)
+		return nil, trace.Wrap(err)
+	}
+
+	req.KeepAliveInterval = clusterConfig.GetKeepAliveInterval()
+	req.KeepAliveCountMax = clusterConfig.GetKeepAliveCountMax()
 	req.Namespace = namespace
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()

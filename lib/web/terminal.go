@@ -71,6 +71,13 @@ type TerminalRequest struct {
 
 	// InteractiveCommand is a command to execut.e
 	InteractiveCommand []string `json:"-"`
+
+	// KeepAliveInterval is the keep-alive interval for server to client connections.
+	KeepAliveInterval time.Duration
+
+	// KeepAliveCountMax is the max number ofr missed keep-alive messages before
+	// server disconnects the client.
+	KeepAliveCountMax int64
 }
 
 // AuthProvider is a subset of the full Auth API.
