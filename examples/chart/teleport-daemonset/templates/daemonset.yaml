@@ -30,8 +30,6 @@ spec:
         effect: "NoSchedule"
     {{- end }}
       hostPID: true
-      hostIPC: true
-      hostNetwork: true
       containers:
       - name: {{ .Chart.Name }}-systemd-installer
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
