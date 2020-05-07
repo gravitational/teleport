@@ -87,7 +87,7 @@ type Server struct {
 	proxyMode bool
 	proxyTun  reversetunnel.Server
 
-	advertiseIP     string
+	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
 
 	// server UUID gets generated once on the first start and never changes
@@ -440,7 +440,7 @@ func New(addr utils.NetAddr,
 	signers []ssh.Signer,
 	authService auth.AccessPoint,
 	dataDir string,
-	advertiseIP string,
+	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,
 	options ...ServerOption) (*Server, error) {
 
@@ -456,7 +456,6 @@ func New(addr utils.NetAddr,
 		authService:     authService,
 		hostname:        hostname,
 		labelsMutex:     &sync.Mutex{},
-		advertiseIP:     advertiseIP,
 		proxyPublicAddr: proxyPublicAddr,
 		uuid:            uuid,
 		cancel:          cancel,
@@ -467,6 +466,12 @@ func New(addr utils.NetAddr,
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if advertiseAddr != "" {
+		s.advertiseAddr, err = utils.ParseAddr(advertiseAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	for _, o := range options {
@@ -594,30 +599,30 @@ func (s *Server) PermitUserEnvironment() bool {
 	return s.permitUserEnvironment
 }
 
-func (s *Server) setAdvertiseIP(ip string) {
+func (s *Server) setAdvertiseAddr(addr *utils.NetAddr) {
 	s.Lock()
 	defer s.Unlock()
-	s.advertiseIP = ip
+	s.advertiseAddr = addr
 }
 
-func (s *Server) getAdvertiseIP() string {
+func (s *Server) getAdvertiseAddr() *utils.NetAddr {
 	s.Lock()
 	defer s.Unlock()
-	return s.advertiseIP
+	return s.advertiseAddr
 }
 
 // AdvertiseAddr returns an address this server should be publicly accessible
 // as, in "ip:host" form
 func (s *Server) AdvertiseAddr() string {
 	// set if we have explicit --advertise-ip option
-	advertiseIP := s.getAdvertiseIP()
-	if advertiseIP == "" {
+	advertiseAddr := s.getAdvertiseAddr()
+	if advertiseAddr == nil {
 		return s.addr.Addr
 	}
 	_, port, _ := net.SplitHostPort(s.addr.Addr)
-	ahost, aport, err := utils.ParseAdvertiseAddr(advertiseIP)
+	ahost, aport, err := utils.ParseAdvertiseAddr(advertiseAddr.String())
 	if err != nil {
-		log.Warningf("Failed to parse advertise address %q, %v, using default value %q.", advertiseIP, err, s.addr.Addr)
+		log.Warningf("Failed to parse advertise address %q, %v, using default value %q.", advertiseAddr, err, s.addr.Addr)
 		return s.addr.Addr
 	}
 	if aport == "" {

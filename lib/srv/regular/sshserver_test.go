@@ -255,10 +255,29 @@ func (s *SrvSuite) TestDirectTCPIP(c *C) {
 }
 
 func (s *SrvSuite) TestAdvertiseAddr(c *C) {
-	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "127.0.0.1:"), Equals, 0)
-	s.srv.setAdvertiseIP("10.10.10.1")
-	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "10.10.10.1:"), Equals, 0)
-	s.srv.setAdvertiseIP("")
+	// No advertiseAddr was set in SetUpTest, should default to srvAddress.
+	c.Assert(s.srv.AdvertiseAddr(), Equals, s.srvAddress)
+
+	var (
+		advIP      = utils.MustParseAddr("10.10.10.1")
+		advIPPort  = utils.MustParseAddr("10.10.10.1:1234")
+		advBadAddr = utils.MustParseAddr("localhost:badport")
+	)
+	// IP-only advertiseAddr should use the port from srvAddress.
+	s.srv.setAdvertiseAddr(advIP)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, fmt.Sprintf("%s:%s", advIP, s.srvPort))
+
+	// IP and port advertiseAddr should fully override srvAddress.
+	s.srv.setAdvertiseAddr(advIPPort)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, advIPPort.String())
+
+	// nil advertiseAddr should default to srvAddress.
+	s.srv.setAdvertiseAddr(nil)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, s.srvAddress)
+
+	// Invalid advertiseAddr should fall back to srvAddress.
+	s.srv.setAdvertiseAddr(advBadAddr)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, s.srvAddress)
 }
 
 // TestAgentForwardPermission makes sure if RBAC rules don't allow agent
