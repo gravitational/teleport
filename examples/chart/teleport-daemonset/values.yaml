@@ -81,6 +81,10 @@ daemonset:
       labels:
         node-type: kubernetes-worker
         running-on: host
+      commands:
+      - name: kubelet-labels
+        command: ['/bin/bash', '/usr/local/bin/get-kubelet-labels.sh']
+        period: 15m0s
 
     proxy_service:
       enabled: no

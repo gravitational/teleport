@@ -54,6 +54,9 @@ data:
     done
     echo "[sidecar] Trusted cluster added. Tailing a never-ending file to keep the sidecar pod running..."
     tail -F /dev/null
+  get-kubelet-labels.sh:
+    #!/bin/bash
+    ps -ef | grep bin/kubelet | tr ' ' '\n' | grep node-labels | cut -d= -f2- | tr ',' '|'
   install-teleport-systemd.sh: |
     #!/bin/bash
     set -euo pipefail
@@ -116,6 +119,11 @@ data:
       echo "[install-teleport-systemd] mkdir -p ${HOST_TELEPORT_STORAGE_PATH}"
       mkdir -p ${HOST_TELEPORT_STORAGE_PATH}
     fi
+
+    CONTAINER_LABELS_SCRIPT_PATH=/usr/local/bin/teleport-scripts/get-kubelet-labels.sh
+    HOST_LABELS_SCRIPT_PATH=/host/usr/local/bin/get-kubelet-labels.sh
+    echo "[install-teleport-systemd] cp ${CONTAINER_LABELS_SCRIPT_PATH} ${HOST_LABELS_SCRIPT_PATH}"
+    cp ${CONTAINER_LABELS_SCRIPT_PATH} ${HOST_LABELS_SCRIPT_PATH}
 
     echo "[install-teleport-systemd] systemctl enable teleport.service"
     systemctl enable teleport.service
