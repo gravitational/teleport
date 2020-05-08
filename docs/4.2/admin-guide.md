@@ -2045,8 +2045,7 @@ Kubernetes cluster:
 ![teleport-kubernetes-integration](img/teleport-kube.png)
 
 For more detailed information, please take a look at [Kubernetes Integration
-with SSH](admin-guide.md#kubernetes-integration) section in the Architecture
-chapter.
+with SSH](kubernetes_ssh.md) guide.
 
 In the scenario illustrated above a user would execute the following commands:
 
