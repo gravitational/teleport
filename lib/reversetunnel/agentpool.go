@@ -307,9 +307,7 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 	// start the agent in a goroutine. no need to handle Start() errors: Start() will be
 	// retrying itself until the agent is closed
 	go agent.Start()
-	agents, _ := m.agents[key]
-	agents = append(agents, agent)
-	m.agents[key] = agents
+	m.agents[key] = append(m.agents[key], agent)
 	return nil
 }
 

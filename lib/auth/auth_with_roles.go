@@ -506,7 +506,7 @@ func (a *AuthWithRoles) filterNodes(nodes []services.Server) ([]services.Server,
 	filteredNodes := make([]services.Server, 0, len(nodes))
 NextNode:
 	for _, node := range nodes {
-		for login, _ := range allowedLogins {
+		for login := range allowedLogins {
 			err := roleset.CheckAccessToServer(login, node)
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)

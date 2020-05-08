@@ -1688,7 +1688,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	// Check access to all 4,000 nodes.
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < 4000; i++ {
-			for login, _ := range allowLogins {
+			for login := range allowLogins {
 				set.CheckAccessToServer(login, servers[i])
 			}
 		}

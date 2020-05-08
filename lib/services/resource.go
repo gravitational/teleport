@@ -336,7 +336,7 @@ func GetResourceMarshalerKinds() []string {
 	marshalerMutex.Lock()
 	defer marshalerMutex.Unlock()
 	kinds := make([]string, 0, len(resourceMarshalers))
-	for kind, _ := range resourceMarshalers {
+	for kind := range resourceMarshalers {
 		kinds = append(kinds, kind)
 	}
 	return kinds

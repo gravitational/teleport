@@ -282,7 +282,7 @@ func (u *UserCommand) List(client auth.ClientI) error {
 		}
 		t := asciitable.MakeTable([]string{"User", "Allowed logins"})
 		for _, u := range users {
-			logins, _ := u.GetTraits()[teleport.TraitLogins]
+			logins := u.GetTraits()[teleport.TraitLogins]
 			t.AddRow([]string{u.GetName(), strings.Join(logins, ",")})
 		}
 		fmt.Println(t.AsBuffer().String())

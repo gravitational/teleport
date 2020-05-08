@@ -452,9 +452,9 @@ func (idx *sessionIndex) sort() {
 	})
 
 	// Enhanced events.
-	for k, _ := range idx.enhancedEvents {
-		sort.Slice(idx.enhancedEvents[k], func(i, j int) bool {
-			return idx.enhancedEvents[k][i].Index < idx.enhancedEvents[k][j].Index
+	for _, events := range idx.enhancedEvents {
+		sort.Slice(events, func(i, j int) bool {
+			return events[i].Index < events[j].Index
 		})
 	}
 }
