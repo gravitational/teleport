@@ -296,7 +296,7 @@ func (s *PresenceService) UpsertNodes(namespace string, servers []services.Serve
 		return trace.Wrap(err)
 	}
 
-	s.log.Debugf("UpsertNodes(%v) in %v", len(servers), time.Now().Sub(start))
+	s.log.Debugf("UpsertNodes(%v) in %v", len(servers), time.Since(start))
 
 	return nil
 }

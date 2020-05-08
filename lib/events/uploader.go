@@ -250,10 +250,10 @@ func (u *Uploader) uploadFile(lockFilePath string, sessionID session.ID) error {
 				SessionID: string(sessionID),
 				Error:     err,
 			})
-			u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
+			u.WithFields(log.Fields{"duration": time.Since(start), "session-id": sessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
 			return
 		}
-		u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Debugf("Session upload completed.")
+		u.WithFields(log.Fields{"duration": time.Since(start), "session-id": sessionID}).Debugf("Session upload completed.")
 		u.emitEvent(UploadEvent{
 			SessionID: string(sessionID),
 		})

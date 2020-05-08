@@ -182,7 +182,7 @@ func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, 
 	if err := h.ensureBucket(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.WithFields(log.Fields{"duration": time.Now().Sub(start)}).Infof("Setup bucket %q completed.", h.Bucket)
+	h.WithFields(log.Fields{"duration": time.Since(start)}).Infof("Setup bucket %q completed.", h.Bucket)
 	return h, nil
 }
 
