@@ -63,7 +63,7 @@ func NewStaticFileSystem(debugMode bool) (http.FileSystem, error) {
 			_, err = os.Stat(path.Join(exePath, "../../e"))
 			isEnterprise := !os.IsNotExist(err)
 
-			if isEnterprise == true {
+			if isEnterprise {
 				// enterprise web assets
 				debugAssetsPath = path.Join(exePath, "../../webassets/e/teleport")
 			} else {

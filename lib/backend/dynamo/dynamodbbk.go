@@ -701,7 +701,7 @@ func removeDuplicates(elements []record) []record {
 	result := []record{}
 
 	for v := range elements {
-		if encountered[elements[v].FullPath] == true {
+		if encountered[elements[v].FullPath] {
 			// Do not add duplicate.
 		} else {
 			// Record this element as an encountered element.

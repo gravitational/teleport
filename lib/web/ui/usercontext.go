@@ -74,7 +74,7 @@ func getLogins(roleSet services.RoleSet) []string {
 	userLogins := []string{}
 	for _, login := range allowed {
 		loginMatch, _ := services.MatchLogin(denied, login)
-		if loginMatch == false {
+		if !loginMatch {
 			userLogins = append(userLogins, login)
 		}
 	}
