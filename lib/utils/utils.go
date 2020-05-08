@@ -72,7 +72,7 @@ func (t *Tracer) Start() *Tracer {
 
 // Stop logs stop of the trace
 func (t *Tracer) Stop() *Tracer {
-	log.Debugf("Tracer completed %v in %v.", t.Description, time.Now().Sub(t.Started))
+	log.Debugf("Tracer completed %v in %v.", t.Description, time.Since(t.Started))
 	return t
 }
 

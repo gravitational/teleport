@@ -452,7 +452,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 
-	g.WithFields(log.Fields{"duration": time.Now().Sub(start)}).Debugf("Query completed.")
+	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
 	var total int
 	for _, docSnap := range docSnaps {
 

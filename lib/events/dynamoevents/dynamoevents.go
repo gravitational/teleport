@@ -420,7 +420,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	g.WithFields(log.Fields{"duration": time.Now().Sub(start), "items": len(out.Items)}).Debugf("Query completed.")
+	g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
 	var total int
 	for _, item := range out.Items {
 		var e event

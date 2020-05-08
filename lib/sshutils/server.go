@@ -304,7 +304,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 			if activeConnections == 0 {
 				return err
 			}
-			if time.Now().Sub(lastReport) > 10*s.shutdownPollPeriod {
+			if time.Since(lastReport) > 10*s.shutdownPollPeriod {
 				s.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
 				lastReport = time.Now()
 			}

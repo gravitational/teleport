@@ -336,10 +336,10 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	start := time.Now()
 	url, err := l.UploadHandler.Upload(context.TODO(), r.SessionID, r.Recording)
 	if err != nil {
-		l.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": r.SessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
+		l.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
 		return trace.Wrap(err)
 	}
-	l.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
+	l.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
 	return l.EmitAuditEvent(SessionUpload, EventFields{
 		SessionEventID: string(r.SessionID),
 		URL:            url,
@@ -639,7 +639,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 		os.Remove(tarball.Name())
 		return trace.Wrap(err)
 	}
-	l.WithFields(log.Fields{"duration": time.Now().Sub(start)}).Debugf("Downloaded %v to %v.", sid, tarballPath)
+	l.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Downloaded %v to %v.", sid, tarballPath)
 
 	start = time.Now()
 	_, err = tarball.Seek(0, 0)
@@ -664,7 +664,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 			l.Warningf("Failed to close file: %v.", err)
 		}
 	}
-	l.WithFields(log.Fields{"duration": time.Now().Sub(start)}).Debugf("Unpacked %v to %v.", tarballPath, l.playbackDir)
+	l.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Unpacked %v to %v.", tarballPath, l.playbackDir)
 	return nil
 }
 
