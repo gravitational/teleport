@@ -227,7 +227,7 @@ func (cfg *Config) Validate() error {
 	if len(cfg.Nodes) == 0 {
 		return trace.BadParameter(`etcd: missing "peers" parameter`)
 	}
-	if cfg.Insecure == false {
+	if !cfg.Insecure {
 		if cfg.TLSCAFile == "" {
 			return trace.BadParameter(`etcd: missing "tls_ca_file" parameter`)
 		}

@@ -507,7 +507,7 @@ func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners [
 			}
 		}
 	}
-	if ah.PublicKey == nil && ah.Password == nil && ah.NoClient == false {
+	if ah.PublicKey == nil && ah.Password == nil && !ah.NoClient {
 		return trace.BadParameter("need at least one auth method")
 	}
 	return nil

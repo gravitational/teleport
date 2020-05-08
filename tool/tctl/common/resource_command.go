@@ -251,7 +251,7 @@ func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw service
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
-	if rc.force == false && exists {
+	if !rc.force && exists {
 		return trace.AlreadyExists("trusted cluster '%s' already exists", name)
 	}
 
@@ -298,7 +298,7 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
-	if rc.force == false && exists {
+	if !rc.force && exists {
 		return trace.AlreadyExists("authentication connector %q already exists",
 			connector.GetName())
 	}
@@ -326,7 +326,7 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 	exists := (err == nil)
 
 	if exists {
-		if rc.force == false {
+		if !rc.force {
 			return trace.AlreadyExists("user %q already exists", userName)
 		}
 
@@ -557,17 +557,8 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
 func UpsertVerb(exists bool, force bool) string {
-	switch {
-	case exists == true && force == true:
-		return "created"
-	case exists == false && force == true:
-		return "created"
-	case exists == true && force == false:
+	if exists && !force {
 		return "updated"
-	case exists == false && force == false:
-		return "created"
 	}
-
-	// Can never reach here, but the compiler complains.
-	return "unknown"
+	return "created"
 }

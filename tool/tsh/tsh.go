@@ -1064,7 +1064,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 
 	// If the caller does not want to check host keys, pass in a insecure host
 	// key checker.
-	if options.StrictHostKeyChecking == false {
+	if !options.StrictHostKeyChecking {
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
 	c.BindAddr = cf.BindAddr

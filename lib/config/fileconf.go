@@ -328,17 +328,17 @@ func (conf *FileConfig) Check() error {
 	sc.SetDefaults()
 
 	for _, c := range conf.Ciphers {
-		if utils.SliceContainsStr(sc.Ciphers, c) == false {
+		if !utils.SliceContainsStr(sc.Ciphers, c) {
 			return trace.BadParameter("cipher %q not supported", c)
 		}
 	}
 	for _, k := range conf.KEXAlgorithms {
-		if utils.SliceContainsStr(sc.KeyExchanges, k) == false {
+		if !utils.SliceContainsStr(sc.KeyExchanges, k) {
 			return trace.BadParameter("KEX %q not supported", k)
 		}
 	}
 	for _, m := range conf.MACAlgorithms {
-		if utils.SliceContainsStr(sc.MACs, m) == false {
+		if !utils.SliceContainsStr(sc.MACs, m) {
 			return trace.BadParameter("MAC %q not supported", m)
 		}
 	}
