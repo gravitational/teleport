@@ -432,10 +432,7 @@ func (c *CachePolicy) Enabled() bool {
 
 // NeverExpires returns if cache never expires by itself
 func (c *CachePolicy) NeverExpires() bool {
-	if isNever(c.TTL) {
-		return true
-	}
-	return false
+	return isNever(c.TTL)
 }
 
 // Parse parses cache policy from Teleport config

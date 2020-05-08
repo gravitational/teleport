@@ -349,9 +349,7 @@ func (f *fakeTerminal) Wait() (*ExecResult, error) {
 
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
-func (f *fakeTerminal) Continue() {
-	return
-}
+func (f *fakeTerminal) Continue() {}
 
 // Kill will force kill the terminal.
 func (f *fakeTerminal) Kill() error {
@@ -395,9 +393,7 @@ func (f *fakeTerminal) GetTerminalParams() rsession.TerminalParams {
 }
 
 // SetTerminalModes sets the terminal modes from "pty-req"
-func (f *fakeTerminal) SetTerminalModes(ssh.TerminalModes) {
-	return
-}
+func (f *fakeTerminal) SetTerminalModes(ssh.TerminalModes) {}
 
 // GetTermType gets the terminal type set in "pty-req"
 func (f *fakeTerminal) GetTermType() string {

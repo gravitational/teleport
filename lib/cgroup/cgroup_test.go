@@ -137,8 +137,5 @@ func (s *Suite) TestCleanup(c *check.C) {
 // isRoot returns a boolean if the test is being run as root or not. Tests
 // for this package must be run as root.
 func isRoot() bool {
-	if os.Geteuid() != 0 {
-		return false
-	}
-	return true
+	return os.Geteuid() == 0
 }

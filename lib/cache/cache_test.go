@@ -1162,7 +1162,6 @@ func (p *proxyEvents) closeWatchers() {
 		p.watchers[i].Close()
 	}
 	p.watchers = nil
-	return
 }
 
 func (p *proxyEvents) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {

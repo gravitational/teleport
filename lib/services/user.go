@@ -359,10 +359,7 @@ func (u *UserV2) Equals(other User) bool {
 			return false
 		}
 	}
-	if !u.Spec.LocalAuth.Equals(other.GetLocalAuth()) {
-		return false
-	}
-	return true
+	return u.Spec.LocalAuth.Equals(other.GetLocalAuth())
 }
 
 // Expiry returns expiry time for temporary users. Prefer expires from

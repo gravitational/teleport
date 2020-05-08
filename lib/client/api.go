@@ -2194,10 +2194,7 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 // generated because the client is talking with a older server.
 func (tc *TeleportClient) useLegacyID(nodeClient *NodeClient) bool {
 	_, err := tc.getServerVersion(nodeClient)
-	if trace.IsNotFound(err) {
-		return true
-	}
-	return false
+	return trace.IsNotFound(err)
 }
 
 type serverResponse struct {
