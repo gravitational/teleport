@@ -394,10 +394,7 @@ func (o *SAMLConnectorV2) Equals(other SAMLConnector) bool {
 			return false
 		}
 	}
-	if o.GetSSO() != other.GetSSO() {
-		return false
-	}
-	return true
+	return o.GetSSO() == other.GetSSO()
 }
 
 // V2 returns V2 version of the resource

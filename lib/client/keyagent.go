@@ -300,10 +300,7 @@ func (a *LocalKeyAgent) checkHostCertificate(key ssh.PublicKey, addr string) boo
 	// If this certificate was not seen before, prompt the user essentially
 	// treating it like a key.
 	err = a.checkHostKey(addr, nil, key)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 // checkHostKey validates a host key. First checks the

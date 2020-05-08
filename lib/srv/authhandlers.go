@@ -422,10 +422,7 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 
 // isProxy returns true if it's a regular SSH proxy.
 func (h *AuthHandlers) isProxy() bool {
-	if h.Component == teleport.ComponentProxy {
-		return true
-	}
-	return false
+	return h.Component == teleport.ComponentProxy
 }
 
 // extractRolesFromCert extracts roles from certificate metadata extensions.

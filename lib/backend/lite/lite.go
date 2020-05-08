@@ -862,7 +862,6 @@ func (l *LiteBackend) inTransaction(ctx context.Context, f func(tx *sql.Tx) erro
 		if err2 := commit(); err2 != nil {
 			err = trace.Wrap(err2)
 		}
-		return
 	}()
 	err = f(tx)
 	return

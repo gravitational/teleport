@@ -342,9 +342,7 @@ func (r *remoteExec) Wait() *ExecResult {
 }
 
 // Continue does nothing for remote command execution.
-func (r *remoteExec) Continue() {
-	return
-}
+func (r *remoteExec) Continue() {}
 
 // PID returns an invalid PID for remotExec.
 func (r *remoteExec) PID() int {

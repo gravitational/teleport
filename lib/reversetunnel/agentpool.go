@@ -424,10 +424,7 @@ func (m *AgentPool) removeDisconnected() {
 	for agentKey, agentSlice := range m.agents {
 		// Filter and close all disconnected agents.
 		validAgents := filterAndClose(agentSlice, func(agent *Agent) bool {
-			if agent.getState() == agentStateDisconnected {
-				return true
-			}
-			return false
+			return agent.getState() == agentStateDisconnected
 		})
 
 		// Update (or delete) agent key with filter applied.
