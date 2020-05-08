@@ -164,10 +164,7 @@ func (m *AgentPool) Stop() {
 
 // Wait returns when agent pool is closed
 func (m *AgentPool) Wait() error {
-	select {
-	case <-m.ctx.Done():
-		break
-	}
+	<-m.ctx.Done()
 	return nil
 }
 

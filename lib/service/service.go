@@ -1226,10 +1226,9 @@ func (process *TeleportProcess) onExit(serviceName string, callback func(interfa
 	process.RegisterFunc(serviceName, func() error {
 		eventC := make(chan Event)
 		process.WaitForEvent(context.TODO(), TeleportExitEvent, eventC)
-		select {
-		case event := <-eventC:
-			callback(event.Payload)
-		}
+
+		event := <-eventC
+		callback(event.Payload)
 		return nil
 	})
 }
@@ -2373,10 +2372,8 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 		defer cancel()
 		process.Supervisor.Wait()
 	}()
-	select {
-	case <-local.Done():
-		return
-	}
+
+	<-local.Done()
 }
 
 // StartShutdown launches non-blocking graceful shutdown process that signals
@@ -2404,10 +2401,8 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 func (process *TeleportProcess) Shutdown(ctx context.Context) {
 	localCtx := process.StartShutdown(ctx)
 	// wait until parent context closes
-	select {
-	case <-localCtx.Done():
-		process.Debugf("Process completed.")
-	}
+	<-localCtx.Done()
+	process.Debugf("Process completed.")
 }
 
 // Close broadcasts close signals and exits immediately

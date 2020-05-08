@@ -318,11 +318,9 @@ func Run(args []string, underTest bool) {
 		exitSignals := make(chan os.Signal, 1)
 		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
 
-		select {
-		case sig := <-exitSignals:
-			log.Debugf("signal: %v", sig)
-			cancel()
-		}
+		sig := <-exitSignals
+		log.Debugf("signal: %v", sig)
+		cancel()
 	}()
 	cf.Context = ctx
 
