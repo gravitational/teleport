@@ -89,10 +89,9 @@ func (s *ServerSuite) TestShutdown(c *check.C) {
 		ch, _, err := nch.Accept()
 		c.Assert(err, check.IsNil)
 		defer ch.Close()
-		select {
-		case <-closeContext.Done():
-			ccx.ServerConn.Close()
-		}
+
+		<-closeContext.Done()
+		ccx.ServerConn.Close()
 	})
 
 	srv, err := NewServer(
