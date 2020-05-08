@@ -306,9 +306,9 @@ Take a look at the [SSH via Single Sign-on](ssh_sso.md) chapter to learn the bas
 integrating Teleport with SSO providers. We have the following detailed guides for
 configuring SSO providers:
 
-* [Okta](../ssh_okta.md)
-* [Active Directory](../ssh_adfs.md)
-* [One Login](../ssh_one_login.md)
+* [Okta](sso/ssh_okta.md)
+* [Active Directory](sso/ssh_adfs.md)
+* [One Login](sso/ssh_one_login.md)
 * [Github](../admin-guide.md#github-oauth-20)
 
 Any SAML-compliant provider can be configured with Teleport by following the

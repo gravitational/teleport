@@ -12,7 +12,7 @@ like:
 !!! warning "Version Warning"
 
     This guide requires a commercial edition of Teleport. The open source
-    edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
+    edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
     an SSO provider.
 
 ## Enable SAML Authentication
@@ -32,7 +32,7 @@ auth_service:
 Using OneLogin control panel, create a SAML 2.0 Web App in SAML configuration
 section:
 
-![Create APP](img/onelogin-saml-1.png)
+![Create APP](../../img/onelogin-saml-1.png)
 
 !!! tip "Important"
 
@@ -44,13 +44,13 @@ Set `Audience`, `Recipient` and `ACS (Consumer) URL Validator` to the same value
 `https://teleport.example.com/v1/webapi/saml/acs` where `teleport.example.com` is the
 public name of the teleport web proxy service:
 
-![Configure APP](img/onelogin-saml-2.png)
+![Configure APP](../../img/onelogin-saml-2.png)
 
 Teleport needs to assign groups to users. Configure the application with some parameters
 exposed as SAML attribute statements:
 
-![Configure APP](img/onelogin-saml-3.png)
-![Configure APP](img/onelogin-saml-4.png)
+![Configure APP](../../img/onelogin-saml-3.png)
+![Configure APP](../../img/onelogin-saml-4.png)
 
 !!! warning "Important"
 
@@ -58,11 +58,11 @@ exposed as SAML attribute statements:
 
 Add users to the application:
 
-![Configure APP](img/onelogin-saml-5.png)
+![Configure APP](../../img/onelogin-saml-5.png)
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](admin-guide.md#resources).
+Now, create a SAML connector [resource](../../admin-guide.md#resources).
 Write down this template as `onelogin-connector.yaml`:
 
 ```yaml
@@ -71,7 +71,7 @@ Write down this template as `onelogin-connector.yaml`:
 
 To fill in the fields, open `SSO` tab:
 
-![Configure APP](img/onelogin-saml-6.png)
+![Configure APP](../../img/onelogin-saml-6.png)
 
 * `acs` - is the name of the teleport web proxy, e.g. `https://teleport.example.com/v1/webapi/saml/acs`
 * `issuer` - use value from `Issuer URL field`, e.g. `https://app.onelogin.com/saml/metadata/123456`
@@ -83,7 +83,7 @@ To fill in the fields, open `SSO` tab:
 
 * `cert` - download certificate, by clicking "view details link" and add to `cert` section
 
-![Configure APP](img/onelogin-saml-7.png)
+![Configure APP](../../img/onelogin-saml-7.png)
 
 Create the connector using `tctl` tool:
 

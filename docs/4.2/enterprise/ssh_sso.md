@@ -34,6 +34,15 @@ succeeds, Teleport will retrieve an SSH certificate and will store it in
 `~/.tsh/keys/proxy.example.com` directory and also will add it to an 
 [SSH agent](https://en.wikipedia.org/wiki/Ssh-agent) if there's one running.
 
+### SSO Setup Guides
+
+- [Azure Active Directory (AD)](sso/ssh_azuread.md)
+- [Active Directory (ADFS)](sso/ssh_adfs.md) 
+- [G Suite](sso/ssh_gsuite.md)
+- [OneLogin](sso/ssh_one_login.md)
+- [OIDC](sso/oidc.md)
+- [Okta](sso/ssh_okta.md)
+
 ## Configuring SSO
 
 Teleport works with SSO providers by relying on a concept called
@@ -97,6 +106,8 @@ spec:
 * See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources)
   directory in the Teleport Github repository for examples of possible connectors.
 
+
+
 ### User Logins
 
 Often it is required to restrict SSO users to their unique UNIX logins when they
@@ -148,10 +159,10 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-* [SSH Authentication with Okta](../ssh_okta.md)
-* [SSH Authentication with OneLogin](../ssh_one_login.md)
-* [SSH Authentication with ADFS](../ssh_adfs.md)
-* [SSH Authentication with OAuth2 / OpenID Connect](../oidc.md)
+* [SSH Authentication with Okta](sso/ssh_okta.md)
+* [SSH Authentication with OneLogin](sso/ssh_one_login.md)
+* [SSH Authentication with ADFS](sso/ssh_adfs.md)
+* [SSH Authentication with OAuth2 / OpenID Connect](sso/oidc.md)
 
 ## SSO Customization 
 
