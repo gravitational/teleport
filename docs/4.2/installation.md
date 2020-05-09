@@ -76,6 +76,11 @@ $ which teleport
 /usr/local/bin/teleport
 ```
 
+### Docker
+```bash
+$ docker pull quay.io/gravitational/teleport:{{ teleport.version }}
+```
+
 ### MacOS
 
 **Package**
