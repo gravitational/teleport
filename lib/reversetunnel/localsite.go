@@ -181,7 +181,7 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 }
 
 func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
-	s.log.Debugf("Dialing from %v to %v.", params.From, params.To)
+	s.log.Debugf("Dialing %v.", params)
 
 	conn, _, err := s.getConn(params)
 	if err != nil {
@@ -266,6 +266,11 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 			return nil, false, trace.Wrap(err)
 		}
 
+		// This node can only be reached over a tunnel, don't attempt to dial
+		// remotely.
+		if params.To.String() == "" {
+			return nil, false, trace.ConnectionProblem(err, "node is offline, please try again later")
+		}
 		// If no tunnel connection was found, dial to the target host.
 		dialer := proxy.DialerFromEnvironment(params.To.String())
 		conn, err = dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
