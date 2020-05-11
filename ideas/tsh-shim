@@ -1,0 +1,292 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'base64'
+require 'fileutils'
+require 'json'
+require 'open3'
+require 'tempfile'
+require 'yaml'
+
+# Constants
+JUST_UNDER_AN_HOUR = 3500
+
+# Required
+CLUSTER = ENV.fetch('CLUSTER')
+HOME = ENV.fetch('HOME')
+
+# Optional
+CREDENTIALS_TIMEOUT = ENV.fetch('CREDENTIALS_TIMEOUT', JUST_UNDER_AN_HOUR).to_i
+KUBECONFIG = ENV.fetch('KUBECONFIG', File.join(HOME, '.kube', 'config'))
+TSH_HOME = ENV.fetch('TSH_HOME', File.join(HOME, '.tsh'))
+
+BootstrapError = Class.new(StandardError)
+ConfigError = Class.new(StandardError)
+CredentialsError = Class.new(StandardError)
+LoginError = Class.new(StandardError)
+
+def tsh_hostname
+  @tsh_hostname ||= "teleport.#{CLUSTER}.example.com"
+end
+
+def tsh_cluster_config_path
+  File.join(TSH_HOME, "#{tsh_hostname}.yaml")
+end
+
+def tsh_cluster_config
+  @tsh_cluster_config ||= begin
+    unless File.exist?(tsh_cluster_config_path)
+      raise(ConfigError, "file does not exist: #{tsh_cluster_config_path}")
+    end
+
+    YAML.safe_load(File.read(tsh_cluster_config_path))
+  end
+end
+
+def tsh_username
+  @tsh_username ||= tsh_cluster_config.fetch('user')
+end
+
+def tsh_login
+  tmp = Tempfile.open
+  tmp.close
+
+  stdout_stderr, status = Open3.capture2e(
+    { 'KUBECONFIG' => tmp.path },
+    'tsh', 'login', '--debug', '--proxy', tsh_hostname
+  )
+  return if status.exitstatus.zero?
+
+  FileUtils.rm_rf(tsh_credentials_path)
+  raise(LoginError, stdout_stderr)
+ensure
+  tmp.unlink
+end
+
+def tsh_credentials_path
+  @tsh_credentials_path ||= File.join(TSH_HOME, 'keys', tsh_hostname)
+end
+
+def tsh_chain_path
+  @tsh_chain_path ||= File.join(tsh_credentials_path, 'certs.pem')
+end
+
+def tsh_chain
+  @tsh_chain ||= begin
+    unless File.exist?(tsh_chain_path)
+      raise(CredentialsError, "file does not exist: #{tsh_chain_path}")
+    end
+
+    File.read(tsh_chain_path)
+  end
+end
+
+def tsh_cert_path
+  @tsh_cert_path ||= File.join(tsh_credentials_path, "#{tsh_username}-x509.pem")
+end
+
+def tsh_cert_mtime
+  # Caller should ensure file exists
+  File::Stat.new(tsh_cert_path).mtime
+end
+
+def tsh_key_path
+  @tsh_key_path ||= File.join(tsh_credentials_path, tsh_username)
+end
+
+def tsh_key_mtime
+  # Caller should ensure file exists
+  File::Stat.new(tsh_key_path).mtime
+end
+
+def tsh_cluster_credentials_usable?
+  return false unless File.exist?(tsh_cert_path)
+
+  return false if Time.now - tsh_cert_mtime > CREDENTIALS_TIMEOUT
+
+  return false unless File.exist?(tsh_key_path)
+
+  return false if Time.now - tsh_key_mtime > CREDENTIALS_TIMEOUT
+
+  true
+end
+
+def retry_with_login(max_attempts = 5)
+  attempt = 1
+
+  begin
+    yield
+  rescue ConfigError, CredentialsError => e
+    raise(e) if attempt >= max_attempts
+
+    tsh_login
+    attempt += 1
+    retry
+  end
+end
+
+def tsh_cluster_credentials
+  retry_with_login do
+    unless tsh_cluster_credentials_usable?
+      raise(CredentialsError, 'credentials unusable')
+    end
+
+    {
+      clientCertificateData: File.read(tsh_cert_path),
+      clientKeyData: File.read(tsh_key_path)
+    }
+  end
+end
+
+def empty_kubeconfig
+  @empty_kubeconfig ||= {
+    'apiVersion' => 'v1',
+    'kind' => 'Config',
+    'clusters' => [],
+    'contexts' => [],
+    'users' => []
+  }
+end
+
+def read_kubeconfig
+  FileUtils.mkdir_p(File.dirname(KUBECONFIG))
+
+  return empty_kubeconfig unless File.exist?(KUBECONFIG)
+
+  YAML.safe_load(File.read(KUBECONFIG))
+end
+
+def already_bootstrapped?(kubeconfig)
+  %w[clusters contexts users].any? do |field|
+    kubeconfig.fetch(field).any? do |u|
+      u.fetch('name') == CLUSTER
+    end
+  end
+end
+
+def generate_kubeconfig_cluster
+  {
+    'name' => CLUSTER,
+    'cluster' => {
+      'server' => "https://#{tsh_hostname}:3026",
+      'certificate-authority-data' => Base64.encode64(tsh_chain)
+    }
+  }
+end
+
+def generate_kubeconfig_context
+  {
+    'name' => CLUSTER,
+    'context' => {
+      'cluster' => CLUSTER,
+      'user' => CLUSTER
+    }
+  }
+end
+
+def generate_kubeconfig_user
+  {
+    'name' => CLUSTER,
+    'user' => {
+      'exec' => {
+        'apiVersion' => 'client.authentication.k8s.io/v1beta1',
+        'command' => __FILE__,
+        'args' => [
+          'creds'
+        ],
+        'env' => [
+          { 'name' => 'CLUSTER', 'value' => CLUSTER }
+        ]
+      }
+    }
+  }
+end
+
+def prompt_yes?(prompt)
+  STDERR.print(prompt.rstrip + ' [y/N] ')
+  STDIN.gets.to_s.downcase[0] == 'y'
+end
+
+def remove_previously_bootstrapped_entries(kubeconfig)
+  deep_copy(kubeconfig).tap do |clean_kubeconfig|
+    %w[clusters contexts users].each do |field|
+      clean_kubeconfig.fetch(field).delete_if do |entry|
+        entry.fetch('name') == CLUSTER
+      end
+    end
+  end
+end
+
+def ensure_not_already_bootstrapped!(kubeconfig)
+  return kubeconfig unless already_bootstrapped?(kubeconfig)
+
+  continue = prompt_yes?(<<~PROMPT)
+    This cluster has already been bootstrapped. If you continue, this
+    script will overwrite your existing configuration.
+
+    Continue?
+  PROMPT
+  return remove_previously_bootstrapped_entries(kubeconfig) if continue
+
+  raise(BootstrapError, 'already bootstrapped')
+end
+
+def deep_copy(object)
+  Marshal.load(Marshal.dump(object))
+end
+
+def generate_kubeconfig(old_kubeconfig)
+  # Ensures there are no existing entries with the same CLUSTER name,
+  # so we can simply append the new stuff below.
+  clean_kubeconfig = ensure_not_already_bootstrapped!(old_kubeconfig)
+
+  retry_with_login do
+    deep_copy(clean_kubeconfig).tap do |new_kubeconfig|
+      new_kubeconfig['current-context'] = CLUSTER
+
+      new_kubeconfig['clusters'] << generate_kubeconfig_cluster
+      new_kubeconfig['contexts'] << generate_kubeconfig_context
+      new_kubeconfig['users'] << generate_kubeconfig_user
+    end
+  end
+end
+
+def logout
+  FileUtils.rm_rf(tsh_cluster_config_path)
+  FileUtils.rm_rf(tsh_credentials_path)
+end
+
+def bootstrap
+  old_kubeconfig = read_kubeconfig
+  new_kubeconfig = generate_kubeconfig(old_kubeconfig)
+
+  File.open(KUBECONFIG, 'w') do |f|
+    f.puts(YAML.dump(new_kubeconfig))
+  end
+end
+
+def output_exec_credentials
+  puts JSON.pretty_generate(
+    'apiVersion' => 'client.authentication.k8s.io/v1beta1',
+    'kind' => 'ExecCredential',
+    'status' => tsh_cluster_credentials
+  )
+end
+
+def main
+  case ARGV.first
+  when 'bootstrap'
+    logout # Ensures we get fresh credentials
+    bootstrap
+    puts "Context \"#{CLUSTER}\" created."
+  when 'logout'
+    logout
+    puts "Context \"#{CLUSTER}\" logged out."
+  when 'creds'
+    output_exec_credentials
+  else
+    raise(ArgumentError)
+  end
+end
+
+main
