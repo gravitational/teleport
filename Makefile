@@ -220,6 +220,7 @@ lint:
 	golangci-lint run \
 		--disable-all \
 		--exclude-use-default \
+		--exclude='S1002: should omit comparison to bool constant' \
 		--skip-dirs vendor \
 		--uniq-by-line=false \
 		--max-same-issues=0 \
