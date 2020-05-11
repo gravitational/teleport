@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 
@@ -52,6 +53,14 @@ type DialParams struct {
 	// ServerID the hostUUID.clusterName of a Teleport node. Used with nodes
 	// that are connected over a reverse tunnel.
 	ServerID string
+}
+
+func (params DialParams) String() string {
+	to := params.To.String()
+	if to == "" {
+		to = params.ServerID
+	}
+	return fmt.Sprintf("from: %q to: %q", params.From, to)
 }
 
 // RemoteSite represents remote teleport site that can be accessed via

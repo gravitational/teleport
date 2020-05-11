@@ -1411,7 +1411,7 @@ func (s *Server) handleProxyJump(ccx *sshutils.ConnectionContext, identityContex
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	log.Error(err)
-	message := []byte(utils.UserMessageFromError(err))
+	message := []byte(trace.UserMessage(err))
 	ch.Stderr().Write(message)
 	if req.WantReply {
 		req.Reply(false, message)
