@@ -63,7 +63,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 
 	// change state
 	switch {
-	case exists && enable:
+	case exists == true && enable == true:
 		log.Debugf("Enabling existing Trusted Cluster relationship.")
 
 		err := a.activateCertAuthority(trustedCluster)
@@ -78,7 +78,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case exists && !enable:
+	case exists == true && enable == false:
 		log.Debugf("Disabling existing Trusted Cluster relationship.")
 
 		err := a.deactivateCertAuthority(trustedCluster)
@@ -93,7 +93,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case !exists && enable:
+	case exists == false && enable == true:
 		log.Debugf("Creating enabled Trusted Cluster relationship.")
 
 		if err := a.checkLocalRoles(trustedCluster.GetRoleMap()); err != nil {
@@ -119,7 +119,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 			return nil, trace.Wrap(err)
 		}
 
-	case !exists && !enable:
+	case exists == false && enable == false:
 		log.Debugf("Creating disabled Trusted Cluster relationship.")
 
 		if err := a.checkLocalRoles(trustedCluster.GetRoleMap()); err != nil {

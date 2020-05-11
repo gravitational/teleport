@@ -557,8 +557,17 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
 func UpsertVerb(exists bool, force bool) string {
-	if exists && !force {
+	switch {
+	case exists == true && force == true:
+		return "created"
+	case exists == false && force == true:
+		return "created"
+	case exists == true && force == false:
 		return "updated"
+	case exists == false && force == false:
+		return "created"
+	default:
+		// Unreachable, but compiler requires this.
+		return "unknown"
 	}
-	return "created"
 }
