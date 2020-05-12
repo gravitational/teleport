@@ -119,12 +119,6 @@ func init() {
 	prometheus.MustRegister(readRequests)
 }
 
-const (
-	// keyPrefix is a prefix that is added to every etcd key
-	// for backwards compatibility
-	keyPrefix = "/teleport"
-)
-
 type EtcdBackend struct {
 	nodes []string
 	*log.Entry
@@ -325,7 +319,7 @@ func (b *EtcdBackend) asyncWatch() {
 
 func (b *EtcdBackend) watchEvents() error {
 start:
-	eventsC := b.client.Watch(b.ctx, keyPrefix, clientv3.WithPrefix())
+	eventsC := b.client.Watch(b.ctx, b.cfg.Key, clientv3.WithPrefix())
 	b.signalWatchStart()
 	for {
 		select {
@@ -368,12 +362,12 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 	if len(endKey) == 0 {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	opts := []clientv3.OpOption{clientv3.WithSerializable(), clientv3.WithRange(prependPrefix(endKey))}
+	opts := []clientv3.OpOption{clientv3.WithSerializable(), clientv3.WithRange(b.prependPrefix(endKey))}
 	if limit > 0 {
 		opts = append(opts, clientv3.WithLimit(int64(limit)))
 	}
 	start := b.clock.Now()
-	re, err := b.client.Get(ctx, prependPrefix(startKey), opts...)
+	re, err := b.client.Get(ctx, b.prependPrefix(startKey), opts...)
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err := convertErr(err); err != nil {
@@ -386,7 +380,7 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 			return nil, trace.Wrap(err)
 		}
 		items = append(items, backend.Item{
-			Key:     trimPrefix(kv.Key),
+			Key:     b.trimPrefix(kv.Key),
 			Value:   value,
 			ID:      kv.ModRevision,
 			LeaseID: kv.Lease,
@@ -407,8 +401,8 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 	}
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.CreateRevision(prependPrefix(item.Key)), "=", 0)).
-		Then(clientv3.OpPut(prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "=", 0)).
+		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -432,8 +426,8 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 	}
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.CreateRevision(prependPrefix(item.Key)), "!=", 0)).
-		Then(clientv3.OpPut(prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "!=", 0)).
+		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -468,8 +462,8 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	encodedPrev := base64.StdEncoding.EncodeToString(expected.Value)
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.Value(prependPrefix(expected.Key)), "=", encodedPrev)).
-		Then(clientv3.OpPut(prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
+		If(clientv3.Compare(clientv3.Value(b.prependPrefix(expected.Key)), "=", encodedPrev)).
+		Then(clientv3.OpPut(b.prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -498,7 +492,7 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 	start := b.clock.Now()
 	_, err := b.client.Put(
 		ctx,
-		prependPrefix(item.Key),
+		b.prependPrefix(item.Key),
 		base64.StdEncoding.EncodeToString(item.Value),
 		opts...)
 	writeLatencies.Observe(time.Since(start).Seconds())
@@ -514,7 +508,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 	if lease.ID == 0 {
 		return trace.BadParameter("lease is not specified")
 	}
-	re, err := b.client.Get(ctx, prependPrefix(lease.Key), clientv3.WithSerializable(), clientv3.WithKeysOnly())
+	re, err := b.client.Get(ctx, b.prependPrefix(lease.Key), clientv3.WithSerializable(), clientv3.WithKeysOnly())
 	if err != nil {
 		return convertErr(err)
 	}
@@ -537,7 +531,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 
 // Get returns a single item or not found error
 func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	re, err := b.client.Get(ctx, prependPrefix(key), clientv3.WithSerializable())
+	re, err := b.client.Get(ctx, b.prependPrefix(key), clientv3.WithSerializable())
 	if err != nil {
 		return nil, convertErr(err)
 	}
@@ -555,7 +549,7 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 // Delete deletes item by key
 func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 	start := b.clock.Now()
-	re, err := b.client.Delete(ctx, prependPrefix(key))
+	re, err := b.client.Delete(ctx, b.prependPrefix(key))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -576,7 +570,7 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 		return trace.BadParameter("missing parameter endKey")
 	}
 	start := b.clock.Now()
-	_, err := b.client.Delete(ctx, prependPrefix(startKey), clientv3.WithRange(prependPrefix(endKey)))
+	_, err := b.client.Delete(ctx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -605,7 +599,7 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	event := &backend.Event{
 		Type: fromType(e.Type),
 		Item: backend.Item{
-			Key: trimPrefix(e.Kv.Key),
+			Key: b.trimPrefix(e.Kv.Key),
 			ID:  e.Kv.ModRevision,
 		},
 	}
@@ -684,10 +678,10 @@ func fromType(eventType mvccpb.Event_EventType) backend.OpType {
 	}
 }
 
-func trimPrefix(in []byte) []byte {
-	return bytes.TrimPrefix(in, []byte(keyPrefix))
+func (b *EtcdBackend) trimPrefix(in []byte) []byte {
+	return bytes.TrimPrefix(in, []byte(b.cfg.Key))
 }
 
-func prependPrefix(in []byte) string {
-	return keyPrefix + string(in)
+func (b *EtcdBackend) prependPrefix(in []byte) string {
+	return b.cfg.Key + string(in)
 }

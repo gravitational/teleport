@@ -18,6 +18,7 @@ package etcdbk
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
@@ -48,7 +49,7 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 	// this config must match examples/etcd/teleport.yaml
 	s.config = backend.Params{
 		"peers":         []string{"https://127.0.0.1:2379"},
-		"prefix":        "teleport.secrets",
+		"prefix":        "teleport.secrets/",
 		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
 		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
 		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
@@ -136,4 +137,28 @@ func (s *EtcdSuite) TestWatchersClose(c *check.C) {
 
 func (s *EtcdSuite) TestLocking(c *check.C) {
 	s.suite.Locking(c)
+}
+
+func (s *EtcdSuite) TestPrefix(c *check.C) {
+	var (
+		ctx  = context.Background()
+		item = backend.Item{
+			Key:   []byte("foo"),
+			Value: []byte("bar"),
+		}
+	)
+
+	_, err := s.bk.Put(ctx, item)
+	c.Assert(err, check.IsNil)
+	defer s.bk.Delete(ctx, item.Key)
+
+	wantKey := fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
+	resp, err := s.bk.client.Get(ctx, wantKey)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(resp.Kvs), check.Equals, 1)
+	c.Assert(string(resp.Kvs[0].Key), check.Equals, wantKey)
+	// Note: EtcdBackend stores all values base64-encoded.
+	gotValue, err := base64.StdEncoding.DecodeString(string(resp.Kvs[0].Value))
+	c.Assert(err, check.IsNil)
+	c.Assert(string(gotValue), check.Equals, string(item.Value))
 }
