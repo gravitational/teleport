@@ -72,6 +72,7 @@ spec:
           name: {{ template "teleport.fullname" . }}-daemonset-host-usr-local-bin
         - mountPath: /var/log/teleport.log
           name: {{ template "teleport.fullname" . }}-daemonset-host-var-log-teleportlog
+          readOnly: true
         - mountPath: /var/run/dbus
           name: {{ template "teleport.fullname" . }}-daemonset-host-var-run-dbus
 {{- if .Values.daemonset.extraVolumeMounts }}
