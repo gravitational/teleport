@@ -75,7 +75,7 @@ Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new S
 **App Name:** Teleport<br>
 **Development Slack Workspace:** Pick the workspace you'd like the requests to show up in.
 
-![Create Slack App](/img/enterprise/plugins/Create-a-Slack-App.png)
+![Create Slack App](/img/enterprise/plugins/slack/Create-a-Slack-App.png)
 
 #### Setup Interactive Components
 
@@ -152,7 +152,8 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 
 ## Test Run 
 
-Assuming that Teleport is running, and you've created the Slack app, the plugin config, and provided all the certificates — you can now run the plugin and test the workflow!
+Assuming that Teleport is running, and you've created the Slack app, the plugin config,
+and provided all the certificates — you can now run the plugin and test the workflow!
 
 `teleport-slackbot start`
 
@@ -178,7 +179,7 @@ tctl request create USERNAME --roles=TARGET_ROLE
 
 #### Check that you see a request message on Slack 
 
-It should look like this: %image%
+It should look like this: TODO 
 
 #### Approve or deny the request on Slack
 
@@ -199,7 +200,7 @@ You can also test the full workflow from the user's perspective using `tsh`:
 Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
 ```
 
-You should now see a new request in Teleport, and a message about the request on Slack. You can approve or deny it and `tsh`should login successfully or error out right after you click an action button on Slack.
+You should now see a new request in Teleport, and a message about the request on Slack. You can approve or deny it and `tsh` should login successfully or error out right after you click an action button on Slack.
 
 
 ### Setup with SystemD
