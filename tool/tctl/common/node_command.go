@@ -173,6 +173,8 @@ func (c *NodeCommand) ListActive(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	coll := &serverCollection{servers: nodes}
-	coll.writeText(os.Stdout)
+	if err := coll.writeText(os.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }

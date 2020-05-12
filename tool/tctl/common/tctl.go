@@ -121,7 +121,9 @@ func Run(commands []CLICommand) {
 	}
 
 	// configure all commands with Teleport configuration (they share 'cfg')
-	applyConfig(&ccf, cfg)
+	if err := applyConfig(&ccf, cfg); err != nil {
+		utils.FatalError(err)
+	}
 
 	// connect to the auth sever:
 	client, err := connectToAuthService(cfg)

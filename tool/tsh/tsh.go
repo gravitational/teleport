@@ -435,7 +435,9 @@ func onLogin(cf *CLIConf) {
 			if err != nil {
 				utils.FatalError(err)
 			}
-			tc.SaveProfile("", "")
+			if err := tc.SaveProfile("", ""); err != nil {
+				utils.FatalError(err)
+			}
 			if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 				utils.FatalError(err)
 			}
@@ -490,7 +492,9 @@ func onLogin(cf *CLIConf) {
 	}
 
 	// Regular login without -i flag.
-	tc.SaveProfile(key.ProxyHost, "")
+	if err := tc.SaveProfile(key.ProxyHost, ""); err != nil {
+		utils.FatalError(err)
+	}
 
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
@@ -846,7 +850,9 @@ func onBenchmark(cf *CLIConf) {
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
-	io.Copy(os.Stdout, t.AsBuffer())
+	if _, err := io.Copy(os.Stdout, t.AsBuffer()); err != nil {
+		utils.FatalError(err)
+	}
 	fmt.Printf("\n")
 }
 
