@@ -261,7 +261,9 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	clientConfig.Stderr = stream
 	clientConfig.Stdin = stream
 	clientConfig.SiteName = t.params.Cluster
-	clientConfig.ParseProxyHost(t.params.ProxyHostPort)
+	if err := clientConfig.ParseProxyHost(t.params.ProxyHostPort); err != nil {
+		return nil, trace.BadParameter("failed to parse proxy address: %v", err)
+	}
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
 	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
@@ -386,9 +388,9 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 
 // windowChange is called when the browser window is resized. It sends a
 // "window-change" channel request to the server.
-func (t *TerminalHandler) windowChange(params *session.TerminalParams) error {
+func (t *TerminalHandler) windowChange(params *session.TerminalParams) {
 	if t.sshSession == nil {
-		return nil
+		return
 	}
 
 	_, err := t.sshSession.SendRequest(
@@ -401,8 +403,6 @@ func (t *TerminalHandler) windowChange(params *session.TerminalParams) error {
 	if err != nil {
 		t.log.Error(err)
 	}
-
-	return trace.Wrap(err)
 }
 
 // writeError displays an error in the terminal window.

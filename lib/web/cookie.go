@@ -65,7 +65,7 @@ func SetSession(w http.ResponseWriter, user, sid string) error {
 	return nil
 }
 
-func ClearSession(w http.ResponseWriter) error {
+func ClearSession(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    "",
@@ -73,5 +73,4 @@ func ClearSession(w http.ResponseWriter) error {
 		HttpOnly: true,
 		Secure:   true,
 	})
-	return nil
 }
