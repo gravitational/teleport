@@ -1,16 +1,23 @@
-## WHY?
+# Teleport Approval Workflows
 
-Kubernetes and SSH Approval using Slack. 
+TODO: Intro Kubernetes and SSH Approval using Slack. 
+
+- [Approval Workflows Setup](#approval-workflows-setup)
+
+#### Approving Workflow using an External Integration
+- [Integrating Teleport with Slack](ssh_approval_slack.md)
+- [Integrating Teleport with Mattermost](ssh_approval_mattermost.md)
+- [Integrating Teleport with Jira Cloud](ssh_approval_jira_cloud.md)
+- [Integrating Teleport with Jira Server](ssh_approval_jira_server.md)
+- [Integrating Teleport with PagerDuty](ssh_approval_pagerduty.md)
 
 
+## Approval Workflows Setup
 
-- [Setting up Slack](ssh_approval_slack.md)
+Teleport 4.2  introduced the ability for users to request additional roles. The
+workflow API makes it easy to dynamically approve or deny these requests.
 
-## Approval Workflows 
-
-With Teleport 4.2 we've introduced the ability for users to request additional roles. The workflow API makes it easy to dynamically approve or deny these requests.
-
-## Setup
+### Setup
 
 **Contractor Role**
 This role lets the contractor request the role DBA. 
@@ -90,17 +97,36 @@ bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UT
 $ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 ```
 
-Assuming approval, `tsh` will automatically manage a certificate re-issued with the newly requested roles applied. In this case `contractor` will now have have the permission of the
-`dba`. 
+Assuming approval, `tsh` will automatically manage a certificate re-issued with
+the newly requested roles applied. In this case `contractor` will now have have 
+the permission of the `dba`. 
 
 !!! warning 
     
-    Granting a role with administrative abilities could allow a user to **permanently** upgrade their privileges (e.g. if contractor was granted admin for some reason). We recommend only escalating to the next role of least privilege vs jumping directly to "Super Admin" role. 
+    Granting a role with administrative abilities could allow a user to **permanently** 
+    upgrade their privileges (e.g. if contractor was granted admin for some reason).
+    We recommend only escalating to the next role of least privilege vs jumping directly 
+    to "Super Admin" role. 
     
-     The `deny.request` block can help mitigate the risk of doing this by accident.
+    The `deny.request` block can help mitigate the risk of doing this by accident.
 
 ### Other features of Approval Workflows.
  
  - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
- - Approved requests have no affect on Teleport's behavior outside of allowing additional roles on re-issue. This has the nice effect of making requests "compatible" with older versions of Teleport, since only the issuing Auth Server needs any particular knowledge of the feature. 
+ - Approved requests have no affect on Teleport's behavior outside of allowing additional
+   roles on re-issue. This has the nice effect of making requests "compatible" with
+   older versions of Teleport, since only the issuing Auth Server needs any particular
+   knowledge of the feature. 
  
+
+## Integrating with External Tool
+
+[ Diagram of how to set it up ]
+
+| Integration | Feature | Type          | Setup Instructions |
+|-------------|---------|---------------|--------------------|
+| Slack       |         | Chatbot       | Setup Slack        |
+| Mattermost  |         | Chatbot       | Setup Mattermost   |
+| Jira Server |         | Project Board | Setup Jira Server  |
+| Jira Cloud  |         | Project Board | Setup Jira Cloud   |
+| PagerDuty   |         | Schedule      | Setup PagerDuty    |
