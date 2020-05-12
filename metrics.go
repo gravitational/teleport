@@ -129,6 +129,9 @@ const (
 	// MetricLostNetworkEvents measures the number of network events that were lost.
 	MetricLostNetworkEvents = "bpf_lost_network_events"
 
+	// MetricState tracks the state of the teleport process.
+	MetricState = "process_state"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
