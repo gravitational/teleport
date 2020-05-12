@@ -137,7 +137,7 @@ deny:
    knowledge of the feature. 
  
 
-## Integrating with External Tool
+## Integrating with an External Tool
 
 [ Diagram of how to set it up ]
 

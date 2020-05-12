@@ -78,7 +78,9 @@ Teleport Jira Plugin will create a new issue for each new permission request in 
 
 ### Setting up Request ID field on Jira
 Teleport Jira Plugin requires a custom issue field to be created. 
+
 Go to your Jira Project settings → Issue Types → Select type `Task` → add a new Short Text field named `TeleportAccessRequestId`. 
+
 Teleport uses this field to reference its internal request ID. If anyone changes this field on Jira, or tries to forge the permission request, Teleport will validate it and ignore it.
 
 ### Getting your Jira API token
@@ -130,7 +132,7 @@ By default, Jira Teleport Plugin will use a config in `/etc/teleport-jirabot.tom
 ```toml
 # example jirabot configuration TOML file
 [teleport]
-auth-server = "example.com:3025"  # Auth GRPC API address
+auth-server = "teleport-auth.example.com:3025"  # Auth GRPC API address
 client-key = "/var/lib/teleport/plugins/jirabot/auth.key" # Teleport GRPC client secret key
 client-crt = "/var/lib/teleport/plugins/jirabot/auth.crt" # Teleport GRPC client certificate
 root-cas = "/var/lib/teleport/plugins/jirabot/auth.cas"   # Teleport cluster CA certs
@@ -153,7 +155,7 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 
 ```
 
-The `[teleport]` section describes where is the teleport service running, and what keys should the plugin use to authenticate itself. Use the keys that you've generated [above in exporting your Certificate section](#Export access-plugin Certificate).
+The `[teleport]` section describes where the teleport service running, and what keys should the plugin use to authenticate itself. Use the keys that you've generated. 
 
 The `[jira]` section requires a few things: 
 
@@ -164,7 +166,8 @@ The `[jira]` section requires a few things:
 
 `[http]` setting block describes how the Plugin's HTTP server works. The HTTP server is responsible for listening for updates from Jira, and processing updates, like when someone drags a task from Inbox to Approved column. 
 
-You must provide an address the server should listen on, and a certificate to use, unless you plan on running with `--insecure-no-tls`, which we don't recommend in production. 
+You must provide an address the server should listen on, and a certificate to use. It's possible to 
+setup on the same server as the Teleport Proxy, so you can use the same TLS certificate.  
 
 
 ## Testing
