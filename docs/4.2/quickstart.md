@@ -28,7 +28,7 @@ environment, and showcase a few basic tasks you can do with Teleport. For additi
 ## Step 1: Install Teleport
 
 This guide installs teleport v{{ teleport.version }} on the CLI. Previous versions are documented
-in [Release History](https://gravitational.com/teleport/releases/). You can
+in [Release History](https://gravitational.com/teleport/download/). You can
 download pre-built binaries from our
 [Downloads](https://gravitational.com/teleport/download/) page or you can [build
 it from source](installation.md#installing-from-source).
