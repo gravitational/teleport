@@ -14,13 +14,13 @@ TODO: Intro Kubernetes and SSH Approval using Slack.
 
 ## Approval Workflows Setup
 
-Teleport 4.2  introduced the ability for users to request additional roles. The
+Teleport 4.2 introduced the ability for users to request additional roles. The
 workflow API makes it easy to dynamically approve or deny these requests.
 
 ### Setup
 
 **Contractor Role**
-This role lets the contractor request the role DBA. 
+This role allows the contractor to request the role DBA. 
 
 ```yaml
 kind: role
@@ -38,7 +38,7 @@ spec:
 ```
 
 **DBA Role**
-This role lets the contractor request the role DBA. 
+This role allows the contractor to request the role DBA. 
 
 ```yaml
 kind: role
@@ -48,7 +48,7 @@ spec:
   options:
     # ...
     # Only allows the contractor to use this role for 1hr from time of request.
-    options.max_session_ttl: 1hr
+    max_session_ttl: 1hr
   allow:
     # ...
   deny:
@@ -56,7 +56,7 @@ spec:
 ```
 
 **Admin Role**
-This role lets the admin approve the contractor's request. 
+This role allows the admin to approve the contractor's request. 
 ```yaml
 kind: role
 metadata:
@@ -108,12 +108,30 @@ the permission of the `dba`.
     We recommend only escalating to the next role of least privilege vs jumping directly 
     to "Super Admin" role. 
     
-    The `deny.request` block can help mitigate the risk of doing this by accident.
+    The `deny.request` block can help mitigate the risk of doing this by accident. See
+    Example Below. 
+
+
+```yaml
+# Example role that explicitly denies a contractor from requesting the admin
+# role.  
+kind: role
+metadata:
+name: contractor
+spec:
+options:
+    # ...
+allow:
+    # ...
+deny:
+    request:
+    roles: ['admin']
+```
 
 ### Other features of Approval Workflows.
  
  - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
- - Approved requests have no affect on Teleport's behavior outside of allowing additional
+ - Approved requests have no effect on Teleport's behavior outside of allowing additional
    roles on re-issue. This has the nice effect of making requests "compatible" with
    older versions of Teleport, since only the issuing Auth Server needs any particular
    knowledge of the feature. 
