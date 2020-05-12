@@ -448,7 +448,8 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	// now swap the request id to the hardcoded one in fixtures
 	authRequest.ID = fixtures.SAMLOktaAuthRequestID
 	authRequest.CSRFToken = csrfToken
-	s.server.Auth().Identity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
+	err = s.server.Auth().Identity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
+	c.Assert(err, IsNil)
 
 	// now respond with pre-recorded request to the POST url
 	in := &bytes.Buffer{}
@@ -929,7 +930,8 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	}
 	envelopeBytes, err := proto.Marshal(envelope)
 	c.Assert(err, IsNil)
-	websocket.Message.Send(ws2, envelopeBytes)
+	err = websocket.Message.Send(ws2, envelopeBytes)
+	c.Assert(err, IsNil)
 
 	// This time the first terminal will see the resize event.
 	err = s.waitForResizeEvent(ws1, 5*time.Second)
@@ -1042,7 +1044,8 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 
 	// make sure server has replied
 	out := make([]byte, 100)
-	stream.Read(out)
+	_, err = stream.Read(out)
+	c.Assert(err, IsNil)
 
 	_, err = pack.clt.Delete(
 		context.Background(),
