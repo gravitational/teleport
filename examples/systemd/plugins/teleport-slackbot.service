@@ -1,0 +1,13 @@
+[Unit]
+Description=Teleport Slackbot Plugin
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/local/bin/teleport-slackbot start --config=/etc/teleport-slackbot.toml --pid-file=/var/run/teleport-slackbot.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/teleport-slackbot.pid
+
+[Install]
+WantedBy=multi-user.target

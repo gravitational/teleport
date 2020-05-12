@@ -1,6 +1,6 @@
-# Teleport Mattermost Bot
+# Teleport Mattermost Plugin Quickstart
 
-This package provides Teleport <-> Mattermost integrataion that allows teams to approve or deny Teleport access requests using Mattermost.
+This package provides Teleport ↔ Mattermost integrataion that allows teams to approve or deny Teleport access requests using Mattermost.
 
 ## Setup
 
@@ -25,26 +25,22 @@ Check out [more documentation on running Mattermost](https://docs.mattermost.com
 
 #### Setting up Mattermost to work with the bot
 
-In Mattermost, go to System Console -> Integrations -> Enable Bot Account Creation -> Set to True.
+In Mattermost, go to System Console → Integrations → Enable Bot Account Creation → Set to True.
 This will allow us to create a new bot account that the Teleport bot will use.
 
-Go back to your team, then Integrations -> Bot Accounts -> Add Bot Account.
+Go back to your team, then Integrations → Bot Accounts → Add Bot Account.
 
 The new bot account will need Post All permission. 
 
 The confirmation screen after you've created the bot will give you the access token.
- We'll use this in the config later.
-
-#### Create an access-plugin role and user within Teleport 
-First off, using an existing Teleport Cluster, we are going to create a new Teleport
- User and Role to access Teleport.
+We'll use this in the config later.
 
 #### Create User and Role for access. 
-Log into Teleport Authentication Server, this is where you normally run `tctl`. Don't
- change the username and the role name, it should be `access-plugin` for the plugin 
- to work correctly.
+Log into Teleport Authentication Server, this is where you normally run `tctl`. Don't change the username and the role name, it should be `access-plugin` for the plugin to work correctly.
 
-```bash
+_Note: if you're using other plugins, you might want to create different users and roles for different plugins_.
+
+```
 $ cat > rscs.yaml <<EOF
 kind: user
 metadata:
@@ -72,20 +68,17 @@ $ tctl create -f rscs.yaml
 ```
 
 #### Export access-plugin Certificate
-Teleport Plugin uses the `access-plugin`role and user to peform the approval. We 
-export the identify files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 ```bash
 $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=8760h
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt,
- auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll
-  reference these later in the bot config, and move them to an appropriate directory.
+The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuration-file).
 
-_Note: by default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the --ttl flag can be used to ensure a more practical certificate lifetime. --ttl=8760h exports a 1 year token_
- 
+!!! note "Certificate Lifetime"
+     By default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ## Downloading and installing the plugin
 

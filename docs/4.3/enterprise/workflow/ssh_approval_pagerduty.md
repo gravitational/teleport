@@ -1,6 +1,6 @@
-# Teleport Pagerduty Integration
+# Teleport Pagerduty Plugin Quickstart
 
-This package provides a Teleport <-> Pagerduty integration that allows you to treat Teleport access and permission requests as Pagerduty incidents — and notify the appropriate team, and approve or deny the requests via Pagerduty special action.
+This package provides a Teleport ↔  Pagerduty integration that allows you to treat Teleport access and permission requests as Pagerduty incidents — and notify the appropriate team, and approve or deny the requests via Pagerduty special action.
 
 ## Prerequisites
 This guide assumes you have
@@ -8,15 +8,12 @@ This guide assumes you have
 * Teleport Enterprise 4.2.8 or newer with admin permissions and access to `tctl`
 * Pagerduty account already set, with access to creating a new API token. 
 
-### Create an access-plugin role and user within Teleport 
-First off, using an existing Teleport Cluster, we are going to create a new Teleport User and Role to access Teleport.
-
 #### Create User and Role for access. 
-Log into Teleport Authent Server, this is where you normally run `tctl`. Don't change the username and the role name, it should be `access-plugin` for the plugin to work correctly.
+Log into Teleport Authentication Server, this is where you normally run `tctl`. Don't change the username and the role name, it should be `access-plugin` for the plugin to work correctly.
 
 _Note: if you're using other plugins, you might want to create different users and roles for different plugins_.
 
-```
+```bash
 $ cat > rscs.yaml <<EOF
 kind: user
 metadata:
@@ -44,16 +41,17 @@ $ tctl create -f rscs.yaml
 ```
 
 #### Export access-plugin Certificate
-Teleport Plugin uses the `access-plugin`role and user to perform the approval. We export the identify files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
-```
+```bash
 $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=8760h
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later in the Pagerduty integration config file.
+The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuration-file).
 
-_Note: by default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the --ttl flag can be used to ensure a more practical certificate lifetime. --ttl=8760h exports a 1 year token_
+!!! note "Certificate Lifetime"
+     By default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ### Setting up Pagerduty API key
 
@@ -117,7 +115,7 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 
 ### Running the plugin
 
-```
+```bash
 teleport-pagerduty start
 ```
 
