@@ -104,6 +104,9 @@ annotations: {}
 replicaCount: 1
 strategy: RollingUpdate
 
+# Whether or not to define and use a PodSecurityPolicy
+usePSP: false
+
 ## Affinity for pod assignment
 ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 # affinity: {}

@@ -89,22 +89,18 @@ spec:
       - name: {{ template "teleport.fullname" . }}-daemonset-config
         configMap:
           name: {{ template "teleport.fullname" . }}-daemonset-config
-      - name: {{ template "teleport.fullname" . }}-daemonset-host-config
-        hostPath:
-          path: /etc/teleport
-          type: DirectoryOrCreate
       - name: {{ template "teleport.fullname" . }}-daemonset-host-etc-systemd-system
         hostPath:
           path: /etc/systemd/system
           type: Directory
+      - name: {{ template "teleport.fullname" . }}-daemonset-host-config
+        hostPath:
+          path: /etc/teleport
+          type: DirectoryOrCreate
       - name: {{ template "teleport.fullname" . }}-daemonset-host-run
         hostPath:
           path: /run
           type: Directory
-      - name: {{ template "teleport.fullname" . }}-daemonset-host-storage
-        hostPath:
-          path: /var/lib/teleport
-          type: DirectoryOrCreate
       - name: {{ template "teleport.fullname" . }}-daemonset-host-sys-fs-cgroup
         hostPath:
           path: /sys/fs/cgroup
@@ -116,6 +112,10 @@ spec:
       - name: {{ template "teleport.fullname" . }}-daemonset-host-usr-local-bin
         hostPath:
           path: /usr/local/bin
+          type: DirectoryOrCreate
+      - name: {{ template "teleport.fullname" . }}-daemonset-host-storage
+        hostPath:
+          path: /var/lib/teleport
           type: DirectoryOrCreate
       - name: {{ template "teleport.fullname" . }}-daemonset-host-var-log-teleportlog
         hostPath:
