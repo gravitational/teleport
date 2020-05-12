@@ -57,7 +57,8 @@ func (s *MainTestSuite) SetUpSuite(c *check.C) {
 		panic(err)
 	}
 	s.configFile = filepath.Join(dirname, "teleport.yaml")
-	ioutil.WriteFile(s.configFile, []byte(YAMLConfig), 0770)
+	err = ioutil.WriteFile(s.configFile, []byte(YAMLConfig), 0770)
+	c.Assert(err, check.IsNil)
 
 	// set imprtant defaults to test-mode (non-existing files&locations)
 	defaults.ConfigFilePath = "/tmp/teleport/etc/teleport.yaml"
