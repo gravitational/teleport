@@ -767,15 +767,16 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(err, IsNil)
 	done := make(chan struct{})
 	go func() {
-		io.Copy(stdout, reader)
+		_, err := io.Copy(stdout, reader)
+		c.Assert(err, IsNil)
 		close(done)
 	}()
 
 	// to make sure  labels have the right output
 	s.srv.syncUpdateLabels()
 	srv2.syncUpdateLabels()
-	s.srv.heartbeat.ForceSend(time.Second)
-	s.srv.heartbeat.ForceSend(time.Second)
+	c.Assert(s.srv.heartbeat.ForceSend(time.Second), IsNil)
+	c.Assert(srv2.heartbeat.ForceSend(time.Second), IsNil)
 	// request "list of sites":
 	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
 	<-done

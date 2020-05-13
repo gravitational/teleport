@@ -309,7 +309,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			}
 			httplib.SetIndexHTMLHeaders(w.Header())
 			if err := indexPage.Execute(w, session); err != nil {
-				log.Errorf("failed to execute index page template: %v", err)
+				log.Errorf("Failed to execute index page template: %v", err)
 			}
 		} else {
 			http.NotFound(w, r)

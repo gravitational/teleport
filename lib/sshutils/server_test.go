@@ -74,8 +74,10 @@ func (s *ServerSuite) TestStartStop(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
-	// call new session to initiate opening new channel
-	clt.NewSession()
+	// Call new session to initiate opening new channel. This should get
+	// rejected and fail.
+	_, err = clt.NewSession()
+	c.Assert(err, check.NotNil)
 
 	c.Assert(srv.Close(), check.IsNil)
 	wait(c, srv)
@@ -114,7 +116,8 @@ func (s *ServerSuite) TestShutdown(c *check.C) {
 	defer clt.Close()
 
 	// call new session to initiate opening new channel
-	clt.NewSession()
+	_, err = clt.NewSession()
+	c.Assert(err, check.IsNil)
 
 	// context will timeout because there is a connection around
 	ctx, ctxc := context.WithTimeout(context.TODO(), 50*time.Millisecond)
