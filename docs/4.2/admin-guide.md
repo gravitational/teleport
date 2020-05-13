@@ -29,7 +29,7 @@ $ cd teleport
 $ make full
 
 # create the default data directory before starting:
-$ sudo mkdir -p /var/lib/teleport
+$ sudo mkdir -p -m0700 /var/lib/teleport
 ```
 
 ### Teleport Checksum

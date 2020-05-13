@@ -19,7 +19,7 @@ COPY pam/teleport-success /etc/pam.d
 RUN yum makecache fast && yum -y install gcc pam-devel glibc-devel net-tools tree git zip && yum clean all
 
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
-     mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
+     mkdir -p -m0700 /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz ;\
