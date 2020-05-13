@@ -210,4 +210,4 @@ proxy_service:
 
 **4. Add Users**
 
-Follow [adding users](enterprise/quickstart-enterprise.md#adding-users) or integrate with [G Suite](/enterprise/sso/ssh_gsuite.md) to provide SSO access.
+Follow [adding users](enterprise/quickstart-enterprise.md#adding-users) or integrate with [G Suite](enterprise/sso/ssh_gsuite.md) to provide SSO access.

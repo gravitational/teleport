@@ -1,7 +1,5 @@
 # Single Sign-On (SSO) for SSH
 
-## Introduction
-
 The commercial edition of Teleport allows users to login and retrieve their SSH
 credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign-on)
 (SSO) system used by the rest of the organization.
@@ -13,6 +11,15 @@ well as open source products like [Keycloak](http://www.keycloak.org).
 Other identity management systems are supported as long as they provide an
 SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
 or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
+
+### SSO Setup Guides
+
+- [Azure Active Directory (AD)](sso/ssh_azuread.md)
+- [Active Directory (ADFS)](sso/ssh_adfs.md) 
+- [G Suite](sso/ssh_gsuite.md)
+- [OneLogin](sso/ssh_one_login.md)
+- [OIDC](sso/oidc.md)
+- [Okta](sso/ssh_okta.md)
 
 
 ## How does SSO work with SSH?
@@ -34,14 +41,6 @@ succeeds, Teleport will retrieve an SSH certificate and will store it in
 `~/.tsh/keys/proxy.example.com` directory and also will add it to an 
 [SSH agent](https://en.wikipedia.org/wiki/Ssh-agent) if there's one running.
 
-### SSO Setup Guides
-
-- [Azure Active Directory (AD)](sso/ssh_azuread.md)
-- [Active Directory (ADFS)](sso/ssh_adfs.md) 
-- [G Suite](sso/ssh_gsuite.md)
-- [OneLogin](sso/ssh_one_login.md)
-- [OIDC](sso/oidc.md)
-- [Okta](sso/ssh_okta.md)
 
 ## Configuring SSO
 

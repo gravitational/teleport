@@ -11,7 +11,7 @@ like:
 
 !!! warning "Version Warning"
 
-    This guide requires a commercial edition of Teleport. The open source
+    This guide requires an Enterprise edition of Teleport. The community
     edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
     an SSO provider.
 
