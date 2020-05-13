@@ -276,10 +276,7 @@ func (s *MuxSuite) TestTimeout(c *check.C) {
 // TestUnknownProtocol make sure that multiplexer closes connection
 // with unknown protocol
 func (s *MuxSuite) TestUnknownProtocol(c *check.C) {
-	ports, err := utils.GetFreeTCPPorts(1)
-	c.Assert(err, check.IsNil)
-
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", ports[0]))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	mux, err := New(Config{
