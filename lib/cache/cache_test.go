@@ -698,7 +698,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 	user.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, user, out)
 
-	err = p.usersS.DeleteUser(user.GetName())
+	err = p.usersS.DeleteUser(context.TODO(), user.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {

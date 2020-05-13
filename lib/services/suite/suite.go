@@ -169,13 +169,13 @@ func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	usersEqual(c, out, user)
 
-	c.Assert(s.WebS.DeleteUser("user1"), check.IsNil)
+	c.Assert(s.WebS.DeleteUser(context.TODO(), "user1"), check.IsNil)
 
 	u, err = s.WebS.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	userSlicesEqual(c, u, []services.User{newUser("user2", nil)})
 
-	err = s.WebS.DeleteUser("user1")
+	err = s.WebS.DeleteUser(context.TODO(), "user1")
 	fixtures.ExpectNotFound(c, err)
 
 	// bad username
@@ -1173,7 +1173,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				out, err := s.Users().GetUser(user.GetName(), false)
 				c.Assert(err, check.IsNil)
 
-				c.Assert(s.Users().DeleteUser(user.GetName()), check.IsNil)
+				c.Assert(s.Users().DeleteUser(context.TODO(), user.GetName()), check.IsNil)
 				return out
 			},
 		},

@@ -828,7 +828,7 @@ func (s *TLSSuite) TestUsersCRUD(c *check.C) {
 	c.Assert(len(users), check.Equals, 1)
 	c.Assert(users[0].GetName(), check.Equals, "user1")
 
-	c.Assert(clt.DeleteUser("user1"), check.IsNil)
+	c.Assert(clt.DeleteUser(context.TODO(), "user1"), check.IsNil)
 
 	users, err = clt.GetUsers(false)
 	c.Assert(err, check.IsNil)
@@ -1283,7 +1283,7 @@ func (s *TLSSuite) TestWebSessions(c *check.C) {
 	c.Assert(new, check.NotNil)
 
 	// Requesting forbidden action for user fails
-	err = web.DeleteUser(user)
+	err = web.DeleteUser(context.TODO(), user)
 	fixtures.ExpectAccessDenied(c, err)
 
 	err = clt.DeleteWebSession(user, ws.GetName())
