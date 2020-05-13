@@ -28,10 +28,12 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tsh/common"
 
@@ -100,23 +102,57 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 		},
 	})
 
-	// Set up a test proxy service.
-	ports, err := utils.GetFreeTCPPorts(3)
-	c.Assert(err, check.IsNil)
-	authAddr := utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", ports.Pop()))
-	proxyWebAddr := utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", ports.Pop()))
-	proxyPublicSSHAddr := utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", ports.Pop()))
+	randomLocalAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	const staticToken = "test-static-token"
 
+	// Set up a test auth server.
+	//
+	// We need this to get a random port assigned to it and allow parallel
+	// execution of this test.
 	cfg := service.MakeDefaultConfig()
 	cfg.DataDir = c.MkDir()
+	cfg.AuthServers = []utils.NetAddr{randomLocalAddr}
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionTokenV1{{
+			Roles:   []teleport.Role{teleport.RoleProxy},
+			Expires: time.Now().Add(time.Minute),
+			Token:   staticToken,
+		}},
+	})
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
-	cfg.Auth.SSHAddr = *authAddr
+	cfg.Auth.SSHAddr = randomLocalAddr
+	cfg.Proxy.Enabled = false
+
+	auth, err := service.NewTeleport(cfg)
+	c.Assert(err, check.IsNil)
+	c.Assert(auth.Start(), check.IsNil)
+	defer auth.Close()
+
+	// Wait for proxy to become ready.
+	eventCh := make(chan service.Event, 1)
+	auth.WaitForEvent(auth.ExitContext(), service.AuthTLSReady, eventCh)
+	select {
+	case <-eventCh:
+	case <-time.After(10 * time.Second):
+		c.Fatal("auth server didn't start after 10s")
+	}
+
+	authAddr, err := auth.AuthSSHAddr()
+	c.Assert(err, check.IsNil)
+
+	// Set up a test proxy service.
+	proxyPublicSSHAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy.example.com:22"}
+	cfg = service.MakeDefaultConfig()
+	cfg.DataDir = c.MkDir()
+	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.Token = staticToken
+	cfg.SSH.Enabled = false
+	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
-	cfg.Proxy.WebAddr = *proxyWebAddr
-	cfg.Proxy.SSHPublicAddrs = []utils.NetAddr{*proxyPublicSSHAddr}
+	cfg.Proxy.WebAddr = randomLocalAddr
+	cfg.Proxy.SSHPublicAddrs = []utils.NetAddr{proxyPublicSSHAddr}
 	cfg.Proxy.DisableReverseTunnel = true
 	cfg.Proxy.DisableWebInterface = true
 
@@ -126,13 +162,15 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	defer proxy.Close()
 
 	// Wait for proxy to become ready.
-	eventCh := make(chan service.Event, 1)
 	proxy.WaitForEvent(proxy.ExitContext(), service.ProxyWebServerReady, eventCh)
 	select {
 	case <-eventCh:
 	case <-time.After(10 * time.Second):
 		c.Fatal("proxy web server didn't start after 10s")
 	}
+
+	proxyWebAddr, err := proxy.ProxyWebAddr()
+	c.Assert(err, check.IsNil)
 
 	// With provided identity file.
 	//
