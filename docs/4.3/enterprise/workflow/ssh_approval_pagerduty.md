@@ -119,4 +119,4 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 teleport-pagerduty start
 ```
 
-By default, `teleport-pagerduty` will assume it's config is in `/etc/teleport-pagerduty.toml`, but you can override it with `--config` option.
+By default, `teleport-pagerduty` will assume its config is in `/etc/teleport-pagerduty.toml`, but you can override it with `--config` option.
