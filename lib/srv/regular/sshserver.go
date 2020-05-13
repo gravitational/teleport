@@ -616,14 +616,15 @@ func (s *Server) getAdvertiseAddr() *utils.NetAddr {
 func (s *Server) AdvertiseAddr() string {
 	// set if we have explicit --advertise-ip option
 	advertiseAddr := s.getAdvertiseAddr()
+	listenAddr := s.Addr()
 	if advertiseAddr == nil {
-		return s.addr.Addr
+		return listenAddr
 	}
-	_, port, _ := net.SplitHostPort(s.addr.Addr)
+	_, port, _ := net.SplitHostPort(listenAddr)
 	ahost, aport, err := utils.ParseAdvertiseAddr(advertiseAddr.String())
 	if err != nil {
-		log.Warningf("Failed to parse advertise address %q, %v, using default value %q.", advertiseAddr, err, s.addr.Addr)
-		return s.addr.Addr
+		log.Warningf("Failed to parse advertise address %q, %v, using default value %q.", advertiseAddr, err, listenAddr)
+		return listenAddr
 	}
 	if aport == "" {
 		aport = port
