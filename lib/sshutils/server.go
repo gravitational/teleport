@@ -234,6 +234,9 @@ func SetFIPS(fips bool) ServerOption {
 }
 
 func (s *Server) Addr() string {
+	if s.listener == nil {
+		return ""
+	}
 	return s.listener.Addr().String()
 }
 
