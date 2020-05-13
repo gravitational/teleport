@@ -312,13 +312,13 @@ func (s *IdentityService) GetUserByGithubIdentity(id services.ExternalIdentity) 
 }
 
 // DeleteUser deletes a user with all the keys from the backend
-func (s *IdentityService) DeleteUser(user string) error {
+func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	_, err := s.GetUser(user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	startKey := backend.Key(webPrefix, usersPrefix, user)
-	err = s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
 

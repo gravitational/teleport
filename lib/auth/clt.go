@@ -1567,10 +1567,19 @@ func (c *Client) grpcGetUsers(withSecrets bool) ([]services.User, error) {
 	return users, nil
 }
 
-// DeleteUser deletes a user by username
-func (c *Client) DeleteUser(user string) error {
-	_, err := c.Delete(c.Endpoint("users", user))
-	return trace.Wrap(err)
+// DeleteUser deletes a user by username.
+func (c *Client) DeleteUser(ctx context.Context, user string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := &proto.DeleteUserRequest{Name: user}
+	if _, err := clt.DeleteUser(ctx, req); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
 }
 
 // GenerateKeyPair generates SSH private/public key pair optionally protected
@@ -2763,8 +2772,8 @@ type IdentityService interface {
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user services.User) error
 
-	// DeleteUser deletes a user by username
-	DeleteUser(user string) error
+	// DeleteUser deletes a user by username.
+	DeleteUser(ctx context.Context, user string) error
 
 	// GetUsers returns a list of usernames registered in the system
 	GetUsers(withSecrets bool) ([]services.User, error)

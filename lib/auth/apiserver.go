@@ -87,7 +87,6 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
 	srv.GET("/:version/users/:user", srv.withAuth(srv.getUser))
-	srv.DELETE("/:version/users/:user", srv.withAuth(srv.deleteUser))
 
 	// Generating keypairs
 	srv.POST("/:version/keypair", srv.withAuth(srv.generateKeyPair))
@@ -896,14 +895,6 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 		out[i] = data
 	}
 	return out, nil
-}
-
-func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user := p.ByName("user")
-	if err := auth.DeleteUser(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("user '%v' deleted", user)), nil
 }
 
 type generateKeyPairReq struct {
