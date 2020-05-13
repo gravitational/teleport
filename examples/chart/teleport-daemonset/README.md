@@ -41,8 +41,9 @@ emergency 'break-glass' access in the event of a failure.
 
 - Helm v2.16 (Helm v3 is not currently supported)
   - You must have Tiller working and configured properly inside your cluster
-- Kubernetes 1.10+
+- Kubernetes 1.14+
 - A Teleport license file stored as a Kubernetes Secret object - see below
+  - This means that by definition, the chart will use an Enterprise version of Teleport
 
 On many cloud providers, the `default` service account doesn't have sufficient privileges to deploy charts when used to run
 Tiller. In this situation, you will need to deploy Tiller with `cluster-admin` privileges like this:
@@ -55,7 +56,7 @@ helm init --service-account tiller --upgrade --wait
 
 ### Prepare the license file
 
-Download the `license.pem` from the Teleport dashboard, and then rename it to the filename that this chart expects:
+Download the `license.pem` from the [Teleport dashboard](https://dashboard.gravitational.com/web/), and then rename it to the filename that this chart expects:
 
 ```console
 cp ~/Downloads/license.pem license-enterprise.pem
@@ -102,6 +103,9 @@ You can view debug logs for the Teleport service running on the Kubernetes worke
 ```console
 kubectl logs daemonset/teleport-node
 ```
+
+If you have multiple worker nodes, look for pods starting with `teleport-node-` in the output of `kubectl get pods` and 
+use `kubectl logs pod/teleport-node-xxxxxx` to view logs from each node separately.
 
 ## Deleting the chart
 
