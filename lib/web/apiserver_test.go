@@ -93,7 +93,6 @@ type WebSuite struct {
 
 	user      string
 	webServer *httptest.Server
-	freePorts []string
 
 	mockU2F     *mocku2f.Key
 	server      *auth.TestTLSServer
@@ -145,9 +144,6 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.user = u.Username
 
-	s.freePorts, err = utils.GetFreeTCPPorts(6)
-	c.Assert(err, IsNil)
-
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
@@ -158,9 +154,6 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// start node
-	nodePort := s.freePorts[len(s.freePorts)-1]
-	s.freePorts = s.freePorts[:len(s.freePorts)-1]
-
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: s.server.ClusterName(),
@@ -177,7 +170,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	// create SSH service:
 	nodeDataDir := c.MkDir()
 	node, err := regular.New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", nodePort)},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{signer},
 		nodeClient,
@@ -221,12 +214,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.proxyTunnel = revTunServer
 
 	// proxy server:
-	proxyPort := s.freePorts[len(s.freePorts)-1]
-	s.freePorts = s.freePorts[:len(s.freePorts)-1]
-	proxyAddr := utils.NetAddr{
-		AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", proxyPort),
-	}
-	s.proxy, err = regular.New(proxyAddr,
+	s.proxy, err = regular.New(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{signer},
 		s.proxyClient,
@@ -255,9 +244,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 	err = s.proxy.Start()
 	c.Assert(err, IsNil)
 
-	addr, _ := utils.ParseAddr(s.webServer.Listener.Addr().String())
+	proxyAddr := utils.MustParseAddr(s.proxy.Addr())
+
+	addr := utils.MustParseAddr(s.webServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
-	handler.handler.cfg.ProxySSHAddr = proxyAddr
+	handler.handler.cfg.ProxySSHAddr = *proxyAddr
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
@@ -265,6 +256,7 @@ func (s *WebSuite) TearDownTest(c *C) {
 	c.Assert(s.server.Close(), IsNil)
 	s.webServer.Close()
 	s.proxy.Close()
+	s.proxyTunnel.Close()
 }
 
 type authPack struct {
