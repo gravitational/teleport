@@ -67,6 +67,8 @@ Store it as a Kubernetes secret:
 kubectl create secret generic license --from-file=license-enterprise.pem
 ```
 
+This license will **not** be added to Teleport nodes running via the `DaemonSet`, as a license is only needed when running the auth server role.
+
 ## Installing the chart
 
 Make sure you read `values.yaml` and edit the appropriate sections (particularly the root cluster configuration) before
