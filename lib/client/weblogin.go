@@ -354,19 +354,19 @@ func SSHAgentSSOLogin(login SSHLogin, tc *TeleportClient) (*auth.SSHLoginRespons
 	// macOS.
 	case teleport.DarwinOS:
 		path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-		if err == nil && !tc.Config.NoBrowser {
+		if err == nil && tc.Config.Browser != teleport.BrowserNone {
 			execCmd = exec.Command(path, clickableURL)
 		}
 	// Windows.
 	case teleport.WindowsOS:
 		path, err := exec.LookPath(teleport.OpenBrowserWindows)
-		if err == nil && !tc.Config.NoBrowser {
+		if err == nil && tc.Config.Browser != teleport.BrowserNone {
 			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)
 		}
 	// Linux or any other operating system.
 	default:
 		path, err := exec.LookPath(teleport.OpenBrowserLinux)
-		if err == nil && !tc.Config.NoBrowser {
+		if err == nil && tc.Config.Browser != teleport.BrowserNone {
 			execCmd = exec.Command(path, clickableURL)
 		}
 	}
@@ -374,12 +374,13 @@ func SSHAgentSSOLogin(login SSHLogin, tc *TeleportClient) (*auth.SSHLoginRespons
 		execCmd.Start()
 	}
 
-	// Print to screen in-case the command that launches the browser did not run.
-	if !tc.Config.NoBrowser {
+	// Print the URL to the screen, in case the command that launches the browser did not run.
+	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
+	if tc.Config.Browser == teleport.BrowserNone {
+		fmt.Printf("Use the following URL to authenticate:\n %v\n", clickableURL)
+	} else {
 		fmt.Printf("If browser window does not open automatically, open it by ")
 		fmt.Printf("clicking on the link:\n %v\n", clickableURL)
-	} else {
-		fmt.Printf("Use the following URL to authenticate:\n %v\n", clickableURL)
 	}
 
 	select {

@@ -253,8 +253,9 @@ type Config struct {
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
 
-	// NoBrowser will disable automatically opening the browser window for SSO login.
-	NoBrowser bool
+	// Browser can be used to pass the name of a browser to override the system default
+	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
+	Browser string
 }
 
 // CachePolicy defines cache policy for local clients

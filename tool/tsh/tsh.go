@@ -164,8 +164,9 @@ type CLIConf struct {
 	// Debug sends debug logs to stdout.
 	Debug bool
 
-	// NoBrowser will disable automatically opening the browser window for SSO login.
-	NoBrowser bool
+	// Browser can be used to pass the name of a browser to override the system default
+	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
+	Browser string
 }
 
 func main() {
@@ -190,7 +191,7 @@ const (
 	clusterHelp    = "Specify the cluster to connect"
 	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
 	authEnvVar     = "TELEPORT_AUTH"
-	noBrowserHelp  = "Disable auto open browser for login"
+	browserHelp    = "Set to 'none' to suppress browser opening on login"
 )
 
 // Run executes TSH client. same as main() but easier to test
@@ -272,7 +273,7 @@ func Run(args []string, underTest bool) {
 		identityfile.FormatOpenSSH)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
-	login.Flag("disable-browser", noBrowserHelp).BoolVar(&cf.NoBrowser)
+	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -1074,8 +1075,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	// Don't execute remote command, used when port forwarding.
 	c.NoRemoteExec = cf.NoRemoteExec
 
-	// Don't automatically open the browser, just print the URL.
-	c.NoBrowser = cf.NoBrowser
+	// Allow the default browser used to open tsh login links to be overridden
+	// (not currently implemented) or set to 'none' to suppress browser opening entirely.
+	c.Browser = cf.Browser
 
 	return client.NewClient(c)
 }
