@@ -12,7 +12,7 @@ like:
 !!! warning "Version Warning"
 
     This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
-    edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
+    edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
     an SSO provider.
 
 <iframe width="712" height="400" src="https://www.youtube.com/embed/DG97l8WJ6oU?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameborder="0" allow="accelerometer; autoplay; encrypted-media; modestbranding; gyroscope; picture-in-picture" allowfullscreen></iframe>
@@ -35,31 +35,31 @@ Before you get started you’ll need:
 1. Obtain OAuth 2.0 credentials  [https://developers.google.com/identity/protocols/OpenIDConnect](https://developers.google.com/identity/protocols/OpenIDConnect)
 
 2. Create a new Project.
-![Create New Project](img/gsuite/gsuite-1-new-project.png)
+![Create New Project](../../img/gsuite/gsuite-1-new-project.png)
 
 3. Select OAuth client ID.
-![Create OAuth Creds](img/gsuite/gsuite-2-created-creds.png)
+![Create OAuth Creds](../../img/gsuite/gsuite-2-created-creds.png)
 
 4. Make Application Type Public & Setup Domain Verification
-![Setup Application Type](img/gsuite/gsuite-3-oauth.png)
+![Setup Application Type](../../img/gsuite/gsuite-3-oauth.png)
 
 5. Copy OAuth Client ID and Client Secret for YAML Below.
    Note: The redirect_url: `https://teleport.example.com:3080/v1/webapi/oidc/callback`
 
-![Copy Client Secret](img/gsuite/gsuite-5-copy-client-id.png)
+![Copy Client Secret](../../img/gsuite/gsuite-5-copy-client-id.png)
 
 ## Create a Service Account
 
-![Create OAuth Creds](img/gsuite/gsuite-5a-service-account.png)
+![Create OAuth Creds](../../img/gsuite/gsuite-5a-service-account.png)
 Leave Service account users roles, and admin roles as blank.
-![Create OAuth Creds](img/gsuite/gsuite-5b-service-account.png)
+![Create OAuth Creds](../../img/gsuite/gsuite-5b-service-account.png)
 Leave Service account permissions as blank.
-![Create OAuth Creds](img/gsuite/gsuite-5c-service-account.png)
+![Create OAuth Creds](../../img/gsuite/gsuite-5c-service-account.png)
 ### Enable Account Delegation:
-![Create OAuth Creds](img/gsuite/gsuite-5d-service-account-delegation.png)
-![Create OAuth Creds](img/gsuite/gsuite-5e-enable-delegation.png)
+![Create OAuth Creds](../../img/gsuite/gsuite-5d-service-account-delegation.png)
+![Create OAuth Creds](../../img/gsuite/gsuite-5e-enable-delegation.png)
 ### Download Service Account JSON
-![Create OAuth Creds](img/gsuite/gsuite-5f-download-json.png)
+![Create OAuth Creds](../../img/gsuite/gsuite-5f-download-json.png)
 
 This JSON file will need to be uploaded to the Authentication server, and will be later referenced by 
 the OIDC Connector, under `google_service_account_uri`. 
@@ -77,14 +77,14 @@ Within GSuite to access the Manage API client access go to Security -> Settings.
 
 `https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://www.googleapis.com/auth/admin.directory.group.readonly, https://www.googleapis.com/auth/admin.directory.user.readonly`
 
-![Manage API Client Access](img/gsuite/gsuite-6-manage-api-access.png)
+![Manage API Client Access](../../img/gsuite/gsuite-6-manage-api-access.png)
 Google will display the client id and resolve the permission definitions.
-![Create OAuth Creds](img/gsuite/gsuite-6a-manage-access.png)
+![Create OAuth Creds](../../img/gsuite/gsuite-6a-manage-access.png)
 
 
 ## Create a OIDC Connector
 
-Now, create a OIDC connector [resource](admin-guide.md#resources).
+Now, create a OIDC connector [resource](../../admin-guide.md#resources).
 Write down this template as `gsuite-connector.yaml`:
 
 ```yaml
@@ -149,7 +149,7 @@ $ tctl create dev.yaml
 ```
 
 ## Testing
-![Login with Gsuite](img/gsuite/gsuite-7-loginwithgsuite.png)
+![Login with Gsuite](../../img/gsuite/gsuite-7-loginwithgsuite.png)
 
 
 The Web UI will now contain a new button: "Login with GSuite". The CLI is
@@ -188,4 +188,4 @@ $ sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the
-[`--debug`](cli-docs.md#teleport-start) flag to `teleport start` command.
+[`--debug`](../../cli-docs.md#teleport-start) flag to `teleport start` command.

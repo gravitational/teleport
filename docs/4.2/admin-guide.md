@@ -1218,7 +1218,7 @@ session recording works. By default, the recording is not available if a cluster
 runs `sshd` (the OpenSSH daemon) on the nodes.
 
 To enable session recording for `sshd` nodes, the cluster must be switched to
-["recording proxy" mode](architecture/teleport_proxy.md#recording_proxy_mode).
+["recording proxy" mode](architecture/teleport_proxy.md#recording-proxy-mode).
 In this mode, the recording will be done on the proxy level:
 
 ``` yaml

@@ -43,28 +43,25 @@ nav:
         - Admin Manual: admin-guide.md
         - Production Guide: production.md
         - FAQ: faq.md
-    - Teleport Advanced Features: 
-        - Enhanced Session Recording: features/enhanced_session_recording.md
-        - Using Teleport with PAM: features/ssh_pam.md
     - Infrastructure Guides:
         - AWS: aws_oss_guide.md
         - AWS HA with Terraform: aws_terraform_guide.md
         - GCP: gcp_guide.md
         - IBM: ibm_cloud_guide.md
         - Kubernetes Guide: kubernetes_ssh.md
-    - Enterprise Guides:
+    - Teleport Enterprise :
         - Introduction: enterprise/index.md
         - Quick Start Guide: enterprise/quickstart-enterprise.md
         - Single sign-on (SSO): enterprise/ssh_sso.md   
         - FedRAMP & FIPS: enterprise/ssh_fips.md        
         - RBAC: enterprise/ssh_rbac.md 
-    - SSO Guides:
-        - Azure Active Directory (AD): ssh_azuread.md
-        - Active Directory (ADFS): ssh_adfs.md
-        - G Suite: ssh_gsuite.md
-        - OneLogin: ssh_one_login.md
-        - OIDC: oidc.md
-        - Okta: ssh_okta.md
+        #- SSO Guides:
+        #    - Azure Active Directory (AD): enterprise/sso/ssh_azuread.md
+        #    - Active Directory (ADFS):  enterprise/sso/ssh_adfs.md
+        #    - G Suite:  enterprise/sso/ssh_gsuite.md
+        #    - OneLogin:  enterprise/sso/ssh_one_login.md
+        #    - OIDC:  enterprise/sso/oidc.md
+        #    - Okta:  enterprise/sso/ssh_okta.md
     - Architecture:
         - Architecture Overview: architecture/teleport_architecture_overview.md
         - Teleport Users: architecture/teleport_users.md
@@ -72,5 +69,8 @@ nav:
         - Teleport Auth: architecture/teleport_auth.md
         - Teleport Proxy: architecture/teleport_proxy.md
         - Trusted Clusters: trustedclusters.md
+    - Teleport Advanced Features: 
+        - Enhanced Session Recording: features/enhanced_session_recording.md
+        - Using Teleport with PAM: features/ssh_pam.md
     - CLI Reference:
         - CLI Reference: cli-docs.md
