@@ -27,6 +27,8 @@ import (
 	"gopkg.in/check.v1"
 )
 
+var randomLocalAddr = *MustParseAddr("127.0.0.1:0")
+
 type LBSuite struct {
 }
 
@@ -42,19 +44,14 @@ func (s *LBSuite) TestSingleBackendLB(c *check.C) {
 	}))
 	defer backend1.Close()
 
-	ports, err := GetFreeTCPPorts(1)
-	c.Assert(err, check.IsNil)
-
-	frontend := localAddr(ports[0])
-
-	lb, err := NewLoadBalancer(context.TODO(), frontend, urlToNetAddr(backend1.URL))
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr, urlToNetAddr(backend1.URL))
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
 	c.Assert(err, check.IsNil)
 	go lb.Serve()
 	defer lb.Close()
 
-	out, err := Roundtrip(frontend.String())
+	out, err := Roundtrip(lb.Addr().String())
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.Equals, "backend 1")
 }
@@ -72,12 +69,7 @@ func (s *LBSuite) TestTwoBackendsLB(c *check.C) {
 
 	backend1Addr, backend2Addr := urlToNetAddr(backend1.URL), urlToNetAddr(backend2.URL)
 
-	ports, err := GetFreeTCPPorts(1)
-	c.Assert(err, check.IsNil)
-
-	frontend := localAddr(ports[0])
-
-	lb, err := NewLoadBalancer(context.TODO(), frontend)
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr)
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
 	c.Assert(err, check.IsNil)
@@ -85,16 +77,16 @@ func (s *LBSuite) TestTwoBackendsLB(c *check.C) {
 	defer lb.Close()
 
 	// no endpoints
-	_, err = Roundtrip(frontend.String())
+	_, err = Roundtrip(lb.Addr().String())
 	c.Assert(err, check.NotNil)
 
 	lb.AddBackend(backend1Addr)
-	out, err := Roundtrip(frontend.String())
+	out, err := Roundtrip(lb.Addr().String())
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.Equals, "backend 1")
 
 	lb.AddBackend(backend2Addr)
-	out, err = Roundtrip(frontend.String())
+	out, err = Roundtrip(lb.Addr().String())
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.Equals, "backend 2")
 }
@@ -112,12 +104,7 @@ func (s *LBSuite) TestOneFailingBackend(c *check.C) {
 
 	backend1Addr, backend2Addr := urlToNetAddr(backend1.URL), urlToNetAddr(backend2.URL)
 
-	ports, err := GetFreeTCPPorts(1)
-	c.Assert(err, check.IsNil)
-
-	frontend := localAddr(ports[0])
-
-	lb, err := NewLoadBalancer(context.TODO(), frontend)
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr)
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
 	c.Assert(err, check.IsNil)
@@ -127,14 +114,14 @@ func (s *LBSuite) TestOneFailingBackend(c *check.C) {
 	lb.AddBackend(backend1Addr)
 	lb.AddBackend(backend2Addr)
 
-	out, err := Roundtrip(frontend.String())
+	out, err := Roundtrip(lb.Addr().String())
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.Equals, "backend 1")
 
-	_, err = Roundtrip(frontend.String())
+	_, err = Roundtrip(lb.Addr().String())
 	c.Assert(err, check.NotNil)
 
-	out, err = Roundtrip(frontend.String())
+	out, err = Roundtrip(lb.Addr().String())
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.Equals, "backend 1")
 }
@@ -145,19 +132,14 @@ func (s *LBSuite) TestClose(c *check.C) {
 	}))
 	defer backend1.Close()
 
-	ports, err := GetFreeTCPPorts(1)
-	c.Assert(err, check.IsNil)
-
-	frontend := localAddr(ports[0])
-
-	lb, err := NewLoadBalancer(context.TODO(), frontend, urlToNetAddr(backend1.URL))
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr, urlToNetAddr(backend1.URL))
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
 	c.Assert(err, check.IsNil)
 	go lb.Serve()
 	defer lb.Close()
 
-	out, err := Roundtrip(frontend.String())
+	out, err := Roundtrip(lb.Addr().String())
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.Equals, "backend 1")
 
@@ -168,7 +150,7 @@ func (s *LBSuite) TestClose(c *check.C) {
 	lb.Wait()
 
 	// requests are failing
-	out, err = Roundtrip(frontend.String())
+	out, err = Roundtrip(lb.Addr().String())
 	c.Assert(err, check.NotNil, check.Commentf("output: %s, err: %v", out, err))
 }
 
@@ -178,20 +160,15 @@ func (s *LBSuite) TestDropConnections(c *check.C) {
 	}))
 	defer backend1.Close()
 
-	ports, err := GetFreeTCPPorts(1)
-	c.Assert(err, check.IsNil)
-
-	frontend := localAddr(ports[0])
-
 	backendAddr := urlToNetAddr(backend1.URL)
-	lb, err := NewLoadBalancer(context.TODO(), frontend, backendAddr)
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr, backendAddr)
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
 	c.Assert(err, check.IsNil)
 	go lb.Serve()
 	defer lb.Close()
 
-	conn, err := net.Dial("tcp", frontend.String())
+	conn, err := net.Dial("tcp", lb.Addr().String())
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 
@@ -217,8 +194,4 @@ func urlToNetAddr(u string) NetAddr {
 		panic(err)
 	}
 	return *MustParseAddr(parsed.Host)
-}
-
-func localAddr(port string) NetAddr {
-	return *MustParseAddr(fmt.Sprintf("127.0.0.1:%v", port))
 }
