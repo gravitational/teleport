@@ -1,6 +1,6 @@
 # Teleport Slack Plugin Setup Quickstart
 
-If you're using Slack, you can be notified of [new teleport permission requests](https://gravitational.com/teleport/docs/cli-docs/#tctl-request-ls), approve or deny them on Slack with Teleport Slack Plugin. This guide covers it's setup.
+If you're using Slack, you can be notified of [new Teleport permission requests](https://gravitational.com/teleport/docs/cli-docs/#tctl-request-ls), approve or deny them on Slack with Teleport Slack Plugin. This guide covers its setup.
 
 For this quickstart, we assume you've already setup an [Enterprise Teleport Cluster](https://gravitational.com/teleport/docs/enterprise/quickstart-enterprise/)
 
@@ -79,7 +79,7 @@ Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new S
 
 #### Setup Interactive Components
 
-When someone tries approving / denying a request on Slack and clicks an Approve / Deny button, Slack will send a request to the Teleport Slack Plugin. In Slack App's settings, you must provide the URL for Slack to use for this. 
+When someone tries approving / denying a request on Slack and clicks an Approve / Deny button, Slack will send the response to the Teleport Slack Plugin. In Slack App's settings, you must provide the URL for Slack to use for this. 
 
 This URL must match the URL setting in Teleport Plugin settings file (we'll cover that later), and be publicly accessible.
 
