@@ -457,7 +457,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			// send keepalive pings to the clients
 		case <-keepAliveTick.C:
 			const wantReply = true
-			sconn.SendRequest(teleport.KeepAliveReqType, wantReply, keepAlivePayload[:])
+			_, _, err = sconn.SendRequest(teleport.KeepAliveReqType, wantReply, keepAlivePayload[:])
+			if err != nil {
+				log.Errorf("Failed sending keepalive request: %v", err)
+			}
 		}
 	}
 }

@@ -205,7 +205,8 @@ func (s *LBSuite) TestDropConnections(c *check.C) {
 	c.Assert(out, check.Equals, "backend 1")
 
 	// removing backend results in dropped connection to this backend
-	lb.RemoveBackend(backendAddr)
+	err = lb.RemoveBackend(backendAddr)
+	c.Assert(err, check.IsNil)
 	_, err = RoundtripWithConn(conn)
 	c.Assert(err, check.NotNil)
 }
