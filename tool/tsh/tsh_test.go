@@ -120,6 +120,7 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 			Token:   staticToken,
 		}},
 	})
+	c.Assert(err, check.IsNil)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = randomLocalAddr
