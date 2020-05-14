@@ -137,7 +137,7 @@ output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/tele
 severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
 ```
 
-### Testing the bot
+### Testing the Plugin
 
 With the config above, you should be able to run the bot invoking 
 `teleport-mattermost start -d`. The will provide some debug information to make sure

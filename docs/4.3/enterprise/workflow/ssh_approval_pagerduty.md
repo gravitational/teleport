@@ -5,8 +5,9 @@ This package provides a Teleport ↔  Pagerduty integration that allows you to t
 ## Prerequisites
 This guide assumes you have
 
-* Teleport Enterprise 4.2.8 or newer with admin permissions and access to `tctl`
+* Teleport Enterprise 4.2.8 or newer with admin permissions and access to `tctl`.
 * Pagerduty account already set, with access to creating a new API token. 
+* A Node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience. 
 
 #### Create User and Role for access. 
 Log into Teleport Authentication Server, this is where you normally run `tctl`. Don't change the username and the role name, it should be `access-plugin` for the plugin to work correctly.
@@ -55,28 +56,27 @@ The above sequence should result in three PEM encoded files being generated: aut
 
 ### Setting up Pagerduty API key
 
-In your Pagerduty dashboard, go to **Configuration -> API Access -> Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.
+In your Pagerduty dashboard, go to **Configuration → API Access → Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.
 
-## Install
+**Create Pager Duty API Key**
+![Create a service account](/img/enterprise/plugins/pagerduty/pagerduty-api-key.png)
 
-### Installing 
+**Create Service Account**
+![Create a service account](/img/enterprise/plugins/pagerduty/create-new-service-pd.png) 
+
+
+## Downloading and installing the plugin
+
+The recommended way to run Teleport Pagerduty plugin is by downloading the release version and installing it: 
 
 ```bash
-
-# Check out the repo
-git clone git@github.com:gravitational/teleport-plugins.git
-cd teleport-plugins
-
-# Build the bot
-make access-pagerduty
-
-# Configure the plugin
-./access/pagerduty/build/teleport-pagerduty configure > teleport-pagertudy.toml
-
-# Run the plugin, assuming you have teleport running: 
-./build/teleport-pagerduty start
+$ wget https://get.gravitational.com/teleport-pagerduty-v0.0.1-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-pagerduty-v0.0.1-linux-amd64-bin.tar.gz
+$ cd teleport-pagerduty
+$ ./install
+$ which teleport-pagerduty
+/usr/local/bin/teleport-pagerduty
 ```
-The teleport-pagerduty executable should be placed onto a server that can access the auth server address.
 
 ### Config file
 Teleport Pagerduty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file. 
@@ -86,37 +86,61 @@ teleport-pagerduty configure > /etc/teleport-pagerduty.toml
 ```
 
 #### Editing the config file
-Afger generating the config, edit it as follows: 
+After generating the config, edit it as follows: 
 
-```TOML
+```yaml
 # example teleport-pagerduty configuration TOML file
 [teleport]
-auth-server = "example.com:3025"  # Auth GRPC API address
+auth-server = "teleport-auth.example.com:3025"  # Auth GRPC API address
 client-key = "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
 client-crt = "/var/lib/teleport/plugins/pagerduty/auth.crt" # Teleport GRPC client certificate
 root-cas = "/var/lib/teleport/plugins/pagerduty/auth.cas"   # Teleport cluster CA certs
 
 [pagerduty]
-api-key = "API KEY GOES HERE"               # PagerDuty API Key
-user-email = "nat@evilmartians.com" # PagerDuty bot user email (Could be admin email)
+api-key = "API-KEY-GOES-HERE"        # PagerDuty API Key
+user-email = "ben@gravitational.com" # PagerDuty bot user email (Could be admin email)
 service-id = "P4HZJDY"        # PagerDuty service id, copy it from the Pagerduty service URL
 
 [http]
-listen = ":8081"          # PagerDuty webhook listener host&port
-base-url = "https://teleport-pagerduty.infra.corp.com" # The address pagerduty uses to send webhooks when incidents (requests) are resolved — must be accessible from the internet.
-# host = "example.com"    # Host name by which bot is accessible
-# https-key-file = "/var/lib/teleport/plugins/pagerduty/server.key"  # TLS private key
-# https-cert-file = "/var/lib/teleport/plugins/pagerduty/server.crt" # TLS certificate
+host = "teleport-proxy.example.com:8081"
+https-key-file = "/var/lib/teleport/webproxy_key.pem"  # TLS private key
+https-cert-file = "/var/lib/teleport/webproxy_cert.pem" # TLS certificate
 
 [log]
 output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/pagerduty.log"
 severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
 ```
 
-### Running the plugin
+### Testing the Plugin
+
+With the config above, you should be able to run the plugin invoking 
+`teleport-pagerduty start -d`. The will provide some debug information to make sure
+the bot can connect to Pagerduty. 
 
 ```bash
-teleport-pagerduty start
+$ teleport-pagerduty start -d
+DEBU   DEBUG logging enabled logrus/exported.go:117
+INFO   Starting Teleport Access PagerDuty extension 0.1.0-dev.1: pagerduty/main.go:124
+DEBU   Checking Teleport server version pagerduty/main.go:226
+DEBU   Starting a request watcher... pagerduty/main.go:288
+DEBU   Starting PagerDuty API health check... pagerduty/main.go:170
+DEBU   Starting secure HTTPS server on :8081 utils/http.go:146
+DEBU   Watcher connected pagerduty/main.go:252
+DEBU   PagerDuty API health check finished ok pagerduty/main.go:176
+DEBU   Setting up the webhook extensions pagerduty/main.go:178
 ```
 
 By default, `teleport-pagerduty` will assume its config is in `/etc/teleport-pagerduty.toml`, but you can override it with `--config` option.
+
+### Setup with SystemD
+In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd: 
+
+```bash
+{!examples/systemd/plugins/teleport-pagerduty.service!}
+```
+
+Save this as `teleport-pagerduty.service`. 
+
+## Example PagerDuty Request
+
+![Demo](/img/enterprise/plugins/pagerduty/pagerduty-demo.png)
