@@ -363,7 +363,7 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		if err = client.DeleteUser(context.TODO(), rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("user %v has been deleted\n", rc.ref.Name)
+		fmt.Printf("user %q has been deleted\n", rc.ref.Name)
 	case services.KindSAMLConnector:
 		if err = client.DeleteSAMLConnector(rc.ref.Name); err != nil {
 			return trace.Wrap(err)

@@ -2784,7 +2784,7 @@ type IdentityService interface {
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user services.User) error
 
-	// DeleteUser deletes a user by username.
+	// DeleteUser deletes an existng user in a backend by username.
 	DeleteUser(ctx context.Context, user string) error
 
 	// GetUsers returns a list of usernames registered in the system

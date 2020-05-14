@@ -951,6 +951,7 @@ func (a *AuthWithRoles) GetUser(name string, withSecrets bool) (services.User, e
 	return a.authServer.Identity.GetUser(name, withSecrets)
 }
 
+// DeleteUser deletes an existng user in a backend by username.
 func (a *AuthWithRoles) DeleteUser(ctx context.Context, user string) error {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbDelete); err != nil {
 		return trace.Wrap(err)

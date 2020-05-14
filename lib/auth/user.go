@@ -118,7 +118,7 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 	return nil
 }
 
-// DeleteUser deletes a user.
+// DeleteUser deletes an existng user in a backend by username.
 func (s *AuthServer) DeleteUser(ctx context.Context, user string) error {
 	deletedBy, err := getUpdateBy(ctx)
 	if err != nil {
