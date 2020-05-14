@@ -713,6 +713,7 @@ func (a *AuthWithRoles) UpsertPassword(user string, password []byte) error {
 	return a.authServer.UpsertPassword(user, password)
 }
 
+// ChangePassword updates users password based on the old password.
 func (a *AuthWithRoles) ChangePassword(req services.ChangePasswordReq) error {
 	if err := a.currentUserAction(req.User); err != nil {
 		return trace.Wrap(err)

@@ -60,6 +60,11 @@ var (
 		Name: UserCreateEvent,
 		Code: UserCreateCode,
 	}
+	// UserPasswordChange is emitted when a user changes their own password.
+	UserPasswordChange = Event{
+		Name: UserPasswordChangeEvent,
+		Code: UserPasswordChangeCode,
+	}
 	// SessionStart is emitted when a user starts a new session.
 	SessionStart = Event{
 		Name: SessionStartEvent,
@@ -203,6 +208,8 @@ var (
 	UserDeleteCode = "T1003I"
 	// UserCreateCode is the user create event code.
 	UserCreateCode = "T1004I"
+	// UserPasswordChangeCode is an event code for when user changes their own password.
+	UserPasswordChangeCode = "T1005I"
 	// SessionStartCode is the session start event code.
 	SessionStartCode = "T2000I"
 	// SessionJoinCode is the session join event code.
