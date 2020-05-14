@@ -1741,6 +1741,10 @@ func (process *TeleportProcess) initDiagnosticService() error {
 			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]interface{}{
 				"status": "teleport is recovering from a degraded state, check logs for details",
 			})
+		case stateStarting:
+			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]interface{}{
+				"status": "teleport is starting and hasn't joined the cluster yet",
+			})
 		// 200
 		case stateOK:
 			roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{
