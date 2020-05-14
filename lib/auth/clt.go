@@ -1575,8 +1575,20 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 	}
 
 	req := &proto.DeleteUserRequest{Name: user}
-	if _, err := clt.DeleteUser(ctx, req); err != nil {
-		return trail.FromGRPC(err)
+	_, grpcErr := clt.DeleteUser(ctx, req)
+	if grpcErr == nil {
+		return nil
+	}
+
+	// Allows cross-version compatibility.
+	// DELETE IN: 5.2 REST method is replaced by grpc with context.
+	grpcErr = trail.FromGRPC(err)
+	if status.Code(grpcErr) != codes.Unimplemented {
+		return trace.Wrap(grpcErr)
+	}
+
+	if _, err := c.Delete(c.Endpoint("users", user)); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

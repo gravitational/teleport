@@ -87,6 +87,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
 	srv.GET("/:version/users/:user", srv.withAuth(srv.getUser))
+	srv.DELETE("/:version/users/:user", srv.withAuth(srv.deleteUser)) // DELETE IN: 5.2 REST method is replaced by grpc method with context.
 
 	// Generating keypairs
 	srv.POST("/:version/keypair", srv.withAuth(srv.generateKeyPair))
@@ -895,6 +896,15 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 		out[i] = data
 	}
 	return out, nil
+}
+
+// DELETE IN: 5.2 REST method is replaced by grpc method with context.
+func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	user := p.ByName("user")
+	if err := auth.DeleteUser(context.TODO(), user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message(fmt.Sprintf("user %q deleted", user)), nil
 }
 
 type generateKeyPairReq struct {
