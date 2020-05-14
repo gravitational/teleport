@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	enterpriseevents "github.com/gravitational/teleport/e/lib/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1324,6 +1325,7 @@ func (a *AuthServer) NewWatcher(ctx context.Context, watch services.Watch) (serv
 	return a.GetCache().NewWatcher(ctx, watch)
 }
 
+// DeleteRole deletes a role by name of the role.
 func (a *AuthServer) DeleteRole(name string) error {
 	// check if this role is used by CA or Users
 	users, err := a.Identity.GetUsers(false)
@@ -1356,7 +1358,31 @@ func (a *AuthServer) DeleteRole(name string) error {
 			}
 		}
 	}
-	return a.Access.DeleteRole(name)
+
+	if err := a.Access.DeleteRole(name); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.EmitAuditEvent(enterpriseevents.RoleDeleted, events.EventFields{
+		events.FieldName: name,
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
+}
+
+// UpsertRole creates or updates role.
+func (a *AuthServer) upsertRole(role services.Role) error {
+	if err := a.UpsertRole(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.EmitAuditEvent(enterpriseevents.RoleCreated, events.EventFields{
+		events.FieldName: role.GetName(),
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
 }
 
 func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {

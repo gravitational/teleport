@@ -195,6 +195,9 @@ const (
 	// resetting passwords, creating/updating user, etc.
 	ActionOnBehalfOf = "entity"
 
+	// FieldName contains name, e.g. resource name, etc.
+	FieldName = "name"
+
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
 	ExecEvent        = "exec"
