@@ -57,7 +57,6 @@ func (s *PasswordSuite) TearDownSuite(c *C) {
 
 func (s *PasswordSuite) SetUpTest(c *C) {
 	var err error
-	s.mockedAuditLog = events.NewMockAuditLog(0)
 	c.Assert(err, IsNil)
 	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
@@ -94,6 +93,9 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(staticTokens)
 	c.Assert(err, IsNil)
+
+	s.mockedAuditLog = events.NewMockAuditLog(0)
+	s.a.IAuditLog = s.mockedAuditLog
 }
 
 func (s *PasswordSuite) TearDownTest(c *C) {
@@ -129,8 +131,6 @@ func (s *PasswordSuite) TestTiming(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePassword(c *C) {
-	s.a.IAuditLog = s.mockedAuditLog
-
 	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), teleport.OFF)
 	c.Assert(err, IsNil)
 
@@ -139,7 +139,9 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 	req.NewPassword = []byte("abce456")
 
 	// test change password event
+	eventEmitted := false
 	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		eventEmitted = true
 		c.Assert(event, DeepEquals, events.UserPasswordChange)
 		c.Assert(fields[events.EventUser], Equals, "user1")
 		return nil
@@ -147,6 +149,7 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
 
 	s.shouldLockAfterFailedAttempts(c, req)
 
