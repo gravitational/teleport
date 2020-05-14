@@ -86,6 +86,8 @@ func (process *TeleportProcess) ProxyTunnelAddr() (*utils.NetAddr, error) {
 }
 
 func (process *TeleportProcess) registeredListenerAddr(typ listenerType) (*utils.NetAddr, error) {
+	process.Lock()
+	defer process.Unlock()
 	for _, l := range process.registeredListeners {
 		if l.typ == typ {
 			return utils.ParseAddr(l.listener.Addr().String())
