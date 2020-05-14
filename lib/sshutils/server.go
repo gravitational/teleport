@@ -234,6 +234,8 @@ func SetFIPS(fips bool) ServerOption {
 }
 
 func (s *Server) Addr() string {
+	s.RLock()
+	defer s.RUnlock()
 	if s.listener == nil {
 		return ""
 	}
