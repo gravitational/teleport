@@ -111,7 +111,7 @@ Mattermost Bot uses a config file in TOML format. Generate a boilerplate config 
 running the following command: 
 
 ```
-teleport-mattermost configure > /etc/teleport-mattermost.yml
+teleport-mattermost configure > /etc/teleport-mattermost.toml
 ```
 
 Then, edit the config as needed.
@@ -127,6 +127,8 @@ root-cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport cluster 
 [mattermost]
 token = "BOT TOKEN"       # Mattermost Bot OAuth token
 secret = "signing-secret-value"   # Mattermost API Signing Secret
+team = "mattermost-team-name"
+url = " "
 channel = "town-square"  # Mattermost Channel name to post requests to
 
 [http]
