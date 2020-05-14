@@ -153,6 +153,9 @@ const (
 	// UserCreateEvent is emitted when the user is created.
 	UserCreateEvent = "user.create"
 
+	// UserPasswordChangeEvent is when the user changes their own password.
+	UserPasswordChangeEvent = "user.password_change"
+
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
 

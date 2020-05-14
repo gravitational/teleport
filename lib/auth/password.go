@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -68,12 +69,12 @@ func (s *AuthServer) ResetPassword(username string) (string, error) {
 	return password, nil
 }
 
-// ChangePassword changes user passsword
+// ChangePassword updates users password based on the old password.
 func (s *AuthServer) ChangePassword(req services.ChangePasswordReq) error {
 	// validate new password
-	err := services.VerifyPassword(req.NewPassword)
-	if err != nil {
+	if err := services.VerifyPassword(req.NewPassword); err != nil {
 		return trace.Wrap(err)
+
 	}
 
 	authPreference, err := s.GetAuthPreference()
@@ -100,12 +101,19 @@ func (s *AuthServer) ChangePassword(req services.ChangePasswordReq) error {
 		return trace.BadParameter("unsupported second factor method: %q", secondFactor)
 	}
 
-	err = s.WithUserLock(userID, fn)
-	if err != nil {
+	if err := s.WithUserLock(userID, fn); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.UpsertPassword(userID, req.NewPassword))
+	if err := s.UpsertPassword(userID, req.NewPassword); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.EmitAuditEvent(events.UserPasswordChange, events.EventFields{
+		events.EventUser: userID,
+	})
+
+	return nil
 }
 
 // CheckPasswordWOToken checks just password without checking OTP tokens
