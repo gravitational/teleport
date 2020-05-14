@@ -255,14 +255,23 @@ func (s *Server) Start() error {
 	if len(s.getCommandLabels()) > 0 {
 		s.updateLabels()
 	}
-	go s.heartbeat.Run()
 
 	// If the server requested connections to it arrive over a reverse tunnel,
 	// don't call Start() which listens on a socket, return right away.
 	if s.useTunnel {
+		go s.heartbeat.Run()
 		return nil
 	}
-	return s.srv.Start()
+	if err := s.srv.Start(); err != nil {
+		return trace.Wrap(err)
+	}
+	// Heartbeat should start only after s.srv.Start.
+	// If the server is configured to listen on port 0 (such as in tests),
+	// it'll only populate its actual listening address during s.srv.Start.
+	// Heartbeat uses this address to announce. Avoid announcing an empty
+	// address on first heartbeat.
+	go s.heartbeat.Run()
+	return nil
 }
 
 // Serve servers service on started listener
