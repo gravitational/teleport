@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,8 +40,9 @@ import (
 )
 
 type PasswordSuite struct {
-	bk backend.Backend
-	a  *AuthServer
+	bk             backend.Backend
+	a              *AuthServer
+	mockedAuditLog *events.MockAuditLog
 }
 
 var _ = fmt.Printf
@@ -55,6 +57,7 @@ func (s *PasswordSuite) TearDownSuite(c *C) {
 
 func (s *PasswordSuite) SetUpTest(c *C) {
 	var err error
+	s.mockedAuditLog = events.NewMockAuditLog(0)
 	c.Assert(err, IsNil)
 	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
@@ -126,12 +129,21 @@ func (s *PasswordSuite) TestTiming(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePassword(c *C) {
+	s.a.IAuditLog = s.mockedAuditLog
+
 	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), teleport.OFF)
 	c.Assert(err, IsNil)
 
 	fakeClock := clockwork.NewFakeClock()
 	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("abce456")
+
+	// test change password event
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		c.Assert(event, DeepEquals, events.UserPasswordChange)
+		c.Assert(fields[events.EventUser], Equals, "user1")
+		return nil
+	}
 
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
