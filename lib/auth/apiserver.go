@@ -791,14 +791,14 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 	return auth.AuthenticateSSHUser(req)
 }
 
+// changePassword updates users password based on the old password.
 func (s *APIServer) changePassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req services.ChangePasswordReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err := auth.ChangePassword(req)
-	if err != nil {
+	if err := auth.ChangePassword(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -1361,7 +1361,7 @@ func (c *Client) UpsertUser(user services.User) error {
 	return trace.Wrap(err)
 }
 
-// ChangePassword changes user password
+// ChangePassword updates users password based on the old password.
 func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
 	_, err := c.PutJSON(c.Endpoint("users", req.User, "web", "password"), req)
 	return trace.Wrap(err)
