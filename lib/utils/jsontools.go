@@ -118,7 +118,7 @@ func WriteYAML(w io.Writer, values interface{}) error {
 	return nil
 }
 
-// isDoc detects whether value constitues a document
+// isDoc detects whether value constitutes a document
 func isDoc(val reflect.Value) bool {
 	iterations := 0
 	for val.Kind() == reflect.Interface || val.Kind() == reflect.Ptr {

@@ -30,7 +30,7 @@ Instead follow the [Admin Guide](admin-guide.md))**
 ## Step 1: Install Teleport
 
 This guide installs teleport v4.1.0 on the CLI. Previous versions are documented
-in [Release History](https://gravitational.com/teleport/releases/). You can
+in [Release History](https://gravitational.com/teleport/download/). You can
 download pre-built binaries from our
 [Downloads](https://gravitational.com/teleport/download/) page or you can [build
 it from source](./installation/#installing-from-source).

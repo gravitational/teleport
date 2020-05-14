@@ -121,7 +121,7 @@ type Cache struct {
 	accessCache        services.Access
 	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
-	eventsCache        services.Events
+	eventsFanout       *services.Fanout
 
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
@@ -275,7 +275,7 @@ func New(config Config) (*Cache, error) {
 		accessCache:        local.NewAccessService(wrapper),
 		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
-		eventsCache:        local.NewEventsService(config.Backend),
+		eventsFanout:       services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -305,7 +305,7 @@ func New(config Config) (*Cache, error) {
 // to handle subscribers connected to the in-memory caches
 // instead of reading from the backend.
 func (c *Cache) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
-	return c.eventsCache.NewWatcher(ctx, watch)
+	return c.eventsFanout.NewWatcher(ctx, watch)
 }
 
 func (c *Cache) isClosed() bool {
@@ -337,7 +337,7 @@ func (c *Cache) update() {
 		// all watchers will be out of sync, because
 		// cache will reload its own watcher to the backend,
 		// so signal closure to reset the watchers
-		c.Backend.CloseWatchers()
+		c.eventsFanout.CloseWatchers()
 		// events cache should be closed as well
 		c.Debugf("Reloading %v.", retry)
 		select {
@@ -416,7 +416,7 @@ func (c *Cache) notify(event CacheEvent) {
 //   a. We assume that events are ordered in regards to the
 //   individual key operations which is the guarantees both Etcd and DynamodDB
 //   provide.
-//   b. Thanks to the init event sent by the server on a sucessfull connect,
+//   b. Thanks to the init event sent by the server on a successful connect,
 //   and guarantees 1 and 2a, client assumes that once it connects and receives an event,
 //   it will not miss any events, however it can receive stale events.
 //   Event could be stale, if it relates to a change that happened before
@@ -426,7 +426,7 @@ func (c *Cache) notify(event CacheEvent) {
 //   read the value a=2 and then received events 1 and 2 and 3.
 //   The cache will replay all events 1, 2 and 3 and end up in the correct
 //   state 3. If we had a consistent revision number, we could
-//   have skipped 1 and 2, but in the absense of such mechanism in Dynamo
+//   have skipped 1 and 2, but in the absence of such mechanism in Dynamo
 //   we assume that this cache will eventually end up in a correct state
 //   potentially lagging behind the state of the database.
 //
@@ -528,7 +528,11 @@ func (c *Cache) processEvent(event services.Event) error {
 		c.Warningf("Skipping unsupported event %v.", event.Resource.GetKind())
 		return nil
 	}
-	return collection.processEvent(event)
+	if err := collection.processEvent(event); err != nil {
+		return trace.Wrap(err)
+	}
+	c.eventsFanout.Emit(event)
+	return nil
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys

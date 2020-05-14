@@ -485,6 +485,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		Namespace:      r.srv.GetNamespace(),
 		ServerHostname: ctx.srv.GetInfo().GetHostname(),
 		ServerAddr:     ctx.srv.GetInfo().GetAddr(),
+		ClusterName:    ctx.ClusterName,
 	}
 
 	term := ctx.GetTerm()
@@ -547,12 +548,6 @@ func (s *session) ID() string {
 // PID returns the PID of the Teleport process under which the shell is running.
 func (s *session) PID() int {
 	return s.term.PID()
-}
-
-// Recorder returns a events.SessionRecorder which can be used to emit events
-// to a session as well as the audit log.
-func (s *session) Recorder() events.SessionRecorder {
-	return s.recorder
 }
 
 // Close ends the active session forcing all clients to disconnect and freeing all resources
@@ -718,6 +713,9 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// the "exit-status" to the client.
 	go func() {
 		result, err := s.term.Wait()
+		if err != nil {
+			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
+		}
 
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been

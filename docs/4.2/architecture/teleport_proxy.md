@@ -126,7 +126,7 @@ the proxy, users with root privileges on nodes have no way of disabling the
 audit.
 
 See the [admin guide](../admin-guide.md#recorded-sessions) to learn how to turn
-on the recording proxy mode. Note that the recording more is configured on the
+on the recording proxy mode. Note that the recording mode is configured on the
 Auth Server.
 
 ## More Concepts

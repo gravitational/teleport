@@ -52,3 +52,27 @@ files:
     config:
       white-list-internal:
         - "#fedrampfips"
+  - path: "./enterprise/sso/ssh_okta.md"
+    config:
+      white-list-internal:
+        - "#github-oauth-20"
+        - "#resources"
+  - path: "./enterprise/sso/oidc.md"
+    config:
+      white-list-internal:
+        - "#github-oauth-20"
+        - "#resources"
+  - path: "./enterprise/sso/ssh_azuread.md"
+    config:
+      white-list-internal:
+        - "#github-oauth-20"
+        - "#resources"
+  - path: "./enterprise/ssh_sso.md"
+    config:
+      white-list-internal:
+        - "#resources"
+  - path: "./enterprise/oidc.md"
+    config:
+      white-list-internal:
+        - "#resources"
+        - "#github-oauth-20"

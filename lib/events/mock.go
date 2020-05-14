@@ -36,9 +36,10 @@ func NewMockAuditLog(capacity int) *MockAuditLog {
 // MockAuditLog is audit log used for tests
 type MockAuditLog struct {
 	sync.Mutex
-	returnError     error
-	FailedAttemptsC chan *SessionSlice
-	SlicesC         chan *SessionSlice
+	returnError        error
+	FailedAttemptsC    chan *SessionSlice
+	SlicesC            chan *SessionSlice
+	MockEmitAuditEvent func(event Event, fields EventFields) error
 }
 
 func (d *MockAuditLog) SetError(e error) {
@@ -62,7 +63,11 @@ func (d *MockAuditLog) Close() error {
 }
 
 func (d *MockAuditLog) EmitAuditEvent(event Event, fields EventFields) error {
-	return nil
+	if d.MockEmitAuditEvent == nil {
+		return trace.BadParameter("MockEmitAuditEvent is not implemented")
+	}
+
+	return d.MockEmitAuditEvent(event, fields)
 }
 
 func (d *MockAuditLog) UploadSessionRecording(SessionRecording) error {

@@ -217,11 +217,9 @@ func (cmd *command) GetRemoteShellCmd() (string, error) {
 	}
 
 	// "impersonate" scp to a server
-	shellCmd := "/usr/bin/scp -t"
-	if cmd.Flags.Source == true {
+	shellCmd := "/usr/bin/scp -f"
+	if cmd.Flags.Source {
 		shellCmd = "/usr/bin/scp -t"
-	} else {
-		shellCmd = "/usr/bin/scp -f"
 	}
 
 	if cmd.Flags.Recursive {
@@ -235,11 +233,22 @@ func (cmd *command) GetRemoteShellCmd() (string, error) {
 	return shellCmd, nil
 }
 
-func (cmd *command) serveSource(ch io.ReadWriter) error {
+func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
+	defer func() {
+		// If anything goes wrong, notify the remote side so it can terminate
+		// with an error too.
+		// This is necessary to emit correct audit events (if the remote end is
+		// emitting them).
+		if retErr != nil {
+			cmd.sendErr(ch, retErr)
+		}
+	}()
+
 	fileInfos := make([]FileInfo, len(cmd.Flags.Target))
 	for i := range cmd.Flags.Target {
 		fileInfo, err := cmd.FileSystem.GetFileInfo(cmd.Flags.Target[i])
 		if err != nil {
+			err := trace.Errorf("could not access local path %q: %v", cmd.Flags.Target[i], err)
 			return trace.Wrap(err)
 		}
 		if fileInfo.IsDir() && !cmd.Flags.Recursive {
@@ -348,6 +357,13 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 	return trace.Wrap(r.read())
 }
 
+func (cmd *command) sendErr(ch io.Writer, err error) {
+	out := fmt.Sprintf("%c%s\n", byte(ErrByte), err)
+	if _, err := ch.Write([]byte(out)); err != nil {
+		log.Debugf("failed sending SCP error message to the remote side: %v", err)
+	}
+}
+
 // serveSink executes file uploading, when a remote server sends file(s)
 // via scp
 func (cmd *command) serveSink(ch io.ReadWriter) error {
@@ -408,9 +424,9 @@ func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 	cmd.log.Debugf("[SCP] <- %v %v", string(b), line)
 	switch b {
 	case WarnByte:
-		return trace.Errorf(line)
+		return trace.Errorf("error from sender: %q", line)
 	case ErrByte:
-		return trace.Errorf(line)
+		return trace.Errorf("error from sender: %q", line)
 	case 'C':
 		f, err := parseNewFile(line)
 		if err != nil {
@@ -628,7 +644,7 @@ func (r *reader) read() error {
 		if err := r.s.Err(); err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.BadParameter(r.s.Text())
+		return trace.BadParameter("error from receiver: %q", r.s.Text())
 	}
 	return trace.BadParameter("unrecognized command: %v", r.b)
 }

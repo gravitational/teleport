@@ -19,7 +19,6 @@ package sshutils
 import (
 	"context"
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
@@ -52,7 +51,7 @@ func (s *ServerSuite) SetUpSuite(c *check.C) {
 
 func (s *ServerSuite) TestStartStop(c *check.C) {
 	called := false
-	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(_ *ConnectionContext, nch ssh.NewChannel) {
 		called = true
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
@@ -86,13 +85,13 @@ func (s *ServerSuite) TestStartStop(c *check.C) {
 // TestShutdown tests graceul shutdown feature
 func (s *ServerSuite) TestShutdown(c *check.C) {
 	closeContext, cancel := context.WithCancel(context.TODO())
-	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(ccx *ConnectionContext, nch ssh.NewChannel) {
 		ch, _, err := nch.Accept()
-		defer ch.Close()
 		c.Assert(err, check.IsNil)
+		defer ch.Close()
 		select {
 		case <-closeContext.Done():
-			conn.Close()
+			ccx.ServerConn.Close()
 		}
 	})
 
@@ -136,7 +135,7 @@ func (s *ServerSuite) TestShutdown(c *check.C) {
 }
 
 func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
-	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(_ *ConnectionContext, nch ssh.NewChannel) {
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
 
@@ -160,7 +159,7 @@ func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
 		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
-	clt, err := ssh.Dial("tcp", srv.Addr(), &cc)
+	_, err = ssh.Dial("tcp", srv.Addr(), &cc)
 	c.Assert(err, check.NotNil, check.Commentf("cipher mismatch, should fail, got nil"))
 
 	// client only speaks aes128-ctr, should succeed
@@ -171,7 +170,7 @@ func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
 		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
-	clt, err = ssh.Dial("tcp", srv.Addr(), &cc)
+	clt, err := ssh.Dial("tcp", srv.Addr(), &cc)
 	c.Assert(err, check.IsNil, check.Commentf("cipher match, should not fail, got error: %v", err))
 	defer clt.Close()
 }
@@ -182,7 +181,7 @@ func (s *ServerSuite) TestHostSignerFIPS(c *check.C) {
 	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.HostCert)
 	c.Assert(err, check.IsNil)
 
-	newChanHandler := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	newChanHandler := NewChanHandlerFunc(func(_ *ConnectionContext, nch ssh.NewChannel) {
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
 

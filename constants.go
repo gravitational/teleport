@@ -424,7 +424,7 @@ const (
 const MaxEnvironmentFileLines = 1000
 
 // MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
-// typically only enforced aginst resources that are likely to arbitrarily grow (e.g. PluginData).
+// typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
 const MaxResourceSize = 1000000
 
 const (
@@ -468,6 +468,10 @@ const (
 	// TraitInternalKubeGroupsVariable is the variable used to store allowed
 	// kubernetes groups for local accounts.
 	TraitInternalKubeGroupsVariable = "{{internal.kubernetes_groups}}"
+
+	// TraitInternalKubeUsersVariable is the variable used to store allowed
+	// kubernetes users for local accounts.
+	TraitInternalKubeUsersVariable = "{{internal.kubernetes_users}}"
 )
 
 const (
@@ -543,9 +547,6 @@ const (
 
 	// EnvUserProfile is the home directory environment variable on Windows.
 	EnvUserProfile = "USERPROFILE"
-
-	// KubeServiceAddr is an address for kubernetes endpoint service
-	KubeServiceAddr = "kubernetes.default.svc.cluster.local:443"
 
 	// KubeCAPath is a hardcode of mounted CA inside every pod of K8s
 	KubeCAPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
@@ -655,3 +656,6 @@ const (
 	// machine.
 	PrincipalLoopbackV6 Principal = "::1"
 )
+
+// UserSystem defines a user as system.
+const UserSystem = "system"

@@ -736,8 +736,8 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	waitFor(sessionEndC, time.Second*10)
 
 	// make sure the output of B is mirrored in A
-	outputOfA := string(personA.Output(100))
-	outputOfB := string(personB.Output(100))
+	outputOfA := personA.Output(100)
+	outputOfB := personB.Output(100)
 	c.Assert(strings.Contains(outputOfA, outputOfB), check.Equals, true)
 }
 
@@ -784,7 +784,7 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 		var matched bool
 		var output string
 		for {
-			output = string(replaceNewlines(person.Output(1000)))
+			output = replaceNewlines(person.Output(1000))
 			matched, _ = regexp.MatchString(pattern, output)
 			if matched {
 				break
@@ -840,6 +840,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:      services.NewBool(true),
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: time.Second,
@@ -855,6 +856,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:          services.NewBool(true),
 				DisconnectExpiredCert: services.NewBool(true),
 				MaxSessionTTL:         services.NewDuration(2 * time.Second),
 			},
@@ -876,7 +878,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 		Pub:         s.pub,
 	})
 
-	// devs role gets disconnected after 1 second idle time
 	username := s.me.Username
 	role, err := services.NewRole("devs", services.RoleSpecV3{
 		Options: tc.options,
@@ -888,7 +889,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	t.AddUserWithRole(username, role)
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
+		SessionRecording: tc.recordingMode,
 		LocalAuth:        services.NewBool(true),
 	})
 	c.Assert(err, check.IsNil)
@@ -911,9 +912,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	person := NewTerminal(250)
 
-	// commandsC receive commands
-	commandsC := make(chan string, 0)
-
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	sessionCtx, sessionCancel := context.WithCancel(context.TODO())
 	openSession := func() {
@@ -922,12 +920,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 		c.Assert(err, check.IsNil)
 		cl.Stdout = person
 		cl.Stdin = person
-
-		go func() {
-			for command := range commandsC {
-				person.Type(command)
-			}
-		}()
 
 		err = cl.SSH(context.TODO(), []string{}, false)
 		if err != nil && err != io.EOF {
@@ -938,7 +930,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	go openSession()
 
 	enterInput(c, person, "echo start \r\n", ".*start.*")
-	time.Sleep(tc.disconnectTimeout)
 	select {
 	case <-time.After(tc.disconnectTimeout):
 		c.Fatalf("timeout waiting for session to exit")
@@ -953,7 +944,7 @@ func enterInput(c *check.C, person *Terminal, command, pattern string) {
 	var matched bool
 	var output string
 	for {
-		output = string(replaceNewlines(person.Output(1000)))
+		output = replaceNewlines(person.Output(1000))
 		matched, _ = regexp.MatchString(pattern, output)
 		if matched {
 			break
@@ -1098,7 +1089,7 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 
 		// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 		abortTime := time.Now().Add(time.Second * 10)
-		for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+		for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
 			time.Sleep(time.Millisecond * 200)
 			if time.Now().After(abortTime) {
 				c.Fatalf("Two clusters do not see each other: tunnels are not working.")
@@ -1432,7 +1423,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1636,6 +1627,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 			Logins: []string{"superuser"},
 		},
 	})
+	c.Assert(err, check.IsNil)
 
 	main.AddUserWithRole(username, devsRole, adminsRole)
 
@@ -1697,7 +1689,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1901,7 +1893,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -2030,7 +2022,8 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 				continue
 			}
 			if p.Config.Hostname == name {
-				lb.RemoveBackend(*utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr))
+				reverseTunnelPort := utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr).Port(0)
+				c.Assert(lb.RemoveBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(reverseTunnelPort)))), check.IsNil)
 				c.Assert(p.Close(), check.IsNil)
 				c.Assert(p.Wait(), check.IsNil)
 				return
@@ -2073,12 +2066,12 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	// create first numbered proxy
 	_, c0 := addNewMainProxy(pname(0))
 	// check that we now have two tunnel connections
-	waitForProxyCount(remote, "cluster-main", 2)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 2), check.IsNil)
 	// check that first numbered proxy is OK.
 	testProxyConn(&c0, false)
 	// remove the initial proxy.
-	lb.RemoveBackend(mainProxyAddr)
-	waitForProxyCount(remote, "cluster-main", 1)
+	c.Assert(lb.RemoveBackend(mainProxyAddr), check.IsNil)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 
 	// force bad state by iteratively removing previous proxy before
 	// adding next proxy; this ensures that discovery protocol's list of
@@ -2086,9 +2079,9 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	for i := 0; i < 6; i++ {
 		prev, next := pname(i), pname(i+1)
 		killMainProxy(prev)
-		waitForProxyCount(remote, "cluster-main", 0)
+		c.Assert(waitForProxyCount(remote, "cluster-main", 0), check.IsNil)
 		_, cn := addNewMainProxy(next)
-		waitForProxyCount(remote, "cluster-main", 1)
+		c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 		testProxyConn(&cn, false)
 	}
 
@@ -2186,11 +2179,11 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(output, check.Equals, "hello world\n")
 
 	// Now disconnect the main proxy and make sure it will reconnect eventually.
-	lb.RemoveBackend(mainProxyAddr)
+	c.Assert(lb.RemoveBackend(mainProxyAddr), check.IsNil)
 	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
 	// Requests going via main proxy should fail.
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
+	_, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.NotNil)
 
 	// Requests going via second proxy should succeed.
@@ -2218,7 +2211,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Wait for the remote cluster to detect the outbound connection is gone.
-	waitForProxyCount(remote, "cluster-main", 1)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 
 	// Stop both clusters and remaining nodes.
 	c.Assert(remote.StopAll(), check.IsNil)
@@ -2337,7 +2330,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	c.Assert(output, check.Equals, "hello world\n")
 
 	// Remove second proxy from LB.
-	lb.RemoveBackend(*proxyTwoBackend)
+	c.Assert(lb.RemoveBackend(*proxyTwoBackend), check.IsNil)
 	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
 
 	// Requests going via main proxy will succeed. Requests going via second
@@ -2345,7 +2338,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
+	_, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
 	c.Assert(err, check.NotNil)
 
 	// Add second proxy to LB, both should have a connection.
@@ -2391,17 +2384,17 @@ func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clu
 // reach some value.
 func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	var counts map[string]int
-
-	for i := 0; i < 20; i++ {
+	start := time.Now()
+	for time.Since(start) < 17*time.Second {
 		counts = t.Pool.Counts()
 		if counts[clusterName] == count {
 			return nil
 		}
 
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	return trace.BadParameter("proxy count on %v: %v", clusterName, counts[clusterName])
+	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)
 }
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
@@ -2943,7 +2936,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		// If any output is expected, check to make sure it was output.
 		if len(tt.outContains) > 0 {
 			for _, expectedOutput := range tt.outContains {
-				output := string(termSession.Output(100))
+				output := termSession.Output(100)
 				c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
 			}
 		}
@@ -3031,7 +3024,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3059,7 +3052,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
@@ -3080,7 +3073,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client still works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3175,7 +3168,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3205,7 +3198,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3323,7 +3316,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	clt, err := main.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
 
-	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Setting rotation state to %v", services.RotationPhaseInit)
@@ -3375,7 +3368,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old client should work as is
-	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3402,7 +3395,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
@@ -3425,7 +3418,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	l.Infof("Phase completed.")
 
 	// new client still works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3525,16 +3518,17 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 	for i := 0; i < attempts; i++ {
 		err = tc.SSH(context.TODO(), command, false)
 		if err != nil {
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		out := output.String()
-		out = string(replaceNewlines(out))
+		out = replaceNewlines(out)
 		matched, _ := regexp.MatchString(pattern, out)
 		if matched {
 			return nil
 		}
 		err = trace.CompareFailed("output %q did not match pattern %q", out, pattern)
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 	return err
 }

@@ -80,7 +80,7 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 	defer backend1.Close()
 
 	called := false
-	sshHandler := sshutils.NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	sshHandler := sshutils.NewChanHandlerFunc(func(_ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 		called = true
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
@@ -111,6 +111,7 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 	client := testClient(backend1)
 	re, err := client.Get(backend1.URL)
 	c.Assert(err, check.IsNil)
+	defer re.Body.Close()
 	bytes, err := ioutil.ReadAll(re.Body)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(bytes), check.Equals, "backend 1")
@@ -121,7 +122,10 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 
 	// use new client to use new connection pool
 	client = testClient(backend1)
-	_, err = client.Get(backend1.URL)
+	re, err = client.Get(backend1.URL)
+	if err == nil {
+		re.Body.Close()
+	}
 	c.Assert(err, check.NotNil)
 }
 
@@ -162,7 +166,7 @@ func (s *MuxSuite) TestProxy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 	// send proxy line first before establishing TLS connection
-	_, err = fmt.Fprintf(conn, proxyLine.String())
+	_, err = fmt.Fprint(conn, proxyLine.String())
 	c.Assert(err, check.IsNil)
 
 	// upgrade connection to TLS
@@ -214,7 +218,7 @@ func (s *MuxSuite) TestDisabledProxy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 	// send proxy line first before establishing TLS connection
-	_, err = fmt.Fprintf(conn, proxyLine.String())
+	_, err = fmt.Fprint(conn, proxyLine.String())
 	c.Assert(err, check.IsNil)
 
 	// upgrade connection to TLS
@@ -334,6 +338,7 @@ func (s *MuxSuite) TestDisableSSH(c *check.C) {
 	client := testClient(backend1)
 	re, err := client.Get(backend1.URL)
 	c.Assert(err, check.IsNil)
+	defer re.Body.Close()
 	bytes, err := ioutil.ReadAll(re.Body)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(bytes), check.Equals, "backend 1")
@@ -344,7 +349,10 @@ func (s *MuxSuite) TestDisableSSH(c *check.C) {
 
 	// use new client to use new connection pool
 	client = testClient(backend1)
-	_, err = client.Get(backend1.URL)
+	re, err = client.Get(backend1.URL)
+	if err == nil {
+		re.Body.Close()
+	}
 	c.Assert(err, check.NotNil)
 }
 
@@ -373,7 +381,7 @@ func (s *MuxSuite) TestDisableTLS(c *check.C) {
 	defer backend1.Close()
 
 	called := false
-	sshHandler := sshutils.NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	sshHandler := sshutils.NewChanHandlerFunc(func(_ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 		called = true
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
@@ -402,7 +410,10 @@ func (s *MuxSuite) TestDisableTLS(c *check.C) {
 	c.Assert(called, check.Equals, true)
 
 	client := testClient(backend1)
-	_, err = client.Get(backend1.URL)
+	re, err := client.Get(backend1.URL)
+	if err == nil {
+		re.Body.Close()
+	}
 	c.Assert(err, check.NotNil)
 
 	// Close mux, new requests should fail

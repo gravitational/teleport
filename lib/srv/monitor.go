@@ -41,7 +41,7 @@ type ActivityTracker interface {
 
 // TrackingConn is an interface representing tracking connection
 type TrackingConn interface {
-	// LocalAddr returns local addres
+	// LocalAddr returns local address
 	LocalAddr() net.Addr
 	// RemoteAddr returns remote address
 	RemoteAddr() net.Addr

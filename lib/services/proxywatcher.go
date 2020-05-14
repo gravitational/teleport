@@ -161,7 +161,7 @@ func (p *ProxyWatcher) Done() <-chan struct{} {
 	return p.ctx.Done()
 }
 
-// Close closes proxy watcher and cancells all the functions
+// Close closes proxy watcher and cancels all the functions
 func (p *ProxyWatcher) Close() error {
 	p.cancel()
 	return nil

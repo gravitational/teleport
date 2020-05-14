@@ -52,7 +52,7 @@ type remoteConn struct {
 	// be made on it.
 	invalid int32
 
-	// lastError is the last error that occured before this connection became
+	// lastError is the last error that occurred before this connection became
 	// invalid.
 	lastError error
 
@@ -164,7 +164,7 @@ func (c *remoteConn) markInvalid(err error) {
 
 	atomic.StoreInt32(&c.invalid, 1)
 	c.lastError = err
-	c.log.Errorf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+	c.log.Debugf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
 }
 
 func (c *remoteConn) isInvalid() bool {

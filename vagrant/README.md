@@ -20,6 +20,12 @@ Three machines are created, grouped in two clusters, `cluster_a` and `cluster_b`
 A reverse tunnels from cluster_a to cluster_b is created. This allows users of
 cluster_b to login into any machine of cluster_a.
 
+### Prerequisites
+
+The Vagrant `vbguest` plugin must be installed. You can install the plugin with this command:
+
+`vagrant plugin install vagrant-vbguest`
+
 ### How to use
 
 Easy:

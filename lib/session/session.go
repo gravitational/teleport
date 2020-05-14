@@ -103,6 +103,8 @@ type Session struct {
 	ServerHostname string `json:"server_hostname"`
 	// ServerAddr of session
 	ServerAddr string `json:"server_addr"`
+	// ClusterName is the name of cluster that this session belongs to.
+	ClusterName string `json:"cluster_name"`
 }
 
 // RemoveParty helper allows to remove a party by it's ID from the
@@ -188,12 +190,6 @@ func (p *TerminalParams) Winsize() *term.Winsize {
 		Width:  uint16(p.W),
 		Height: uint16(p.H),
 	}
-}
-
-// Bool returns pointer to a boolean variable
-func Bool(val bool) *bool {
-	f := val
-	return &f
 }
 
 // UpdateRequest is a session update request
@@ -505,7 +501,7 @@ func NewTerminalParamsFromInt(w int, h int) (*TerminalParams, error) {
 	if h > maxSize || h < minSize {
 		return nil, trace.BadParameter("bad height")
 	}
-	return &TerminalParams{W: int(w), H: int(h)}, nil
+	return &TerminalParams{W: w, H: h}, nil
 }
 
 const (

@@ -40,6 +40,7 @@ type UserCommand struct {
 	config        *service.Config
 	login         string
 	allowedLogins string
+	kubeUsers     string
 	kubeGroups    string
 	roles         string
 	ttl           time.Duration
@@ -65,6 +66,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&u.allowedLogins)
+	u.userAdd.Flag("k8s-users", "Kubernetes users to assign to a user.").
+		Default("").StringVar(&u.kubeUsers)
 	u.userAdd.Flag("k8s-groups", "Kubernetes groups to assign to a user.").
 		Default("").StringVar(&u.kubeGroups)
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
@@ -181,9 +184,13 @@ func (u *UserCommand) printResetPasswordToken(token services.ResetPasswordToken,
 // Add creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
 func (u *UserCommand) Add(client auth.ClientI) error {
-	// if no local logins were specified, default to 'login'
+	// If no local logins were specified, default to 'login' for SSH and k8s
+	// logins.
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
+	}
+	if u.kubeUsers == "" {
+		u.kubeUsers = u.login
 	}
 	var kubeGroups []string
 	if u.kubeGroups != "" {
@@ -205,12 +212,13 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 
 	traits := map[string][]string{
 		teleport.TraitLogins:     strings.Split(u.allowedLogins, ","),
+		teleport.TraitKubeUsers:  strings.Split(u.kubeUsers, ","),
 		teleport.TraitKubeGroups: kubeGroups,
 	}
 
 	user.SetTraits(traits)
 	user.AddRole(teleport.AdminRoleName)
-	err = client.UpsertUser(user)
+	err = client.CreateUser(context.TODO(), user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -237,7 +245,7 @@ func printTokenAsJSON(token services.ResetPasswordToken) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to marshal reset password token")
 	}
-	fmt.Printf(string(out))
+	fmt.Print(string(out))
 	return nil
 }
 
@@ -283,7 +291,7 @@ func (u *UserCommand) List(client auth.ClientI) error {
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
-		fmt.Printf(string(out))
+		fmt.Print(string(out))
 	}
 	return nil
 }

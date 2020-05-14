@@ -959,7 +959,7 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return string(token), nil
+	return token, nil
 }
 
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
@@ -2467,6 +2467,8 @@ func message(msg string) map[string]interface{} {
 	return map[string]interface{}{"message": msg}
 }
 
+type contextParamsKey string
+
 // contextParams is the name of of the key that holds httprouter.Params in
 // a context.
-const contextParams = "params"
+const contextParams contextParamsKey = "params"

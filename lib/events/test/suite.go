@@ -91,6 +91,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		events.EventUser:          "bob",
 		events.EventTime:          s.Clock.Now().UTC(),
 	})
+	c.Assert(err, check.IsNil)
 
 	// For eventually consistent queries
 	if s.QueryDelay != 0 {
@@ -127,7 +128,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// read the session event
-	history, err = s.Log.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, false)
+	history, err = s.Log.GetSessionEvents(defaults.Namespace, sessionID, 0, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 2)
 	c.Assert(history[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)

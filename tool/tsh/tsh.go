@@ -79,8 +79,6 @@ type CLIConf struct {
 	InsecureSkipVerify bool
 	// IsUnderTest is set to true for unit testing
 	IsUnderTest bool
-	// AgentSocketAddr is address for agent listeing socket
-	AgentSocketAddr utils.NetAddrVal
 	// Remote SSH session to join
 	SessionID string
 	// Src:dest parameter for SCP
@@ -171,7 +169,7 @@ type CLIConf struct {
 
 func main() {
 	cmdLineOrig := os.Args[1:]
-	cmdLine := []string{}
+	var cmdLine []string
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
@@ -268,9 +266,11 @@ func Run(args []string, underTest bool) {
 	login := app.Command("login", "Log in to a cluster and retrieve the session certificate")
 	login.Flag("bind-addr", "Address in the form of host:port to bind to for login command webhook").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
-	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
+	login.Flag("format", fmt.Sprintf("Identity format: %s, %s (for OpenSSH compatibility) or %s (for kubeconfig)",
 		identityfile.DefaultFormat,
-		identityfile.FormatOpenSSH)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
+		identityfile.FormatOpenSSH,
+		identityfile.FormatKubernetes,
+	)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
@@ -399,7 +399,9 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
 	}
 
-	if cf.IdentityFormat != identityfile.FormatOpenSSH && cf.IdentityFormat != identityfile.FormatFile {
+	switch cf.IdentityFormat {
+	case identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatKubernetes:
+	default:
 		utils.FatalError(trace.BadParameter("invalid identity format: %s", cf.IdentityFormat))
 	}
 
@@ -479,7 +481,8 @@ func onLogin(cf *CLIConf) {
 		if err != nil {
 			utils.FatalError(err)
 		}
-		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities)
+
+		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities, tc.KubeClusterAddr())
 		if err != nil {
 			utils.FatalError(err)
 		}
@@ -895,7 +898,7 @@ func onSCP(cf *CLIConf) {
 
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
-func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
+func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, error) {
 	// Parse OpenSSH style options.
 	options, err := parseOptions(cf.Options)
 	if err != nil {
@@ -1079,7 +1082,22 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	// (not currently implemented) or set to 'none' to suppress browser opening entirely.
 	c.Browser = cf.Browser
 
-	return client.NewClient(c)
+	tc, err := client.NewClient(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// If identity file was provided, we skip loading the local profile info
+	// (above). This profile info provides the proxy-advertised listening
+	// addresses.
+	// To compensate, when using an identity file, explicitly fetch these
+	// addresses from the proxy (this is what Ping does).
+	if cf.IdentityFileIn != "" {
+		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
+		if _, err := tc.Ping(cf.Context); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return tc, nil
 }
 
 func parseCertificateCompatibilityFlag(compatibility string, certificateFormat string) (string, error) {

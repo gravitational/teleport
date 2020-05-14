@@ -513,7 +513,7 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 		return 0, trace.Wrap(err)
 	}
 
-	switch string(envelope.GetType()) {
+	switch envelope.GetType() {
 	case defaults.WebsocketRaw:
 		n := copy(out, data)
 		// if payload size is greater than [out], store the remaining
