@@ -901,7 +901,7 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 // DELETE IN: 5.2 REST method is replaced by grpc method with context.
 func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user := p.ByName("user")
-	if err := auth.DeleteUser(context.TODO(), user); err != nil {
+	if err := auth.DeleteUser(r.Context(), user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("user %q deleted", user)), nil
