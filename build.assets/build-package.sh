@@ -145,7 +145,7 @@ else
     if [[ "${ARCH}" == "" ]]; then
         usage
     fi
-    
+
     # set docker image appropriately
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         DOCKER_IMAGE="cdrx/fpm-debian:8"
@@ -242,10 +242,10 @@ else
     LINUX_CONFIG_FILE_LIST=""
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${ARCH}.rpm"
-        FILE_PERMISSIONS_STANZA="--rpm-use-file-permissions --rpm-user root --rpm-group root "
+        FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
     elif [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}_${TELEPORT_VERSION}${OPTIONAL_RUNTIME_SECTION}_${ARCH}.deb"
-        FILE_PERMISSIONS_STANZA="--deb-use-file-permissions --deb-user root --deb-group root "
+        FILE_PERMISSIONS_STANZA="--deb-user root --deb-group root "
     fi
 fi
 
