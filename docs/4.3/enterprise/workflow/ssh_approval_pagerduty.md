@@ -141,6 +141,10 @@ In production, we recommend starting teleport plugin daemon via an init system l
 
 Save this as `teleport-pagerduty.service`. 
 
-## Example PagerDuty Request
+#### Example PagerDuty Request
 
-![Demo](/img/enterprise/plugins/pagerduty/pagerduty-demo.png)
+<video  style="width:100%" controls>
+  <source src="/img/enterprise/plugins/pagerduty/pagerduty-demo.mp4" type="video/mp4">
+  <source src="/img/enterprise/plugins/pagerduty/pagerduty-demo.webm" type="video/webm">
+Your browser does not support the video tag.
+</video>
