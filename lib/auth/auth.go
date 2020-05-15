@@ -35,7 +35,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	enterpriseevents "github.com/gravitational/teleport/e/lib/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1363,7 +1362,7 @@ func (a *AuthServer) DeleteRole(name string) error {
 		return trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(enterpriseevents.RoleDeleted, events.EventFields{
+	a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
 		events.FieldName: name,
 		events.EventUser: "unimplemented",
 	})
@@ -1377,7 +1376,7 @@ func (a *AuthServer) upsertRole(role services.Role) error {
 		return trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(enterpriseevents.RoleCreated, events.EventFields{
+	a.EmitAuditEvent(events.RoleCreated, events.EventFields{
 		events.FieldName: role.GetName(),
 		events.EventUser: "unimplemented",
 	})

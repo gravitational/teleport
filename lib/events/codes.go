@@ -191,9 +191,20 @@ var (
 		Name: ResetPasswordTokenCreateEvent,
 		Code: ResetPasswordTokenCreateCode,
 	}
+	// RoleCreated is emitted when a role is created/updated.
+	RoleCreated = Event{
+		Name: RoleCreatedEvent,
+		Code: RoleCreatedCode,
+	}
+	// RoleDeleted is emitted when a role is deleted.
+	RoleDeleted = Event{
+		Name: RoleDeletedEvent,
+		Code: RoleDeletedCode,
+	}
 )
 
-var (
+// OSS event codes start with "T".
+const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
 	// UserLocalLoginFailureCode is the unsuccessful local user login event code.
@@ -260,4 +271,12 @@ var (
 	AccessRequestUpdateCode = "T5001I"
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+)
+
+// Enterprise event codes starts with "TE".
+const (
+	// RoleCreatedCode is the role created event code.
+	RoleCreatedCode = "TE1000I"
+	// RoleDeletedCode is the role deleted event code.
+	RoleDeletedCode = "TE2000I"
 )

@@ -26,7 +26,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	enterpriseevents "github.com/gravitational/teleport/e/lib/events"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -641,7 +640,7 @@ func (s *AuthSuite) TestUpsertDeleteRole(c *C) {
 	createEventEmitted := false
 	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
 		createEventEmitted = true
-		c.Assert(event, DeepEquals, enterpriseevents.RoleCreated)
+		c.Assert(event, DeepEquals, events.RoleCreated)
 		c.Assert(fields[events.FieldName], Equals, "test")
 		return nil
 	}
@@ -659,12 +658,13 @@ func (s *AuthSuite) TestUpsertDeleteRole(c *C) {
 	err = s.a.upsertRole(roleTest)
 	c.Assert(err, IsNil)
 	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
+	c.Assert(createEventEmitted, Equals, true)
 
 	// test delete role
 	deleteEventEmitted := false
 	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
 		deleteEventEmitted = true
-		c.Assert(event, DeepEquals, enterpriseevents.RoleDeleted)
+		c.Assert(event, DeepEquals, events.RoleDeleted)
 		c.Assert(fields[events.FieldName], Equals, "test")
 		return nil
 	}
