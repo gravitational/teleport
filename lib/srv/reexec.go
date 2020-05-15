@@ -157,19 +157,21 @@ func RunCommand() (io.Writer, int, error) {
 			stderr = ioutil.Discard
 		}
 
-		// Set Teleport specific environment variables that PAM modules like
-		// pam_script.so can pick up to potentially customize the account/session.
-		os.Setenv("TELEPORT_USERNAME", c.Username)
-		os.Setenv("TELEPORT_LOGIN", c.Login)
-		os.Setenv("TELEPORT_ROLES", strings.Join(c.Roles, " "))
-
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pam.Config{
 			ServiceName: c.ServiceName,
 			Login:       c.Login,
-			Stdin:       stdin,
-			Stdout:      stdout,
-			Stderr:      stderr,
+			// Set Teleport specific environment variables that PAM modules
+			// like pam_script.so can pick up to potentially customize the
+			// account/session.
+			Env: map[string]string{
+				"TELEPORT_USERNAME": c.Username,
+				"TELEPORT_LOGIN":    c.Login,
+				"TELEPORT_ROLES":    strings.Join(c.Roles, " "),
+			},
+			Stdin:  stdin,
+			Stdout: stdout,
+			Stderr: stderr,
 		})
 		if err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
