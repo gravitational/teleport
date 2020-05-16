@@ -287,6 +287,11 @@ const (
 
 	// TCPVersion is the version of TCP (4 or 6).
 	TCPVersion = "version"
+
+	// TrustedClusterCreateEvent is the event for creating a trusted cluster.
+	TrustedClusterCreateEvent = "trusted_cluster.create"
+	// TrustedClusterDeleteEvent is the event for removing a trusted cluster.
+	TrustedClusterDeleteEvent = "trusted_cluster.delete"
 )
 
 const (

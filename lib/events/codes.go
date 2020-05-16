@@ -191,6 +191,16 @@ var (
 		Name: ResetPasswordTokenCreateEvent,
 		Code: ResetPasswordTokenCreateCode,
 	}
+	// TrustedClusterCreate is emitted when a trusted cluster relationship is created.
+	TrustedClusterCreate = Event{
+		Name: TrustedClusterCreateEvent,
+		Code: TrustedClusterCreateCode,
+	}
+	// TrustedClusterDelete is emitted when a trusted cluster is removed from the root cluster.
+	TrustedClusterDelete = Event{
+		Name: TrustedClusterDeleteEvent,
+		Code: TrustedClusterDeleteCode,
+	}
 )
 
 var (
@@ -260,4 +270,8 @@ var (
 	AccessRequestUpdateCode = "T5001I"
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
+	TrustedClusterCreateCode = "T7000I"
+	// TrustedClusterDeleteCode is the event code for removing a trusted cluster.
+	TrustedClusterDeleteCode = "T7001I"
 )
