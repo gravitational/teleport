@@ -620,3 +620,27 @@ func (s *AuthSuite) TestCreateAndUpdateUser(c *C) {
 	err = s.a.UpdateUser(ctx, user)
 	c.Assert(err, IsNil)
 }
+
+func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
+	s.a.IAuditLog = s.mockedAuditLog
+
+	tc, err := services.NewTrustedCluster("test", services.TrustedClusterSpecV2{})
+	c.Assert(err, IsNil)
+
+	// Upserting from presense b/c in auth layer, creating trusted clusters requires network call.
+	_, err = s.a.Presence.UpsertTrustedCluster(tc)
+	c.Assert(err, IsNil)
+
+	deleteEventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		deleteEventEmitted = true
+		c.Assert(event, Equals, events.TrustedClusterDelete)
+		return nil
+	}
+
+	err = s.a.DeleteTrustedCluster("test")
+	c.Assert(err, IsNil)
+	c.Assert(deleteEventEmitted, Equals, true)
+
+	// TODO test event emitted in (*AuthServer).UpsertTrustedCluster
+}
