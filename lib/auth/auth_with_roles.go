@@ -1662,6 +1662,7 @@ func (a *AuthWithRoles) GetTrustedCluster(name string) (services.TrustedCluster,
 	return a.authServer.GetTrustedCluster(name)
 }
 
+// UpsertTrustedCluster creates or updates a trusted cluster.
 func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) (services.TrustedCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
@@ -1678,6 +1679,7 @@ func (a *AuthWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedC
 	return a.authServer.validateTrustedCluster(validateRequest)
 }
 
+// DeleteTrustedCluster deletes a trusted cluster by name.
 func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbDelete); err != nil {
 		return trace.Wrap(err)

@@ -246,13 +246,12 @@ func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw service
 
 	// check if such cluster already exists:
 	name := tc.GetName()
-	_, err = client.GetTrustedCluster(name)
-	if err != nil && !trace.IsNotFound(err) {
+	if _, err := client.GetTrustedCluster(name); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("trusted cluster '%s' already exists", name)
+		return trace.AlreadyExists("trusted cluster %q already exists", name)
 	}
 
 	out, err := client.UpsertTrustedCluster(tc)
