@@ -171,6 +171,16 @@ func (a *AuthServer) checkLocalRoles(roleMap services.RoleMap) error {
 // DeleteTrustedCluster removes services.CertAuthority, services.ReverseTunnel,
 // and services.TrustedCluster resources.
 func (a *AuthServer) DeleteTrustedCluster(name string) error {
+	cn, err := a.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// This check ensures users are not deleting their root/own cluster.
+	if cn.GetClusterName() == name {
+		return trace.BadParameter("trusted cluster %q is the name of this root cluster and cannot be removed.", name)
+	}
+
 	if err := a.DeleteCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: name}); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
