@@ -291,6 +291,8 @@ func Open(config *Config) (*PAM, error) {
 		// Also set it via PAM-specific pam_putenv, which is respected by
 		// pam_exec (and possibly others), where parent env vars are not.
 		kv := C.CString(fmt.Sprintf("%s=%s", k, v))
+		// pam_putenv makes a copy of kv, so we can free it right away.
+		defer C.free(unsafe.Pointer(kv))
 		retval := C._pam_putenv(pamHandle, p.pamh, kv)
 		if retval != C.PAM_SUCCESS {
 			return nil, p.codeToError(retval)
