@@ -1983,17 +1983,17 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 	}
 
 	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentLogin(
-		ctx,
-		tc.WebProxyAddr,
-		tc.Config.Username,
-		password,
-		otpToken,
-		pub,
-		tc.KeyTTL,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr),
-		tc.CertificateFormat)
+	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
+		ProxyAddr:     tc.WebProxyAddr,
+		User:          tc.Config.Username,
+		Password:      password,
+		OTPToken:      otpToken,
+		PubKey:        pub,
+		TTL:           tc.KeyTTL,
+		Insecure:      tc.InsecureSkipVerify,
+		Pool:          loopbackPool(tc.WebProxyAddr),
+		Compatibility: tc.CertificateFormat,
+	})
 
 	return response, trace.Wrap(err)
 }
@@ -2002,8 +2002,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
 	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentSSOLogin(SSHLogin{
-		Context:       ctx,
+	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
 		ConnectorID:   connectorID,
 		PubKey:        pub,
 		TTL:           tc.KeyTTL,
@@ -2030,16 +2029,16 @@ func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLo
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := SSHAgentU2FLogin(
-		ctx,
-		tc.WebProxyAddr,
-		tc.Config.Username,
-		password,
-		pub,
-		tc.KeyTTL,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr),
-		tc.CertificateFormat)
+	response, err := SSHAgentU2FLogin(ctx, SSHLoginU2F{
+		ProxyAddr:     tc.WebProxyAddr,
+		User:          tc.Config.Username,
+		Password:      password,
+		PubKey:        pub,
+		TTL:           tc.KeyTTL,
+		Insecure:      tc.InsecureSkipVerify,
+		Pool:          loopbackPool(tc.WebProxyAddr),
+		Compatibility: tc.CertificateFormat,
+	})
 
 	return response, trace.Wrap(err)
 }
