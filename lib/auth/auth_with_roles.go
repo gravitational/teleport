@@ -356,12 +356,7 @@ func (a *AuthWithRoles) filterNodes(nodes []services.Server) ([]services.Server,
 		return nodes, nil
 	}
 
-	// Fetch services.RoleSet for the identity of the logged in user.
-	roles, traits, err := services.ExtractFromIdentity(a.authServer, &a.identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleset, err := services.FetchRoles(roles, a.authServer, traits)
+	roleset, err := services.FetchRoles(a.user.GetRoles(), a.authServer, a.user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

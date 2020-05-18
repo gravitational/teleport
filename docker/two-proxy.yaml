@@ -4,8 +4,8 @@ teleport:
   auth_servers: ["two-auth"]
   auth_token: foo
   log:
-    output: /var/lib/teleport/teleport.log
-    severity: INFO
+    output: stdout
+    severity: DEBUG
   data_dir: /var/lib/teleport
   storage:
       path: /var/lib/teleport/backend
