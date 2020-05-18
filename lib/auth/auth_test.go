@@ -650,8 +650,6 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 
 	// test create event for switch case: when tc exists but enabled is false
 	tc.SetEnabled(false)
-	c.Assert(tc, NotNil)
-	c.Assert(err, IsNil)
 
 	_, err = s.a.UpsertTrustedCluster(tc)
 	c.Assert(err, IsNil)
@@ -660,8 +658,6 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 	// test create event for switch case: when tc exists but enabled is true
 	createEventEmitted = false
 	tc.SetEnabled(true)
-	c.Assert(tc, NotNil)
-	c.Assert(err, IsNil)
 
 	_, err = s.a.UpsertTrustedCluster(tc)
 	c.Assert(err, IsNil)
