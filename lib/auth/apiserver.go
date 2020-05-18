@@ -2132,7 +2132,7 @@ func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err := auth.DeleteRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message(fmt.Sprintf("role '%v' deleted", role)), nil
+	return message(fmt.Sprintf("role %q deleted", role)), nil
 }
 
 func (s *APIServer) getClusterConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

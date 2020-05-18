@@ -60,7 +60,6 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 
 func (s *AuthSuite) SetUpTest(c *C) {
 	var err error
-	s.mockedAuditLog = events.NewMockAuditLog(0)
 	s.dataDir = c.MkDir()
 	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: s.dataDir})
 	c.Assert(err, IsNil)
@@ -101,6 +100,9 @@ func (s *AuthSuite) SetUpTest(c *C) {
 
 	err = s.a.SetClusterConfig(services.DefaultClusterConfig())
 	c.Assert(err, IsNil)
+
+	s.mockedAuditLog = events.NewMockAuditLog(0)
+	s.a.IAuditLog = s.mockedAuditLog
 }
 
 func (s *AuthSuite) TearDownTest(c *C) {
@@ -587,13 +589,14 @@ func (s *AuthSuite) TestUpdateByWithContext(c *C) {
 }
 
 func (s *AuthSuite) TestCreateAndUpdateUser(c *C) {
-	s.a.IAuditLog = s.mockedAuditLog
 	user, err := services.NewUser("some-user")
 	c.Assert(err, IsNil)
 
 	// test create user
+	createEventEmitted := false
 	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
-		c.Assert(event.Code, Equals, events.UserCreateCode)
+		createEventEmitted = true
+		c.Assert(event, DeepEquals, events.UserCreate)
 		c.Assert(fields[events.EventUser], Equals, "some-auth-user")
 		return nil
 	}
@@ -601,6 +604,7 @@ func (s *AuthSuite) TestCreateAndUpdateUser(c *C) {
 	// trigger error
 	err = s.a.CreateUser(context.TODO(), user)
 	c.Assert(err, ErrorMatches, `created by is not set for new user "some-user"`)
+	c.Assert(createEventEmitted, Equals, false)
 
 	// happy path
 	user.SetCreatedBy(services.CreatedBy{
@@ -608,10 +612,13 @@ func (s *AuthSuite) TestCreateAndUpdateUser(c *C) {
 	})
 	err = s.a.CreateUser(context.TODO(), user)
 	c.Assert(err, IsNil)
+	c.Assert(createEventEmitted, Equals, true)
 
 	// test update user
+	updateEventEmitted := false
 	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
-		c.Assert(event.Code, Equals, events.UserUpdateCode)
+		updateEventEmitted = true
+		c.Assert(event, DeepEquals, events.UserUpdate)
 		c.Assert(fields[events.EventUser], Equals, "some-context-user")
 		return nil
 	}
@@ -619,4 +626,62 @@ func (s *AuthSuite) TestCreateAndUpdateUser(c *C) {
 	c.Assert(ctx, NotNil)
 	err = s.a.UpdateUser(ctx, user)
 	c.Assert(err, IsNil)
+	c.Assert(updateEventEmitted, Equals, true)
+}
+
+func (s *AuthSuite) TestUpsertDeleteRole(c *C) {
+	// test create new role
+	roleTest, err := services.NewRole("test", services.RoleSpecV3{
+		Options: services.RoleOptions{},
+		Allow:   services.RoleConditions{},
+	})
+	c.Assert(err, IsNil)
+
+	createEventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		createEventEmitted = true
+		c.Assert(event, DeepEquals, events.RoleCreated)
+		c.Assert(fields[events.FieldName], Equals, "test")
+		return nil
+	}
+
+	err = s.a.upsertRole(roleTest)
+	c.Assert(err, IsNil)
+	c.Assert(createEventEmitted, Equals, true)
+
+	roleRetrieved, err := s.a.GetRole("test")
+	c.Assert(err, IsNil)
+	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
+
+	// test update role
+	createEventEmitted = false
+	err = s.a.upsertRole(roleTest)
+	c.Assert(err, IsNil)
+	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
+	c.Assert(createEventEmitted, Equals, true)
+
+	// test delete role
+	deleteEventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		deleteEventEmitted = true
+		c.Assert(event, DeepEquals, events.RoleDeleted)
+		c.Assert(fields[events.FieldName], Equals, "test")
+		return nil
+	}
+
+	err = s.a.DeleteRole("test")
+	c.Assert(err, IsNil)
+	c.Assert(deleteEventEmitted, Equals, true)
+
+	// test role has been deleted
+	roleRetrieved, err = s.a.GetRole("test")
+	c.Assert(trace.IsNotFound(err), Equals, true)
+	c.Assert(roleRetrieved, IsNil)
+
+	// test role that doesn't exist
+	deleteEventEmitted = false
+	err = s.a.DeleteRole("test")
+	c.Assert(trace.IsNotFound(err), Equals, true)
+	c.Assert(deleteEventEmitted, Equals, false)
+
 }
