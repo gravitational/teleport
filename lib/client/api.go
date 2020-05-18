@@ -2064,7 +2064,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 		ProxyAddr:     tc.WebProxyAddr,
 		Insecure:      tc.InsecureSkipVerify,
 		Pool:          loopbackPool(tc.WebProxyAddr),
-	}, tc)
+	}, tc.Browser)
 	return response, trace.Wrap(err)
 }
 
