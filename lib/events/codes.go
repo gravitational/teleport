@@ -211,6 +211,12 @@ var (
 		Name: TrustedClusterDeleteEvent,
 		Code: TrustedClusterDeleteCode,
 	}
+	// TrustedClusterTokenCreate is emitted when a new join
+	// token for trusted cluster is created.
+	TrustedClusterTokenCreate = Event{
+		Name: TrustedClusterTokenCreateEvent,
+		Code: TrustedClusterTokenCreateCode,
+	}
 	// GithubConnectorCreated is emitted when a Github connector is created/updated.
 	GithubConnectorCreated = Event{
 		Name: GithubConnectorCreatedEvent,
@@ -315,6 +321,9 @@ const (
 	TrustedClusterCreateCode = "T7000I"
 	// TrustedClusterDeleteCode is the event code for removing a trusted cluster.
 	TrustedClusterDeleteCode = "T7001I"
+	// TrustedClusterTokenCreateCode is the event code for
+	// creating new join token for a trusted cluster.
+	TrustedClusterTokenCreateCode = "T7002I"
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8001I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.

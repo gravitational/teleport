@@ -811,6 +811,15 @@ func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 	if err := s.Provisioner.UpsertToken(token); err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	for _, role := range req.Roles {
+		if role == teleport.RoleTrustedCluster {
+			s.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
+				events.EventUser: "unimplemented",
+			})
+		}
+	}
+
 	return req.Token, nil
 }
 
