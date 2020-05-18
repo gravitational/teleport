@@ -1903,21 +1903,33 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 }
 
 // applyProxySettings updates configuration changes based on the advertised
-// proxy settings, user supplied values take precedence - will be preserved
-// if set
+// proxy settings, overriding existing fields in tc.
 func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error {
 	// Kubernetes proxy settings.
-	if proxySettings.Kube.Enabled && proxySettings.Kube.PublicAddr != "" && tc.KubeProxyAddr == "" {
-		_, err := utils.ParseAddr(proxySettings.Kube.PublicAddr)
-		if err != nil {
-			return trace.BadParameter(
-				"failed to parse value received from the server: %q, contact your administrator for help",
-				proxySettings.Kube.PublicAddr)
+	if proxySettings.Kube.Enabled {
+		switch {
+		// PublicAddr is the first preference.
+		case proxySettings.Kube.PublicAddr != "":
+			if _, err := utils.ParseAddr(proxySettings.Kube.PublicAddr); err != nil {
+				return trace.BadParameter(
+					"failed to parse value received from the server: %q, contact your administrator for help",
+					proxySettings.Kube.PublicAddr)
+			}
+			tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
+		// ListenAddr is the second preference.
+		case proxySettings.Kube.ListenAddr != "":
+			if _, err := utils.ParseAddr(proxySettings.Kube.ListenAddr); err != nil {
+				return trace.BadParameter(
+					"failed to parse value received from the server: %q, contact your administrator for help",
+					proxySettings.Kube.ListenAddr)
+			}
+			tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
+		// If neither PublicAddr nor ListenAddr are passed, use the web
+		// interface hostname with default k8s port as a guess.
+		default:
+			webProxyHost, _ := tc.WebProxyHostPort()
+			tc.KubeProxyAddr = fmt.Sprintf("%s:%d", webProxyHost, defaults.KubeProxyListenPort)
 		}
-		tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
-	} else if proxySettings.Kube.Enabled && tc.KubeProxyAddr == "" {
-		webProxyHost, _ := tc.WebProxyHostPort()
-		tc.KubeProxyAddr = fmt.Sprintf("%s:%d", webProxyHost, defaults.KubeProxyListenPort)
 	}
 
 	// Read in settings for HTTP endpoint of the proxy.

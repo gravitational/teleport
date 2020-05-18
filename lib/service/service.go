@@ -2106,6 +2106,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
 			proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
 		}
+		if cfg.Proxy.Kube.Enabled {
+			proxySettings.Kube.ListenAddr = cfg.Proxy.Kube.ListenAddr.String()
+		}
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
 		}

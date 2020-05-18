@@ -173,6 +173,9 @@ type KubeProxySettings struct {
 	Enabled bool `json:"enabled,omitempty"`
 	// PublicAddr is a kubernetes proxy public address if set
 	PublicAddr string `json:"public_addr,omitempty"`
+	// ListenAddr is the address that the kubernetes proxy is listening for
+	// connections on.
+	ListenAddr string `json:"listen_addr,omitempty"`
 }
 
 // SSHProxySettings is SSH specific proxy settings.
