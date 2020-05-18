@@ -350,7 +350,7 @@ func SSHAgentSSOLogin(login SSHLogin, browser string) (*auth.SSHLoginResponse, e
 
 	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
-	if browser != "none" {
+	if browser != teleport.BrowserNone {
 		switch runtime.GOOS {
 		// macOS.
 		case teleport.DarwinOS:
@@ -378,7 +378,7 @@ func SSHAgentSSOLogin(login SSHLogin, browser string) (*auth.SSHLoginResponse, e
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
 	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
-	if browser == "none" {
+	if browser == teleport.BrowserNone {
 		fmt.Printf("Use the following URL to authenticate:\n %v\n", clickableURL)
 	} else {
 		fmt.Printf("If browser window does not open automatically, open it by ")
