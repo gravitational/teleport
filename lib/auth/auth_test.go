@@ -311,7 +311,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	// lets use static tokens now
 	roles = teleport.Roles{teleport.RoleProxy}
 	st, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{services.ProvisionTokenV1{
+		StaticTokens: []services.ProvisionTokenV1{{
 			Token:   "static-token-value",
 			Roles:   roles,
 			Expires: time.Unix(0, 0).UTC(),
@@ -360,6 +360,20 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	tampered := string(tok[0]+1) + tok[1:]
 	_, err = s.a.ValidateToken(tampered)
 	c.Assert(err, NotNil)
+}
+
+func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
+	eventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		eventEmitted = true
+		c.Assert(event, DeepEquals, events.TrustedClusterTokenCreate)
+		return nil
+	}
+
+	// test trusted cluster token
+	_, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleTrustedCluster}})
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
 }
 
 func (s *AuthSuite) TestBuildRolesInvalid(c *C) {
