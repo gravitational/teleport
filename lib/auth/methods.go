@@ -290,8 +290,8 @@ func AuthoritiesToTrustedCerts(authorities []services.CertAuthority) []TrustedCe
 	return out
 }
 
-// AuthenticateSSHUser authenticates web user, creates and  returns web session
-// in case if authentication is successful
+// AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
+// certificates for the public key in req.
 func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
