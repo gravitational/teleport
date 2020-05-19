@@ -1094,7 +1094,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
 	if err != nil {
-		return nil, trace.AccessDenied("bad auth credentials")
+		return nil, trace.AccessDenied("bad auth credentials: %v", err)
 	}
 
 	if err := SetSession(w, req.User, webSession.GetName()); err != nil {
