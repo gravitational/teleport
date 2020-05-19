@@ -598,6 +598,10 @@ const (
 
 	// OpenBrowserWindows is the command used to open a web browser on Windows.
 	OpenBrowserWindows = "rundll32.exe"
+
+	// BrowserNone is the string used to suppress the opening of a browser in
+	// response to 'tsh login' commands.
+	BrowserNone = "none"
 )
 
 const (

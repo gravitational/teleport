@@ -252,6 +252,10 @@ type Config struct {
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
+
+	// Browser can be used to pass the name of a browser to override the system default
+	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
+	Browser string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -2060,7 +2064,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 		ProxyAddr:     tc.WebProxyAddr,
 		Insecure:      tc.InsecureSkipVerify,
 		Pool:          loopbackPool(tc.WebProxyAddr),
-	})
+	}, tc.Browser)
 	return response, trace.Wrap(err)
 }
 

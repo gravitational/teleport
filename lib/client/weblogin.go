@@ -335,7 +335,7 @@ func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
+func SSHAgentSSOLogin(login SSHLogin, browser string) (*auth.SSHLoginResponse, error) {
 	rd, err := NewRedirector(login)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -350,33 +350,40 @@ func SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
 
 	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
-	switch runtime.GOOS {
-	// macOS.
-	case teleport.DarwinOS:
-		path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-		if err == nil {
-			execCmd = exec.Command(path, clickableURL)
-		}
-	// Windows.
-	case teleport.WindowsOS:
-		path, err := exec.LookPath(teleport.OpenBrowserWindows)
-		if err == nil {
-			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)
-		}
-	// Linux or any other operating system.
-	default:
-		path, err := exec.LookPath(teleport.OpenBrowserLinux)
-		if err == nil {
-			execCmd = exec.Command(path, clickableURL)
+	if browser != teleport.BrowserNone {
+		switch runtime.GOOS {
+		// macOS.
+		case teleport.DarwinOS:
+			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
+			if err == nil {
+				execCmd = exec.Command(path, clickableURL)
+			}
+		// Windows.
+		case teleport.WindowsOS:
+			path, err := exec.LookPath(teleport.OpenBrowserWindows)
+			if err == nil {
+				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)
+			}
+		// Linux or any other operating system.
+		default:
+			path, err := exec.LookPath(teleport.OpenBrowserLinux)
+			if err == nil {
+				execCmd = exec.Command(path, clickableURL)
+			}
 		}
 	}
 	if execCmd != nil {
 		execCmd.Start()
 	}
 
-	// Print to screen in-case the command that launches the browser did not run.
-	fmt.Printf("If browser window does not open automatically, open it by ")
-	fmt.Printf("clicking on the link:\n %v\n", clickableURL)
+	// Print the URL to the screen, in case the command that launches the browser did not run.
+	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
+	if browser == teleport.BrowserNone {
+		fmt.Printf("Use the following URL to authenticate:\n %v\n", clickableURL)
+	} else {
+		fmt.Printf("If browser window does not open automatically, open it by ")
+		fmt.Printf("clicking on the link:\n %v\n", clickableURL)
+	}
 
 	select {
 	case err := <-rd.ErrorC():
