@@ -217,6 +217,7 @@ type AuthenticateSSHRequest struct {
 	TTL time.Duration `json:"ttl"`
 	// CompatibilityMode sets certificate compatibility mode with old SSH clients
 	CompatibilityMode string `json:"compatibility_mode"`
+	RouteToCluster    string `json:"route_to_cluster"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -334,12 +335,13 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 	}
 
 	certs, err := s.generateUserCert(certRequest{
-		user:          user,
-		ttl:           req.TTL,
-		publicKey:     req.PublicKey,
-		compatibility: req.CompatibilityMode,
-		checker:       checker,
-		traits:        user.GetTraits(),
+		user:           user,
+		ttl:            req.TTL,
+		publicKey:      req.PublicKey,
+		compatibility:  req.CompatibilityMode,
+		checker:        checker,
+		traits:         user.GetTraits(),
+		routeToCluster: req.RouteToCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
