@@ -561,7 +561,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	// try and set static tokens, this should be successful because the last
 	// one to upsert tokens wins
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{services.ProvisionTokenV1{
+		StaticTokens: []services.ProvisionTokenV1{{
 			Token: "bar",
 			Roles: teleport.Roles{teleport.Role("baz")},
 		}},
@@ -577,7 +577,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
 	st, err = s.a.GetStaticTokens()
 	c.Assert(err, IsNil)
-	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{services.ProvisionTokenV1{
+	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{{
 		Token: "bar",
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}}))
@@ -586,7 +586,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	// new static tokens
 	st, err = authServer.GetStaticTokens()
 	c.Assert(err, IsNil)
-	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{services.ProvisionTokenV1{
+	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{{
 		Token: "bar",
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}}))
