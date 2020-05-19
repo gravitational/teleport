@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -145,6 +146,104 @@ func (s *AuthSuite) TestSessions(c *C) {
 
 	_, err = s.a.GetWebSession(user, ws.GetName())
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
+}
+
+func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
+
+	user := "user1"
+	pass := []byte("abc123")
+
+	// Try to login as an unknown user.
+	_, err := s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+	})
+	c.Assert(err, NotNil)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
+
+	// Create the user.
+	_, role, err := CreateUserAndRole(s.a, user, []string{user})
+	c.Assert(err, IsNil)
+	err = s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
+	// Give the role some k8s principals too.
+	role.SetKubeUsers(services.Allow, []string{user})
+	role.SetKubeGroups(services.Allow, []string{"system:masters"})
+	err = s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+
+	kg := testauthority.New()
+	_, pub, err := kg.GetNewKeyPairFromPool()
+	c.Assert(err, IsNil)
+
+	// Login to the root cluster.
+	resp, err := s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:      pub,
+		TTL:            time.Hour,
+		RouteToCluster: "me.localhost",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, user)
+	// Verify the public key and principals in SSH cert.
+	inSSHPub, _, _, _, err := ssh.ParseAuthorizedKey(pub)
+	c.Assert(err, IsNil)
+	gotSSHCertPub, _, _, _, err := ssh.ParseAuthorizedKey(resp.Cert)
+	c.Assert(err, IsNil)
+	gotSSHCert := gotSSHCertPub.(*ssh.Certificate)
+	c.Assert(gotSSHCert.Key, DeepEquals, inSSHPub)
+	c.Assert(gotSSHCert.ValidPrincipals, DeepEquals, []string{user})
+	// Verify the public key and Subject in TLS cert.
+	inCryptoPub := inSSHPub.(ssh.CryptoPublicKey).CryptoPublicKey()
+	gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+	c.Assert(err, IsNil)
+	c.Assert(gotTLSCert.PublicKey, DeepEquals, inCryptoPub)
+	wantID := tlsca.Identity{
+		Username:         user,
+		Groups:           []string{role.GetName()},
+		Principals:       []string{user},
+		KubernetesUsers:  []string{user},
+		KubernetesGroups: []string{"system:masters"},
+		Expires:          gotTLSCert.NotAfter,
+		RouteToCluster:   "me.localhost",
+	}
+	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	c.Assert(err, IsNil)
+	c.Assert(*gotID, DeepEquals, wantID)
+
+	// Login to the leaf cluster.
+	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:      pub,
+		TTL:            time.Hour,
+		RouteToCluster: "leaf.localhost",
+	})
+	c.Assert(err, IsNil)
+	// Verify the TLS cert has the correct RouteToCluster set.
+	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
+	c.Assert(err, IsNil)
+	wantID = tlsca.Identity{
+		Username:         user,
+		Groups:           []string{role.GetName()},
+		Principals:       []string{user},
+		KubernetesUsers:  []string{user},
+		KubernetesGroups: []string{"system:masters"},
+		Expires:          gotTLSCert.NotAfter,
+		RouteToCluster:   "leaf.localhost",
+	}
+	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	c.Assert(err, IsNil)
+	c.Assert(*gotID, DeepEquals, wantID)
 }
 
 func (s *AuthSuite) TestUserLock(c *C) {
