@@ -163,7 +163,9 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	cfg.HostLogin = req.login
 	cfg.SiteName = req.cluster
 	cfg.Namespace = req.namespace
-	cfg.ParseProxyHost(f.proxyHostPort)
+	if err := cfg.ParseProxyHost(f.proxyHostPort); err != nil {
+		return nil, trace.BadParameter("failed to parse proxy address: %v", err)
+	}
 	cfg.Host = hostName
 	cfg.HostPort = hostPort
 	cfg.ClientAddr = httpReq.RemoteAddr

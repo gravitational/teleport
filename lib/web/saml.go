@@ -130,8 +130,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
-		return nil, nil
+		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
 	}
 	l.Debugf("samlCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {

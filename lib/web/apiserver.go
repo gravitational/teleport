@@ -308,7 +308,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 				}
 			}
 			httplib.SetIndexHTMLHeaders(w.Header())
-			indexPage.Execute(w, session)
+			if err := indexPage.Execute(w, session); err != nil {
+				log.Errorf("Failed to execute index page template: %v", err)
+			}
 		} else {
 			http.NotFound(w, r)
 		}
@@ -805,8 +807,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
-		return nil, nil
+		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
 	}
 	logger.Infof("Callback is redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
@@ -884,8 +885,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
-		return nil, nil
+		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
 	}
 	log.Infof("oidcCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {
@@ -1126,9 +1126,7 @@ func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
 	if err := ctx.Invalidate(); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := ClearSession(w); err != nil {
-		return trace.Wrap(err)
-	}
+	ClearSession(w)
 
 	return nil
 }
@@ -1689,8 +1687,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	var site reversetunnel.RemoteSite
 	onError := func(err error) {
 		logger.Debugf("Unable to retrieve session chunk: %v.", err)
-		w.WriteHeader(trace.ErrorToCode(err))
-		w.Write([]byte(err.Error()))
+		http.Error(w, err.Error(), trace.ErrorToCode(err))
 	}
 	// authenticate first:
 	ctx, err := h.AuthenticateRequest(w, r, true)

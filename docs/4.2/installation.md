@@ -161,7 +161,7 @@ $ cd teleport
 # Make sure you have `zip` installed - the Makefile uses it
 $ make full
 # create the default data directory before running `teleport`
-$ sudo mkdir -p /var/lib/teleport
+$ sudo mkdir -p -m0700 /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 

@@ -60,7 +60,7 @@ First, create a directory for Teleport to keep its data (by default it's
 `/var/lib/teleport`):
 
 ``` bash
-$ mkdir -p /var/lib/teleport
+$ mkdir -p -m0700 /var/lib/teleport
 ```
 
 Now we are ready to start Teleport. Start the `teleport` daemon:

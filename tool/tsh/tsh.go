@@ -161,6 +161,10 @@ type CLIConf struct {
 
 	// Debug sends debug logs to stdout.
 	Debug bool
+
+	// Browser can be used to pass the name of a browser to override the system default
+	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
+	Browser string
 }
 
 func main() {
@@ -185,6 +189,7 @@ const (
 	clusterHelp    = "Specify the cluster to connect"
 	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
 	authEnvVar     = "TELEPORT_AUTH"
+	browserHelp    = "Set to 'none' to suppress browser opening on login"
 )
 
 // Run executes TSH client. same as main() but easier to test
@@ -268,6 +273,7 @@ func Run(args []string, underTest bool) {
 	)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
+	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -435,7 +441,9 @@ func onLogin(cf *CLIConf) {
 			if err != nil {
 				utils.FatalError(err)
 			}
-			tc.SaveProfile("", "")
+			if err := tc.SaveProfile("", ""); err != nil {
+				utils.FatalError(err)
+			}
 			if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 				utils.FatalError(err)
 			}
@@ -490,7 +498,9 @@ func onLogin(cf *CLIConf) {
 	}
 
 	// Regular login without -i flag.
-	tc.SaveProfile(key.ProxyHost, "")
+	if err := tc.SaveProfile(key.ProxyHost, ""); err != nil {
+		utils.FatalError(err)
+	}
 
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
@@ -846,7 +856,9 @@ func onBenchmark(cf *CLIConf) {
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
-	io.Copy(os.Stdout, t.AsBuffer())
+	if _, err := io.Copy(os.Stdout, t.AsBuffer()); err != nil {
+		utils.FatalError(err)
+	}
 	fmt.Printf("\n")
 }
 
@@ -1069,6 +1081,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 
 	// Don't execute remote command, used when port forwarding.
 	c.NoRemoteExec = cf.NoRemoteExec
+
+	// Allow the default browser used to open tsh login links to be overridden
+	// (not currently implemented) or set to 'none' to suppress browser opening entirely.
+	c.Browser = cf.Browser
 
 	tc, err := client.NewClient(c)
 	if err != nil {

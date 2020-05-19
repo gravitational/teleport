@@ -1471,7 +1471,7 @@ func (a *AuthWithRoles) CreateRole(role services.Role) error {
 	return trace.NotImplemented("not implemented")
 }
 
-// UpsertRole creates or updates role
+// UpsertRole creates or updates role.
 func (a *AuthWithRoles) UpsertRole(role services.Role) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -1479,7 +1479,8 @@ func (a *AuthWithRoles) UpsertRole(role services.Role) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertRole(role)
+
+	return a.authServer.upsertRole(role)
 }
 
 // GetRole returns role by name
