@@ -135,12 +135,32 @@ func oidcConfig(conn services.OIDCConnector) oidc.ClientConfig {
 	}
 }
 
+// UpsertOIDCConnector creates or updates an OIDC connector.
 func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector) error {
-	return s.Identity.UpsertOIDCConnector(connector)
+	if err := s.Identity.UpsertOIDCConnector(connector); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.EmitAuditEvent(events.OIDCConnectorCreated, events.EventFields{
+		events.FieldName: connector.GetName(),
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
 }
 
+// DeleteOIDCConnector deletes an OIDC connector by name.
 func (s *AuthServer) DeleteOIDCConnector(connectorName string) error {
-	return s.Identity.DeleteOIDCConnector(connectorName)
+	if err := s.Identity.DeleteOIDCConnector(connectorName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.EmitAuditEvent(events.OIDCConnectorDeleted, events.EventFields{
+		events.FieldName: connectorName,
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
 }
 
 func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {

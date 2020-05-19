@@ -1174,6 +1174,7 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 	return a.authServer.UpsertUser(u)
 }
 
+// UpsertOIDCConnector creates or updates an OIDC connector.
 func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -1237,6 +1238,7 @@ func (a *AuthWithRoles) CreateSAMLConnector(connector services.SAMLConnector) er
 	return a.authServer.UpsertSAMLConnector(connector)
 }
 
+// UpsertSAMLConnector creates or updates a SAML connector.
 func (a *AuthWithRoles) UpsertSAMLConnector(connector services.SAMLConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -1286,6 +1288,7 @@ func (a *AuthWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, erro
 	return a.authServer.ValidateSAMLResponse(re)
 }
 
+// DeleteSAMLConnector deletes a SAML connector by name.
 func (a *AuthWithRoles) DeleteSAMLConnector(connectorID string) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
@@ -1300,11 +1303,15 @@ func (a *AuthWithRoles) CreateGithubConnector(connector services.GithubConnector
 	return a.authServer.CreateGithubConnector(connector)
 }
 
+// UpsertGithubConnector creates or updates a Github connector.
 func (a *AuthWithRoles) UpsertGithubConnector(connector services.GithubConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertGithubConnector(connector)
+	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.upsertGithubConnector(connector)
 }
 
 func (a *AuthWithRoles) GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error) {
@@ -1334,11 +1341,12 @@ func (a *AuthWithRoles) GetGithubConnectors(withSecrets bool) ([]services.Github
 	return a.authServer.Identity.GetGithubConnectors(withSecrets)
 }
 
-func (a *AuthWithRoles) DeleteGithubConnector(id string) error {
+// DeleteGithubConnector deletes a Github connector by name.
+func (a *AuthWithRoles) DeleteGithubConnector(connectorID string) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteGithubConnector(id)
+	return a.authServer.deleteGithubConnector(connectorID)
 }
 
 func (a *AuthWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
