@@ -140,8 +140,8 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvents.EventType, DeepEquals, events.UserPasswordChange)
-	c.Assert(s.mockedAuditLog.EmittedEvents.Fields[events.EventUser], Equals, "user1")
+	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserPasswordChange)
+	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "user1")
 
 	s.shouldLockAfterFailedAttempts(c, req)
 

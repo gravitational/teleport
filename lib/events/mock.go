@@ -34,19 +34,19 @@ func NewMockAuditLog(capacity int) *MockAuditLog {
 	}
 }
 
-// Events holds the event type and event fields.
-type Events struct {
+// EmittedEvent holds the event type and event fields.
+type EmittedEvent struct {
 	EventType Event
 	Fields    EventFields
 }
 
-// MockAuditLog is audit log used for tests
+// MockAuditLog is audit log used for tests.
 type MockAuditLog struct {
 	sync.Mutex
 	returnError     error
 	FailedAttemptsC chan *SessionSlice
 	SlicesC         chan *SessionSlice
-	EmittedEvents   *Events
+	EmittedEvent    *EmittedEvent
 }
 
 func (d *MockAuditLog) SetError(e error) {
@@ -69,9 +69,9 @@ func (d *MockAuditLog) Close() error {
 	return nil
 }
 
-// EmitAuditEvent is a mock to record events in a slice of Events.
-func (d *MockAuditLog) EmitAuditEvent(event Event, fields EventFields) error {
-	d.EmittedEvents = &Events{event, fields}
+// EmitAuditEvent is a mock that records even and fields inside a struct.
+func (d *MockAuditLog) EmitAuditEvent(ev Event, fields EventFields) error {
+	d.EmittedEvent = &EmittedEvent{ev, fields}
 
 	return nil
 }
@@ -107,5 +107,5 @@ func (d *MockAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) 
 
 // Reset resets state to zero values.
 func (d *MockAuditLog) Reset() {
-	d.EmittedEvents = nil
+	d.EmittedEvent = nil
 }
