@@ -1266,11 +1266,14 @@ $ tsh login --proxy=proxy.example.com joe
 $ ssh-add -L
 ```
 
-!!! warning "GNOME Keyring SSH Agent"
+!!! warning "GNOME Keyring SSH Agent and GPG Agent"
 
-    It is well-known that Gnome Keyring SSH
-    agent, used by many popular Linux desktops like Ubuntu, does not support SSH
-    certificates. We recommend using the `ssh-agent` command from `openssh-client` package.
+    It is well-known that Gnome Keyring SSH agent, used by many popular Linux
+    desktops like Ubuntu, and gpg-agent from GnuPG do not support SSH
+    certificates. We recommend using the `ssh-agent` from OpenSSH.
+    Alternatively, you can disable SSH agent integration entirely using
+    `--no-use-local-ssh-agent` flag or `TELEPORT_USE_LOCAL_SSH_AGENT=false`
+    environment variable with `tsh`.
 
 ### OpenSSH Rate Limiting
 

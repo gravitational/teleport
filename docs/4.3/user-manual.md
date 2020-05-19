@@ -149,6 +149,10 @@ $ ssh-add -L
 SSH agent can be used to feed the certificate to other SSH clients, for example
 to OpenSSH `ssh`.
 
+If you wish to disable SSH agent integration, pass `--no-use-local-ssh-agent`
+to `tsh`. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment
+variable to `false` in your shell profile to make this permanent.
+
 ### Identity Files
 
 [`tsh login`](cli-docs.md#tsh-login) can also save the user certificate into a
