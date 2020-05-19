@@ -569,6 +569,7 @@ type upsertTrustedClusterReq struct {
 	TrustedCluster json.RawMessage `json:"trusted_cluster"`
 }
 
+// upsertTrustedCluster creates or updates a trusted cluster.
 func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertTrustedClusterReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -619,6 +620,7 @@ func (s *APIServer) getTrustedClusters(auth ClientI, w http.ResponseWriter, r *h
 	return auth.GetTrustedClusters()
 }
 
+// deleteTrustedCluster deletes a trusted cluster by name.
 func (s *APIServer) deleteTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteTrustedCluster(p.ByName("name"))
 	if err != nil {

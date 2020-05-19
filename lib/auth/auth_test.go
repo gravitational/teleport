@@ -685,3 +685,58 @@ func (s *AuthSuite) TestUpsertDeleteRole(c *C) {
 	c.Assert(deleteEventEmitted, Equals, false)
 
 }
+
+func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
+	s.a.IAuditLog = s.mockedAuditLog
+
+	// set up existing cluster to bypass switch cases that
+	// makes a network request when creating new clusters
+	tc, err := services.NewTrustedCluster("test", services.TrustedClusterSpecV2{
+		Enabled:              true,
+		Roles:                []string{"a"},
+		ReverseTunnelAddress: "b",
+	})
+	c.Assert(err, IsNil)
+	_, err = s.a.Presence.UpsertTrustedCluster(tc)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "test")), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, "test")), IsNil)
+
+	err = s.a.createReverseTunnel(tc)
+	c.Assert(err, IsNil)
+
+	createEventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		createEventEmitted = true
+		c.Assert(event, DeepEquals, events.TrustedClusterCreate)
+		return nil
+	}
+
+	// test create event for switch case: when tc exists but enabled is false
+	tc.SetEnabled(false)
+
+	_, err = s.a.UpsertTrustedCluster(tc)
+	c.Assert(err, IsNil)
+	c.Assert(createEventEmitted, Equals, true)
+
+	// test create event for switch case: when tc exists but enabled is true
+	createEventEmitted = false
+	tc.SetEnabled(true)
+
+	_, err = s.a.UpsertTrustedCluster(tc)
+	c.Assert(err, IsNil)
+	c.Assert(createEventEmitted, Equals, true)
+
+	// test delete event
+	deleteEventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		deleteEventEmitted = true
+		c.Assert(event, Equals, events.TrustedClusterDelete)
+		return nil
+	}
+
+	err = s.a.DeleteTrustedCluster("test")
+	c.Assert(err, IsNil)
+	c.Assert(deleteEventEmitted, Equals, true)
+}

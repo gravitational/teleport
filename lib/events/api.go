@@ -295,6 +295,11 @@ const (
 	RoleCreatedEvent = "role.created"
 	// RoleDeletedEvent fires when role is deleted.
 	RoleDeletedEvent = "role.deleted"
+
+	// TrustedClusterCreateEvent is the event for creating a trusted cluster.
+	TrustedClusterCreateEvent = "trusted_cluster.create"
+	// TrustedClusterDeleteEvent is the event for removing a trusted cluster.
+	TrustedClusterDeleteEvent = "trusted_cluster.delete"
 )
 
 const (
