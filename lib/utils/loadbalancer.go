@@ -111,7 +111,7 @@ func (l *LoadBalancer) AddBackend(b NetAddr) {
 }
 
 // RemoveBackend removes backend
-func (l *LoadBalancer) RemoveBackend(b NetAddr) {
+func (l *LoadBalancer) RemoveBackend(b NetAddr) error {
 	l.Lock()
 	defer l.Unlock()
 	l.currentIndex = -1
@@ -119,9 +119,10 @@ func (l *LoadBalancer) RemoveBackend(b NetAddr) {
 		if l.backends[i].Equals(b) {
 			l.backends = append(l.backends[:i], l.backends[i+1:]...)
 			l.dropConnections(b)
-			return
+			return nil
 		}
 	}
+	return trace.NotFound("lb has no backend matching: %+v", b)
 }
 
 func (l *LoadBalancer) nextBackend() (*NetAddr, error) {
@@ -156,14 +157,6 @@ func (l *LoadBalancer) isClosed() bool {
 func (l *LoadBalancer) Close() error {
 	l.closeListener()
 	return nil
-}
-
-// ListenAndServe starts listening socket and serves connections on it
-func (l *LoadBalancer) ListenAndServe() error {
-	if err := l.Listen(); err != nil {
-		return trace.Wrap(err)
-	}
-	return l.Serve()
 }
 
 // Listen creates a listener on the frontend addr

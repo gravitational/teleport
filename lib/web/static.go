@@ -63,7 +63,7 @@ func NewStaticFileSystem(debugMode bool) (http.FileSystem, error) {
 			_, err = os.Stat(path.Join(exePath, "../../e"))
 			isEnterprise := !os.IsNotExist(err)
 
-			if isEnterprise == true {
+			if isEnterprise {
 				// enterprise web assets
 				debugAssetsPath = path.Join(exePath, "../../webassets/e/teleport")
 			} else {
@@ -181,7 +181,9 @@ func (rsc *resource) Seek(offset int64, whence int) (int64, error) {
 	}
 	if pos > 0 {
 		b := make([]byte, pos)
-		rsc.reader.Read(b)
+		if _, err = rsc.reader.Read(b); err != nil {
+			return 0, err
+		}
 	}
 	rsc.pos = pos
 	return pos, nil

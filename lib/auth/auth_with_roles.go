@@ -506,7 +506,7 @@ func (a *AuthWithRoles) filterNodes(nodes []services.Server) ([]services.Server,
 	filteredNodes := make([]services.Server, 0, len(nodes))
 NextNode:
 	for _, node := range nodes {
-		for login, _ := range allowedLogins {
+		for login := range allowedLogins {
 			err := roleset.CheckAccessToServer(login, node)
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)
@@ -713,6 +713,7 @@ func (a *AuthWithRoles) UpsertPassword(user string, password []byte) error {
 	return a.authServer.UpsertPassword(user, password)
 }
 
+// ChangePassword updates users password based on the old password.
 func (a *AuthWithRoles) ChangePassword(req services.ChangePasswordReq) error {
 	if err := a.currentUserAction(req.User); err != nil {
 		return trace.Wrap(err)
@@ -806,8 +807,8 @@ func (a *AuthWithRoles) SetAccessRequestState(ctx context.Context, reqID string,
 	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	updateCtx := withUpdateBy(ctx, a.user.GetName())
-	return a.authServer.SetAccessRequestState(updateCtx, reqID, state)
+	ctx = withUpdateBy(ctx, a.user.GetName())
+	return a.authServer.SetAccessRequestState(ctx, reqID, state)
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -854,19 +855,38 @@ func (a *AuthWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}, nil
 }
 
-// withUpdateBy creates a child context with the AccessRequestUpdateBy
-// value set.  Expected by AuthServer.SetAccessRequestState.
+type contextKey string
+
+// withUpdateBy creates a child context with the updated_by value set.
+// Helps capture the user who modified a resource.
 func withUpdateBy(ctx context.Context, user string) context.Context {
-	return context.WithValue(ctx, events.AccessRequestUpdateBy, user)
+	return context.WithValue(ctx, contextKey(events.UpdatedBy), user)
 }
 
-// getUpdateBy attempts to load the context value AccessRequestUpdateBy.
+// getUpdateBy attempts to load the context value updated_by.
 func getUpdateBy(ctx context.Context) (string, error) {
-	updateBy, ok := ctx.Value(events.AccessRequestUpdateBy).(string)
+	updateBy, ok := ctx.Value(contextKey(events.UpdatedBy)).(string)
 	if !ok || updateBy == "" {
-		return "", trace.BadParameter("missing value %q", events.AccessRequestUpdateBy)
+		return "", trace.BadParameter("missing value %q", events.UpdatedBy)
 	}
 	return updateBy, nil
+}
+
+// WithDelegator creates a child context with the AccessRequestDelegator
+// value set.  Optionally used by AuthServer.SetAccessRequestState to log
+// a delegating identity.
+func WithDelegator(ctx context.Context, delegator string) context.Context {
+	return context.WithValue(ctx, contextKey(events.AccessRequestDelegator), delegator)
+}
+
+// getDelegator attempts to load the context value AccessRequestDelegator,
+// returning the empty string if no value was found.
+func getDelegator(ctx context.Context) string {
+	delegator, ok := ctx.Value(contextKey(events.AccessRequestDelegator)).(string)
+	if !ok {
+		return ""
+	}
+	return delegator
 }
 
 func (a *AuthWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -1038,7 +1058,7 @@ func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCer
 			}
 			roles = append(roles, accessReq.GetRoles()...)
 		}
-		// nothing prevents an access-request from including roles already posessed by the
+		// nothing prevents an access-request from including roles already possessed by the
 		// user, so we must make sure to trim duplicate roles.
 		roles = utils.Deduplicate(roles)
 	}
@@ -1089,9 +1109,9 @@ func (a *AuthWithRoles) CreateResetPasswordToken(ctx context.Context, req Create
 	}
 
 	a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
-		events.ResetPasswordTokenFor: req.Name,
+		events.ActionOnBehalfOf:      req.Name,
 		events.ResetPasswordTokenTTL: req.TTL.String(),
-		events.EventUser:    a.user.GetName(),
+		events.EventUser:             a.user.GetName(),
 	})
 
 	return a.authServer.CreateResetPasswordToken(ctx, req)
@@ -1110,6 +1130,31 @@ func (a *AuthWithRoles) RotateResetPasswordTokenSecrets(ctx context.Context, tok
 func (a *AuthWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
 	// Token is it's own authentication, no need to double check.
 	return a.authServer.ChangePasswordWithToken(ctx, req)
+}
+
+// CreateUser inserts a new user entry in a backend.
+func (a *AuthWithRoles) CreateUser(ctx context.Context, user services.User) error {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	user.SetCreatedBy(services.CreatedBy{
+		User: services.UserRef{Name: a.user.GetName()},
+	})
+
+	return a.authServer.CreateUser(ctx, user)
+}
+
+// UpdateUser updates an existing user in a backend.
+// Captures the auth user who modified the user record.
+func (a *AuthWithRoles) UpdateUser(ctx context.Context, user services.User) error {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ctx = withUpdateBy(ctx, a.user.GetName())
+
+	return a.authServer.UpdateUser(ctx, user)
 }
 
 func (a *AuthWithRoles) UpsertUser(u services.User) error {
@@ -1426,7 +1471,7 @@ func (a *AuthWithRoles) CreateRole(role services.Role) error {
 	return trace.NotImplemented("not implemented")
 }
 
-// UpsertRole creates or updates role
+// UpsertRole creates or updates role.
 func (a *AuthWithRoles) UpsertRole(role services.Role) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -1434,7 +1479,8 @@ func (a *AuthWithRoles) UpsertRole(role services.Role) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertRole(role)
+
+	return a.authServer.upsertRole(role)
 }
 
 // GetRole returns role by name
@@ -1731,7 +1777,7 @@ func (a *AuthWithRoles) DeleteAllRemoteClusters() error {
 }
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if sucessful.
+// signed certificate if successful.
 func (a *AuthWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	// limits the requests types to proxies to make it harder to break
 	if !a.hasBuiltinRole(string(teleport.RoleProxy)) {
@@ -1762,16 +1808,4 @@ func NewAdminAuthServer(authServer *AuthServer, sessions session.Service, alog e
 		alog:       alog,
 		sessions:   sessions,
 	}, nil
-}
-
-// NewAuthWithRoles creates new auth server with access control
-func NewAuthWithRoles(ctx AuthContext, authServer *AuthServer, sessions session.Service, alog events.IAuditLog) *AuthWithRoles {
-	return &AuthWithRoles{
-		authServer: authServer,
-		checker:    ctx.Checker,
-		sessions:   sessions,
-		user:       ctx.User,
-		identity:   ctx.Identity,
-		alog:       alog,
-	}
 }

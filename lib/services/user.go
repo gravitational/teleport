@@ -32,8 +32,8 @@ import (
 
 // User represents teleport embedded user or external user
 type User interface {
-	// Resource provides common resource properties
-	Resource
+	// ResourceWithSecrets provides common resource properties
+	ResourceWithSecrets
 	// GetOIDCIdentities returns a list of connected OIDC identities
 	GetOIDCIdentities() []ExternalIdentity
 	// GetSAMLIdentities returns a list of connected SAML identities
@@ -217,6 +217,16 @@ func (u *UserV2) SetName(e string) {
 	u.Metadata.Name = e
 }
 
+// WithoutSecrets returns an instance of resource without secrets.
+func (u *UserV2) WithoutSecrets() Resource {
+	if u.Spec.LocalAuth == nil {
+		return u
+	}
+	u2 := *u
+	u2.Spec.LocalAuth = nil
+	return &u2
+}
+
 // WebSessionInfo returns web session information about user
 func (u *UserV2) WebSessionInfo(allowedLogins []string) interface{} {
 	out := u.V1()
@@ -349,10 +359,7 @@ func (u *UserV2) Equals(other User) bool {
 			return false
 		}
 	}
-	if !u.Spec.LocalAuth.Equals(other.GetLocalAuth()) {
-		return false
-	}
-	return true
+	return u.Spec.LocalAuth.Equals(other.GetLocalAuth())
 }
 
 // Expiry returns expiry time for temporary users. Prefer expires from

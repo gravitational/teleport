@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,8 +40,9 @@ import (
 )
 
 type PasswordSuite struct {
-	bk backend.Backend
-	a  *AuthServer
+	bk             backend.Backend
+	a              *AuthServer
+	mockedAuditLog *events.MockAuditLog
 }
 
 var _ = fmt.Printf
@@ -91,6 +93,9 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(staticTokens)
 	c.Assert(err, IsNil)
+
+	s.mockedAuditLog = events.NewMockAuditLog(0)
+	s.a.IAuditLog = s.mockedAuditLog
 }
 
 func (s *PasswordSuite) TearDownTest(c *C) {
@@ -133,8 +138,18 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("abce456")
 
+	// test change password event
+	eventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		eventEmitted = true
+		c.Assert(event, DeepEquals, events.UserPasswordChange)
+		c.Assert(fields[events.EventUser], Equals, "user1")
+		return nil
+	}
+
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
 
 	s.shouldLockAfterFailedAttempts(c, req)
 
@@ -228,6 +243,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
 		Name: username,
 	})
+	c.Assert(err, IsNil)
 
 	secrets, err := s.a.RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)

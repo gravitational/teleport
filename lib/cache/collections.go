@@ -34,7 +34,7 @@ type collection interface {
 	// process processes event
 	processEvent(e services.Event) error
 	// watchKind returns a watch
-	// requried for this collection
+	// required for this collection
 	watchKind() services.WatchKind
 	// erase erases all data in the collection
 	erase() error

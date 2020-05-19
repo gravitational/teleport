@@ -155,6 +155,7 @@ func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
 	userSlicesEqual(c, u, []services.User{newUser("user1", nil), newUser("user2", nil)})
 
 	out, err := s.WebS.GetUser("user1", false)
+	c.Assert(err, check.IsNil)
 	usersEqual(c, out, u[0])
 
 	user := newUser("user1", []string{"admin", "user"})
@@ -205,7 +206,7 @@ func (s *ServicesTestSuite) UsersExpiry(c *check.C) {
 	s.Clock.Advance(2 * time.Minute)
 
 	// Make sure the user is now gone.
-	u, err = s.WebS.GetUser("foo", false)
+	_, err = s.WebS.GetUser("foo", false)
 	c.Assert(err, check.NotNil)
 }
 
@@ -275,6 +276,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	newCA.SetRotation(rotation)
 
 	err = s.CAS.CompareAndSwapCertAuthority(&newCA, ca)
+	c.Assert(err, check.IsNil)
 
 	out, err = s.CAS.GetCertAuthority(ca.GetID(), true)
 	c.Assert(err, check.IsNil)
@@ -337,6 +339,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	out, err = s.PresenceS.GetProxies()
+	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 
 	out, err = s.PresenceS.GetAuthServers()
@@ -1143,6 +1146,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 					},
 					Deny: services.RoleConditions{},
 				})
+				c.Assert(err, check.IsNil)
 
 				err = s.Access.UpsertRole(role)
 				c.Assert(err, check.IsNil)
@@ -1164,6 +1168,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			crud: func() services.Resource {
 				user := newUser("user1", []string{"admin"})
 				err := s.Users().UpsertUser(user)
+				c.Assert(err, check.IsNil)
 
 				out, err := s.Users().GetUser(user.GetName(), false)
 				c.Assert(err, check.IsNil)
@@ -1426,6 +1431,7 @@ skiploop:
 	}
 
 	for _, tc := range testCases {
+		c.Logf("test case %q", tc.name)
 		resource := tc.crud()
 
 		ExpectResource(c, w, 3*time.Second, resource)

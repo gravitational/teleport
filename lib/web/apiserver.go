@@ -119,10 +119,6 @@ type RewritingHandler struct {
 	handler *Handler
 }
 
-func (r *RewritingHandler) GetHandler() *Handler {
-	return r.handler
-}
-
 func (r *RewritingHandler) Close() error {
 	return r.handler.Close()
 }
@@ -282,30 +278,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			return
 		}
 
-		// check proxy and auth node versions (breaking change from v5).
-		// If there is a mismatch with the current proxy client, redirect users to an error page to update proxy.
-		//
-		// DELETE IN 5.0: this block only serves to notify users of v4.3+ to upgrade to v5.0.0
-		if strings.HasPrefix(r.URL.Path, "/web/newuser") {
-			res, err := h.auth.Ping(context.TODO())
-			if err != nil {
-				log.WithError(err).Debugf("Could not ping auth server")
-			} else {
-				isProxyV4x := strings.Index(teleport.Version, "4.") == 0
-				isAuthV5x := strings.Index(res.GetServerVersion(), "5.") == 0
-
-				if isAuthV5x && isProxyV4x {
-					message := fmt.Sprintf("Your Teleport proxy and auth service versions are incompatible. Please upgrade your Teleport proxy service to version %v", res.GetServerVersion())
-					pathToError := url.URL{
-						Path:     "/web/msg/error",
-						RawQuery: url.Values{"details": []string{message}}.Encode(),
-					}
-					http.Redirect(w, r, pathToError.String(), http.StatusFound)
-					return
-				}
-			}
-		}
-
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
 			httplib.SetStaticFileHeaders(w.Header())
@@ -336,7 +308,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 				}
 			}
 			httplib.SetIndexHTMLHeaders(w.Header())
-			indexPage.Execute(w, session)
+			if err := indexPage.Execute(w, session); err != nil {
+				log.Errorf("Failed to execute index page template: %v", err)
+			}
 		} else {
 			http.NotFound(w, r)
 		}
@@ -833,8 +807,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
-		return nil, nil
+		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
 	}
 	logger.Infof("Callback is redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
@@ -912,8 +885,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
-		return nil, nil
+		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
 	}
 	log.Infof("oidcCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {
@@ -1154,9 +1126,7 @@ func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
 	if err := ctx.Invalidate(); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := ClearSession(w); err != nil {
-		return trace.Wrap(err)
-	}
+	ClearSession(w)
 
 	return nil
 }
@@ -1717,8 +1687,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	var site reversetunnel.RemoteSite
 	onError := func(err error) {
 		logger.Debugf("Unable to retrieve session chunk: %v.", err)
-		w.WriteHeader(trace.ErrorToCode(err))
-		w.Write([]byte(err.Error()))
+		http.Error(w, err.Error(), trace.ErrorToCode(err))
 	}
 	// authenticate first:
 	ctx, err := h.AuthenticateRequest(w, r, true)
@@ -2095,32 +2064,6 @@ func message(msg string) interface{} {
 
 func ok() interface{} {
 	return message("ok")
-}
-
-// CreateSignupLink generates and returns a URL which is given to a new
-// user to complete registration with Teleport via Web UI
-func CreateSignupLink(client auth.ClientI, token string) (string, string) {
-	proxyHost := "<proxyhost>:3080"
-
-	proxies, err := client.GetProxies()
-	if err != nil {
-		log.Errorf("Unable to retrieve proxy list: %v", err)
-	}
-
-	if len(proxies) > 0 {
-		proxyHost = proxies[0].GetPublicAddr()
-		if proxyHost == "" {
-			proxyHost = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-			log.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
-		}
-	}
-
-	u := &url.URL{
-		Scheme: "https",
-		Host:   proxyHost,
-		Path:   "web/newuser/" + token,
-	}
-	return u.String(), proxyHost
 }
 
 type responseData struct {

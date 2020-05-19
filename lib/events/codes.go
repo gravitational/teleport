@@ -45,7 +45,7 @@ var (
 		Name: UserLoginEvent,
 		Code: UserSSOLoginFailureCode,
 	}
-	// UserUpdate is emitted when a user is upserted.
+	// UserUpdate is emitted when a user is updated.
 	UserUpdate = Event{
 		Name: UserUpdatedEvent,
 		Code: UserUpdateCode,
@@ -54,6 +54,16 @@ var (
 	UserDelete = Event{
 		Name: UserDeleteEvent,
 		Code: UserDeleteCode,
+	}
+	// UserCreate is emitted when a user is created.
+	UserCreate = Event{
+		Name: UserCreateEvent,
+		Code: UserCreateCode,
+	}
+	// UserPasswordChange is emitted when a user changes their own password.
+	UserPasswordChange = Event{
+		Name: UserPasswordChangeEvent,
+		Code: UserPasswordChangeCode,
 	}
 	// SessionStart is emitted when a user starts a new session.
 	SessionStart = Event{
@@ -181,9 +191,20 @@ var (
 		Name: ResetPasswordTokenCreateEvent,
 		Code: ResetPasswordTokenCreateCode,
 	}
+	// RoleCreated is emitted when a role is created/updated.
+	RoleCreated = Event{
+		Name: RoleCreatedEvent,
+		Code: RoleCreatedCode,
+	}
+	// RoleDeleted is emitted when a role is deleted.
+	RoleDeleted = Event{
+		Name: RoleDeletedEvent,
+		Code: RoleDeletedCode,
+	}
 )
 
-var (
+// OSS event codes start with "T".
+const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
 	// UserLocalLoginFailureCode is the unsuccessful local user login event code.
@@ -196,6 +217,10 @@ var (
 	UserUpdateCode = "T1002I"
 	// UserDeleteCode is the user delete event code.
 	UserDeleteCode = "T1003I"
+	// UserCreateCode is the user create event code.
+	UserCreateCode = "T1004I"
+	// UserPasswordChangeCode is an event code for when user changes their own password.
+	UserPasswordChangeCode = "T1005I"
 	// SessionStartCode is the session start event code.
 	SessionStartCode = "T2000I"
 	// SessionJoinCode is the session join event code.
@@ -246,4 +271,12 @@ var (
 	AccessRequestUpdateCode = "T5001I"
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+)
+
+// Enterprise event codes starts with "TE".
+const (
+	// RoleCreatedCode is the role created event code.
+	RoleCreatedCode = "TE1000I"
+	// RoleDeletedCode is the role deleted event code.
+	RoleDeletedCode = "TE2000I"
 )

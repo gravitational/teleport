@@ -34,6 +34,21 @@
   revision = "d6e3b3328b783f23731bc4d058875b0371ff8109"
 
 [[projects]]
+  digest = "1:5b9056586bd3b298d30f3d466223eebd89a765dba3b7c2193b636a8589a66142"
+  name = "github.com/Azure/go-autorest"
+  packages = [
+    "autorest",
+    "autorest/adal",
+    "autorest/azure",
+    "autorest/date",
+    "logger",
+    "tracing",
+  ]
+  pruneopts = "NUT"
+  revision = "e727cfcfc902307f3a34d6f6ce50748ca944786a"
+  version = "v14.0.1"
+
+[[projects]]
   digest = "1:99632bb2b4e2c066233ee9d19c1370a695ebd2be18625e31390476d356db5d8a"
   name = "github.com/Microsoft/go-winio"
   packages = ["."]
@@ -214,6 +229,14 @@
   pruneopts = "NUT"
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
   version = "v1.1.0"
+
+[[projects]]
+  digest = "1:7a6852b35eb5bbc184561443762d225116ae630c26a7c4d90546619f1e7d2ad2"
+  name = "github.com/dgrijalva/jwt-go"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
+  version = "v3.2.0"
 
 [[projects]]
   digest = "1:5c709df1e94c6dbee6fdd9699b11e3cdfa06870b1e828e9311e4e879b2ae6a4a"
@@ -1268,7 +1291,7 @@
   version = "v0.17.3"
 
 [[projects]]
-  digest = "1:a8a2953b840fc9a187f12b3dfed27a568b345259be7d66d7d24df55c995f02a6"
+  digest = "1:146f86d6fc7b6c301f667bba532c1827463dc60d4445e0f39a499cf5b47d8cc9"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -1318,9 +1341,12 @@
     "pkg/apis/clientauthentication/v1alpha1",
     "pkg/apis/clientauthentication/v1beta1",
     "pkg/version",
+    "plugin/pkg/client/auth/azure",
     "plugin/pkg/client/auth/exec",
+    "plugin/pkg/client/auth/gcp",
     "rest",
     "rest/watch",
+    "third_party/forked/golang/template",
     "tools/auth",
     "tools/clientcmd",
     "tools/clientcmd/api",
@@ -1337,6 +1363,7 @@
     "util/exec",
     "util/flowcontrol",
     "util/homedir",
+    "util/jsonpath",
     "util/keyutil",
   ]
   pruneopts = "NUT"
@@ -1453,6 +1480,7 @@
     "go.etcd.io/etcd/clientv3",
     "go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes",
     "go.etcd.io/etcd/mvcc/mvccpb",
+    "go.uber.org/atomic",
     "golang.org/x/crypto/bcrypt",
     "golang.org/x/crypto/ssh",
     "golang.org/x/crypto/ssh/agent",
@@ -1466,7 +1494,6 @@
     "golang.org/x/sys/unix",
     "golang.org/x/text/encoding",
     "golang.org/x/text/encoding/unicode",
-    "google.golang.org/api/iterator",
     "google.golang.org/api/option",
     "google.golang.org/genproto/googleapis/firestore/admin/v1",
     "google.golang.org/grpc",
@@ -1493,6 +1520,8 @@
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/apimachinery/third_party/forked/golang/netutil",
     "k8s.io/client-go/kubernetes",
+    "k8s.io/client-go/plugin/pkg/client/auth/azure",
+    "k8s.io/client-go/plugin/pkg/client/auth/gcp",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/clientcmd",
     "k8s.io/client-go/tools/clientcmd/api",

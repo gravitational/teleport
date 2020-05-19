@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"gopkg.in/check.v1"
-	"testing"
 )
 
 type PresenceSuite struct {
@@ -105,7 +105,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// make sure it's really gone
-	gotTC, err = presenceBackend.GetTrustedCluster("foo")
+	_, err = presenceBackend.GetTrustedCluster("foo")
 	c.Assert(err, check.NotNil)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }

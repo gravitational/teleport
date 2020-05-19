@@ -304,7 +304,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 			if activeConnections == 0 {
 				return err
 			}
-			if time.Now().Sub(lastReport) > 10*s.shutdownPollPeriod {
+			if time.Since(lastReport) > 10*s.shutdownPollPeriod {
 				s.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
 				lastReport = time.Now()
 			}
@@ -432,6 +432,9 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	defer keepAliveTick.Stop()
 	keepAlivePayload := [8]byte{0}
 
+	ccx := NewConnectionContext(wconn, sconn)
+	defer ccx.Close()
+
 	for {
 		select {
 		// handle out of band ssh requests
@@ -450,11 +453,14 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			go s.newChanHandler.HandleNewChan(wconn, sconn, nch)
+			go s.newChanHandler.HandleNewChan(ccx, nch)
 			// send keepalive pings to the clients
 		case <-keepAliveTick.C:
 			const wantReply = true
-			sconn.SendRequest(teleport.KeepAliveReqType, wantReply, keepAlivePayload[:])
+			_, _, err = sconn.SendRequest(teleport.KeepAliveReqType, wantReply, keepAlivePayload[:])
+			if err != nil {
+				log.Errorf("Failed sending keepalive request: %v", err)
+			}
 		}
 	}
 }
@@ -463,20 +469,14 @@ type RequestHandler interface {
 	HandleRequest(r *ssh.Request)
 }
 
-type RequestHandlerFunc func(*ssh.Request)
-
-func (f RequestHandlerFunc) HandleRequest(r *ssh.Request) {
-	f(r)
-}
-
 type NewChanHandler interface {
-	HandleNewChan(net.Conn, *ssh.ServerConn, ssh.NewChannel)
+	HandleNewChan(*ConnectionContext, ssh.NewChannel)
 }
 
-type NewChanHandlerFunc func(net.Conn, *ssh.ServerConn, ssh.NewChannel)
+type NewChanHandlerFunc func(*ConnectionContext, ssh.NewChannel)
 
-func (f NewChanHandlerFunc) HandleNewChan(conn net.Conn, sshConn *ssh.ServerConn, ch ssh.NewChannel) {
-	f(conn, sshConn, ch)
+func (f NewChanHandlerFunc) HandleNewChan(ccx *ConnectionContext, ch ssh.NewChannel) {
+	f(ccx, ch)
 }
 
 type AuthMethods struct {
@@ -510,7 +510,7 @@ func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners [
 			}
 		}
 	}
-	if ah.PublicKey == nil && ah.Password == nil && ah.NoClient == false {
+	if ah.PublicKey == nil && ah.Password == nil && !ah.NoClient {
 		return trace.BadParameter("need at least one auth method")
 	}
 	return nil

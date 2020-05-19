@@ -139,7 +139,7 @@ def basic_config(vm)
         echo "# Teleport entries added by Vagrant:" >> /etc/hosts
         echo -e "#{hosts}" >> /etc/hosts
     fi
-    mkdir -p /var/lib/teleport
+    mkdir -p -m0700 /var/lib/teleport
     chown vagrant:vagrant /var/lib/teleport
   SHELL
 end

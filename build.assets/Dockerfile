@@ -15,7 +15,7 @@ COPY pam/teleport-session-environment /etc/pam.d
 RUN apt-get update; apt-get install -q -y libpam-dev libc6-dev-i386 net-tools tree
 
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
-     mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
+     mkdir -p -m0700 /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz ;\
@@ -34,7 +34,9 @@ ENV GOPATH="/gopath" \
     PATH="$PATH:/opt/go/bin:/gopath/bin:/gopath/src/github.com/gravitational/teleport/build"
 
 # Install meta-linter.
-RUN go get github.com/golangci/golangci-lint/cmd/golangci-lint
+RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.24.0/golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz ;\
+     cp golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ ;\
+     rm -r golangci-lint*)
 
 VOLUME ["/gopath/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

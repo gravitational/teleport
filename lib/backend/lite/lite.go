@@ -811,7 +811,7 @@ func (l *LiteBackend) closeDatabase() error {
 func (l *LiteBackend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (err error) {
 	start := time.Now()
 	defer func() {
-		diff := time.Now().Sub(start)
+		diff := time.Since(start)
 		if diff > slowTransactionThreshold {
 			l.Warningf("SLOW TRANSACTION: %v, %v.", diff, string(debug.Stack()))
 		}
@@ -862,7 +862,6 @@ func (l *LiteBackend) inTransaction(ctx context.Context, f func(tx *sql.Tx) erro
 		if err2 := commit(); err2 != nil {
 			err = trace.Wrap(err2)
 		}
-		return
 	}()
 	err = f(tx)
 	return

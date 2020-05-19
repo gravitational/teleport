@@ -56,6 +56,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -291,11 +292,11 @@ func (c *Client) grpc() (proto.AuthServiceClient, error) {
 	if c.grpcClient != nil {
 		return c.grpcClient, nil
 	}
-	dialer := grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
-		c, err := c.Dialer.DialContext(context.TODO(), "tcp", addr)
+		c, err := c.Dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			log.Debugf("Dial to addr %v failed: %v.", addr, err)
 		}
@@ -356,7 +357,7 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 }
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if sucessful.
+// signed certificate if successful.
 func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -1312,7 +1313,45 @@ func (c *Client) UpsertPassword(user string, password []byte) error {
 	return nil
 }
 
-// UpsertUser user updates or inserts user entry
+// CreateUser inserts a new user entry in a backend.
+func (c *Client) CreateUser(ctx context.Context, user services.User) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userV2, ok := user.(*services.UserV2)
+	if !ok {
+		return trace.BadParameter("unsupported user type %T", user)
+	}
+
+	if _, err := clt.CreateUser(ctx, userV2); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// UpdateUser updates an existing user in a backend.
+func (c *Client) UpdateUser(ctx context.Context, user services.User) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userV2, ok := user.(*services.UserV2)
+	if !ok {
+		return trace.BadParameter("unsupported user type %T", user)
+	}
+
+	if _, err := clt.UpdateUser(ctx, userV2); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user services.User) error {
 	data, err := services.GetUserMarshaler().MarshalUser(user)
 	if err != nil {
@@ -1322,7 +1361,7 @@ func (c *Client) UpsertUser(user services.User) error {
 	return trace.Wrap(err)
 }
 
-// ChangePassword changes user password
+// ChangePassword updates users password based on the old password.
 func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
 	_, err := c.PutJSON(c.Endpoint("users", req.User, "web", "password"), req)
 	return trace.Wrap(err)
@@ -1440,7 +1479,7 @@ func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
 	if err == nil {
 		return user, nil
 	}
-	if grpc.Code(err) != codes.Unimplemented {
+	if status.Code(err) != codes.Unimplemented {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
@@ -1478,7 +1517,7 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 	if err == nil {
 		return users, nil
 	}
-	if grpc.Code(err) != codes.Unimplemented {
+	if status.Code(err) != codes.Unimplemented {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
@@ -1999,7 +2038,7 @@ func (c *Client) PostSessionSlice(slice events.SessionSlice) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", string(slice.SessionID), "slice"), bytes.NewReader(data))
+	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", slice.SessionID, "slice"), bytes.NewReader(data))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2575,10 +2614,14 @@ func (c *Client) SetAccessRequestState(ctx context.Context, reqID string, state 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = clt.SetAccessRequestState(ctx, &proto.RequestStateSetter{
+	setter := proto.RequestStateSetter{
 		ID:    reqID,
 		State: state,
-	})
+	}
+	if d := getDelegator(ctx); d != "" {
+		setter.Delegator = d
+	}
+	_, err = clt.SetAccessRequestState(ctx, &setter)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
@@ -2708,6 +2751,12 @@ type IdentityService interface {
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (services.User, error)
+
+	// CreateUser inserts a new entry in a backend.
+	CreateUser(ctx context.Context, user services.User) error
+
+	// UpdateUser updates an existing user in a backend.
+	UpdateUser(ctx context.Context, user services.User) error
 
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user services.User) error
@@ -2839,7 +2888,7 @@ type ClientI interface {
 	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-	// signed certificate if sucessful.
+	// signed certificate if successful.
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 
 	// Ping gets basic info about the auth server.

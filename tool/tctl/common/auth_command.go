@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,9 +36,10 @@ type AuthCommand struct {
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
 	output                     string
-	outputFormat               client.IdentityFileFormat
+	outputFormat               identityfile.Format
 	compatVersion              string
 	compatibility              string
+	proxyAddr                  string
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -70,12 +72,19 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, or %q", client.IdentityFormatFile, client.IdentityFormatOpenSSH, client.IdentityFormatTLS)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&a.outputFormat))
-	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&a.genTTL)
+	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q or %q", identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatTLS, identityfile.FormatKubernetes)).
+		Default(string(identityfile.DefaultFormat)).
+		StringVar((*string)(&a.outputFormat))
+	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").
+		Default(fmt.Sprintf("%v", defaults.CertDuration)).
+		DurationVar(&a.genTTL)
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
+	a.authSign.Flag("proxy", `Address of the teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file`).StringVar(&a.proxyAddr)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
-	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).DurationVar(&a.rotateGracePeriod)
+	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
+		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
+		DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
 	a.authRotate.Flag("type", "Certificate authority to rotate, rotates both host and user CA by default").StringVar(&a.rotateType)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(services.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
@@ -279,8 +288,8 @@ func (a *AuthCommand) RotateCertAuthority(client auth.ClientI) error {
 
 func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 	// only format=openssh is supported
-	if a.outputFormat != client.IdentityFormatOpenSSH {
-		return trace.BadParameter("invalid --format flag %q, only %q is supported", a.outputFormat, client.IdentityFormatOpenSSH)
+	if a.outputFormat != identityfile.FormatOpenSSH {
+		return trace.BadParameter("invalid --format flag %q, only %q is supported", a.outputFormat, identityfile.FormatOpenSSH)
 	}
 
 	// split up comma separated list
@@ -311,17 +320,19 @@ func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 		filePath = principals[0]
 	}
 
-	err = client.MakeIdentityFile(filePath, key, a.outputFormat, nil)
+	filesWritten, err := identityfile.Write(filePath, key, a.outputFormat, nil, "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if a.output != "" {
-		fmt.Printf("\nThe certificate has been written to %s\n", a.output)
-	}
+	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
 	return nil
 }
 
-func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
+func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
+	// Validate --proxy flag.
+	if err := a.checkProxyAddr(clusterAPI); err != nil {
+		return trace.Wrap(err)
+	}
 	// parse compatibility parameter
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.compatibility)
 	if err != nil {
@@ -333,9 +344,14 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cn, err := clusterAPI.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	key.ClusterName = cn.GetClusterName()
 
 	// Request signed certs from `auth` server.
-	certs, err := clusterApi.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
+	certs, err := clusterAPI.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
 		PublicKey: key.Pub,
 		Username:  a.genUser,
 		Expires:   time.Now().UTC().Add(a.genTTL),
@@ -348,22 +364,56 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 	key.TLSCert = certs.TLS
 
 	var certAuthorities []services.CertAuthority
-	if a.outputFormat != client.IdentityFormatOpenSSH {
-		certAuthorities, err = clusterApi.GetCertAuthorities(services.HostCA, false)
+	if a.outputFormat != identityfile.FormatOpenSSH {
+		certAuthorities, err = clusterAPI.GetCertAuthorities(services.HostCA, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	// write the cert+private key to the output:
-	err = client.MakeIdentityFile(a.output, key, a.outputFormat, certAuthorities)
+	filesWritten, err := identityfile.Write(a.output, key, a.outputFormat, certAuthorities, a.proxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if a.output != "" {
-		fmt.Printf("\nThe certificate has been written to %s\n", a.output)
-	}
+	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
 	return nil
+}
+
+func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
+	if a.outputFormat != identityfile.FormatKubernetes && a.proxyAddr != "" {
+		// User set --proxy but it's not actually used for the chosen --format.
+		// Print a warning but continue.
+		fmt.Printf("Note: --proxy is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
+		return nil
+	}
+	if a.outputFormat != identityfile.FormatKubernetes {
+		return nil
+	}
+	if a.proxyAddr != "" {
+		return nil
+	}
+
+	// User didn't specify --proxy for kubeconfig. Let's try to guess it.
+	//
+	// Is the auth server also a proxy?
+	if len(a.config.Proxy.PublicAddrs) > 0 {
+		a.proxyAddr = a.config.Proxy.PublicAddrs[0].String()
+		return nil
+	}
+	// Fetch proxies known to auth server and try to find a public address.
+	proxies, err := clusterAPI.GetProxies()
+	if err != nil {
+		return trace.WrapWithMessage(err, "couldn't load registered proxies, try setting --proxy manually")
+	}
+	for _, p := range proxies {
+		if addr := p.GetPublicAddr(); addr != "" {
+			a.proxyAddr = addr
+			return nil
+		}
+	}
+
+	return trace.BadParameter("couldn't find registered public proxies, specify --proxy when using --format=%q", identityfile.FormatKubernetes)
 }
 
 // userCAFormat returns the certificate authority public key exported as a single

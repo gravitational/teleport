@@ -8,7 +8,7 @@
 
  // configure UI components
  window.grvConfig = window.grvConfig || {
-      docVersions:  ["1.3", "2.0", "2.3", "2.4", "2.5", "2.7", "3.0", "3.1", "3.2", "4.0", "4.1", "4.2", "4.3"],
+      docVersions:  ["3.1", "3.2", "4.0", "4.1", "4.2", "4.3"],
       docCurrentVer:  "{{ config.extra.version }}"
     };
  </script>
@@ -20,7 +20,7 @@
 
 <script>var base_url = '{{ base_url }}';</script>
 
-{%- for path in extra_javascript %}
+{% for path in config['extra_javascript'] %}
 <script src="{{ path|url }}"></script>
 {%- endfor %}
 

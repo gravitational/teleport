@@ -255,10 +255,29 @@ func (s *SrvSuite) TestDirectTCPIP(c *C) {
 }
 
 func (s *SrvSuite) TestAdvertiseAddr(c *C) {
-	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "127.0.0.1:"), Equals, 0)
-	s.srv.setAdvertiseIP("10.10.10.1")
-	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "10.10.10.1:"), Equals, 0)
-	s.srv.setAdvertiseIP("")
+	// No advertiseAddr was set in SetUpTest, should default to srvAddress.
+	c.Assert(s.srv.AdvertiseAddr(), Equals, s.srvAddress)
+
+	var (
+		advIP      = utils.MustParseAddr("10.10.10.1")
+		advIPPort  = utils.MustParseAddr("10.10.10.1:1234")
+		advBadAddr = utils.MustParseAddr("localhost:badport")
+	)
+	// IP-only advertiseAddr should use the port from srvAddress.
+	s.srv.setAdvertiseAddr(advIP)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, fmt.Sprintf("%s:%s", advIP, s.srvPort))
+
+	// IP and port advertiseAddr should fully override srvAddress.
+	s.srv.setAdvertiseAddr(advIPPort)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, advIPPort.String())
+
+	// nil advertiseAddr should default to srvAddress.
+	s.srv.setAdvertiseAddr(nil)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, s.srvAddress)
+
+	// Invalid advertiseAddr should fall back to srvAddress.
+	s.srv.setAdvertiseAddr(advBadAddr)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, s.srvAddress)
 }
 
 // TestAgentForwardPermission makes sure if RBAC rules don't allow agent
@@ -352,8 +371,21 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	err = client.Close()
 	c.Assert(err, IsNil)
 
-	// make sure the socket is gone after we closed the session
-	se.Close()
+	// make sure the socket persists after the session is closed.
+	// (agents are started from specific sessions, but apply to all
+	// sessions on the connection).
+	err = se.Close()
+	c.Assert(err, IsNil)
+	// Pause to allow closure to propagate.
+	time.Sleep(150 * time.Millisecond)
+	_, err = net.Dial("unix", socketPath)
+	c.Assert(err, IsNil)
+
+	// make sure the socket is gone after we closed the connection.
+	err = s.clt.Close()
+	c.Assert(err, IsNil)
+	// clt must be nullified to prevent double-close during test cleanup
+	s.clt = nil
 	for i := 0; i < 4; i++ {
 		_, err = net.Dial("unix", socketPath)
 		if err != nil {
@@ -656,6 +688,9 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	err = agentPool.Start()
+	c.Assert(err, IsNil)
+
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
 	err = s.server.Auth().UpsertReverseTunnel(
@@ -732,15 +767,16 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(err, IsNil)
 	done := make(chan struct{})
 	go func() {
-		io.Copy(stdout, reader)
+		_, err := io.Copy(stdout, reader)
+		c.Assert(err, IsNil)
 		close(done)
 	}()
 
 	// to make sure  labels have the right output
 	s.srv.syncUpdateLabels()
 	srv2.syncUpdateLabels()
-	s.srv.heartbeat.ForceSend(time.Second)
-	s.srv.heartbeat.ForceSend(time.Second)
+	c.Assert(s.srv.heartbeat.ForceSend(time.Second), IsNil)
+	c.Assert(srv2.heartbeat.ForceSend(time.Second), IsNil)
 	// request "list of sites":
 	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
 	<-done

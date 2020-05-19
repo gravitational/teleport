@@ -181,7 +181,7 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 }
 
 func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
-	s.log.Debugf("Dialing from %v to %v.", params.From, params.To)
+	s.log.Debugf("Dialing %v.", params)
 
 	conn, _, err := s.getConn(params)
 	if err != nil {
@@ -266,6 +266,11 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 			return nil, false, trace.Wrap(err)
 		}
 
+		// This node can only be reached over a tunnel, don't attempt to dial
+		// remotely.
+		if params.To.String() == "" {
+			return nil, false, trace.ConnectionProblem(err, "node is offline, please try again later")
+		}
 		// If no tunnel connection was found, dial to the target host.
 		dialer := proxy.DialerFromEnvironment(params.To.String())
 		conn, err = dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
@@ -318,7 +323,7 @@ func (s *localSite) fanOutProxies(proxies []services.Server) {
 // the connection as invalid.
 func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	defer func() {
-		s.log.Infof("Cluster connection closed.")
+		s.log.Debugf("Cluster connection closed.")
 		rconn.Close()
 	}()
 
@@ -331,7 +336,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 		case proxies := <-rconn.newProxiesC:
 			req := discoveryRequest{
 				ClusterName: s.srv.ClusterName,
-				Type:        string(rconn.tunnelType),
+				Type:        rconn.tunnelType,
 				Proxies:     proxies,
 			}
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
@@ -341,7 +346,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			}
 		case req := <-reqC:
 			if req == nil {
-				s.log.Infof("Cluster agent disconnected.")
+				s.log.Debugf("Cluster agent disconnected.")
 				rconn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				return
 			}

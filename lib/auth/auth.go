@@ -1017,7 +1017,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
-	// Unlike additional pricinpals, DNS Names is x509 specific
+	// Unlike additional principals, DNS Names is x509 specific
 	// and is limited to auth servers and proxies
 	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
@@ -1324,6 +1324,7 @@ func (a *AuthServer) NewWatcher(ctx context.Context, watch services.Watch) (serv
 	return a.GetCache().NewWatcher(ctx, watch)
 }
 
+// DeleteRole deletes a role by name of the role.
 func (a *AuthServer) DeleteRole(name string) error {
 	// check if this role is used by CA or Users
 	users, err := a.Identity.GetUsers(false)
@@ -1356,7 +1357,31 @@ func (a *AuthServer) DeleteRole(name string) error {
 			}
 		}
 	}
-	return a.Access.DeleteRole(name)
+
+	if err := a.Access.DeleteRole(name); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
+		events.FieldName: name,
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
+}
+
+// UpsertRole creates or updates role.
+func (a *AuthServer) upsertRole(role services.Role) error {
+	if err := a.UpsertRole(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.EmitAuditEvent(events.RoleCreated, events.EventFields{
+		events.FieldName: role.GetName(),
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
 }
 
 func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
@@ -1404,11 +1429,15 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.EmitAuditEvent(events.AccessRequestUpdated, events.EventFields{
-		events.AccessRequestID:       reqID,
-		events.AccessRequestState:    state.String(),
-		events.AccessRequestUpdateBy: updateBy,
-	})
+	fields := events.EventFields{
+		events.AccessRequestID:    reqID,
+		events.AccessRequestState: state.String(),
+		events.UpdatedBy:          updateBy,
+	}
+	if delegator := getDelegator(ctx); delegator != "" {
+		fields[events.AccessRequestDelegator] = delegator
+	}
+	err = a.EmitAuditEvent(events.AccessRequestUpdated, fields)
 	return trace.Wrap(err)
 }
 

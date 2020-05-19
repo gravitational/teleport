@@ -219,7 +219,7 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	}
 	cert.Permissions.Extensions = make(map[string]string)
 	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Roles.String()
-	cert.Permissions.Extensions[utils.CertExtensionAuthority] = string(c.ClusterName)
+	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
 
 	// sign host certificate with private signing key of certificate authority
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
@@ -309,12 +309,6 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	}
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
-
-const (
-	principalLocalhost  = "localhost"
-	principalLoopbackV4 = "127.0.0.1"
-	principalLoopbackV6 = "::1"
-)
 
 // BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
 // principals to insert into a certificate. This function is backward compatible with

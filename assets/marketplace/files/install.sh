@@ -44,6 +44,7 @@ usermod -a -G adm teleport
 
 # Setup teleport run dir for pid files
 mkdir -p /run/teleport/ /var/lib/teleport /etc/teleport.d
+chmod 0700 /var/lib/teleport
 chown -R teleport:adm /run/teleport /var/lib/teleport /etc/teleport.d/
 
 # Download and install teleport binaries

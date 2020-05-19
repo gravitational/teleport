@@ -54,7 +54,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 
 	// if the trusted cluster already exists in the backend, make sure it's a
 	// valid state change client is trying to make
-	if exists == true {
+	if exists {
 		err := existingCluster.CanChangeStateTo(trustedCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)

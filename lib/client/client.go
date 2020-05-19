@@ -166,7 +166,7 @@ func (proxy *ProxyClient) GenerateCertsForCluster(ctx context.Context, routeToCl
 	return trace.Wrap(err)
 }
 
-// ReissueParams encodes optional paramters for
+// ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
 	RouteToCluster string

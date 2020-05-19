@@ -18,14 +18,8 @@ COPY pam/teleport-success /etc/pam.d
 
 RUN yum makecache fast && yum -y install gcc pam-devel glibc-devel net-tools tree git zip && yum clean all
 
-# Install GCC 6 through devtools. Newer version of GCC is needed for gobpf
-# which uses __has_include.
-RUN yum -y install centos-release-scl && yum -y install devtoolset-6
-ENV CC=/opt/rh/devtoolset-6/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-6/root/usr/bin/g++
-
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
-     mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
+     mkdir -p -m0700 /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz ;\

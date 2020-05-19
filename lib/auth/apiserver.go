@@ -791,14 +791,14 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 	return auth.AuthenticateSSHUser(req)
 }
 
+// changePassword updates users password based on the old password.
 func (s *APIServer) changePassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req services.ChangePasswordReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err := auth.ChangePassword(req)
-	if err != nil {
+	if err := auth.ChangePassword(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -959,7 +959,7 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return string(token), nil
+	return token, nil
 }
 
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
@@ -2132,7 +2132,7 @@ func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err := auth.DeleteRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message(fmt.Sprintf("role '%v' deleted", role)), nil
+	return message(fmt.Sprintf("role %q deleted", role)), nil
 }
 
 func (s *APIServer) getClusterConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -2467,6 +2467,8 @@ func message(msg string) map[string]interface{} {
 	return map[string]interface{}{"message": msg}
 }
 
+type contextParamsKey string
+
 // contextParams is the name of of the key that holds httprouter.Params in
 // a context.
-const contextParams = "params"
+const contextParams contextParamsKey = "params"

@@ -345,6 +345,9 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 				return nil, trace.Wrap(err)
 			}
 			i, err = auth.GenerateIdentity(process.localAuth, id, principals, dnsNames)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		} else {
 			// try to locate static identity provided in the file
 			i, err = process.findStaticIdentity(id)
@@ -1223,10 +1226,9 @@ func (process *TeleportProcess) onExit(serviceName string, callback func(interfa
 	process.RegisterFunc(serviceName, func() error {
 		eventC := make(chan Event)
 		process.WaitForEvent(context.TODO(), TeleportExitEvent, eventC)
-		select {
-		case event := <-eventC:
-			callback(event.Payload)
-		}
+
+		event := <-eventC
+		callback(event.Payload)
 		return nil
 	})
 }
@@ -1432,7 +1434,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 		if clusterConfig.GetSessionRecording() == services.RecordOff &&
-			cfg.SSH.BPF.Enabled == true {
+			cfg.SSH.BPF.Enabled {
 			return trace.BadParameter("session recording is disabled at the cluster " +
 				"level. To enable enhanced session recording, enable session recording at " +
 				"the cluster level, then restart Teleport.")
@@ -1588,12 +1590,14 @@ func (process *TeleportProcess) initSSH() error {
 				warnOnErr(s.Shutdown(payloadContext(payload)))
 			}
 		}
-		if conn.UseTunnel() {
+		if conn != nil && conn.UseTunnel() {
 			agentPool.Stop()
 		}
 
-		// Close BPF service.
-		warnOnErr(ebpf.Close())
+		if ebpf != nil {
+			// Close BPF service.
+			warnOnErr(ebpf.Close())
+		}
 
 		log.Infof("Exited.")
 	})
@@ -2368,10 +2372,8 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 		defer cancel()
 		process.Supervisor.Wait()
 	}()
-	select {
-	case <-local.Done():
-		return
-	}
+
+	<-local.Done()
 }
 
 // StartShutdown launches non-blocking graceful shutdown process that signals
@@ -2399,10 +2401,8 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 func (process *TeleportProcess) Shutdown(ctx context.Context) {
 	localCtx := process.StartShutdown(ctx)
 	// wait until parent context closes
-	select {
-	case <-localCtx.Done():
-		process.Debugf("Process completed.")
-	}
+	<-localCtx.Done()
+	process.Debugf("Process completed.")
 }
 
 // Close broadcasts close signals and exits immediately

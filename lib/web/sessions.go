@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -290,7 +291,7 @@ func (c *SessionContext) GetCertificates() (*ssh.Certificate, *x509.Certificate,
 	if !ok {
 		return nil, nil, trace.BadParameter("not certificate")
 	}
-	tlscert, err := utils.ParseCertificatePEM(c.sess.GetTLSCert())
+	tlscert, err := tlsca.ParseCertificatePEM(c.sess.GetTLSCert())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

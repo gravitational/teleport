@@ -198,13 +198,13 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 			}
 			return table.AsBuffer().String()
 		}
-		fmt.Printf(tokensView())
+		fmt.Print(tokensView())
 	} else {
 		data, err := json.MarshalIndent(tokens, "", "  ")
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal tokens")
 		}
-		fmt.Printf(string(data))
+		fmt.Print(string(data))
 	}
 	return nil
 }

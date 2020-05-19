@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -55,6 +56,20 @@ type Key struct {
 
 	// ClusterName is a cluster name this key is associated with
 	ClusterName string
+}
+
+// NewKey generates a new unsigned key. Such key must be signed by a
+// Teleport CA (auth server) before it becomes useful.
+func NewKey() (key *Key, err error) {
+	priv, pub, err := native.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Key{
+		Priv: priv,
+		Pub:  pub,
+	}, nil
 }
 
 // TLSCAs returns all TLS CA certificates from this key

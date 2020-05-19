@@ -87,7 +87,7 @@ type Server struct {
 	proxyMode bool
 	proxyTun  reversetunnel.Server
 
-	advertiseIP     string
+	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
 
 	// server UUID gets generated once on the first start and never changes
@@ -440,7 +440,7 @@ func New(addr utils.NetAddr,
 	signers []ssh.Signer,
 	authService auth.AccessPoint,
 	dataDir string,
-	advertiseIP string,
+	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,
 	options ...ServerOption) (*Server, error) {
 
@@ -456,7 +456,6 @@ func New(addr utils.NetAddr,
 		authService:     authService,
 		hostname:        hostname,
 		labelsMutex:     &sync.Mutex{},
-		advertiseIP:     advertiseIP,
 		proxyPublicAddr: proxyPublicAddr,
 		uuid:            uuid,
 		cancel:          cancel,
@@ -467,6 +466,12 @@ func New(addr utils.NetAddr,
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if advertiseAddr != "" {
+		s.advertiseAddr, err = utils.ParseAddr(advertiseAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	for _, o := range options {
@@ -594,36 +599,36 @@ func (s *Server) PermitUserEnvironment() bool {
 	return s.permitUserEnvironment
 }
 
-func (s *Server) setAdvertiseIP(ip string) {
+func (s *Server) setAdvertiseAddr(addr *utils.NetAddr) {
 	s.Lock()
 	defer s.Unlock()
-	s.advertiseIP = ip
+	s.advertiseAddr = addr
 }
 
-func (s *Server) getAdvertiseIP() string {
+func (s *Server) getAdvertiseAddr() *utils.NetAddr {
 	s.Lock()
 	defer s.Unlock()
-	return s.advertiseIP
+	return s.advertiseAddr
 }
 
 // AdvertiseAddr returns an address this server should be publicly accessible
 // as, in "ip:host" form
 func (s *Server) AdvertiseAddr() string {
 	// set if we have explicit --advertise-ip option
-	advertiseIP := s.getAdvertiseIP()
-	if advertiseIP == "" {
+	advertiseAddr := s.getAdvertiseAddr()
+	if advertiseAddr == nil {
 		return s.addr.Addr
 	}
 	_, port, _ := net.SplitHostPort(s.addr.Addr)
-	ahost, aport, err := utils.ParseAdvertiseAddr(advertiseIP)
+	ahost, aport, err := utils.ParseAdvertiseAddr(advertiseAddr.String())
 	if err != nil {
-		log.Warningf("Failed to parse advertise address %q, %v, using default value %q.", advertiseIP, err, s.addr.Addr)
+		log.Warningf("Failed to parse advertise address %q, %v, using default value %q.", advertiseAddr, err, s.addr.Addr)
 		return s.addr.Addr
 	}
 	if aport == "" {
 		aport = port
 	}
-	return net.JoinHostPort(ahost, port)
+	return net.JoinHostPort(ahost, aport)
 }
 
 func (s *Server) getRole() teleport.Role {
@@ -761,15 +766,18 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	}
 
 	// start an agent on a unix socket
-	agentServer := &teleagent.AgentServer{Agent: ctx.GetAgent()}
+	agentServer := &teleagent.AgentServer{Agent: ctx.Parent.GetAgent()}
 	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.SetEnv(teleport.SSHAuthSock, socketPath)
-	ctx.SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
-	ctx.AddCloser(agentServer)
-	ctx.AddCloser(dirCloser)
+	ctx.Parent.SetEnv(teleport.SSHAuthSock, socketPath)
+	ctx.Parent.SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
+	ctx.Parent.AddCloser(agentServer)
+	ctx.Parent.AddCloser(dirCloser)
+	// ensure that SSHAuthSock and SSHAgentPID are imported into
+	// the current child context.
+	ctx.ImportParentEnv()
 	ctx.Debugf("Opened agent channel for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, socketPath)
 	go agentServer.Serve()
 
@@ -809,17 +817,19 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 		s.handleVersionRequest(r)
 	default:
 		if r.WantReply {
-			r.Reply(false, nil)
+			if err := r.Reply(false, nil); err != nil {
+				log.Warnf("Failed to reply to %q request: %v", r.Type, err)
+			}
 		}
 		log.Debugf("Discarding %q global request: %+v", r.Type, r)
 	}
 }
 
 // HandleNewChan is called when new channel is opened
-func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	identityContext, err := s.authHandlers.CreateIdentityContext(sconn)
+func (s *Server) HandleNewChan(ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
+	identityContext, err := s.authHandlers.CreateIdentityContext(ccx.ServerConn)
 	if err != nil {
-		nch.Reject(ssh.Prohibited, fmt.Sprintf("Unable to create identity from connection: %v", err))
+		rejectChannel(nch, ssh.Prohibited, fmt.Sprintf("Unable to create identity from connection: %v", err))
 		return
 	}
 
@@ -832,16 +842,16 @@ func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 			req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 			if err != nil {
 				log.Errorf("Failed to parse request data: %v, err: %v.", string(nch.ExtraData()), err)
-				nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request")
+				rejectChannel(nch, ssh.UnknownChannelType, "failed to parse direct-tcpip request")
 				return
 			}
 			ch, _, err := nch.Accept()
 			if err != nil {
 				log.Warnf("Unable to accept channel: %v.", err)
-				nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+				rejectChannel(nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
-			go s.handleProxyJump(wconn, sconn, identityContext, ch, *req)
+			go s.handleProxyJump(ccx, identityContext, ch, *req)
 			return
 		// Channels of type "session" handle requests that are involved in running
 		// commands on a server. In the case of proxy mode subsystem and agent
@@ -850,13 +860,13 @@ func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 			ch, requests, err := nch.Accept()
 			if err != nil {
 				log.Warnf("Unable to accept channel: %v.", err)
-				nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+				rejectChannel(nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
-			go s.handleSessionRequests(wconn, sconn, identityContext, ch, requests)
+			go s.handleSessionRequests(ccx, identityContext, ch, requests)
 			return
 		default:
-			nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
+			rejectChannel(nch, ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
 			return
 		}
 	}
@@ -868,41 +878,40 @@ func (s *Server) HandleNewChan(wconn net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 		ch, requests, err := nch.Accept()
 		if err != nil {
 			log.Warnf("Unable to accept channel: %v.", err)
-			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+			rejectChannel(nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
-		go s.handleSessionRequests(wconn, sconn, identityContext, ch, requests)
+		go s.handleSessionRequests(ccx, identityContext, ch, requests)
 	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case teleport.ChanDirectTCPIP:
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
 			log.Errorf("Failed to parse request data: %v, err: %v.", string(nch.ExtraData()), err)
-			nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request")
+			rejectChannel(nch, ssh.UnknownChannelType, "failed to parse direct-tcpip request")
 			return
 		}
 		ch, _, err := nch.Accept()
 		if err != nil {
 			log.Warnf("Unable to accept channel: %v.", err)
-			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+			rejectChannel(nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
-		go s.handleDirectTCPIPRequest(wconn, sconn, identityContext, ch, req)
+		go s.handleDirectTCPIPRequest(ccx, identityContext, ch, req)
 	default:
-		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
+		rejectChannel(nch, ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
 	}
 }
 
 // handleDirectTCPIPRequest handles port forwarding requests.
-func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *Server) handleDirectTCPIPRequest(ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	ctx, err := srv.NewServerContext(s, sconn, identityContext)
+	ctx, err := srv.NewServerContext(ccx, s, identityContext)
 	if err != nil {
 		log.Errorf("Unable to create connection context: %v.", err)
-		channel.Stderr().Write([]byte("Unable to create connection context."))
+		writeStderr(channel, "Unable to create connection context.")
 		return
 	}
-	ctx.Connection = wconn
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(channel)
 	ctx.ChannelType = teleport.ChanDirectTCPIP
@@ -913,7 +922,7 @@ func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn,
 	// Check if the role allows port forwarding for this user.
 	err = s.authHandlers.CheckPortForward(ctx.DstAddr, ctx)
 	if err != nil {
-		channel.Stderr().Write([]byte(err.Error()))
+		writeStderr(channel, err.Error())
 		return
 	}
 
@@ -925,7 +934,7 @@ func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn,
 	// from another process.
 	cmd, err := srv.ConfigureCommand(ctx)
 	if err != nil {
-		channel.Stderr().Write([]byte(err.Error()))
+		writeStderr(channel, err.Error())
 	}
 
 	// Create a pipe for std{in,out} that will be used to transfer data between
@@ -943,7 +952,7 @@ func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn,
 	// to the target host.
 	err = cmd.Start()
 	if err != nil {
-		channel.Stderr().Write([]byte(err.Error()))
+		writeStderr(channel, err.Error())
 		return
 	}
 
@@ -978,7 +987,7 @@ func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn,
 	}
 	err = cmd.Wait()
 	if err != nil {
-		channel.Stderr().Write([]byte(err.Error()))
+		writeStderr(channel, err.Error())
 		return
 	}
 
@@ -988,24 +997,23 @@ func (s *Server) handleDirectTCPIPRequest(wconn net.Conn, sconn *ssh.ServerConn,
 		events.PortForwardSuccess: true,
 		events.EventLogin:         ctx.Identity.Login,
 		events.EventUser:          ctx.Identity.TeleportUser,
-		events.LocalAddr:          sconn.LocalAddr().String(),
-		events.RemoteAddr:         sconn.RemoteAddr().String(),
+		events.LocalAddr:          ctx.Conn.LocalAddr().String(),
+		events.RemoteAddr:         ctx.Conn.RemoteAddr().String(),
 	})
 }
 
 // handleSessionRequests handles out of band session requests once the session
 // channel has been created this function's loop handles all the "exec",
 // "subsystem" and "shell" requests.
-func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
+func (s *Server) handleSessionRequests(ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	ctx, err := srv.NewServerContext(s, sconn, identityContext)
+	ctx, err := srv.NewServerContext(ccx, s, identityContext)
 	if err != nil {
 		log.Errorf("Unable to create connection context: %v.", err)
-		ch.Stderr().Write([]byte("Unable to create connection context."))
+		writeStderr(ch, "Unable to create connection context.")
 		return
 	}
-	ctx.Connection = conn
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(ch)
 	ctx.ChannelType = teleport.ChanSession
@@ -1019,7 +1027,7 @@ func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, ide
 	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
 	if err != nil {
 		log.Errorf("Unable to fetch cluster config: %v.", err)
-		ch.Stderr().Write([]byte("Unable to fetch cluster configuration."))
+		writeStderr(ch, "Unable to fetch cluster configuration.")
 		return
 	}
 
@@ -1028,7 +1036,7 @@ func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, ide
 	// closeContext which signals the server to shutdown.
 	go srv.StartKeepAliveLoop(srv.KeepAliveParams{
 		Conns: []srv.RequestSender{
-			sconn,
+			ctx.Conn,
 		},
 		Interval:     clusterConfig.GetKeepAliveInterval(),
 		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
@@ -1045,7 +1053,7 @@ func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, ide
 				ctx.Errorf("Unable to update context: %v.", errorMessage)
 
 				// write the error to channel and close it
-				ch.Stderr().Write([]byte(errorMessage))
+				writeStderr(ch, errorMessage)
 				_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
 				if err != nil {
 					ctx.Errorf("Failed to send exit status %v.", errorMessage)
@@ -1062,7 +1070,7 @@ func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, ide
 		case req := <-in:
 			if req == nil {
 				// this will happen when the client closes/drops the connection
-				ctx.Debugf("Client %v disconnected.", sconn.RemoteAddr())
+				ctx.Debugf("Client %v disconnected.", ctx.Conn.RemoteAddr())
 				return
 			}
 			if err := s.dispatch(ch, req, ctx); err != nil {
@@ -1070,7 +1078,9 @@ func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, ide
 				return
 			}
 			if req.WantReply {
-				req.Reply(true, nil)
+				if err := req.Reply(true, nil); err != nil {
+					log.Warnf("Failed to reply to %q request: %v", req.Type, err)
+				}
 			}
 		case result := <-ctx.ExecResultCh:
 			ctx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
@@ -1171,7 +1181,7 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 	}
 
 	// save the agent in the context so it can be used later
-	ctx.SetAgent(agent.NewClient(authChannel), authChannel)
+	ctx.Parent.SetAgent(agent.NewClient(authChannel), authChannel)
 
 	// serve an agent on a unix socket on this node
 	err = s.serveAgent(ctx)
@@ -1209,7 +1219,7 @@ func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContex
 	// Save the agent so it can be used when making a proxy subsystem request
 	// later. It will also be used when building a remote connection to the
 	// target node.
-	ctx.SetAgent(agent.NewClient(authChannel), authChannel)
+	ctx.Parent.SetAgent(agent.NewClient(authChannel), authChannel)
 
 	return nil
 }
@@ -1304,16 +1314,15 @@ func (s *Server) handleVersionRequest(req *ssh.Request) {
 }
 
 // handleProxyJump handles ProxyJump request that is executed via direct tcp-ip dial on the proxy
-func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, req sshutils.DirectTCPIPReq) {
+func (s *Server) handleProxyJump(ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, req sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	ctx, err := srv.NewServerContext(s, sconn, identityContext)
+	ctx, err := srv.NewServerContext(ccx, s, identityContext)
 	if err != nil {
 		log.Errorf("Unable to create connection context: %v.", err)
-		ch.Stderr().Write([]byte("Unable to create connection context."))
+		writeStderr(ch, "Unable to create connection context.")
 		return
 	}
-	ctx.Connection = conn
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(ch)
 	defer ctx.Close()
@@ -1321,7 +1330,7 @@ func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityC
 	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
 	if err != nil {
 		log.Errorf("Unable to fetch cluster config: %v.", err)
-		ch.Stderr().Write([]byte("Unable to fetch cluster configuration."))
+		writeStderr(ch, "Unable to fetch cluster configuration.")
 		return
 	}
 
@@ -1354,7 +1363,7 @@ func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityC
 		err = s.handleAgentForwardProxy(&ssh.Request{}, ctx)
 		if err != nil {
 			log.Warningf("Failed to request agent in recording mode: %v", err)
-			ch.Stderr().Write([]byte("Failed to request agent"))
+			writeStderr(ch, "Failed to request agent")
 			return
 		}
 	}
@@ -1364,7 +1373,7 @@ func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityC
 	// closeContext which signals the server to shutdown.
 	go srv.StartKeepAliveLoop(srv.KeepAliveParams{
 		Conns: []srv.RequestSender{
-			sconn,
+			ctx.Conn,
 		},
 		Interval:     clusterConfig.GetKeepAliveInterval(),
 		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
@@ -1387,29 +1396,31 @@ func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityC
 	})
 	if err != nil {
 		log.Errorf("Unable instantiate proxy subsystem: %v.", err)
-		ch.Stderr().Write([]byte("Unable to instantiate proxy subsystem."))
+		writeStderr(ch, "Unable to instantiate proxy subsystem.")
 		return
 	}
 
-	if err := subsys.Start(sconn, ch, &ssh.Request{}, ctx); err != nil {
+	if err := subsys.Start(ctx.Conn, ch, &ssh.Request{}, ctx); err != nil {
 		log.Errorf("Unable to start proxy subsystem: %v.", err)
-		ch.Stderr().Write([]byte("Unable to start proxy subsystem."))
+		writeStderr(ch, "Unable to start proxy subsystem.")
 		return
 	}
 
 	if err := subsys.Wait(); err != nil {
 		log.Errorf("Proxy subsystem failed: %v.", err)
-		ch.Stderr().Write([]byte("Proxy subsystem failed."))
+		writeStderr(ch, "Proxy subsystem failed.")
 		return
 	}
 }
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	log.Error(err)
-	message := []byte(utils.UserMessageFromError(err))
-	ch.Stderr().Write(message)
+	message := trace.UserMessage(err)
+	writeStderr(ch, message)
 	if req.WantReply {
-		req.Reply(false, message)
+		if err := req.Reply(false, []byte(message)); err != nil {
+			log.Warnf("Failed to reply to %q request: %v", req.Type, err)
+		}
 	}
 }
 
@@ -1425,4 +1436,16 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 		return parseProxySitesSubsys(r.Name, s)
 	}
 	return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
+}
+
+func writeStderr(ch ssh.Channel, msg string) {
+	if _, err := fmt.Fprint(ch.Stderr(), msg); err != nil {
+		log.Warnf("Failed writing to ssh.Channel.Stderr(): %v", err)
+	}
+}
+
+func rejectChannel(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
+	if err := ch.Reject(reason, msg); err != nil {
+		log.Warnf("Failed to reject new ssh.Channel: %v", err)
+	}
 }

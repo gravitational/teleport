@@ -367,7 +367,10 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
 
-	err = s.server.Auth().UpsertUser(teleUser)
+	teleUser.SetCreatedBy(services.CreatedBy{
+		User: services.UserRef{Name: "some-auth-user"},
+	})
+	err = s.server.Auth().CreateUser(context.TODO(), teleUser)
 	c.Assert(err, IsNil)
 
 	err = s.server.Auth().UpsertPassword(user, []byte(pass))
@@ -445,7 +448,8 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	// now swap the request id to the hardcoded one in fixtures
 	authRequest.ID = fixtures.SAMLOktaAuthRequestID
 	authRequest.CSRFToken = csrfToken
-	s.server.Auth().Identity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
+	err = s.server.Auth().Identity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
+	c.Assert(err, IsNil)
 
 	// now respond with pre-recorded request to the POST url
 	in := &bytes.Buffer{}
@@ -496,7 +500,7 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// subsequent requests trying to use this session will fail
-	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	_, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
@@ -587,7 +591,7 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	newPack := s.authPackFromResponse(c, re)
 
 	// new session is functioning
-	re, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
 	// old session is stil valid too (until it expires)
@@ -595,7 +599,7 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	c.Assert(err, IsNil)
 	oldClt := s.client(roundtrip.BearerAuth(prevBearerToken), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), []*http.Cookie{&prevSessionCookie})
-	re, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	_, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
 	// now delete session
@@ -605,7 +609,7 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	c.Assert(err, IsNil)
 
 	// subsequent requests trying to use this session will fail
-	re, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
@@ -926,7 +930,8 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	}
 	envelopeBytes, err := proto.Marshal(envelope)
 	c.Assert(err, IsNil)
-	websocket.Message.Send(ws2, envelopeBytes)
+	err = websocket.Message.Send(ws2, envelopeBytes)
+	c.Assert(err, IsNil)
 
 	// This time the first terminal will see the resize event.
 	err = s.waitForResizeEvent(ws1, 5*time.Second)
@@ -1005,7 +1010,20 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 	}
 
 	c.Assert(len(sessResp.Sessions), Equals, 1)
-	c.Assert(sessResp.Sessions[0].ID, Equals, sid)
+
+	sess := sessResp.Sessions[0]
+	c.Assert(sess.ID, Equals, sid)
+	c.Assert(sess.Namespace, Equals, s.node.GetNamespace())
+	c.Assert(sess.Parties, NotNil)
+	c.Assert(sess.TerminalParams.H > 0, Equals, true)
+	c.Assert(sess.TerminalParams.W > 0, Equals, true)
+	c.Assert(sess.Login, Equals, pack.login)
+	c.Assert(sess.Created.IsZero(), Equals, false)
+	c.Assert(sess.LastActive.IsZero(), Equals, false)
+	c.Assert(sess.ServerID, Equals, s.srvID)
+	c.Assert(sess.ServerHostname, Equals, s.node.GetInfo().GetHostname())
+	c.Assert(sess.ServerAddr, Equals, s.node.GetInfo().GetAddr())
+	c.Assert(sess.ClusterName, Equals, s.server.ClusterName())
 }
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
@@ -1026,7 +1044,8 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 
 	// make sure server has replied
 	out := make([]byte, 100)
-	stream.Read(out)
+	_, err = stream.Read(out)
+	c.Assert(err, IsNil)
 
 	_, err = pack.clt.Delete(
 		context.Background(),
@@ -1097,6 +1116,7 @@ func (s *WebSuite) TestLogin(c *C) {
 		User: "user1",
 		Pass: "password",
 	})
+	c.Assert(err, IsNil)
 
 	clt := s.client()
 	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
@@ -1110,6 +1130,7 @@ func (s *WebSuite) TestLogin(c *C) {
 	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
 		return clt.Client.HTTPClient().Do(req)
 	})
+	c.Assert(err, IsNil)
 
 	var rawSess *CreateSessionResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
@@ -1135,13 +1156,13 @@ func (s *WebSuite) TestLogin(c *C) {
 
 	// no session cookie:
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
-	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
+	_, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 
 	// no bearer token:
 	clt = s.client(roundtrip.CookieJar(jar))
-	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
+	_, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
@@ -1184,6 +1205,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 		Password:          []byte("abc123"),
 		SecondFactorToken: secondFactorToken,
 	})
+	c.Assert(err, IsNil)
 
 	req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(data))
 	c.Assert(err, IsNil)
@@ -1196,6 +1218,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	re, err = clt.Client.RoundTrip(func() (*http.Response, error) {
 		return clt.Client.HTTPClient().Do(req)
 	})
+	c.Assert(err, IsNil)
 
 	var rawSess *CreateSessionResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
@@ -1238,6 +1261,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 		Password:            []byte("qweQWE"),
 		U2FRegisterResponse: *u2fRegResp,
 	})
+	c.Assert(err, IsNil)
 
 	req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(data))
 	c.Assert(err, IsNil)
@@ -1250,6 +1274,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	re, err = clt.Client.RoundTrip(func() (*http.Response, error) {
 		return clt.Client.HTTPClient().Do(req)
 	})
+	c.Assert(err, IsNil)
 
 	var rawSess *CreateSessionResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)

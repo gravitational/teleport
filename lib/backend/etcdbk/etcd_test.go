@@ -92,7 +92,7 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 func (s *EtcdSuite) SetUpTest(c *check.C) {
 	if s.skip {
 		fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
-		c.Skip("Etcd is not avialable")
+		c.Skip("Etcd is not available")
 	}
 }
 

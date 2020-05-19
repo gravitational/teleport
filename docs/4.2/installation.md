@@ -4,11 +4,8 @@ Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`]
 
 The Teleport client [`tsh`](cli-docs.md#tsh) and Web UI are available for **Linux, Mac**
 and **Windows** operating systems. Our examples install Teleport v{{ teleport.version }} but you can 
-install any version listed in our [Release History](https://gravitational.com/teleport/releases/).
+install any version listed in our [Release History](https://gravitational.com/teleport/download/).
 
-**Table of Contents**
-
-[TOC]
 
 ## Checksums
 
@@ -77,6 +74,11 @@ $ sha256sum teleport-{{ teleport.version }}-1.x86_64.rpm
 $ rpm -i teleport-{{ teleport.version }}-1.x86_64.rpm
 $ which teleport
 /usr/local/bin/teleport
+```
+
+### Docker
+```bash
+$ docker pull quay.io/gravitational/teleport:{{ teleport.version }}
 ```
 
 ### MacOS
@@ -159,7 +161,7 @@ $ cd teleport
 # Make sure you have `zip` installed - the Makefile uses it
 $ make full
 # create the default data directory before running `teleport`
-$ sudo mkdir -p /var/lib/teleport
+$ sudo mkdir -p -m0700 /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 

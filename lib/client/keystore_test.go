@@ -23,6 +23,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,28 +38,33 @@ import (
 )
 
 type KeyStoreTestSuite struct {
-	storeDir string
-	store    *FSLocalKeyStore
-	keygen   *testauthority.Keygen
-	tlsca    *tlsca.CertAuthority
+	storeDir  string
+	store     *FSLocalKeyStore
+	keygen    *testauthority.Keygen
+	tlsCA     *tlsca.CertAuthority
+	tlsCACert auth.TrustedCerts
 }
 
 var _ = fmt.Printf
 var _ = check.Suite(&KeyStoreTestSuite{})
 
-func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, error) {
+func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
 	rsaKey, err := ssh.ParseRawPrivateKey(privateKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
 	key, cert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
 		CommonName:   "localhost",
 		Organization: []string{"localhost"},
 	}, nil, defaults.CATTL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	return tlsca.New(cert, key)
+	ca, err := tlsca.New(cert, key)
+	if err != nil {
+		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+	}
+	return ca, auth.TrustedCerts{TLSCertificates: [][]byte{cert}}, nil
 }
 
 func (s *KeyStoreTestSuite) SetUpSuite(c *check.C) {
@@ -71,7 +77,7 @@ func (s *KeyStoreTestSuite) SetUpSuite(c *check.C) {
 	c.Assert(s.store, check.NotNil)
 	c.Assert(utils.IsDir(s.store.KeyDir), check.Equals, true)
 
-	s.tlsca, err = newSelfSignedCA(CAPriv)
+	s.tlsCA, s.tlsCACert, err = newSelfSignedCA(CAPriv)
 	c.Assert(err, check.IsNil)
 }
 
@@ -91,13 +97,13 @@ func (s *KeyStoreTestSuite) TestListKeys(c *check.C) {
 	for i := 0; i < keyNum; i++ {
 		key := s.makeSignedKey(c, false)
 		host := fmt.Sprintf("host-%v", i)
-		s.store.AddKey(host, "bob", key)
+		c.Assert(s.addKey(host, "bob", key), check.IsNil)
 		key.ProxyHost = host
 		keys[i] = *key
 	}
 	// add 1 key for "sam"
 	samKey := s.makeSignedKey(c, false)
-	s.store.AddKey("sam.host", "sam", samKey)
+	c.Assert(s.addKey("sam.host", "sam", samKey), check.IsNil)
 
 	// read all bob keys:
 	for i := 0; i < keyNum; i++ {
@@ -118,7 +124,7 @@ func (s *KeyStoreTestSuite) TestKeyCRUD(c *check.C) {
 	key := s.makeSignedKey(c, false)
 
 	// add key:
-	err := s.store.AddKey("host.a", "bob", key)
+	err := s.addKey("host.a", "bob", key)
 	c.Assert(err, check.IsNil)
 
 	// load back and compare:
@@ -129,7 +135,7 @@ func (s *KeyStoreTestSuite) TestKeyCRUD(c *check.C) {
 	// Delete & verify that it's gone
 	err = s.store.DeleteKey("host.a", "bob")
 	c.Assert(err, check.IsNil)
-	keyCopy, err = s.store.GetKey("host.a", "bob")
+	_, err = s.store.GetKey("host.a", "bob")
 	c.Assert(err, check.NotNil)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 
@@ -143,9 +149,9 @@ func (s *KeyStoreTestSuite) TestDeleteAll(c *check.C) {
 	key := s.makeSignedKey(c, false)
 
 	// add keys
-	err := s.store.AddKey("proxy.example.com", "foo", key)
+	err := s.addKey("proxy.example.com", "foo", key)
 	c.Assert(err, check.IsNil)
-	err = s.store.AddKey("proxy.example.com", "bar", key)
+	err = s.addKey("proxy.example.com", "bar", key)
 	c.Assert(err, check.IsNil)
 
 	// check keys exist
@@ -209,7 +215,7 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	priv, pub, _ = s.keygen.GenerateKeyPair("")
 	username := "vincento"
 	allowedLogins := []string{username, "root"}
-	ttl := time.Duration(time.Minute * 20)
+	ttl := 20 * time.Minute
 	if makeExpired {
 		ttl = -ttl
 	}
@@ -223,7 +229,7 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	}
 	subject, err := identity.Subject()
 	c.Assert(err, check.IsNil)
-	tlsCert, err := s.tlsca.GenerateCertificate(tlsca.CertificateRequest{
+	tlsCert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: cryptoPubKey,
 		Subject:   subject,
@@ -242,10 +248,11 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	})
 	c.Assert(err, check.IsNil)
 	return &Key{
-		Priv:    priv,
-		Pub:     pub,
-		Cert:    cert,
-		TLSCert: tlsCert,
+		Priv:      priv,
+		Pub:       pub,
+		Cert:      cert,
+		TLSCert:   tlsCert,
+		TrustedCA: []auth.TrustedCerts{s.tlsCACert},
 	}
 }
 
@@ -259,7 +266,7 @@ func (s *KeyStoreTestSuite) TestCheckKey(c *check.C) {
 	c.Assert(err, check.IsNil)
 	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
-	err = s.store.AddKey("host.a", "bob", key)
+	err = s.addKey("host.a", "bob", key)
 	c.Assert(err, check.IsNil)
 
 	_, err = s.store.GetKey("host.a", "bob")
@@ -281,11 +288,19 @@ func (s *KeyStoreTestSuite) TestCheckKeyFIPS(c *check.C) {
 	c.Assert(err, check.IsNil)
 	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
-	err = s.store.AddKey("host.a", "bob", key)
+	err = s.addKey("host.a", "bob", key)
 	c.Assert(err, check.IsNil)
 
 	_, err = s.store.GetKey("host.a", "bob")
 	c.Assert(err, check.NotNil)
+}
+
+func (s *KeyStoreTestSuite) addKey(host, user string, key *Key) error {
+	if err := s.store.AddKey(host, user, key); err != nil {
+		return err
+	}
+	// Also write the trusted CA certs for the host.
+	return s.store.SaveCerts(host, []auth.TrustedCerts{s.tlsCACert})
 }
 
 var (

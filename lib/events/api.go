@@ -144,17 +144,24 @@ const (
 	// LoginMethodGithub represents login with Github
 	LoginMethodGithub = "github"
 
-	// UserUpdatedEvent is emitted when the user is created or updated (upsert).
+	// UserUpdatedEvent is emitted when the user is updated.
 	UserUpdatedEvent = "user.update"
 
 	// UserDeleteEvent is emitted when the user is deleted.
 	UserDeleteEvent = "user.delete"
+
+	// UserCreateEvent is emitted when the user is created.
+	UserCreateEvent = "user.create"
+
+	// UserPasswordChangeEvent is when the user changes their own password.
+	UserPasswordChangeEvent = "user.password_change"
 
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
 
 	// UserRoles is a list of roles for the user.
 	UserRoles = "roles"
+
 	// IdentityAttributes is a map of user attributes
 	// received from identity provider
 	IdentityAttributes = "attributes"
@@ -166,19 +173,30 @@ const (
 	AccessRequestCreateEvent = "access_request.create"
 	// AccessRequestUpdateEvent is emitted when a request's state is updated.
 	AccessRequestUpdateEvent = "access_request.update"
-	// AccessRequestUpdateBy indicates the user that updated the request state.
-	AccessRequestUpdateBy = "updated_by"
+	// AccessRequestDelegator is used by teleport plugins to indicate the identity
+	// which caused them to update state.
+	AccessRequestDelegator = "delegator"
 	// AccessRequestState is the state of a request.
 	AccessRequestState = "state"
 	// AccessRequestID is the ID of an access request.
 	AccessRequestID = "id"
 
+	// UpdatedBy indicates the user who modified some resource:
+	//  - updating a request state
+	//  - updating a user record
+	UpdatedBy = "updated_by"
+
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
-	// ResetPasswordTokenFor is a user name of reset password token.
-	ResetPasswordTokenFor = "entity"
+
+	// ActionOnBehalfOf is the name of the user, whom record is being modified:
+	// resetting passwords, creating/updating user, etc.
+	ActionOnBehalfOf = "entity"
+
+	// FieldName contains name, e.g. resource name, etc.
+	FieldName = "name"
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
@@ -272,6 +290,11 @@ const (
 
 	// TCPVersion is the version of TCP (4 or 6).
 	TCPVersion = "version"
+
+	// RoleCreatedEvent fires when role is created/updated.
+	RoleCreatedEvent = "role.created"
+	// RoleDeletedEvent fires when role is deleted.
+	RoleDeletedEvent = "role.deleted"
 )
 
 const (

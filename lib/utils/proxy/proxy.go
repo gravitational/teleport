@@ -165,6 +165,11 @@ func dialProxy(ctx context.Context, proxyAddr string, addr string) (net.Conn, er
 	// headers, and potentially part of the response body. the body itself will
 	// not be read, but kept around so it can be read later.
 	br := bufio.NewReader(conn)
+	// Per the above comment, we're only using ReadResponse to check the status
+	// and then hand off the underlying connection to the caller.
+	// resp.Body.Close() would drain conn and close it, we don't need to do it
+	// here. Disabling bodyclose linter for this edge case.
+	//nolint:bodyclose
 	resp, err := http.ReadResponse(br, connectReq)
 	if err != nil {
 		conn.Close()

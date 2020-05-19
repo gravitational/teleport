@@ -201,7 +201,7 @@ func RunCommand() (io.Writer, int, error) {
 
 	// Wait for the command to exit. It doesn't make sense to print an error
 	// message here because the shell has successfully started. If an error
-	// occured during shell execution or the shell exits with an error (like
+	// occurred during shell execution or the shell exits with an error (like
 	// running exit 2), the shell will print an error if appropriate and return
 	// an exit code.
 	err = cmd.Wait()
@@ -284,11 +284,9 @@ func RunForward() (io.Writer, int, error) {
 	// Block until copy is complete and the child process is done executing.
 	var errs []error
 	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errorCh:
-			if err != nil && err != io.EOF {
-				errs = append(errs, err)
-			}
+		err := <-errorCh
+		if err != nil && err != io.EOF {
+			errs = append(errs, err)
 		}
 	}
 
@@ -461,6 +459,9 @@ func buildCommand(c *execCommand, tty *os.File, pty *os.File, pamEnvironment []s
 			uid, gid, groups)
 	}
 
+	// Perform OS-specific tweaks to the command.
+	userCommandOSTweaks(&cmd)
+
 	return &cmd, nil
 }
 
@@ -510,7 +511,7 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	args := []string{executable, subCommand}
 
 	// Build the "teleport exec" command.
-	return &exec.Cmd{
+	cmd := &exec.Cmd{
 		Path: executable,
 		Args: args,
 		Dir:  executableDir,
@@ -518,5 +519,10 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 			ctx.cmdr,
 			ctx.contr,
 		},
-	}, nil
+	}
+
+	// Perform OS-specific tweaks to the command.
+	reexecCommandOSTweaks(cmd)
+
+	return cmd, nil
 }

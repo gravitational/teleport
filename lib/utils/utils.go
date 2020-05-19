@@ -72,7 +72,7 @@ func (t *Tracer) Start() *Tracer {
 
 // Stop logs stop of the trace
 func (t *Tracer) Stop() *Tracer {
-	log.Debugf("Tracer completed %v in %v.", t.Description, time.Now().Sub(t.Started))
+	log.Debugf("Tracer completed %v in %v.", t.Description, time.Since(t.Started))
 	return t
 }
 
@@ -320,12 +320,6 @@ func IsCertExpiredError(err error) bool {
 		return false
 	}
 	return strings.Contains(trace.Unwrap(err).Error(), "ssh: cert has expired")
-}
-
-// IsShellFailedError specifies whether this error indicates
-// failed attempt to start shell
-func IsShellFailedError(err error) bool {
-	return strings.Contains(err.Error(), "ssh: cound not start shell")
 }
 
 // PortList is a list of TCP port

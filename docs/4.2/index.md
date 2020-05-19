@@ -86,7 +86,7 @@ integration with identity managers for single sign-on (SSO). Because the
 majority of documentation between the Community and Enterprise Editions overlap,
 we have separated out the documentation that is specific to Teleport Enterprise.
 
-- [Teleport Enterprise Introduction](enterprise) - Overview of the additional capabilities of Teleport Enterprise.
+- [Teleport Enterprise Introduction](enterprise/index.md) - Overview of the additional capabilities of Teleport Enterprise.
 - [Teleport Enterprise Quick Start](enterprise/quickstart-enterprise.md) - A quick tutorial to show off the basic capabilities of Teleport Enterprise.
 A good place to start if you want to jump right in.
 - [RBAC for SSH](enterprise/ssh_rbac.md) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
@@ -96,11 +96,8 @@ A good place to start if you want to jump right in.
 
 We also have several guides that go through the most typical configurations and integrations.
 
-- [Okta Integration](ssh_okta.md) - How to integrate Teleport Enterprise with Okta.
-- [ADFS Integration](ssh_adfs.md) - How to integrate Teleport Enterprise with Active Directory.
-- [One Login Integration](ssh_one_login.md) - How to integrate Teleport Enterprise with One Login.
-- [OIDC Integration](oidc.md) - How to integrate Teleport Enterprise with identity providers using OIDC/OAuth2.
 - [Kubernetes Integration](kubernetes_ssh.md) - How to configure Teleport to serve as a unified gateway for Kubernetes clusters and clusters of regular SSH nodes.
+- [AWS Guide](aws_oss_guide.md)
 
 ## Why Build Teleport?
 

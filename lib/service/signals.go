@@ -53,11 +53,11 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 
 	sigC := make(chan os.Signal, 1024)
+	// Note: SIGKILL can't be trapped.
 	signal.Notify(sigC,
 		syscall.SIGQUIT, // graceful shutdown
 		syscall.SIGTERM, // fast shutdown
 		syscall.SIGINT,  // fast shutdown
-		syscall.SIGKILL, // fast shutdown
 		syscall.SIGUSR1, // log process diagnostic info
 		syscall.SIGUSR2, // initiate process restart procedure
 		syscall.SIGHUP,  // graceful restart procedure

@@ -54,8 +54,5 @@ type prefixItem struct {
 // Less is used for Btree operations
 func (p *prefixItem) Less(iother btree.Item) bool {
 	other := iother.(*btreeItem)
-	if bytes.HasPrefix(other.Key, p.prefix) {
-		return false
-	}
-	return true
+	return !bytes.HasPrefix(other.Key, p.prefix)
 }

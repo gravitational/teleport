@@ -57,7 +57,8 @@ func (s *MainTestSuite) SetUpSuite(c *check.C) {
 		panic(err)
 	}
 	s.configFile = filepath.Join(dirname, "teleport.yaml")
-	ioutil.WriteFile(s.configFile, []byte(YAMLConfig), 0770)
+	err = ioutil.WriteFile(s.configFile, []byte(YAMLConfig), 0770)
+	c.Assert(err, check.IsNil)
 
 	// set imprtant defaults to test-mode (non-existing files&locations)
 	defaults.ConfigFilePath = "/tmp/teleport/etc/teleport.yaml"
@@ -87,6 +88,7 @@ func (s *MainTestSuite) TestRolesFlag(c *check.C) {
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
 	c.Assert(conf.Proxy.Enabled, check.Equals, false)
+	c.Assert(cmd, check.Equals, "start")
 
 	cmd, conf = Run(Options{
 		Args:     []string{"start", "--roles=proxy"},
@@ -95,6 +97,7 @@ func (s *MainTestSuite) TestRolesFlag(c *check.C) {
 	c.Assert(conf.SSH.Enabled, check.Equals, false)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
 	c.Assert(conf.Proxy.Enabled, check.Equals, true)
+	c.Assert(cmd, check.Equals, "start")
 
 	cmd, conf = Run(Options{
 		Args:     []string{"start", "--roles=auth"},

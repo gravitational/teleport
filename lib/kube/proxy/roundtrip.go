@@ -51,8 +51,7 @@ type SpdyRoundTripper struct {
 	//to the remote server.
 	tlsConfig *tls.Config
 
-	authCtx     authContext
-	bearerToken string
+	authCtx authContext
 
 	/* TODO according to http://golang.org/pkg/net/http/#RoundTripper, a RoundTripper
 	   must be safe for use by multiple concurrent goroutines. If this is absolutely
@@ -84,7 +83,6 @@ type DialWithContext func(context context.Context, network, address string) (net
 type roundTripperConfig struct {
 	ctx             context.Context
 	authCtx         authContext
-	bearerToken     string
 	dial            DialWithContext
 	tlsConfig       *tls.Config
 	followRedirects bool
@@ -93,7 +91,7 @@ type roundTripperConfig struct {
 // NewSpdyRoundTripperWithDialer creates a new SpdyRoundTripper that will use
 // the specified tlsConfig. This function is mostly meant for unit tests.
 func NewSpdyRoundTripperWithDialer(cfg roundTripperConfig) *SpdyRoundTripper {
-	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, followRedirects: cfg.followRedirects, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx, bearerToken: cfg.bearerToken}
+	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, followRedirects: cfg.followRedirects, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx}
 }
 
 // TLSClientConfig implements pkg/util/net.TLSClientConfigHolder for proper TLS checking during
@@ -104,7 +102,7 @@ func (s *SpdyRoundTripper) TLSClientConfig() *tls.Config {
 
 // Dial implements k8s.io/apimachinery/pkg/util/net.Dialer.
 func (s *SpdyRoundTripper) Dial(req *http.Request) (net.Conn, error) {
-	conn, err := s.dial(req)
+	conn, err := s.dial(req.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -117,13 +115,8 @@ func (s *SpdyRoundTripper) Dial(req *http.Request) (net.Conn, error) {
 	return conn, nil
 }
 
-// dial dials the host specified by req
-func (s *SpdyRoundTripper) dial(req *http.Request) (net.Conn, error) {
-	return s.dialWithoutProxy(req.URL)
-}
-
-// dialWithoutProxy dials the host specified by url, using TLS if appropriate.
-func (s *SpdyRoundTripper) dialWithoutProxy(url *url.URL) (net.Conn, error) {
+// dial dials the host specified by url, using TLS if appropriate.
+func (s *SpdyRoundTripper) dial(url *url.URL) (net.Conn, error) {
 	dialAddr := netutil.CanonicalAddr(url)
 
 	if url.Scheme == "http" {
@@ -144,24 +137,13 @@ func (s *SpdyRoundTripper) dialWithoutProxy(url *url.URL) (net.Conn, error) {
 		conn, err = utils.TLSDial(s.ctx, s.dialWithContext, "tcp", dialAddr, s.tlsConfig)
 	}
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	// Return if we were configured to skip validation
-	if s.tlsConfig != nil && s.tlsConfig.InsecureSkipVerify {
-		return conn, nil
-	}
-
-	host, _, err := net.SplitHostPort(dialAddr)
-	if err != nil {
-		return nil, err
-	}
-	if s.tlsConfig != nil && len(s.tlsConfig.ServerName) > 0 {
-		host = s.tlsConfig.ServerName
-	}
-	err = conn.VerifyHostname(host)
-	if err != nil {
-		return nil, err
+	// Client handshake will verify the server hostname and cert chain. That
+	// way we can err our before first read/write.
+	if err := conn.Handshake(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return conn, nil
@@ -175,7 +157,7 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	header.Add(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
 	header.Add(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
 
-	if err := setupImpersonationHeaders(log.StandardLogger(), &s.authCtx, header, s.bearerToken); err != nil {
+	if err := setupImpersonationHeaders(log.StandardLogger(), &s.authCtx, header); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

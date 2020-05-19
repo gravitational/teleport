@@ -6,9 +6,7 @@ This tutorial will guide you through the steps needed to install and run
 Teleport on a single node, which could be your local machine but we recommend a
 VM.
 
-**Table of Contents**
 
-[TOC]
 
 ### Prerequisites
 
@@ -22,15 +20,15 @@ VM.
   the best place to start!
 
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
-environment, and showcase a few basic tasks you can do with Teleport.
+environment, and showcase a few basic tasks you can do with Teleport. For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
 
-**You should not follow this guide if you want to set up Teleport in production.
-Instead follow the [Admin Guide](admin-guide.md)**
+!!! note "IMPORTANT"
+    You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.md). 
 
 ## Step 1: Install Teleport
 
 This guide installs teleport v{{ teleport.version }} on the CLI. Previous versions are documented
-in [Release History](https://gravitational.com/teleport/releases/). You can
+in [Release History](https://gravitational.com/teleport/download/). You can
 download pre-built binaries from our
 [Downloads](https://gravitational.com/teleport/download/) page or you can [build
 it from source](installation.md#installing-from-source).
@@ -62,7 +60,7 @@ First, create a directory for Teleport to keep its data (by default it's
 `/var/lib/teleport`):
 
 ``` bash
-$ mkdir -p /var/lib/teleport
+$ mkdir -p -m0700 /var/lib/teleport
 ```
 
 Now we are ready to start Teleport. Start the `teleport` daemon:

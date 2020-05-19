@@ -20,9 +20,7 @@ package test
 
 import (
 	"context"
-	"fmt"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -32,10 +30,6 @@ import (
 	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 )
-
-var _ = fmt.Printf
-
-func TestBackend(t *testing.T) { check.TestingT(t) }
 
 type BackendSuite struct {
 	B backend.Backend
@@ -96,7 +90,7 @@ func (s *BackendSuite) CRUD(c *check.C) {
 	err = s.B.Delete(ctx, item.Key)
 	fixtures.ExpectNotFound(c, err)
 
-	// put new item suceeds
+	// put new item succeeds
 	item = backend.Item{Key: prefix("/put"), Value: []byte("world")}
 	_, err = s.B.Put(ctx, item)
 	c.Assert(err, check.IsNil)
@@ -154,6 +148,7 @@ func (s *BackendSuite) Range(c *check.C) {
 
 	// range match
 	result, err = s.B.GetRange(ctx, prefix("/prefix/c/c1"), backend.RangeEnd(prefix("/prefix/c/cz")), backend.NoLimit)
+	c.Assert(err, check.IsNil)
 	ExpectItems(c, result.Items, expected)
 
 	// pagination

@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnel/seek"
+	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -50,14 +50,15 @@ type ServerHandler interface {
 type AgentPool struct {
 	sync.Mutex
 	*log.Entry
-	cfg      AgentPoolConfig
-	agents   map[agentKey][]*Agent
-	seekPool *seek.Pool
-	ctx      context.Context
-	cancel   context.CancelFunc
+	cfg          AgentPoolConfig
+	agents       map[agentKey][]*Agent
+	proxyTracker *track.Tracker
+	ctx          context.Context
+	cancel       context.CancelFunc
 	// lastReport is the last time the agent has reported the stats
-	lastReport  time.Time
-	lastAgentID uint64
+	lastReport time.Time
+	// spawnLimiter limits agent spawn rate
+	spawnLimiter utils.Retry
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -91,8 +92,6 @@ type AgentPoolConfig struct {
 	ReverseTunnelServer Server
 	// ProxyAddr if set, points to the address of the ssh proxy
 	ProxyAddr string
-	// Seek configures the proxy-seeking algorithm
-	Seek seek.Config
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -115,9 +114,6 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
-	if err := cfg.Seek.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
@@ -126,18 +122,23 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(cfg.Context)
-	seekPool, err := seek.NewPool(ctx, cfg.Seek)
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Step:      time.Second,
+		Max:       time.Second * 8,
+		Jitter:    utils.NewJitter(),
+		AutoReset: 4,
+	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(cfg.Context)
 	pool := &AgentPool{
-		agents:   make(map[agentKey][]*Agent),
-		seekPool: seekPool,
-		cfg:      cfg,
-		ctx:      ctx,
-		cancel:   cancel,
+		agents:       make(map[agentKey][]*Agent),
+		proxyTracker: track.New(ctx, track.Config{}),
+		cfg:          cfg,
+		ctx:          ctx,
+		cancel:       cancel,
+		spawnLimiter: retry,
 	}
 	pool.Entry = log.WithFields(log.Fields{
 		trace.Component: teleport.ComponentReverseTunnelAgent,
@@ -150,6 +151,7 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 
 // Start starts the agent pool
 func (m *AgentPool) Start() error {
+	m.Debugf("Starting agent pool %s.%s...", m.cfg.HostUUID, m.cfg.Cluster)
 	go m.pollAndSyncAgents()
 	go m.processSeekEvents()
 	return nil
@@ -162,26 +164,31 @@ func (m *AgentPool) Stop() {
 
 // Wait returns when agent pool is closed
 func (m *AgentPool) Wait() error {
-	select {
-	case <-m.ctx.Done():
-		break
-	}
+	<-m.ctx.Done()
 	return nil
 }
 
 func (m *AgentPool) processSeekEvents() {
+	limiter := m.spawnLimiter.Clone()
 	for {
 		select {
 		case <-m.ctx.Done():
 			m.Debugf("Halting seek event processing (pool closing)")
 			return
-		case key := <-m.seekPool.Seek():
-			m.Debugf("Seeking: %+v.", key)
+		case lease := <-m.proxyTracker.Acquire():
+			m.Debugf("Seeking: %+v.", lease.Key())
 			m.withLock(func() {
-				if err := m.addAgent(seekToAgentKey(key), nil); err != nil {
+				if err := m.addAgent(lease); err != nil {
 					m.WithError(err).Errorf("Failed to add agent.")
 				}
 			})
+		}
+		select {
+		case <-m.ctx.Done():
+			m.Debugf("Halting seek event processing (pool closing)")
+			return
+		case <-limiter.After():
+			limiter.Inc()
 		}
 	}
 }
@@ -266,20 +273,17 @@ func (m *AgentPool) pollAndSyncAgents() {
 	}
 }
 
-func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) error {
+func (m *AgentPool) addAgent(lease track.Lease) error {
 	// If the component connecting is a proxy, get the cluster name from the
 	// clusterName (where it is the name of the remote cluster). If it's a node, get
 	// the cluster name from the agent pool configuration itself (where it is
 	// the name of the local cluster).
+	key := keyFromLease(lease)
 	clusterName := key.clusterName
 	if key.tunnelType == string(services.NodeTunnel) {
 		clusterName = m.cfg.Cluster
 	}
-	seekGroup := m.seekPool.Group(agentToSeekKey(key))
-	m.lastAgentID++
-	agentID := m.lastAgentID
 	agent, err := NewAgent(AgentConfig{
-		ID:                  agentID,
 		Addr:                key.addr,
 		ClusterName:         clusterName,
 		Username:            m.cfg.HostUUID,
@@ -287,23 +291,23 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 		Client:              m.cfg.Client,
 		AccessPoint:         m.cfg.AccessPoint,
 		Context:             m.ctx,
-		DiscoverProxies:     discoverProxies,
 		KubeDialAddr:        m.cfg.KubeDialAddr,
 		Server:              m.cfg.Server,
 		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
 		LocalClusterName:    m.cfg.Cluster,
-		SeekGroup:           &seekGroup,
+		Tracker:             m.proxyTracker,
+		Lease:               lease,
 	})
 	if err != nil {
+		// ensure that lease has been released; OK to call multiple times.
+		lease.Release()
 		return trace.Wrap(err)
 	}
 	m.Debugf("Adding %v.", agent)
 	// start the agent in a goroutine. no need to handle Start() errors: Start() will be
 	// retrying itself until the agent is closed
 	go agent.Start()
-	agents, _ := m.agents[key]
-	agents = append(agents, agent)
-	m.agents[key] = agents
+	m.agents[key] = append(m.agents[key], agent)
 	return nil
 }
 
@@ -311,10 +315,17 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 // connected to. Used in tests to determine if a proxy has been found and/or
 // removed.
 func (m *AgentPool) Counts() map[string]int {
+	m.Lock()
+	defer m.Unlock()
 	out := make(map[string]int)
-
 	for key, agents := range m.agents {
-		out[key.clusterName] += len(agents)
+		count := 0
+		for _, agent := range agents {
+			if agent.getState() == agentStateConnected {
+				count++
+			}
+		}
+		out[key.clusterName] += count
 	}
 
 	return out
@@ -353,17 +364,9 @@ func (m *AgentPool) reportStats() {
 	}
 
 	for key, agents := range m.agents {
-		tunnelID := key.clusterName
-		if m.cfg.Component == teleport.ComponentNode {
-			tunnelID = m.cfg.HostUUID
-		}
-		m.Debugf("Outbound tunnel for %v connected to %v proxies.", tunnelID, len(agents))
-
 		countPerState := map[string]int{
 			agentStateConnecting:   0,
-			agentStateDiscovering:  0,
 			agentStateConnected:    0,
-			agentStateDiscovered:   0,
 			agentStateDisconnected: 0,
 		}
 		for _, a := range agents {
@@ -379,6 +382,8 @@ func (m *AgentPool) reportStats() {
 		}
 		if logReport {
 			m.WithFields(log.Fields{"target": key.clusterName, "stats": countPerState}).Info("Outbound tunnel stats.")
+		} else {
+			m.WithFields(log.Fields{"target": key.clusterName, "stats": countPerState}).Debug("Outbound tunnel stats.")
 		}
 	}
 }
@@ -396,14 +401,12 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 
 	// remove agents from deleted reverse tunnels
 	for _, key := range agentsToRemove {
-		m.seekPool.Stop(agentToSeekKey(key))
+		m.proxyTracker.Stop(agentToTrackingKey(key))
 		m.closeAgents(&key)
 	}
 	// add agents from added reverse tunnels
 	for _, key := range agentsToAdd {
-		if err := m.addAgent(key, nil); err != nil {
-			return trace.Wrap(err)
-		}
+		m.proxyTracker.Start(agentToTrackingKey(key))
 	}
 
 	// Remove disconnected agents from the list of agents.
@@ -421,10 +424,7 @@ func (m *AgentPool) removeDisconnected() {
 	for agentKey, agentSlice := range m.agents {
 		// Filter and close all disconnected agents.
 		validAgents := filterAndClose(agentSlice, func(agent *Agent) bool {
-			if agent.getState() == agentStateDisconnected {
-				return true
-			}
-			return false
+			return agent.getState() == agentStateDisconnected
 		})
 
 		// Update (or delete) agent key with filter applied.
@@ -492,8 +492,8 @@ type agentKey struct {
 	addr utils.NetAddr
 }
 
-// seekToAgentKey converts between key types
-func seekToAgentKey(key seek.Key) agentKey {
+func keyFromLease(lease track.Lease) agentKey {
+	key := lease.Key().(track.Key)
 	return agentKey{
 		clusterName: key.Cluster,
 		tunnelType:  key.Type,
@@ -501,9 +501,8 @@ func seekToAgentKey(key seek.Key) agentKey {
 	}
 }
 
-// agentToSeekKey converts between key types
-func agentToSeekKey(key agentKey) seek.Key {
-	return seek.Key{
+func agentToTrackingKey(key agentKey) track.Key {
+	return track.Key{
 		Cluster: key.clusterName,
 		Type:    key.tunnelType,
 		Addr:    key.addr,

@@ -332,9 +332,7 @@ func (t *terminal) SetTermType(term string) {
 	t.termType = term
 }
 
-func (t *terminal) SetTerminalModes(termModes ssh.TerminalModes) {
-	return
-}
+func (t *terminal) SetTerminalModes(termModes ssh.TerminalModes) {}
 
 // getOwner determines the uid, gid, and mode of the TTY similar to OpenSSH:
 // https://github.com/openssh/openssh-portable/blob/ddc0f38/sshpty.c#L164-L215
@@ -516,9 +514,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 }
 
 // Continue does nothing for remote command execution.
-func (r *remoteTerminal) Continue() {
-	return
-}
+func (r *remoteTerminal) Continue() {}
 
 func (t *remoteTerminal) Kill() error {
 	err := t.session.Signal(ssh.SIGKILL)

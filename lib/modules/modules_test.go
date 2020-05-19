@@ -41,6 +41,9 @@ func (s *ModulesSuite) TestDefaultModules(c *check.C) {
 	kubeGroups := GetModules().DefaultKubeGroups()
 	c.Assert(kubeGroups, check.DeepEquals, []string{teleport.TraitInternalKubeGroupsVariable})
 
+	kubeUsers := GetModules().DefaultKubeUsers()
+	c.Assert(kubeUsers, check.DeepEquals, []string{teleport.TraitInternalKubeUsersVariable})
+
 	roles := GetModules().RolesFromLogins([]string{"root"})
 	c.Assert(roles, check.DeepEquals, []string{teleport.AdminRoleName})
 
@@ -82,6 +85,10 @@ func (p *testModules) EmptyRolesHandler() error {
 
 func (p *testModules) DefaultAllowedLogins() []string {
 	return []string{"a", "b"}
+}
+
+func (p *testModules) DefaultKubeUsers() []string {
+	return []string{"c", "d"}
 }
 
 func (p *testModules) DefaultKubeGroups() []string {
