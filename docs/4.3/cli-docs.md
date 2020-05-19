@@ -341,6 +341,7 @@ interval via `--ttl` flag (capped by the server-side configuration).
 | `--bind-addr` | none | host:port | Address in the form of host:port to bind to for login command webhook
 | `-o, --out` | none | filepath | Identity output filepath
 | `--format` | `file` | `file` or `openssh` | Identity format
+| `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands
 
 ### [Global Flags](#tsh-global-flags)
 
@@ -378,6 +379,9 @@ $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
 # Login using Github as an SSO provider, assuming the Github connector is called "github"
 $ tsh --proxy=proxy.example.com --auth=github --user=admin login
+
+# Suppress the opening of the system default browser for external provider logins
+$ tsh --proxy=proxy.example.com --browser=none
 ```
 
 ## tsh logout
