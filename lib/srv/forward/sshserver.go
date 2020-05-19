@@ -439,7 +439,7 @@ func (s *Server) Serve() {
 	}
 	s.sconn = sconn
 
-	s.connectionContext = sshutils.NewConnectionContext(s.serverConn, s.sconn)
+	s.connectionContext = sshutils.NewConnectionContext(s.closeContext, s.serverConn, s.sconn)
 
 	// Take connection and extract identity information for the user from it.
 	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)

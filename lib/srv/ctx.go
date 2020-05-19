@@ -293,7 +293,7 @@ func NewServerContext(ccx *sshutils.ConnectionContext, srv Server, identityConte
 		return nil, trace.Wrap(err)
 	}
 
-	cancelContext, cancel := context.WithCancel(context.TODO())
+	cancelContext, cancel := context.WithCancel(ccx)
 
 	ctx := &ServerContext{
 		Parent:            ccx,
@@ -455,15 +455,6 @@ func (c *ServerContext) GetAgent() agent.Agent {
 		return nil
 	}
 	return c.Parent.GetAgent()
-}
-
-// GetAgentChannel returns the channel over which communication with the agent occurs,
-// or nil if no agent is available in this context.
-func (c *ServerContext) GetAgentChannel() ssh.Channel {
-	if c.Parent == nil {
-		return nil
-	}
-	return c.Parent.GetAgentChannel()
 }
 
 // GetTerm returns a Terminal.

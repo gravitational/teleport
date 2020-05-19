@@ -1,6 +1,7 @@
 package teleagent
 
 import (
+	"context"
 	"io"
 	"net"
 	"os"
@@ -14,9 +15,13 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+// AgentGetter is a function used to get an agent instance.
+type AgentGetter func(context.Context) (agent.Agent, error)
+
 // AgentServer is implementation of SSH agent server
 type AgentServer struct {
 	agent.Agent
+	Getter   AgentGetter
 	listener net.Listener
 	path     string
 }
@@ -24,6 +29,33 @@ type AgentServer struct {
 // NewServer returns new instance of agent server
 func NewServer() *AgentServer {
 	return &AgentServer{Agent: agent.NewKeyring()}
+}
+
+// getAgent gets an agent instance
+func (a *AgentServer) getAgent(ctx context.Context) (agent.Agent, error) {
+	if a.Agent != nil {
+		return a.Agent, nil
+	}
+	return a.Getter(ctx)
+}
+
+// startServe starts serving agent protocol against conn
+func (a *AgentServer) startServe(ctx context.Context, conn net.Conn) error {
+	ctx, cancel := context.WithCancel(ctx)
+	instance, err := a.getAgent(ctx)
+	if err != nil {
+		cancel()
+		return trace.Wrap(err)
+	}
+	go func() {
+		defer cancel()
+		if err := agent.ServeAgent(instance, conn); err != nil {
+			if err != io.EOF {
+				log.Errorf(err.Error())
+			}
+		}
+	}()
+	return nil
 }
 
 // ListenUnixSocket starts listening and serving agent assuming that
@@ -47,8 +79,13 @@ func (a *AgentServer) ListenUnixSocket(path string, uid, gid int, mode os.FileMo
 
 // Serve starts serving on the listener, assumes that Listen was called before
 func (a *AgentServer) Serve() error {
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 	if a.listener == nil {
 		return trace.BadParameter("Serve needs a Listen call first")
+	}
+	if a.Agent == nil && a.Getter == nil {
+		return trace.BadParameter("An agent or agent getter must be supplied.")
 	}
 	var tempDelay time.Duration // how long to sleep on accept failure
 	for {
@@ -77,13 +114,10 @@ func (a *AgentServer) Serve() error {
 			continue
 		}
 		tempDelay = 0
-		go func() {
-			if err := agent.ServeAgent(a.Agent, conn); err != nil {
-				if err != io.EOF {
-					log.Errorf(err.Error())
-				}
-			}
-		}()
+		if err := a.startServe(ctx, conn); err != nil {
+			log.Errorf("Failed to start serving agent: %v", err)
+			return trace.Wrap(err)
+		}
 	}
 }
 

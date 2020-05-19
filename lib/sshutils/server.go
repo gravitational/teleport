@@ -432,7 +432,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	defer keepAliveTick.Stop()
 	keepAlivePayload := [8]byte{0}
 
-	ccx := NewConnectionContext(wconn, sconn)
+	// NOTE: we deliberately don't use s.closeContext here because the server's
+	// closeContext field is used to trigger starvation on cancellation by halting
+	// the acceptance of new connections; it is not intended to halt in-progress
+	// connection handling, and is therefore orthogonal to the role of ConnectionContext.
+	ccx := NewConnectionContext(context.TODO(), wconn, sconn)
 	defer ccx.Close()
 
 	for {
@@ -461,6 +465,8 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			if err != nil {
 				log.Errorf("Failed sending keepalive request: %v", err)
 			}
+		case <-ccx.Done():
+			log.Debugf("Connection context canceled: %v -> %v", conn.RemoteAddr(), conn.LocalAddr())
 		}
 	}
 }

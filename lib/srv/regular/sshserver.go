@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -765,8 +764,9 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 		return trace.ConvertSystemError(err)
 	}
 
-	// start an agent on a unix socket
-	agentServer := &teleagent.AgentServer{Agent: ctx.Parent.GetAgent()}
+	// start an agent server on a unix socket.  each incoming connection
+	// will result in a separate agent request.
+	agentServer := &teleagent.AgentServer{Getter: teleagent.AgentGetter(ctx.Parent.StartAgentChannel)}
 	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
 	if err != nil {
 		return trace.Wrap(err)
@@ -778,7 +778,7 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	// ensure that SSHAuthSock and SSHAgentPID are imported into
 	// the current child context.
 	ctx.ImportParentEnv()
-	ctx.Debugf("Opened agent channel for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, socketPath)
+	ctx.Debugf("Starting agent server for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, socketPath)
 	go agentServer.Serve()
 
 	return nil
@@ -1174,14 +1174,7 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 		return trace.Wrap(err)
 	}
 
-	// open a channel to the client where the client will serve an agent
-	authChannel, _, err := ctx.Conn.OpenChannel(sshutils.AuthAgentRequest, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// save the agent in the context so it can be used later
-	ctx.Parent.SetAgent(agent.NewClient(authChannel), authChannel)
+	ctx.Parent.SetForwardAgent(true)
 
 	// serve an agent on a unix socket on this node
 	err = s.serveAgent(ctx)
@@ -1210,16 +1203,7 @@ func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContex
 		return trace.Wrap(err)
 	}
 
-	// Open a channel to the client where the client will serve an agent.
-	authChannel, _, err := ctx.Conn.OpenChannel(sshutils.AuthAgentRequest, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Save the agent so it can be used when making a proxy subsystem request
-	// later. It will also be used when building a remote connection to the
-	// target node.
-	ctx.Parent.SetAgent(agent.NewClient(authChannel), authChannel)
+	ctx.Parent.SetForwardAgent(true)
 
 	return nil
 }

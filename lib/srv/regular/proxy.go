@@ -46,12 +46,11 @@ import (
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
 	proxySubsysConfig
-	log          *logrus.Entry
-	closeC       chan struct{}
-	error        error
-	closeOnce    sync.Once
-	agent        agent.Agent
-	agentChannel ssh.Channel
+	log       *logrus.Entry
+	closeC    chan struct{}
+	error     error
+	closeOnce sync.Once
+	agent     agent.Agent
 }
 
 // parseProxySubsys looks at the requested subsystem name and returns a fully configured
@@ -172,9 +171,8 @@ func newProxySubsys(cfg proxySubsysConfig) (*proxySubsys, error) {
 			trace.Component:       teleport.ComponentSubsystemProxy,
 			trace.ComponentFields: map[string]string{},
 		}),
-		closeC:       make(chan struct{}),
-		agent:        cfg.ctx.GetAgent(),
-		agentChannel: cfg.ctx.GetAgentChannel(),
+		closeC: make(chan struct{}),
+		agent:  cfg.ctx.GetAgent(),
 	}, nil
 }
 
