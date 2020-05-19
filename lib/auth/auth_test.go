@@ -370,8 +370,18 @@ func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
 		return nil
 	}
 
-	// test trusted cluster token
+	// test trusted cluster token emit
 	_, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleTrustedCluster}})
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
+
+	// test emit with multiple roles
+	eventEmitted = false
+	_, err = s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{
+		teleport.RoleNode,
+		teleport.RoleTrustedCluster,
+		teleport.RoleAuth,
+	}})
 	c.Assert(err, IsNil)
 	c.Assert(eventEmitted, Equals, true)
 }
