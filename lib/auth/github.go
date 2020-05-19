@@ -77,13 +77,13 @@ func (s *AuthServer) upsertGithubConnector(connector services.GithubConnector) e
 }
 
 // deleteGithubConnector deletes a Github connector by name.
-func (s *AuthServer) deleteGithubConnector(id string) error {
-	if err := s.Identity.DeleteGithubConnector(id); err != nil {
+func (s *AuthServer) deleteGithubConnector(connectorName string) error {
+	if err := s.Identity.DeleteGithubConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
 	s.EmitAuditEvent(events.GithubConnectorDeleted, events.EventFields{
-		events.FieldName: id,
+		events.FieldName: connectorName,
 		events.EventUser: "unimplemented",
 	})
 

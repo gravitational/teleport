@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// NewMockAuditLog returns an instance of MockAuditLog.
 func NewMockAuditLog(capacity int) *MockAuditLog {
 	return &MockAuditLog{
 		SlicesC:         make(chan *SessionSlice, capacity),
@@ -33,13 +34,19 @@ func NewMockAuditLog(capacity int) *MockAuditLog {
 	}
 }
 
+// Events holds the event type and event fields.
+type Events struct {
+	EventType Event
+	Fields    EventFields
+}
+
 // MockAuditLog is audit log used for tests
 type MockAuditLog struct {
 	sync.Mutex
-	returnError        error
-	FailedAttemptsC    chan *SessionSlice
-	SlicesC            chan *SessionSlice
-	MockEmitAuditEvent func(event Event, fields EventFields) error
+	returnError     error
+	FailedAttemptsC chan *SessionSlice
+	SlicesC         chan *SessionSlice
+	EmittedEvents   *Events
 }
 
 func (d *MockAuditLog) SetError(e error) {
@@ -62,12 +69,11 @@ func (d *MockAuditLog) Close() error {
 	return nil
 }
 
+// EmitAuditEvent is a mock to record events in a slice of Events.
 func (d *MockAuditLog) EmitAuditEvent(event Event, fields EventFields) error {
-	if d.MockEmitAuditEvent == nil {
-		return trace.BadParameter("MockEmitAuditEvent is not implemented")
-	}
+	d.EmittedEvents = &Events{event, fields}
 
-	return d.MockEmitAuditEvent(event, fields)
+	return nil
 }
 
 func (d *MockAuditLog) UploadSessionRecording(SessionRecording) error {
@@ -97,4 +103,9 @@ func (d *MockAuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limi
 
 func (d *MockAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
+}
+
+// Reset resets state to zero values.
+func (d *MockAuditLog) Reset() {
+	d.EmittedEvents = nil
 }

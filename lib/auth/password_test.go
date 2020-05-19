@@ -138,18 +138,10 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("abce456")
 
-	// test change password event
-	eventEmitted := false
-	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
-		eventEmitted = true
-		c.Assert(event, DeepEquals, events.UserPasswordChange)
-		c.Assert(fields[events.EventUser], Equals, "user1")
-		return nil
-	}
-
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
-	c.Assert(eventEmitted, Equals, true)
+	c.Assert(s.mockedAuditLog.EmittedEvents.EventType, DeepEquals, events.UserPasswordChange)
+	c.Assert(s.mockedAuditLog.EmittedEvents.Fields[events.EventUser], Equals, "user1")
 
 	s.shouldLockAfterFailedAttempts(c, req)
 
