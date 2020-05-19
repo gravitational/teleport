@@ -210,6 +210,7 @@ var (
 	TrustedClusterDelete = Event{
 		Name: TrustedClusterDeleteEvent,
 		Code: TrustedClusterDeleteCode,
+	}
 	// GithubConnectorCreated is emitted when a Github connector is created/updated.
 	GithubConnectorCreated = Event{
 		Name: GithubConnectorCreatedEvent,

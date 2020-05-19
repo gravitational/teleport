@@ -18,6 +18,9 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -34,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-oidc/jose"
@@ -739,4 +743,124 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 	err = s.a.DeleteTrustedCluster("test")
 	c.Assert(err, IsNil)
 	c.Assert(deleteEventEmitted, Equals, true)
+}
+
+func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
+	eventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		eventEmitted = true
+		c.Assert(event, DeepEquals, events.GithubConnectorCreated)
+		return nil
+	}
+
+	// test github create event
+	github := services.NewGithubConnector("test", services.GithubConnectorSpecV3{})
+	err := s.a.upsertGithubConnector(github)
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
+
+	// test github update event
+	eventEmitted = false
+	err = s.a.upsertGithubConnector(github)
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
+
+	// test github delete event
+	eventEmitted = false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		eventEmitted = true
+		c.Assert(event, DeepEquals, events.GithubConnectorDeleted)
+		return nil
+	}
+
+	err = s.a.deleteGithubConnector("test")
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
+}
+
+func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
+	eventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		eventEmitted = true
+		c.Assert(event, DeepEquals, events.OIDCConnectorCreated)
+		return nil
+	}
+
+	// test oidc create event
+	oidc := services.NewOIDCConnector("test", services.OIDCConnectorSpecV2{ClientID: "a"})
+	err := s.a.UpsertOIDCConnector(oidc)
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
+
+	// test oidc update event
+	eventEmitted = false
+	err = s.a.UpsertOIDCConnector(oidc)
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
+
+	// test oidc delete event
+	eventEmitted = false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		eventEmitted = true
+		c.Assert(event, DeepEquals, events.OIDCConnectorDeleted)
+		return nil
+	}
+
+	err = s.a.DeleteOIDCConnector("test")
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
+}
+
+func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
+	eventEmitted := false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		eventEmitted = true
+		c.Assert(event, DeepEquals, events.SAMLConnectorCreated)
+		return nil
+	}
+
+	// generate a certificate that makes ParseCertificatePEM happy, copied from ca_test.go
+	ca, err := tlsca.New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	c.Assert(err, IsNil)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	c.Assert(err, IsNil)
+
+	testClock := clockwork.NewFakeClock()
+	certBytes, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     testClock,
+		PublicKey: privateKey.Public(),
+		Subject:   pkix.Name{CommonName: "test"},
+		NotAfter:  testClock.Now().Add(time.Hour),
+	})
+
+	// test saml create
+	saml := services.NewSAMLConnector("test", services.SAMLConnectorSpecV2{
+		AssertionConsumerService: "a",
+		Issuer:                   "b",
+		SSO:                      "c",
+		Cert:                     string(certBytes),
+	})
+
+	err = s.a.UpsertSAMLConnector(saml)
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
+
+	// test saml update event
+	eventEmitted = false
+	err = s.a.UpsertSAMLConnector(saml)
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
+
+	// test saml delete event
+	eventEmitted = false
+	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
+		eventEmitted = true
+		c.Assert(event, DeepEquals, events.SAMLConnectorDeleted)
+		return nil
+	}
+
+	err = s.a.DeleteSAMLConnector("test")
+	c.Assert(err, IsNil)
+	c.Assert(eventEmitted, Equals, true)
 }
