@@ -191,7 +191,7 @@ var (
 		Name: ResetPasswordTokenCreateEvent,
 		Code: ResetPasswordTokenCreateCode,
 	}
-  // RoleCreated is emitted when a role is created/updated.
+	// RoleCreated is emitted when a role is created/updated.
 	RoleCreated = Event{
 		Name: RoleCreatedEvent,
 		Code: RoleCreatedCode,
@@ -210,7 +210,7 @@ var (
 	TrustedClusterDelete = Event{
 		Name: TrustedClusterDeleteEvent,
 		Code: TrustedClusterDeleteCode,
-  }
+	}
 )
 
 // OSS event codes start with "T".

@@ -290,8 +290,8 @@ const (
 
 	// TCPVersion is the version of TCP (4 or 6).
 	TCPVersion = "version"
-  
-  // RoleCreatedEvent fires when role is created/updated.
+
+	// RoleCreatedEvent fires when role is created/updated.
 	RoleCreatedEvent = "role.created"
 	// RoleDeletedEvent fires when role is deleted.
 	RoleDeletedEvent = "role.deleted"
