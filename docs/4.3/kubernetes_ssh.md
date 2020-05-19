@@ -71,8 +71,8 @@ to generate a `kubeconfig` file for the Teleport proxy service.
 
 ## Impersonation
 
-The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group 
-using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation). 
+The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
+using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
 
 If Teleport is running inside the cluster using a Kubernetes `ServiceAccount`, here's an example of the permissions that
 the `ServiceAccount` will need to be able to use impersonation (change `teleport-serviceaccount` to the name of the
@@ -131,9 +131,9 @@ configured. In this guide we'll look at two common configurations:
 
 ## Kubernetes Groups and Users
 
-Teleport provides support for Kubernetes Group `kubernetes_groups: ["system:masters"]` 
+Teleport provides support for Kubernetes Group `kubernetes_groups: ["system:masters"]`
 and Kubernetes Users, using `kubernetes_users: ['barent', 'jane']`. If a Kubernetes
-user isn't set the user will impersonate themselves. 
+user isn't set the user will impersonate themselves.
 
 ### Github Auth
 
@@ -231,7 +231,7 @@ $ tctl create -f admin.yaml
     that trait name in the Teleport role.
 
     Teleport 4.3 has an option to extract the local part from an email claim. This can be helpful
-    since some operating systems don't support the @ symbol. This means by using `logins: ['{% raw %}{{email.local(external.email)}}{% endraw %}']` the resulting output will be `dave.smith` if the email was dave.smith@acme.com. 
+    since some operating systems don't support the @ symbol. This means by using `logins: ['{% raw %}{{email.local(external.email)}}{% endraw %}']` the resulting output will be `dave.smith` if the email was dave.smith@acme.com.
 
 Once this is complete, when users execute `tsh login` and go through the usual Okta login
 sequence, their `kubeconfig` will be updated with their Kubernetes credentials.

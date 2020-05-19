@@ -37,7 +37,7 @@ the following services.
 | `--permit-user-env` | none | none | flag reads in environment variables from `~/.tsh/environment` when creating a session.
 
 !!! warning "Token Generation"
-    
+
     We recommend the use of tools like `pwgen` to generate sufficiently random tokens of 32+ byte length.
 
 ## teleport status
@@ -106,8 +106,8 @@ Run shell or execute a command on a remote SSH node
 
 `<[user@]host> [<command>...]`
 
-* `user` The login identity to use on the remote host. If `[user]` is not specified 
-   the user defaults to `$USER` or can be set with `--user` . If the flag `--user` 
+* `user` The login identity to use on the remote host. If `[user]` is not specified
+   the user defaults to `$USER` or can be set with `--user` . If the flag `--user`
    and positional argument `[user]` are specified the arg `[user]` takes precedence.
 
 * `host` A `nodename` of a cluster node or a
@@ -153,7 +153,7 @@ Joins an active session
 
 `<session-id>`
 
-* `session-id` The UUID of the an active Teleport Session obtained by `teleport status` within 
+* `session-id` The UUID of the an active Teleport Session obtained by `teleport status` within
     the session.
 
 ### Flags
@@ -328,7 +328,7 @@ interval via `--ttl` flag (capped by the server-side configuration).
 
 ### Arguments
 
-* `<cluster>` - the name of the cluster,  see [Trusted Cluster](trustedclusters.md#introduction ) for more information. 
+* `<cluster>` - the name of the cluster,  see [Trusted Cluster](trustedclusters.md#introduction ) for more information.
 
 ### Flags
 

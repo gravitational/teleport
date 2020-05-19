@@ -12,7 +12,7 @@ VM.
 
 ### Prerequisites
 
-* In this tutorial you will start a web UI which must be accessible via a web 
+* In this tutorial you will start a web UI which must be accessible via a web
   browser. If you run this tutorial on a remote machine without a GUI, first
   make sure that this machine's IP can be reached over the your network and that
   it accepts incoming traffic on port `3080` .

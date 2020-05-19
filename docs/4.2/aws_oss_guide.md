@@ -185,7 +185,7 @@ An example policy is shown below:
 
     `eu-west-1:123456789012:table/prod.teleport.auth` will need to be replaced with your DynamoDB instance.
 
-### ACM 
+### ACM
 
 With AWS Certificate Manager, you can quickly request SSL/TLS certificates.
 
@@ -221,7 +221,7 @@ this as a starting point, but then look at the more advanced sections.
 - Obtain a SSL/TLS Certificate using ACM.
 
 !!! TIP "Prerequisites setup"
-    
+
     Generate and issue a certificate in [ACM](https://console.aws.amazon.com/acm/home?#)
     for `teleport.acmeinc.com`, use email or DNS validation as appropriate and make sure
     it’s approved successfully.

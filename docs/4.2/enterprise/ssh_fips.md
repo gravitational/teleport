@@ -1,6 +1,6 @@
 # FedRAMP / FIPS
 With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
-the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high 
+the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
 level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP certified.
 
 **Table of Contents**
@@ -9,7 +9,7 @@ level overview of how Teleport FIPS mode works and how it can help your company 
 
 ### Obtain FedRAMP certification with Teleport
 Teleport includes new FedRAMP and FIPS 140-2 features to support companies that sell into
-government agencies. 
+government agencies.
 
 | Control  | Teleport Features |
 |----------|---------------------|
@@ -28,19 +28,19 @@ government agencies.
 Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
 
 # Setup
-Customers can follow our [Enterprise Quickstart](quickstart-enterprise.md) for basic 
-instructions on how to setup Teleport Enterprise. You'll need to start with the Teleport 
-Enterprise FIPS Binary. 
+Customers can follow our [Enterprise Quickstart](quickstart-enterprise.md) for basic
+instructions on how to setup Teleport Enterprise. You'll need to start with the Teleport
+Enterprise FIPS Binary.
 
 After downloading the binary tarball, run:
 
 ```bsh
 $ tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-fips-bin.tar.gz
 $ cd teleport-ent
-$ sudo ./install 
+$ sudo ./install
 # This will copy Teleport Enterprise to /usr/local/bin.
 ```
-## Configuration 
+## Configuration
 
 ### Teleport Auth Server
 Now, save the following configuration file as `/etc/teleport.yaml` on the auth server.
@@ -68,14 +68,14 @@ auth_service:
   # this token is used to establish trust with other Teleport clusters
   - trusted_cluster:TaZff3DLbpsMZmIMhvEr7kulOgegjg7yyQNTS0q6UFWfsJ9N6rxVBjg6t7nw
 
-  # To Support FIPS local_auth needs to be turned off and a SSO connector is 
-  # required to log into Teleport. 
+  # To Support FIPS local_auth needs to be turned off and a SSO connector is
+  # required to log into Teleport.
   authentication:
-    # local_auth needs to be set to false in FIPS mode. 
+    # local_auth needs to be set to false in FIPS mode.
     local_auth: false
     type: saml
 
-  # If using Proxy Mode, Teleport requires host key checks. 
+  # If using Proxy Mode, Teleport requires host key checks.
   # This setting needs is required to start in Teleport in FIPS mode
   proxy_checks_host_keys: true
 
@@ -86,7 +86,7 @@ ssh_service:
 
 ### Teleport Node
 
-Save the following configuration file as `/etc/teleport.yaml` on the node server. 
+Save the following configuration file as `/etc/teleport.yaml` on the node server.
 ```yaml
 teleport:
   auth_token: zw6C82kq7VEUSJeSDzuldWsxakql6jrTYmphxRQOlrATTGbLQoaIwEBo48o9
@@ -106,7 +106,7 @@ proxy_service:
 ### Systemd Unit File
 
 Next, download the systemd service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd/fips)
-on Github and save it as `/etc/systemd/system/teleport.service` on both servers. 
+on Github and save it as `/etc/systemd/system/teleport.service` on both servers.
 
 ```bsh
 # run this on both servers:
@@ -139,10 +139,10 @@ fails to start if it was not.
 
 ### FedRAMP Audit Log
 
-At the close of a connection (close of a *srv.ServerContext) the total data transmitted and received 
+At the close of a connection (close of a *srv.ServerContext) the total data transmitted and received
 is emitted to the Audit Log.
 
-## What else does the Teleport FIPS binary enforce? 
+## What else does the Teleport FIPS binary enforce?
 * Supporting configurable TLS versions. This is to ensure that only TLS 1.2 is supported in FedRAMP mode.
 * Removes all uses of non-compliant algorithms like NaCl and replace with compliant algorithms like AES-GCM.
 * Teleport is compiled  with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/Certificate/2964)

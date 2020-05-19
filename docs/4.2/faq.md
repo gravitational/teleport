@@ -6,7 +6,7 @@
 Teleport has been deployed on server clusters with thousands of nodes at
 Fortune 500 companies. It has been through several security audits from
 nationally recognized technology security companies, so we are comfortable with
-the stability of Teleport from a security perspective. 
+the stability of Teleport from a security perspective.
 
 ### Can Teleport be deployed in agentless mode?
 
@@ -17,29 +17,29 @@ available unless the Teleport SSH daemon is present on all cluster nodes.
 
 ### Can I use OpenSSH with a Teleport cluster?
 
-Yes, this question comes up often and is related to the previous one. Take a 
-look at [Using OpenSSH client](user-manual.md##using-teleport-with-openssh) 
-section in the User Manual and [Using OpenSSH servers](admin-guide.md) in the 
+Yes, this question comes up often and is related to the previous one. Take a
+look at [Using OpenSSH client](user-manual.md##using-teleport-with-openssh)
+section in the User Manual and [Using OpenSSH servers](admin-guide.md) in the
 Admin Manual.
 
 ### Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters refer to [Trusted Clusters](admin-guide.md#trusted-clusters) 
+behind-firewall clusters refer to [Trusted Clusters](admin-guide.md#trusted-clusters)
 section of the Admin Manual.
 
-### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster? 
+### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster?
 
 This has been a long standing [request](https://github.com/gravitational/teleport/issues/803) of Teleport and
 it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluster, change the node config
-option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr` 
+option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr`
 in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat)
 
 ### What are Teleport's scalability and hardware recommendations?
 
 We recommend setting up Teleport with a [High Availability configuration](admin-guide.md#high-availability). Below is our
-recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please 
-[get in touch](mailto:info@gravitational.com) and we can help architect the best solution for you. 
+recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please
+[get in touch](mailto:info@gravitational.com) and we can help architect the best solution for you.
 
 Scenario | Max Recommended Count | Proxy | Auth server
 ------------ | -------------|---------|-------
@@ -49,9 +49,9 @@ Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |
 
 * Teleport 4.1 release will focus on increasing Teleport IoT supported count to 10,000
 
-### Which version of Teleport is supported? 
+### Which version of Teleport is supported?
 
-| Release  | LTS | Release Date         | Supported Until      | Minimum tsh version  | 
+| Release  | LTS | Release Date         | Supported Until      | Minimum tsh version  |
 | ---------|-----| -------------------- | -------------------- | -------------------- |
 | 4.2      | Yes | December 19th, 2019  | 4.3 is released      | 3.x                  |
 | 4.1      | Yes | October 1st, 2019    | October 1st, 2020    | 3.x                  |
@@ -59,26 +59,26 @@ Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |
 | 3.2      | Yes | April 1st, 2019      | April 1st, 2020      | 2.x                  |
 | 3.1      | Yes | December 12th, 2018  | December 12th, 2019  | 2.x                  |
 
-Teleport uses semantic versioning to release updates of software, with minor releases taking 
+Teleport uses semantic versioning to release updates of software, with minor releases taking
 around 3-4 months. The team has these informal rules about releasing software:
 
-- Teleport Team will do its best to allow for a non-breaking upgrade even with MAJOR releases. 
-- We aim to support versions for 3 releases (current and two back) or around 9 months. 
-This means critical security fixes will be back-ported to earlier versions. 
+- Teleport Team will do its best to allow for a non-breaking upgrade even with MAJOR releases.
+- We aim to support versions for 3 releases (current and two back) or around 9 months.
+This means critical security fixes will be back-ported to earlier versions.
 - We provide Enterprise customers edge case support for older versions of Operating Systems. This might be a specific patch for an OSS in maintenance. This is provided on a somewhat ad-hoc basis.
-- We won’t support Teleport on an OS Distribution that has stopped receiving maintenance updates and is EOL. 
+- We won’t support Teleport on an OS Distribution that has stopped receiving maintenance updates and is EOL.
 
 **How should I upgrade my cluster?**
 Please follow our standard guidelines for [upgrading](admin-guide.md#upgrading-teleport).
-We recommend that the Auth Server should be upgraded first, and proxy is bumped after. 
+We recommend that the Auth Server should be upgraded first, and proxy is bumped after.
 
 ### Does Web UI support copy and paste?
 
-Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs 
+Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs
 `tmux`-like "prefix" mode. To enter prefix mode, press `Ctrl+A`.
 
 While in prefix mode, you can press `Ctrl+V` to paste, or enter text selection
-mode by pressing `[`. When in text selection mode, move around using `hjkl`, select 
+mode by pressing `[`. When in text selection mode, move around using `hjkl`, select
 text by toggling `space` and copy it via `Ctrl+C`.
 
 ### What TCP ports does Teleport use?
