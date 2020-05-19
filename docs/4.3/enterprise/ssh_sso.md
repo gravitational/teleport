@@ -25,13 +25,13 @@ From the user's perspective they need to execute the following command login:
 $ tsh login --proxy=proxy.example.com
 
 # output:
-If browser window does not open automatically, open it by clicking on the link: 
+If browser window does not open automatically, open it by clicking on the link:
 http://127.0.0.1:45235/055a310a-1099-43ea-8cf6-ffc41d88ad1f
 ```
 
 Teleport will wait for up to 3 minutes for a user to authenticate. If authentication
-succeeds, Teleport will retrieve an SSH certificate and will store it in 
-`~/.tsh/keys/proxy.example.com` directory and also will add it to an 
+succeeds, Teleport will retrieve an SSH certificate and will store it in
+`~/.tsh/keys/proxy.example.com` directory and also will add it to an
 [SSH agent](https://en.wikipedia.org/wiki/Ssh-agent) if there's one running.
 
 ## Configuring SSO
@@ -121,15 +121,15 @@ spec:
 
 ## Working with External Email Identity
 
-Along with sending groups, an SSO provider will also provide a user's email address. 
-In many organizations, the username that a person uses to log into a system is the 
+Along with sending groups, an SSO provider will also provide a user's email address.
+In many organizations, the username that a person uses to log into a system is the
 same as the first part of their email address - the 'local' part. For example, `dave.smith@acme.com`
- might log in with the username `dave.smith`. Teleport 4.2.6+ adds an easy way to 
- extract the first part of an email address so it can be used as a username - this 
+ might log in with the username `dave.smith`. Teleport 4.2.6+ adds an easy way to
+ extract the first part of an email address so it can be used as a username - this
  is the `{% raw %}{{email.local}}{% endraw %}` function.
 
-If the email claim from the identity provider (which can be accessed via `{% raw %}{{external.email}}{% endraw %}`) 
-is sent and contains an email address, you can extract the 'local' part of the email 
+If the email claim from the identity provider (which can be accessed via `{% raw %}{{external.email}}{% endraw %}`)
+is sent and contains an email address, you can extract the 'local' part of the email
 address before the @ sign like this: `{% raw %}{{email.local(external.email)}}{% endraw %}`
 
 Here's how this looks in a Teleport role:
@@ -143,7 +143,7 @@ spec:
   allow:
     logins:
     # Extracts the local part of dave.smith@acme.com, so the login will
-    # now support dave.smith. 
+    # now support dave.smith.
     - '{% raw %}{{email.local(external.email)}}{% endraw %}'
     node_labels:
       '*': '*'
@@ -153,7 +153,7 @@ spec:
 ## Multiple SSO Providers
 
 Teleport can also support multiple connectors, i.e. a Teleport administrator
-can define and create multiple connector resources using `tctl create` as shown above. 
+can define and create multiple connector resources using `tctl create` as shown above.
 
 To see all configured connectors, execute this on the auth server:
 
@@ -185,7 +185,7 @@ SAML and OIDC types:
 * [SSH Authentication with OAuth2 / OpenID Connect](../oidc.md)
 
 
-## SSO Customization 
+## SSO Customization
 
 | Provider | YAML | Example |
 |----------|------|---------|

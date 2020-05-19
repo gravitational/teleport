@@ -20,12 +20,12 @@ like:
 
 Before you get started you’ll need:
 
-- An Enterprise version of Teleport v4.1.4 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/). 
+- An Enterprise version of Teleport v4.1.4 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/).
 - Be a G Suite Super Admin. As Google Best Practices, we would recommend setting up a seperate super admin with 2FA vs using your user.
-    - e.g. A dedicated account ben-ops@practice.io vs my daily ben@practice.io 
+    - e.g. A dedicated account ben-ops@practice.io vs my daily ben@practice.io
 - Ability to create GCP Project.
     - This might require signing up to GCP, but for this project it won’t require using any paid services. It’s just a side effect of G Suite and GCP being closely related.
-- Have a [verified Domain](https://support.google.com/a/answer/60216?hl=en ). 
+- Have a [verified Domain](https://support.google.com/a/answer/60216?hl=en ).
 - Setup G Suite Groups
 
 
@@ -60,12 +60,12 @@ Leave Service account permissions as blank.
 ### Download Service Account JSON
 ![Create OAuth Creds](img/gsuite/gsuite-5f-download-json.png)
 
-This JSON file will need to be uploaded to the Authentication server, and will be later referenced by 
-the OIDC Connector, under `google_service_account_uri`. 
+This JSON file will need to be uploaded to the Authentication server, and will be later referenced by
+the OIDC Connector, under `google_service_account_uri`.
 
-!!! note:  
+!!! note:
     Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
-    up in a HA config. 
+    up in a HA config.
 
 ## API Scopes:
 
@@ -74,7 +74,7 @@ Client name: Use Email from Service account creation ( this will be converted to
 `https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://www.googleapis.com/auth/admin.directory.group.readonly, https://www.googleapis.com/auth/admin.directory.user.readonly`
 
 ![Manage API Client Access](img/gsuite/gsuite-6-manage-api-access.png)
-Once saved, Google with convert the Client Name into the Client ID. 
+Once saved, Google with convert the Client Name into the Client ID.
 ![Create OAuth Creds](img/gsuite/gsuite-6a-manage-access.png)
 
 

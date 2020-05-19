@@ -5,7 +5,7 @@
 Teleport has been deployed on server clusters with thousands of nodes at
 Fortune 500 companies. It has been through several security audits from
 nationally recognized technology security companies, so we are comfortable with
-the stability of Teleport from a security perspective. 
+the stability of Teleport from a security perspective.
 
 ### Can Teleport be deployed in agentless mode?
 
@@ -16,24 +16,24 @@ available unless the Teleport SSH daemon is present on all cluster nodes.
 
 ### Can I use OpenSSH with a Teleport cluster?
 
-Yes, this question comes up often and is related to the previous one. Take a 
-look at [Using OpenSSH client](user-manual.md##using-teleport-with-openssh) 
-section in the User Manual and [Using OpenSSH servers](admin-guide.md) in the 
+Yes, this question comes up often and is related to the previous one. Take a
+look at [Using OpenSSH client](user-manual.md##using-teleport-with-openssh)
+section in the User Manual and [Using OpenSSH servers](admin-guide.md) in the
 Admin Manual.
 
 ### Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters refer to [Trusted Clusters](admin-guide.md#trusted-clusters) 
+behind-firewall clusters refer to [Trusted Clusters](admin-guide.md#trusted-clusters)
 section of the Admin Manual.
 
 ### Does Web UI support copy and paste?
 
-Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs 
+Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs
 `tmux`-like "prefix" mode. To enter prefix mode, press `Ctrl+A`.
 
 While in prefix mode, you can press `Ctrl+V` to paste, or enter text selection
-mode by pressing `[`. When in text selection mode, move around using `hjkl`, select 
+mode by pressing `[`. When in text selection mode, move around using `hjkl`, select
 text by toggling `space` and copy it via `Ctrl+C`.
 
 ### What TCP ports does Teleport use?

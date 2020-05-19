@@ -231,7 +231,7 @@ teleport:
         max_users: 250
 
     # Logging configuration. Possible output values to disk via '/var/lib/teleport/teleport.log',
-    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN 
+    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
     # and ERROR (default).
     log:
         output: /var/lib/teleport/teleport.log
@@ -306,7 +306,7 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', 'saml' and 'false' for Enterprise.
-        # 'false' is required for FedRAMP / FIPS, see 
+        # 'false' is required for FedRAMP / FIPS, see
         #  https://gravitational.com/teleport/docs/enterprise/ssh_fips#teleport-auth-server
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
@@ -635,9 +635,9 @@ Then invoke `tsh ssh` as usual to authenticate:
 tsh --proxy <proxy-addr> ssh <hostname>
 ```
 
-!!! tip "Version Warning": 
-  
-    External user identities are only supported in [Teleport Enterprise](enterprise/index.md). 
+!!! tip "Version Warning":
+
+    External user identities are only supported in [Teleport Enterprise](enterprise/index.md).
 
     Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
 
@@ -928,12 +928,12 @@ setting up a [Trusted Cluster](trustedclusters.md) if you have workloads split
 across different networks / clouds.
 
 Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
-useful for IoT applications or for managing a couple of servers in a different network.  
+useful for IoT applications or for managing a couple of servers in a different network.
 
 Similar to [Adding Nodes to Cluster](#adding-nodes-to-the-cluster), use `tctl` to
 create a single-use token for a node, but this time you'll replace the auth server IP with
 the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy#adding-nodes-to-the-cluster
-web endpoint `teleport.example.com`.  
+web endpoint `teleport.example.com`.
 
 ```bash
 $ sudo tctl nodes add
@@ -954,8 +954,8 @@ In addition to specifying a custom nodename, Teleport also allows for the
 application of arbitrary key:value pairs to each node, called labels. There are
 two kinds of labels:
 
-1. `static labels` do not change over time, while [ `teleport` ](cli-docs.md#teleport) 
-    process is running.  Examples of static labels are physical location of nodes, 
+1. `static labels` do not change over time, while [ `teleport` ](cli-docs.md#teleport)
+    process is running.  Examples of static labels are physical location of nodes,
     name of the environment (staging vs production), etc.
 
 2. `dynamic labels` also known as "label commands" allow to generate labels at
@@ -1026,7 +1026,7 @@ command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+'"]
 Teleport logs every SSH event into its audit log. There are two components of
 the audit log:
 
-1. **SSH Events:** Teleport logs events like successful user logins along with 
+1. **SSH Events:** Teleport logs events like successful user logins along with
    the metadata like remote IP address, time and the session ID.
 
 2. **Recorded Sessions:** Every SSH shell session is recorded and can be
@@ -1754,7 +1754,7 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 `service_name` above.
 
 !!! tip "Note":
-    Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport. 
+    Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport.
 
 ## Using Teleport with OpenSSH
 
@@ -2322,7 +2322,7 @@ clients, etc), the following rules apply:
   means you must not attempt to upgrade from 3.3 straight to 3.5. You must
   upgrade to 3.4 first.
 
-* Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins 
+* Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
   may not be compatible
 
 As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before upgrading](#backup-before-upgrading).
@@ -2366,11 +2366,11 @@ When upgrading multiple clusters:
 
 ## Backing Up Teleport
 
-With Teleport 4.1 you can now quickly export a collection of resources from 
+With Teleport 4.1 you can now quickly export a collection of resources from
 Teleport. This feature set works best for local and etcd, it's currently experimental
-for AWS/GCP. 
+for AWS/GCP.
 
-Using `tctl get all` will backup. 
+Using `tctl get all` will backup.
 
 - Users
 - Certificate Authorities
@@ -2381,7 +2381,7 @@ Using `tctl get all` will backup.
     - OIDC [Teleport Enterprise]
     - Roles [Teleport Enterprise]
 
-When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly. 
+When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly.
 
 **Example of backing up and restoring a cluster.**
 
@@ -2493,7 +2493,7 @@ Now you can see the monitoring information by visiting several endpoints:
 ## Getting Help
 
 If you need help please ask on our [forum](https://community.gravitational.com). If you're
-a paying customer, please open a tick via our control panel. 
+a paying customer, please open a tick via our control panel.
 
 If you find a bug, please open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
