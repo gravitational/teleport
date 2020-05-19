@@ -134,11 +134,12 @@ func (rd *Redirector) Start() error {
 	u.RawQuery = query.Encode()
 
 	out, err := rd.proxyClient.PostJSON(rd.context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), SSOLoginConsoleReq{
-		RedirectURL:   u.String(),
-		PublicKey:     rd.PubKey,
-		CertTTL:       rd.TTL,
-		ConnectorID:   rd.ConnectorID,
-		Compatibility: rd.Compatibility,
+		RedirectURL:    u.String(),
+		PublicKey:      rd.PubKey,
+		CertTTL:        rd.TTL,
+		ConnectorID:    rd.ConnectorID,
+		Compatibility:  rd.Compatibility,
+		RouteToCluster: rd.RouteToCluster,
 	})
 	if err != nil {
 		return trace.Wrap(err)

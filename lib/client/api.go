@@ -2052,15 +2052,16 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
-		ProxyAddr:     tc.WebProxyAddr,
-		User:          tc.Config.Username,
-		Password:      password,
-		OTPToken:      otpToken,
-		PubKey:        pub,
-		TTL:           tc.KeyTTL,
-		Insecure:      tc.InsecureSkipVerify,
-		Pool:          loopbackPool(tc.WebProxyAddr),
-		Compatibility: tc.CertificateFormat,
+		ProxyAddr:      tc.WebProxyAddr,
+		User:           tc.Config.Username,
+		Password:       password,
+		OTPToken:       otpToken,
+		PubKey:         pub,
+		TTL:            tc.KeyTTL,
+		Insecure:       tc.InsecureSkipVerify,
+		Pool:           loopbackPool(tc.WebProxyAddr),
+		Compatibility:  tc.CertificateFormat,
+		RouteToCluster: tc.SiteName,
 	})
 
 	return response, trace.Wrap(err)
@@ -2071,16 +2072,17 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		ConnectorID:   connectorID,
-		PubKey:        pub,
-		TTL:           tc.KeyTTL,
-		Protocol:      protocol,
-		Compatibility: tc.CertificateFormat,
-		BindAddr:      tc.BindAddr,
-		ProxyAddr:     tc.WebProxyAddr,
-		Insecure:      tc.InsecureSkipVerify,
-		Pool:          loopbackPool(tc.WebProxyAddr),
-		Browser:       tc.Browser,
+		ConnectorID:    connectorID,
+		PubKey:         pub,
+		TTL:            tc.KeyTTL,
+		Protocol:       protocol,
+		Compatibility:  tc.CertificateFormat,
+		BindAddr:       tc.BindAddr,
+		ProxyAddr:      tc.WebProxyAddr,
+		Insecure:       tc.InsecureSkipVerify,
+		Pool:           loopbackPool(tc.WebProxyAddr),
+		Browser:        tc.Browser,
+		RouteToCluster: tc.SiteName,
 	})
 	return response, trace.Wrap(err)
 }
@@ -2099,14 +2101,15 @@ func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLo
 	}
 
 	response, err := SSHAgentU2FLogin(ctx, SSHLoginU2F{
-		ProxyAddr:     tc.WebProxyAddr,
-		User:          tc.Config.Username,
-		Password:      password,
-		PubKey:        pub,
-		TTL:           tc.KeyTTL,
-		Insecure:      tc.InsecureSkipVerify,
-		Pool:          loopbackPool(tc.WebProxyAddr),
-		Compatibility: tc.CertificateFormat,
+		ProxyAddr:      tc.WebProxyAddr,
+		User:           tc.Config.Username,
+		Password:       password,
+		PubKey:         pub,
+		TTL:            tc.KeyTTL,
+		Insecure:       tc.InsecureSkipVerify,
+		Pool:           loopbackPool(tc.WebProxyAddr),
+		Compatibility:  tc.CertificateFormat,
+		RouteToCluster: tc.SiteName,
 	})
 
 	return response, trace.Wrap(err)
