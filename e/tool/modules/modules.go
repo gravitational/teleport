@@ -90,9 +90,5 @@ func (p *enterpriseModules) IsBoringBinary() bool {
 	// path is from BoringCrypto, we know this binary was compiled against the
 	// dev.boringcrypto branch of Go.
 	hash := sha256.New()
-	if reflect.TypeOf(hash).Elem().PkgPath() != "crypto/internal/boring" {
-		return false
-	}
-
-	return true
+	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
 }
