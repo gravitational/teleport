@@ -43,19 +43,20 @@ To install the chart with the release name `teleport`, run:
 $ helm install --name teleport ./
 ```
 
-Teleport proxy generates a TLS key and a cert of its own by default.
+Teleport proxy generates a TLS key and a cert of its own by default.  You can provide the signed TLS certificates and optionally the TLS Certificate Authority (CA) that signed these certificates.
 In order to instruct the proxy to use the TLS assets brought by you, prepare the following files:
 
-- Your CA cert named `ca.pem`  (optional depending on values.yaml setting)
 - Your proxy server cert named `proxy-server.pem`
 - Your proxy server key named `proxy-server-key.pem`
+- Your TLS CA cert named `ca.pem`  (Optional. Update the value.yaml extraVars, extraVolumes and extraVolumeMounts to use this)
 
 Then run:
 
 ```
 $ kubectl create secret tls tls-web --cert=proxy-server.pem --key=proxy-server-key.pem
-# ca.pem is not required by default.  Run this command if you have your own Certificate Authority (CA)
+# Run this command if you are providing your own TLS CA
 $ kubectl create configmap ca-certs --from-file=ca.pem
+# Run this to update or install teleport
 $ helm upgrade --install teleport ./
 ```
 
