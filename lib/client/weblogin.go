@@ -143,12 +143,10 @@ type PingResponse struct {
 	MinClientVersion string `json:"min_client_version"`
 }
 
-// SSHLoginSSO contains SSH login parameters for SSO login.
-type SSHLoginSSO struct {
+// SSHLogin contains common SSH login parameters.
+type SSHLogin struct {
 	// ProxyAddr is the target proxy address
 	ProxyAddr string
-	// ConnectorID is the OIDC or SAML connector ID to use
-	ConnectorID string
 	// PubKey is SSH public key to sign
 	PubKey []byte
 	// TTL is requested TTL of the client certificates
@@ -157,10 +155,20 @@ type SSHLoginSSO struct {
 	Insecure bool
 	// Pool is x509 cert pool to use for server certifcate verification
 	Pool *x509.CertPool
-	// Protocol is an optional protocol selection
-	Protocol string
 	// Compatibility sets compatibility mode for SSH certificates
 	Compatibility string
+	// RouteToCluster is an optional cluster name to route the response
+	// credentials to.
+	RouteToCluster string
+}
+
+// SSHLoginSSO contains SSH login parameters for SSO login.
+type SSHLoginSSO struct {
+	SSHLogin
+	// ConnectorID is the OIDC or SAML connector ID to use
+	ConnectorID string
+	// Protocol is an optional protocol selection
+	Protocol string
 	// BindAddr is an optional host:port address to bind
 	// to for SSO login flows
 	BindAddr string
@@ -168,58 +176,27 @@ type SSHLoginSSO struct {
 	// default (not currently implemented), or set to 'none' to suppress
 	// browser opening entirely.
 	Browser string
-	// RouteToCluster is an optional cluster name to route the response
-	// credentials to.
-	RouteToCluster string
 }
 
 // SSHLoginDirect contains SSH login parameters for direct (user/pass/OTP)
 // login.
 type SSHLoginDirect struct {
-	// ProxyAddr is the target proxy address
-	ProxyAddr string
+	SSHLogin
 	// User is the login username.
 	User string
 	// User is the login password.
 	Password string
 	// User is the optional OTP token for the login.
 	OTPToken string
-	// PubKey is SSH public key to sign
-	PubKey []byte
-	// TTL is requested TTL of the client certificates
-	TTL time.Duration
-	// Insecure turns off verification for x509 target proxy
-	Insecure bool
-	// Pool is x509 cert pool to use for server certifcate verification
-	Pool *x509.CertPool
-	// Compatibility sets compatibility mode for SSH certificates
-	Compatibility string
-	// RouteToCluster is an optional cluster name to route the response
-	// credentials to.
-	RouteToCluster string
 }
 
 // SSHLoginU2F contains SSH login parameters for U2F login.
 type SSHLoginU2F struct {
-	// ProxyAddr is the target proxy address
-	ProxyAddr string
+	SSHLogin
 	// User is the login username.
 	User string
 	// User is the login password.
 	Password string
-	// PubKey is SSH public key to sign
-	PubKey []byte
-	// TTL is requested TTL of the client certificates
-	TTL time.Duration
-	// Insecure turns off verification for x509 target proxy
-	Insecure bool
-	// Pool is x509 cert pool to use for server certifcate verification
-	Pool *x509.CertPool
-	// Compatibility sets compatibility mode for SSH certificates
-	Compatibility string
-	// RouteToCluster is an optional cluster name to route the response
-	// credentials to.
-	RouteToCluster string
 }
 
 // ProxySettings contains basic information about proxy settings
@@ -491,7 +468,6 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 // We then call the official u2f-host binary to perform the signing and pass
 // the signature to the proxy. If the authentication succeeds, we will get a
 // temporary certificate back.
-//func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, compatibility string) (*auth.SSHLoginResponse, error) {
 func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
