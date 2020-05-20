@@ -117,15 +117,13 @@ func (cmd *UserCommandE) Add(client auth.ClientI) error {
 	cmd.allowedLogins = flattenSlice(cmd.allowedLogins)
 
 	// Make sure that user does not exist.
-	_, err := client.GetUser(cmd.username, false)
-	if err == nil {
-		return trace.BadParameter("user(%v) already registered", cmd.username)
+	if _, err := client.GetUser(cmd.username, false); err == nil {
+		return trace.BadParameter("user %q already registered", cmd.username)
 	}
 
 	// Validate roles (server does not do this yet).
 	for _, roleName := range cmd.roles {
-		_, err := client.GetRole(roleName)
-		if err != nil {
+		if _, err := client.GetRole(roleName); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -141,9 +139,9 @@ func (cmd *UserCommandE) Add(client auth.ClientI) error {
 
 	user.SetTraits(traits)
 	user.SetRoles(cmd.roles)
-	err = client.UpsertUser(user)
-	if err != nil {
+	if err := client.CreateUser(context.TODO(), user); err != nil {
 		return trace.Wrap(err)
+
 	}
 
 	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
@@ -155,8 +153,7 @@ func (cmd *UserCommandE) Add(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	err = cmd.UserCommand.PrintResetPasswordTokenAsInvite(token, cmd.format)
-	if err != nil {
+	if err := cmd.UserCommand.PrintResetPasswordTokenAsInvite(token, cmd.format); err != nil {
 		return trace.Wrap(err)
 	}
 
