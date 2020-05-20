@@ -1655,7 +1655,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 		c.Assert(err, check.IsNil)
 		parsedCert, _ := parsedKey.(*ssh.Certificate)
 		validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
-		return parsedCert, validBefore.Sub(time.Now())
+		return parsedCert, time.Until(validBefore)
 	}
 	_, diff := parseCert(userCerts.SSH)
 	c.Assert(diff < testUser2.TTL, check.Equals, true, check.Commentf("expected %v < %v", diff, testUser2.TTL))

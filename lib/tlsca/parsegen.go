@@ -137,11 +137,11 @@ func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
 		}
 	}
 
-	switch generalKey.(type) {
+	switch k := generalKey.(type) {
 	case *rsa.PrivateKey:
-		return generalKey.(*rsa.PrivateKey), nil
+		return k, nil
 	case *ecdsa.PrivateKey:
-		return generalKey.(*ecdsa.PrivateKey), nil
+		return k, nil
 	}
 
 	return nil, trace.BadParameter("unsupported private key type")

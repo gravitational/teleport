@@ -1407,7 +1407,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 }
 
 func isRemoteDest(name string) bool {
-	return strings.IndexRune(name, ':') >= 0
+	return strings.ContainsRune(name, ':')
 }
 
 // ListNodes returns a list of nodes connected to a proxy
@@ -2373,7 +2373,7 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 		return ports, nil
 	}
 	const errTemplate = "Invalid port forwarding spec: '%s'. Could be like `80:remote.host:80`"
-	ports = make([]ForwardedPort, len(spec), len(spec))
+	ports = make([]ForwardedPort, len(spec))
 
 	for i, str := range spec {
 		parts := strings.Split(str, ":")

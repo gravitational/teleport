@@ -113,7 +113,7 @@ var reVariable = regexp.MustCompile(
 func RoleVariable(variable string) (*Expression, error) {
 	match := reVariable.FindStringSubmatch(variable)
 	if len(match) == 0 {
-		if strings.Index(variable, "{{") != -1 || strings.Index(variable, "}}") != -1 {
+		if strings.Contains(variable, "{{") || strings.Contains(variable, "}}") {
 			return nil, trace.BadParameter(
 				"%q is using template brackets '{{' or '}}', however expression does not parse, make sure the format is {{variable}}",
 				variable)
