@@ -62,6 +62,34 @@ func (s *AuthServer) CreateGithubAuthRequest(req services.GithubAuthRequest) (*s
 	return &req, nil
 }
 
+// upsertGithubConnector creates or updates a Github connector.
+func (s *AuthServer) upsertGithubConnector(connector services.GithubConnector) error {
+	if err := s.Identity.UpsertGithubConnector(connector); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.EmitAuditEvent(events.GithubConnectorCreated, events.EventFields{
+		events.FieldName: connector.GetName(),
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
+}
+
+// deleteGithubConnector deletes a Github connector by name.
+func (s *AuthServer) deleteGithubConnector(connectorName string) error {
+	if err := s.Identity.DeleteGithubConnector(connectorName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.EmitAuditEvent(events.GithubConnectorDeleted, events.EventFields{
+		events.FieldName: connectorName,
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
+}
+
 // GithubAuthResponse represents Github auth callback validation response
 type GithubAuthResponse struct {
 	// Username is the name of authenticated user

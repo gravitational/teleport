@@ -295,6 +295,27 @@ const (
 	RoleCreatedEvent = "role.created"
 	// RoleDeletedEvent fires when role is deleted.
 	RoleDeletedEvent = "role.deleted"
+
+	// TrustedClusterCreateEvent is the event for creating a trusted cluster.
+	TrustedClusterCreateEvent = "trusted_cluster.create"
+	// TrustedClusterDeleteEvent is the event for removing a trusted cluster.
+	TrustedClusterDeleteEvent = "trusted_cluster.delete"
+	// TrustedClusterTokenCreateEvent is the event for
+	// creating new join token for a trusted cluster.
+	TrustedClusterTokenCreateEvent = "trusted_cluster_token.create"
+
+	// GithubConnectorCreatedEvent fires when a Github connector is created/updated.
+	GithubConnectorCreatedEvent = "github.created"
+	// GithubConnectorDeletedEvent fires when a Github connector is deleted.
+	GithubConnectorDeletedEvent = "github.deleted"
+	// OIDCConnectorCreatedEvent fires when OIDC connector is created/updated.
+	OIDCConnectorCreatedEvent = "oidc.created"
+	// OIDCConnectorDeletedEvent fires when OIDC connector is deleted.
+	OIDCConnectorDeletedEvent = "oidc.deleted"
+	// SAMLConnectorCreatedEvent fires when SAML connector is created/updated.
+	SAMLConnectorCreatedEvent = "saml.created"
+	// SAMLConnectorDeletedEvent fires when SAML connector is deleted.
+	SAMLConnectorDeletedEvent = "saml.deleted"
 )
 
 const (

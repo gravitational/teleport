@@ -145,7 +145,7 @@ else
     if [[ "${ARCH}" == "" ]]; then
         usage
     fi
-    
+
     # set docker image appropriately
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         DOCKER_IMAGE="cdrx/fpm-debian:8"
@@ -242,8 +242,10 @@ else
     LINUX_CONFIG_FILE_LIST=""
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${ARCH}.rpm"
+        FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
     elif [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}_${TELEPORT_VERSION}${OPTIONAL_RUNTIME_SECTION}_${ARCH}.deb"
+        FILE_PERMISSIONS_STANZA="--deb-user root --deb-group root "
     fi
 fi
 
@@ -288,7 +290,7 @@ if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
         CONFIG_FILE_STANZA="--config-files /src/buildroot${LINUX_CONFIG_DIR}/${LINUX_CONFIG_FILE} "
     fi
     # /var/lib/teleport
-    mkdir -p ${TMPDIR}/buildroot${LINUX_DATA_DIR}
+    mkdir -p -m0700 ${TMPDIR}/buildroot${LINUX_DATA_DIR}
 fi
 popd
 
@@ -376,7 +378,8 @@ else
         --provides teleport \
         --prefix / \
         --verbose \
-        ${CONFIG_FILE_STANZA} .
+        ${CONFIG_FILE_STANZA} \
+        ${FILE_PERMISSIONS_STANZA} .
 
     # copy created package back to current directory
     cp ${TMPDIR}/*.${PACKAGE_TYPE} .

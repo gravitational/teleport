@@ -34,12 +34,32 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 )
 
+// UpsertSAMLConnector creates or updates a SAML connector.
 func (s *AuthServer) UpsertSAMLConnector(connector services.SAMLConnector) error {
-	return s.Identity.UpsertSAMLConnector(connector)
+	if err := s.Identity.UpsertSAMLConnector(connector); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.EmitAuditEvent(events.SAMLConnectorCreated, events.EventFields{
+		events.FieldName: connector.GetName(),
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
 }
 
+// DeleteSAMLConnector deletes a SAML connector by name.
 func (s *AuthServer) DeleteSAMLConnector(connectorName string) error {
-	return s.Identity.DeleteSAMLConnector(connectorName)
+	if err := s.Identity.DeleteSAMLConnector(connectorName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.EmitAuditEvent(events.SAMLConnectorDeleted, events.EventFields{
+		events.FieldName: connectorName,
+		events.EventUser: "unimplemented",
+	})
+
+	return nil
 }
 
 func (s *AuthServer) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {

@@ -257,6 +257,10 @@ type Config struct {
 	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
 	Browser string
 
+	// UseLocalSSHAgent will write user certificates to the local ssh-agent (or
+	// similar) socket at $SSH_AUTH_SOCK.
+	UseLocalSSHAgent bool
+
 	// Update the kube-context when logging in. This is kept behind a flag so that a users
 	// context isn't blindly updated when switching between clusters.
 	UpdateKubeContext bool
@@ -273,9 +277,10 @@ type CachePolicy struct {
 // MakeDefaultConfig returns default client config
 func MakeDefaultConfig() *Config {
 	return &Config{
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-		Stdin:  os.Stdin,
+		Stdout:           os.Stdout,
+		Stderr:           os.Stderr,
+		Stdin:            os.Stdin,
+		UseLocalSSHAgent: true,
 	}
 }
 
@@ -838,7 +843,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	} else {
 		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
 		webProxyHost, _ := tc.WebProxyHostPort()
-		tc.localAgent, err = NewLocalAgent(c.KeysDir, webProxyHost, c.Username)
+		tc.localAgent, err = NewLocalAgent(c.KeysDir, webProxyHost, c.Username, c.UseLocalSSHAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -201,6 +201,52 @@ var (
 		Name: RoleDeletedEvent,
 		Code: RoleDeletedCode,
 	}
+	// TrustedClusterCreate is emitted when a trusted cluster relationship is created.
+	TrustedClusterCreate = Event{
+		Name: TrustedClusterCreateEvent,
+		Code: TrustedClusterCreateCode,
+	}
+	// TrustedClusterDelete is emitted when a trusted cluster is removed from the root cluster.
+	TrustedClusterDelete = Event{
+		Name: TrustedClusterDeleteEvent,
+		Code: TrustedClusterDeleteCode,
+	}
+	// TrustedClusterTokenCreate is emitted when a new join
+	// token for trusted cluster is created.
+	TrustedClusterTokenCreate = Event{
+		Name: TrustedClusterTokenCreateEvent,
+		Code: TrustedClusterTokenCreateCode,
+	}
+	// GithubConnectorCreated is emitted when a Github connector is created/updated.
+	GithubConnectorCreated = Event{
+		Name: GithubConnectorCreatedEvent,
+		Code: GithubConnectorCreatedCode,
+	}
+	// GithubConnectorDeleted is emitted when a Github connector is deleted.
+	GithubConnectorDeleted = Event{
+		Name: GithubConnectorDeletedEvent,
+		Code: GithubConnectorDeletedCode,
+	}
+	// OIDCConnectorCreated is emitted when an OIDC connector is created/updated.
+	OIDCConnectorCreated = Event{
+		Name: OIDCConnectorCreatedEvent,
+		Code: OIDCConnectorCreatedCode,
+	}
+	// OIDCConnectorDeleted is emitted when an OIDC connector is deleted.
+	OIDCConnectorDeleted = Event{
+		Name: OIDCConnectorDeletedEvent,
+		Code: OIDCConnectorDeletedCode,
+	}
+	// SAMLConnectorCreated is emitted when a SAML connector is created/updated.
+	SAMLConnectorCreated = Event{
+		Name: SAMLConnectorCreatedEvent,
+		Code: SAMLConnectorCreatedCode,
+	}
+	// SAMLConnectorDeleted is emitted when a SAML connector is deleted.
+	SAMLConnectorDeleted = Event{
+		Name: SAMLConnectorDeletedEvent,
+		Code: SAMLConnectorDeletedCode,
+	}
 )
 
 // OSS event codes start with "T".
@@ -271,6 +317,17 @@ const (
 	AccessRequestUpdateCode = "T5001I"
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
+	TrustedClusterCreateCode = "T7000I"
+	// TrustedClusterDeleteCode is the event code for removing a trusted cluster.
+	TrustedClusterDeleteCode = "T7001I"
+	// TrustedClusterTokenCreateCode is the event code for
+	// creating new join token for a trusted cluster.
+	TrustedClusterTokenCreateCode = "T7002I"
+	// GithubConnectorCreatedCode is the Github connector created event code.
+	GithubConnectorCreatedCode = "T8001I"
+	// GithubConnectorDeletedCode is the Github connector deleted event code.
+	GithubConnectorDeletedCode = "T8002I"
 )
 
 // Enterprise event codes starts with "TE".
@@ -279,4 +336,12 @@ const (
 	RoleCreatedCode = "TE1000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "TE2000I"
+	// OIDCConnectorCreatedCode is the OIDC connector created event code.
+	OIDCConnectorCreatedCode = "TE1001I"
+	// OIDCConnectorDeletedCode is the OIDC connector deleted event code.
+	OIDCConnectorDeletedCode = "TE2001I"
+	// SAMLConnectorCreatedCode is the SAML connector created event code.
+	SAMLConnectorCreatedCode = "TE1002I"
+	// SAMLConnectorDeletedCode is the SAML connector deleted event code.
+	SAMLConnectorDeletedCode = "TE2002I"
 )

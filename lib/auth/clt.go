@@ -2468,6 +2468,7 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 	return trustedClusters, nil
 }
 
+// UpsertTrustedCluster creates or updates a trusted cluster.
 func (c *Client) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	trustedClusterBytes, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
 	if err != nil {
@@ -2507,6 +2508,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	return validateResponse, nil
 }
 
+// DeleteTrustedCluster deletes a trusted cluster by name.
 func (c *Client) DeleteTrustedCluster(name string) error {
 	_, err := c.Delete(c.Endpoint("trustedclusters", name))
 	return trace.Wrap(err)
