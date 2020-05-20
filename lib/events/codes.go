@@ -252,9 +252,9 @@ var (
 // There is no strict algorithm for picking an event code, however existing
 // event codes are currently loosely categorized as follows:
 //
-//  * OSS event codes start with "T" and belongs in this const block.
+//  * OSS event codes start with "T" and belong in this const block.
 //
-//  * Enterprise event codes start with "TE", and is in another const block.
+//  * Enterprise event codes start with "TE", and are in another const block.
 //
 //  * Related events are grouped starting with the same number.
 //		eg: All user related events are grouped under 1xxx.
