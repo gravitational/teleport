@@ -256,6 +256,10 @@ type Config struct {
 	// Browser can be used to pass the name of a browser to override the system default
 	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
 	Browser string
+
+	// Update the kube-context when logging in. This is kept behind a flag so that a users
+	// context isn't blindly updated when switching between clusters.
+	UpdateKubeContext bool
 }
 
 // CachePolicy defines cache policy for local clients

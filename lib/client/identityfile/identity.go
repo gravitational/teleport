@@ -64,7 +64,7 @@ const (
 //
 // filePath is used as a base to generate output file names; these names are
 // returned in filesWritten.
-func Write(filePath string, key *client.Key, format Format, certAuthorities []services.CertAuthority, clusterAddr string) (filesWritten []string, err error) {
+func Write(filePath string, key *client.Key, format Format, certAuthorities []services.CertAuthority, clusterAddr string, updateKubeContext bool) (filesWritten []string, err error) {
 	const (
 		// the files and the dir will be created with these permissions:
 		fileMode = 0600
@@ -161,7 +161,7 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, filePath)
-		if err := kubeconfig.Update(filePath, kubeconfig.Values{
+		if err := kubeconfig.Update(filePath, updateKubeContext, kubeconfig.Values{
 			Name:        key.ClusterName,
 			ClusterAddr: clusterAddr,
 			Credentials: key,

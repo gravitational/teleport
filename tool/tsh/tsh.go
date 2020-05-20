@@ -165,6 +165,10 @@ type CLIConf struct {
 	// Browser can be used to pass the name of a browser to override the system default
 	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
 	Browser string
+
+	// Update the kube-context when logging in. This is kept behind a flag so that a users
+	// context isn't blindly updated when switching between clusters.
+	UpdateKubeContext bool
 }
 
 func main() {
@@ -274,6 +278,7 @@ func Run(args []string, underTest bool) {
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
+	login.Flag("update-kube-context", "Update the current kubernetes context once logged in").BoolVar(&cf.UpdateKubeContext)
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -482,7 +487,7 @@ func onLogin(cf *CLIConf) {
 			utils.FatalError(err)
 		}
 
-		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities, tc.KubeClusterAddr())
+		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities, tc.KubeClusterAddr(), tc.UpdateKubeContext)
 		if err != nil {
 			utils.FatalError(err)
 		}
@@ -1085,6 +1090,8 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	// Allow the default browser used to open tsh login links to be overridden
 	// (not currently implemented) or set to 'none' to suppress browser opening entirely.
 	c.Browser = cf.Browser
+
+	c.UpdateKubeContext = cf.UpdateKubeContext
 
 	tc, err := client.NewClient(c)
 	if err != nil {

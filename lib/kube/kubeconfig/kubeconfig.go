@@ -50,7 +50,7 @@ func UpdateWithClient(path string, tc *client.TeleportClient) error {
 		return trace.Wrap(err)
 	}
 
-	return Update(path, Values{
+	return Update(path, tc.UpdateKubeContext, Values{
 		Name:        clusterName,
 		ClusterAddr: clusterAddr,
 		Credentials: creds,
@@ -61,7 +61,7 @@ func UpdateWithClient(path string, tc *client.TeleportClient) error {
 //
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
-func Update(path string, v Values) error {
+func Update(path string, updateKubeContext bool, v Values) error {
 	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -99,7 +99,10 @@ func Update(path string, v Values) error {
 		newContext.Extensions = lastContext.Extensions
 	}
 	config.Contexts[v.Name] = newContext
-	config.CurrentContext = v.Name
+	if updateKubeContext {
+		config.CurrentContext = v.Name
+	}
+
 	return save(path, *config)
 }
 
