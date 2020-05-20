@@ -363,27 +363,20 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 }
 
 func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
-	eventEmitted := false
-	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
-		eventEmitted = true
-		c.Assert(event, DeepEquals, events.TrustedClusterTokenCreate)
-		return nil
-	}
-
 	// test trusted cluster token emit
 	_, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleTrustedCluster}})
 	c.Assert(err, IsNil)
-	c.Assert(eventEmitted, Equals, true)
+	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterTokenCreate)
+	s.mockedAuditLog.Reset()
 
 	// test emit with multiple roles
-	eventEmitted = false
 	_, err = s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{
 		teleport.RoleNode,
 		teleport.RoleTrustedCluster,
 		teleport.RoleAuth,
 	}})
 	c.Assert(err, IsNil)
-	c.Assert(eventEmitted, Equals, true)
+	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterTokenCreate)
 }
 
 func (s *AuthSuite) TestBuildRolesInvalid(c *C) {
