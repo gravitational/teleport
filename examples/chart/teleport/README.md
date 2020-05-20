@@ -46,7 +46,7 @@ $ helm install --name teleport ./
 Teleport proxy generates a TLS key and a cert of its own by default.
 In order to instruct the proxy to use the TLS assets brought by you, prepare the following files:
 
-- Your CA cert named `ca.pem`
+- Your CA cert named `ca.pem`  (optional depending on values.yaml setting)
 - Your proxy server cert named `proxy-server.pem`
 - Your proxy server key named `proxy-server-key.pem`
 
@@ -54,8 +54,9 @@ Then run:
 
 ```
 $ kubectl create secret tls tls-web --cert=proxy-server.pem --key=proxy-server-key.pem
+# ca.pem is not required by default.  Run this command if you have your own Certificate Authority (CA)
 $ kubectl create configmap ca-certs --from-file=ca.pem
-$ helm upgrade --install --name teleport ./
+$ helm upgrade --install teleport ./
 ```
 
 ## Running locally on minikube
