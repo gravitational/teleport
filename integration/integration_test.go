@@ -141,7 +141,7 @@ func (s *IntSuite) SetUpTest(c *check.C) {
 func (s *IntSuite) newUnstartedTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
 	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 	// use passed logins, but use suite's default login if nothing was passed
-	if logins == nil || len(logins) == 0 {
+	if len(logins) == 0 {
 		logins = []string{s.me.Username}
 	}
 	for _, login := range logins {
@@ -170,7 +170,7 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	// use passed logins, but use suite's default login if nothing was passed
-	if logins == nil || len(logins) == 0 {
+	if len(logins) == 0 {
 		logins = []string{s.me.Username}
 	}
 	for _, login := range logins {
@@ -293,7 +293,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		c.Assert(len(sessions), check.Equals, 0)
 
 		// create interactive session (this goroutine is this user's terminal time)
-		endC := make(chan error, 0)
+		endC := make(chan error)
 		myTerm := NewTerminal(250)
 		go func() {
 			cl, err := t.NewClient(ClientConfig{
@@ -567,7 +567,7 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 		cl.Stderr = outbuf
 
 		// run command and wait a maximum of 10 seconds for it to complete
-		sessionEndC := make(chan interface{}, 0)
+		sessionEndC := make(chan interface{})
 		go func() {
 			// don't check for err, because sometimes this process should fail
 			// with an error and that's what the test is checking for.
@@ -682,7 +682,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	t := s.newTeleport(c, nil, true)
 	defer t.StopAll()
 
-	sessionEndC := make(chan interface{}, 0)
+	sessionEndC := make(chan interface{})
 
 	// get a reference to site obj:
 	site := t.GetSiteAPI(Site)
@@ -756,7 +756,7 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 	person := NewTerminal(250)
 
 	// commandsC receive commands
-	commandsC := make(chan string, 0)
+	commandsC := make(chan string)
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {

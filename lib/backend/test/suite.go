@@ -324,7 +324,7 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// should have expired if not keep alive
-	diff := addSeconds(time.Now(), 1).Sub(time.Now())
+	diff := time.Until(addSeconds(time.Now(), 1))
 	time.Sleep(diff + 100*time.Millisecond)
 
 	out, err = s.B.Get(ctx, item.Key)

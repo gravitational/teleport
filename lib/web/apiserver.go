@@ -1051,7 +1051,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.GetBearerToken(),
-		ExpiresIn: int(webSession.GetBearerTokenExpiryTime().Sub(time.Now()) / time.Second),
+		ExpiresIn: int(time.Until(webSession.GetBearerTokenExpiryTime()) / time.Second),
 	}, nil
 }
 
@@ -1953,7 +1953,7 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *Handler) String() string {
-	return fmt.Sprintf("multi site")
+	return "multi site"
 }
 
 // currentSiteShortcut is a special shortcut that will return the first

@@ -1190,7 +1190,7 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	} else {
 		prefix = "  "
 	}
-	duration := p.ValidUntil.Sub(time.Now())
+	duration := time.Until(p.ValidUntil)
 	humanDuration := "EXPIRED"
 	if duration.Nanoseconds() > 0 {
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))

@@ -82,8 +82,7 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *KeyAgentTestSuite) TearDownSuite(c *check.C) {
-	var err error
-	err = os.RemoveAll(s.keyDir)
+	err := os.RemoveAll(s.keyDir)
 	c.Assert(err, check.IsNil)
 }
 

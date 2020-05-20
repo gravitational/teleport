@@ -1276,23 +1276,17 @@ func (s *discardServer) HandleNewChan(ccx *sshutils.ConnectionContext, newChanne
 func (s *discardServer) handleChannel(channel ssh.Channel, reqs <-chan *ssh.Request) {
 	defer channel.Close()
 
-	for {
-		select {
-		case req := <-reqs:
-			if req == nil {
-				return
-			}
-			if req.Type == "exec" {
-				successPayload := ssh.Marshal(struct{ C uint32 }{C: uint32(0)})
-				channel.SendRequest("exit-status", false, successPayload)
-				if req.WantReply {
-					req.Reply(true, nil)
-				}
-				return
-			}
+	for req := range reqs {
+		if req.Type == "exec" {
+			successPayload := ssh.Marshal(struct{ C uint32 }{C: uint32(0)})
+			channel.SendRequest("exit-status", false, successPayload)
 			if req.WantReply {
 				req.Reply(true, nil)
 			}
+			return
+		}
+		if req.WantReply {
+			req.Reply(true, nil)
 		}
 	}
 }

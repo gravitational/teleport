@@ -20,7 +20,6 @@ package dynamo
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -417,7 +416,7 @@ func (b *DynamoDBBackend) CompareAndSwap(ctx context.Context, expected backend.I
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if bytes.Compare(expected.Key, replaceWith.Key) != 0 {
+	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	r := record{
@@ -653,7 +652,7 @@ func (b *DynamoDBBackend) getRecords(ctx context.Context, startKey, endKey strin
 
 	// filter out expired items, otherwise they might show up in the query
 	// http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/howitworks-ttl.html
-	filter := fmt.Sprintf("attribute_not_exists(Expires) OR Expires >= :timestamp")
+	filter := "attribute_not_exists(Expires) OR Expires >= :timestamp"
 	av, err := dynamodbattribute.MarshalMap(attrV)
 	if err != nil {
 		return nil, convertError(err)
