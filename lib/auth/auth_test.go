@@ -311,7 +311,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	// lets use static tokens now
 	roles = teleport.Roles{teleport.RoleProxy}
 	st, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{services.ProvisionTokenV1{
+		StaticTokens: []services.ProvisionTokenV1{{
 			Token:   "static-token-value",
 			Roles:   roles,
 			Expires: time.Unix(0, 0).UTC(),
@@ -360,6 +360,23 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	tampered := string(tok[0]+1) + tok[1:]
 	_, err = s.a.ValidateToken(tampered)
 	c.Assert(err, NotNil)
+}
+
+func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
+	// test trusted cluster token emit
+	_, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleTrustedCluster}})
+	c.Assert(err, IsNil)
+	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterTokenCreate)
+	s.mockedAuditLog.Reset()
+
+	// test emit with multiple roles
+	_, err = s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{
+		teleport.RoleNode,
+		teleport.RoleTrustedCluster,
+		teleport.RoleAuth,
+	}})
+	c.Assert(err, IsNil)
+	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterTokenCreate)
 }
 
 func (s *AuthSuite) TestBuildRolesInvalid(c *C) {
@@ -547,7 +564,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	// try and set static tokens, this should be successful because the last
 	// one to upsert tokens wins
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{services.ProvisionTokenV1{
+		StaticTokens: []services.ProvisionTokenV1{{
 			Token: "bar",
 			Roles: teleport.Roles{teleport.Role("baz")},
 		}},
@@ -563,7 +580,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
 	st, err = s.a.GetStaticTokens()
 	c.Assert(err, IsNil)
-	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{services.ProvisionTokenV1{
+	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{{
 		Token: "bar",
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}}))
@@ -572,7 +589,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	// new static tokens
 	st, err = authServer.GetStaticTokens()
 	c.Assert(err, IsNil)
-	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{services.ProvisionTokenV1{
+	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{{
 		Token: "bar",
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}}))

@@ -300,6 +300,10 @@ const (
 	TrustedClusterCreateEvent = "trusted_cluster.create"
 	// TrustedClusterDeleteEvent is the event for removing a trusted cluster.
 	TrustedClusterDeleteEvent = "trusted_cluster.delete"
+	// TrustedClusterTokenCreateEvent is the event for
+	// creating new join token for a trusted cluster.
+	TrustedClusterTokenCreateEvent = "trusted_cluster_token.create"
+
 	// GithubConnectorCreatedEvent fires when a Github connector is created/updated.
 	GithubConnectorCreatedEvent = "github.created"
 	// GithubConnectorDeletedEvent fires when a Github connector is deleted.

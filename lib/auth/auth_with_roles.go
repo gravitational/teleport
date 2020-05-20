@@ -306,6 +306,7 @@ func (a *AuthWithRoles) DeactivateCertAuthority(id services.CertAuthID) error {
 	return trace.NotImplemented("not implemented")
 }
 
+// GenerateToken generates multi-purpose authentication token.
 func (a *AuthWithRoles) GenerateToken(req GenerateTokenRequest) (string, error) {
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbCreate); err != nil {
 		return "", trace.Wrap(err)

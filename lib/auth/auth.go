@@ -799,18 +799,27 @@ func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GenerateToken generates multi-purpose authentication token
-func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
+// GenerateToken generates multi-purpose authentication token.
+func (a *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
-	token, err := services.NewProvisionToken(req.Token, req.Roles, s.clock.Now().UTC().Add(req.TTL))
+	token, err := services.NewProvisionToken(req.Token, req.Roles, a.clock.Now().UTC().Add(req.TTL))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if err := s.Provisioner.UpsertToken(token); err != nil {
+	if err := a.Provisioner.UpsertToken(token); err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	for _, role := range req.Roles {
+		if role == teleport.RoleTrustedCluster {
+			a.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
+				events.EventUser: "unimplemented",
+			})
+		}
+	}
+
 	return req.Token, nil
 }
 
