@@ -229,11 +229,9 @@ a shell for said user.
 ### Examples
 **Using pam_exec.so**
 
-Using `pam_exec.so` is the easiest way to use the PAM stack to create a user if the
-user does not already exist. The advantage of using `pam_exec.so` is that it usually
-ships with the operating system. The downside is that it doesn't provide access to
-some additional environment variables that Teleport sets (see the `pam_script.so`
-example for those) to use additional identity metadata in the user creation process.
+Using `pam_exec.so` is the easiest way to use the PAM stack to create a user if
+the user does not already exist. `pam_exec.so` usually ships with the operating
+system.
 
 You can either add `pam_exec.so` to the existing PAM stack for your application or 
 write a new one for Teleport. In this example, we'll write a new one to simplify how
@@ -252,82 +250,26 @@ session   required   pam_motd.so
       not required for user creation, Teleport requires at least one module to be set under both
       the `account` and `session` facilities for it to work.
 
-Next, create the script that will be run by `pam_exec.so` like below. This script will
-check if the user passed in `PAM_USER` exists and if it does not, it will create it.
-Any error from `useradd` will be written to `/tmp/pam.error`.
+Next, create the script that will be run by `pam_exec.so` like below. This
+script will check if the user passed in `TELEPORT_LOGIN` exists and if it does
+not, it will create it. Any error from `useradd` will be written to
+`/tmp/pam.error`. Note the additional environment variables
+`TELEPORT_USERNAME`, `TELEPORT_ROLES`, and `TELEPORT_LOGIN`.  These can be used
+to write richer scripts that may change the system in other ways based on
+identity information.
 
 ```bash
 mkdir -p /etc/pam-exec.d
 cat > /etc/pam-exec.d/teleport_acct <<EOF
 #!/bin/sh
-id -u "${PAM_USER}" &>/dev/null  || /sbin/useradd -m "${PAM_USER}" 2> /tmp/pam.error
+COMMENT="User ${TELEPORT_USERNAME} with roles ${TELEPORT_ROLES} created by Teleport."
+id -u "${TELEPORT_LOGIN}" &>/dev/null  || /sbin/useradd -m -c "${COMMENT}" "${TELEPORT_LOGIN}" 2> /tmp/pam.error
 exit 0
 EOF
 chmod +x /etc/pam-exec.d/teleport_acct
 ```
 
-Next, update `/etc/teleport.yaml` to call the above PAM stack by both enabling PAM 
-and setting the `service_name`:
-
-```yaml
-ssh_service:
-   pam:
-     enabled: true
-     service_name: "teleport"
-```
-
-Now attempting to login as an existing user should result in the creation of the user 
-and a successful login.
-
-### Using `pam_script.so`
-
-If more advanced functionality is needed, `pam_script.so` is a good choice. It typically 
-has to be installed from packages, but enables the use of richer scripts with more 
-identity information from Teleport to be used during the process of user creation.
-
-### Install pam_script.so
-
-!!! Tip
-
-    Debian-based systems: `apt-get install libpam-script`
-    RHEL-based systems: `yum install pam-script`
-
-You can either add `pam_script.so` to the existing PAM stack for your application 
-or write a new one for Teleport. In this example, we'll write a new one to simplify 
-how to use `pam_script.so` with Teleport.
-
-Start by creating a file `/etc/pam.d/teleport` with the following contents.
-
-```sh
-account   required   pam_script.so
-session   required   pam_motd.so
-```
-
-!!! Note
-
-      Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
-      not required for user creation, Teleport requires at least one module to be set under both
-      the `account` and `session` facilities for it to work.
-
-Next, create the script that will be run by pam_script.so like below. This script 
-will check if the user passed in `TELEPORT_LOGIN` exists and if it does not, it will
-create it. Any error from `useradd` will be written to `/tmp/pam.error`. Note the 
-additional environment variables `TELEPORT_USERNAME`, `TELEPORT_ROLES`, and `TELEPORT_LOGIN`.
-These can be used to write richer scripts that may change the system in other ways
-based on identity information.
-
-```bash
-mkdir -p /etc/pam-script.d
-cat > /etc/pam-script.d/teleport_acct <<EOF
-#!/bin/sh
-COMMENT="User ${TELEPORT_USERNAME} with roles ${TELEPORT_ROLES} created by Teleport."
-id -u "${TELEPORT_LOGIN}" &>/dev/null  || /sbin/useradd -m -c "${COMMENT}" "${TELEPORT_LOGIN}" 2> /tmp/pam.error
-exit 0
-EOF
-chmod +x /etc/pam-script.d/teleport_acct
-```
-
-Next, update `/etc/teleport.yaml` to call the above PAM stack by both enabling PAM and 
+Next, update `/etc/teleport.yaml` to call the above PAM stack by both enabling PAM and
 setting the service_name.
 
 ```yaml
