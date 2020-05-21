@@ -34,6 +34,7 @@ import (
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -545,12 +546,28 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 	go func() {
 		defer ns.closer.Close()
 		buf := make([]byte, 128)
+
+		stdin := ns.stdin
+		if ns.isTerminalAttached() {
+			stdin = escape.NewReader(stdin, ns.stderr, func(err error) {
+				switch err {
+				case escape.ErrDisconnect:
+					fmt.Fprintf(ns.stderr, "\r\n%v\r\n", err)
+				case escape.ErrTooMuchBufferedData:
+					fmt.Fprintf(ns.stderr, "\r\nerror: %v\r\nremote peer may be unreachable, check your connectivity\r\n", trace.Wrap(err))
+				default:
+					fmt.Fprintf(ns.stderr, "\r\nerror: %v\r\n", trace.Wrap(err))
+				}
+				ns.closer.Close()
+			})
+		}
 		for {
-			n, err := ns.stdin.Read(buf)
+			n, err := stdin.Read(buf)
 			if err != nil {
-				fmt.Fprintln(ns.stderr, trace.Wrap(err))
+				fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
 				return
 			}
+
 			if n > 0 {
 				_, err = shell.Write(buf[:n])
 				if err != nil {
