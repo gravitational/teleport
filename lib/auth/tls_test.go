@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Gravitational, Inc.
+Copyright 2017-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -2559,4 +2559,17 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
+}
+
+func (s *TLSSuite) TestAPIBackwardsCompatibilityLogic(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	clt.grpcClient = &MockAuthServiceClient{}
+	mockClient := &MockClient{}
+	clt.IClientServices = mockClient
+
+	err = clt.DeleteUser(context.TODO(), "")
+	c.Assert(err, check.IsNil)
+	c.Assert(mockClient.MethodCalled, check.Equals, true)
 }
