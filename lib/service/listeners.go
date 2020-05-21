@@ -88,10 +88,19 @@ func (process *TeleportProcess) ProxyTunnelAddr() (*utils.NetAddr, error) {
 func (process *TeleportProcess) registeredListenerAddr(typ listenerType) (*utils.NetAddr, error) {
 	process.Lock()
 	defer process.Unlock()
+
+	var matched []registeredListener
 	for _, l := range process.registeredListeners {
 		if l.typ == typ {
-			return utils.ParseAddr(l.listener.Addr().String())
+			matched = append(matched, l)
 		}
 	}
-	return nil, trace.NotFound("no registered address for type %q", typ)
+	switch len(matched) {
+	case 0:
+		return nil, trace.NotFound("no registered address for type %q", typ)
+	case 1:
+		return utils.ParseAddr(matched[0].listener.Addr().String())
+	default:
+		return nil, trace.NotFound("multiple registered listeners found for type %q", typ)
+	}
 }
