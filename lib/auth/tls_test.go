@@ -33,7 +33,9 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
+	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/backend"
@@ -45,12 +47,34 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"gopkg.in/check.v1"
 )
+
+// MockAuthServiceClient stubs grpc AuthServiceClient interface.
+type mockAuthServiceClient struct {
+	proto.AuthServiceClient
+	errType error
+}
+
+// newMockAuthServiceClient returns a new instace of mockAuthServiceClient
+func newMockAuthServiceClient() *mockAuthServiceClient {
+	return &mockAuthServiceClient{}
+}
+
+// DeleteUser returns a dynamically defined method.
+func (m *mockAuthServiceClient) DeleteUser(ctx context.Context, in *proto.DeleteUserRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	return nil, trail.ToGRPC(m.errType)
+}
+
+// reset resets states to its zero values.
+func (m *mockAuthServiceClient) reset() {
+	m.errType = nil
+}
 
 type TLSSuite struct {
 	dataDir string
@@ -2559,4 +2583,24 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
+}
+
+func (s *TLSSuite) TestAPIBackwardsCompatibilityLogic(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	grpcMock := newMockAuthServiceClient()
+	clt.grpcClient = grpcMock
+
+	// check the REST endpoint gets called
+	grpcMock.errType = trace.NotImplemented("")
+	err = clt.DeleteUser(context.TODO(), "not-existing-user")
+	c.Assert(trace.IsNotFound(err), check.Equals, true)
+	grpcMock.reset()
+
+	// check that any other error than "NotImplemented" returns right away
+	grpcMock.errType = trace.BadParameter("test-other-error")
+	err = clt.DeleteUser(context.TODO(), "not-existing-user")
+	c.Assert(trace.IsBadParameter(err), check.Equals, true)
+	c.Assert(err, check.ErrorMatches, `test-other-error`)
 }

@@ -327,22 +327,17 @@ func (c *Client) GetTransport() *http.Transport {
 }
 
 // PostJSON is a generic method that issues http POST request to the server
-func (c *Client) PostJSON(
-	endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *Client) PostJSON(endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostJSON(context.TODO(), endpoint, val))
 }
 
 // PutJSON is a generic method that issues http PUT request to the server
-func (c *Client) PutJSON(
-	endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *Client) PutJSON(endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PutJSON(context.TODO(), endpoint, val))
 }
 
 // PostForm is a generic method that issues http POST request to the server
-func (c *Client) PostForm(
-	endpoint string,
-	vals url.Values,
-	files ...roundtrip.File) (*roundtrip.Response, error) {
+func (c *Client) PostForm(endpoint string, vals url.Values, files ...roundtrip.File) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostForm(context.TODO(), endpoint, vals, files...))
 }
 
@@ -1582,9 +1577,8 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 
 	// Allows cross-version compatibility.
 	// DELETE IN: 5.2 REST method is replaced by grpc with context.
-	err = trail.FromGRPC(err)
 	if status.Code(err) != codes.Unimplemented {
-		return trace.Wrap(err)
+		return trace.Wrap(trail.FromGRPC(err))
 	}
 
 	if _, err := c.Delete(c.Endpoint("users", user)); err != nil {
