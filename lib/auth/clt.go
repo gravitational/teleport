@@ -70,6 +70,21 @@ const (
 // Dialer defines dialer function
 type Dialer func(network, addr string) (net.Conn, error)
 
+// IClientServices defines wrapper methods for roundtrip package.
+// Methods that are not wrappers are dependent on the roundtrip.Client instance
+// held by ClientService struct (which implements this interface).
+//
+// Interface was made for testing backward compatability logic between GRPC and REST.
+type IClientServices interface {
+	Delete(u string) (*roundtrip.Response, error)
+	Get(u string, params url.Values) (*roundtrip.Response, error)
+	PostJSON(endpoint string, val interface{}) (*roundtrip.Response, error)
+	PutJSON(endpoint string, val interface{}) (*roundtrip.Response, error)
+	PostForm(endpoint string, vals url.Values, files ...roundtrip.File) (*roundtrip.Response, error)
+	Endpoint(params ...string) string
+	PostSessionSlice(slice events.SessionSlice) error
+}
+
 // Client is HTTP Auth API client. It works by connecting to auth servers
 // via HTTP.
 //
@@ -79,12 +94,12 @@ type Dialer func(network, addr string) (net.Conn, error)
 type Client struct {
 	sync.Mutex
 	ClientConfig
-	roundtrip.Client
 	transport  *http.Transport
 	conn       *grpc.ClientConn
 	grpcClient proto.AuthServiceClient
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
+	IClientServices
 }
 
 // TLSConfig returns TLS config used by the client, could return nil
@@ -270,8 +285,10 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	}
 	return &Client{
 		ClientConfig: cfg,
-		Client:       *roundtripClient,
 		transport:    transport,
+		IClientServices: &ClientServices{
+			Client: *roundtripClient,
+		},
 	}, nil
 }
 
@@ -324,36 +341,6 @@ func (c *Client) grpc() (proto.AuthServiceClient, error) {
 
 func (c *Client) GetTransport() *http.Transport {
 	return c.transport
-}
-
-// PostJSON is a generic method that issues http POST request to the server
-func (c *Client) PostJSON(
-	endpoint string, val interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.PostJSON(context.TODO(), endpoint, val))
-}
-
-// PutJSON is a generic method that issues http PUT request to the server
-func (c *Client) PutJSON(
-	endpoint string, val interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.PutJSON(context.TODO(), endpoint, val))
-}
-
-// PostForm is a generic method that issues http POST request to the server
-func (c *Client) PostForm(
-	endpoint string,
-	vals url.Values,
-	files ...roundtrip.File) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.PostForm(context.TODO(), endpoint, vals, files...))
-}
-
-// Get issues http GET request to the server
-func (c *Client) Get(u string, params url.Values) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.Get(context.TODO(), u, params))
-}
-
-// Delete issues http Delete Request to the server
-func (c *Client) Delete(u string) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.Delete(context.TODO(), u))
 }
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
@@ -1582,9 +1569,8 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 
 	// Allows cross-version compatibility.
 	// DELETE IN: 5.2 REST method is replaced by grpc with context.
-	err = trail.FromGRPC(err)
 	if status.Code(err) != codes.Unimplemented {
-		return trace.Wrap(err)
+		return trace.Wrap(trail.FromGRPC(err))
 	}
 
 	if _, err := c.Delete(c.Endpoint("users", user)); err != nil {
@@ -2047,33 +2033,6 @@ func (c *Client) EmitAuditEvent(event events.Event, fields events.EventFields) e
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// PostSessionSlice allows clients to submit session stream chunks to the audit log
-// (part of evets.IAuditLog interface)
-//
-// The data is POSTed to HTTP server as a simple binary body (no encodings of any
-// kind are needed)
-func (c *Client) PostSessionSlice(slice events.SessionSlice) error {
-	data, err := slice.Marshal()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", slice.SessionID, "slice"), bytes.NewReader(data))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	r.Header.Set("Content-Type", "application/grpc")
-	c.Client.SetAuthHeader(r.Header)
-	re, err := c.Client.HTTPClient().Do(r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// we **must** consume response by reading all of its body, otherwise the http
-	// client will allocate a new connection for subsequent requests
-	defer re.Body.Close()
-	responseBytes, _ := ioutil.ReadAll(re.Body)
-	return trace.ReadError(re.StatusCode, responseBytes)
 }
 
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
@@ -2691,6 +2650,73 @@ func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{}, trail.FromGRPC(err)
 	}
 	return *rsp, nil
+}
+
+// ClientServices implements IClientServices interface.
+type ClientServices struct {
+	roundtrip.Client
+}
+
+// PostJSON is a generic method that issues http POST request to the server
+func (c *ClientServices) PostJSON(
+	endpoint string, val interface{}) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.PostJSON(context.TODO(), endpoint, val))
+}
+
+// PutJSON is a generic method that issues http PUT request to the server
+func (c *ClientServices) PutJSON(
+	endpoint string, val interface{}) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.PutJSON(context.TODO(), endpoint, val))
+}
+
+// PostForm is a generic method that issues http POST request to the server
+func (c *ClientServices) PostForm(
+	endpoint string,
+	vals url.Values,
+	files ...roundtrip.File) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.PostForm(context.TODO(), endpoint, vals, files...))
+}
+
+// Get issues http GET request to the server
+func (c *ClientServices) Get(u string, params url.Values) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.Get(context.TODO(), u, params))
+}
+
+// Delete issues http Delete Request to the server
+func (c *ClientServices) Delete(u string) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.Delete(context.TODO(), u))
+}
+
+// Endpoint returns a URL constructed from parts and version appended, e.g.
+func (c *ClientServices) Endpoint(params ...string) string {
+	return c.Client.Endpoint(params...)
+}
+
+// PostSessionSlice allows clients to submit session stream chunks to the audit log
+// (part of evets.IAuditLog interface)
+//
+// The data is POSTed to HTTP server as a simple binary body (no encodings of any
+// kind are needed)
+func (c *ClientServices) PostSessionSlice(slice events.SessionSlice) error {
+	data, err := slice.Marshal()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", slice.SessionID, "slice"), bytes.NewReader(data))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	r.Header.Set("Content-Type", "application/grpc")
+	c.Client.SetAuthHeader(r.Header)
+	re, err := c.Client.HTTPClient().Do(r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// we **must** consume response by reading all of its body, otherwise the http
+	// client will allocate a new connection for subsequent requests
+	defer re.Body.Close()
+	responseBytes, _ := ioutil.ReadAll(re.Body)
+	return trace.ReadError(re.StatusCode, responseBytes)
 }
 
 // WebService implements features used by Web UI clients
