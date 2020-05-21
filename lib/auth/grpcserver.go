@@ -412,6 +412,75 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*emp
 	return &empty.Empty{}, nil
 }
 
+// AcquireSemaphore acquires lease with requested resources from semaphore.
+func (g *GRPCServer) AcquireSemaphore(ctx context.Context, params *services.AcquireSemaphoreParams) (*services.SemaphoreLease, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	lease, err := auth.AcquireSemaphore(ctx, *params)
+	return lease, trail.ToGRPC(err)
+}
+
+// KeepAliveSemaphoreLease updates semaphore lease.
+func (g *GRPCServer) KeepAliveSemaphoreLease(ctx context.Context, req *services.SemaphoreLease) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.KeepAliveSemaphoreLease(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// CancelSemaphoreLease cancels semaphore lease early.
+func (g *GRPCServer) CancelSemaphoreLease(ctx context.Context, req *services.SemaphoreLease) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.CancelSemaphoreLease(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetSemaphores returns a list of all semaphores matching the supplied filter.
+func (g *GRPCServer) GetSemaphores(ctx context.Context, req *services.SemaphoreFilter) (*proto.Semaphores, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	semaphores, err := auth.GetSemaphores(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	ss := make([]*services.SemaphoreV3, 0, len(semaphores))
+	for _, sem := range semaphores {
+		s, ok := sem.(*services.SemaphoreV3)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected semaphore type: %T", sem))
+		}
+		ss = append(ss, s)
+	}
+	return &proto.Semaphores{
+		Semaphores: ss,
+	}, nil
+}
+
+// DeleteSemaphores deletes all semaphores matching the supplied filter.
+func (g *GRPCServer) DeleteSemaphores(ctx context.Context, req *services.SemaphoreFilter) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.DeleteSemaphores(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

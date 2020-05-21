@@ -251,6 +251,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindReverseTunnel, services.RW()),
 						services.NewRule(services.KindTunnelConnection, services.RO()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(services.KindSemaphore, services.RW()),
 					},
 				},
 			})

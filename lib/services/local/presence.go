@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -657,98 +658,119 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 	return trace.Wrap(err)
 }
 
-// TryAcquireSemaphore tries to acquire semaphore resources using optimistic concurrency
-// (hoping that compare and swap will succeed).
-//
-// In case of unsuccessfull concurrent operation returns CompareFailed or AlreadyExists,
-// what indicates to the client that it can retry the operation with the existing values.
-//
-// In case if the operation returns trace.LimitExceeded, it means that semaphore resources
-// acquired by other clients and it's up to client whether to keep trying or reject
-// the connection.
-//
-// In all other cases the error indicates the networking, backend or parameter validation problem
-//
-func (s *PresenceService) TryAcquireSemaphore(ctx context.Context, sem services.Semaphore, l services.SemaphoreLease) (*services.SemaphoreLease, error) {
-	if err := sem.CheckAndSetDefaults(); err != nil {
+// jitter is a shared jitter function used to jitter internal retries.
+var jitter = utils.NewJitter()
+
+// AcquireSemaphore attempts to acquire the specified semaphore.  AcquireSemaphore will automatically handle
+// retry on contention.  If the semaphore has already reached MaxLeases, or there is too much contention,
+// a LimitExceeded error is returned.
+func (s *PresenceService) AcquireSemaphore(ctx context.Context, req services.AcquireSemaphoreParams) (*services.SemaphoreLease, error) {
+	// this combination of backoff parameters leads to worst-case total time spent
+	// in backoff between 1200ms and 2400ms depending on jitter.  tests are in
+	// place to verify that this is sufficient to resolve a 40-lease contention
+	// event, which is far worse than should ever occur in practice.
+	const baseBackoff = time.Millisecond * 400
+	const acquireAttempts int64 = 4
+
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	l.SemaphoreName = sem.GetName()
-	l.SemaphoreSubKind = sem.GetSubKind()
-	if err := l.CheckAndSetDefaults(); err != nil {
+
+	if req.Expires.Before(s.Clock().Now().UTC()) {
+		return nil, trace.BadParameter("cannot acquire expired semaphore lease")
+	}
+
+	// key is not modified, so allocate it once
+	key := backend.Key(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)
+
+	for i := int64(0); i < acquireAttempts; i++ {
+		if i > 0 {
+			// Not our first attempt, apply backoff. If we knew that we were only in
+			// contention with one other acquire attempt we could retry immediately
+			// since we got here because some other attempt *succeeded*.  It is safer,
+			// however, to assume that we are under high contention and attempt to
+			// spread out retries via random backoff.
+			select {
+			case <-time.After(jitter(baseBackoff * time.Duration(i))):
+			case <-ctx.Done():
+				return nil, trace.Wrap(ctx.Err())
+			}
+		}
+
+		// attempt to acquire an existing semaphore
+		lease, err := s.acquireSemaphore(ctx, key, req)
+		switch {
+		case err == nil:
+			// acquire was successful, return the lease.
+			return lease, nil
+		case trace.IsNotFound(err):
+			// semaphore does not exist, attempt to perform a
+			// simultaneous init+acquire.
+			lease, err = s.initSemaphore(ctx, key, req)
+			if err == nil || !trace.IsAlreadyExists(err) {
+				return lease, trace.Wrap(err)
+			}
+			// semaphore was concurrently created, continue retry loop.
+		case trace.IsCompareFailed(err):
+			// semaphore was concurrently updated, continue retry loop.
+		default:
+			// If we get here then we encountered an error other than NotFound or CompareFailed,
+			// meaning that contention isn't the issue.  No point in re-attempting.
+			return nil, trace.Wrap(err)
+		}
+	}
+	return nil, trace.LimitExceeded("too much contention on semaphore %s/%s", req.SemaphoreKind, req.SemaphoreName)
+}
+
+// initSemaphore attempts to initialize/acquire a semaphore which does not yet exist.
+// Returns AlreadyExistsError if the semaphore is concurrently created.
+func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, req services.AcquireSemaphoreParams) (*services.SemaphoreLease, error) {
+	// create a new empty semphore resource configured to specificaly match
+	// this acquire request.
+	sem, err := req.ConfigureSemaphore()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := sem.Acquire(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.GetSemaphoreMarshaler().Marshal(sem)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     key,
+		Value:   value,
+		Expires: sem.Expiry(),
+	}
+	_, err = s.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return lease, nil
+}
+
+// acquireSemaphore attempts to acquire an existing semaphore.  Returns NotFoundError if no semaphore exists,
+// and CompareFailed if the semaphore was concurrently updated.
+func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, req services.AcquireSemaphoreParams) (*services.SemaphoreLease, error) {
+	item, err := s.Get(ctx, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sem, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	sem.RemoveExpiredLeases(s.Clock().Now().UTC())
 
-	if l.Resources > sem.GetMaxResources()-sem.AcquiredResources() {
-		return nil, trace.LimitExceeded(
-			"lease %v can't acquire %v resources, semaphore %v has %v available",
-			l.ID, l.Resources, sem.GetName(), sem.GetMaxResources()-sem.AcquiredResources(),
-		)
-	}
-
-	if !l.Expires.IsZero() && l.Expires.Before(s.Clock().Now()) {
-		return nil, trace.BadParameter("the lease %v has expired at %v", l.ID, l.Expires)
-	}
-
-	key := backend.Key(semaphoresPrefix, sem.GetSubKind(), sem.GetName())
-	item, err := s.Get(ctx, key)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		// Semaphore does not exist, create a new semaphore from the specs with
-		// acquired lease
-		sem.SetLeases([]services.SemaphoreLease{l})
-		value, err := services.GetSemaphoreMarshaler().Marshal(sem)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		item := backend.Item{
-			Key:     key,
-			Value:   value,
-			Expires: sem.Expiry(),
-		}
-		_, err = s.Create(ctx, item)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &l, nil
-	}
-
-	existing, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
+	lease, err := sem.Acquire(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	existing.RemoveExpiredLeases(s.Clock().Now().UTC())
-
-	if l.Resources > existing.GetMaxResources()-existing.AcquiredResources() {
-		return nil, trace.LimitExceeded(
-			"lease %v can't acquire %v resources, semaphore %v has %v available",
-			l.ID, l.Resources, sem.GetName(), existing.GetMaxResources()-existing.AcquiredResources(),
-		)
-	}
-
-	for _, lease := range existing.GetLeases() {
-		if lease.ID == l.ID {
-			return nil, trace.BadParameter(
-				"semaphore %v already has lease %v, use KeepAliveSemaphoreLease to renew the lease",
-				sem, l.ID,
-			)
-		}
-	}
-
-	if sem.Expiry().After(existing.Expiry()) {
-		existing.SetExpiry(sem.Expiry())
-	}
-	if l.Expires.After(existing.Expiry()) {
-		existing.SetExpiry(l.Expires)
-	}
-	existing.AddLease(l)
-
-	newValue, err := services.GetSemaphoreMarshaler().Marshal(existing)
+	newValue, err := services.GetSemaphoreMarshaler().Marshal(sem)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -756,31 +778,27 @@ func (s *PresenceService) TryAcquireSemaphore(ctx context.Context, sem services.
 	newItem := backend.Item{
 		Key:     key,
 		Value:   newValue,
-		Expires: existing.Expiry(),
+		Expires: sem.Expiry(),
 	}
 
-	_, err = s.CompareAndSwap(ctx, *item, newItem)
-	if err != nil {
-		if trace.IsCompareFailed(err) {
-			return nil, trace.CompareFailed("semaphore %v hase been concurrently updated, try again", existing.GetName())
-		}
+	if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &l, nil
+	return lease, nil
 }
 
 // KeepAliveSemaphoreLease updates semaphore lease, if the lease expiry is updated,
 // semaphore is renewed
-func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, l services.SemaphoreLease) error {
-	if err := l.CheckAndSetDefaults(); err != nil {
+func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+	if err := lease.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if l.Expires.Before(s.Clock().Now()) {
-		return trace.BadParameter("the lease %v has expired at %v", l.ID, l.Expires)
+	if lease.Expires.Before(s.Clock().Now().UTC()) {
+		return trace.BadParameter("the lease %v has expired at %v", lease.LeaseID, lease.Expires)
 	}
 
-	key := backend.Key(semaphoresPrefix, l.SemaphoreSubKind, l.SemaphoreName)
+	key := backend.Key(semaphoresPrefix, lease.SemaphoreKind, lease.SemaphoreName)
 	item, err := s.Get(ctx, key)
 	if err != nil {
 		return trace.Wrap(err)
@@ -792,22 +810,9 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, l service
 	}
 
 	sem.RemoveExpiredLeases(s.Clock().Now().UTC())
-	leases := sem.GetLeases()
-	leaseIndex := -1
-	for i := range leases {
-		if leases[i].ID == l.ID {
-			leaseIndex = i
-			break
-		}
-	}
-	if leaseIndex == -1 {
-		return trace.NotFound("the lease %v was not found in semaphore %v", l.ID, l.SemaphoreName)
-	}
-	leases[leaseIndex] = l
-	sem.SetLeases(leases)
 
-	if l.Expires.After(sem.Expiry()) {
-		sem.SetExpiry(l.Expires)
+	if err := sem.KeepAlive(lease); err != nil {
+		return trace.Wrap(err)
 	}
 
 	newValue, err := services.GetSemaphoreMarshaler().Marshal(sem)
@@ -816,46 +821,129 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, l service
 	}
 
 	newItem := backend.Item{
-		Key:   key,
-		Value: newValue,
+		Key:     key,
+		Value:   newValue,
+		Expires: sem.Expiry(),
 	}
 
 	_, err = s.CompareAndSwap(ctx, *item, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
-			return trace.CompareFailed("semaphore %v hase been concurrently updated, try again", sem.GetName())
+			return trace.CompareFailed("semaphore %v/%v hase been concurrently updated, try again", sem.GetSubKind(), sem.GetName())
 		}
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// GetAllSemaphores returns a list of all semaphores in the system
-func (s *PresenceService) GetAllSemaphores(ctx context.Context, opts ...services.MarshalOption) ([]services.Semaphore, error) {
-	startKey := backend.Key(semaphoresPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// CancelSemaphoreLease cancels semaphore lease early.
+func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+	if err := lease.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
-	sems := make([]services.Semaphore, len(result.Items))
-	for i, item := range result.Items {
-		conn, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value,
-			services.AddOptions(opts,
-				services.WithResourceID(item.ID),
-				services.WithExpires(item.Expires))...)
+	if lease.Expires.Before(s.Clock().Now()) {
+		return trace.BadParameter("the lease %v has expired at %v", lease.LeaseID, lease.Expires)
+	}
+
+	key := backend.Key(semaphoresPrefix, lease.SemaphoreKind, lease.SemaphoreName)
+	item, err := s.Get(ctx, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sem, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := sem.Cancel(lease); err != nil {
+		return trace.Wrap(err)
+	}
+
+	newValue, err := services.GetSemaphoreMarshaler().Marshal(sem)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newItem := backend.Item{
+		Key:     key,
+		Value:   newValue,
+		Expires: sem.Expiry(),
+	}
+
+	_, err = s.CompareAndSwap(ctx, *item, newItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("semaphore %v/%v hase been concurrently updated, try again", sem.GetSubKind(), sem.GetName())
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetSemaphores returns all semaphores matching the supplied filter.
+func (s *PresenceService) GetSemaphores(ctx context.Context, filter services.SemaphoreFilter) ([]services.Semaphore, error) {
+	var items []backend.Item
+	if filter.SemaphoreKind != "" && filter.SemaphoreName != "" {
+		// special case: filter corresponds to a single semaphore
+		item, err := s.Get(ctx, backend.Key(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName))
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		items = append(items, *item)
+	} else {
+		var startKey []byte
+		if filter.SemaphoreKind != "" {
+			startKey = backend.Key(semaphoresPrefix, filter.SemaphoreKind)
+		} else {
+			startKey = backend.Key(semaphoresPrefix, filter.SemaphoreKind)
+		}
+		result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		items = result.Items
+	}
+
+	sems := make([]services.Semaphore, 0, len(items))
+
+	for _, item := range items {
+		sem, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sems[i] = conn
+		if filter.Match(sem) {
+			sems = append(sems, sem)
+		}
 	}
 
 	return sems, nil
 }
 
-// DeleteAllSemaphores deletes all semaphores in the system
-func (s *PresenceService) DeleteAllSemaphores(ctx context.Context) error {
-	return s.DeleteRange(ctx, backend.Key(semaphoresPrefix), backend.RangeEnd(backend.Key(semaphoresPrefix)))
+// DeleteSemaphores deletes all semaphores matching the supplied filter
+func (s *PresenceService) DeleteSemaphores(ctx context.Context, filter services.SemaphoreFilter) error {
+	if filter.SemaphoreKind != "" && filter.SemaphoreName != "" {
+		// special case: filter corresponds to a single semaphore
+		err := s.Delete(ctx, backend.Key(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName))
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+	var startKey []byte
+	if filter.SemaphoreKind != "" {
+		startKey = backend.Key(semaphoresPrefix, filter.SemaphoreKind)
+	} else {
+		startKey = backend.Key(semaphoresPrefix)
+	}
+	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 const (

@@ -30,6 +30,7 @@ func main() {
 		&common.StatusCommand{},
 		&common.TopCommand{},
 		&common.AccessRequestCommand{},
+		&common.SemaphoreCommand{},
 	}
 	common.Run(commands)
 }

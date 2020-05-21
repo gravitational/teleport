@@ -2672,6 +2672,72 @@ func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return *rsp, nil
 }
 
+// AcquireSemaphore acquires lease with requested resources from semaphore.
+func (c *Client) AcquireSemaphore(ctx context.Context, params services.AcquireSemaphoreParams) (*services.SemaphoreLease, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := clt.AcquireSemaphore(ctx, &params)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return lease, nil
+}
+
+// KeepAliveSemaphoreLease updates semaphore lease.
+func (c *Client) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := clt.KeepAliveSemaphoreLease(ctx, &lease); err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// CancelSemaphoreLease cancels semaphore lease early.
+func (c *Client) CancelSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := clt.CancelSemaphoreLease(ctx, &lease); err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// GetSemaphores returns a list of all semaphores matching the supplied filter.
+func (c *Client) GetSemaphores(ctx context.Context, filter services.SemaphoreFilter) ([]services.Semaphore, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rsp, err := clt.GetSemaphores(ctx, &filter)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	sems := make([]services.Semaphore, 0, len(rsp.Semaphores))
+	for _, s := range rsp.Semaphores {
+		sems = append(sems, s)
+	}
+	return sems, nil
+}
+
+// DeleteSemaphores deletes all semaphores matching the supplied filter.
+func (c *Client) DeleteSemaphores(ctx context.Context, filter services.SemaphoreFilter) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := clt.DeleteSemaphores(ctx, &filter); err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if

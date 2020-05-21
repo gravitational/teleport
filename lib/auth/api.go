@@ -103,6 +103,9 @@ type AccessPoint interface {
 	// Announcer adds methods used to announce presence
 	Announcer
 
+	// Semaphores provides semaphore operations
+	services.Semaphores
+
 	// UpsertTunnelConnection upserts tunnel connection
 	UpsertTunnelConnection(conn services.TunnelConnection) error
 
@@ -147,6 +150,7 @@ type AuthCache interface {
 func NewWrapper(writer AccessPoint, cache ReadAccessPoint) AccessPoint {
 	return &Wrapper{
 		Write:           writer,
+		Semaphores:      writer,
 		ReadAccessPoint: cache,
 	}
 }
@@ -156,6 +160,7 @@ func NewWrapper(writer AccessPoint, cache ReadAccessPoint) AccessPoint {
 // and read operations are going though cache
 type Wrapper struct {
 	ReadAccessPoint
+	services.Semaphores
 	Write AccessPoint
 }
 

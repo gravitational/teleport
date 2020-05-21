@@ -1631,6 +1631,19 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	return ttl
 }
 
+// MaxConcurrentSessions returns the maximum number of concurrent sessions
+// allowed.  If MaxConcurrentSessions is zero then no maximum was defined
+// and the number of concurrent sessions is unconstrained.
+func (set RoleSet) MaxConcurrentSessions() int64 {
+	var mcs int64
+	for _, role := range set {
+		if m := role.GetOptions().MaxConcurrentSessions; m != 0 && (m < mcs || mcs == 0) {
+			mcs = m
+		}
+	}
+	return mcs
+}
+
 // AdjustClientIdleTimeout adjusts requested idle timeout
 // to the lowest max allowed timeout, the most restrictive
 // option will be picked, negative values will be assumed as 0
@@ -2286,7 +2299,8 @@ const RoleSpecV3SchemaTemplate = `{
         "enhanced_recording": {
           "type": "array",
           "items": { "type": "string" }
-        }
+        },
+		"max_concurrent_sessions": { "type": "number" }
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },

@@ -197,6 +197,11 @@ message PingResponse {
     string ServerVersion = 2 [ (gogoproto.jsontag) = "server_version" ];
 }
 
+// Semaphores is a sequence of Semaphore resources.
+message Semaphores {
+    repeated services.SemaphoreV3 Semaphores = 1 [ (gogoproto.jsontag) = "semaphores" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -240,4 +245,14 @@ service AuthService {
     rpc CreateUser(services.UserV2) returns (google.protobuf.Empty);
     // UpdateUser updates an existing user in a backend.
     rpc UpdateUser(services.UserV2) returns (google.protobuf.Empty);
+    // AcquireSemaphore acquires lease with requested resources from semaphore.
+    rpc AcquireSemaphore(services.AcquireSemaphoreParams) returns (services.SemaphoreLease);
+    // KeepAliveSemaphoreLease updates semaphore lease.
+    rpc KeepAliveSemaphoreLease(services.SemaphoreLease) returns (google.protobuf.Empty);
+    // CancelSemaphoreLease cancels semaphore lease early.
+    rpc CancelSemaphoreLease(services.SemaphoreLease) returns (google.protobuf.Empty);
+    // GetSemaphores returns a list of all semaphores matching the supplied filter.
+    rpc GetSemaphores(services.SemaphoreFilter) returns (Semaphores);
+    // DeleteSemaphores deletes all semaphores matching the supplied filter.
+    rpc DeleteSemaphores(services.SemaphoreFilter) returns (google.protobuf.Empty);
 }
