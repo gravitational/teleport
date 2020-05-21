@@ -1090,7 +1090,8 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
 	if err != nil {
-		return nil, trace.AccessDenied("bad auth credentials: %v", err)
+		log.Warningf("access attempt denied for user %q: %v", req.User, err)
+		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
 	if err := SetSession(w, req.User, webSession.GetName()); err != nil {
@@ -1099,6 +1100,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 
 	ctx, err := h.auth.ValidateSession(req.User, webSession.GetName())
 	if err != nil {
+		log.Warningf("access attempt denied for user %q: %v", req.User, err)
 		return nil, trace.AccessDenied("need auth")
 	}
 
