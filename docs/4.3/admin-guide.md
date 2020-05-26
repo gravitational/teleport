@@ -2146,7 +2146,7 @@ Teleport will handle its own SSL on top of that with its own certificates.
 !!! tip "NOTE"
 
     If you terminate TLS with your own certificate at a load
-    balancer you'll need to Teleport with `--insecure`
+    balancer you'll need to Teleport with `--insecure-no-tls`
 
 If your load balancer supports health checks, configure it to hit the
 `/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the
