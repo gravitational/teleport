@@ -211,9 +211,19 @@ func (h *Handler) Close() error {
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	path := h.path(sessionID)
 	h.Logger.Debugf("uploading %s", path)
+
+	// Make sure we don't overwrite an existing recording.
+	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).Attrs(ctx)
+	if err != storage.ErrObjectNotExist {
+		if err != nil {
+			return "", convertGCSError(err)
+		}
+		return "", trace.AlreadyExists("recording for session %q already exists in GCS", sessionID)
+	}
+
 	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewWriter(ctx)
 	start := time.Now()
-	_, err := io.Copy(writer, reader)
+	_, err = io.Copy(writer, reader)
 	// Always close the writer, even if upload failed.
 	closeErr := writer.Close()
 	if err == nil {
@@ -276,6 +286,9 @@ func (h *Handler) ensureBucket() error {
 	err = h.gcsClient.Bucket(h.Config.Bucket).Create(h.clientContext, h.Config.ProjectID, &storage.BucketAttrs{
 		VersioningEnabled: true,
 		Encryption:        &storage.BucketEncryption{DefaultKMSKeyName: h.Config.KMSKeyName},
+		// See https://cloud.google.com/storage/docs/json_api/v1/buckets/insert#parameters
+		PredefinedACL:              "projectPrivate",
+		PredefinedDefaultObjectACL: "projectPrivate",
 	})
 	err = convertGCSError(err)
 	if err != nil {
