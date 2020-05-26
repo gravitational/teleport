@@ -214,8 +214,10 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewWriter(ctx)
 	start := time.Now()
 	_, err := io.Copy(writer, reader)
+	// Always close the writer, even if upload failed.
+	closeErr := writer.Close()
 	if err == nil {
-		err = writer.Close()
+		err = closeErr
 	}
 	uploadLatencies.Observe(time.Since(start).Seconds())
 	uploadRequests.Inc()
@@ -227,22 +229,27 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 
 // Download downloads recorded session from GCS bucket and writes the results into writer
 // return trace.NotFound error is object is not found
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
 	path := h.path(sessionID)
 	h.Logger.Debugf("downloading %s", path)
+	writer, ok := writerAt.(io.Writer)
+	if !ok {
+		return trace.BadParameter("the provided writerAt is %T which does not implement io.Writer", writerAt)
+	}
 	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
 	if err != nil {
 		return convertGCSError(err)
 	}
+	defer reader.Close()
 	start := time.Now()
-	written, err := io.Copy(writer.(io.Writer), reader)
+	written, err := io.Copy(writer, reader)
 	if err != nil {
 		return convertGCSError(err)
 	}
 	downloadLatencies.Observe(time.Since(start).Seconds())
 	downloadRequests.Inc()
 	if written == 0 {
-		return trace.NotFound("recording for %v is not found", sessionID)
+		return trace.NotFound("recording for %v is empty", sessionID)
 	}
 	return nil
 }
@@ -290,6 +297,6 @@ func convertGCSError(err error, args ...interface{}) error {
 	case storage.ErrBucketNotExist, storage.ErrObjectNotExist:
 		return trace.NotFound(err.Error(), args...)
 	default:
-		return trace.BadParameter(err.Error(), args...)
+		return trace.Wrap(err, args...)
 	}
 }
