@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -75,7 +76,7 @@ type TerminalRequest struct {
 	// KeepAliveInterval is the keep-alive interval for server to client connections.
 	KeepAliveInterval time.Duration
 
-	// KeepAliveCountMax is the max number ofr missed keep-alive messages before
+	// KeepAliveCountMax is the max number for missed keep-alive messages before
 	// server disconnects the client.
 	KeepAliveCountMax int64
 }
@@ -121,14 +122,15 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
 		}),
-		params:       req,
-		ctx:          ctx,
-		hostName:     hostName,
-		hostPort:     hostPort,
-		hostUUID:     req.Server,
-		authProvider: authProvider,
-		encoder:      unicode.UTF8.NewEncoder(),
-		decoder:      unicode.UTF8.NewDecoder(),
+		params:              req,
+		ctx:                 ctx,
+		hostName:            hostName,
+		hostPort:            hostPort,
+		hostUUID:            req.Server,
+		authProvider:        authProvider,
+		encoder:             unicode.UTF8.NewEncoder(),
+		decoder:             unicode.UTF8.NewDecoder(),
+		sendRequestResponse: make(chan struct{}),
 	}, nil
 }
 
@@ -177,6 +179,16 @@ type TerminalHandler struct {
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
+
+	// sendRequestResponse is a receive/send event to indicate that client responded to server ping.
+	// Empty struct is used because the received value doesn't matter.
+	sendRequestResponse chan struct{}
+
+	// keepAliveContext receives a signal that indicates that the keep alive loop has been terminated.
+	keepAliveContext context.Context
+
+	// keepAliveCancel is used to signal that the keep alive loop has been terminated.
+	keepAliveCancel context.CancelFunc
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -236,6 +248,10 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 	// Create a context for signaling when the terminal session is over.
 	t.terminalContext, t.terminalCancel = context.WithCancel(context.Background())
 
+	// Create a context for signaling when the keep alive loop is terminated.
+	t.keepAliveContext, t.keepAliveCancel = context.WithCancel(context.Background())
+
+	t.ws = ws
 	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
 
 	// Pump raw terminal in/out and audit events into the websocket.
@@ -291,6 +307,20 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
 		t.windowChange(&t.params.Term)
+
+		// The keep-alive loop will ping the web client at each interval, and after it has
+		// missed a certain number of keep-alive requests, it will cancel the keepAliveContext
+		// which will fire a chain of events to close session and websocket c/n.
+		go srv.StartKeepAliveLoop(srv.KeepAliveParams{
+			Conns: []srv.RequestSender{
+				t,
+			},
+			Interval:     t.params.KeepAliveInterval,
+			MaxCount:     t.params.KeepAliveCountMax,
+			CloseContext: t.keepAliveContext,
+			CloseCancel:  t.keepAliveCancel,
+		})
+
 		return false, nil
 	}
 
@@ -300,6 +330,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient) {
+	defer t.keepAliveCancel()
 	defer t.terminalCancel()
 
 	// Establish SSH connection to the server. This function will block until
@@ -345,6 +376,40 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		return
 	}
 	t.log.Debugf("Sent close event to web client.")
+}
+
+// SendRequest implements the RequestSender interface. It sends a ping to the web client and
+// waits until a pong was received from the client or keep-alive requests missed reached
+// its max, whichever comes first. This method is called by the keep alive loop to ensure
+// websocket connection stays alive for each terminal session.
+func (t *TerminalHandler) SendRequest(name string, wantReply bool, payload []byte) (bool, []byte, error) {
+	// Send ping envelope to web terminal.
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    "p",
+		Payload: "",
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		t.log.Errorf("Unable to marshal ping event for web client.")
+		return false, nil, trace.Wrap(err)
+	}
+	err = websocket.Message.Send(t.ws, envelopeBytes)
+	if err != nil {
+		t.log.Errorf("Unable to send ping event to web client.")
+		return false, nil, trace.Wrap(err)
+	}
+	t.log.Debugf("Sent ping event to web client.")
+
+	// Block until we receive a pong from client or keep-alive requests missed reached its max.
+	select {
+	case <-t.sendRequestResponse:
+		return true, nil, nil
+	case <-t.keepAliveContext.Done():
+		// Closing session fires a chain of events to close websocket c/n.
+		t.sshSession.Close()
+		return false, nil, trace.ConnectionProblem(nil, "max keep-alive requests missed")
+	}
 }
 
 // streamEvents receives events over the SSH connection and forwards them to
@@ -409,6 +474,18 @@ func (t *TerminalHandler) windowChange(params *session.TerminalParams) {
 		}))
 	if err != nil {
 		t.log.Error(err)
+	}
+}
+
+// receivePong is called when server receives a client response to its ping request.
+// It will wait until the channel is able to receive or keep alive request missed
+// count has been maxed.
+func (t *TerminalHandler) receivePong() {
+	select {
+	case t.sendRequestResponse <- struct{}{}:
+		return
+	case <-t.keepAliveContext.Done():
+		return
 	}
 }
 
@@ -521,6 +598,10 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 	}
 
 	switch envelope.GetType() {
+	case defaults.WebsocketPong:
+		// Wait for receiving pong in a goroutine to prevent read blocking.
+		go t.receivePong()
+		return 0, nil
 	case defaults.WebsocketRaw:
 		n := copy(out, data)
 		// if payload size is greater than [out], store the remaining
