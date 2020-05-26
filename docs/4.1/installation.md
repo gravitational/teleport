@@ -1,9 +1,9 @@
 # Installation
 
-Teleport core service [`teleport`](cli-docs.md#teleport) and admin tools [`tctl`](cli-docs.md#tctl) has been designed to run on **Linux** and **Mac** operating systems. 
+Teleport core service [`teleport`](cli-docs.md#teleport) and admin tools [`tctl`](cli-docs.md#tctl) has been designed to run on **Linux** and **Mac** operating systems.
 
 The Teleport client [`tsh`](cli-docs.md#tsh) and Web UI are available for **Linux, Mac**
-and **Windows** operating systems. Our examples install Teleport v4.1.0 but you can 
+and **Windows** operating systems. Our examples install Teleport v4.1.0 but you can
 install any version listed in our [Release History](https://gravitational.com/teleport/download/).
 
 **Table of Contents**

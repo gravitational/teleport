@@ -52,12 +52,12 @@ $ tsh clusters
 Trusted clusters also have their own restrictions on user access, i.e.
 _permissions mapping_ takes place.
 
-## Cluster Setup 
+## Cluster Setup
 
 When you first setup a cluster it's important to correctly set the cluster name.
-The cluster name is set via the [Configuration File](admin-guide/#configuration-file) using 
-the `cluster_name` option.  We recommend picking a short alias for your cluster as it'll 
-be used with the `tsh` command to login to a cluster. 
+The cluster name is set via the [Configuration File](admin-guide/#configuration-file) using
+the `cluster_name` option.  We recommend picking a short alias for your cluster as it'll
+be used with the `tsh` command to login to a cluster.
 
 ```
 # This section configures the 'auth service':
@@ -77,11 +77,11 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "production-aws"
 ```
-!!! warning "Warning": 
+!!! warning "Warning":
 	If you change cluster_name, it will invalidate all generated
     certificates and keys (may need to wipe out /var/lib/teleport directory)
 
-Once set you'll be able to see the cluster name in the Teleport UI. 
+Once set you'll be able to see the cluster name in the Teleport UI.
 
 ![Cluster Name](img/cluster-name.png)
 

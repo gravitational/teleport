@@ -12,12 +12,12 @@ VM.
 
 ### Prerequisites
 
-* In this tutorial you will start a web UI which must be accessible via a web 
+* In this tutorial you will start a web UI which must be accessible via a web
   browser. If you run this tutorial on a remote machine without a GUI, first
   make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
 
-* We recommend that you read the [Architecture Guide](architecture/teleport_architecture_overview.md) 
+* We recommend that you read the [Architecture Guide](architecture/teleport_architecture_overview.md)
   before working through this tutorial. If you'd like to dive right in though this is
   the best place to start!
 
@@ -72,13 +72,13 @@ $ teleport start # if you are not `root` you may need `sudo`
 ```
 
 !!! tip "Background Process"
-    Avoid suspending your current shell session by 
-    running the process in the background like so: 
-    `teleport start > teleport.log 2>&1 &`. 
+    Avoid suspending your current shell session by
+    running the process in the background like so:
+    `teleport start > teleport.log 2>&1 &`.
     Access the process logs with `less teleport.log`.
 
 !!! tip "Debugging/Verbose Output"
-    If you encounter errors with any `teleport`, `tsh` or `tctl` 
+    If you encounter errors with any `teleport`, `tsh` or `tctl`
     command you can enable verbose logging with the `-d, --debug`
     flag.
 
@@ -137,7 +137,7 @@ should be able to open the URL and connect to Teleport Proxy right away.
 Proxy via the host machine and port `3080` in a web browser. One simple way to
 do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`.
 
-!!! warning "Warning" 
+!!! warning "Warning"
 
     We haven't provisioned any SSL certs for Teleport yet.
     Your browser will throw a warning: **Your connection is not private**. Click
@@ -222,7 +222,7 @@ Try a few things to get familiar with recorded sessions:
 ![Sessions View](img/sessions.png)
 
 1. Navigate to `https://[HOST]:3080/web/sessions` in your web browser to see the
-list of current and past sessions on the cluster. The session you just created 
+list of current and past sessions on the cluster. The session you just created
 should be listed.
 
 2. After you end a session (type `$ exit` in session), replay it in your browser.

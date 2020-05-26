@@ -157,7 +157,7 @@ certificates.
 
 ## Testing
 
-The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is 
+The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is
 the same as before:
 
 ```bsh

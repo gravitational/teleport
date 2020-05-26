@@ -115,7 +115,7 @@ in Teleport must to go through a proxy, sometimes called a "bastion".
     For the purposes of this quickstart we are using the `--insecure` flag which allows
     us to skip configuring the HTTP/TLS certificate for Teleport proxy. Your browser will
     throw a warning **Your connection is not private**. Click Advanced, and **Proceed to 0.0.0.0 (unsafe)**
-    to preview the Teleport UI.   
+    to preview the Teleport UI.
 
     Never use `--insecure` in production unless you terminate SSL at a load balancer. This will
     apply to most cloud providers (AWS, GCP and Azure). You must configure a HTTP/TLS certificate for the Proxy.
@@ -156,8 +156,8 @@ $ tsh --proxy=localhost ls
 
 Node Name     Node ID                     Address            Labels
 ---------     -------                     -------            ------
-localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022     
-new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     
+localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
+new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022
 ```
 
 !!! tip "NOTE":
@@ -170,12 +170,12 @@ setting up a [Trusted Cluster](/trustedclusters) if you have workloads split
 across different networks / clouds.
 
 Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
-useful for IoT applications or for managing a couple of servers in a different network.  
+useful for IoT applications or for managing a couple of servers in a different network.
 
 Similar to [Adding Nodes to Cluster](/quickstart/#adding-nodes-to-cluster), use `tctl` to
 create a single-use token for a node, but this time you'll replace the auth server IP with
 the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy
-web endpoint `teleport.example.com`.  
+web endpoint `teleport.example.com`.
 
 ```bash
 $ sudo tctl nodes add
@@ -216,7 +216,7 @@ $ tsh --proxy=localhost ls
 
 Node Name     Node ID                     Address            Labels
 ---------     -------                     -------            ------
-localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022     
+localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
 db            xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     location=virginia,arch=x86_64
 ```
 

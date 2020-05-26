@@ -1,40 +1,40 @@
 # Enhanced Session Recording
 
-Teleport [standard session recordings](https://gravitational.com/teleport/docs/architecture/teleport_nodes/#session-recording) only capture what is echoed to a terminal. 
+Teleport [standard session recordings](https://gravitational.com/teleport/docs/architecture/teleport_nodes/#session-recording) only capture what is echoed to a terminal.
 This has inherent advantages, for example because no input is captured, Teleport
 session recordings typically do not contain passwords that were entered into a terminal.
 
 The disadvantage is that session recordings can by bypassed using several techniques:
 
-- **Obfuscation**. For example, even though the command ` echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain 
+- **Obfuscation**. For example, even though the command ` echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
 `curl http://www.example.com`, when decoded, that is what is run.
-- **Shell scripts**. For example, if a user uploads and executes a script, the commands 
+- **Shell scripts**. For example, if a user uploads and executes a script, the commands
 run within the script are not captured, simply the output.
-- **Terminal controls**. Terminals support a wide variety of controls including the 
+- **Terminal controls**. Terminals support a wide variety of controls including the
 ability for users to disable terminal echo. This is frequently used when requesting
  credentials. Disabling terminal echo allows commands to be run without being captured.
 
-Furthermore, due to their unstructured nature, session recordings are difficult to 
+Furthermore, due to their unstructured nature, session recordings are difficult to
 ingest and perform monitoring/alerting on.
 
 !!! Note
 
     Enhanced Session Recording requires all parts of the Teleport system to be running
-    4.2+. 
+    4.2+.
 
 
 # Requirements:
 
 ## 1. Check / Patch Kernel
-Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or above) as 
-well as kernel headers. 
+Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or above) as
+well as kernel headers.
 
 !!! tip
 
-    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](https://gravitational.com/teleport/docs/architecture/teleport_auth/#audit-log) for more details. 
-    
+    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](https://gravitational.com/teleport/docs/architecture/teleport_auth/#audit-log) for more details.
 
-You can check your kernel version using the `uname` command. The output should look 
+
+You can check your kernel version using the `uname` command. The output should look
 something like the following.
 
 ```
@@ -48,11 +48,11 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 
 !!! Note
 
-    At release we've only production tested Enhanced Session recording with CentOS 
+    At release we've only production tested Enhanced Session recording with CentOS
     7 and 8. We welcome feedback for other Operating Systems, and simply require a
     Linux kernel 4.18 (or above). Please send feedback to [ben@gravitational.com](mailto:ben@gravitational.com)
 
-### Ubuntu     
+### Ubuntu
 
 |       |                   | Kernel Version        |
 |-------|-------------------|-----------------------|
@@ -69,21 +69,21 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 
 
 
-### Red Hat 
+### Red Hat
 |                     | Kernel Version         |
 |---------------------|------------------------|
 | Enterprise Linux 8  |          4.18.0-147 ✅ 🚧 Feature in Alpha  |
 
-### Amazon Linux 
+### Amazon Linux
 We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 or 5.4 using
-`sudo amazon-linux-extras install kernel-ng` and rebooting your instance. 
+`sudo amazon-linux-extras install kernel-ng` and rebooting your instance.
 
-### archlinux 
+### archlinux
 |                     | Kernel Version         |
 |---------------------|------------------------|
 | 2019.12.01          |  5.3.13 ✅🚧 Feature in Alpha  |
 
-## 2. Install BCC Tools 
+## 2. Install BCC Tools
 
 ### Script to Install BCC Tools on Amazon 2 Linux
 **Example Script to install relevant bcc packages for Amazon 2 Linux**
@@ -116,7 +116,7 @@ BCC is now enabled and no reboot is required. Proceed to Step 3.
     For the below Linux distributions we plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
 
 
-### Script to Install BCC Tools on Ubuntu and Debian 
+### Script to Install BCC Tools on Ubuntu and Debian
 **Example Script to install relevant bcc packages for Ubuntu and Debian**
 
 Run the following script to download the prerequisites to build BCC tools, building LLVM and Clang targeting BPF byte code, and then building and installing BCC tools.
@@ -155,10 +155,10 @@ sudo make install
 echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
 ```
 
-### Script to Install BCC Tools on CentOS 
+### Script to Install BCC Tools on CentOS
 **Example Script to install relevant bcc packages for CentOS**
 
-Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md#debian---source) on how to install the relevant tooling for other operating systems. 
+Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md#debian---source) on how to install the relevant tooling for other operating systems.
 
 
 ```sh
@@ -167,7 +167,7 @@ Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md
 set -e
 
 if [[ $EUID -ne 0 ]]; then
-   echo "Please run this script as root or sudo." 
+   echo "Please run this script as root or sudo."
    exit 1
 fi
 
@@ -220,12 +220,12 @@ rm -fr $BUILD_DIR
 echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
 ```
 
-## 3. Install & Configure Teleport Node 
+## 3. Install & Configure Teleport Node
 
-Follow our [installation instructions](../installation.md) to install Teleport Auth, Proxy 
-and Nodes. 
+Follow our [installation instructions](../installation.md) to install Teleport Auth, Proxy
+and Nodes.
 
-Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../admin-guide.md#configuration) for more instructions. 
+Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../admin-guide.md#configuration) for more instructions.
 
 
 ```yaml
@@ -247,7 +247,7 @@ ssh_service:
     # Enable or disable enhanced auditing for this node. Default value: false.
     enabled: true
 
-    # Optional: command_buffer_size is optional with a default value of 8 pages. 
+    # Optional: command_buffer_size is optional with a default value of 8 pages.
     command_buffer_size: 8
 
     # Optional: disk_buffer_size is optional with default value of 128 pages.
@@ -256,7 +256,7 @@ ssh_service:
     # Optional: network_buffer_size is optional with default value of 8 pages.
     network_buffer_size: 8
 
-    # Optional: Controls where cgroupv2 hierarchy is mounted. Default value: 
+    # Optional: Controls where cgroupv2 hierarchy is mounted. Default value:
     # /cgroup2.
     cgroup_path: /cgroup2
 ```
@@ -309,18 +309,18 @@ $ teleport-auth ~:  tree /var/lib/teleport/log
         └── default
 ```
 
-To quickly check the status of the audit log, you can simply tail the logs with 
-`tail -f /var/lib/teleport/log/events.log`, the resulting capture from Teleport will 
-be a JSON log for each command and network request. 
+To quickly check the status of the audit log, you can simply tail the logs with
+`tail -f /var/lib/teleport/log/events.log`, the resulting capture from Teleport will
+be a JSON log for each command and network request.
 
 ```json
 {"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
 ```
 
-Formatted, the resulting data will look like this: 
-```json 
-{ 
-  "argv":[ 
+Formatted, the resulting data will look like this:
+```json
+{
+  "argv":[
     "google.com"
     ],
   "cgroup_id":4294968064,
