@@ -158,7 +158,7 @@ type EventsConfig struct {
 func (cfg *EventsConfig) SetFromParams(params backend.Params) error {
 	err := utils.ObjectToStruct(params, &cfg)
 	if err != nil {
-		return trace.BadParameter("Firestore: configuration is invalid: %v", err)
+		return trace.BadParameter("firestore: configuration is invalid: %v", err)
 	} else {
 		return nil
 	}
@@ -173,7 +173,7 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 	} else {
 		disableExpiredDocumentPurge, err := strconv.ParseBool(disableExpiredDocumentPurgeParamString)
 		if err != nil {
-			return trace.BadParameter("parameter %s with value '%s' is invalid", disableExpiredDocumentPurgePropertyKey, disableExpiredDocumentPurgeParamString)
+			return trace.BadParameter("parameter %s with value '%s' is invalid: %v", disableExpiredDocumentPurgePropertyKey, disableExpiredDocumentPurgeParamString, err)
 		}
 		cfg.DisableExpiredDocumentPurge = disableExpiredDocumentPurge
 	}
@@ -202,7 +202,7 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 	} else {
 		eventRetentionPeriod, err := time.ParseDuration(eventRetentionPeriodParamString)
 		if err != nil {
-			return trace.BadParameter("parameter %s with value '%s' is invalid", eventRetentionPeriodPropertyKey, eventRetentionPeriodParamString)
+			return trace.BadParameter("parameter %s with value '%s' is invalid: %v", eventRetentionPeriodPropertyKey, eventRetentionPeriodParamString, err)
 		}
 		cfg.RetentionPeriod = eventRetentionPeriod
 	}
@@ -213,7 +213,7 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 	} else {
 		retryPeriodParamString, err := time.ParseDuration(retryPeriodParamString)
 		if err != nil {
-			return trace.BadParameter("parameter %s with value '%s' is invalid", retryPeriodPropertyKey, retryPeriodParamString)
+			return trace.BadParameter("parameter %s with value '%s' is invalid: %v", retryPeriodPropertyKey, retryPeriodParamString, err)
 		}
 		cfg.RetryPeriod = retryPeriodParamString
 	}
@@ -224,7 +224,7 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 	} else {
 		purgeInterval, err := time.ParseDuration(purgeIntervalParamString)
 		if err != nil {
-			return trace.BadParameter("parameter %s with value '%s' is invalid", purgeIntervalPropertyKey, purgeIntervalParamString)
+			return trace.BadParameter("parameter %s with value '%s' is invalid: %v", purgeIntervalPropertyKey, purgeIntervalParamString, err)
 		}
 		cfg.PurgeExpiredDocumentsPollInterval = purgeInterval
 	}
@@ -281,6 +281,7 @@ func New(cfg EventsConfig) (*Log, error) {
 		cancel()
 		return nil, trace.Wrap(err)
 	}
+	defer firestoreAdminClient.Close()
 	b := &Log{
 		svcContext:   closeCtx,
 		svcCancel:    cancel,
@@ -380,7 +381,7 @@ func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
 }
 
 func (l *Log) UploadSessionRecording(events.SessionRecording) error {
-	return trace.BadParameter("not supported")
+	return trace.NotImplemented("UploadSessionRecording not implemented for firestore backend")
 }
 
 // GetSessionChunk returns a reader which can be used to read a byte stream
@@ -389,7 +390,7 @@ func (l *Log) UploadSessionRecording(events.SessionRecording) error {
 //
 // If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
 func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return nil, nil
+	return nil, trace.NotImplemented("GetSessionChunk not implemented for firestore backend")
 }
 
 // Returns all events that happen during a session sorted by time
@@ -402,10 +403,13 @@ func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, max
 func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlcudePrintEvents bool) ([]events.EventFields, error) {
 	var values []events.EventFields
 	start := time.Now()
-	docSnaps, _ := l.svc.Collection(l.CollectionName).Where(sessionIDDocProperty, "==", string(sid)).
+	docSnaps, err := l.svc.Collection(l.CollectionName).Where(sessionIDDocProperty, "==", string(sid)).
 		Documents(l.svcContext).GetAll()
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
+	if err != nil {
+		return nil, firestorebk.ConvertGRPCError(err)
+	}
 	for _, docSnap := range docSnaps {
 		var e event
 		err := docSnap.DataTo(&e)
@@ -435,7 +439,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Filter": filter, "Limit": limit})
 	filterVals, err := url.ParseQuery(filter)
 	if err != nil {
-		return nil, trace.BadParameter("missing parameter query")
+		return nil, trace.BadParameter("missing or invalid parameter query in %q: %v", filter, err)
 	}
 	eventFilter, ok := filterVals[events.EventType]
 	if !ok && len(filterVals) > 0 {
@@ -446,14 +450,20 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	var values []events.EventFields
 
 	start := time.Now()
-	docSnaps, _ := l.svc.Collection(l.CollectionName).Where(eventNamespaceDocProperty, "==", defaults.Namespace).
-		Where(createdAtDocProperty, ">=", fromUTC.Unix()).Where(createdAtDocProperty, "<=", toUTC.Unix()).
-		OrderBy(createdAtDocProperty, firestore.Asc).Limit(limit).Documents(l.svcContext).GetAll()
+	docSnaps, err := l.svc.Collection(l.CollectionName).
+		Where(eventNamespaceDocProperty, "==", defaults.Namespace).
+		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
+		Where(createdAtDocProperty, "<=", toUTC.Unix()).
+		OrderBy(createdAtDocProperty, firestore.Asc).
+		Limit(limit).
+		Documents(l.svcContext).GetAll()
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
+	if err != nil {
+		return nil, firestorebk.ConvertGRPCError(err)
+	}
 
 	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
-	var total int
 	for _, docSnap := range docSnaps {
 
 		var e event
@@ -476,8 +486,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 		}
 		if accepted || !doFilter {
 			values = append(values, fields)
-			total += 1
-			if limit > 0 && total >= limit {
+			if limit > 0 && len(values) >= limit {
 				break
 			}
 		}
@@ -509,7 +518,6 @@ func (l *Log) getIndexParent() string {
 }
 
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
-	defer adminSvc.Close()
 	tuples := make([]*firestorebk.IndexTuple, 0)
 	tuples = append(tuples, &firestorebk.IndexTuple{
 		FirstField:  eventNamespaceDocProperty,
@@ -543,9 +551,12 @@ func (l *Log) purgeExpiredEvents() error {
 		case <-t.C:
 			expiryTime := l.Clock.Now().UTC().Add(-1 * l.RetentionPeriod)
 			start := time.Now()
-			docSnaps, _ := l.svc.Collection(l.CollectionName).Where(createdAtDocProperty, "<=", expiryTime.Unix()).Documents(l.svcContext).GetAll()
+			docSnaps, err := l.svc.Collection(l.CollectionName).Where(createdAtDocProperty, "<=", expiryTime.Unix()).Documents(l.svcContext).GetAll()
 			batchReadLatencies.Observe(time.Since(start).Seconds())
 			batchReadRequests.Inc()
+			if err != nil {
+				return firestorebk.ConvertGRPCError(err)
+			}
 			numDeleted := 0
 			batch := l.svc.Batch()
 			for _, docSnap := range docSnaps {
