@@ -58,7 +58,7 @@ import (
 // MockAuthServiceClient stubs grpc AuthServiceClient interface.
 type mockAuthServiceClient struct {
 	proto.AuthServiceClient
-	errType error
+	err error
 }
 
 // newMockAuthServiceClient returns a new instace of mockAuthServiceClient
@@ -68,12 +68,12 @@ func newMockAuthServiceClient() *mockAuthServiceClient {
 
 // DeleteUser returns a dynamically defined method.
 func (m *mockAuthServiceClient) DeleteUser(ctx context.Context, in *proto.DeleteUserRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	return nil, trail.ToGRPC(m.errType)
+	return nil, trail.ToGRPC(m.err)
 }
 
 // reset resets states to its zero values.
 func (m *mockAuthServiceClient) reset() {
-	m.errType = nil
+	m.err = nil
 }
 
 type TLSSuite struct {
@@ -2593,13 +2593,13 @@ func (s *TLSSuite) TestAPIBackwardsCompatibilityLogic(c *check.C) {
 	clt.grpcClient = grpcMock
 
 	// check the REST endpoint gets called
-	grpcMock.errType = trace.NotImplemented("")
+	grpcMock.err = trace.NotImplemented("")
 	err = clt.DeleteUser(context.TODO(), "not-existing-user")
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 	grpcMock.reset()
 
 	// check that any other error than "NotImplemented" returns right away
-	grpcMock.errType = trace.BadParameter("test-other-error")
+	grpcMock.err = trace.BadParameter("test-other-error")
 	err = clt.DeleteUser(context.TODO(), "not-existing-user")
 	c.Assert(trace.IsBadParameter(err), check.Equals, true)
 	c.Assert(err, check.ErrorMatches, `test-other-error`)
