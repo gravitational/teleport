@@ -1,8 +1,8 @@
 # Teleport Jira Plugin Setup
-This guide will talk through how to setup Teleport with Pagerduty. Teleport ↔ Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
+This guide will talk through how to setup Teleport with Pagerduty. Teleport <-> Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
 
 !!! warning
-    The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
+    The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 ## Setup
 ### Prerequisites
@@ -56,7 +56,7 @@ $ tctl auth sign --format=tls --user=access-plugin-jira --out=auth --ttl=8760h
 The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuration-file).
 
 !!! note "Certificate Lifetime"
-     By default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+     By default, `tctl auth sign` produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ### Setting up your Jira Project
 
