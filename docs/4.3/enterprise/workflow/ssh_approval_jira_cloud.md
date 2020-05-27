@@ -1,4 +1,4 @@
-# Teleport Jira Plugin Setup Quickstart
+# Teleport Jira Plugin Setup 
 
 If you're using Jira Cloud or Jira Server to manage your projects, you can also use it to monitor, approve, deny, or discuss Teleport permission requests. This quickstart will walk you through the setup.
 

@@ -1,0 +1,24 @@
+# Example mattermost configuration TOML file
+[teleport]
+# The `auth-server` should match the public_addr set in teleport.yaml, auth: public_addr:
+auth-server = "teleport-cluster.example.com:3025"  # Teleport Auth Server GRPC API address
+# These certificates are the output of `tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=8760h`
+client-key = "/var/lib/teleport/plugins/mattermost/auth.key" # Teleport GRPC client secret key
+client-crt = "/var/lib/teleport/plugins/mattermost/auth.crt" # Teleport GRPC client certificate
+root-cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport cluster CA certs
+
+[mattermost]
+token = "bot-token"  # Mattermost Bot Access Token. From Setup /integrations/bots. Not Token ID
+secret = "oauth-client-secret-value" # Mattermost Client Secret - From an OAuth 2.0 App
+team = "mattermost-team-name"        # Mattermost Team Name
+url = "mattermost.example.com:8065"  # Mattermost URL. With Optional Port. 
+channel = "town-square"  # Mattermost Channel name to post requests to. 
+
+[http]        
+host = "teleport-proxy.example.com:8081" # Mattermost interaction callback listener
+https-key-file = "/var/lib/teleport/webproxy_key.pem"  # TLS private key
+https-cert-file = "/var/lib/teleport/webproxy_cert.pem" # TLS certificate
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

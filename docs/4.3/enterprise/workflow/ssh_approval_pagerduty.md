@@ -1,4 +1,4 @@
-# Teleport Pagerduty Plugin Quickstart
+# Teleport Pagerduty Plugin Setup
 
 This package provides a Teleport ↔  Pagerduty integration that allows you to treat Teleport access and permission requests as Pagerduty incidents — and notify the appropriate team, and approve or deny the requests via Pagerduty special action.
 
@@ -70,9 +70,9 @@ In your Pagerduty dashboard, go to **Configuration → API Access → Create New
 The recommended way to run Teleport Pagerduty plugin is by downloading the release version and installing it: 
 
 ```bash
-$ wget https://get.gravitational.com/teleport-pagerduty-v0.0.1-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-pagerduty-v0.0.1-linux-amd64-bin.tar.gz
-$ cd teleport-pagerduty
+$ wget https://get.gravitational.com/teleport-access-pagerduty-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-access-pagerduty-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ cd teleport-access-pagerduty/
 $ ./install
 $ which teleport-pagerduty
 /usr/local/bin/teleport-pagerduty
@@ -89,26 +89,8 @@ teleport-pagerduty configure > /etc/teleport-pagerduty.toml
 After generating the config, edit it as follows: 
 
 ```yaml
-# example teleport-pagerduty configuration TOML file
-[teleport]
-auth-server = "teleport-auth.example.com:3025"  # Auth GRPC API address
-client-key = "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
-client-crt = "/var/lib/teleport/plugins/pagerduty/auth.crt" # Teleport GRPC client certificate
-root-cas = "/var/lib/teleport/plugins/pagerduty/auth.cas"   # Teleport cluster CA certs
-
-[pagerduty]
-api-key = "API-KEY-GOES-HERE"        # PagerDuty API Key
-user-email = "ben@gravitational.com" # PagerDuty bot user email (Could be admin email)
-service-id = "P4HZJDY"        # PagerDuty service id, copy it from the Pagerduty service URL
-
-[http]
-host = "teleport-proxy.example.com:8081"
-https-key-file = "/var/lib/teleport/webproxy_key.pem"  # TLS private key
-https-cert-file = "/var/lib/teleport/webproxy_cert.pem" # TLS certificate
-
-[log]
-output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/pagerduty.log"
-severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+# lol
+{!examples/resources/plugins/teleport-pagerduty.toml!}
 ```
 
 ### Testing the Plugin

@@ -1,4 +1,4 @@
-# Teleport Mattermost Plugin Quickstart
+# Teleport Mattermost Plugin Setup
 
 This package provides Teleport ↔ Mattermost integrataion that allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source 
 messaging platform. 
