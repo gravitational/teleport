@@ -25,22 +25,13 @@ From the user's perspective they need to execute the following command login:
 $ tsh login --proxy=proxy.example.com
 
 # output:
-<<<<<<< HEAD
-If browser window does not open automatically, open it by clicking on the link:
-=======
 If browser window does not open automatically, open it by clicking on the link: 
->>>>>>> Base fork for 4.3 docs
 http://127.0.0.1:45235/055a310a-1099-43ea-8cf6-ffc41d88ad1f
 ```
 
 Teleport will wait for up to 3 minutes for a user to authenticate. If authentication
-<<<<<<< HEAD
-succeeds, Teleport will retrieve an SSH certificate and will store it in
-`~/.tsh/keys/proxy.example.com` directory and also will add it to an
-=======
 succeeds, Teleport will retrieve an SSH certificate and will store it in 
 `~/.tsh/keys/proxy.example.com` directory and also will add it to an 
->>>>>>> Base fork for 4.3 docs
 [SSH agent](https://en.wikipedia.org/wiki/Ssh-agent) if there's one running.
 
 ## Configuring SSO
@@ -128,48 +119,10 @@ spec:
       '*': '*'
 ```
 
-<<<<<<< HEAD
-## Working with External Email Identity
-
-Along with sending groups, an SSO provider will also provide a user's email address.
-In many organizations, the username that a person uses to log into a system is the
-same as the first part of their email address - the 'local' part. For example, `dave.smith@acme.com`
- might log in with the username `dave.smith`. Teleport 4.2.6+ adds an easy way to
- extract the first part of an email address so it can be used as a username - this
- is the `{% raw %}{{email.local}}{% endraw %}` function.
-
-If the email claim from the identity provider (which can be accessed via `{% raw %}{{external.email}}{% endraw %}`)
-is sent and contains an email address, you can extract the 'local' part of the email
-address before the @ sign like this: `{% raw %}{{email.local(external.email)}}{% endraw %}`
-
-Here's how this looks in a Teleport role:
-
-```yaml
-kind: role
-version: v3
-metadata:
-  name: sso_user
-spec:
-  allow:
-    logins:
-    # Extracts the local part of dave.smith@acme.com, so the login will
-    # now support dave.smith.
-    - '{% raw %}{{email.local(external.email)}}{% endraw %}'
-    node_labels:
-      '*': '*'
-```
-
-
-## Multiple SSO Providers
-
-Teleport can also support multiple connectors, i.e. a Teleport administrator
-can define and create multiple connector resources using `tctl create` as shown above.
-=======
 ## Multiple SSO Providers
 
 Teleport can also support multiple connectors, i.e. a Teleport administrator
 can define and create multiple connector resources using `tctl create` as shown above. 
->>>>>>> Base fork for 4.3 docs
 
 To see all configured connectors, execute this on the auth server:
 
@@ -200,12 +153,7 @@ SAML and OIDC types:
 * [SSH Authentication with ADFS](../ssh_adfs.md)
 * [SSH Authentication with OAuth2 / OpenID Connect](../oidc.md)
 
-<<<<<<< HEAD
-
-## SSO Customization
-=======
 ## SSO Customization 
->>>>>>> Base fork for 4.3 docs
 
 | Provider | YAML | Example |
 |----------|------|---------|
@@ -232,8 +180,4 @@ If something is not working, we recommend to:
 
 * Double-check the host names, tokens and TCP ports in a connector definition.
 * Look into Teleport's audit log for claim mapping problems. It is usually stored on the
-<<<<<<< HEAD
   auth server in the `/var/lib/teleport/log` directory.
-=======
-  auth server in the `/var/lib/teleport/log` directory.
->>>>>>> Base fork for 4.3 docs

@@ -157,11 +157,7 @@ certificates.
 
 ## Testing
 
-<<<<<<< HEAD
-The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is
-=======
 The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is 
->>>>>>> Base fork for 4.3 docs
 the same as before:
 
 ```bsh

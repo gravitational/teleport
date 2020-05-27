@@ -21,11 +21,7 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
 
 ## RBAC
 
-<<<<<<< HEAD
-Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to users. An example of an RBAC policy might be:  _"admins can do anything,
-=======
 Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to users. An example of an RBAC policy might be:  _"admins can do anything, 
->>>>>>> Base fork for 4.3 docs
 developers must never touch production servers, and interns can only SSH into
 staging servers as guests".
 
@@ -46,13 +42,8 @@ would look like this:
    "developers", "admins", "contractors", etc.
 3. The Teleport administrator will have to define Teleport Roles. For
    example: "users", "developers" and "admins".
-<<<<<<< HEAD
-4. The last step will be to define mappings from the Active Directory groups (claims)
-   to the Teleport Roles so every Teleport user will be assigned a role based
-=======
 4. The last step will be to define mappings from the Active Directory groups (claims) 
    to the Teleport Roles so every Teleport user will be assigned a role based 
->>>>>>> Base fork for 4.3 docs
    on the group membership.
 
 See [RBAC for SSH](ssh_rbac.md) chapter to learn more about configuring RBAC with
@@ -61,17 +52,6 @@ Teleport.
 ## SSO
 
 The commercial edition of Teleport allows users to retrieve their SSH
-<<<<<<< HEAD
-credentials via a [single sign-on](https://en.wikipedia.org/wiki/Single_sign-on)
-(SSO) system used by the rest of the organization.
-
-Examples of supported SSO systems include commercial solutions like [Okta](https://www.okta.com),
-[Auth0](https://auth0.com/), [SailPoint](https://www.sailpoint.com/),
-[OneLogin](https://www.onelogin.com/) or [Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as
-well as open source products like [Keycloak](http://www.keycloak.org).
-Other identity management systems are supported as long as they provide an
-SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
-=======
 credentials via a [single sign-on](https://en.wikipedia.org/wiki/Single_sign-on) 
 (SSO) system used by the rest of the organization. 
 
@@ -81,7 +61,6 @@ Examples of supported SSO systems include commercial solutions like [Okta](https
 well as open source products like [Keycloak](http://www.keycloak.org).
 Other identity management systems are supported as long as they provide an
 SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language) 
->>>>>>> Base fork for 4.3 docs
 or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 
@@ -109,20 +88,6 @@ See the [SSO for SSH](ssh_sso.md) chapter for more details.
     For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact form on our [website](http://gravitational.com/demo).
 
 
-<<<<<<< HEAD
-## FedRAMP/FIPS
-
-With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
-the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2),
-also known as the Federal Information Processing Standard, which is the US
-government approved standard for cryptographic modules.
-
-Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).
-Look for `Linux 64-bit (FedRAMP/FIPS)`.
-
-Using `teleport start --fips` Teleport will start in FIPS mode, Teleport will
-configure the TLS and SSH servers with FIPS compliant cryptographic algorithms.
-=======
 ## FedRAMP/FIPS 
 
 With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
@@ -135,39 +100,25 @@ Look for `Linux 64-bit (FedRAMP/FIPS)`.
 
 Using `teleport start --fips` Teleport will start in FIPS mode, Teleport will 
 configure the TLS and SSH servers with FIPS compliant cryptographic algorithms. 
->>>>>>> Base fork for 4.3 docs
 In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to start.
 In addition, Teleport checks if the binary was compiled against an approved
 cryptographic module (BoringCrypto) and fails to start if it was not.
 
 See our [Enterprise Guide for more information](ssh_fips.md)
 
-<<<<<<< HEAD
-## Approval Workflows
-
-!!! warning "Warning: Workflows are currently in Alpha"
-
-    This feature is currently in alpha.
-    If you have a question please post to our [community](https://community.gravitational.com/), or file bugs on [Github](https://github.com/gravitational/teleport/issues/new).
-=======
 ## Approval Workflows 
 
 !!! warning "Warning: Workflows are currently in Alpha"
 
     This feature is currently in alpha. 
     If you have a question please post to our [community](https://community.gravitational.com/), or file bugs on [Github](https://github.com/gravitational/teleport/issues/new). 
->>>>>>> Base fork for 4.3 docs
 
 With Teleport 4.2 we've introduced the ability for users to request additional roles. The workflow API makes it easy to dynamically approve or deny these requests.
 
 ## Setup
 
 **Contractor Role**
-<<<<<<< HEAD
-This role lets the contractor request the role DBA.
-=======
 This role lets the contractor request the role DBA. 
->>>>>>> Base fork for 4.3 docs
 
 ```yaml
 kind: role
@@ -185,11 +136,7 @@ spec:
 ```
 
 **DBA Role**
-<<<<<<< HEAD
-This role lets the contractor request the role DBA.
-=======
 This role lets the contractor request the role DBA. 
->>>>>>> Base fork for 4.3 docs
 
 ```yaml
 kind: role
@@ -207,11 +154,7 @@ spec:
 ```
 
 **Admin Role**
-<<<<<<< HEAD
-This role lets the admin approve the contractor's request.
-=======
 This role lets the admin approve the contractor's request. 
->>>>>>> Base fork for 4.3 docs
 ```yaml
 kind: role
 metadata:
@@ -227,11 +170,7 @@ spec:
 # https://gravitational.com/teleport/docs/enterprise/ssh_rbac/
 rules:
     # Access Request is part of Approval Workflows introduced in 4.2
-<<<<<<< HEAD
-    # `access_request` should only be given to Teleport Admins.
-=======
     # `access_request` should only be given to Teleport Admins. 
->>>>>>> Base fork for 4.3 docs
     - resources: [access_request]
       verbs: [list, read, update, delete]
 ```
@@ -247,13 +186,8 @@ As a Teleport Administrator:
 
 ```bash
 $ tctl request ls
-<<<<<<< HEAD
-Token                                Requestor Metadata       Created At (UTC)    Status
------------------------------------- --------- -------------- ------------------- -------
-=======
 Token                                Requestor Metadata       Created At (UTC)    Status  
 ------------------------------------ --------- -------------- ------------------- ------- 
->>>>>>> Base fork for 4.3 docs
 bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
 ```
 
@@ -262,21 +196,6 @@ $ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 ```
 
 Assuming approval, `tsh` will automatically manage a certificate re-issued with the newly requested roles applied. In this case `contractor` will now have have the permission of the
-<<<<<<< HEAD
-`dba`.
-
-!!! warning
-
-    Granting a role with administrative abilities could allow a user to **permanently** upgrade their privileges (e.g. if contractor was granted admin for some reason). We recommend only escalating to the next role of least privilege vs jumping directly to "Super Admin" role.
-
-     The `deny.request` block can help mitigate the risk of doing this by accident.
-
-### Other features of Approval Workflows.
-
- - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
- - Approved requests have no affect on Teleport's behavior outside of allowing additional roles on re-issue. This has the nice effect of making requests "compatible" with older versions of Teleport, since only the issuing Auth Server needs any particular knowledge of the feature.
-
-=======
 `dba`. 
 
 !!! warning 
@@ -290,4 +209,3 @@ Assuming approval, `tsh` will automatically manage a certificate re-issued with 
  - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
  - Approved requests have no affect on Teleport's behavior outside of allowing additional roles on re-issue. This has the nice effect of making requests "compatible" with older versions of Teleport, since only the issuing Auth Server needs any particular knowledge of the feature. 
  
->>>>>>> Base fork for 4.3 docs

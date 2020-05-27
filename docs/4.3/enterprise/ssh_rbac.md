@@ -117,11 +117,7 @@ spec:
       # labels can be specified as a list:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
-<<<<<<< HEAD
-      # of the list example above can be expressed as:
-=======
       # of the list example above can be expressed as: 
->>>>>>> Base fork for 4.3 docs
       'environment': '^test|staging$'
 
     # list of allow-rules. see below for more information.

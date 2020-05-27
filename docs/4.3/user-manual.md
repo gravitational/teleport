@@ -149,13 +149,6 @@ $ ssh-add -L
 SSH agent can be used to feed the certificate to other SSH clients, for example
 to OpenSSH `ssh`.
 
-<<<<<<< HEAD
-If you wish to disable SSH agent integration, pass `--no-use-local-ssh-agent`
-to `tsh`. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment
-variable to `false` in your shell profile to make this permanent.
-
-=======
->>>>>>> Base fork for 4.3 docs
 ### Identity Files
 
 [`tsh login`](cli-docs.md#tsh-login) can also save the user certificate into a
@@ -582,8 +575,4 @@ If you need help, please ask on our [community forum](https://community.gravitat
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
 
-<<<<<<< HEAD
 For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
-=======
-For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
->>>>>>> Base fork for 4.3 docs
