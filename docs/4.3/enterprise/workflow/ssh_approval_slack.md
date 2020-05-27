@@ -11,29 +11,27 @@ This guide assumes that you have:
 
 * Teleport Enterprise 4.2.8 or newer
 * Admin privileges with access to `tctl`
-*-* Slack Admin Privileges to create an app and install it to your workspace.
+* Slack Admin Privileges to create an app and install it to your workspace.
 
 #### Create User and Role for access. 
 Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a 
 new user and role that only has API access to the `access_request` API. The below script
 will create a yaml resource file for a new user and role. 
 
-Don't change the username and the role name, it should be `access-plugin` for the plugin 
-to work correctly.
 
 ```bash
 # Copy and Paste the below on the Teleport Auth server. 
 $ cat > rscs.yaml <<EOF
 kind: user
 metadata:
-  name: access-plugin
+  name: access-plugin-slack
 spec:
-  roles: ['access-plugin']
+  roles: ['access-plugin-slack']
 version: v2
 ---
 kind: role
 metadata:
-  name: access-plugin
+  name: access-plugin-slack
 spec:
   allow:
     rules:
@@ -41,7 +39,7 @@ spec:
         verbs: ['list','read','update']
     # teleport currently refuses to issue certs for a user with 0 logins,
     # this restriction may be lifted in future versions.
-    logins: ['access-plugin']
+    logins: ['access-plugin-slack']
 version: v3
 EOF
 
@@ -52,10 +50,10 @@ $ tctl create -f rscs.yaml
     If you're using other plugins, you might want to create different users and roles for different plugins
 
 #### Export access-plugin Certificate
-Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin use the `access-plugin-slack` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 ```bash
-$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=8760h
+$ tctl auth sign --format=tls --user=access-plugin-slack --out=auth --ttl=8760h
 # ...
 ```
 The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuration-file).

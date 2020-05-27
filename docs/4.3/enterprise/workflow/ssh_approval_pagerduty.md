@@ -15,17 +15,19 @@ This guide assumes that you have:
 * A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience. 
 
 #### Create User and Role for access. 
-Log into Teleport Authentication Server, this is where you normally run `tctl`. Don't change the username and the role name, it should be `access-plugin` for the plugin to work correctly.
+Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a 
+new user and role that only has API access to the `access_request` API. The below script
+will create a yaml resource file for a new user and role. 
 
-_Note: if you're using other plugins, you might want to create different users and roles for different plugins_.
-
-```bash
+```yaml
+# This command will create two Teleport Yaml resources, a new Teleport user and a 
+# Role for that users that can only approve / list requests. 
 $ cat > rscs.yaml <<EOF
 kind: user
 metadata:
-  name: access-plugin
+  name: access-plugin-pagerduty
 spec:
-  roles: ['access-plugin']
+  roles: ['access-plugin-pagerduty']
 version: v2
 ---
 kind: role
@@ -38,19 +40,19 @@ spec:
         verbs: ['list','read','update']
     # teleport currently refuses to issue certs for a user with 0 logins,
     # this restriction may be lifted in future versions.
-    logins: ['access-plugin']
+    logins: ['access-plugin-pagerduty']
 version: v3
 EOF
 
-# ...
+# Run this to create the user and role in Teleport. 
 $ tctl create -f rscs.yaml
 ```
 
 #### Export access-plugin Certificate
-Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin use the `access-plugin-pagerduty` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 ```bash
-$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=8760h
+$ tctl auth sign --format=tls --user=access-plugin-pagerduty --out=auth --ttl=8760h
 # ...
 ```
 

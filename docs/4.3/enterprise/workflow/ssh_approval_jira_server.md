@@ -7,30 +7,30 @@ This guide will talk through how to setup Teleport with Pagerduty.   Teleport â†
 
 ## Setup
 ### Prerequisites
-- An Enterprise or Pro Teleport Cluster
-- Admin Privileges with access and control of [`tctl`](https://gravitational.com/teleport/docs/cli-docs/#tctl)
-- Jira Server or Jira Cloud installation with an owner privileges, specifically to setup webhooks, issue types, and workflows.
+* An Enterprise or Pro Teleport Cluster
+* Admin Privileges with access and control of [`tctl`](https://gravitational.com/teleport/docs/cli-docs/#tctl)
+* Jira Server or Jira Cloud installation with an owner privileges, specifically to setup webhooks, issue types, and workflows.
 
 ### Create an access-plugin role and user within Teleport 
 First off, using an existing Teleport Cluster, we are going to create a new Teleport User and Role to access Teleport.
 
 #### Create User and Role for access. 
-Log into Teleport Authentication Server, this is where you normally run `tctl`. Don't change the username and the role name, it should be `access-plugin` for the plugin to work correctly.
-
-_Note: if you're using other plugins, you might want to create different users and roles for different plugins_.
+Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a 
+new user and role that only has API access to the `access_request` API. The below script
+will create a yaml resource file for a new user and role. 
 
 ```bash
 $ cat > rscs.yaml <<EOF
 kind: user
 metadata:
-  name: access-plugin
+  name: access-plugin-jira
 spec:
   roles: ['access-plugin']
 version: v2
 ---
 kind: role
 metadata:
-  name: access-plugin
+  name: access-plugin-jira
 spec:
   allow:
     rules:
@@ -38,7 +38,7 @@ spec:
         verbs: ['list','read','update']
     # teleport currently refuses to issue certs for a user with 0 logins,
     # this restriction may be lifted in future versions.
-    logins: ['access-plugin']
+    logins: ['access-plugin-jira']
 version: v3
 EOF
 
@@ -47,10 +47,10 @@ $ tctl create -f rscs.yaml
 ```
 
 #### Export access-plugin Certificate
-Teleport Plugin uses the `access-plugin`role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin uses the `access-plugin-jira`role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 ```bash
-$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=8760h
+$ tctl auth sign --format=tls --user=access-plugin-jira --out=auth --ttl=8760h
 # ...
 ```
 
