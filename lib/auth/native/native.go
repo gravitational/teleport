@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/wrappers"
 
@@ -193,6 +194,7 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	signer = sshutils.CompatSigner(signer)
 
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
@@ -307,6 +309,7 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	signer = sshutils.CompatSigner(signer)
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
 		return nil, trace.Wrap(err)
 	}

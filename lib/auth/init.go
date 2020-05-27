@@ -798,6 +798,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}
+	signer = sshutils.CompatSigner(signer)
 	// this signer authenticates using certificate signed by the cert authority
 	// not only by the public key
 	certSigner, err := ssh.NewCertSigner(cert, signer)

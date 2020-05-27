@@ -27,5 +27,6 @@ func PrivateKeyFingerprint(keyBytes []byte) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	signer = CompatSigner(signer)
 	return Fingerprint(signer.PublicKey()), nil
 }

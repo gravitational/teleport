@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -245,6 +246,7 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 	if signer, err = ssh.NewCertSigner(keys[0].Certificate, signer); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	signer = sshutils.CompatSigner(signer)
 	return NewAuthMethodForCert(signer), nil
 }
 
