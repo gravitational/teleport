@@ -191,11 +191,15 @@ run-docs:
 	$(MAKE) -C build.assets run-docs
 
 #
-# Remove trailing whitespace in all markdown files under docs/
+# Remove trailing whitespace in all markdown files under docs/.
+#
+# Note: this runs in a busybox container to avoid incompatibilities between
+# linux and macos CLI tools.
 #
 .PHONY:docs-fix-whitespace
 docs-fix-whitespace:
-	find docs/ -type f -name '*.md' | xargs sed -i -E 's/\s+$$//g'
+	docker run --rm -v $(PWD):/teleport busybox \
+		find /teleport/docs/ -type f -name '*.md' -exec sed -E -i 's/\s+$$//g' '{}' \;
 
 #
 # Test docs for trailing whitespace and broken links
