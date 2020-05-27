@@ -1,6 +1,6 @@
 # example teleport-pagerduty configuration TOML file
 [teleport]
-auth-server = "example.com:3025"  # Auth GRPC API address
+auth-server = "0.0.0.0:3025"  # Auth GRPC API address
 client-key = "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
 client-crt = "/var/lib/teleport/plugins/pagerduty/auth.crt" # Teleport GRPC client certificate
 root-cas = "/var/lib/teleport/plugins/pagerduty/auth.cas"   # Teleport cluster CA certs
@@ -11,7 +11,7 @@ user-email = "me@example.com" # PagerDuty bot user email (Could be admin email)
 service-id = "PIJ90N7"        # PagerDuty service id
 
 [http]
-listen = ":8081"          # PagerDuty webhook listener
+listen = "0.0.0.0:8081"          # PagerDuty webhook listener
 base-url = "https://teleport-pagerduty.infra.yourcorp.com" # The public address of the teleport-pagerduty webhook listener.
 # host = "example.com"    # Host name by which bot is accessible
 # https-key-file = "/var/lib/teleport/plugins/pagerduty/server.key"  # TLS private key
