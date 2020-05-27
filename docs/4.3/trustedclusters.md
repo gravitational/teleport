@@ -223,13 +223,20 @@ role_map:
     local: [admin]
 ```
 
+```yaml
+role_map:
+   - remote: 'cluster-*'
+     local: [clusteradmin]
+```
+
 You can even use [regular expressions](https://github.com/google/re2/wiki/Syntax) to
 map user roles from one cluster to another, you can even capture parts of the remote
 role name and use reference it to name the local role:
 
 ```yaml
-  # in this example, remote users with remote role called 'remote-one' will be
-  # mapped to a local role called 'local-one', and `remote-two` becomes `local-two`, etc:
+# In this example, remote users with remote role called 'remote-one' will be
+# mapped to a local role called 'local-one', and `remote-two` becomes `local-two`, etc:
+role_map:
   - remote: "^remote-(.*)$"
     local: [local-$1]
 ```

@@ -1551,10 +1551,13 @@ spec:
   # the role mapping allows to map user roles from one cluster to another
   # (enterprise editions of Teleport only)
   role_map:
-
     - remote: "admin"    # users who have "admin" role on "main"
-
       local: ["auditor"] # will be assigned "auditor" role when logging into "east"
+    # In this example, remote users with remote role called 'remote-one' will be
+    # mapped to a local role called 'local-one', and `remote-two` becomes `local-two`, etc:
+    # See https://gravitational.com/teleport/docs/trustedclusters/#rbac for more examples.
+    - remote: "^remote-(.*)$"
+      local: [local-$1]
 ```
 
 Then, use [ `tctl create` ](cli-docs.md#tctl-create) to add the file:
@@ -1582,7 +1585,7 @@ users from the "main" (trusted cluster) can now access nodes in the "east"
 (trusting cluster). Users in the "east" cluster will not be able to access the
 "main" cluster.
 
-``` bsh
+``` bash
 # login into the main cluster:
 $ tsh --proxy=proxy.main login joe
 
@@ -1649,7 +1652,6 @@ advanced topics:
 
 * Using dynamic cluster join tokens instead of pre-defined static tokens for
   enhanced security.
-
 * Defining role-mapping between clusters (Teleport Enterprise only).
 
 ## Github OAuth 2.0
@@ -1685,15 +1687,11 @@ spec:
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
   # mapping of org/team memberships onto allowed logins and roles
   teams_to_logins:
-
     - organization: octocats # Github organization name
-
       team: admins # Github team name within that organization
       # allowed logins for users in this org/team
       logins:
-
         - root
-
       # List of Kubernetes groups this Github team is allowed to connect to
       # (see Kubernetes integration for more information)
       kubernetes_groups: ["system:masters"]
