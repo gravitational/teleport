@@ -1,11 +1,7 @@
 # Running Teleport on GCP
 
 We've created this guide to give customers a high level overview of how to use Teleport
-<<<<<<< HEAD
-on [Google Cloud](https://cloud.google.com/gcp/) (GCP). This guide provides a high level
-=======
 on [Google Cloud](https://cloud.google.com/gcp/) (GCP). This guide provides a high level 
->>>>>>> Base fork for 4.3 docs
 introduction leading to a deep dive into how to setup and run Teleport in production.
 
 We have split this guide into:
@@ -17,18 +13,6 @@ We have split this guide into:
 ## Teleport on GCP FAQ
 #### Why would you want to use Teleport with GCP?
 As leader in [BeyondCorp](https://cloud.google.com/beyondcorp/), GCP already provides
-<<<<<<< HEAD
-some great tools out of the box such as [Cloud Identity-Aware Proxy](https://cloud.google.com/iap/).
-This is an excellent tool to quickly get setup securely with GCP but it can become
-complicated to integrate into existing workflows and complicated if you want to share
-tool across clouds.
-
-#### Which Services can I use Teleport with?
-
-You can use Teleport for all the services that you would SSH into. This guide is
-focused on Google Compute Engine. In the future we'll plan to update on how to use
-Teleport with Google Kubernetes Engine (GKE).
-=======
 some great tools out of the box such as [Cloud Identity-Aware Proxy](https://cloud.google.com/iap/).  
 This is an excellent tool to quickly get setup securely with GCP but it can become 
 complicated to integrate into existing workflows and complicated if you want to share 
@@ -39,7 +23,6 @@ tool across clouds.
 You can use Teleport for all the services that you would SSH into. This guide is 
 focused on Google Compute Engine. In the future we'll plan to update on how to use 
 Teleport with Google Kubernetes Engine (GKE). 
->>>>>>> Base fork for 4.3 docs
 
 ## GCP Teleport Introduction
 
@@ -53,11 +36,7 @@ GCP Services required to run Teleport in HA:
  - [Storage: Google Cloud Storage](#storage-google-cloud-storage)
  - [Network Services: Load Balancing](#network-services-load-balancing)
  - [Network Services: Cloud DNS](#network-services-cloud-dns)
-<<<<<<< HEAD
-
-=======
  
->>>>>>> Base fork for 4.3 docs
 Other things needed:
 
  - [SSL Certificate](https://cloud.google.com/load-balancing/docs/ssl-certificates)
@@ -67,34 +46,13 @@ Optional:
  - Management Tools: Cloud Deployment Manager
  - Stackdriver Logging
 
-<<<<<<< HEAD
-We recommend setting up Teleport in high availability mode (HA). In HA mode Firestore
-=======
 We recommend setting up Teleport in high availability mode (HA). In HA mode Firestore 
->>>>>>> Base fork for 4.3 docs
 stores the state of the system and Google Cloud Storage stores the audit logs.
 
 ![GCP Intro Image](img/gcp/gcp-teleport.svg)
 
 
 ### Compute Engine: VM Instances with Instance Groups
-<<<<<<< HEAD
-To run Teleport in a HA configuration we recommend using `n1-standard-2` instances in
-Production. It's best practice to separate the proxy and authentication server, using
-Instance groups for the proxy and auth server.
-
-### Computer Engine: Health Checks
-GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks),
-this is helpful when adding new instances to an instance group.
-
-To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
-see  [Admin Guide: Troubleshooting](admin-guide.md#troubleshooting) for more information.
-
-### Storage: Cloud Firestore
-
-[Cloud Firestore](https://cloud.google.com/firestore/) This storage backend uses real-time
-updates to keep individual auth instances in sync and requires Firestore configured
-=======
 To run Teleport in a HA configuration we recommend using `n1-standard-2` instances in 
 Production. It's best practice to separate the proxy and authentication server, using
 Instance groups for the proxy and auth server. 
@@ -110,7 +68,6 @@ see  [Admin Guide: Troubleshooting](admin-guide.md#troubleshooting) for more inf
 
 [Cloud Firestore](https://cloud.google.com/firestore/) This storage backend uses real-time 
 updates to keep individual auth instances in sync and requires Firestore configured 
->>>>>>> Base fork for 4.3 docs
 in native mode.
 
 Add this storage configuration in teleport section of the config file (by default it's `/etc/teleport.yaml`):
@@ -128,15 +85,9 @@ teleport:
 ### Storage: Google Cloud Storage
 
 
-<<<<<<< HEAD
-When creating the Bucket we would recommend setting it up as `Dual-region` and with
-`Standard` storage class. Provide access using a `Uniform` access control with a Google-managed
-key.
-=======
 When creating the Bucket we would recommend setting it up as `Dual-region` and with 
 `Standard` storage class. Provide access using a `Uniform` access control with a Google-managed
 key. 
->>>>>>> Base fork for 4.3 docs
 
 When setting up `audit_session_uri` use `gs://` session prefix.
 
@@ -149,30 +100,17 @@ storage:
 
 ### Network Services: Load Balancing
 
-<<<<<<< HEAD
-Load Balancing is required for Proxy and SSH traffic. Use `TCP Load Balancing` as
-=======
 Load Balancing is required for Proxy and SSH traffic. Use `TCP Load Balancing` as 
->>>>>>> Base fork for 4.3 docs
 Teleport requires custom ports for SSH and Web Traffic.
 
 ### Network Services: Cloud DNS
 
-<<<<<<< HEAD
-Cloud DNS is used to setup the public URL of the Teleport Proxy. Once setup an `A`
-record is sufficient.
-
-### Access: Service accounts
-
-The Authentication server will need to read and write to Firestore.  For this it'll need
-=======
 Cloud DNS is used to setup the public URL of the Teleport Proxy. Once setup an `A` 
 record is sufficient. 
 
 ### Access: Service accounts 
 
 The Authentication server will need to read and write to Firestore.  For this it'll need 
->>>>>>> Base fork for 4.3 docs
 the correct permission via Server Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
 
 
@@ -185,18 +123,6 @@ the correct permission via Server Accounts. Learn how to [enable and create serv
 
 ## 1. Create Resources
 We recommend starting by creating the resources. We highly recommend creating these
-<<<<<<< HEAD
-an infrastructure automation tool such as [Cloud Deployment Manager](https://cloud.google.com/deployment-manager/) or Terraform.
-
-
-## 2. Install & Configure Teleport
-
-Follow install instructions from our [installation page](installation.md#linux).
-
-We recommend configuring Teleport as per the below steps:
-
-**1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
-=======
 an infrastructure automation tool such as [Cloud Deployment Manager](https://cloud.google.com/deployment-manager/) or Terraform. 
 
  
@@ -207,7 +133,6 @@ Follow install instructions from our [installation page](installation.md#linux).
 We recommend configuring Teleport as per the below steps:
 
 **1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it 
->>>>>>> Base fork for 4.3 docs
 using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service) or use DEB/.RPM packages available from our [Downloads Page](https://gravitational.com/teleport/download/).
 
 ```yaml
@@ -230,11 +155,7 @@ teleport:
   storage:
     type: firestore
     collection_name: cluster-data
-<<<<<<< HEAD
-    # Credentials: Path to google service account file, used for Firestore and Google Storage.
-=======
     # Credentials: Path to google service account file, used for Firestore and Google Storage. 
->>>>>>> Base fork for 4.3 docs
     credentials_path: /var/lib/teleport/gcs_creds.json
     project_id: example_Teleport-Project-Name
     audit_events_uri: 'firestore://events?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds'
@@ -243,11 +164,7 @@ auth_service:
   enabled: yes
   auth_service:
     tokens:
-<<<<<<< HEAD
-    - "proxy,node:EXAMPLE-CLUSTER-JOIN-TOKEN"
-=======
     - "proxy,node:EXAMPLE-CLUSTER-JOIN-TOKEN"  
->>>>>>> Base fork for 4.3 docs
 ```
 
 **2. Setup Proxy**
@@ -257,13 +174,8 @@ Save the following configuration file as `/etc/teleport.yaml` on the Proxy Serve
 ```yaml
 teleport:
   auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
-<<<<<<< HEAD
-  # We recommend using a TCP load balancer pointed to the auth servers when
-  # setting up in HA mode.
-=======
   # We recommend using a TCP load balancer pointed to the auth servers when 
   # setting up in HA mode. 
->>>>>>> Base fork for 4.3 docs
   auth_servers: [ "auth.example.com:3025" ]
   # enable ssh service and disable auth and proxy:
 ssh_service:
@@ -281,13 +193,8 @@ Save the following configuration file as `/etc/teleport.yaml` on the node:
 ```yaml
 teleport:
   auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
-<<<<<<< HEAD
-  # We recommend using a TCP load balancer pointed to the auth servers when
-  # setting up in HA mode.
-=======
   # We recommend using a TCP load balancer pointed to the auth servers when 
   # setting up in HA mode. 
->>>>>>> Base fork for 4.3 docs
   auth_servers: [ "auth.example.com:3025" ]
   # enable ssh service and disable auth and proxy:
 ssh_service:
@@ -300,8 +207,4 @@ proxy_service:
 
 **4. Add Users**
 
-<<<<<<< HEAD
 Follow [adding users](enterprise/quickstart-enterprise.md#adding-users) or integrate with [G Suite](ssh_gsuite.md) to provide SSO access.
-=======
-Follow [adding users](enterprise/quickstart-enterprise.md#adding-users) or integrate with [G Suite](ssh_gsuite.md) to provide SSO access.
->>>>>>> Base fork for 4.3 docs

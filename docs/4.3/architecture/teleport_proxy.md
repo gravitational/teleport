@@ -90,11 +90,7 @@ client `ssh` or using `tsh`:
    client certificate.
 
 !!! tip "NOTE"
-<<<<<<< HEAD
-
-=======
     
->>>>>>> Base fork for 4.3 docs
     Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.md#ssh-proxy-configuration)
 
 ## Recording Proxy Mode

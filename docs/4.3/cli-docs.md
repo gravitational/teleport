@@ -41,11 +41,7 @@ the following services.
 | `--permit-user-env` | none | none | flag reads in environment variables from `~/.tsh/environment` when creating a session.
 
 !!! warning "Token Generation"
-<<<<<<< HEAD
-
-=======
     
->>>>>>> Base fork for 4.3 docs
     We recommend the use of tools like `pwgen` to generate sufficiently random tokens of 32+ byte length.
 
 ## teleport status
@@ -114,13 +110,8 @@ Run shell or execute a command on a remote SSH node
 
 `<[user@]host> [<command>...]`
 
-<<<<<<< HEAD
-* `user` The login identity to use on the remote host. If `[user]` is not specified
-   the user defaults to `$USER` or can be set with `--user` . If the flag `--user`
-=======
 * `user` The login identity to use on the remote host. If `[user]` is not specified 
    the user defaults to `$USER` or can be set with `--user` . If the flag `--user` 
->>>>>>> Base fork for 4.3 docs
    and positional argument `[user]` are specified the arg `[user]` takes precedence.
 
 * `host` A `nodename` of a cluster node or a
@@ -166,11 +157,7 @@ Joins an active session
 
 `<session-id>`
 
-<<<<<<< HEAD
-* `session-id` The UUID of the an active Teleport Session obtained by `teleport status` within
-=======
 * `session-id` The UUID of the an active Teleport Session obtained by `teleport status` within 
->>>>>>> Base fork for 4.3 docs
     the session.
 
 ### Flags
@@ -345,11 +332,7 @@ interval via `--ttl` flag (capped by the server-side configuration).
 
 ### Arguments
 
-<<<<<<< HEAD
-* `<cluster>` - the name of the cluster,  see [Trusted Cluster](trustedclusters.md#introduction ) for more information.
-=======
 * `<cluster>` - the name of the cluster,  see [Trusted Cluster](trustedclusters.md#introduction ) for more information. 
->>>>>>> Base fork for 4.3 docs
 
 ### Flags
 
@@ -510,19 +493,11 @@ List of open requests **Usage**: `tctl request ls`
 
 ``` bsh
 tctl request ls
-<<<<<<< HEAD
-Token                                Requestor Metadata       Created At (UTC)    Status
------------------------------------- --------- -------------- ------------------- -------
-request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
-```
-## tctl request approve
-=======
 Token                                Requestor Metadata       Created At (UTC)    Status  
 ------------------------------------ --------- -------------- ------------------- ------- 
 request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
 ```
 ## tctl request approve 
->>>>>>> Base fork for 4.3 docs
 
 Approve a user's request. **Usage**: `tctl request approve [token]`
 
@@ -536,11 +511,7 @@ Approve a user's request. **Usage**: `tctl request approve [token]`
 tctl request approve request-id-1, request-id-2
 ```
 
-<<<<<<< HEAD
-## tctl request deny
-=======
 ## tctl request deny 
->>>>>>> Base fork for 4.3 docs
 
 Denies a user's request. **Usage**: `tctl request deny [token]`
 
@@ -554,11 +525,7 @@ Denies a user's request. **Usage**: `tctl request deny [token]`
 tctl request deny request-id-1, request-id-2
 ```
 
-<<<<<<< HEAD
-## tctl request rm
-=======
 ## tctl request rm 
->>>>>>> Base fork for 4.3 docs
 
 Delete a users role request. **Usage**: `tctl request rm [token]`
 
@@ -748,11 +715,7 @@ error: --user or --host must be specified
 # create a certificate with a TTL of 10 years for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
 $ tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
-<<<<<<< HEAD
-# Exports an identity from the Auth Server in preparation for remote
-=======
 # Exports an identity from the Auth Server in preparation for remote 
->>>>>>> Base fork for 4.3 docs
 # tctl execution.
 $ tctl auth sign --user=admin --out=identity.pem
 ```
@@ -891,11 +854,7 @@ Report cluster status
 # Checks status of cluster.
 $ tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
 pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
-<<<<<<< HEAD
-# Checks remote auth status using exported identity.
-=======
 # Checks remote auth status using exported identity. 
->>>>>>> Base fork for 4.3 docs
 $ tctl status \
                 --auth-server=192.168.99.102:3025 \
                 --identity=identity.pem

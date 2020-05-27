@@ -183,11 +183,7 @@ An example policy is shown below:
 
     `eu-west-1:123456789012:table/prod.teleport.auth` will need to be replaced with your DynamoDB instance.
 
-<<<<<<< HEAD
-### ACM
-=======
 ### ACM 
->>>>>>> Base fork for 4.3 docs
 
 With AWS Certificate Manager, you can quickly request SSL/TLS certificates.
 

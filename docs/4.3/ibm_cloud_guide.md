@@ -1,11 +1,7 @@
 # Running Teleport on IBM Cloud
 
 We've created this guide to give customers a high level overview of how to use Teleport
-<<<<<<< HEAD
-on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high level
-=======
 on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high level 
->>>>>>> Base fork for 4.3 docs
 introduction leading to a deep dive into how to setup and run Teleport in production.
 
 We have split this guide into:
@@ -16,21 +12,6 @@ We have split this guide into:
 ## Teleport on IBM Cloud FAQ
 
 #### Why would you want to use Teleport with IBM Cloud?
-<<<<<<< HEAD
-Teleport provides privileged access management for cloud-native infrastructure that
-doesn’t get in the way. Infosec and systems engineers can secure access to their
-infrastructure, meet compliance requirements, reduce operational overhead, and have
-complete visibility into access and behavior.
-
-By using Teleport with IBM you can easily unify all access for both IBM Cloud and
-Softlayer infrastructure.
-
-#### Which Services can I use Teleport with?
-
-You can use Teleport for all the services that you would SSH into. This guide is
-focused on IBM Cloud. In the future we'll plan to update on how to use Teleport
-with IBM Cloud Kubernetes Service.
-=======
 Teleport provides privileged access management for cloud-native infrastructure that 
 doesn’t get in the way. Infosec and systems engineers can secure access to their 
 infrastructure, meet compliance requirements, reduce operational overhead, and have 
@@ -44,7 +25,6 @@ Softlayer infrastructure.
 You can use Teleport for all the services that you would SSH into. This guide is 
 focused on IBM Cloud. In the future we'll plan to update on how to use Teleport 
 with IBM Cloud Kubernetes Service. 
->>>>>>> Base fork for 4.3 docs
 
 ## IBM Teleport Introduction
 
@@ -56,21 +36,13 @@ IBM Services required to run Teleport in HA:
  - [Storage: Database for etcd](#storage-database-for-etcd)
  - [Storage: IBM Cloud File Storage](#storage-ibm-cloud-file-storage)
  - [Network Services: Cloud DNS](#network-ibm-cloud-dns-services)
-<<<<<<< HEAD
-
-=======
  
->>>>>>> Base fork for 4.3 docs
 Other things needed:
 
  - [SSL Certificate](https://www.ibm.com/cloud/ssl-certificates)
 
 We recommend setting up Teleport in high availability mode (HA). In HA mode [etcd](https://etcd.io/)
-<<<<<<< HEAD
-stores the state of the system and [IBM Cloud Storage](https://www.ibm.com/cloud/storage)
-=======
 stores the state of the system and [IBM Cloud Storage](https://www.ibm.com/cloud/storage) 
->>>>>>> Base fork for 4.3 docs
 stores the audit logs.
 
 ![GCP Intro Image](img/IBM/IBM_HA.svg)
@@ -79,47 +51,22 @@ stores the audit logs.
 
 We recommend Gen 2 Cloud IBM [Virtual Servers](https://www.ibm.com/cloud/virtual-servers) and [Auto Scaling](https://www.ibm.com/cloud/auto-scaling)
 
-<<<<<<< HEAD
-  - For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4GB RAM, 4 Gbps.
-
-=======
   - For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4GB RAM, 4 Gbps. 
   
->>>>>>> Base fork for 4.3 docs
   - For Production we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
 
 ### Storage: Database for etcd
 
-<<<<<<< HEAD
-IBM offers [managed etcd](https://www.ibm.com/cloud/databases-for-etcd) instances.
-Teleport uses etcd as a scalable database to maintain high availability and provide
-graceful restarts. The service has to be turned on from within the [IBM Cloud Dashboard](https://cloud.ibm.com/catalog/services/databases-for-etcd).
-
-We recommend picking an etcd instance in the same region as your planned Teleport
-cluster.
-=======
 IBM offers [managed etcd](https://www.ibm.com/cloud/databases-for-etcd) instances. 
 Teleport uses etcd as a scalable database to maintain high availability and provide
 graceful restarts. The service has to be turned on from within the [IBM Cloud Dashboard](https://cloud.ibm.com/catalog/services/databases-for-etcd).
 
 We recommend picking an etcd instance in the same region as your planned Teleport 
 cluster. 
->>>>>>> Base fork for 4.3 docs
 
 - Deployment region: Same as rest of Teleport Cluster
 - Initial Memory allocation: 2GB/member (6GB total)
 - Initial disk allocation: 20GB/member (60GB total)
-<<<<<<< HEAD
-- CPU allocation: Shared
-- etcd version: 3.3
-
-![Creating IBM Server](img/IBM/cloud.ibm.com_catalog_services_databases-for-etcd.png)
-
-#### Saving Credentials
-
-![Creating IBM Server](img/IBM/etcd-pass.png)
-![etcd cert and host](img/IBM/etcd-cert-and-host.png)
-=======
 - CPU allocation: Shared 
 - etcd version: 3.3 
 
@@ -129,7 +76,6 @@ cluster.
 
 ![Creating IBM Server](img/IBM/etcd-pass.png) 
 ![etcd cert and host](img/IBM/etcd-cert-and-host.png) 
->>>>>>> Base fork for 4.3 docs
 
 
 ```yaml
@@ -137,47 +83,28 @@ teleport:
   storage:
     type: etcd
     # list of etcd peers to connect to:
-<<<<<<< HEAD
-    # Showing IBM example host and port.
-=======
     # Showing IBM example host and port. 
->>>>>>> Base fork for 4.3 docs
     peers: ["https://a9e977c0-224a-40bb-af51-21893b8fde79.b2b5a92ee2df47d58bad0fa448c15585.databases.appdomain.cloud:30359"]
     # optional password based authentication
     # See https://etcd.io/docs/v3.4.0/op-guide/authentication/ for setting
     # up a new user. IBM Defaults to `root`
     username: 'root'
-<<<<<<< HEAD
-    # The password file should just contain the password.
-=======
     # The password file should just contain the password. 
->>>>>>> Base fork for 4.3 docs
     password_file: '/var/lib/etcd-pass'
     # TLS certificate Name, with file contents from Overview
     tls_ca_file: '/var/lib/teleport/797cfsdf23e-4027-11e9-a020-42025ffb08c8.pem'
     # etcd key (location) where teleport will be storing its state under:
     prefix: 'teleport'
-<<<<<<< HEAD
-```
-
-### Storage: IBM Cloud File Storage
-We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-storage) to store Teleport recorded sessions.
-=======
 ``` 
 
 ### Storage: IBM Cloud File Storage
 We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-storage) to store Teleport recorded sessions. 
->>>>>>> Base fork for 4.3 docs
 
 1. Create New File Storage Resource. [IBM Catalog - File Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/file-storage)
 
     1a. We recommend using `Standard`
 
-<<<<<<< HEAD
-2. Create a new bucket.
-=======
 2. Create a new bucket. 
->>>>>>> Base fork for 4.3 docs
 3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/services/cloud-object-storage/hmac?topic=cloud-object-storage-uhc-hmac-credentials-main)
 4. Update audit session URI `audit_sessions_uri:` 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'
 
@@ -185,15 +112,9 @@ When setting up `audit_session_uri` use `s3://` session prefix.
 
 The credentials are used from `~/.aws/credentials` and should be created with HMAC option:
 
-<<<<<<< HEAD
-![Creating Service Creds](img/IBM/cloud.ibm.com_object-store-service-creds.png)
-
-```json
-=======
 ![Creating Service Creds](img/IBM/cloud.ibm.com_object-store-service-creds.png) 
 
 ```json 
->>>>>>> Base fork for 4.3 docs
 {
   "apikey": "LU9VCDf4dDzj1wjt0Q-BHaa2VEM7I53_3lPff50d_uv3",
   "cos_hmac_keys": {
@@ -209,19 +130,11 @@ The credentials are used from `~/.aws/credentials` and should be created with HM
 }
 ```
 
-<<<<<<< HEAD
-Save these settings to `~/.aws/credentials`
-
-```yaml
-# Example keys from example service account to be saved into ~/.aws/credentials
-[default]
-=======
 Save these settings to `~/.aws/credentials` 
 
 ```yaml
 # Example keys from example service account to be saved into ~/.aws/credentials
 [default]                              
->>>>>>> Base fork for 4.3 docs
 access_key_id="e668d66374e141668e3432443bc879e"
 secret_access_key="d8762b57f61d5dd524ccd49c7d44861ceafdsfds37d05836"
 ```
@@ -232,33 +145,19 @@ Example `/etc/teleport.yaml`
 storage:
     ...
     # Note
-<<<<<<< HEAD
-    #
-    # endpoint=s3.us-east.cloud-object-storage.appdomain.cloud | This URL will
-    # differ depending on which region the bucket is created. Use the  public
-    # endpoints.
-    #
-    # region=ibm | Should always be set as IBM.
-=======
     # 
     # endpoint=s3.us-east.cloud-object-storage.appdomain.cloud | This URL will 
     # differ depending on which region the bucket is created. Use the  public 
     # endpoints.
     # 
     # region=ibm | Should always be set as IBM. 
->>>>>>> Base fork for 4.3 docs
     audit_sessions_uri: 's3://BUCKETNAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'
     ...
 ```
 
 !!!tip
-<<<<<<< HEAD
-    When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the
-    bucket has been created.
-=======
     When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the 
     bucket has been created. 
->>>>>>> Base fork for 4.3 docs
 
 
 ```bash
@@ -274,13 +173,8 @@ INFO [S3]        Setup bucket "ben-teleport-test-cos-standard-b98" completed. du
 ### Network: IBM Cloud DNS Services
 
 We recommend using [IBM Cloud DNS](https://cloud.ibm.com/catalog/services/dns-services) for
-<<<<<<< HEAD
-the Teleport Proxy public address.  See the [Admin Guide](admin-guide.md) for more
-information.
-=======
 the Teleport Proxy public address.  See the [Admin Guide](admin-guide.md) for more 
 information. 
->>>>>>> Base fork for 4.3 docs
 
 ```yaml
     # The DNS name the proxy HTTPS endpoint as accessible by cluster users.
@@ -288,8 +182,4 @@ information.
     # proxies behind a load balancer, this name must point to the load balancer
     # (see public_addr section below)
     public_addr: proxy.example.com:3080
-<<<<<<< HEAD
-```
-=======
 ``` 
->>>>>>> Base fork for 4.3 docs
