@@ -72,6 +72,7 @@ func LoadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	signer = sshutils.CompatSigner(signer)
 	// validate TLS Cert (if present):
 	if len(ident.Certs.TLS) > 0 {
 		_, err := tls.X509KeyPair(ident.Certs.TLS, ident.PrivateKey)
