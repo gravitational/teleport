@@ -1,24 +1,24 @@
 # Teleport Slack Plugin Setup
-This guide will talk through how to setup Teleport with Slack. Teleport ↔ Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components. 
+This guide will talk through how to setup Teleport with Slack. Teleport to Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components.
 
 !!! warning
-    The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
+    The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 ## Setup/
 ### Prerequisites
-This guide assumes that you have: 
+This guide assumes that you have:
 
 * Teleport Enterprise 4.2.8 or newer
 * Admin privileges with access to `tctl`
 * Slack Admin Privileges to create an app and install it to your workspace.
 
-#### Create User and Role for access. 
-Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a 
+#### Create User and Role for access.
+Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a
 new user and role that only has API access to the `access_request` API. The below script
-will create a yaml resource file for a new user and role. 
+will create a yaml resource file for a new user and role.
 
 ```bash
-# Copy and Paste the below on the Teleport Auth server. 
+# Copy and Paste the below on the Teleport Auth server.
 $ cat > rscs.yaml <<EOF
 kind: user
 metadata:
@@ -41,7 +41,7 @@ spec:
 version: v3
 EOF
 
-# Use tctl to create the user and role within Teleport. 
+# Use tctl to create the user and role within Teleport.
 $ tctl create -f rscs.yaml
 ```
 !!! tip
@@ -58,21 +58,21 @@ The above sequence should result in three PEM encoded files being generated: aut
 
 !!! note "Certificate Lifetime"
      By default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
-  
+
 ### Create Slack App
 
 We'll create a new Slack app and setup auth tokens and callback URLs, so that Slack knows how to notify the Teleport plugin when Approve / Deny buttons are clicked.
 
-You'll need to: 
+You'll need to:
 
-1. Create a new app, pick a name and select a workspace it belongs to. 
-2. Select “app features”: we'll enable interactivity and setup the callback URL here. 
-3. Add OAuth Scopes. This is required by Slack for the app to be installed — we'll only need a single scope to post messages to your Slack account. 
-4. Obtain OAuth token and callback signing secret for the Teleport plugin config. 
+1. Create a new app, pick a name and select a workspace it belongs to.
+2. Select “app features”: we'll enable interactivity and setup the callback URL here.
+3. Add OAuth Scopes. This is required by Slack for the app to be installed — we'll only need a single scope to post messages to your Slack account.
+4. Obtain OAuth token and callback signing secret for the Teleport plugin config.
 
 #### Creating a New Slack app
 
-Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new Slack App. 
+Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new Slack App.
 
 **App Name:** Teleport<br>
 **Development Slack Workspace:** Pick the workspace you'd like the requests to show up in.
@@ -96,7 +96,7 @@ On the App screen, go to “OAuth and Permissions” under Features in the sideb
 
 ![OAuth Tokens](/img/enterprise/plugins/slack/Slackbot-Permissions.png)
 
-#### Obtain OAuth Token 
+#### Obtain OAuth Token
 
 ![OAuth Tokens](/img/enterprise/plugins/slack/OAuth.png)
 
@@ -107,10 +107,10 @@ In the sidebar of the app screen, click on Basic. Scroll to App Credentials sect
 
 ## Installing the Teleport Slack Plugin
 
-We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
-location as plugins have a low memory footprint, and will require both public internet access 
+We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal
+location as plugins have a low memory footprint, and will require both public internet access
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
-compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/slack). 
+compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/slack).
 
 ```bash
 $ wget https://get.gravitational.com/teleport-access-slack-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
@@ -125,8 +125,8 @@ Run `./install` in from 'teleport-pagerduty' or place the executable in the appr
 
 ### Configuring  Teleport Slackbot
 
-Teleport Slackbot uses a config file in TOML format. Generate a boilerplate config by 
-running the following command: 
+Teleport Slackbot uses a config file in TOML format. Generate a boilerplate config by
+running the following command:
 
 ```bash
 $ teleport-slackbot configure > teleport-slacbot.toml
@@ -140,18 +140,18 @@ Then, edit the config as needed.
 ```
 
 #### Editing the config file
-In the Teleport section, use the certificates you've generated with `tctl auth sign` before. The plugin installer creates a folder for those certificates in `/var/lib/teleport/plugins/slackbot/` — so just move the certificates there and make sure the config points to them. 
+In the Teleport section, use the certificates you've generated with `tctl auth sign` before. The plugin installer creates a folder for those certificates in `/var/lib/teleport/plugins/slackbot/` — so just move the certificates there and make sure the config points to them.
 
-In Slack section, use the OAuth token, signing token, setup the desired channel name. The listen URL is the URL the plugin will listen for Slack callbacks. 
+In Slack section, use the OAuth token, signing token, setup the desired channel name. The listen URL is the URL the plugin will listen for Slack callbacks.
 
-Then set the plugin callback (where Slack sends its requests) to an address you like, and provide the TLS certificates for that http server to use. 
+Then set the plugin callback (where Slack sends its requests) to an address you like, and provide the TLS certificates for that http server to use.
 
-By default, Teleport Slack plugin will run with TLS on. 
+By default, Teleport Slack plugin will run with TLS on.
 
 ```conf
 {!examples/resources/plugins/teleport-slackbot.toml!}
 ```
-## Test Run 
+## Test Run
 
 Assuming that Teleport is running, and you've created the Slack app, the plugin config,
 and provided all the certificates — you can now run the plugin and test the workflow!
@@ -170,55 +170,55 @@ INFO   Watcher connected slackbot/main.go:298
 ```
 ### Testing the approval workflow
 
-You can create a test permissions request with `tctl` and check if the plugin works as expected like this: 
+You can create a test permissions request with `tctl` and check if the plugin works as expected like this:
 
-#### Create a test permissions request behalf of a user. 
+#### Create a test permissions request behalf of a user.
 
 ```bash
 # Replace USERNAME with a local user, and TARGET_ROLE with a Teleport Role
 $ tctl request create USERNAME --roles=TARGET_ROLE
 ```
-A user can also try using `--request-roles` flag. 
+A user can also try using `--request-roles` flag.
 ```bash
 # Example with a user trying to request a role DBA.
 $ tsh login --request-roles=dba
 ```
 
-#### Check that you see a request message on Slack 
+#### Check that you see a request message on Slack
 
-It should look like this: TODO 
+It should look like this: TODO
 
 #### Approve or deny the request on Slack
 
-The messages should automatically get updated to reflect the action you just clicked. You can also check the request status with `tctl`: 
+The messages should automatically get updated to reflect the action you just clicked. You can also check the request status with `tctl`:
 
 ```bash
 $ tctl request ls
 ```
 
-### TSH User Login and Request Admin Role. 
+### TSH User Login and Request Admin Role.
 
-You can also test the full workflow from the user's perspective using `tsh`: 
+You can also test the full workflow from the user's perspective using `tsh`:
 
 ```bash
 # tsh login --request-roles=REQUESTED_ROLE
 Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
 ```
-You should now see a new request in Teleport, and a message about the request on Slack. You can 
+You should now see a new request in Teleport, and a message about the request on Slack. You can
 approve or deny it and `tsh` should login successfully or error out right after you click an action button on Slack.
 
 ### Setup with SystemD
-In production, we recommend starting teleport plugin daemon via an init system like systemd . 
-Here's the recommended Teleport Plugin service unit file for systemd: 
+In production, we recommend starting teleport plugin daemon via an init system like systemd .
+Here's the recommended Teleport Plugin service unit file for systemd:
 
 ```bash
 {!examples/systemd/plugins/teleport-slackbot.service!}
 ```
-Save this as `teleport-slackbot.service`. 
+Save this as `teleport-slackbot.service`.
 
 ## Audit Log
-The plugin will let anyone with access to the Slack Channel so it's 
-important to review Teleports audit log. 
+The plugin will let anyone with access to the Slack Channel so it's
+important to review Teleports audit log.
 
 ## Feedback
 If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).

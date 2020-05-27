@@ -1,27 +1,27 @@
 # Teleport Pagerduty Plugin Setup
 
-This guide will talk through how to setup Teleport with Pagerduty. Teleport ↔ Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
+This guide will talk through how to setup Teleport with Pagerduty. Teleport to Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
 
 !!! warning
-    The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
+    The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 ## Setup
 ### Prerequisites
-This guide assumes that you have: 
+This guide assumes that you have:
 
 * Teleport Enterprise 4.2.8 or newer
 * Admin privileges with access to `tctl`
-* Pagerduty account already set, with access to creating a new API token. 
-* A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience. 
+* Pagerduty account already set, with access to creating a new API token.
+* A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience.
 
-#### Create User and Role for access. 
-Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a 
+#### Create User and Role for access.
+Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a
 new user and role that only has API access to the `access_request` API. The below script
-will create a yaml resource file for a new user and role. 
+will create a yaml resource file for a new user and role.
 
 ```yaml
-# This command will create two Teleport Yaml resources, a new Teleport user and a 
-# Role for that users that can only approve / list requests. 
+# This command will create two Teleport Yaml resources, a new Teleport user and a
+# Role for that users that can only approve / list requests.
 $ cat > rscs.yaml <<EOF
 kind: user
 metadata:
@@ -44,7 +44,7 @@ spec:
 version: v3
 EOF
 
-# Run this to create the user and role in Teleport. 
+# Run this to create the user and role in Teleport.
 $ tctl create -f rscs.yaml
 ```
 
@@ -68,14 +68,14 @@ In your Pagerduty dashboard, go to **Configuration → API Access → Create New
 ![Create a service account](/img/enterprise/plugins/pagerduty/pagerduty-api-key.png)
 
 **Create Service Account**
-![Create a service account](/img/enterprise/plugins/pagerduty/create-new-service-pd.png) 
+![Create a service account](/img/enterprise/plugins/pagerduty/create-new-service-pd.png)
 
 
 ## Downloading and installing the plugin
-We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
-location as plugins have a low memory footprint, and will require both public internet access 
+We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal
+location as plugins have a low memory footprint, and will require both public internet access
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
-compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty). 
+compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty).
 
 ```bash
 $ wget https://get.gravitational.com/teleport-access-pagerduty-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
@@ -89,7 +89,7 @@ $ which teleport-pagerduty
 Run `./install` in from 'teleport-pagerduty' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Config file
-Teleport Pagerduty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file. 
+Teleport Pagerduty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file.
 
 ```bash
 $ teleport-pagerduty configure > teleport-pagerduty.toml
@@ -97,7 +97,7 @@ $ sudo mv teleport-pagerduty.toml /etc
 ```
 
 #### Editing the config file
-After generating the config, edit it as follows: 
+After generating the config, edit it as follows:
 
 ```toml
 # Example PagerDuty config file
@@ -105,9 +105,9 @@ After generating the config, edit it as follows:
 ```
 
 ### Testing the Plugin
-With the config above, you should be able to run the plugin invoking 
+With the config above, you should be able to run the plugin invoking
 `teleport-pagerduty start -d`. The will provide some debug information to make sure
-the bot can connect to Pagerduty. 
+the bot can connect to Pagerduty.
 
 ```bash
 $ teleport-pagerduty start -d
@@ -125,13 +125,13 @@ DEBU   Setting up the webhook extensions pagerduty/main.go:178
 By default, `teleport-pagerduty` will assume its config is in `/etc/teleport-pagerduty.toml`, but you can override it with `--config` option.
 
 ### Setup with SystemD
-In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd: 
+In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd:
 
 ```bash
 {!examples/systemd/plugins/teleport-pagerduty.service!}
 ```
 
-Save this as `teleport-pagerduty.service`. 
+Save this as `teleport-pagerduty.service`.
 
 #### Example PagerDuty Request
 
@@ -142,8 +142,8 @@ Your browser does not support the video tag.
 </video>
 
 ## Audit Log
-The plugin will let anyone with access to the PagerDuty accoount so it's 
-important to review Teleports audit log. 
+The plugin will let anyone with access to the PagerDuty accoount so it's
+important to review Teleports audit log.
 
 ## Feedback
 If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).

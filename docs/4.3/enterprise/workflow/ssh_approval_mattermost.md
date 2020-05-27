@@ -1,16 +1,16 @@
 # Teleport Mattermost Plugin Setup
-This guide will talk through how to setup Teleport with Mattermost. Teleport ↔ Mattermost integration  allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform. 
+This guide will talk through how to setup Teleport with Mattermost. Teleport to Mattermost integration  allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform.
 
 !!! warning
-    The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
+    The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 ## Setup
 ### Prerequisites
-This guide assumes that you have: 
+This guide assumes that you have:
 
 * Teleport Enterprise 4.2.8 or newer
 * Admin privileges with access to `tctl`
-* Mattermost account with admin privileges. This plugin has been tested with Mattermost 5.x 
+* Mattermost account with admin privileges. This plugin has been tested with Mattermost 5.x
 
 #### Setting up Mattermost to work with the bot
 
@@ -21,7 +21,7 @@ This will allow us to create a new bot account that the Teleport bot will use.
 
 Go back to your team, then Integrations → Bot Accounts → Add Bot Account.
 
-The new bot account will need Post All permission. 
+The new bot account will need Post All permission.
 
 <a href="/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
 
@@ -29,7 +29,7 @@ The new bot account will need Post All permission.
 ![Enable Mattermost Bots](/img/enterprise/plugins/mattermost/mattermost_bot.png)
 
 ##### Create an OAuth 2.0 Application
-In Mattermost, go to System Console → Integrations → OAuth 2.0 Applications. 
+In Mattermost, go to System Console → Integrations → OAuth 2.0 Applications.
 - Set Callback URLs to the location of your Teleport Proxy
 
 ![Create OAuth Application](/img/enterprise/plugins/mattermost/mattermost_OAuth_token.png)
@@ -37,14 +37,14 @@ In Mattermost, go to System Console → Integrations → OAuth 2.0 Applications.
 The confirmation screen after you've created the bot will give you the access token.
 We'll use this in the config later.
 
-#### Create User and Role for access. 
-Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a 
+#### Create User and Role for access.
+Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a
 new user and role that only has API access to the `access_request` API. The below script
-will create a yaml resource file for a new user and role. 
+will create a yaml resource file for a new user and role.
 
 ```yaml
-# This command will create two Teleport Yaml resources, a new Teleport user and a 
-# Role for that users that can only approve / list requests. 
+# This command will create two Teleport Yaml resources, a new Teleport user and a
+# Role for that users that can only approve / list requests.
 $ cat > rscs.yaml <<EOF
 kind: user
 metadata:
@@ -67,7 +67,7 @@ spec:
 version: v3
 EOF
 
-# Run this to create the user and role in Teleport. 
+# Run this to create the user and role in Teleport.
 $ tctl create -f rscs.yaml
 ```
 
@@ -85,10 +85,10 @@ The above sequence should result in three PEM encoded files being generated: aut
      By default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ## Downloading and installing the plugin
-We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
-location as plugins have a low memory footprint, and will require both public internet access 
+We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal
+location as plugins have a low memory footprint, and will require both public internet access
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
-compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost). 
+compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost).
 
 ```bash
 $ wget https://get.gravitational.com/teleport-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
@@ -102,8 +102,8 @@ $ which teleport-mattermost
 Run `./install` in from 'teleport-mattermost' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuring Mattermost bot
-Mattermost Bot uses a config file in TOML format. Generate a boilerplate config by 
-running the following command: 
+Mattermost Bot uses a config file in TOML format. Generate a boilerplate config by
+running the following command:
 
 ```bash
 $ teleport-mattermost configure > teleport-mattermost.toml
@@ -118,9 +118,9 @@ Then, edit the config as needed.
 
 ### Testing the Plugin
 
-With the config above, you should be able to run the bot invoking 
+With the config above, you should be able to run the bot invoking
 `teleport-mattermost start -d`. The will provide some debug information to make sure
-the bot can connect to Mattermost. 
+the bot can connect to Mattermost.
 
 ```bash
 $ teleport-mattermost start -d
@@ -135,16 +135,16 @@ DEBU   Mattermost API health check finished ok mattermost/main.go:19
 ```
 
 ### Setup with SystemD
-In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd: 
+In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd:
 
 ```bash
 {!examples/systemd/plugins/teleport-mattermost.service!}
 ```
-Save this as `teleport-mattermost.service`. 
+Save this as `teleport-mattermost.service`.
 
 ## Audit Log
-The plugin will let anyone with access to the Mattermost channel requests so it's 
-important to review Teleports audit log. 
+The plugin will let anyone with access to the Mattermost channel requests so it's
+important to review Teleports audit log.
 
 ## Feedback
 If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).
