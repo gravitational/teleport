@@ -1,6 +1,5 @@
 # Teleport Jira Plugin Setup 
-
-This guide will talk through how to setup Teleport with Jira.   Teleport ↔ Jira integration  allows you to treat Teleport access and permission requests using Jira tickets.
+This guide will talk through how to setup Teleport with Jira. Teleport ↔ Jira integration  allows you to treat Teleport access and permission requests using Jira tickets.
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
@@ -84,7 +83,6 @@ Go to your Jira Project settings → Issue Types → Select type `Task` → add 
 Teleport uses this field to reference its internal request ID. If anyone changes this field on Jira, or tries to forge the permission request, Teleport will validate it and ignore it.
 
 ### Getting your Jira API token
-
 If you're using Jira Cloud, navigate to [Account Settings → Security → API Tokens](https://id.atlassian.com/manage/api-tokens) and create a new app specific API token in your Jira installation.
 You'll need this token later to configure the plugin.
 
@@ -92,13 +90,11 @@ For Jira Server, the URL of the API tokens page will be different depending on y
 
 
 ### Setting up Jira Webhooks
-
 Go to Settings → General → System → Webhooks and create a new Webhook for Jira to tell the Teleport Plugin about updates. 
 
 For the webhook URL, use the URL that you'll run the plugin on. It needs to be a publicly accessible URL that we'll set up later. Jira requires the webhook listener to run over HTTPS.
 
 The Teleport Jira plugin webhook needs to be notified only about new issues being created, issues being updated, or deleted. You can leave all the other boxes empty.
-
 
 !!! note "Plugin Defaults"
   
@@ -109,7 +105,6 @@ The Teleport Jira plugin webhook needs to be notified only about new issues bein
 In the webhook settings page, make sure that the webhook will only send Issue Updated updates. It's not critical if anything else gets sent, the plugin will just ignore everything else.
 
 ## Installing
-
 We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
 location as plugins have a low memory footprint, and will require both public internet access 
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
@@ -126,8 +121,13 @@ $ which teleport-jira
 Run `./install` in from 'teleport-jira' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuration file
+Teleport Jira Plugin uses a config file in TOML format. Generate a boilerplate config by 
+running the following command: 
 
-You can now run `sudo teleport-jira configure > /etc/teleport-jira.toml`, or copy and paste the following template. 
+```bash
+$ teleport-jira configure > teleport-jira.toml
+$ sudo mv teleport-jira.toml /etc
+```
 
 By default, Jira Teleport Plugin will use a config in `/etc/teleport-jira.toml`, and you can override it with `-c config/file/path.toml` flag.
 
@@ -151,11 +151,10 @@ setup on the same server as the Teleport Proxy, so you can use the same TLS cert
 
 
 ## Testing
-
 You should be able to run the Teleport plugin now! 
 
 ```bash
-teleport-jirabot start
+teleport-jira start
 ```
 
 The log output should look familiar to what Teleport service logs. You should see that it connected to Teleport, and is listening for new Teleport requests and Jira webhooks. 

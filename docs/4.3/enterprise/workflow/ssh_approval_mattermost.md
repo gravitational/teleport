@@ -1,13 +1,11 @@
 # Teleport Mattermost Plugin Setup
-
-This guide will talk through how to setup Teleport with Mattermost.  Teleport ↔ Mattermost integration  allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform. 
+This guide will talk through how to setup Teleport with Mattermost. Teleport ↔ Mattermost integration  allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform. 
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
 
 ## Setup
 ### Prerequisites
-
 This guide assumes that you have: 
 
 * Teleport Enterprise 4.2.8 or newer
@@ -31,7 +29,6 @@ The new bot account will need Post All permission.
 ![Enable Mattermost Bots](/img/enterprise/plugins/mattermost/mattermost_bot.png)
 
 ##### Create an OAuth 2.0 Application
-
 In Mattermost, go to System Console → Integrations → OAuth 2.0 Applications. 
 - Set Callback URLs to the location of your Teleport Proxy
 
@@ -88,7 +85,6 @@ The above sequence should result in three PEM encoded files being generated: aut
      By default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ## Downloading and installing the plugin
-
 We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
 location as plugins have a low memory footprint, and will require both public internet access 
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
@@ -106,12 +102,12 @@ $ which teleport-mattermost
 Run `./install` in from 'teleport-mattermost' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuring Mattermost bot
-
 Mattermost Bot uses a config file in TOML format. Generate a boilerplate config by 
 running the following command: 
 
 ```bash
-teleport-mattermost configure > /etc/teleport-mattermost.toml
+$ teleport-mattermost configure > teleport-mattermost.toml
+$ sudo mv teleport-mattermost.toml /etc
 ```
 
 Then, edit the config as needed.

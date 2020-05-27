@@ -1,6 +1,5 @@
 # Teleport Slack Plugin Setup
-
-This guide will talk through how to setup Teleport with Slack.   Teleport ↔ Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components. 
+This guide will talk through how to setup Teleport with Slack. Teleport ↔ Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components. 
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
@@ -17,7 +16,6 @@ This guide assumes that you have:
 Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a 
 new user and role that only has API access to the `access_request` API. The below script
 will create a yaml resource file for a new user and role. 
-
 
 ```bash
 # Copy and Paste the below on the Teleport Auth server. 
@@ -102,12 +100,10 @@ On the App screen, go to “OAuth and Permissions” under Features in the sideb
 
 ![OAuth Tokens](/img/enterprise/plugins/slack/OAuth.png)
 
-
 #### Getting the secret signing token
 In the sidebar of the app screen, click on Basic. Scroll to App Credentials section, and grab the app's Signing Secret. We'll use it in the config file later.
 
 ![Secret Signing Token](/img/enterprise/plugins/slack/SlackSigningSecret.png)
-
 
 ## Installing the Teleport Slack Plugin
 
@@ -127,17 +123,21 @@ $ which teleport-slack
 
 Run `./install` in from 'teleport-pagerduty' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
-### Configuration File
-Teleport Slack plugin has its own config file in TOML format. Before starting the plugin, you'll need to generate (or just copy the one below) and edit that config.
+### Configuring  Teleport Slackbot
 
-To generate a config file, you can do this: 
+Teleport Slackbot uses a config file in TOML format. Generate a boilerplate config by 
+running the following command: 
 
 ```bash
-$ teleport-slack configure 
-# example slack plugin configuration TOML file. 
-{!examples/resources/plugins/teleport-slackbot.toml!}
+$ teleport-slackbot configure > teleport-slacbot.toml
+$ sudo mv teleport-slackbot.toml /etc
 ```
-Note that it saves the config file to `/etc/teleport-slackbot.toml`. You'll be able to point the plugin to any config file path you want, but it'll pick up `/etc/teleport-slackbot.toml` by default. 
+
+Then, edit the config as needed.
+
+```yaml
+{!examples/resources/plugins/teleport-slacbot.toml!}
+```
 
 #### Editing the config file
 In the Teleport section, use the certificates you've generated with `tctl auth sign` before. The plugin installer creates a folder for those certificates in `/var/lib/teleport/plugins/slackbot/` — so just move the certificates there and make sure the config points to them. 

@@ -1,6 +1,6 @@
 # Teleport Pagerduty Plugin Setup
 
-This guide will talk through how to setup Teleport with Pagerduty.   Teleport ↔ Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
+This guide will talk through how to setup Teleport with Pagerduty. Teleport ↔ Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
@@ -62,7 +62,6 @@ The above sequence should result in three PEM encoded files being generated: aut
      By default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ### Setting up Pagerduty API key
-
 In your Pagerduty dashboard, go to **Configuration → API Access → Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.
 
 **Create Pager Duty API Key**
@@ -73,7 +72,6 @@ In your Pagerduty dashboard, go to **Configuration → API Access → Create New
 
 
 ## Downloading and installing the plugin
-
 We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
 location as plugins have a low memory footprint, and will require both public internet access 
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
@@ -94,7 +92,8 @@ Run `./install` in from 'teleport-pagerduty' or place the executable in the appr
 Teleport Pagerduty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file. 
 
 ```bash
-teleport-pagerduty configure > /etc/teleport-pagerduty.toml
+$ teleport-pagerduty configure > teleport-pagerduty.toml
+$ sudo mv teleport-pagerduty.toml /etc
 ```
 
 #### Editing the config file
@@ -106,7 +105,6 @@ After generating the config, edit it as follows:
 ```
 
 ### Testing the Plugin
-
 With the config above, you should be able to run the plugin invoking 
 `teleport-pagerduty start -d`. The will provide some debug information to make sure
 the bot can connect to Pagerduty. 
