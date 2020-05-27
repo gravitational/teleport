@@ -1,13 +1,13 @@
 # Teleport Pagerduty Plugin Setup
 
-This package provides a Teleport ↔  Pagerduty integration that allows you to treat Teleport access and permission requests as Pagerduty incidents — and notify the appropriate team, and approve or deny the requests via Pagerduty special action.
+This guide will talk through how to setup Teleport with Mattermost.   Teleport ↔  Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
 
 ## Prerequisites
 This guide assumes you have
 
 * Teleport Enterprise 4.2.8 or newer with admin permissions and access to `tctl`.
 * Pagerduty account already set, with access to creating a new API token. 
-* A Node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience. 
+* A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience. 
 
 #### Create User and Role for access. 
 Log into Teleport Authentication Server, this is where you normally run `tctl`. Don't change the username and the role name, it should be `access-plugin` for the plugin to work correctly.
@@ -88,8 +88,8 @@ teleport-pagerduty configure > /etc/teleport-pagerduty.toml
 #### Editing the config file
 After generating the config, edit it as follows: 
 
-```yaml
-# lol
+```toml
+# Example PagerDuty config file
 {!examples/resources/plugins/teleport-pagerduty.toml!}
 ```
 

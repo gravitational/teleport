@@ -1,7 +1,6 @@
 # Teleport Mattermost Plugin Setup
 
-This package provides Teleport ↔ Mattermost integrataion that allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source 
-messaging platform. 
+This guide will talk through how to setup Teleport with Mattermost.  Teleport ↔ Mattermost integration  allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform. 
 
 ## Setup
 
@@ -91,8 +90,8 @@ The above sequence should result in three PEM encoded files being generated: aut
 The recommended way to run Teleport Mattermost plugin is by downloading the release version and installing it: 
 
 ```bash
-$ wget https://get.gravitational.com/teleport-mattermost-v0.0.1-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-mattermost-v0.0.1-linux-amd64-bin.tar.gz
+$ wget https://get.gravitational.com/teleport-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
 $ cd teleport-mattermost
 $ ./install
 $ which teleport-mattermost
@@ -111,30 +110,7 @@ teleport-mattermost configure > /etc/teleport-mattermost.toml
 Then, edit the config as needed.
 
 ```yaml
-# Example mattermost configuration TOML file
-[teleport]
-# The `auth-server` should match the public_addr set in teleport.yaml, auth: public_addr:
-auth-server = "teleport-cluster.example.com:3025"  # Teleport Auth Server GRPC API address
-# These certificates are the output of `tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=8760h`
-client-key = "/var/lib/teleport/plugins/mattermost/auth.key" # Teleport GRPC client secret key
-client-crt = "/var/lib/teleport/plugins/mattermost/auth.crt" # Teleport GRPC client certificate
-root-cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport cluster CA certs
-
-[mattermost]
-token = "bot-token"  # Mattermost Bot Access Token. From Setup /integrations/bots. Not Token ID
-secret = "oauth-client-secret-value" # Mattermost Client Secret - From an OAuth 2.0 App
-team = "mattermost-team-name"        # Mattermost Team Name
-url = "mattermost.example.com:8065"  # Mattermost URL. With Optional Port. 
-channel = "town-square"  # Mattermost Channel name to post requests to. 
-
-[http]        
-host = "teleport-proxy.example.com:8081" # Mattermost interaction callback listener
-https-key-file = "/var/lib/teleport/webproxy_key.pem"  # TLS private key
-https-cert-file = "/var/lib/teleport/webproxy_cert.pem" # TLS certificate
-
-[log]
-output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
-severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+{!examples/resources/plugins/teleport-mattermost.toml!}
 ```
 
 ### Testing the Plugin
@@ -146,7 +122,7 @@ the bot can connect to Mattermost.
 ```bash
 $ teleport-mattermost start -d
 DEBU   DEBUG logging enabled logrus/exported.go:117
-INFO   Starting Teleport Access Mattermost Bot 0.1.0-dev.1: mattermost/main.go:140
+INFO   Starting Teleport Access Mattermost Bot {{ teleport.plugin.version }}-dev.1: mattermost/main.go:140
 DEBU   Checking Teleport server version mattermost/main.go:234
 DEBU   Starting a request watcher... mattermost/main.go:296
 DEBU   Starting Mattermost API health check... mattermost/main.go:186

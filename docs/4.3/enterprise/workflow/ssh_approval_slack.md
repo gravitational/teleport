@@ -157,7 +157,7 @@ If everything works fine, the log output should look like this:
 
 ```bash
 $ teleport-slack start
-INFO   Starting Teleport Access Slackbot {{ teleport.plugin.version }}.1-0-gebfacdf slack/main.go:145
+INFO   Starting Teleport Access Slackbot {{ teleport.plugin.version }}.1-0-slack/main.go:145
 INFO   Starting a request watcher... slackbot/main.go:330
 INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
 INFO   Watcher connected slackbot/main.go:298
