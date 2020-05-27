@@ -2,8 +2,10 @@
 
 This guide will talk through how to setup Teleport with Mattermost.  Teleport ↔ Mattermost integration  allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform. 
 
-## Setup
+!!! warning
+    The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
 
+## Setup
 ### Prerequisites
 
 This guide assumes that you have: 

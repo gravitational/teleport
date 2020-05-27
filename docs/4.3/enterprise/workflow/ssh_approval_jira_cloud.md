@@ -4,12 +4,11 @@ If you're using Jira Cloud or Jira Server to manage your projects, you can also 
 
 For the purpose of this quickstart, we assume you've already setup an [Enterprise Teleport Cluster](https://gravitational.com/teleport/docs/enterprise/quickstart-enterprise/). 
 
-!!! tip  
-    The Approval Workflow only works with Pro and Enterprise versions of Teleport
+## Setup
+This guide assumes that you have: 
 
-#### Prerequisites
-- An Pro or Enterprise Teleport Cluster
-- Admin Privileges with access and control of [`tctl`](https://gravitational.com/teleport/docs/cli-docs/#tctl)
+* Teleport Enterprise 4.2.8 or newer
+* Admin privileges with access to `tctl`
 - Jira Server or Jira Cloud installation with an owner privileges, specifically to setup webhooks, issue types, and workflows.
 
 ### Create an access-plugin role and user within Teleport 
@@ -20,7 +19,7 @@ Log into Teleport Authentication Server, this is where you normally run `tctl`. 
 
 _Note: if you're using other plugins, you might want to create different users and roles for different plugins_.
 
-```
+```bash
 $ cat > rscs.yaml <<EOF
 kind: user
 metadata:
@@ -110,56 +109,38 @@ In the webhook settings page, make sure that the webhook will only send Issue Up
 
 ## Installing
 
-To start using Teleport Plugins, you will need the `teleport-jirabot` executable. 
+To start using Teleport Plugins, you will need the `teleport-access-jira` executable. 
 
-This plugin can be build from source, following the [Readme instructions](https://github.com/gravitational/teleport-plugins/tree/master/access/jirabot#setup), or the plugin can be downloaded from 
+This plugin can be build from source, following the [teleport-plugin readme instructions](https://github.com/gravitational/teleport-plugins/tree/master/access/jira#teleport-jira-bot), or the plugin can be downloaded from 
 our compiled bucket.
 
-```
-$ wget https://...
-tar -xvf 
-TODO
+```bash
+$ wget https://get.gravitational.com/teleport-access-jira-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-access-jira-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ cd teleport-access-jira/
+$ ./install
+$ which teleport-jira
+/usr/local/bin/teleport-jira
 ```
 
-Run `./install` in from 'teleport-jirabot' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+
+Run `./install` in from 'teleport-jira' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuration file
 
-You can now run `sudo teleport-jirabot configure > /etc/teleport-jirabot.toml`, or copy and paste the following template. 
+You can now run `sudo teleport-jira configure > /etc/teleport-jira.toml`, or copy and paste the following template. 
 
-By default, Jira Teleport Plugin will use a config in `/etc/teleport-jirabot.toml`, and you can override it with `-c config/file/path.toml` flag.
+By default, Jira Teleport Plugin will use a config in `/etc/teleport-jira.toml`, and you can override it with `-c config/file/path.toml` flag.
 
 ```toml
-# example jirabot configuration TOML file
-[teleport]
-auth-server = "teleport-auth.example.com:3025"  # Auth GRPC API address
-client-key = "/var/lib/teleport/plugins/jirabot/auth.key" # Teleport GRPC client secret key
-client-crt = "/var/lib/teleport/plugins/jirabot/auth.crt" # Teleport GRPC client certificate
-root-cas = "/var/lib/teleport/plugins/jirabot/auth.cas"   # Teleport cluster CA certs
-
-[jira]
-url = "https://example.com/jira"    # JIRA URL. For JIRA Cloud, https://[my-jira].atlassian.net
-username = "bot@example.com"        # JIRA username
-api-token = "token"                 # JIRA API Basic Auth token
-project = "MYPROJ"                  # JIRA Project key
-
-[http]
-listen = ":8081"          # JIRA webhook listener
-# host = "example.com"    # Host name by which bot is accessible
-# https-key-file = "/var/lib/teleport/plugins/jirabot/server.key"  # TLS private key
-# https-cert-file = "/var/lib/teleport/plugins/jirabot/server.crt" # TLS certificate
-
-[log]
-output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/jirabot.log"
-severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"`
-
+{!examples/resources/plugins/teleport-jira.toml!}
 ```
 
 The `[teleport]` section describes where the teleport service running, and what keys should the plugin use to authenticate itself. Use the keys that you've generated. 
 
 The `[jira]` section requires a few things: 
 
-1. Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like yourcompany.atlassian.net. 
+1. Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like `yourcompany.atlassian.net`. 
 2. Your username on Jira, i.e. ben@gravitational.com
 3. Your Jira API token that you've created above. 
 4. A Jira Project key, available in Project settings. 
@@ -188,3 +169,17 @@ tsh login --request-roles=admin
 
 That should create a new permission request on Teleport (you can test if it did with `tctl request ls` ), and you should see a new task on your Jira project board.
 
+### Setup with SystemD
+In production, we recommend starting teleport plugin daemon via an init system like systemd . 
+Here's the recommended Teleport Plugin service unit file for systemd: 
+
+```bash
+{!examples/systemd/plugins/teleport-jira.service!}
+```
+Save this as `teleport-jira.service`. 
+
+## Audit Log
+...
+
+## Feedback
+...

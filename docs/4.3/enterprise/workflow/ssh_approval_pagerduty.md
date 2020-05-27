@@ -1,11 +1,16 @@
 # Teleport Pagerduty Plugin Setup
 
-This guide will talk through how to setup Teleport with Mattermost.   Teleport ↔  Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
+This guide will talk through how to setup Teleport with Pagerduty.   Teleport ↔ Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
 
-## Prerequisites
-This guide assumes you have
+!!! warning
+    The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
 
-* Teleport Enterprise 4.2.8 or newer with admin permissions and access to `tctl`.
+## Setup
+### Prerequisites
+This guide assumes that you have: 
+
+* Teleport Enterprise 4.2.8 or newer
+* Admin privileges with access to `tctl`
 * Pagerduty account already set, with access to creating a new API token. 
 * A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience. 
 

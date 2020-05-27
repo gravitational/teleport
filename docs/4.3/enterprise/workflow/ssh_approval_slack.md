@@ -7,10 +7,13 @@ For this quickstart, we assume you've already setup an [Teleport Enterprise Clus
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
 
-### Prerequisites for this Quickstart
-- A configured and working Teleport Enterprise Cluster
-- Teleport Admin Privileges. With access and control of [`tctl`](https://gravitational.com/teleport/docs/cli-docs/#tctl)
-- Slack Admin Privileges to create an app and install it to your workspace.
+## Setup
+### Prerequisites
+This guide assumes that you have: 
+
+* Teleport Enterprise 4.2.8 or newer
+* Admin privileges with access to `tctl`
+*-* Slack Admin Privileges to create an app and install it to your workspace.
 
 #### Create User and Role for access. 
 Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a 
@@ -20,7 +23,7 @@ will create a yaml resource file for a new user and role.
 Don't change the username and the role name, it should be `access-plugin` for the plugin 
 to work correctly.
 
-```
+```bash
 # Copy and Paste the below on the Teleport Auth server. 
 $ cat > rscs.yaml <<EOF
 kind: user
