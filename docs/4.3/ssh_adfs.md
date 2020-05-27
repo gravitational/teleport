@@ -12,8 +12,7 @@ like:
 
 !!! warning "Version Warning"
 
-
-    This guide requires a commercial edition of Teleport. The open source
+    This guide requires Teleport Enterprise. The Community open source
     edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
     an SSO provider.
 
@@ -157,7 +156,7 @@ certificates.
 
 ## Testing
 
-The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is 
+The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is
 the same as before:
 
 ```bsh
@@ -193,4 +192,3 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
-
