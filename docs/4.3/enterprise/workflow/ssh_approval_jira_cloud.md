@@ -1,8 +1,8 @@
 # Teleport Jira Plugin Setup 
-This guide will talk through how to setup Teleport with Jira. Teleport <-> Jira integration  allows you to treat Teleport access and permission requests using Jira tickets.
+This guide will talk through how to setup Teleport with Jira. Teleport ↔ Jira integration  allows you to treat Teleport access and permission requests using Jira tickets.
 
 !!! warning
-    The Approval Workflow only works with Teleport Enterprise as it requires several roles.
+    The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
 
 ## Setup
 This guide assumes that you have: 
