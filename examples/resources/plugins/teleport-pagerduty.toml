@@ -1,18 +1,28 @@
+# example teleport-pagerduty configuration TOML file
 [teleport]
-auth-server = "teleport-auth.example.com:3025"  # Auth GRPC API address
+auth-server = "example.com:3025"  # Auth GRPC API address
 client-key = "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
 client-crt = "/var/lib/teleport/plugins/pagerduty/auth.crt" # Teleport GRPC client certificate
 root-cas = "/var/lib/teleport/plugins/pagerduty/auth.cas"   # Teleport cluster CA certs
 
 [pagerduty]
-api-key = "API-KEY-GOES-HERE"        # PagerDuty API Key
-user-email = "ben@gravitational.com" # PagerDuty bot user email (Could be admin email)
-service-id = "P4HZJDY"        # PagerDuty service id, copy it from the Pagerduty service URL
+api-key = "key"               # PagerDuty API Key
+user-email = "me@example.com" # PagerDuty bot user email (Could be admin email)
+service-id = "PIJ90N7"        # PagerDuty service id
 
 [http]
-host = "teleport-proxy.example.com:8081"
-https-key-file = "/var/lib/teleport/webproxy_key.pem"  # TLS private key
-https-cert-file = "/var/lib/teleport/webproxy_cert.pem" # TLS certificate
+listen = ":8081"          # PagerDuty webhook listener
+base-url = "https://teleport-pagerduty.infra.yourcorp.com" # The public address of the teleport-pagerduty webhook listener.
+# host = "example.com"    # Host name by which bot is accessible
+# https-key-file = "/var/lib/teleport/plugins/pagerduty/server.key"  # TLS private key
+# https-cert-file = "/var/lib/teleport/plugins/pagerduty/server.crt" # TLS certificate
+
+[http.tls]
+verify-client-cert = true # The preferred way to authenticate webhooks on Pagerduty. See more: https://developer.pagerduty.com/docs/webhooks/webhooks-mutual-tls
+
+[http.basic-auth]
+user = "user"
+password = "password" # If you prefer to use basic auth for Pagerduty Webhooks authentication, use this section to store user and password
 
 [log]
 output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/pagerduty.log"

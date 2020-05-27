@@ -1,3 +1,4 @@
+# example slack plugin configuration TOML file
 [teleport]
 auth-server = "example.com:3025"  # Teleport Auth Server GRPC API address
 client-key = "/var/lib/teleport/plugins/slack/auth.key" # Teleport GRPC client secret key
