@@ -175,6 +175,11 @@ func (s *remoteSite) Close() error {
 	return nil
 }
 
+// IsClosed reports whether this remoteSite has been closed.
+func (s *remoteSite) IsClosed() bool {
+	return s.ctx.Err() != nil
+}
+
 // nextConn returns next connection that is ready
 // and has not been marked as invalid
 // it will close connections marked as invalid
