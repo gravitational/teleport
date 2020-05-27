@@ -1,5 +1,5 @@
 # Teleport Mattermost Plugin Setup
-This guide will talk through how to setup Teleport with Mattermost. Teleport to Mattermost integration  allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform.
+This guide will talk through how to setup Teleport with Mattermost. Teleport to Mattermost integration allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform.
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
@@ -82,7 +82,7 @@ $ tctl auth sign --format=tls --user=access-plugin-mattermost --out=auth --ttl=8
 The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuration-file).
 
 !!! note "Certificate Lifetime"
-     By default, tctl auth sign produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+     By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ## Downloading and installing the plugin
 We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal
