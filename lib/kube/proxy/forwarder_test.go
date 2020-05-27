@@ -7,9 +7,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/ttlmap"
 	"gopkg.in/check.v1"
 )
 
@@ -70,6 +72,43 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	c.Assert(idFromCSR, check.DeepEquals, ctx.Identity)
 }
 
+func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
+	clusterSessions, err := ttlmap.New(defaults.ClientCacheSize)
+	c.Assert(err, check.IsNil)
+	f := &Forwarder{
+		clusterSessions: clusterSessions,
+	}
+
+	user, err := services.NewUser("bob")
+	c.Assert(err, check.IsNil)
+	remote := &mockRemoteSite{name: "site a"}
+	ctx := authContext{
+		cluster: cluster{
+			isRemote:   true,
+			RemoteSite: remote,
+		},
+		AuthContext: auth.AuthContext{
+			User: user,
+		},
+	}
+	sess := &clusterSession{authContext: ctx}
+
+	// Initial clusterSessions is empty, no session should be found.
+	c.Assert(f.getClusterSession(ctx), check.IsNil)
+
+	// Add a session to clusterSessions, getClusterSession should find it.
+	clusterSessions.Set(ctx.key(), sess, time.Hour)
+	c.Assert(f.getClusterSession(ctx), check.Equals, sess)
+
+	// Close the RemoteSite out-of-band (like when a remote cluster got removed
+	// via tctl), getClusterSession should notice this and discard the
+	// clusterSession.
+	remote.closed = true
+	c.Assert(f.getClusterSession(ctx), check.IsNil)
+	_, ok := f.clusterSessions.Get(ctx.key())
+	c.Assert(ok, check.Equals, false)
+}
+
 // mockClient to intercept ProcessKubeCSR requests, record them and return a
 // stub response.
 type mockClient struct {
@@ -89,9 +128,9 @@ func (c *mockClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse, er
 // reversetunnel.RemoteSite.
 type mockRemoteSite struct {
 	reversetunnel.RemoteSite
-	name string
+	name   string
+	closed bool
 }
 
-func (s mockRemoteSite) GetName() string {
-	return s.name
-}
+func (s mockRemoteSite) GetName() string { return s.name }
+func (s mockRemoteSite) IsClosed() bool  { return s.closed }

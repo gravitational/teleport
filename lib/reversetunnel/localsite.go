@@ -191,6 +191,9 @@ func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
+// IsClosed always returns false because localSite is never closed.
+func (s *localSite) IsClosed() bool { return false }
+
 func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	s.log.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
 

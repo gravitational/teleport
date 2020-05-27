@@ -92,6 +92,9 @@ type RemoteSite interface {
 	// GetTunnelsCount returns the amount of active inbound tunnels
 	// from the remote cluster
 	GetTunnelsCount() int
+	// IsClosed reports whether this RemoteSite has been closed and should no
+	// longer be used.
+	IsClosed() bool
 }
 
 // Server is a TCP/IP SSH server which listens on an SSH endpoint and remote/local

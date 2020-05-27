@@ -921,10 +921,16 @@ func (f *Forwarder) getClusterSession(ctx authContext) *clusterSession {
 	f.Lock()
 	defer f.Unlock()
 	creds, ok := f.clusterSessions.Get(ctx.key())
-	if ok {
-		return creds.(*clusterSession)
+	if !ok {
+		return nil
 	}
-	return nil
+	s := creds.(*clusterSession)
+	if s.cluster.isRemote && s.cluster.RemoteSite.IsClosed() {
+		f.Debugf("Found an existing clusterSession for remote cluster %q but it has been closed. Discarding it to create a new clusterSession.", ctx.cluster.GetName())
+		f.clusterSessions.Remove(ctx.key())
+		return nil
+	}
+	return s
 }
 
 func (f *Forwarder) serializedNewClusterSession(authContext authContext) (*clusterSession, error) {
