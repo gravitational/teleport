@@ -83,6 +83,8 @@ Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new S
 **App Name:** Teleport<br>
 **Development Slack Workspace:** Pick the workspace you'd like the requests to show up in.
 
+<a href="/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
+
 ![Create Slack App](/img/enterprise/plugins/slack/Create-a-Slack-App.png)
 
 #### Setup Interactive Components
@@ -214,7 +216,8 @@ Here's the recommended Teleport Plugin service unit file for systemd:
 Save this as `teleport-slackbot.service`. 
 
 ## Audit Log
-...
+The plugin will let anyone with access to the Slack Channel so it's 
+important to review Teleports audit log. 
 
 ## Feedback
-...
+If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).

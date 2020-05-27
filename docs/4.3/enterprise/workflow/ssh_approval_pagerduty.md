@@ -135,3 +135,10 @@ Save this as `teleport-pagerduty.service`.
   <source src="/img/enterprise/plugins/pagerduty/pagerduty-demo.webm" type="video/webm">
 Your browser does not support the video tag.
 </video>
+
+## Audit Log
+The plugin will let anyone with access to the PagerDuty accoount so it's 
+important to review Teleports audit log. 
+
+## Feedback
+If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).

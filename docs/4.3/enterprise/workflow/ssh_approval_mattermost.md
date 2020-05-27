@@ -139,5 +139,11 @@ In production, we recommend starting teleport plugin daemon via an init system l
 ```bash
 {!examples/systemd/plugins/teleport-mattermost.service!}
 ```
-
 Save this as `teleport-mattermost.service`. 
+
+## Audit Log
+The plugin will let anyone with access to the Mattermost channel requests so it's 
+important to review Teleports audit log. 
+
+## Feedback
+If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).

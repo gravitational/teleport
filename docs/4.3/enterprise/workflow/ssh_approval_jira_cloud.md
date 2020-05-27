@@ -1,15 +1,16 @@
 # Teleport Jira Plugin Setup 
 
-If you're using Jira Cloud or Jira Server to manage your projects, you can also use it to monitor, approve, deny, or discuss Teleport permission requests. This quickstart will walk you through the setup.
+This guide will talk through how to setup Teleport with Jira.   Teleport ↔ Jira integration  allows you to treat Teleport access and permission requests using Jira tickets.
 
-For the purpose of this quickstart, we assume you've already setup an [Enterprise Teleport Cluster](https://gravitational.com/teleport/docs/enterprise/quickstart-enterprise/). 
+!!! warning
+    The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
 
 ## Setup
 This guide assumes that you have: 
 
 * Teleport Enterprise 4.2.8 or newer
 * Admin privileges with access to `tctl`
-- Jira Server or Jira Cloud installation with an owner privileges, specifically to setup webhooks, issue types, and workflows.
+* Jira Server or Jira Cloud installation with an owner privileges, specifically to setup webhooks, issue types, and workflows.
 
 ### Create an access-plugin role and user within Teleport 
 First off, using an existing Teleport Cluster, we are going to create a new Teleport User and Role to access Teleport.
@@ -122,8 +123,6 @@ $ ./install
 $ which teleport-jira
 /usr/local/bin/teleport-jira
 ```
-
-
 Run `./install` in from 'teleport-jira' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuration file
@@ -179,7 +178,8 @@ Here's the recommended Teleport Plugin service unit file for systemd:
 Save this as `teleport-jira.service`. 
 
 ## Audit Log
-...
+The plugin will let anyone with access to the Jira board approve/deny requests so it's 
+important to review Teleports audit log. 
 
 ## Feedback
-...
+If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).
