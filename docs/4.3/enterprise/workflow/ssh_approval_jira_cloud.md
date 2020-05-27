@@ -110,10 +110,10 @@ In the webhook settings page, make sure that the webhook will only send Issue Up
 
 ## Installing
 
-To start using Teleport Plugins, you will need the `teleport-access-jira` executable. 
-
-This plugin can be build from source, following the [teleport-plugin readme instructions](https://github.com/gravitational/teleport-plugins/tree/master/access/jira#teleport-jira-bot), or the plugin can be downloaded from 
-our compiled bucket.
+We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
+location as plugins have a low memory footprint, and will require both public internet access 
+and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
+compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/jira). 
 
 ```bash
 $ wget https://get.gravitational.com/teleport-access-jira-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz

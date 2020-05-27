@@ -72,7 +72,10 @@ In your Pagerduty dashboard, go to **Configuration → API Access → Create New
 
 ## Downloading and installing the plugin
 
-The recommended way to run Teleport Pagerduty plugin is by downloading the release version and installing it: 
+We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
+location as plugins have a low memory footprint, and will require both public internet access 
+and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
+compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty). 
 
 ```bash
 $ wget https://get.gravitational.com/teleport-access-pagerduty-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
@@ -82,6 +85,8 @@ $ ./install
 $ which teleport-pagerduty
 /usr/local/bin/teleport-pagerduty
 ```
+
+Run `./install` in from 'teleport-pagerduty' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Config file
 Teleport Pagerduty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file. 

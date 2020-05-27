@@ -1,13 +1,11 @@
 # Teleport Slack Plugin Setup
 
-You can approve or deny requests using Slack with the Teleport Slack Plugin. This guide covers how to setup.
-
-For this quickstart, we assume you've already setup an [Teleport Enterprise Cluster](https://gravitational.com/teleport/docs/enterprise/quickstart-enterprise/). This guide takes about 20min to complete. 
+This guide will talk through how to setup Teleport with Slack.   Teleport ↔ Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components. 
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it's requires several roles.
 
-## Setup
+## Setup/
 ### Prerequisites
 This guide assumes that you have: 
 
@@ -115,7 +113,10 @@ In the sidebar of the app screen, click on Basic. Scroll to App Credentials sect
 
 ## Installing the Teleport Slack Plugin
 
-Where? .. Binary
+We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
+location as plugins have a low memory footprint, and will require both public internet access 
+and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
+compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/slack). 
 
 ```bash
 $ wget https://get.gravitational.com/teleport-access-slack-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
@@ -125,6 +126,8 @@ $ ./install
 $ which teleport-slack
 /usr/local/bin/teleport-slack
 ```
+
+Run `./install` in from 'teleport-pagerduty' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuration File
 Teleport Slack plugin has its own config file in TOML format. Before starting the plugin, you'll need to generate (or just copy the one below) and edit that config.

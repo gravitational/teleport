@@ -89,7 +89,10 @@ The above sequence should result in three PEM encoded files being generated: aut
 
 ## Downloading and installing the plugin
 
-The recommended way to run Teleport Mattermost plugin is by downloading the release version and installing it: 
+We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
+location as plugins have a low memory footprint, and will require both public internet access 
+and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
+compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost). 
 
 ```bash
 $ wget https://get.gravitational.com/teleport-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
@@ -99,6 +102,8 @@ $ ./install
 $ which teleport-mattermost
 /usr/local/bin/teleport-mattermost
 ```
+
+Run `./install` in from 'teleport-mattermost' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuring Mattermost bot
 

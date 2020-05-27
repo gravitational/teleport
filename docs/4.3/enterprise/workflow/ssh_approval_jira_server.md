@@ -105,8 +105,10 @@ In the webhook settings page, make sure that the webhook will only send Issue Up
 
 ## Installing
 
-
-Where? .. Binary
+We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal 
+location as plugins have a low memory footprint, and will require both public internet access 
+and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
+compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/jira). 
 
 ```bash
 $ wget https://get.gravitational.com/teleport-access-jira-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
@@ -117,6 +119,7 @@ $ which teleport-jira
 /usr/local/bin/teleport-jira
 ```
 
+Run `./install` in from 'teleport-pagerduty' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuration file
 
