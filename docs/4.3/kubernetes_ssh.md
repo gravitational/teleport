@@ -135,7 +135,6 @@ Teleport provides support for Kubernetes Group `kubernetes_groups: ["system:mast
 and Kubernetes Users, using `kubernetes_users: ['barent', 'jane']`. If a Kubernetes
 user isn't set the user will impersonate themselves.
 
-
 ### Github Auth
 
 When configuring Teleport to authenticate against Github, you have to create a
