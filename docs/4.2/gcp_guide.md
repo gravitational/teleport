@@ -87,7 +87,7 @@ teleport:
 
 When creating the Bucket we would recommend setting it up as `Dual-region` and with
 `Standard` storage class. Provide access using a `Uniform` access control with a Google-managed
-key or you must set `Storage Legacy Bucket Reader` permissions for a service account. 
+key or you must set `Storage Legacy Bucket Reader` permissions for a service account.
 
 When setting up `audit_session_uri` use `gs://` session prefix.
 
