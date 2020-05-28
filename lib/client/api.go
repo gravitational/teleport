@@ -260,6 +260,11 @@ type Config struct {
 	// UseLocalSSHAgent will write user certificates to the local ssh-agent (or
 	// similar) socket at $SSH_AUTH_SOCK.
 	UseLocalSSHAgent bool
+
+	// EnableEscapeSequences will scan Stdin for SSH escape sequences during
+	// command/shell execution. This also requires Stdin to be an interactive
+	// terminal.
+	EnableEscapeSequences bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -273,10 +278,11 @@ type CachePolicy struct {
 // MakeDefaultConfig returns default client config
 func MakeDefaultConfig() *Config {
 	return &Config{
-		Stdout:           os.Stdout,
-		Stderr:           os.Stderr,
-		Stdin:            os.Stdin,
-		UseLocalSSHAgent: true,
+		Stdout:                os.Stdout,
+		Stderr:                os.Stderr,
+		Stdin:                 os.Stdin,
+		UseLocalSSHAgent:      true,
+		EnableEscapeSequences: true,
 	}
 }
 
@@ -1469,7 +1475,7 @@ func (tc *TeleportClient) runCommand(
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
+			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 			if err != nil {
 				log.Error(err)
 				return
@@ -1503,7 +1509,7 @@ func (tc *TeleportClient) runCommand(
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
-	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
+	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
