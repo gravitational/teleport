@@ -122,7 +122,7 @@ outer:
 
 		// forward contains the characters to add to the internal buffer.
 		forward := readBuf
-		c := byte(readBuf[0])
+		c := readBuf[0]
 		switch prev {
 		case '\r', '\n':
 			// Detect a tilde after a newline.

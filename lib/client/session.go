@@ -68,6 +68,8 @@ type NodeSession struct {
 	closer *utils.CloseBroadcaster
 
 	ExitMsg string
+
+	enableEscapeSequences bool
 }
 
 // newSession creates a new Teleport session with the given remote node
@@ -79,7 +81,9 @@ func newSession(client *NodeClient,
 	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
-	legacyID bool) (*NodeSession, error) {
+	legacyID bool,
+	enableEscapeSequences bool,
+) (*NodeSession, error) {
 
 	if stdin == nil {
 		stdin = os.Stdin
@@ -96,13 +100,14 @@ func newSession(client *NodeClient,
 
 	var err error
 	ns := &NodeSession{
-		env:        env,
-		nodeClient: client,
-		stdin:      stdin,
-		stdout:     stdout,
-		stderr:     stderr,
-		namespace:  client.Namespace,
-		closer:     utils.NewCloseBroadcaster(),
+		env:                   env,
+		nodeClient:            client,
+		stdin:                 stdin,
+		stdout:                stdout,
+		stderr:                stderr,
+		namespace:             client.Namespace,
+		closer:                utils.NewCloseBroadcaster(),
+		enableEscapeSequences: enableEscapeSequences,
 	}
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
@@ -548,7 +553,7 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 		buf := make([]byte, 128)
 
 		stdin := ns.stdin
-		if ns.isTerminalAttached() {
+		if ns.isTerminalAttached() && ns.enableEscapeSequences {
 			stdin = escape.NewReader(stdin, ns.stderr, func(err error) {
 				switch err {
 				case escape.ErrDisconnect:
