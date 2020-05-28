@@ -102,9 +102,7 @@ On the App screen, go to “OAuth and Permissions” under Features in the sideb
 
 ![API Scopes](/img/enterprise/plugins/slack/api-scopes.png)
 
-#### Add to Workspace
 
-![OAuth Tokens](/img/enterprise/plugins/slack/Slackbot-Permissions.png)
 
 #### Obtain OAuth Token
 
@@ -115,6 +113,11 @@ In the sidebar of the app screen, click on Basic. Scroll to App Credentials sect
 
 ![Secret Signing Token](/img/enterprise/plugins/slack/SlackSigningSecret.png)
 
+#### Add to Workspace
+
+![OAuth Tokens](/img/enterprise/plugins/slack/Slackbot-Permissions.png)
+After adding to the workspace, you still need to invite the bot to the channel. Do this by using the @ command,
+and inviting them to the channel.
 ![Invite bot to channel](/img/enterprise/plugins/slack/invite-user-to-team.png)
 
 
@@ -134,26 +137,26 @@ $ which teleport-slack
 /usr/local/bin/teleport-slack
 ```
 
-Run `./install` in from 'teleport-pagerduty' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+Run `./install` in from 'teleport-slack' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
-### Configuring  Teleport Slackbot
+### Configuring  Teleport Slack
 
-Teleport Slackbot uses a config file in TOML format. Generate a boilerplate config by
+Teleport Slack uses a config file in TOML format. Generate a boilerplate config by
 running the following command:
 
 ```bash
-$ teleport-slackbot configure > teleport-slacbot.toml
-$ sudo mv teleport-slackbot.toml /etc
+$ teleport-slack configure > teleport-slacbot.toml
+$ sudo mv teleport-slack.toml /etc
 ```
 
 Then, edit the config as needed.
 
 ```yaml
-{!examples/resources/plugins/teleport-slackbot.toml!}
+{!examples/resources/plugins/teleport-slack.toml!}
 ```
 
 #### Editing the config file
-In the Teleport section, use the certificates you've generated with `tctl auth sign` before. The plugin installer creates a folder for those certificates in `/var/lib/teleport/plugins/slackbot/` — so just move the certificates there and make sure the config points to them.
+In the Teleport section, use the certificates you've generated with `tctl auth sign` before. The plugin installer creates a folder for those certificates in `/var/lib/teleport/plugins/slack/` — so just move the certificates there and make sure the config points to them.
 
 In Slack section, use the OAuth token, signing token, setup the desired channel name. The listen URL is the URL the plugin will listen for Slack callbacks.
 
@@ -162,7 +165,7 @@ Then set the plugin callback (where Slack sends its requests) to an address you 
 By default, Teleport Slack plugin will run with TLS on.
 
 ```conf
-{!examples/resources/plugins/teleport-slackbot.toml!}
+{!examples/resources/plugins/teleport-slack.toml!}
 ```
 ## Test Run
 
@@ -170,16 +173,16 @@ Assuming that Teleport is running, and you've created the Slack app, the plugin 
 and provided all the certificates — you can now run the plugin and test the workflow!
 
 ```bash
-$ teleport-slackbot start
+$ teleport-slack start
 ```
 If everything works fine, the log output should look like this:
 
 ```bash
 $ teleport-slack start
-INFO   Starting Teleport Access Slackbot {{ teleport.plugin.version }}.1-0-slack/main.go:145
-INFO   Starting a request watcher... slackbot/main.go:330
+INFO   Starting Teleport Access Slack {{ teleport.plugin.version }}.1-0-slack/main.go:145
+INFO   Starting a request watcher... slack/main.go:330
 INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
-INFO   Watcher connected slackbot/main.go:298
+INFO   Watcher connected slack/main.go:298
 ```
 ### Testing the approval workflow
 
@@ -225,9 +228,9 @@ In production, we recommend starting teleport plugin daemon via an init system l
 Here's the recommended Teleport Plugin service unit file for systemd:
 
 ```bash
-{!examples/systemd/plugins/teleport-slackbot.service!}
+{!examples/systemd/plugins/teleport-slack.service!}
 ```
-Save this as `teleport-slackbot.service`.
+Save this as `teleport-slack.service`.
 
 ## Audit Log
 The plugin will let anyone with access to the Slack Channel so it's

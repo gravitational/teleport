@@ -1,9 +1,5 @@
 # Teleport Approval Workflows
 
-TODO: Intro Kubernetes and SSH Approval using Slack. 
-
-- [Approval Workflows Setup](#approval-workflows-setup)
-
 #### Approving Workflow using an External Integration
 - [Integrating Teleport with Slack](ssh_approval_slack.md)
 - [Integrating Teleport with Mattermost](ssh_approval_mattermost.md)
@@ -20,7 +16,7 @@ workflow API makes it easy to dynamically approve or deny these requests.
 ### Setup
 
 **Contractor Role**
-This role allows the contractor to request the role DBA. 
+This role allows the contractor to request the role DBA.
 
 ```yaml
 kind: role
@@ -38,7 +34,7 @@ spec:
 ```
 
 **DBA Role**
-This role allows the contractor to request the role DBA. 
+This role allows the contractor to request the role DBA.
 
 ```yaml
 kind: role
@@ -56,7 +52,7 @@ spec:
 ```
 
 **Admin Role**
-This role allows the admin to approve the contractor's request. 
+This role allows the admin to approve the contractor's request.
 ```yaml
 kind: role
 metadata:
@@ -72,7 +68,7 @@ spec:
 # https://gravitational.com/teleport/docs/enterprise/ssh_rbac/
 rules:
     # Access Request is part of Approval Workflows introduced in 4.2
-    # `access_request` should only be given to Teleport Admins. 
+    # `access_request` should only be given to Teleport Admins.
     - resources: [access_request]
       verbs: [list, read, update, delete]
 ```
@@ -88,8 +84,8 @@ As a Teleport Administrator:
 
 ```bash
 $ tctl request ls
-Token                                Requestor Metadata       Created At (UTC)    Status  
------------------------------------- --------- -------------- ------------------- ------- 
+Token                                Requestor Metadata       Created At (UTC)    Status
+------------------------------------ --------- -------------- ------------------- -------
 bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
 ```
 
@@ -98,23 +94,23 @@ $ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 ```
 
 Assuming approval, `tsh` will automatically manage a certificate re-issued with
-the newly requested roles applied. In this case `contractor` will now have have 
-the permission of the `dba`. 
+the newly requested roles applied. In this case `contractor` will now have have
+the permission of the `dba`.
 
-!!! warning 
-    
-    Granting a role with administrative abilities could allow a user to **permanently** 
+!!! warning
+
+    Granting a role with administrative abilities could allow a user to **permanently**
     upgrade their privileges (e.g. if contractor was granted admin for some reason).
-    We recommend only escalating to the next role of least privilege vs jumping directly 
-    to "Super Admin" role. 
-    
+    We recommend only escalating to the next role of least privilege vs jumping directly
+    to "Super Admin" role.
+
     The `deny.request` block can help mitigate the risk of doing this by accident. See
-    Example Below. 
+    Example Below.
 
 
 ```yaml
 # Example role that explicitly denies a contractor from requesting the admin
-# role.  
+# role.
 kind: role
 metadata:
 name: contractor
@@ -129,17 +125,14 @@ deny:
 ```
 
 ### Other features of Approval Workflows.
- 
+
  - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
  - Approved requests have no effect on Teleport's behavior outside of allowing additional
    roles on re-issue. This has the nice effect of making requests "compatible" with
    older versions of Teleport, since only the issuing Auth Server needs any particular
-   knowledge of the feature. 
- 
+   knowledge of the feature.
 
 ## Integrating with an External Tool
-
-[ Diagram of how to set it up ]
 
 | Integration | Feature | Type          | Setup Instructions |
 |-------------|---------|---------------|--------------------|
