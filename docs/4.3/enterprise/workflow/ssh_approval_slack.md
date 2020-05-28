@@ -4,7 +4,15 @@ This guide will talk through how to setup Teleport with Slack. Teleport to Slack
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
-## Setup/
+#### Example Slack Request
+
+<video  style="width:100%" controls>
+  <source src="/img/enterprise/plugins/slack/slack.mp4" type="video/mp4">
+  <source src="/img/enterprise/plugins/slack/slack.webm" type="video/webm">
+Your browser does not support the video tag.
+</video>
+
+## Setup
 ### Prerequisites
 This guide assumes that you have:
 
@@ -87,10 +95,12 @@ This URL must match the URL setting in Teleport Plugin settings file (we'll cove
 
 For now, just think of the URL you'll use and set it in the Slack App's settings screen in Features > Interactive Components > Request URL.
 
-![Interactive Components](/img/enterprise/plugins/slack/Interactive-Components.png)
+![Interactive Components](/img/enterprise/plugins/slack/setup-interactive-component.png)
 
 #### Selecting OAuth Scopes
-On the App screen, go to “OAuth and Permissions” under Features in the sidebar menu. Then scroll to Scopes, and add `chat.write` scope so that our plugin can post messages to your Slack channels.
+On the App screen, go to “OAuth and Permissions” under Features in the sidebar menu. Then scroll to Scopes, and add `incoming-webhook, users:read, users:read.email` scopes so that our plugin can post messages to your Slack channels.
+
+![API Scopes](/img/enterprise/plugins/slack/api-scopes.png)
 
 #### Add to Workspace
 
@@ -104,6 +114,9 @@ On the App screen, go to “OAuth and Permissions” under Features in the sideb
 In the sidebar of the app screen, click on Basic. Scroll to App Credentials section, and grab the app's Signing Secret. We'll use it in the config file later.
 
 ![Secret Signing Token](/img/enterprise/plugins/slack/SlackSigningSecret.png)
+
+![Invite bot to channel](/img/enterprise/plugins/slack/invite-user-to-team.png)
+
 
 ## Installing the Teleport Slack Plugin
 
@@ -136,7 +149,7 @@ $ sudo mv teleport-slackbot.toml /etc
 Then, edit the config as needed.
 
 ```yaml
-{!examples/resources/plugins/teleport-slacbot.toml!}
+{!examples/resources/plugins/teleport-slackbot.toml!}
 ```
 
 #### Editing the config file

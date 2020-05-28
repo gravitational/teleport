@@ -4,6 +4,15 @@ This guide will talk through how to setup Teleport with Mattermost. Teleport to 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
+#### Example Mattermost Request
+
+<video  style="width:100%" controls>
+  <source src="/img/enterprise/plugins/mattermost/slamattermostck.mp4" type="video/mp4">
+  <source src="/img/enterprise/plugins/mattermost/mattermost.webm" type="video/webm">
+Your browser does not support the video tag.
+</video>
+
+
 ## Setup
 ### Prerequisites
 This guide assumes that you have:
