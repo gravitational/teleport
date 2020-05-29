@@ -20,6 +20,8 @@ NODES ||= {
 
 
 Vagrant.configure(2) do |config|
+  # grab necessary vagrant plugin(s)
+  config.vagrant.plugins = ["vagrant-vbguest"]
   # provider-neutral configuration:
   basic_config(config.vm)
   configure_ssh(config.vm)
