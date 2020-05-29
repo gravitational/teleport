@@ -129,7 +129,9 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			return nil
 		case <-ctx.Done():
 			process.Close()
-			process.Wait()
+			if err := process.Wait(); err != nil {
+				process.Warnf("Error waiting for all services to exit: %v", err)
+			}
 			process.Info("Got request to shutdown, context is closing")
 			return nil
 		case event := <-serviceErrorsC:

@@ -780,7 +780,9 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 	switch uri.Scheme {
 	case teleport.SchemeGCS:
 		config := gcssessions.Config{}
-		config.SetFromURL(uri)
+		if err := config.SetFromURL(uri); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		handler, err := gcssessions.DefaultNewHandler(config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -788,7 +790,9 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 		return handler, nil
 	case teleport.SchemeS3:
 		config := s3sessions.Config{}
-		config.SetFromURL(uri, auditConfig.Region)
+		if err := config.SetFromURL(uri, auditConfig.Region); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		handler, err := s3sessions.NewHandler(config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1540,7 +1544,9 @@ func (process *TeleportProcess) initSSH() error {
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
-			s.Start()
+			if err := s.Start(); err != nil {
+				return trace.Wrap(err)
+			}
 
 			// Create and start an agent pool.
 			agentPool, err = reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
@@ -2002,7 +2008,11 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// clean up unused descriptors passed for proxy, but not used by it
-	defer process.closeImportedDescriptors(teleport.ComponentProxy)
+	defer func() {
+		if err := process.closeImportedDescriptors(teleport.ComponentProxy); err != nil {
+			process.Warnf("Failed closing imported file descriptors: %v", err)
+		}
+	}()
 	var err error
 	cfg := process.Config
 
@@ -2377,7 +2387,9 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 	local, cancel := context.WithCancel(ctx)
 	go func() {
 		defer cancel()
-		process.Supervisor.Wait()
+		if err := process.Supervisor.Wait(); err != nil {
+			process.Warnf("Error waiting for all services to complete: %v", err)
+		}
 	}()
 
 	<-local.Done()
@@ -2390,7 +2402,9 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	localCtx, cancel := context.WithCancel(ctx)
 	go func() {
 		defer cancel()
-		process.Supervisor.Wait()
+		if err := process.Supervisor.Wait(); err != nil {
+			process.Warnf("Error waiting for all services to complete: %v", err)
+		}
 		process.Debugf("All supervisor functions are completed.")
 		localAuth := process.getLocalAuth()
 		if localAuth != nil {

@@ -84,7 +84,9 @@ func (s *ServiceTestSuite) TestMonitor(c *check.C) {
 	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
 
 	// Start Teleport and make sure the status is OK.
-	go process.Run()
+	go func() {
+		c.Assert(process.Run(), check.IsNil)
+	}()
 	err = waitForStatus(endpoint, http.StatusOK)
 	c.Assert(err, check.IsNil)
 

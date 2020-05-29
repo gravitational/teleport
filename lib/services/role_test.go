@@ -1689,7 +1689,9 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < 4000; i++ {
 			for login := range allowLogins {
-				set.CheckAccessToServer(login, servers[i])
+				if err := set.CheckAccessToServer(login, servers[i]); err != nil {
+					b.Error(err)
+				}
 			}
 		}
 	}
