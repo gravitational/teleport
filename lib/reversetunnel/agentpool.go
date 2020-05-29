@@ -163,9 +163,8 @@ func (m *AgentPool) Stop() {
 }
 
 // Wait returns when agent pool is closed
-func (m *AgentPool) Wait() error {
+func (m *AgentPool) Wait() {
 	<-m.ctx.Done()
-	return nil
 }
 
 func (m *AgentPool) processSeekEvents() {
