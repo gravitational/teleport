@@ -316,7 +316,7 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 		select {
 		case <-tickerCh.C:
 			if err := codec.Send(ws, nil); err != nil {
-				t.log.Errorf("Unable to send ping frame to web client.", err)
+				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
 				return
 			}
 		case <-t.terminalContext.Done():
