@@ -556,9 +556,6 @@ const (
 
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
-
-	// WebsocketPong receives pong from client after sending a server ping.
-	WebsocketPong = "p"
 )
 
 // The following are cryptographic primitives Teleport does not support in
