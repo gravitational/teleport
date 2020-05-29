@@ -150,7 +150,9 @@ func (w *Monitor) Start() {
 				events.SessionServerID: w.ServerID,
 				events.Reason:          fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC()),
 			}
-			w.Audit.EmitAuditEvent(events.ClientDisconnect, event)
+			if err := w.Audit.EmitAuditEvent(events.ClientDisconnect, event); err != nil {
+				w.Entry.Warningf("failed emitting audit event: %v", err)
+			}
 			w.Entry.Debugf("Disconnecting client: %v", event[events.Reason])
 			w.Conn.Close()
 			return
@@ -172,7 +174,9 @@ func (w *Monitor) Start() {
 						now.Sub(clientLastActive), w.ClientIdleTimeout)
 				}
 				w.Entry.Debugf("Disconnecting client: %v", event[events.Reason])
-				w.Audit.EmitAuditEvent(events.ClientDisconnect, event)
+				if err := w.Audit.EmitAuditEvent(events.ClientDisconnect, event); err != nil {
+					w.Entry.Warningf("failed emitting audit event: %v", err)
+				}
 				w.Conn.Close()
 				return
 			}

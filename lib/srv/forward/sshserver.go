@@ -625,7 +625,9 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 		ch, requests, err := nch.Accept()
 		if err != nil {
 			s.log.Warnf("Unable to accept channel: %v", err)
-			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+				s.log.Warnf("Failed to reject channel: %v", err)
+			}
 			return
 		}
 		go s.handleSessionRequests(ch, requests)
@@ -634,18 +636,24 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
 			s.log.Errorf("Failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
-			nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request")
+			if err := nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request"); err != nil {
+				s.log.Warnf("Failed to reject channel: %v", err)
+			}
 			return
 		}
 		ch, _, err := nch.Accept()
 		if err != nil {
 			s.log.Warnf("Unable to accept channel: %v", err)
-			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+				s.log.Warnf("Failed to reject channel: %v", err)
+			}
 			return
 		}
 		go s.handleDirectTCPIPRequest(ch, req)
 	default:
-		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
+		if err := nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType)); err != nil {
+			s.log.Warnf("Failed to reject channel of unknown type: %v", err)
+		}
 	}
 }
 
@@ -656,7 +664,7 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 	ctx, err := srv.NewServerContext(s.connectionContext, s, s.identityContext)
 	if err != nil {
 		ctx.Errorf("Unable to create connection context: %v.", err)
-		ch.Stderr().Write([]byte("Unable to create connection context."))
+		s.stderrWrite(ch, "Unable to create connection context.")
 		return
 	}
 	ctx.Connection = s.serverConn
@@ -669,7 +677,7 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 	// Check if the role allows port forwarding for this user.
 	err = s.authHandlers.CheckPortForward(ctx.DstAddr, ctx)
 	if err != nil {
-		ch.Stderr().Write([]byte(err.Error()))
+		s.stderrWrite(ch, err.Error())
 		return
 	}
 
@@ -698,13 +706,17 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		io.Copy(ch, conn)
+		if _, err := io.Copy(ch, conn); err != nil {
+			ctx.Warningf("failed proxying data for port forwarding connection: %v", err)
+		}
 		ch.Close()
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		io.Copy(conn, ch)
+		if _, err := io.Copy(conn, ch); err != nil {
+			ctx.Warningf("failed proxying data for port forwarding connection: %v", err)
+		}
 		conn.Close()
 	}()
 
@@ -723,7 +735,7 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 	ctx, err := srv.NewServerContext(s.connectionContext, s, s.identityContext)
 	if err != nil {
 		ctx.Errorf("Unable to create connection context: %v.", err)
-		ch.Stderr().Write([]byte("Unable to create connection context."))
+		s.stderrWrite(ch, "Unable to create connection context.")
 		return
 	}
 	ctx.Connection = s.serverConn
@@ -735,7 +747,7 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create a "session" channel on the remote host.
 	remoteSession, err := s.remoteClient.NewSession()
 	if err != nil {
-		ch.Stderr().Write([]byte(err.Error()))
+		s.stderrWrite(ch, err.Error())
 		return
 	}
 	ctx.RemoteSession = remoteSession
@@ -751,7 +763,7 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 			ctx.Errorf("%v", errorMessage)
 
 			// Write the error to channel and close it.
-			ch.Stderr().Write([]byte(errorMessage))
+			s.stderrWrite(ch, errorMessage)
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
 			if err != nil {
 				ctx.Errorf("Failed to send exit status %v", errorMessage)
@@ -775,7 +787,9 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 				return
 			}
 			if req.WantReply {
-				req.Reply(true, nil)
+				if err := req.Reply(true, nil); err != nil {
+					ctx.Errorf("failed sending OK response on %q request: %v", req.Type, err)
+				}
 			}
 		case result := <-ctx.ExecResultCh:
 			ctx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
@@ -890,10 +904,18 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCont
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	s.log.Error(err)
-	message := []byte(utils.UserMessageFromError(err))
-	ch.Stderr().Write(message)
+	message := utils.UserMessageFromError(err)
+	s.stderrWrite(ch, message)
 	if req.WantReply {
-		req.Reply(false, message)
+		if err := req.Reply(false, []byte(message)); err != nil {
+			s.log.Errorf("sending error reply on SSH channel: %v", err)
+		}
+	}
+}
+
+func (s *Server) stderrWrite(ch ssh.Channel, message string) {
+	if _, err := ch.Stderr().Write([]byte(message)); err != nil {
+		s.log.Errorf("failed writing to SSH stderr channel: %v", err)
 	}
 }
 

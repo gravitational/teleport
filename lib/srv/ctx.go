@@ -552,7 +552,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	if c.session != nil {
 		eventFields[events.SessionEventID] = c.session.id
 	}
-	c.GetServer().GetAuditLog().EmitAuditEvent(events.SessionData, eventFields)
+	if err := c.GetServer().GetAuditLog().EmitAuditEvent(events.SessionData, eventFields); err != nil {
+		c.Warnf("Failed to emit SessionData audit event: %v", err)
+	}
 
 	// Emit TX and RX bytes to their respective Prometheus counters.
 	serverTX.Add(float64(txBytes))

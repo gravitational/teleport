@@ -18,8 +18,6 @@ package srv
 
 import (
 	"bufio"
-	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -158,7 +156,9 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 	go func() {
-		io.Copy(inputWriter, channel)
+		if _, err := io.Copy(inputWriter, channel); err != nil {
+			e.Ctx.Warningf("Failed to forward data from SSH channel to local command %q stdin: %v", e.GetCommand(), err)
+		}
 		inputWriter.Close()
 	}()
 
@@ -256,16 +256,16 @@ func (e *localExec) transformSecureCopy() error {
 // waitForContinue will wait 10 seconds for the continue signal, if not
 // received, it will stop waiting and exit.
 func waitForContinue(contfd *os.File) error {
-	ctx, cancel := context.WithCancel(context.Background())
-
+	waitCh := make(chan error, 1)
 	go func() {
 		// Reading from the continue file descriptor will block until it's closed. It
 		// won't be closed until the parent has placed it in a cgroup.
-		var r bytes.Buffer
-		r.ReadFrom(contfd)
-
-		// Continue signal has been processed, signal to continue execution.
-		cancel()
+		buf := make([]byte, 1)
+		_, err := contfd.Read(buf)
+		if err == io.EOF {
+			err = nil
+		}
+		waitCh <- err
 	}()
 
 	// Wait for 10 seconds and then timeout if no continue signal has been sent.
@@ -275,9 +275,9 @@ func waitForContinue(contfd *os.File) error {
 	select {
 	case <-timeout.C:
 		return trace.BadParameter("timed out waiting for continue signal")
-	case <-ctx.Done():
+	case err := <-waitCh:
+		return err
 	}
-	return nil
 }
 
 // remoteExec is used to run an "exec" SSH request and return the result.
@@ -310,7 +310,9 @@ func (r *remoteExec) Start(ch ssh.Channel) (*ExecResult, error) {
 
 	go func() {
 		// copy from the channel (client) into stdin of the process
-		io.Copy(inputWriter, ch)
+		if _, err := io.Copy(inputWriter, ch); err != nil {
+			r.ctx.Warnf("Failed copying data from SSH channel to remote command stdin: %v", err)
+		}
 		inputWriter.Close()
 	}()
 
@@ -413,7 +415,9 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	}
 
 	// Emit the event.
-	auditLog.EmitAuditEvent(event, fields)
+	if err := auditLog.EmitAuditEvent(event, fields); err != nil {
+		log.Warnf("Failed to emit exec audit event: %v", err)
+	}
 }
 
 // getDefaultEnvPath returns the default value of PATH environment variable for
