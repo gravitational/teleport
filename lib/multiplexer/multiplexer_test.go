@@ -82,7 +82,8 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 	called := false
 	sshHandler := sshutils.NewChanHandlerFunc(func(_ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 		called = true
-		nch.Reject(ssh.Prohibited, "nothing to see here")
+		err := nch.Reject(ssh.Prohibited, "nothing to see here")
+		c.Assert(err, check.IsNil)
 	})
 
 	srv, err := sshutils.NewServer(
@@ -104,7 +105,8 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 	defer clt.Close()
 
 	// call new session to initiate opening new channel
-	clt.NewSession()
+	_, err = clt.NewSession()
+	c.Assert(err, check.NotNil)
 	// make sure the channel handler was called OK
 	c.Assert(called, check.Equals, true)
 
@@ -380,7 +382,8 @@ func (s *MuxSuite) TestDisableTLS(c *check.C) {
 	called := false
 	sshHandler := sshutils.NewChanHandlerFunc(func(_ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 		called = true
-		nch.Reject(ssh.Prohibited, "nothing to see here")
+		err := nch.Reject(ssh.Prohibited, "nothing to see here")
+		c.Assert(err, check.IsNil)
 	})
 
 	srv, err := sshutils.NewServer(
@@ -402,7 +405,8 @@ func (s *MuxSuite) TestDisableTLS(c *check.C) {
 	defer clt.Close()
 
 	// call new session to initiate opening new channel
-	clt.NewSession()
+	_, err = clt.NewSession()
+	c.Assert(err, check.NotNil)
 	// make sure the channel handler was called OK
 	c.Assert(called, check.Equals, true)
 
