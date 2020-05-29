@@ -554,7 +554,7 @@ func (s *server) HandleNewChan(ccx *sshutils.ConnectionContext, nch ssh.NewChann
 			msg = "Cannot open new SSH session on reverse tunnel. Are you connecting to the right port?"
 		}
 		s.Warn(msg)
-		nch.Reject(ssh.ConnectionFailed, msg)
+		s.rejectRequest(nch, ssh.ConnectionFailed, msg)
 		return
 	}
 }
@@ -592,7 +592,7 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	val, ok := sconn.Permissions.Extensions[extCertRole]
 	if !ok {
 		log.Errorf("Failed to accept connection, unknown role: %v.", val)
-		nch.Reject(ssh.ConnectionFailed, "unknown role")
+		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
 	}
 	switch {
 	// Node is dialing back.
@@ -627,7 +627,7 @@ func (s *server) handleNewCluster(conn net.Conn, sshConn *ssh.ServerConn, nch ss
 	site, remoteConn, err := s.upsertRemoteCluster(conn, sshConn)
 	if err != nil {
 		log.Error(trace.Wrap(err))
-		nch.Reject(ssh.ConnectionFailed, "failed to accept incoming cluster connection")
+		s.rejectRequest(nch, ssh.ConnectionFailed, "failed to accept incoming cluster connection")
 		return
 	}
 	// accept the request and start the heartbeat on it:
@@ -896,6 +896,12 @@ func (s *server) fanOutProxies(proxies []services.Server) {
 	}
 	for _, cluster := range s.remoteSites {
 		cluster.fanOutProxies(proxies)
+	}
+}
+
+func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
+	if err := ch.Reject(reason, msg); err != nil {
+		s.Warnf("Failed rejecting new channel request: %v", err)
 	}
 }
 

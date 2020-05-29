@@ -302,9 +302,7 @@ func (s *remoteSite) fanOutProxies(proxies []services.Server) {
 	s.Lock()
 	defer s.Unlock()
 	for _, conn := range s.connections {
-		if err := conn.updateProxies(proxies); err != nil {
-			conn.markInvalid(err)
-		}
+		conn.updateProxies(proxies)
 	}
 }
 
