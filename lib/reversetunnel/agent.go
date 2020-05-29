@@ -402,7 +402,9 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 	newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
 
 	// send first ping right away, then start a ping timer:
-	hb.SendRequest("ping", false, nil)
+	if _, err := hb.SendRequest("ping", false, nil); err != nil {
+		return trace.Wrap(err)
+	}
 
 	for {
 		select {
