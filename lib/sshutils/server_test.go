@@ -53,7 +53,8 @@ func (s *ServerSuite) TestStartStop(c *check.C) {
 	called := false
 	fn := NewChanHandlerFunc(func(_ *ConnectionContext, nch ssh.NewChannel) {
 		called = true
-		nch.Reject(ssh.Prohibited, "nothing to see here")
+		err := nch.Reject(ssh.Prohibited, "nothing to see here")
+		c.Assert(err, check.IsNil)
 	})
 
 	srv, err := NewServer(
@@ -138,7 +139,8 @@ func (s *ServerSuite) TestShutdown(c *check.C) {
 
 func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
 	fn := NewChanHandlerFunc(func(_ *ConnectionContext, nch ssh.NewChannel) {
-		nch.Reject(ssh.Prohibited, "nothing to see here")
+		err := nch.Reject(ssh.Prohibited, "nothing to see here")
+		c.Assert(err, check.IsNil)
 	})
 
 	// create a server that only speaks aes128-ctr
@@ -184,7 +186,8 @@ func (s *ServerSuite) TestHostSignerFIPS(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	newChanHandler := NewChanHandlerFunc(func(_ *ConnectionContext, nch ssh.NewChannel) {
-		nch.Reject(ssh.Prohibited, "nothing to see here")
+		err := nch.Reject(ssh.Prohibited, "nothing to see here")
+		c.Assert(err, check.IsNil)
 	})
 
 	var tests = []struct {

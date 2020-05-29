@@ -789,7 +789,11 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	// the current child context.
 	ctx.ImportParentEnv()
 	ctx.Debugf("Opened agent channel for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, socketPath)
-	go agentServer.Serve()
+	go func() {
+		if err := agentServer.Serve(); err != nil {
+			ctx.Errorf("agent server for user %q stopped: %v", ctx.Identity.TeleportUser, err)
+		}
+	}()
 
 	return nil
 }

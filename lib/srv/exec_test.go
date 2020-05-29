@@ -95,7 +95,8 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 		ClusterName: clusterName,
 	})
 	c.Assert(err, check.IsNil)
-	s.a.SetClusterName(clusterName)
+	err = s.a.SetClusterName(clusterName)
+	c.Assert(err, check.IsNil)
 
 	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
@@ -282,21 +283,20 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	cmd, err := ConfigureCommand(ctx)
 	c.Assert(err, check.IsNil)
 
-	// Create a context that will be used to signal that execution is complete.
-	doneContext, doneCancel := context.WithCancel(context.Background())
+	// Create a channel that will be used to signal that execution is complete.
+	cmdDone := make(chan error, 1)
 
 	// Re-execute Teleport and run "ls". Signal over the context when execution
 	// is complete.
 	go func() {
-		cmd.Run()
-		doneCancel()
+		cmdDone <- cmd.Run()
 	}()
 
 	// Wait for the process. Since the continue pipe has not been closed, the
 	// process should not have exited yet.
 	select {
-	case <-doneContext.Done():
-		c.Fatalf("Process exited before continue.")
+	case err := <-cmdDone:
+		c.Fatalf("Process exited before continue with error %v", err)
 	case <-time.After(5 * time.Second):
 	}
 
@@ -310,7 +310,8 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	select {
 	case <-time.After(5 * time.Second):
 		c.Fatalf("Timed out waiting for process to finish.")
-	case <-doneContext.Done():
+	case err := <-cmdDone:
+		c.Assert(err, check.IsNil)
 	}
 }
 
