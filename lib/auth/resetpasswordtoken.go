@@ -129,6 +129,48 @@ func (s *AuthServer) CreateResetPasswordToken(ctx context.Context, req CreateRes
 	return s.GetResetPasswordToken(ctx, token.GetName())
 }
 
+// proxyDomainGetter is a reduced subset of the Auth API for formatAccountName.
+type proxyDomainGetter interface {
+	GetProxies() ([]services.Server, error)
+	GetDomainName() (string, error)
+}
+
+// formatAccountName builds the account name to display in OTP applications.
+// Format for accountName is user@address. User is passed in, this function
+// tries to find the best available address.
+func formatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
+	var err error
+	var proxyHost string
+
+	// Get a list of proxies.
+	proxies, err := s.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// If no proxies were found, try and set address to the name of the cluster.
+	// If even the cluster name is not found (an unlikely) event, fallback to
+	// hostname of the auth server.
+	//
+	// If a proxy was found, and any of the proxies has a public address set,
+	// use that. If none of the proxies have a public address set, use the
+	// hostname of the first proxy found.
+	if len(proxies) == 0 {
+		proxyHost, err = s.GetDomainName()
+		if err != nil {
+			log.Errorf("Failed to retrieve cluster name, falling back to hostname: %v.", err)
+			proxyHost = authHostname
+		}
+	} else {
+		proxyHost, _, err = services.GuessProxyHostAndVersion(proxies)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
+	return fmt.Sprintf("%v@%v", username, proxyHost), nil
+}
+
 // RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
 // It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 // This ensures that an attacker that gains the ResetPasswordToken link can not view it,
@@ -140,7 +182,13 @@ func (s *AuthServer) RotateResetPasswordTokenSecrets(ctx context.Context, tokenI
 		return nil, trace.Wrap(err)
 	}
 
-	key, qr, err := newTOTPKeys("Teleport", token.GetUser()+"@"+s.AuthServiceName)
+	// Fetch account name to display in OTP apps.
+	accountName, err := formatAccountName(s, token.GetUser(), s.AuthServiceName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key, qr, err := newTOTPKeys("Teleport", accountName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -161,17 +209,29 @@ func (s *AuthServer) RotateResetPasswordTokenSecrets(ctx context.Context, tokenI
 }
 
 func (s *AuthServer) newResetPasswordToken(req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
+	var err error
+	var proxyHost string
+
 	tokenID, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Get the list of proxies and try and guess the address of the proxy. If
+	// failed to guess public address, use "<proxyhost>:3080" as a fallback.
 	proxies, err := s.GetProxies()
 	if err != nil {
-		log.Errorf("Unable to retrieve proxy list: %v", err)
+		return nil, trace.Wrap(err)
+	}
+	if len(proxies) == 0 {
+		proxyHost = fmt.Sprintf("<proxyhost>:%v", defaults.HTTPListenPort)
+	} else {
+		proxyHost, _, err = services.GuessProxyHostAndVersion(proxies)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	proxyHost, _ := services.GuessProxyHostAndVersion(proxies)
 	url, err := formatResetPasswordTokenURL(proxyHost, tokenID, req.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -186,16 +246,12 @@ func (s *AuthServer) newResetPasswordToken(req CreateResetPasswordTokenRequest) 
 }
 
 func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType string) (string, error) {
-	if proxyHost == "" {
-		proxyHost = fmt.Sprintf("<proxyhost>:%v", defaults.HTTPListenPort)
-	}
-
 	u := &url.URL{
 		Scheme: "https",
 		Host:   proxyHost,
 	}
 
-	// We have 2 differen UI flows to process password reset tokens
+	// We have 2 different UI flows to process password reset tokens
 	if reqType == ResetPasswordTokenTypeInvite {
 		u.Path = fmt.Sprintf("/web/invite/%v", tokenID)
 	} else if reqType == ResetPasswordTokenTypePassword {
