@@ -204,9 +204,9 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	sshPublicKey := sshSigner.PublicKey()
 
 	// verify data signed by both the teleport agent and system agent was signed correctly
-	sshPublicKey.Verify(userdata, teleportAgentSignature)
+	err = sshPublicKey.Verify(userdata, teleportAgentSignature)
 	c.Assert(err, check.IsNil)
-	sshPublicKey.Verify(userdata, systemAgentSignature)
+	err = sshPublicKey.Verify(userdata, systemAgentSignature)
 	c.Assert(err, check.IsNil)
 
 	// unload all keys from the teleport agent and system agent

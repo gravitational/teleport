@@ -280,7 +280,9 @@ func (ns *NodeSession) allocateTerminal(termType string, s *ssh.Session) (io.Rea
 		go ns.updateTerminalSize(s)
 	}
 	go func() {
-		io.Copy(os.Stderr, stderr)
+		if _, err := io.Copy(os.Stderr, stderr); err != nil {
+			log.Debugf("Error reading remote STDERR: %v", err)
+		}
 	}()
 	return utils.NewPipeNetConn(
 		reader,

@@ -483,7 +483,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 			// Report the updated window size to the event log (this is so the sessions
 			// can be replayed correctly).
-			recorder.GetAuditLog().EmitAuditEvent(events.TerminalResize, resizeEvent)
+			if err := recorder.GetAuditLog().EmitAuditEvent(events.TerminalResize, resizeEvent); err != nil {
+				f.Warnf("Failed to emit terminal resize event: %v", err)
+			}
 		}
 	}
 
@@ -502,7 +504,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			W: 100,
 			H: 100,
 		}
-		recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, events.EventFields{
+		if err := recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, events.EventFields{
 			events.EventProtocol:   events.EventProtocolKube,
 			events.EventNamespace:  f.Namespace,
 			events.SessionEventID:  string(sessionID),
@@ -512,7 +514,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			events.LocalAddr:       sess.cluster.targetAddr,
 			events.RemoteAddr:      req.RemoteAddr,
 			events.TerminalSize:    termParams.Serialize(),
-		})
+		}); err != nil {
+			f.Warnf("Failed to emit session start event: %v", err)
+		}
 	}
 
 	if err := f.setupForwardingHeaders(ctx, sess, req); err != nil {
@@ -547,12 +551,14 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	if request.tty {
 		// send an event indicating that this session has ended
-		recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
+		if err := recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
 			events.EventProtocol:  events.EventProtocolKube,
 			events.SessionEventID: sessionID,
 			events.EventUser:      ctx.User.GetName(),
 			events.EventNamespace: f.Namespace,
-		})
+		}); err != nil {
+			f.Warnf("Failed to emit session end event: %v", err)
+		}
 	} else {
 		f.Debugf("No tty, sending exec event.")
 		// send an exec event
@@ -570,9 +576,13 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
 				fields[events.ExecEventCode] = fmt.Sprintf("%d", exitErr.ExitStatus())
 			}
-			f.AuditLog.EmitAuditEvent(events.ExecFailure, fields)
+			if err := f.AuditLog.EmitAuditEvent(events.ExecFailure, fields); err != nil {
+				f.Warnf("Failed to emit exec failure event: %v", err)
+			}
 		} else {
-			f.AuditLog.EmitAuditEvent(events.Exec, fields)
+			if err := f.AuditLog.EmitAuditEvent(events.Exec, fields); err != nil {
+				f.Warnf("Failed to emit exec failure event: %v", err)
+			}
 		}
 	}
 
@@ -606,7 +616,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		if !success {
 			event = events.PortForwardFailure
 		}
-		f.AuditLog.EmitAuditEvent(event, events.EventFields{
+		if err := f.AuditLog.EmitAuditEvent(event, events.EventFields{
 			events.EventProtocol:      events.EventProtocolKube,
 			events.PortForwardAddr:    addr,
 			events.PortForwardSuccess: success,
@@ -614,7 +624,9 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 			events.EventUser:          ctx.User.GetName(),
 			events.LocalAddr:          sess.cluster.targetAddr,
 			events.RemoteAddr:         req.RemoteAddr,
-		})
+		}); err != nil {
+			f.Warnf("Failed to emit port-forward audit event: %v", err)
+		}
 	}
 
 	q := req.URL.Query()
@@ -1001,7 +1013,9 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 		return sessI.(*clusterSession), nil
 	}
 
-	f.clusterSessions.Set(ctx.key(), sess, ctx.sessionTTL)
+	if err = f.clusterSessions.Set(ctx.key(), sess, ctx.sessionTTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	f.Debugf("Created new session for %v.", ctx)
 	return sess, nil
 }

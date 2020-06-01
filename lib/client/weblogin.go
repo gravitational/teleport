@@ -416,7 +416,9 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO) (*auth.SSHLoginRes
 		}
 	}
 	if execCmd != nil {
-		execCmd.Start()
+		if err := execCmd.Start(); err != nil {
+			fmt.Printf("Failed to open a browser window for login: %v\n", err)
+		}
 	}
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
@@ -508,9 +510,22 @@ func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	cmd.Start()
-	stdin.Write(u2fSignRequest.Bytes())
+	if err := cmd.Start(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		// If we returned before cmd.Wait was called, clean up the spawned
+		// process. ProcessState will be empty until cmd.Wait or cmd.Run
+		// return.
+		if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
+			cmd.Process.Kill()
+		}
+	}()
+	_, err = stdin.Write(u2fSignRequest.Bytes())
 	stdin.Close()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	fmt.Println("Please press the button on your U2F key")
 
 	// The origin URL is passed back base64-encoded and the keyHandle is passed back as is.

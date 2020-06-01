@@ -807,7 +807,9 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 	defer reader.Close()
 
 	// seek to 'offset' from the beginning
-	reader.Seek(int64(offsetBytes)-fileOffset, 0)
+	if _, err := reader.Seek(int64(offsetBytes)-fileOffset, 0); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// copy up to maxBytes from the offset position:
 	var buff bytes.Buffer

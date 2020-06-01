@@ -257,7 +257,11 @@ func New(ctx context.Context, params backend.Params) (*DynamoDBBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	go b.asyncPollStreams(ctx)
+	go func() {
+		if err := b.asyncPollStreams(ctx); err != nil {
+			b.Errorf("Stream polling loop exited: %v", err)
+		}
+	}()
 
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
@@ -675,7 +679,9 @@ func (b *DynamoDBBackend) getRecords(ctx context.Context, startKey, endKey strin
 	var result getResult
 	for _, item := range out.Items {
 		var r record
-		dynamodbattribute.UnmarshalMap(item, &r)
+		if err := dynamodbattribute.UnmarshalMap(item, &r); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		result.records = append(result.records, r)
 	}
 	sort.Sort(records(result.records))
@@ -801,11 +807,15 @@ func (b *DynamoDBBackend) getKey(ctx context.Context, key []byte) (*record, erro
 		return nil, trace.NotFound("%q is not found", string(key))
 	}
 	var r record
-	dynamodbattribute.UnmarshalMap(out.Item, &r)
+	if err := dynamodbattribute.UnmarshalMap(out.Item, &r); err != nil {
+		return nil, trace.WrapWithMessage(err, "%q is not found", string(key))
+	}
 	// Check if key expired, if expired delete it
 	if r.isExpired() {
-		b.deleteKey(ctx, key)
-		return nil, trace.NotFound("%v is not found", string(key))
+		if err := b.deleteKey(ctx, key); err != nil {
+			b.Warnf("Failed deleting expired key %q: %v", key, err)
+		}
+		return nil, trace.NotFound("%q is not found", key)
 	}
 	return &r, nil
 }
