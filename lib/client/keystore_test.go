@@ -172,7 +172,8 @@ func (s *KeyStoreTestSuite) TestDeleteAll(c *check.C) {
 }
 
 func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {
-	os.MkdirAll(s.store.KeyDir, 0777)
+	err := os.MkdirAll(s.store.KeyDir, 0777)
+	c.Assert(err, check.IsNil)
 	pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 	c.Assert(err, check.IsNil)
 
@@ -193,8 +194,10 @@ func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {
 
 	// check against dupes:
 	before, _ := s.store.GetKnownHostKeys("")
-	s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
-	s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	c.Assert(err, check.IsNil)
+	err = s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	c.Assert(err, check.IsNil)
 	after, _ := s.store.GetKnownHostKeys("")
 	c.Assert(len(before), check.Equals, len(after))
 

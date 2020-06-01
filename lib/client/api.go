@@ -1021,7 +1021,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	return tc.runShell(nodeClient, nil)
 }
 
-func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
+func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
 	if len(tc.Config.LocalForwardPorts) > 0 {
 		for _, fp := range tc.Config.LocalForwardPorts {
 			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
@@ -1044,7 +1044,6 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 			go nodeClient.dynamicListenAndForward(ctx, socket)
 		}
 	}
-	return nil
 }
 
 // Join connects to the existing/active SSH session

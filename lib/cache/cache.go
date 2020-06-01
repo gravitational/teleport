@@ -353,9 +353,9 @@ func (c *Cache) update() {
 // setCacheState for "only recent" cache behavior will erase
 // the cache and set error mode to refuse to serve stale data,
 // otherwise does nothing
-func (c *Cache) setCacheState(err error) error {
+func (c *Cache) setCacheState(err error) {
 	if !c.OnlyRecent.Enabled {
-		return err
+		return
 	}
 	if err := c.eraseAll(); err != nil {
 		if !c.isClosed() {
@@ -363,7 +363,6 @@ func (c *Cache) setCacheState(err error) error {
 		}
 	}
 	c.wrapper.SetReadError(trace.ConnectionProblem(err, "cache is unavailable"))
-	return err
 }
 
 // setTTL overrides TTL supplied by the resource

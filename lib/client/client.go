@@ -85,7 +85,9 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	}
 	done := make(chan struct{})
 	go func() {
-		io.Copy(stdout, reader)
+		if _, err := io.Copy(stdout, reader); err != nil {
+			log.Warningf("Error reading STDOUT from proxy: %v", err)
+		}
 		close(done)
 	}()
 	// this function is async because,
