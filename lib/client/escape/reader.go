@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	readerBufferLimit = 10 * 1 << 10 // 10MB
+	readerBufferLimit = 10 * 1024 * 1024 // 10MB
 
 	// Note: on a raw terminal, "\r\n" is needed to move a cursor to the start
 	// of next line.
@@ -101,80 +101,81 @@ func newUnstartedReader(in io.Reader, out io.Writer, onDisconnect func(error)) *
 }
 
 func (r *Reader) runReads() {
-	// prev contains the last read escape sequence character.
-	// Possible values are:
-	//   '\r' or '\n' after a fresh newline
-	//   '~' after a newline and ~
-	//   '\000' (null) in any other case
-	prev := byte('\r')
-	// Read one character at a time to simplify the logic.
-	readBuf := make([]byte, 1)
-outer:
+	readBuf := make([]byte, 1024)
+	// writeBuf is a copy of data in readBuf after filtering out any escape
+	// sequences.
+	writeBuf := make([]byte, 0, 1024)
+	// newLine is set iff the previous character was a newline.
+	// escape is set iff the two previous characters were a newline and '~'.
+	//
+	// Note: at most one of these is ever set. When escape is true, then
+	// newLine is false.
+	newLine, escape := true, false
 	for {
 		n, err := r.inner.Read(readBuf)
 		if err != nil {
 			r.setErr(err)
 			return
 		}
-		if n == 0 {
-			continue outer
-		}
 
-		// forward contains the characters to add to the internal buffer.
-		forward := readBuf
-		c := readBuf[0]
-		switch prev {
-		case '\r', '\n':
-			// Detect a tilde after a newline.
-			if c == '~' {
-				prev = '~'
-				// Do not send the tilde to remote end right way.
-				continue outer
-			}
-			prev = '\000'
-		case '~':
-			// We saw a newline and a tilde. Time to complete the escape
-			// sequence or abort it.
-			switch c {
-			case '?':
-				r.printHelp()
-				// Reset as if we're right after a newline.
-				prev = '\r'
-				// Do not send the help escape sequence to remote end.
-				continue outer
-			case '.':
-				// Disconnect and abort future reads. Previously-read data is
-				// still available.
-				r.setErr(ErrDisconnect)
-				return
+		// Reset the output buffer from previous state.
+		writeBuf = writeBuf[:0]
+	inner:
+		for _, b := range readBuf[:n] {
+			// Note: this switch only filters and updates newLine and escape.
+			// b is written to writeBuf afterwards.
+			switch b {
+			case '\r', '\n':
+				if escape {
+					// An incomplete escape sequence, send out a '~' that was
+					// previously suppressed.
+					writeBuf = append(writeBuf, '~')
+				}
+				newLine, escape = true, false
 			case '~':
-				// Escaped tilde, let only one tilde through and reset prev to
-				// ignore all characters until the next newline.
-				prev = '\000'
+				if newLine {
+					// Start escape sequence, don't write the '~' just yet.
+					newLine, escape = false, true
+					continue inner
+				} else if escape {
+					newLine, escape = false, false
+				}
+			case '?':
+				if escape {
+					// Complete help sequence.
+					r.printHelp()
+					newLine, escape = false, false
+					continue inner
+				}
+				newLine = false
+			case '.':
+				if escape {
+					// Complete disconnect sequence.
+					r.setErr(ErrDisconnect)
+					return
+				}
+				newLine = false
 			default:
-				// Not an escape sequence. Send over the blocked tilde and
-				// whatever character was typed in.
-				forward = []byte{prev, c}
-				// Reset prev to ignore all characters until the next newline.
-				prev = '\000'
+				if escape {
+					// An incomplete escape sequence, send out a '~' that was
+					// previously suppressed.
+					writeBuf = append(writeBuf, '~')
+				}
+				newLine, escape = false, false
 			}
-		default:
-			// If we're not in an escape sequence, ignore everything until a
-			// newline restarts a new potential sequence.
-			if c == '\r' || c == '\n' {
-				prev = c
-			}
+			// Write the character out as-is, it wasn't filtered out above.
+			writeBuf = append(writeBuf, b)
 		}
 
 		// Add new data to internal buffer.
 		r.cond.L.Lock()
-		if len(r.buf)+len(forward) > r.bufferLimit {
+		if len(r.buf)+len(writeBuf) > r.bufferLimit {
 			// Unlock because setErr will want to lock too.
 			r.cond.L.Unlock()
 			r.setErr(ErrTooMuchBufferedData)
 			return
 		}
-		r.buf = append(r.buf, forward...)
+		r.buf = append(r.buf, writeBuf...)
 		// Notify blocked Read calls about new data.
 		r.cond.Broadcast()
 		r.cond.L.Unlock()
