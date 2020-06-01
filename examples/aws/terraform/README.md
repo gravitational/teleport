@@ -19,15 +19,13 @@ In order to spin up AWS resources using these Terraform examples, you need the f
 - terraform v0.12+ ([install docs](https://learn.hashicorp.com/terraform/getting-started/install.html))
 - awscli v1.14+ ([install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html))
 
-## Beginner: Starter Teleport Cluster
+## Projects
 
-> Note: We do not recommend using this configuration for production environments. This is a simplified Teleport configuration for demo and educational purposes. Please use our HA Auto Scaling Teleport Cluster for production configurations.
+- Starter Teleport Cluster
+  - [Get Started](starter-cluster/README.md)
 
-Start Here: [README](starter-cluster/README.md)
-
-## Advanced: HA Auto Scaling Teleport Cluster
-
-Start Here: [README](ha-autoscale-cluster/README.md)
+- HA Auto Scaling Teleport cluster
+  - [Get Started](ha-autoscale-cluster/README.md)
 
 ## How to get help
 
