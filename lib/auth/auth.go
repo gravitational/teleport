@@ -578,6 +578,12 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) error {
 	user, err := s.Identity.GetUser(username, false)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// If user is not found, still call authenticateFn. It should
+			// always return an error. This prevents username oracles and
+			// timing attacks.
+			return authenticateFn()
+		}
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
