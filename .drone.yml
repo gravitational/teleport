@@ -1,0 +1,193 @@
+---
+kind: pipeline
+type: kubernetes
+name: test
+
+trigger:
+  branch:
+    - master
+  event:
+    exclude:
+      - promote
+      - rollback
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: golangci/golangci-lint:v1.27.0
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
+
+  - name: Restore cache
+    image: meltwater/drone-cache
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+    settings:
+      restore: true
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      archive_format: gzip
+      cache_key: 'teleport/{{checksum ".drone_source_branch.txt"}}'
+      region: us-west-2
+      mount:
+        - /go/cache
+        - /go/pkg/mod
+
+  - name: Run linter
+    image: golangci/golangci-lint:v1.27.0
+    environment:
+      GOCACHE: /go/cache
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      - make lint
+
+  - name: Run unit tests
+    image: golang:1.13.2
+    environment:
+      GOCACHE: /go/cache
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      - make test
+
+  - name: Run integration tests
+    image: golang:1.13.2
+    environment:
+      GOCACHE: /go/cache
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      - make integration
+
+  - name: Save cache
+    image: meltwater/drone-cache
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+    settings:
+      rebuild: true
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      archive_format: gzip
+      cache_key: 'teleport/{{checksum ".drone_source_branch.txt"}}'
+      region: us-west-2
+      mount:
+        - /go/cache
+        - /go/pkg/mod
+
+---
+kind: pipeline
+type: kubernetes
+name: build
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+
+depends_on:
+  - test
+
+workspace:
+  path: /go/src/github.com/gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Build OSS release artifacts
+    image: golang:1.13.2
+    commands:
+      - git clone https://github.com/gravitational/teleport.git .
+      - git fetch --all --tags
+      - git checkout $DRONE_TAG
+      - mkdir -p build/e
+      - make release
+      - find . -maxdepth 1 -iname "*.tar.gz" -print -exec cp {} build/ \;
+      - find e/ -maxdepth 1 -iname "*.tar.gz" -print -exec cp {} build/e/ \;
+      - cd build
+      - for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done
+      - cd e
+      - ls -l .
+      - for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done
+      - ls -l .
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/src/github.com/gravitational/teleport/build/*
+      target: teleport/tag/${DRONE_TAG}
+      strip_prefix: /go/src/github.com/gravitational/teleport/build
+
+---
+kind: pipeline
+type: kubernetes
+name: promote-artifact
+
+trigger:
+  event:
+    - promote
+  target:
+    - production
+
+workspace:
+  path: /go/src/github.com/gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Download artifact from S3 artifact publishing bucket
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/ .
+
+  - name: Upload artifact to production S3 bucket with public read access
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: PRODUCTION_AWS_S3_BUCKET
+      access_key:
+        from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
+      region: us-east-1
+      acl: public-read
+      source: /go/src/github.com/gravitational/teleport/*
+      target: teleport/${DRONE_TAG##*-v}/
+      strip_prefix: /go/src/github.com/gravitational/teleport/
+
+---
+kind: signature
+hmac: b57802b684cdbbdb1ac3645449c47ea5ae4a1d7d8039f97b9c712e06dea3e132
+
+...
