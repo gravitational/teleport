@@ -39,7 +39,7 @@ steps:
       bucket:
         from_secret: AWS_S3_BUCKET
       archive_format: gzip
-      cache_key: 'teleport/{{checksum ".drone_source_branch.txt"}}'
+      cache_key: '{{checksum ".drone_source_branch.txt"}}'
       region: us-west-2
       mount:
         - /go/cache
@@ -81,7 +81,7 @@ steps:
       bucket:
         from_secret: AWS_S3_BUCKET
       archive_format: gzip
-      cache_key: 'teleport/{{checksum ".drone_source_branch.txt"}}'
+      cache_key: '{{checksum ".drone_source_branch.txt"}}'
       region: us-west-2
       mount:
         - /go/cache
@@ -188,6 +188,6 @@ steps:
 
 ---
 kind: signature
-hmac: b57802b684cdbbdb1ac3645449c47ea5ae4a1d7d8039f97b9c712e06dea3e132
+hmac: af9e72f491fca5ff909afd621aafab7dda8b1fe09e6c2f9f6d2ca7c43c7918e4
 
 ...
