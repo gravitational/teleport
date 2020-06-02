@@ -45,6 +45,25 @@ steps:
         - /go/cache
         - /go/pkg/mod
 
+  - name: Build and push buildbox container
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      repo: quay.io/gravitational/teleport-buildbox
+      tag: go1.13.2
+      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
+
+  - name: Run unit tests in container
+    image: quay.io/gravitational/teleport-buildbox:go1.13.2
+    environment:
+      GOCACHE: /go/cache
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      - make test
+
   - name: Run linter
     image: golangci/golangci-lint:v1.27.0
     environment:
@@ -53,16 +72,8 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make lint
 
-  - name: Run unit tests
-    image: golang:1.13.2
-    environment:
-      GOCACHE: /go/cache
-    commands:
-      - cd /go/src/github.com/gravitational/teleport
-      - make test
-
   - name: Run integration tests
-    image: golang:1.13.2
+    image: quay.io/gravitational/teleport-buildbox:1.13.2
     environment:
       GOCACHE: /go/cache
     commands:
@@ -188,6 +199,6 @@ steps:
 
 ---
 kind: signature
-hmac: af9e72f491fca5ff909afd621aafab7dda8b1fe09e6c2f9f6d2ca7c43c7918e4
+hmac: 0767902cd859ece03bcfea211443365371c54ec8bc6567b141feb235948badcb
 
 ...
