@@ -132,6 +132,10 @@ type EtcdBackend struct {
 	cancel           context.CancelFunc
 	watchStarted     context.Context
 	signalWatchStart context.CancelFunc
+
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	replicateToLegacyPrefix bool
 }
 
 // Config represents JSON config for etcd backend
@@ -161,6 +165,14 @@ type Config struct {
 	// expects path to a file
 	PasswordFile string `json:"password_file,omitempty"`
 }
+
+// legacyDefaultPrefix was used instead of Config.Key prior to 4.3. It's used
+// below to allow a safe migration to the correct usage of Config.Key during
+// 4.3 and will be removed in 4.4
+//
+// DELETE IN 4.4: legacy prefix support for migration of
+// https://github.com/gravitational/teleport/issues/2883
+const legacyDefaultPrefix = "/teleport"
 
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
 // in Teleport YAML file. This function is a part of backend API
@@ -205,6 +217,9 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		watchStarted:     watchStarted,
 		signalWatchStart: signalWatchStart,
 		buf:              buf,
+		// DELETE IN 4.4: legacy prefix support for migration of
+		// https://github.com/gravitational/teleport/issues/2883
+		replicateToLegacyPrefix: cfg.Key != legacyDefaultPrefix,
 	}
 	if err = b.reconnect(); err != nil {
 		return nil, trace.Wrap(err)
@@ -217,6 +232,10 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 func (cfg *Config) Validate() error {
 	if len(cfg.Key) == 0 {
 		return trace.BadParameter(`etcd: missing "prefix" parameter`)
+	}
+	// Make sure the prefix starts with a '/'.
+	if cfg.Key[0] != '/' {
+		cfg.Key = "/" + cfg.Key
 	}
 	if len(cfg.Nodes) == 0 {
 		return trace.BadParameter(`etcd: missing "peers" parameter`)
@@ -399,10 +418,18 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 			return nil, trace.Wrap(err)
 		}
 	}
+	ops := []clientv3.Op{
+		clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...),
+	}
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	if b.replicateToLegacyPrefix {
+		ops = append(ops, clientv3.OpPut(b.prependLegacyPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...))
+	}
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
 		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "=", 0)).
-		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		Then(ops...).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -424,10 +451,18 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 			return nil, trace.Wrap(err)
 		}
 	}
+	ops := []clientv3.Op{
+		clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...),
+	}
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	if b.replicateToLegacyPrefix {
+		ops = append(ops, clientv3.OpPut(b.prependLegacyPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...))
+	}
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
 		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "!=", 0)).
-		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		Then(ops...).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -460,10 +495,20 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 		}
 	}
 	encodedPrev := base64.StdEncoding.EncodeToString(expected.Value)
+
+	ops := []clientv3.Op{
+		clientv3.OpPut(b.prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...),
+	}
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	if b.replicateToLegacyPrefix {
+		ops = append(ops, clientv3.OpPut(b.prependLegacyPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...))
+	}
+
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
 		If(clientv3.Compare(clientv3.Value(b.prependPrefix(expected.Key)), "=", encodedPrev)).
-		Then(clientv3.OpPut(b.prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
+		Then(ops...).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -500,6 +545,23 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 	if err != nil {
 		return nil, convertErr(err)
 	}
+
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	if b.replicateToLegacyPrefix {
+		start = b.clock.Now()
+		_, err = b.client.Put(
+			ctx,
+			b.prependPrefix(item.Key),
+			base64.StdEncoding.EncodeToString(item.Value),
+			opts...)
+		writeLatencies.Observe(time.Since(start).Seconds())
+		writeRequests.Inc()
+		if err != nil {
+			b.Errorf("Failed replicating value write to legacy prefix: %v", err)
+		}
+	}
+
 	return &lease, nil
 }
 
@@ -558,6 +620,19 @@ func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 	if re.Deleted == 0 {
 		return trace.NotFound("%q is not found", key)
 	}
+
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	if b.replicateToLegacyPrefix {
+		start = b.clock.Now()
+		re, err = b.client.Delete(ctx, b.prependPrefix(key))
+		writeLatencies.Observe(time.Since(start).Seconds())
+		writeRequests.Inc()
+		if err != nil {
+			b.Errorf("Failed replicating value delete to legacy prefix: %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -576,6 +651,19 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 	if err != nil {
 		return trace.Wrap(convertErr(err))
 	}
+
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	if b.replicateToLegacyPrefix {
+		start = b.clock.Now()
+		_, err = b.client.Delete(ctx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
+		writeLatencies.Observe(time.Since(start).Seconds())
+		writeRequests.Inc()
+		if err != nil {
+			b.Errorf("Failed replicating range delete to legacy prefix: %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -684,4 +772,10 @@ func (b *EtcdBackend) trimPrefix(in []byte) []byte {
 
 func (b *EtcdBackend) prependPrefix(in []byte) string {
 	return b.cfg.Key + string(in)
+}
+
+// DELETE IN 4.4: legacy prefix support for migration of
+// https://github.com/gravitational/teleport/issues/2883
+func (b *EtcdBackend) prependLegacyPrefix(in []byte) string {
+	return legacyDefaultPrefix + string(in)
 }
