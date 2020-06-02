@@ -262,24 +262,24 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
-	user := "user1"
+	username := "user1"
 	pass := []byte("abc123")
 
 	_, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
-		Username: user,
+		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
 	c.Assert(err, NotNil)
 
-	_, _, err = CreateUserAndRole(s.a, user, []string{user})
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	err = s.a.UpsertPassword(user, pass)
+	err = s.a.UpsertPassword(username, pass)
 	c.Assert(err, IsNil)
 
 	// successful log in
 	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
-		Username: user,
+		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
 	c.Assert(err, IsNil)
@@ -290,24 +290,21 @@ func (s *AuthSuite) TestUserLock(c *C) {
 
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
 		_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
-			Username: user,
+			Username: username,
 			Pass:     &PassCreds{Password: []byte("wrong pass")},
 		})
 		c.Assert(err, NotNil)
 	}
 
-	// make sure user is locked
-	_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
-		Username: user,
-		Pass:     &PassCreds{Password: pass},
-	})
-	c.Assert(err, ErrorMatches, ".*locked.*")
+	user, err := s.a.Identity.GetUser(username, false)
+	c.Assert(err, IsNil)
+	c.Assert(user.GetStatus().IsLocked, Equals, true)
 
 	// advance time and make sure we can login again
 	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 
 	_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
-		Username: user,
+		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
 	c.Assert(err, IsNil)
