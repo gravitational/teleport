@@ -61,8 +61,10 @@ func (s *IntSuite) init(c *check.C) {
 	namespace.SetName(ClusterID)
 
 	presence := local.NewPresenceService(backend)
-	presence.UpsertNamespace(*namespace)
-	presence.UpsertNode(server)
+	err = presence.UpsertNamespace(*namespace)
+	c.Assert(err, check.IsNil)
+	_, err = presence.UpsertNode(server)
+	c.Assert(err, check.IsNil)
 
 	s.enforcer, err = pro.NewEnforcer(s.ctx, pro.EnforcerConfig{
 		Anonymizer:     anonymizer,
