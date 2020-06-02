@@ -118,8 +118,13 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 	return nil
 }
 
-// DeleteUser deletes a user.
-func (s *AuthServer) DeleteUser(user string) error {
+// DeleteUser deletes an existng user in a backend by username.
+func (s *AuthServer) DeleteUser(ctx context.Context, user string) error {
+	deletedBy, err := getUpdateBy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	role, err := s.Access.GetRole(services.RoleNameForUser(user))
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -133,14 +138,15 @@ func (s *AuthServer) DeleteUser(user string) error {
 		}
 	}
 
-	err = s.Identity.DeleteUser(user)
+	err = s.Identity.DeleteUser(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// If the user was successfully deleted, emit an event.
 	s.EmitAuditEvent(events.UserDelete, events.EventFields{
-		events.EventUser: user,
+		events.ActionOnBehalfOf: user,
+		events.EventUser:        deletedBy,
 	})
 
 	return nil

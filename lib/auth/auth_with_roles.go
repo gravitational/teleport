@@ -951,11 +951,15 @@ func (a *AuthWithRoles) GetUser(name string, withSecrets bool) (services.User, e
 	return a.authServer.Identity.GetUser(name, withSecrets)
 }
 
-func (a *AuthWithRoles) DeleteUser(user string) error {
+// DeleteUser deletes an existng user in a backend by username.
+func (a *AuthWithRoles) DeleteUser(ctx context.Context, user string) error {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteUser(user)
+
+	ctx = withUpdateBy(ctx, a.user.GetName())
+
+	return a.authServer.DeleteUser(ctx, user)
 }
 
 func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {

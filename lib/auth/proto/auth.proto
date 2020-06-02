@@ -197,6 +197,12 @@ message PingResponse {
     string ServerVersion = 2 [ (gogoproto.jsontag) = "server_version" ];
 }
 
+// DeleteUserRequest is the input value for the DeleteUser method.
+message DeleteUserRequest {
+    // Name is the user name to delete.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -240,4 +246,6 @@ service AuthService {
     rpc CreateUser(services.UserV2) returns (google.protobuf.Empty);
     // UpdateUser updates an existing user in a backend.
     rpc UpdateUser(services.UserV2) returns (google.protobuf.Empty);
+    // DeleteUser deletes an exisitng user in a backend by username.
+    rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
 }

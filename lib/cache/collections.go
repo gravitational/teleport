@@ -958,7 +958,7 @@ func (c *user) fetch() error {
 func (c *user) processEvent(event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		err := c.usersCache.DeleteUser(event.Resource.GetName())
+		err := c.usersCache.DeleteUser(context.TODO(), event.Resource.GetName())
 		if err != nil {
 			// resource could be missing in the cache
 			// expired or not created, if the first consumed
