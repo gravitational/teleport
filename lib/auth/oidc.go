@@ -102,12 +102,14 @@ func (s *AuthServer) createOIDCClient(conn services.OIDCConnector) (*oidc.Client
 				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
 				conn.GetName(), conn.GetIssuerURL())
 		}
-		s.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
+		if err := s.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
 			events.LoginMethod:        events.LoginMethodOIDC,
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     trace.Unwrap(ctx.Err()).Error(),
 			events.AuthAttemptMessage: err.Error(),
-		})
+		}); err != nil {
+			log.Warnf("Failed to emit OIDC login failure event: %v", err)
+		}
 		// return user-friendly error hiding the actual error in the event
 		// logs for security purposes
 		return nil, trace.ConnectionProblem(nil,
@@ -141,10 +143,12 @@ func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector) error
 		return trace.Wrap(err)
 	}
 
-	s.EmitAuditEvent(events.OIDCConnectorCreated, events.EventFields{
+	if err := s.EmitAuditEvent(events.OIDCConnectorCreated, events.EventFields{
 		events.FieldName: connector.GetName(),
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit OIDC connector create event: %v", err)
+	}
 
 	return nil
 }
@@ -155,10 +159,12 @@ func (s *AuthServer) DeleteOIDCConnector(connectorName string) error {
 		return trace.Wrap(err)
 	}
 
-	s.EmitAuditEvent(events.OIDCConnectorDeleted, events.EventFields{
+	if err := s.EmitAuditEvent(events.OIDCConnectorDeleted, events.EventFields{
 		events.FieldName: connectorName,
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit OIDC connector delete event: %v", err)
+	}
 
 	return nil
 }
@@ -225,7 +231,9 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if re != nil && re.claims != nil {
 			fields[events.IdentityAttributes] = re.claims
 		}
-		a.EmitAuditEvent(events.UserSSOLoginFailure, fields)
+		if err := a.EmitAuditEvent(events.UserSSOLoginFailure, fields); err != nil {
+			log.Warnf("Failed to emit OIDC login failure event: %v", err)
+		}
 		return nil, trace.Wrap(err)
 	}
 	fields := events.EventFields{
@@ -236,7 +244,9 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	if re.claims != nil {
 		fields[events.IdentityAttributes] = re.claims
 	}
-	a.EmitAuditEvent(events.UserSSOLogin, fields)
+	if err := a.EmitAuditEvent(events.UserSSOLogin, fields); err != nil {
+		log.Warnf("Failed to emit OIDC login event: %v", err)
+	}
 	return &re.auth, nil
 }
 
@@ -657,10 +667,12 @@ collect:
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
-			g.auditLog.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
+			if err := g.auditLog.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
 				events.LoginMethod:        events.LoginMethodOIDC,
 				events.AuthAttemptMessage: warningMessage,
-			})
+			}); err != nil {
+				log.Warnf("Failed to emit OIDC login failure event: %v", err)
+			}
 			break collect
 		}
 		response, err := g.fetchGroupsPage(nextPageToken)

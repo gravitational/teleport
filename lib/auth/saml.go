@@ -40,10 +40,12 @@ func (s *AuthServer) UpsertSAMLConnector(connector services.SAMLConnector) error
 		return trace.Wrap(err)
 	}
 
-	s.EmitAuditEvent(events.SAMLConnectorCreated, events.EventFields{
+	if err := s.EmitAuditEvent(events.SAMLConnectorCreated, events.EventFields{
 		events.FieldName: connector.GetName(),
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit SAML connector create event: %v", err)
+	}
 
 	return nil
 }
@@ -54,10 +56,12 @@ func (s *AuthServer) DeleteSAMLConnector(connectorName string) error {
 		return trace.Wrap(err)
 	}
 
-	s.EmitAuditEvent(events.SAMLConnectorDeleted, events.EventFields{
+	if err := s.EmitAuditEvent(events.SAMLConnectorDeleted, events.EventFields{
 		events.FieldName: connectorName,
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit SAML connector delete event: %v", err)
+	}
 
 	return nil
 }
@@ -311,7 +315,9 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		if re != nil && re.attributeStatements != nil {
 			fields[events.IdentityAttributes] = re.attributeStatements
 		}
-		a.EmitAuditEvent(events.UserSSOLoginFailure, fields)
+		if err := a.EmitAuditEvent(events.UserSSOLoginFailure, fields); err != nil {
+			log.Warnf("Failed to emit SAML login failure event: %v", err)
+		}
 		return nil, trace.Wrap(err)
 	}
 	fields := events.EventFields{
@@ -322,7 +328,9 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 	if re.attributeStatements != nil {
 		fields[events.IdentityAttributes] = re.attributeStatements
 	}
-	a.EmitAuditEvent(events.UserSSOLogin, fields)
+	if err := a.EmitAuditEvent(events.UserSSOLogin, fields); err != nil {
+		log.Warnf("Failed to emit SAML user login event: %v", err)
+	}
 	return &re.auth, nil
 }
 

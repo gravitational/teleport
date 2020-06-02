@@ -111,7 +111,8 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	var elapsedExists time.Duration
 	for i := 0; i < 10; i++ {
 		start := time.Now()
-		s.a.CheckPasswordWOToken(username, []byte(password))
+		err = s.a.CheckPasswordWOToken(username, []byte(password))
+		c.Assert(err, IsNil)
 		elapsed := time.Since(start)
 		elapsedExists = elapsedExists + elapsed
 	}
@@ -119,7 +120,8 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	var elapsedNotExists time.Duration
 	for i := 0; i < 10; i++ {
 		start := time.Now()
-		s.a.CheckPasswordWOToken("blah", []byte(password))
+		err = s.a.CheckPasswordWOToken("blah", []byte(password))
+		c.Assert(err, NotNil)
 		elapsed := time.Since(start)
 		elapsedNotExists = elapsedNotExists + elapsed
 	}

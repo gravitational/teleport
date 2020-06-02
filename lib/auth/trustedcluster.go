@@ -141,9 +141,11 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 		return nil, trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.TrustedClusterCreate, events.EventFields{
+	if err := a.EmitAuditEvent(events.TrustedClusterCreate, events.EventFields{
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit trusted cluster create event: %v", err)
+	}
 
 	return tc, nil
 }
@@ -203,9 +205,11 @@ func (a *AuthServer) DeleteTrustedCluster(name string) error {
 		return trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.TrustedClusterDelete, events.EventFields{
+	if err := a.EmitAuditEvent(events.TrustedClusterDelete, events.EventFields{
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit trusted cluster delete event: %v", err)
+	}
 
 	return nil
 }

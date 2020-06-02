@@ -823,9 +823,11 @@ func (a *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 
 	for _, role := range req.Roles {
 		if role == teleport.RoleTrustedCluster {
-			a.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
+			if err := a.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
 				events.EventUser: "unimplemented",
-			})
+			}); err != nil {
+				log.Warnf("Failed to emit trusted cluster token create event: %v", err)
+			}
 		}
 	}
 
@@ -1380,10 +1382,12 @@ func (a *AuthServer) DeleteRole(name string) error {
 		return trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
+	if err := a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
 		events.FieldName: name,
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit role deleted event: %v", err)
+	}
 
 	return nil
 }
@@ -1394,10 +1398,12 @@ func (a *AuthServer) upsertRole(role services.Role) error {
 		return trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.RoleCreated, events.EventFields{
+	if err := a.EmitAuditEvent(events.RoleCreated, events.EventFields{
 		events.FieldName: role.GetName(),
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit role created event: %v", err)
+	}
 
 	return nil
 }

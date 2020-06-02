@@ -904,12 +904,14 @@ func (a *AuthWithRoles) GetUsers(withSecrets bool) ([]services.User, error) {
 		if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", a.user.GetName())
 			log.Warning(err)
-			a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+			if err := a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
 				events.LoginMethod:        events.LoginMethodClientCert,
 				events.AuthAttemptSuccess: false,
 				// log the original internal error in audit log
 				events.AuthAttemptErr: trace.Unwrap(err).Error(),
-			})
+			}); err != nil {
+				log.Warnf("Failed to emit local login failure event: %v", err)
+			}
 			return nil, trace.AccessDenied("this request can be only executed by an admin")
 		}
 	} else {
@@ -930,12 +932,14 @@ func (a *AuthWithRoles) GetUser(name string, withSecrets bool) (services.User, e
 		if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.user.GetName(), name)
 			log.Warning(err)
-			a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+			if err := a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
 				events.LoginMethod:        events.LoginMethodClientCert,
 				events.AuthAttemptSuccess: false,
 				// log the original internal error in audit log
 				events.AuthAttemptErr: trace.Unwrap(err).Error(),
-			})
+			}); err != nil {
+				log.Warnf("Failed to emit local login failure event: %v", err)
+			}
 			return nil, trace.AccessDenied("this request can be only executed by an admin")
 		}
 	} else {
@@ -1021,12 +1025,14 @@ func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCer
 	default:
 		err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.user.GetName(), req.Username)
 		log.Warning(err)
-		a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+		if err := a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
 			events.LoginMethod:        events.LoginMethodClientCert,
 			events.AuthAttemptSuccess: false,
 			// log the original internal error in audit log
 			events.AuthAttemptErr: trace.Unwrap(err).Error(),
-		})
+		}); err != nil {
+			log.Warnf("Failed to emit local login failure event: %v", err)
+		}
 		// this error is vague on purpose, it should not happen unless someone is trying something out of loop
 		return nil, trace.AccessDenied("this request can be only executed by an admin")
 	}
@@ -1113,11 +1119,13 @@ func (a *AuthWithRoles) CreateResetPasswordToken(ctx context.Context, req Create
 		return nil, trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
+	if err := a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
 		events.ActionOnBehalfOf:      req.Name,
 		events.ResetPasswordTokenTTL: req.TTL.String(),
 		events.EventUser:             a.user.GetName(),
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit create reset password token event: %v", err)
+	}
 
 	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
