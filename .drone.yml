@@ -53,10 +53,12 @@ steps:
       password:
         from_secret: QUAYIO_DOCKER_PASSWORD
       repo: quay.io/gravitational/teleport-buildbox
-      tag: go1.13.2
+      tags:
+        - go1.13.2
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
+      dry_run: true
 
-  - name: Run unit tests in container
+  - name: Run unit tests
     image: quay.io/gravitational/teleport-buildbox:go1.13.2
     environment:
       GOCACHE: /go/cache
@@ -199,6 +201,6 @@ steps:
 
 ---
 kind: signature
-hmac: 0767902cd859ece03bcfea211443365371c54ec8bc6567b141feb235948badcb
+hmac: efe29532d9c35ae51ae1e8748b03987cc1e5284e24b6f8a86799641d058779a7
 
 ...
