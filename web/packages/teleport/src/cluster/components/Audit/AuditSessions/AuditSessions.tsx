@@ -60,7 +60,9 @@ export default function SessionList(props: SessionListProps) {
   // sort and filter
   const data = React.useMemo(() => {
     const { colSortDirs, search } = state;
-    const rows = events.filter(e => e.code === 'T2004I').map(makeRows);
+    const rows = events
+      .filter(e => e.code === 'T2004I' && e.raw.interactive)
+      .map(makeRows);
 
     const filtered = rows.filter(obj =>
       isMatch(obj, search, {

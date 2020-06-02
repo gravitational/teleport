@@ -43,6 +43,7 @@ const events = [
     participants: ['one', 'two'],
     server_id: 'serverId',
     server_hostname: 'apple-node',
+    interactive: true,
   },
   {
     code: 'T2004I',
@@ -56,6 +57,7 @@ const events = [
     participants: ['one', 'two'],
     server_id: 'serverId',
     server_hostname: 'peach-node',
+    interactive: true,
   },
   {
     code: 'T2004I',
@@ -69,6 +71,21 @@ const events = [
     participants: ['one', 'two'],
     server_id: 'serverId',
     server_hostname: 'pear-node',
+    interactive: true,
+  },
+  {
+    code: 'T2004I',
+    ei: 0,
+    event: 'session.end',
+    namespace: 'default',
+    sid: 'no-display',
+    time: 'no-display',
+    uid: 'no-display',
+    user: 'no-display',
+    participants: 'no-display',
+    server_id: 'no-display',
+    server_hostname: 'no-display',
+    interactive: false,
   },
 ];
 
