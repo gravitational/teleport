@@ -49,7 +49,7 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 	// this config must match examples/etcd/teleport.yaml
 	s.config = backend.Params{
 		"peers":         []string{"https://127.0.0.1:2379"},
-		"prefix":        "teleport.secrets/",
+		"prefix":        "/teleport",
 		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
 		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
 		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
@@ -148,6 +148,7 @@ func (s *EtcdSuite) TestPrefix(c *check.C) {
 		}
 	)
 
+	s.bk.cfg.Key = "/custom-prefix"
 	_, err := s.bk.Put(ctx, item)
 	c.Assert(err, check.IsNil)
 	defer s.bk.Delete(ctx, item.Key)
