@@ -2113,7 +2113,8 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 	}
 
 	// stop the server to get response
-	otherServer.Stop()
+	err = otherServer.Stop()
+	c.Assert(err, check.IsNil)
 
 	// client detects closed sockets and reconnecte to the backup server
 	for i := 0; i < 4; i++ {

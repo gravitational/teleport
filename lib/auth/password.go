@@ -109,9 +109,11 @@ func (s *AuthServer) ChangePassword(req services.ChangePasswordReq) error {
 		return trace.Wrap(err)
 	}
 
-	s.EmitAuditEvent(events.UserPasswordChange, events.EventFields{
+	if err := s.EmitAuditEvent(events.UserPasswordChange, events.EventFields{
 		events.EventUser: userID,
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit password change event: %v", err)
+	}
 
 	return nil
 }

@@ -266,7 +266,9 @@ func (a *AuthServer) RotateExternalCertAuthority(ca services.CertAuthority) erro
 	}
 
 	updated := existing.Clone()
-	updated.SetCheckingKeys(ca.GetCheckingKeys())
+	if err := updated.SetCheckingKeys(ca.GetCheckingKeys()); err != nil {
+		return trace.Wrap(err)
+	}
 	updated.SetTLSKeyPairs(ca.GetTLSKeyPairs())
 	updated.SetRotation(ca.GetRotation())
 
@@ -536,8 +538,12 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 		rotation.Phase = services.RotationPhaseInit
 	}
 
-	ca.SetSigningKeys(signingKeys)
-	ca.SetCheckingKeys(checkingKeys)
+	if err := ca.SetSigningKeys(signingKeys); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
+		return trace.Wrap(err)
+	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
 	return nil
@@ -564,8 +570,12 @@ func updateClients(ca services.CertAuthority, mode string) error {
 	rotation.Phase = services.RotationPhaseUpdateClients
 	rotation.Mode = mode
 
-	ca.SetSigningKeys(signingKeys)
-	ca.SetCheckingKeys(checkingKeys)
+	if err := ca.SetSigningKeys(signingKeys); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
+		return trace.Wrap(err)
+	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
 	return nil
@@ -593,8 +603,12 @@ func startRollingBackRotation(ca services.CertAuthority) error {
 	rotation.State = services.RotationStateInProgress
 	rotation.Phase = services.RotationPhaseRollback
 
-	ca.SetSigningKeys(signingKeys)
-	ca.SetCheckingKeys(checkingKeys)
+	if err := ca.SetSigningKeys(signingKeys); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
+		return trace.Wrap(err)
+	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
 	return nil
@@ -618,8 +632,12 @@ func completeRotation(clock clockwork.Clock, ca services.CertAuthority) error {
 	rotation.Mode = ""
 	rotation.Schedule = services.RotationSchedule{}
 
-	ca.SetSigningKeys(signingKeys)
-	ca.SetCheckingKeys(checkingKeys)
+	if err := ca.SetSigningKeys(signingKeys); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
+		return trace.Wrap(err)
+	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
 	return nil

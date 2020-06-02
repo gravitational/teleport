@@ -241,7 +241,9 @@ func newTOTPKeys(issuer string, accountName string) (key string, qr []byte, err 
 	if err != nil {
 		return "", nil, trace.Wrap(err)
 	}
-	png.Encode(&otpQRBuf, otpImage)
+	if err := png.Encode(&otpQRBuf, otpImage); err != nil {
+		return "", nil, trace.Wrap(err)
+	}
 
 	return otpKey.Secret(), otpQRBuf.Bytes(), nil
 }

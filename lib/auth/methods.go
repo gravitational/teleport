@@ -84,19 +84,23 @@ type SessionCreds struct {
 // AuthenticateUser authenticates user based on the request type
 func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
 	err := s.authenticateUser(req)
+	var emitErr error
 	if err != nil {
-		s.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+		emitErr = s.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
 			events.EventUser:          req.Username,
 			events.LoginMethod:        events.LoginMethodLocal,
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     err.Error(),
 		})
 	} else {
-		s.EmitAuditEvent(events.UserLocalLogin, events.EventFields{
+		emitErr = s.EmitAuditEvent(events.UserLocalLogin, events.EventFields{
 			events.EventUser:          req.Username,
 			events.LoginMethod:        events.LoginMethodLocal,
 			events.AuthAttemptSuccess: true,
 		})
+	}
+	if emitErr != nil {
+		log.Warnf("Failed to emit user login event: %v", err)
 	}
 	return err
 }
@@ -363,7 +367,9 @@ func (s *AuthServer) emitNoLocalAuthEvent(username string) {
 		fields[events.EventUser] = username
 	}
 
-	s.IAuditLog.EmitAuditEvent(events.AuthAttemptFailure, fields)
+	if err := s.IAuditLog.EmitAuditEvent(events.AuthAttemptFailure, fields); err != nil {
+		log.Warnf("Failed to emit no local auth event: %v", err)
+	}
 }
 
 func (s *AuthServer) createUserWebSession(user services.User) (services.WebSession, error) {
