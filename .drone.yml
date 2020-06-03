@@ -161,7 +161,7 @@ steps:
         - /go/pkg/mod
 
   - name: Run integration tests
-    image: docker.io/library/docker:dind
+    image: quay.io/gravitational/teleport-buildbox:go1.13.2
     environment:
       GOCACHE: /go/cache
     volumes:
@@ -351,6 +351,6 @@ steps:
 
 ---
 kind: signature
-hmac: 8b60b96c1f6bdc76112b35b0519556bc30221fc97ffcb67d9ab87bcf353411b5
+hmac: 429341b74f935c75ae0e9b68d7d178f4c1fc40a2384197fb9a6083d0c747907e
 
 ...
