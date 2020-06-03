@@ -947,6 +947,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	if err != nil {
 		writeStderr(channel, err.Error())
 	}
+	// Propagate stderr from the spawned Teleport process to log any errors.
+	cmd.Stderr = os.Stderr
 
 	// Create a pipe for std{in,out} that will be used to transfer data between
 	// parent and child.
@@ -971,6 +973,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	// pipe to channel.
 	errorCh := make(chan error, 2)
 	go func() {
+		defer channel.Close()
 		defer pw.Close()
 		defer pr.Close()
 
@@ -978,6 +981,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		errorCh <- err
 	}()
 	go func() {
+		defer channel.Close()
 		defer pw.Close()
 		defer pr.Close()
 
