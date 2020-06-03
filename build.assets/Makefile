@@ -123,7 +123,7 @@ test: bbox
 .PHONY:integration
 integration: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover -count 1' integration"
 
 #
 # Runs linters on new changes inside a build container.
