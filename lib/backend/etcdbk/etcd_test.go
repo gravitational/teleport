@@ -33,6 +33,8 @@ import (
 	"gopkg.in/check.v1"
 )
 
+const customPrefix = "/custom"
+
 func TestEtcd(t *testing.T) { check.TestingT(t) }
 
 type EtcdSuite struct {
@@ -96,6 +98,17 @@ func (s *EtcdSuite) SetUpTest(c *check.C) {
 		fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
 		c.Skip("Etcd is not available")
 	}
+
+	s.bk.cfg.Key = legacyDefaultPrefix
+	s.bk.replicateToLegacyPrefix = false
+}
+
+func (s *EtcdSuite) TearDownTest(c *check.C) {
+	ctx := context.Background()
+	_, err := s.bk.client.Delete(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Delete(ctx, customPrefix, clientv3.WithPrefix())
+	c.Assert(err, check.IsNil)
 }
 
 func (s *EtcdSuite) TearDownSuite(c *check.C) {
@@ -144,30 +157,100 @@ func (s *EtcdSuite) TestPrefix(c *check.C) {
 	var (
 		ctx  = context.Background()
 		item = backend.Item{
-			Key:   []byte("foo"),
+			Key:   []byte("/foo"),
 			Value: []byte("bar"),
 		}
 	)
 
-	s.bk.cfg.Key = "/custom-prefix"
+	s.bk.cfg.Key = customPrefix
 	_, err := s.bk.Put(ctx, item)
 	c.Assert(err, check.IsNil)
-	defer s.bk.Delete(ctx, item.Key)
 
 	wantKey := fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
+	s.assertKV(ctx, c, wantKey, string(item.Value))
+}
+
+func (s *EtcdSuite) TestDoubleWrite(c *check.C) {
+	var (
+		ctx  = context.Background()
+		item = backend.Item{
+			Key:   []byte("/foo"),
+			Value: []byte("bar"),
+		}
+	)
+
+	s.bk.cfg.Key = customPrefix
+	s.bk.replicateToLegacyPrefix = true
+
+	c.Log("testing Put")
+	_, err := s.bk.Put(ctx, item)
+	c.Assert(err, check.IsNil)
+
+	wantKey := fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
+	s.assertKV(ctx, c, wantKey, string(item.Value))
+	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, item.Key)
+	s.assertKV(ctx, c, wantKey, string(item.Value))
+
+	c.Log("testing Delete")
+	err = s.bk.Delete(ctx, item.Key)
+	c.Assert(err, check.IsNil)
+
+	wantKey = fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
 	resp, err := s.bk.client.Get(ctx, wantKey)
 	c.Assert(err, check.IsNil)
+	c.Assert(resp.Count, check.Equals, int64(0))
+	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, item.Key)
+	resp, err = s.bk.client.Get(ctx, wantKey)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.Count, check.Equals, int64(0))
+
+	c.Log("testing Create")
+	_, err = s.bk.Create(ctx, item)
+	c.Assert(err, check.IsNil)
+
+	wantKey = fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
+	s.assertKV(ctx, c, wantKey, string(item.Value))
+	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, item.Key)
+	s.assertKV(ctx, c, wantKey, string(item.Value))
+
+	c.Log("testing Update")
+	item.Value = []byte("baz")
+	_, err = s.bk.Update(ctx, item)
+	c.Assert(err, check.IsNil)
+
+	wantKey = fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
+	s.assertKV(ctx, c, wantKey, string(item.Value))
+	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, item.Key)
+	s.assertKV(ctx, c, wantKey, string(item.Value))
+
+	c.Log("testing CompareAndSwap")
+	replacement := item
+	replacement.Value = []byte("qux")
+	_, err = s.bk.CompareAndSwap(ctx, item, replacement)
+	c.Assert(err, check.IsNil)
+
+	wantKey = fmt.Sprintf("%s%s", s.bk.cfg.Key, replacement.Key)
+	s.assertKV(ctx, c, wantKey, string(replacement.Value))
+	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, replacement.Key)
+	s.assertKV(ctx, c, wantKey, string(replacement.Value))
+}
+
+func (s *EtcdSuite) assertKV(ctx context.Context, c *check.C, key, val string) {
+	c.Logf("assert that key %q contains value %q", key, val)
+	resp, err := s.bk.client.Get(ctx, key)
+	c.Assert(err, check.IsNil)
 	c.Assert(len(resp.Kvs), check.Equals, 1)
-	c.Assert(string(resp.Kvs[0].Key), check.Equals, wantKey)
+	c.Assert(string(resp.Kvs[0].Key), check.Equals, key)
 	// Note: EtcdBackend stores all values base64-encoded.
 	gotValue, err := base64.StdEncoding.DecodeString(string(resp.Kvs[0].Value))
 	c.Assert(err, check.IsNil)
-	c.Assert(string(gotValue), check.Equals, string(item.Value))
+	c.Assert(string(gotValue), check.Equals, val)
 }
 
 func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 	ctx := context.Background()
-	const customPrefix = "/custom-prefix"
+	s.bk.cfg.Key = customPrefix
+	s.bk.replicateToLegacyPrefix = false
 
 	reset := func() {
 		_, err := s.bk.client.Delete(ctx, legacyDefaultPrefix, clientv3.WithPrefix())

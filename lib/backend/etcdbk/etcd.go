@@ -557,7 +557,7 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 		start = b.clock.Now()
 		_, err = b.client.Put(
 			ctx,
-			b.prependPrefix(item.Key),
+			b.prependLegacyPrefix(item.Key),
 			base64.StdEncoding.EncodeToString(item.Value),
 			opts...)
 		writeLatencies.Observe(time.Since(start).Seconds())
@@ -630,7 +630,7 @@ func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 	// https://github.com/gravitational/teleport/issues/2883
 	if b.replicateToLegacyPrefix {
 		start = b.clock.Now()
-		re, err = b.client.Delete(ctx, b.prependPrefix(key))
+		re, err = b.client.Delete(ctx, b.prependLegacyPrefix(key))
 		writeLatencies.Observe(time.Since(start).Seconds())
 		writeRequests.Inc()
 		if err != nil {
@@ -661,7 +661,7 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 	// https://github.com/gravitational/teleport/issues/2883
 	if b.replicateToLegacyPrefix {
 		start = b.clock.Now()
-		_, err = b.client.Delete(ctx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
+		_, err = b.client.Delete(ctx, b.prependLegacyPrefix(startKey), clientv3.WithRange(b.prependLegacyPrefix(endKey)))
 		writeLatencies.Observe(time.Since(start).Seconds())
 		writeRequests.Inc()
 		if err != nil {
