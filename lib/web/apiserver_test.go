@@ -986,13 +986,13 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 
 	// next frames should be just pings sent out by ping loop
 	// b/c nothing else should be sending anything at this point
-	frame2, err := ws.NewFrameReader()
+	frame, err := ws.NewFrameReader()
 	c.Assert(err, IsNil)
-	c.Assert(int(frame2.PayloadType()), Equals, websocket.PingFrame)
+	c.Assert(int(frame.PayloadType()), Equals, websocket.PingFrame)
 
-	frame3, err := ws.NewFrameReader()
+	frame, err = ws.NewFrameReader()
 	c.Assert(err, IsNil)
-	c.Assert(int(frame3.PayloadType()), Equals, websocket.PingFrame)
+	c.Assert(int(frame.PayloadType()), Equals, websocket.PingFrame)
 
 	err = ws.Close()
 	c.Assert(err, IsNil)

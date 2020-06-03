@@ -1427,13 +1427,13 @@ func (h *Handler) siteNodeConnect(
 
 	authAccessPoint, err := site.CachingAccessPoint()
 	if err != nil {
-		log.Debugf("Unable to auth access point: %v.", err)
+		log.Debugf("[WEB] Unable to get auth access point: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
 	clusterConfig, err := authAccessPoint.GetClusterConfig()
 	if err != nil {
-		log.Debugf("Unable to fetch cluster config: %v.", err)
+		log.Debugf("[WEB] Unable to fetch cluster config: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
