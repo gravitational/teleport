@@ -23,7 +23,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone --depth 10 https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
 
@@ -201,6 +201,6 @@ steps:
 
 ---
 kind: signature
-hmac: d837f4c95380419e8b4b50fb9e4b9f9cdf6dea381a4c158a95a1ab250734860f
+hmac: e133395f74c708672bc828ac9acc0cccb9cd79589240493af48a0d4465a2d243
 
 ...
