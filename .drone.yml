@@ -162,13 +162,11 @@ steps:
 
   - name: Run integration tests
     image: docker.io/library/docker:dind
-    environment:
-      GOCACHE: /go/cache
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - docker run --rm=true -v /go/cache:/go/cache -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport FLAGS='-cover' integration"
+      - docker run --rm=true -e GOCACHE=/go/cache -v /go/cache:/go/cache -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport FLAGS='-cover' integration"
 
   - name: Save cache
     image: meltwater/drone-cache
@@ -347,6 +345,6 @@ steps:
 
 ---
 kind: signature
-hmac: a0d35ff4ca6a408d73917cbd2d8acdfb552738c274d2f9c0ebd0bd302618d8e3
+hmac: 8ec313e2d0014417983769f1f8d6851443ed44541008651b35bf403ac9e50468
 
 ...
