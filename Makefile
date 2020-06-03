@@ -240,7 +240,7 @@ docs-test-links:
 #
 .PHONY: test
 test: ensure-webassets
-test: FLAGS ?= '-cover -race'
+test: FLAGS ?= -cover -race
 test: PACKAGES := $(shell go list ./... | grep -v integration)
 test: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
