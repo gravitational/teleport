@@ -12,8 +12,8 @@
   "author": "",
   "license": "Apache-2.0",
   "repository": {
-    "type" : "git",
-    "url" : "https://github.com/gravitational/webapps/webapps.git",
+    "type": "git",
+    "url": "https://github.com/gravitational/webapps/webapps.git",
     "directory": "packages/gravity"
   },
   "dependencies": {
@@ -24,7 +24,7 @@
     "jquery": "3.5.0",
     "nuclear-js": "1.4.0",
     "u2f-api-polyfill": "^0.4.3",
-    "xterm": "https://github.com/gravitational/xterm.js#v2.4.0",
+    "xterm": "https://github.com/gravitational/xterm.js#v2.8.1",
     "cross-env": "5.0.5",
     "@gravitational/shared": "1.0.0",
     "@gravitational/design": "1.0.0"

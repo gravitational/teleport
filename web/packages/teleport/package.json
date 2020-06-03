@@ -12,14 +12,14 @@
   "author": "",
   "license": "Apache-2.0",
   "repository": {
-    "type" : "git",
-    "url" : "https://github.com/gravitational/webapps/webapps.git",
+    "type": "git",
+    "url": "https://github.com/gravitational/webapps/webapps.git",
     "directory": "packages/teleport"
   },
   "dependencies": {
     "@gravitational/shared": "1.0.0",
     "@gravitational/design": "1.0.0",
-    "xterm": "https://github.com/gravitational/xterm.js#v2.4.0"
+    "xterm": "https://github.com/gravitational/xterm.js#v2.8.1"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
