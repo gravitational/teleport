@@ -47,6 +47,7 @@ steps:
 
   - name: Run unit tests
     image: quay.io/gravitational/teleport-buildbox:go1.13.2
+    pull: always
     environment:
       GOCACHE: /go/cache
     commands:
@@ -232,6 +233,6 @@ steps:
 
 ---
 kind: signature
-hmac: b92135cef8fefc00cbef30ce6ffa99385e86ecb360278833d6c6660e9a1350f7
+hmac: badd1c54ce2fc9d84aa7d80fe58fc6fed39c8306ce1d9a8bb3e557e2c5446ecd
 
 ...
