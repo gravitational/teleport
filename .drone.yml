@@ -23,7 +23,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone --depth 10 https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
 
@@ -48,15 +48,15 @@ steps:
   - name: Build and push buildbox container
     image: plugins/docker
     settings:
+      registry: quay.io
+      repo: gravitational/teleport-buildbox
       username:
         from_secret: QUAYIO_DOCKER_USERNAME
       password:
         from_secret: QUAYIO_DOCKER_PASSWORD
-      repo: quay.io/gravitational/teleport-buildbox
       tags:
         - go1.13.2
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
-      dry_run: true
 
   - name: Run unit tests
     image: quay.io/gravitational/teleport-buildbox:go1.13.2
@@ -201,6 +201,6 @@ steps:
 
 ---
 kind: signature
-hmac: efe29532d9c35ae51ae1e8748b03987cc1e5284e24b6f8a86799641d058779a7
+hmac: d837f4c95380419e8b4b50fb9e4b9f9cdf6dea381a4c158a95a1ab250734860f
 
 ...
