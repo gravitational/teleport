@@ -867,7 +867,11 @@ func (client *NodeClient) ExecuteSCP(cmd scp.Command) error {
 	return trace.Wrap(err)
 }
 
-func (client *NodeClient) proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string) error {
+type netDialer interface {
+	Dial(string, string) (net.Conn, error)
+}
+
+func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dialer netDialer) error {
 	defer conn.Close()
 	defer log.Debugf("Finished proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 
@@ -878,7 +882,7 @@ func (client *NodeClient) proxyConnection(ctx context.Context, conn net.Conn, re
 
 	log.Debugf("Attempting to connect proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 	for attempt := 1; attempt <= 5; attempt++ {
-		remoteConn, err = client.Client.Dial("tcp", remoteAddr)
+		remoteConn, err = dialer.Dial("tcp", remoteAddr)
 		if err != nil {
 			log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
 
@@ -906,29 +910,33 @@ func (client *NodeClient) proxyConnection(ctx context.Context, conn net.Conn, re
 	errCh := make(chan error, 2)
 	go func() {
 		defer conn.Close()
+		defer remoteConn.Close()
+
 		_, err := io.Copy(conn, remoteConn)
 		errCh <- err
 	}()
 	go func() {
 		defer conn.Close()
+		defer remoteConn.Close()
+
 		_, err := io.Copy(remoteConn, conn)
 		errCh <- err
 	}()
 
-	var lastErr error
+	var errs []error
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errCh:
-			if err != nil && err != io.EOF {
+			if err != nil && err != io.EOF && !strings.Contains(err.Error(), "use of closed network connection") {
 				log.Warnf("Failed to proxy connection: %v.", err)
-				lastErr = err
+				errs = append(errs, err)
 			}
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
 	}
 
-	return lastErr
+	return trace.NewAggregate(errs...)
 }
 
 // listenAndForward listens on a given socket and forwards all incoming
@@ -947,7 +955,7 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remo
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := c.proxyConnection(ctx, conn, remoteAddr)
+			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
 			if err != nil {
 				log.Warnf("Failed to proxy connection: %v.", err)
 			}
@@ -981,7 +989,7 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := c.proxyConnection(ctx, conn, remoteAddr)
+			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
 			if err != nil {
 				log.Warnf("Failed to proxy connection: %v.", err)
 			}
