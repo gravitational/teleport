@@ -214,7 +214,8 @@ func RunCommand() (io.Writer, int, error) {
 // pipe) then port forwards.
 func RunForward() (io.Writer, int, error) {
 	// errorWriter is used to return any error message back to the client.
-	errorWriter := os.Stdout
+	// Use stderr so that it's not forwarded to the remote client.
+	errorWriter := os.Stderr
 
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(uintptr(3), "/proc/self/fd/3")
@@ -269,6 +270,7 @@ func RunForward() (io.Writer, int, error) {
 	// pipe to channel.
 	errorCh := make(chan error, 2)
 	go func() {
+		defer conn.Close()
 		defer os.Stdout.Close()
 		defer os.Stdin.Close()
 
@@ -276,6 +278,7 @@ func RunForward() (io.Writer, int, error) {
 		errorCh <- err
 	}()
 	go func() {
+		defer conn.Close()
 		defer os.Stdout.Close()
 		defer os.Stdin.Close()
 
@@ -283,16 +286,13 @@ func RunForward() (io.Writer, int, error) {
 		errorCh <- err
 	}()
 
-	// Block until copy is complete and the child process is done executing.
-	var errs []error
-	for i := 0; i < 2; i++ {
-		err := <-errorCh
-		if err != nil && err != io.EOF {
-			errs = append(errs, err)
-		}
+	// Block until copy is complete in either direction. The other direction
+	// will get cleaned up automatically.
+	if err = <-errorCh; err != nil && err != io.EOF {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	return ioutil.Discard, teleport.RemoteCommandSuccess, trace.NewAggregate(errs...)
+	return ioutil.Discard, teleport.RemoteCommandSuccess, nil
 }
 
 // RunAndExit will run the requested command and then exit. This wrapper
