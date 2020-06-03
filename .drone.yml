@@ -168,7 +168,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - docker run --rm=true -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport/build.assets FLAGS='-cover' integration"
+      - docker run --rm=true -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport/build.assets FLAGS='-cover' integration"
 
   - name: Save cache
     image: meltwater/drone-cache
@@ -347,6 +347,6 @@ steps:
 
 ---
 kind: signature
-hmac: d1a63610f55e87defa7d53846aa4ba8d9677849eae6e87fc308e67e6fbe81c69
+hmac: 73f7e1db0e06d4e15a61db50058a21e0a676e9e2b3654bb69c9a1766dda3bd6d
 
 ...
