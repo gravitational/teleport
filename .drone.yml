@@ -195,6 +195,7 @@ steps:
 services:
   - name: docker
     image: docker.io/library/docker:dind
+    privileged: true
     volumes:
     - name: dockersock
       path: /var/run
@@ -350,6 +351,6 @@ steps:
 
 ---
 kind: signature
-hmac: fe9fc2a863715418804ee1fec505f7b462d46e7949a0ce1a97ba7e28d06f93b0
+hmac: 8b60b96c1f6bdc76112b35b0519556bc30221fc97ffcb67d9ab87bcf353411b5
 
 ...
