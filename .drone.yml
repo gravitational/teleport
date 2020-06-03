@@ -165,14 +165,10 @@ steps:
     environment:
       GOCACHE: /go/cache
     volumes:
-    - name: dockersock
-      path: /var/run
-    commands: >
-      docker run --rm=true
-      -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp
-      -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g)
-      -t quay.io/teleport-buildbox:go1.13.2
-      /bin/bash -c "make -C /go/src/github.com/gravitational/teleport FLAGS='-cover' integration"
+      - name: dockersock
+        path: /var/run
+    commands:
+      - docker run --rm=true -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport FLAGS='-cover' integration"
 
   - name: Save cache
     image: meltwater/drone-cache
@@ -197,12 +193,12 @@ services:
     image: docker.io/library/docker:dind
     privileged: true
     volumes:
-    - name: dockersock
-      path: /var/run
+      - name: dockersock
+        path: /var/run
 
 volumes:
-- name: dockersock
-  temp: {}
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -351,6 +347,6 @@ steps:
 
 ---
 kind: signature
-hmac: f6ae078e74ba83804ccea603daab7d88ab8366be1a8069bf848c4e485f0ad03c
+hmac: 6ab0819882dbd392b8c42fe26bbdace53d3db2d8fd5e6e2f6125e8aecbc2a7a0
 
 ...
