@@ -161,10 +161,14 @@ steps:
         - /go/pkg/mod
 
   - name: Run integration tests
-    image: docker:19.03.8-dind
+    image: docker.io/library/docker:dind
     environment:
       GOCACHE: /go/cache
+    volumes:
+    - name: dockersock
+      path: /var/run
     commands:
+      - sleep 5
       - docker pull quay.io/gravitational/teleport-buildbox:go1.13.2
       - docker tag quay.io/gravitational/teleport-buildbox:go1.13.2 teleport-buildbox:go1.13.2
       - cd /go/src/github.com/gravitational/teleport
@@ -187,6 +191,17 @@ steps:
       mount:
         - /go/cache
         - /go/pkg/mod
+
+services:
+  - name: docker
+    image: docker.io/library/docker:dind
+    volumes:
+    - name: dockersock
+      path: /var/run
+
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
 kind: pipeline
@@ -335,6 +350,6 @@ steps:
 
 ---
 kind: signature
-hmac: 07d934bcadfb593958500fbfde42706f67107d3df60ade09aa80ea8d11dd3d6f
+hmac: fe9fc2a863715418804ee1fec505f7b462d46e7949a0ce1a97ba7e28d06f93b0
 
 ...
