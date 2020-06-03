@@ -1,7 +1,7 @@
 ---
 kind: pipeline
 type: kubernetes
-name: run-linter
+name: lint
 
 trigger:
   branch:
@@ -57,7 +57,7 @@ steps:
 ---
 kind: pipeline
 type: kubernetes
-name: run-unit-tests
+name: unit-tests
 
 trigger:
   branch:
@@ -114,7 +114,7 @@ steps:
 ---
 kind: pipeline
 type: kubernetes
-name: run-integration-tests
+name: integration-tests
 
 trigger:
   branch:
@@ -198,7 +198,9 @@ trigger:
       - refs/tags/v*
 
 depends_on:
-  - test
+  - lint
+  - unit-tests
+  - integration-tests
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -330,6 +332,6 @@ steps:
 
 ---
 kind: signature
-hmac: b3b4add415d26967998ca83f2f92a9c786bc3861c4d8abd49f492a5052ddc3f5
+hmac: 35481d70ff2f24b3f033952f4e3dab9c3e2c2935f68cc7b717d6c5e9d9e278c1
 
 ...
