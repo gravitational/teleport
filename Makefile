@@ -191,6 +191,7 @@ run-docs:
 	$(MAKE) -C build.assets run-docs
 
 #
+<<<<<<< HEAD
 # Remove trailing whitespace in all markdown files under docs/.
 #
 # Note: this runs in a busybox container to avoid incompatibilities between
@@ -233,6 +234,9 @@ docs-test-links:
 
 #
 # tests everything: called by Jenkins
+=======
+# tests everything: called by CI
+>>>>>>> Disable verbose output and don't run race detector
 #
 .PHONY: test
 test: ensure-webassets
@@ -245,7 +249,7 @@ test: $(VERSRC)
 # Integration tests. Need a TTY to work.
 #
 .PHONY: integration
-integration: FLAGS ?= -v -race
+integration: FLAGS ?= -cover
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/... $(FLAGS)
