@@ -1,7 +1,7 @@
 ---
 kind: pipeline
 type: kubernetes
-name: lint
+name: test
 
 trigger:
   branch:
@@ -55,110 +55,13 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make lint
 
----
-kind: pipeline
-type: kubernetes
-name: unit-tests
-
-trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - promote
-      - rollback
-
-workspace:
-  path: /go
-
-clone:
-  disable: true
-
-steps:
-  - name: Check out code
-    image: golangci/golangci-lint:v1.27.0
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-
-  - name: Restore cache
-    image: meltwater/drone-cache
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
-    settings:
-      restore: true
-      bucket:
-        from_secret: AWS_S3_BUCKET
-      archive_format: gzip
-      cache_key: '{{checksum ".drone_source_branch.txt"}}'
-      region: us-west-2
-      mount:
-        - /go/cache
-        - /go/pkg/mod
-
   - name: Run unit tests
     image: quay.io/gravitational/teleport-buildbox:go1.13.2
-    pull: always
     environment:
       GOCACHE: /go/cache
     commands:
       - cd /go/src/github.com/gravitational/teleport
       - make test
-
----
-kind: pipeline
-type: kubernetes
-name: integration-tests
-
-trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - promote
-      - rollback
-
-workspace:
-  path: /go
-
-clone:
-  disable: true
-
-steps:
-  - name: Check out code
-    image: golangci/golangci-lint:v1.27.0
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-
-  - name: Restore cache
-    image: meltwater/drone-cache
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
-    settings:
-      restore: true
-      bucket:
-        from_secret: AWS_S3_BUCKET
-      archive_format: gzip
-      cache_key: '{{checksum ".drone_source_branch.txt"}}'
-      region: us-west-2
-      mount:
-        - /go/cache
-        - /go/pkg/mod
 
   - name: Run integration tests
     image: docker.io/library/docker:dind
@@ -166,7 +69,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - docker run --rm=true -e GOCACHE=/go/cache -v /go/cache:/go/cache -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport FLAGS='-cover' integration"
+      - docker run --rm=true -e GOCACHE=/go/cache -v /go/cache:/go/cache -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport FLAGS='-cover -count 1' integration"
 
   - name: Save cache
     image: meltwater/drone-cache
@@ -211,9 +114,7 @@ trigger:
       - refs/tags/v*
 
 depends_on:
-  - lint
-  - unit-tests
-  - integration-tests
+  - test
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -345,6 +246,6 @@ steps:
 
 ---
 kind: signature
-hmac: 8ec313e2d0014417983769f1f8d6851443ed44541008651b35bf403ac9e50468
+hmac: 85830a17f8186ef58e92aa68be8d09d7b5448cfa128ab67f351747afb54d9d4e
 
 ...
