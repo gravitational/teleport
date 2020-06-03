@@ -145,7 +145,7 @@ func (s *ExecSuite) TearDownSuite(c *check.C) {
 func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	expectedEnv := []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath("1000", defaultLoginDefsPath),
+		getDefaultEnvPath(strconv.Itoa(os.Geteuid()), defaultLoginDefsPath),
 		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
 		fmt.Sprintf("USER=%s", s.usr.Username),
 		"SHELL=/bin/sh",

@@ -42,6 +42,8 @@ import (
 const (
 	defaultPath          = "/bin:/usr/bin:/usr/local/bin:/sbin"
 	defaultEnvPath       = "PATH=" + defaultPath
+	defaultSuPath        = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	defaultEnvSuPath     = "PATH=" + defaultSuPath
 	defaultTerm          = "xterm"
 	defaultLoginDefsPath = "/etc/login.defs"
 )
@@ -421,21 +423,25 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 }
 
 // getDefaultEnvPath returns the default value of PATH environment variable for
-// new logins (prior to shell) based on login.defs. Returns a strings which
+// new logins (prior to shell) based on login.defs. Returns a string which
 // looks like "PATH=/usr/bin:/bin"
 func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	envPath := defaultEnvPath
-	envSuPath := defaultEnvPath
+	envSuPath := defaultEnvSuPath
 
 	// open file, if it doesn't exist return a default path and move on
 	f, err := os.Open(loginDefsPath)
+	defer f.Close()
 	if err != nil {
+		if uid == "0" {
+			log.Infof("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvSuPath)
+			return defaultEnvSuPath
+		}
 		log.Infof("Unable to open %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
 		return defaultEnvPath
 	}
-	defer f.Close()
 
-	// read path to login.defs file /etc/login.defs line by line:
+	// read path from login.defs file (/etc/login.defs) line by line:
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -445,7 +451,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 			continue
 		}
 
-		// look for a line that starts with ENV_SUPATH or ENV_PATH
+		// look for a line that starts with ENV_PATH or ENV_SUPATH
 		fields := strings.Fields(line)
 		if len(fields) > 1 {
 			if fields[0] == "ENV_PATH" {
@@ -460,6 +466,10 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	// if any error occurs while reading the file, return the default value
 	err = scanner.Err()
 	if err != nil {
+		if uid == "0" {
+			log.Warnf("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvSuPath)
+			return defaultEnvSuPath
+		}
 		log.Warnf("Unable to read %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
 		return defaultEnvPath
 	}
@@ -468,7 +478,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	// ENV_PATH first, then the default path.
 	if uid == "0" {
 		if envSuPath == defaultEnvPath {
-			return envPath
+			return defaultEnvPath
 		}
 		return envSuPath
 	}
