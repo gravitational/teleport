@@ -224,6 +224,11 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 	if err = b.reconnect(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	if err := b.syncLegacyPrefix(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
 }
@@ -708,6 +713,92 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	}
 	event.Item.Value = value
 	return event, nil
+}
+
+// DELETE IN 4.4: legacy prefix support for migration of
+// https://github.com/gravitational/teleport/issues/2883
+//
+// syncLegacyPrefix is a temporary migration step for 4.3 release. It will
+// attempt to replicate the data from '/teleport' prefix (legacyDefaultPrefix)
+// into the correct prefix specified in teleport.yaml (b.cfg.Key).
+//
+// The goal is to prevent the need for admin intervention when upgrading
+// Teleport clusters and to avoid losing any data during the upgrade to a fixed
+// version of Teleport. See issue linked above for more context.
+//
+// The replication will happen when:
+// - there's data under legacy prefix
+// - the configured prefix is different from the legacy prefix
+// - the configured prefix is empty OR older than the legacy prefix
+func (b *EtcdBackend) syncLegacyPrefix(ctx context.Context) error {
+	// Using the same prefix, nothing to migrate.
+	if b.cfg.Key == legacyDefaultPrefix {
+		return nil
+	}
+	legacyData, err := b.client.Get(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// No data in the legacy prefix, assume this is a new Teleport cluster and
+	// skip sync early.
+	if legacyData.Count == 0 {
+		return nil
+	}
+	prefixData, err := b.client.Get(ctx, b.cfg.Key, clientv3.WithPrefix())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !shouldSync(legacyData.Kvs, prefixData.Kvs) {
+		return nil
+	}
+
+	b.Infof("Migrating Teleport etcd data from legacy prefix %q to configured prefix %q", legacyDefaultPrefix, b.cfg.Key)
+	defer b.Infof("Teleport etcd data migration complete")
+
+	// Now we know that legacy prefix has some data newer than the configured
+	// prefix. Migrate it over to configured prefix.
+	//
+	// Start with deleting existing prefix data.
+	b.Debugf("Deleting everything under %q", b.cfg.Key)
+	if _, err := b.client.Delete(ctx, b.cfg.Key, clientv3.WithPrefix()); err != nil {
+		return trace.Wrap(err)
+	}
+	// Now copy over all data from the legacy prefix to the new one.
+	var errs []error
+	for _, kv := range legacyData.Kvs {
+		// Replace the prefix.
+		key := b.cfg.Key + strings.TrimPrefix(string(kv.Key), legacyDefaultPrefix)
+		b.Debugf("Copying %q -> %q", kv.Key, key)
+		if _, err := b.client.Put(ctx, key, string(kv.Value)); err != nil {
+			errs = append(errs, trace.WrapWithMessage(err, "failed copying %q to %q: %v", kv.Key, key, err))
+		}
+	}
+	return trace.NewAggregate(errs...)
+}
+
+func shouldSync(legacyData, prefixData []*mvccpb.KeyValue) bool {
+	latestRev := func(kvs []*mvccpb.KeyValue) int64 {
+		var rev int64
+		for _, kv := range kvs {
+			if kv.CreateRevision > rev {
+				rev = kv.CreateRevision
+			}
+			if kv.ModRevision > rev {
+				rev = kv.ModRevision
+			}
+		}
+		return rev
+	}
+	if len(legacyData) == 0 {
+		return false
+	}
+	if len(prefixData) == 0 {
+		return true
+	}
+	// Data under the new prefix was updated more recently than data under the
+	// legacy prefix. Assume we already did a sync before and legacy prefix
+	// hasn't been touched since.
+	return latestRev(legacyData) > latestRev(prefixData)
 }
 
 // seconds converts duration to seconds, rounds up to 1 second
