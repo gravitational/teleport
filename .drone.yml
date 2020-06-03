@@ -47,7 +47,8 @@ steps:
         - /go/pkg/mod
 
   - name: Run linter
-    image: golangci/golangci-lint:v1.27.0
+    image: quay.io/gravitational/teleport-buildbox:go1.13.2
+    pull: always
     environment:
       GOCACHE: /go/cache
     commands:
@@ -161,6 +162,7 @@ steps:
 
   - name: Run integration tests
     image: quay.io/gravitational/teleport-buildbox:1.13.2
+    pull: always
     environment:
       GOCACHE: /go/cache
     commands:
@@ -332,6 +334,6 @@ steps:
 
 ---
 kind: signature
-hmac: 35481d70ff2f24b3f033952f4e3dab9c3e2c2935f68cc7b717d6c5e9d9e278c1
+hmac: 077b572fe9c995ed39dda9254308d8c4e0f56e16aa1db668884de139a75f4e52
 
 ...
