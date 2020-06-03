@@ -42,8 +42,8 @@ import (
 const (
 	defaultPath          = "/bin:/usr/bin:/usr/local/bin:/sbin"
 	defaultEnvPath       = "PATH=" + defaultPath
-	defaultSuPath        = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	defaultEnvSuPath     = "PATH=" + defaultSuPath
+	defaultRootPath      = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	defaultEnvRootPath   = "PATH=" + defaultRootPath
 	defaultTerm          = "xterm"
 	defaultLoginDefsPath = "/etc/login.defs"
 )
@@ -427,14 +427,14 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 // looks like "PATH=/usr/bin:/bin"
 func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	envPath := defaultEnvPath
-	envSuPath := defaultEnvSuPath
+	envRootPath := defaultEnvRootPath
 
 	// open file, if it doesn't exist return a default path and move on
 	f, err := os.Open(loginDefsPath)
 	if err != nil {
 		if uid == "0" {
-			log.Infof("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvSuPath)
-			return defaultEnvSuPath
+			log.Infof("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvRootPath)
+			return defaultEnvRootPath
 		}
 		log.Infof("Unable to open %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
 		return defaultEnvPath
@@ -458,7 +458,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 				envPath = fields[1]
 			}
 			if fields[0] == "ENV_SUPATH" {
-				envSuPath = fields[1]
+				envRootPath = fields[1]
 			}
 		}
 	}
@@ -467,8 +467,8 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	err = scanner.Err()
 	if err != nil {
 		if uid == "0" {
-			log.Warnf("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvSuPath)
-			return defaultEnvSuPath
+			log.Warnf("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvRootPath)
+			return defaultEnvRootPath
 		}
 		log.Warnf("Unable to read %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
 		return defaultEnvPath
@@ -477,10 +477,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	// if requesting path for uid 0 and no ENV_SUPATH is given, fallback to
 	// ENV_PATH first, then the default path.
 	if uid == "0" {
-		if envSuPath == defaultEnvPath {
-			return defaultEnvPath
-		}
-		return envSuPath
+		return envRootPath
 	}
 	return envPath
 }
