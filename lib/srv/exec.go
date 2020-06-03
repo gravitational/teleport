@@ -431,7 +431,6 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 
 	// open file, if it doesn't exist return a default path and move on
 	f, err := os.Open(loginDefsPath)
-	defer f.Close()
 	if err != nil {
 		if uid == "0" {
 			log.Infof("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvSuPath)
@@ -440,6 +439,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 		log.Infof("Unable to open %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
 		return defaultEnvPath
 	}
+	defer f.Close()
 
 	// read path from login.defs file (/etc/login.defs) line by line:
 	scanner := bufio.NewScanner(f)
