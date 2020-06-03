@@ -53,7 +53,7 @@ steps:
         from_secret: QUAYIO_DOCKER_USERNAME
       password:
         from_secret: QUAYIO_DOCKER_PASSWORD
-      repo: gravitational/teleport-buildbox
+      repo: quay.io/gravitational/teleport-buildbox
       tags:
         - go1.13.2
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
@@ -206,6 +206,6 @@ steps:
 
 ---
 kind: signature
-hmac: 35426480a7479e9476a3e4ce68f651457919281652699944ece497801f7d5eb1
+hmac: 979408470e12bd8756a5e3a9f105692643a9665487579ce8bb31023d85fadbc2
 
 ...
