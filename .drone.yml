@@ -52,6 +52,7 @@ steps:
       GOCACHE: /go/cache
     commands:
       - cd /go/src/github.com/gravitational/teleport
+      - cat /etc/login.defs
       - make test
 
   - name: Run linter
@@ -233,6 +234,6 @@ steps:
 
 ---
 kind: signature
-hmac: badd1c54ce2fc9d84aa7d80fe58fc6fed39c8306ce1d9a8bb3e557e2c5446ecd
+hmac: 3253233fe466ea2c3acbc35f6e40ced1b063a33c6a9593db092b1fff39bd349b
 
 ...
