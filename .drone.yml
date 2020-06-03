@@ -161,7 +161,7 @@ steps:
         - /go/pkg/mod
 
   - name: Run integration tests
-    image: quay.io/gravitational/teleport-buildbox:1.13.2
+    image: quay.io/gravitational/teleport-buildbox:go1.13.2
     pull: always
     environment:
       GOCACHE: /go/cache
@@ -334,6 +334,6 @@ steps:
 
 ---
 kind: signature
-hmac: 077b572fe9c995ed39dda9254308d8c4e0f56e16aa1db668884de139a75f4e52
+hmac: 347b0838e4cf5d01562dbee6b8743d125de3786e547fcfaeba7b1a6080e6149d
 
 ...
