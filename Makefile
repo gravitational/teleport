@@ -249,7 +249,7 @@ test: $(VERSRC)
 # Integration tests. Need a TTY to work.
 #
 .PHONY: integration
-integration: FLAGS ?= -cover -count 1
+integration: FLAGS ?= -cover
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/... $(FLAGS)
