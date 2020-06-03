@@ -1,7 +1,7 @@
 ---
 kind: pipeline
 type: kubernetes
-name: lint
+name: run-linter
 
 trigger:
   branch:
@@ -57,7 +57,7 @@ steps:
 ---
 kind: pipeline
 type: kubernetes
-name: unit-tests
+name: run-unit-tests
 
 trigger:
   branch:
@@ -114,7 +114,7 @@ steps:
 ---
 kind: pipeline
 type: kubernetes
-name: integration-tests
+name: run-integration-tests
 
 trigger:
   branch:
@@ -330,6 +330,6 @@ steps:
 
 ---
 kind: signature
-hmac: 195b8c03ab9112b173d232475659ffebd16fe87e40f9b6b5eb2b1b82e41e67e6
+hmac: b3b4add415d26967998ca83f2f92a9c786bc3861c4d8abd49f492a5052ddc3f5
 
 ...
