@@ -161,13 +161,14 @@ steps:
         - /go/pkg/mod
 
   - name: Run integration tests
-    image: quay.io/gravitational/teleport-buildbox:go1.13.2
-    pull: always
+    image: docker:19.03.8-dind
     environment:
       GOCACHE: /go/cache
     commands:
+      - docker pull quay.io/gravitational/teleport-buildbox:go1.13.2
+      - docker tag quay.io/gravitational/teleport-buildbox:go1.13.2 teleport-buildbox:go1.13.2
       - cd /go/src/github.com/gravitational/teleport
-      - make integration
+      - make -C build.assets integration
 
   - name: Save cache
     image: meltwater/drone-cache
@@ -334,6 +335,6 @@ steps:
 
 ---
 kind: signature
-hmac: 347b0838e4cf5d01562dbee6b8743d125de3786e547fcfaeba7b1a6080e6149d
+hmac: 07d934bcadfb593958500fbfde42706f67107d3df60ade09aa80ea8d11dd3d6f
 
 ...
