@@ -58,6 +58,9 @@ steps:
         - go1.13.2
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
       context: /go/src/github.com/gravitational/teleport/build.assets
+      build_args:
+        - UID=1000
+        - GID=1000
 
   - name: Run unit tests
     image: quay.io/gravitational/teleport-buildbox:go1.13.2
@@ -202,6 +205,6 @@ steps:
 
 ---
 kind: signature
-hmac: 3e338eabcd3782a4d9e9a3549759328e06c6c0149727d9b59945c591ed92d0bc
+hmac: e1f036653874dc251531dfd3d40526deebfe19c1234c115923eb9c1cf26db213
 
 ...
