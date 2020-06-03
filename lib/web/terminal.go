@@ -236,6 +236,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
 
+	// Start sending ping frames through websocket to client.
+	go t.startPingLoop(ws)
+
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
 	go t.streamEvents(ws, tc)
@@ -289,8 +292,6 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
 		t.windowChange(&t.params.Term)
-
-		go t.startPingLoop(ws)
 
 		return false, nil
 	}
