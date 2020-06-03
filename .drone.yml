@@ -47,8 +47,6 @@ steps:
 
   - name: Build and push buildbox container
     image: plugins/docker
-    environment:
-      RUNTIME: go1.13.2
     settings:
       registry: quay.io
       username:
@@ -57,14 +55,13 @@ steps:
         from_secret: QUAYIO_DOCKER_PASSWORD
       repo: gravitational/teleport-buildbox
       tags:
-        - $RUNTIME
+        - go1.13.2
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
       context: /go/src/github.com/gravitational/teleport/build.assets
       build_args:
         - UID=1000
         - GID=1000
-      build_args_from_env:
-        - RUNTIME
+        - RUNTIME=go1.13.2
 
   - name: Run unit tests
     image: quay.io/gravitational/teleport-buildbox:go1.13.2
@@ -209,6 +206,6 @@ steps:
 
 ---
 kind: signature
-hmac: 6e8addb407b8359b2edf54a0d73d5dc0807da7e784ba03e33f1fdb1b1b18e976
+hmac: 35426480a7479e9476a3e4ce68f651457919281652699944ece497801f7d5eb1
 
 ...
