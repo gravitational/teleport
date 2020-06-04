@@ -47,7 +47,12 @@ func (s *NativeSuite) SetUpSuite(c *check.C) {
 
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
-	a, err := New(context.TODO(), PrecomputeKeys(1), SetClock(fakeClock))
+	a, err := New(
+		context.TODO(),
+		PrecomputeKeys(1),
+		SetClock(fakeClock),
+		SetCASignatureAlg(ssh.SigAlgoRSASHA2256),
+	)
 	c.Assert(err, check.IsNil)
 
 	s.suite = &test.AuthSuite{
@@ -230,7 +235,8 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 
 		userCertificate, ok := publicKey.(*ssh.Certificate)
 		c.Assert(ok, check.Equals, true, comment)
-
+		// Check that the signature algorithm is correct.
+		c.Assert(userCertificate.Signature.Format, check.Equals, s.suite.A.(*Keygen).caSignatureAlg)
 		// check if we added the roles extension
 		_, ok = userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
 		c.Assert(ok, check.Equals, tt.outHasRoles, comment)

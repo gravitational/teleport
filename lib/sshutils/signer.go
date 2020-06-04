@@ -33,7 +33,6 @@ func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse SSH private key")
 	}
-	keySigner = CompatSigner(keySigner)
 
 	pubkey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
 	if err != nil {
@@ -44,6 +43,10 @@ func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
 	if !ok {
 		return nil, trace.BadParameter("expected SSH certificate, got %T ", pubkey)
 	}
+	// Inherit the cert signature algorithm from CA signature.
+	// Whatever auth server decided to use for SSH cert signing should be used
+	// by the resulting certs for signing.
+	keySigner = AlgSigner(keySigner, cert.Signature.Format)
 
 	return ssh.NewCertSigner(cert, keySigner)
 }
@@ -62,21 +65,22 @@ func CryptoPublicKey(publicKey []byte) (crypto.PublicKey, error) {
 	return cryptoPubKey.CryptoPublicKey(), nil
 }
 
-// CompatSigner wraps a provided ssh.Signer to ensure algorithm compatibility
-// with OpenSSH.
+// AlgSigner wraps a provided ssh.Signer to ensure signature algorithm
+// compatibility with OpenSSH.
 //
-// Right now it means forcing SHA-2 signatures with RSA keys, instead of the
-// default SHA-1 used by x/crypto/ssh.
-// See https://www.openssh.com/txt/release-8.2 for context.
-// This will be obsolete once https://github.com/golang/go/issues/37278 is
-// fixed upstream.
+// Right now it allows forcing SHA-2 signatures with RSA keys, instead of the
+// default SHA-1 used by x/crypto/ssh. See
+// https://www.openssh.com/txt/release-8.2 for context.
 //
-// If provided Signer is not an RSA key or does not implement
+// If the provided Signer is not an RSA key or does not implement
 // ssh.AlgorithmSigner, it's returned as is.
 //
 // DELETE IN 5.0: assuming https://github.com/golang/go/issues/37278 is fixed
 // by then and we pull in the fix. Also delete all call sites.
-func CompatSigner(s ssh.Signer) ssh.Signer {
+func AlgSigner(s ssh.Signer, alg string) ssh.Signer {
+	if alg == "" {
+		return s
+	}
 	if s.PublicKey().Type() != ssh.KeyAlgoRSA {
 		return s
 	}
@@ -86,7 +90,7 @@ func CompatSigner(s ssh.Signer) ssh.Signer {
 	}
 	return fixedAlgorithmSigner{
 		AlgorithmSigner: as,
-		alg:             ssh.SigAlgoRSASHA2512,
+		alg:             alg,
 	}
 }
 

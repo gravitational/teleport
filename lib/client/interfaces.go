@@ -246,7 +246,10 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 	if signer, err = ssh.NewCertSigner(keys[0].Certificate, signer); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer = sshutils.CompatSigner(signer)
+	// Inherit the cert signature algorithm from CA signature.
+	// Whatever auth server decided to use for SSH cert signing should be used
+	// by the resulting certs for signing.
+	signer = sshutils.AlgSigner(signer, keys[0].Certificate.Signature.Format)
 	return NewAuthMethodForCert(signer), nil
 }
 

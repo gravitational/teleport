@@ -11,25 +11,25 @@ import (
 	"gopkg.in/check.v1"
 )
 
-type CompatSignerSuite struct{}
+type AlgSignerSuite struct{}
 
-var _ = check.Suite(&CompatSignerSuite{})
+var _ = check.Suite(&AlgSignerSuite{})
 
-func (s *CompatSignerSuite) TestCompatSignerNoop(c *check.C) {
+func (s *AlgSignerSuite) TestAlgSignerNoop(c *check.C) {
 	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	c.Assert(err, check.IsNil)
 	ecdsaSigner, err := ssh.NewSignerFromSigner(ecdsaKey)
 	c.Assert(err, check.IsNil)
 
 	// ECDSA key should be returned as-is, not wrapped.
-	c.Assert(CompatSigner(ecdsaSigner), check.Equals, ecdsaSigner)
+	c.Assert(AlgSigner(ecdsaSigner, ssh.SigAlgoRSASHA2512), check.Equals, ecdsaSigner)
 }
 
-func (s *CompatSignerSuite) TestCompatSigner(c *check.C) {
+func (s *AlgSignerSuite) TestAlgSigner(c *check.C) {
 	rsaSigner, err := newMockRSASigner()
 	c.Assert(err, check.IsNil)
 
-	wrapped := CompatSigner(rsaSigner)
+	wrapped := AlgSigner(rsaSigner, ssh.SigAlgoRSASHA2512)
 	// RSA key should get wrapped.
 	c.Assert(wrapped, check.Not(check.Equals), rsaSigner)
 	wrappedAS := wrapped.(ssh.AlgorithmSigner)
