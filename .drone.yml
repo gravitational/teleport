@@ -33,7 +33,6 @@ steps:
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ls -la /root/.ssh/ && ls -lad /root/.ssh/
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - make init-submodules-e
       - rm -f /root/.ssh/id_rsa
@@ -258,6 +257,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9f8c6d53b4be8cbd37b171a4aab5b62b40eebd0d464c307ccfcd43fb8b02a8de
+hmac: 72dd825b733659e09960b14ded3f2c432fac7bed224310bba99d54329bcbc4e9
 
 ...
