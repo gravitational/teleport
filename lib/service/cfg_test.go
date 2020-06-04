@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
 
 	"gopkg.in/check.v1"
 )
@@ -55,6 +56,29 @@ func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 	if len(config.Hostname) < 2 {
 		c.Error("default hostname wasn't properly set")
 	}
+
+	// crypto settings
+	c.Assert(config.CipherSuites, check.DeepEquals, utils.DefaultCipherSuites())
+	// Unfortunately the below algos don't have exported constants in
+	// golang.org/x/crypto/ssh for us to use.
+	c.Assert(config.Ciphers, check.DeepEquals, []string{
+		"aes128-gcm@openssh.com",
+		"chacha20-poly1305@openssh.com",
+		"aes128-ctr",
+		"aes192-ctr",
+		"aes256-ctr",
+	})
+	c.Assert(config.KEXAlgorithms, check.DeepEquals, []string{
+		"curve25519-sha256@libssh.org",
+		"ecdh-sha2-nistp256",
+		"ecdh-sha2-nistp384",
+		"ecdh-sha2-nistp521",
+	})
+	c.Assert(config.MACAlgorithms, check.DeepEquals, []string{
+		"hmac-sha2-256-etm@openssh.com",
+		"hmac-sha2-256",
+	})
+	c.Assert(config.CASignatureAlgorithm, check.Equals, ssh.SigAlgoRSASHA2512)
 
 	// auth section
 	auth := config.Auth

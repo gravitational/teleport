@@ -204,7 +204,7 @@ type CertAuthority interface {
 	// Checkers returns public keys that can be used to check cert authorities
 	Checkers() ([]ssh.PublicKey, error)
 	// Signers returns a list of signers that could be used to sign keys
-	Signers() ([]ssh.Signer, error)
+	Signers(alg string) ([]ssh.Signer, error)
 	// V1 returns V1 version of the resource
 	V1() *CertAuthorityV1
 	// V2 returns V2 version of the resource
@@ -548,15 +548,17 @@ func (ca *CertAuthorityV2) Checkers() ([]ssh.PublicKey, error) {
 	return out, nil
 }
 
-// Signers returns a list of signers that could be used to sign keys
-func (ca *CertAuthorityV2) Signers() ([]ssh.Signer, error) {
+// Signers returns a list of signers that could be used to sign keys.
+//
+// The optional alg flag can be used to override the signature algorithm.
+func (ca *CertAuthorityV2) Signers(alg string) ([]ssh.Signer, error) {
 	out := make([]ssh.Signer, 0, len(ca.Spec.SigningKeys))
 	for _, keyBytes := range ca.Spec.SigningKeys {
 		signer, err := ssh.ParsePrivateKey(keyBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signer = sshutils.CompatSigner(signer)
+		signer = sshutils.AlgSigner(signer, alg)
 		out = append(out, signer)
 	}
 	return out, nil
@@ -572,7 +574,7 @@ func (ca *CertAuthorityV2) Check() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = ca.Signers()
+	_, err = ca.Signers("")
 	if err != nil {
 		return trace.Wrap(err)
 	}

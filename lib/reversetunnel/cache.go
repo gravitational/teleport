@@ -155,7 +155,6 @@ func (c *certificateCache) generateHostCert(principals []string) (ssh.Signer, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey = sshutils.CompatSigner(privateKey)
 	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
 	if err != nil {
 		return nil, err
@@ -164,6 +163,10 @@ func (c *certificateCache) generateHostCert(principals []string) (ssh.Signer, er
 	if !ok {
 		return nil, trace.BadParameter("not a certificate")
 	}
+	// Inherit the cert signature algorithm from CA signature.
+	// Whatever auth server decided to use for SSH cert signing should be used
+	// by the resulting certs for signing.
+	privateKey = sshutils.AlgSigner(privateKey, cert.Signature.Format)
 
 	// return a ssh.Signer
 	s, err := ssh.NewCertSigner(cert, privateKey)

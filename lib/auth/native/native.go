@@ -61,6 +61,8 @@ type Keygen struct {
 	cancel          context.CancelFunc
 	precomputeCount int
 
+	caSignatureAlg string
+
 	// clock is used to control time.
 	clock clockwork.Clock
 }
@@ -81,6 +83,14 @@ func SetClock(clock clockwork.Clock) KeygenOption {
 func PrecomputeKeys(count int) KeygenOption {
 	return func(k *Keygen) error {
 		k.precomputeCount = count
+		return nil
+	}
+}
+
+// SetCASignatureAlg overrides the signature algorithm for SSH certificates.
+func SetCASignatureAlg(alg string) KeygenOption {
+	return func(k *Keygen) error {
+		k.caSignatureAlg = alg
 		return nil
 	}
 }
@@ -194,7 +204,7 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer = sshutils.CompatSigner(signer)
+	signer = sshutils.AlgSigner(signer, k.caSignatureAlg)
 
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
@@ -309,7 +319,7 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer = sshutils.CompatSigner(signer)
+	signer = sshutils.AlgSigner(signer, k.caSignatureAlg)
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
 		return nil, trace.Wrap(err)
 	}

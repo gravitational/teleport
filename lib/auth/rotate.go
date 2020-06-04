@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
@@ -479,7 +478,6 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		signer = sshutils.CompatSigner(signer)
 
 		sshPubPEM = ssh.MarshalAuthorizedKey(signer.PublicKey())
 		sshPrivPEM = req.privateKey

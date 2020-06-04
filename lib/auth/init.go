@@ -774,7 +774,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 	return identity, nil
 }
 
-// ReadSSHIdentityFromKeyPair reads identity from initialized keypair
+// ReadSSHIdentityFromKeyPair reads identity from initialized keypair.
 func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if len(keyBytes) == 0 {
 		return nil, trace.BadParameter("PrivateKey: missing private key")
@@ -798,7 +798,10 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}
-	signer = sshutils.CompatSigner(signer)
+	// Inherit the cert signature algorithm from CA signature.
+	// Whatever auth server decided to use for SSH cert signing should be used
+	// by the resulting certs for signing.
+	signer = sshutils.AlgSigner(signer, cert.Signature.Format)
 	// this signer authenticates using certificate signed by the cert authority
 	// not only by the public key
 	certSigner, err := ssh.NewCertSigner(cert, signer)
