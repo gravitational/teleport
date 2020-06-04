@@ -208,6 +208,100 @@ steps:
 ---
 kind: pipeline
 type: kubernetes
+name: docker-cron-4.2.x
+
+trigger:
+  event:
+    - cron
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: golang:1.13.2
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - export TAG=$(git tag --list "v4.2.*" | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1)
+      - git checkout tags/$TAG
+      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - make init-submodules-e
+      - rm -f /root/.ssh/id_rsa
+
+  - name: Build and push Teleport OSS container
+    image: plugins/docker
+    settings:
+      registry: quay.io
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      repo: quay.io/gravitational/teleport-cron
+      tags:
+        - 4.2.x-oss
+      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-cron
+      context: /go/src/github.com/gravitational/teleport
+      build_args:
+        - UID=1000
+        - GID=1000
+        - OS=linux
+        - ARCH=amd64
+        - RUNTIME=go1.13.2
+
+  - name: Build and push Teleport Enterprise container
+    image: plugins/docker
+    settings:
+      registry: quay.io
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      repo: quay.io/gravitational/teleport-cron
+      tags:
+        - 4.2.x-ent
+      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-ent-cron
+      context: /go/src/github.com/gravitational/teleport
+      build_args:
+        - UID=1000
+        - GID=1000
+        - OS=linux
+        - ARCH=amd64
+        - RUNTIME=go1.13.2
+
+  - name: Build and push Teleport Enterprise FIPS container
+    image: plugins/docker
+    settings:
+      registry: quay.io
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      repo: quay.io/gravitational/teleport-cron
+      tags:
+        - 4.2.x-ent-fips
+      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-ent-cron
+      context: /go/src/github.com/gravitational/teleport
+      build_args:
+        - UID=1000
+        - GID=1000
+        - OS=linux
+        - ARCH=amd64
+        - RUNTIME=go1.13.2
+        - FIPS=yes
+
+---
+kind: pipeline
+type: kubernetes
 name: promote-artifact
 
 trigger:
@@ -253,6 +347,6 @@ steps:
 
 ---
 kind: signature
-hmac: a51eca5f3a2e5fbcfbda0b19d3c08409cf96c947a7f73530e58948d7854b271c
+hmac: 11124b2ce0c910d4e0c6853a5824df9816a6eeee02d718f518456f8ef16e3b31
 
 ...
