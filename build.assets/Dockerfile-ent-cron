@@ -1,7 +1,6 @@
 # This Dockerfile uses a buildbox image to build release versions of Teleport followed by a Docker container
 ARG BUILDBOX
-ARG RUNTIME
-FROM $BUILDBOX:$RUNTIME as buildbox
+FROM $BUILDBOX AS buildbox
 
 ARG UID
 ARG GID
