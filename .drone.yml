@@ -235,7 +235,7 @@ steps:
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - make init-submodules-e
+      - git submodule update --init e
       - rm -f /root/.ssh/id_rsa
 
   - name: Build and push Teleport OSS container
@@ -347,6 +347,6 @@ steps:
 
 ---
 kind: signature
-hmac: 11124b2ce0c910d4e0c6853a5824df9816a6eeee02d718f518456f8ef16e3b31
+hmac: 1c065980a9ff1cd76dc7c7a0476427d63d7befc48c7fd667318d9f4d1e303581
 
 ...
