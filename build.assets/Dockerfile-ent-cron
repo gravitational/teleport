@@ -27,9 +27,9 @@ FROM frolvlad/alpine-glibc AS final
 RUN apk --update --no-cache add dumb-init ca-certificates
 
 # Copy "teleport", "tctl", and "tsh" binaries from the previous stage
-COPY --from=buildbox /go/src/github.com/gravitational/teleport/build/e/teleport /usr/local/bin/teleport
-COPY --from=buildbox /go/src/github.com/gravitational/teleport/build/e/tctl /usr/local/bin/tctl
-COPY --from=buildbox /go/src/github.com/gravitational/teleport/build/e/tsh /usr/local/bin/tsh
+COPY --from=buildbox /go/src/github.com/gravitational/teleport/e/build/teleport /usr/local/bin/teleport
+COPY --from=buildbox /go/src/github.com/gravitational/teleport/e/build/tctl /usr/local/bin/tctl
+COPY --from=buildbox /go/src/github.com/gravitational/teleport/build/tsh /usr/local/bin/tsh
 
 # By setting this entry point, we expose make target as command.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
