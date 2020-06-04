@@ -34,7 +34,7 @@ steps:
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$SSH_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
+      - GIT_SSH_COMMAND="ssh -i /root/.ssh/id_rsa" git submodule update --init e
       - rm -f /root/.ssh/id_rsa
 
   - name: Restore cache
@@ -257,6 +257,6 @@ steps:
 
 ---
 kind: signature
-hmac: fe53f888670f6afaa7704a585ea5b667928f092e7ccb8b2a12afc1fc67a5cc7d
+hmac: c5d3369d952efb8866e644c39a2b8e6576cb9e8179d48900701410095c625c63
 
 ...
