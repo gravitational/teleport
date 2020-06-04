@@ -237,6 +237,8 @@ steps:
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
       - rm -f /root/.ssh/id_rsa
+      - wget -O build.assets/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/gus/add-drone-pipeline/build.assets/Dockerfile-cron
+      - wget -O build.assets/Dockerfile-ent-cron https://raw.githubusercontent.com/gravitational/teleport/gus/add-drone-pipeline/build.assets/Dockerfile-ent-cron
 
   - name: Build and push Teleport OSS container
     image: plugins/docker
