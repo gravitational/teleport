@@ -32,8 +32,8 @@ steps:
       - git checkout $DRONE_COMMIT
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
       # fetch enterprise submodules
-      - mkdir /root/.ssh && echo -n "$SSH_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts && chmod 600 /root/.ssh/known_hosts
+      - mkdir -m 0700 /root/.ssh && echo -n "$SSH_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
       - rm -f /root/.ssh/id_rsa
 
@@ -257,6 +257,6 @@ steps:
 
 ---
 kind: signature
-hmac: f0fccd8d75c64bd0af65f91f2491f046a0ec7ce81f51f062f8d97418312fb0eb
+hmac: fe53f888670f6afaa7704a585ea5b667928f092e7ccb8b2a12afc1fc67a5cc7d
 
 ...
