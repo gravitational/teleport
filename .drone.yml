@@ -20,13 +20,22 @@ clone:
 
 steps:
   - name: Check out code
-    image: golangci/golangci-lint:v1.27.0
+    image: quay.io/gravitational/teleport-buildbox:go1.13.2
+    pull: always
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
+      # fetch enterprise submodules
+      - mkdir /root/.ssh && echo -n "$SSH_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - make init-submodules-e
+      - rm -f /root/.ssh/id_rsa
 
   - name: Restore cache
     image: meltwater/drone-cache
@@ -48,7 +57,6 @@ steps:
 
   - name: Run linter
     image: quay.io/gravitational/teleport-buildbox:go1.13.2
-    pull: always
     environment:
       GOCACHE: /go/cache
     commands:
@@ -64,12 +72,13 @@ steps:
       - make test
 
   - name: Run integration tests
-    image: docker.io/library/docker:dind
+    image: quay.io/gravitational/teleport-buildbox:go1.13.2
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - docker run --rm=true -e GOCACHE=/go/cache -v /go/cache:/go/cache -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport FLAGS='-cover -count 1' integration"
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets integration
 
   - name: Save cache
     image: meltwater/drone-cache
@@ -246,6 +255,6 @@ steps:
 
 ---
 kind: signature
-hmac: 85830a17f8186ef58e92aa68be8d09d7b5448cfa128ab67f351747afb54d9d4e
+hmac: 1b306ed872cae82d87f7228d7effea7d0b9d509a3ea397945f0123ada791671b
 
 ...
