@@ -32,10 +32,12 @@ steps:
       - git checkout $DRONE_COMMIT
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
       # fetch enterprise submodules
-      - mkdir -m 0700 /root/.ssh && echo -n "$SSH_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - mkdir -m 0700 /root/.ssh && echo -n "$SSH_KEY" > /root/.ssh/github-key && chmod 600 /root/.ssh/github-key
+      - ls -la /root/.ssh/ && ls -lad /root/.ssh/
+      - head -n1 /root/.ssh/github-key | cut -c1-32
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - GIT_SSH_COMMAND="ssh -i /root/.ssh/id_rsa" git submodule update --init e
-      - rm -f /root/.ssh/id_rsa
+      - GIT_SSH_COMMAND="ssh -i /root/.ssh/github_key" git submodule update --init e
+      - rm -f /root/.ssh/github_key
 
   - name: Restore cache
     image: meltwater/drone-cache
@@ -257,6 +259,6 @@ steps:
 
 ---
 kind: signature
-hmac: c5d3369d952efb8866e644c39a2b8e6576cb9e8179d48900701410095c625c63
+hmac: 28c632beeac720cd0ac17092b05b80af230b36a8f7b4e41395e91273f99e44a8
 
 ...
