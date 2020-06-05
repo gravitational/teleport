@@ -1,17 +1,23 @@
 package proxy
 
 import (
+	"crypto"
 	"crypto/x509"
 	"encoding/pem"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
+
+	"github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
 )
 
@@ -19,19 +25,19 @@ type ForwarderSuite struct{}
 
 var _ = check.Suite(ForwarderSuite{})
 
+func Test(t *testing.T) {
+	check.TestingT(t)
+}
+
 func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
-	cl := &mockClient{
-		csrResp: auth.KubeCSRResponse{
-			Cert:            []byte("mock cert"),
-			CertAuthorities: [][]byte{[]byte("mock CA")},
-			TargetAddr:      "mock addr",
-		},
-	}
+	cl, err := newMockCSRClient()
+	c.Assert(err, check.IsNil)
 	f := &Forwarder{
 		ForwarderConfig: ForwarderConfig{
 			Keygen: testauthority.New(),
 			Client: cl,
 		},
+		Entry: logrus.NewEntry(logrus.New()),
 	}
 	user, err := services.NewUser("bob")
 	c.Assert(err, check.IsNil)
@@ -55,7 +61,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	b, err := f.requestCertificate(ctx)
 	c.Assert(err, check.IsNil)
 	// All fields except b.key are predictable.
-	c.Assert(b.Certificates[0].Certificate[0], check.DeepEquals, cl.csrResp.Cert)
+	c.Assert(b.Certificates[0].Certificate[0], check.DeepEquals, cl.lastCert.Raw)
 	c.Assert(len(b.RootCAs.Subjects()), check.Equals, 1)
 
 	// Check the KubeCSR fields.
@@ -69,7 +75,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	c.Assert(err, check.IsNil)
 	idFromCSR, err := tlsca.FromSubject(csr.Subject, time.Time{})
 	c.Assert(err, check.IsNil)
-	c.Assert(idFromCSR, check.DeepEquals, ctx.Identity)
+	c.Assert(*idFromCSR, check.DeepEquals, ctx.Identity)
 }
 
 func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
@@ -77,6 +83,7 @@ func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
 	c.Assert(err, check.IsNil)
 	f := &Forwarder{
 		clusterSessions: clusterSessions,
+		Entry:           logrus.NewEntry(logrus.New()),
 	}
 
 	user, err := services.NewUser("bob")
@@ -111,16 +118,49 @@ func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
 
 // mockClient to intercept ProcessKubeCSR requests, record them and return a
 // stub response.
-type mockClient struct {
+type mockCSRClient struct {
 	auth.ClientI
 
-	csrResp auth.KubeCSRResponse
-	gotCSR  auth.KubeCSR
+	ca       *tlsca.CertAuthority
+	gotCSR   auth.KubeCSR
+	lastCert *x509.Certificate
 }
 
-func (c *mockClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse, error) {
+func newMockCSRClient() (*mockCSRClient, error) {
+	ca, err := tlsca.New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	if err != nil {
+		return nil, err
+	}
+	return &mockCSRClient{ca: ca}, nil
+}
+
+func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse, error) {
 	c.gotCSR = csr
-	return &c.csrResp, nil
+
+	x509CSR, err := tlsca.ParseCertificateRequestPEM(csr.CSR)
+	if err != nil {
+		return nil, err
+	}
+	caCSR := tlsca.CertificateRequest{
+		Clock:     clockwork.NewFakeClock(),
+		PublicKey: x509CSR.PublicKey.(crypto.PublicKey),
+		Subject:   x509CSR.Subject,
+		NotAfter:  time.Now().Add(time.Minute),
+		DNSNames:  x509CSR.DNSNames,
+	}
+	cert, err := c.ca.GenerateCertificate(caCSR)
+	if err != nil {
+		return nil, err
+	}
+	c.lastCert, err = tlsca.ParseCertificatePEM(cert)
+	if err != nil {
+		return nil, err
+	}
+	return &auth.KubeCSRResponse{
+		Cert:            cert,
+		CertAuthorities: [][]byte{[]byte(fixtures.SigningCertPEM)},
+		TargetAddr:      "mock addr",
+	}, nil
 }
 
 // mockRemoteSite is a reversetunnel.RemoteSite implementation with hardcoded
