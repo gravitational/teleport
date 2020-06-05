@@ -65,7 +65,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && chown -R ci /go
+      - chown -R 1000:1000 /go
       - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "pwd && ls -l . && make lint"
 
   - name: Run unit tests
@@ -415,6 +415,6 @@ steps:
 
 ---
 kind: signature
-hmac: f4a1b480cb9e2947c5bdef3af3e240b315729cd999f4d38a5e5943e30f6db847
+hmac: 117dc9b2edd9b2217e92ccf92ba88b25566a7f80ef3dfc15d7b5ec769ba64851
 
 ...
