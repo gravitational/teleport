@@ -9,24 +9,26 @@ ARG ARCH
 ARG EXTRA_DOWNLOAD_ARGS=""
 
 WORKDIR /tmp
-RUN apk --update --no-cache add curl tar && \
+RUN apk --update --no-cache add curl tar ca-certificates && \
     mkdir -p build && \
     curl -Ls https://get.gravitational.com/${DOWNLOAD_TYPE}-${VERSION_TAG}-${OS}-${ARCH}${EXTRA_DOWNLOAD_ARGS}-bin.tar.gz | tar -xzf - && \
     cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE//tctl $DOWNLOAD_TYPE/tsh build
 
 # Second stage builds final container with teleport binaries.
-FROM frolvlad/alpine-glibc AS teleport
+FROM busybox:glibc AS teleport
 
-# Install dumb-init and ca-certificates. The dumb-init package is to ensure
-# signals and orphaned processes are are handled correctly. The ca-certificates
-# package is installed because the base image does not come with any
-# certificate authorities.
-RUN apk --update --no-cache add dumb-init ca-certificates
+# Copy ca-certificates from the package that we installed in the base image.
+COPY --from=download /usr/share/ca-certificates /usr/share/ca-certificates
+COPY --from=download /etc/ssl/certs /etc/ssl/certs
 
 # Copy "teleport", "tctl", and "tsh" binaries from the previous stage.
 COPY --from=download /tmp/build/teleport /usr/local/bin/teleport
 COPY --from=download /tmp/build/tctl /usr/local/bin/tctl
 COPY --from=download /tmp/build/tsh /usr/local/bin/tsh
 
-# By setting this entry point, we expose make target as command.
-ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
+# Install dumb-init to ensure signals and orphaned processes are are handled correctly.
+RUN wget -O /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.2/dumb-init_1.2.2_amd64 && \
+    chmod +x /usr/local/bin/dumb-init
+
+# Run Teleport inside the image with a default config file location.
+ENTRYPOINT ["/usr/local/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
