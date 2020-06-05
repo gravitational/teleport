@@ -48,12 +48,7 @@ func (s *Suite) TearDownTest(c *check.C)  {}
 // TestCreate tests creating and removing cgroups as well as shutting down
 // the service and unmounting the cgroup hierarchy.
 func (s *Suite) TestCreate(c *check.C) {
-	// We do not run this test in CI, because Docker/Kubernetes containers will not usually have the necessary
-	// permissions/capabilities to mount and test the cgroup filesystem.
-	if isCI() {
-		c.Skip("Tests for package cgroup do not run in CI due to privilege limitations.")
-	}
-	// Outside of CI, this test must be run as root. Only root can create cgroups.
+	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
 		c.Skip("Tests for package cgroup can only be run as root.")
 	}
@@ -105,12 +100,7 @@ func (s *Suite) TestCreate(c *check.C) {
 // TestCleanup tests the ability for Teleport to remove and cleanup all
 // cgroups which is performed upon startup.
 func (s *Suite) TestCleanup(c *check.C) {
-	// We do not run this test in CI, because Docker/Kubernetes containers will not usually have the necessary
-	// permissions/capabilities to mount and test the cgroup filesystem.
-	if isCI() {
-		c.Skip("Tests for package cgroup do not run in CI due to privilege limitations.")
-	}
-	// Outside of CI, this test must be run as root. Only root can create cgroups.
+	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
 		c.Skip("Tests for package cgroup can only be run as root.")
 	}
@@ -148,12 +138,4 @@ func (s *Suite) TestCleanup(c *check.C) {
 // for this package must be run as root.
 func isRoot() bool {
 	return os.Geteuid() == 0
-}
-
-// isCI returns true when the environment variable "CI" is set to "true", as is the
-// case when running in Drone CI. It returns false if this variable is not set, or is
-// set to any other value.
-func isCI() bool {
-	ciVar, isSet := os.LookupEnv("CI")
-	return !isSet || ciVar == "true"
 }
