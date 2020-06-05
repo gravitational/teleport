@@ -254,27 +254,6 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
       - docker build --build-arg VERSION_TAG=${VERSION_TAG} --build-arg OS=$OS --build-arg ARCH=$ARCH --build-arg DOWNLOAD_TYPE=$DOWNLOAD_TYPE --build-arg EXTRA_DOWNLOAD_ARGS=$EXTRA_DOWNLOAD_ARGS -t $OUTPUT_IMAGE -f /tmp/build/Dockerfile-cron /tmp/build
 
-  - name: Build and push Teleport OSS container
-    image: plugins/docker
-    settings:
-      registry: quay.io
-      username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      repo: quay.io/gravitational/teleport-cron
-      tags:
-        - 4.2.x-oss
-      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-cron
-      context: /go/src/github.com/gravitational/teleport
-      build_args:
-        - BUILDBOX=quay.io/gravitational/teleport-buildbox:go1.13.2
-        - UID=1000
-        - GID=1000
-        - OS=linux
-        - ARCH=amd64
-        - RUNTIME=go1.13.2
-
 services:
   - name: Start Docker
     image: docker:dind
@@ -335,6 +314,6 @@ steps:
 
 ---
 kind: signature
-hmac: 6588ea07e3a7055fccc9756cb290333ad0efdd52af47b22178277a2dc4974896
+hmac: c1f93c05b46be1428cd07a3d2c7510863d27f2ff9c768ffa89d8cf995d1d5029
 
 ...
