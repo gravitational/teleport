@@ -1,33 +1,29 @@
-# This two-stage Dockerfile uses one image to download release versions of Teleport, then
-# builds a second smaller container and copies the binaries in.
+# First stage downloads pre-compiled Teleport archive from get.gravitational.com
+# and extracts binaries from the archive.
 FROM alpine AS download
 
+ARG DOWNLOAD_TYPE=teleport
+ARG VERSION_TAG
 ARG OS
 ARG ARCH
-ARG VERSION_TAG
-ARG DOWNLOAD_TYPE=teleport
 ARG EXTRA_DOWNLOAD_ARGS=""
 
 WORKDIR /tmp
-
 RUN apk --update --no-cache add curl tar && \
     mkdir -p build && \
     curl -Ls https://get.gravitational.com/${DOWNLOAD_TYPE}-${VERSION_TAG}-${OS}-${ARCH}${EXTRA_DOWNLOAD_ARGS}-bin.tar.gz | tar -xzf - && \
     cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE//tctl $DOWNLOAD_TYPE/tsh build
 
-# second stage builds actual container with teleport binaries in
-FROM frolvlad/alpine-glibc AS final
+# Second stage builds final container with teleport binaries.
+FROM frolvlad/alpine-glibc AS teleport
 
 # Install dumb-init and ca-certificates. The dumb-init package is to ensure
-# signals and orphaned processes are are handled correctly. The ca-certificate
+# signals and orphaned processes are are handled correctly. The ca-certificates
 # package is installed because the base image does not come with any
 # certificate authorities.
-#
-# Note that /var/lib/apt/lists/* is cleaned up in the same RUN command as
-# "apt-get update" to reduce the size of the image.
 RUN apk --update --no-cache add dumb-init ca-certificates
 
-# Copy "teleport", "tctl", and "tsh" binaries from the previous stage
+# Copy "teleport", "tctl", and "tsh" binaries from the previous stage.
 COPY --from=download /tmp/build/teleport /usr/local/bin/teleport
 COPY --from=download /tmp/build/tctl /usr/local/bin/tctl
 COPY --from=download /tmp/build/tsh /usr/local/bin/tsh
