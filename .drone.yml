@@ -73,6 +73,9 @@ steps:
       UID: 1000
       GID: 1000
       GOPATH: /gopath
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
       - chown -R $UID:$GID /go
       - docker run --rm=true -e GOCACHE=$GOPATH/cache -v /go/cache:$GOPATH/cache -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make FLAGS='-cover -count 1' test"
@@ -414,6 +417,6 @@ steps:
 
 ---
 kind: signature
-hmac: ebc1cbf764f8ec7696a49b86446a00f8753124f79138a12d23431e2d5d3920a8
+hmac: 7f8f130e7a755b737d782709f784107eb6c904cc57ff083007b4dccd32d28a14
 
 ...
