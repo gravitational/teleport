@@ -212,11 +212,11 @@ steps:
 ---
 kind: pipeline
 type: kubernetes
-name: docker-cron-4.2.x
+name: docker-cron
 
 # trigger:
 #   cron:
-#     - docker-cron-42x
+#     - docker-cron
 # TODO(gus): revert
 trigger:
   branch:
@@ -235,23 +235,32 @@ steps:
   - name: Check out code
     image: golang:1.13.2
     environment:
-      VERSION_ROOT: 4.2
+      # increment these when we release a new major/minor version to bump the automatic builds
+      CURRENT_VERSION_ROOT: 4.2
+      PREVIOUS_VERSION_ONE_ROOT: 4.1
+      PREVIOUS_VERSION_TWO_ROOT: 4.0
       DOCKERFILE_BRANCH: gus/add-drone-pipeline
     commands:
-      - sleep 3 # wait for Docker to start
-      - mkdir -p /tmp/build && cd /tmp/build
-      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /tmp/build/VERSION_TAG.txt
+      # wait for Docker to start and create tmpdir
+      - sleep 3 && mkdir -p /tmp/build && cd /tmp/build
+      # CURRENT_VERSION
+      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $CURRENT_VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /tmp/build/CURRENT_VERSION_TAG.txt
+      - echo "$(cat /tmp/build/CURRENT_VERSION_TAG.txt | cut -d. -f1-2).x" > /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt
+      # PREVIOUS_VERSION_ONE
+      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_ONE_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /tmp/build/PREVIOUS_VERSION_ONE_TAG.txt
+      - echo "$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1-2).x" > /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
+      # PREVIOUS_VERSION_TWO
+      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_TWO_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /tmp/build/PREVIOUS_VERSION_TWO_TAG.txt
+      - echo "$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1-2).x" > /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
+      # get Dockerfile
       - wget -O /tmp/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/$DOCKERFILE_BRANCH/build.assets/Dockerfile-cron
 
-  - name: Build and push Teleport OSS container
+  - name: Build and push Teleport containers (CURRENT_VERSION)
     image: docker:dind
     environment:
-      DOWNLOAD_TYPE: teleport
       OS: linux
       ARCH: amd64
-      EXTRA_BUILD_ARGS: ""
       REPO: quay.io
-      OUTPUT_IMAGE: gravitational/teleport-cron:4.2.x-oss
     settings:
       username:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -261,9 +270,80 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - export VERSION_TAG=$(cat /tmp/build/VERSION_TAG.txt)
+      - export VERSION_TAG=$(cat /tmp/build/CURRENT_VERSION_TAG.txt)
+      - export OSS_IMAGE_NAME="gravitational/teleport-cron:$(cat /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt)-oss"
+      - export ENT_IMAGE_NAME="gravitational/teleport-cron:$(cat /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt)-ent"
+      - export ENT_FIPS_IMAGE_NAME="gravitational/teleport-cron:$(cat /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt)-ent-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
-      - docker build --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH --build-arg DOWNLOAD_TYPE=$DOWNLOAD_TYPE --build-arg EXTRA_DOWNLOAD_ARGS=$EXTRA_DOWNLOAD_ARGS -t $OUTPUT_IMAGE -f /tmp/build/Dockerfile-cron /tmp/build
+      # OSS
+      - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker push $OSS_IMAGE_NAME
+      # Enterprise
+      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker push $ENT_IMAGE_NAME
+      # Enterprise FIPS
+      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker push $ENT_FIPS_IMAGE_NAME
+
+  - name: Build and push Teleport containers (PREVIOUS_VERSION_ONE)
+    image: docker:dind
+    environment:
+      OS: linux
+      ARCH: amd64
+      REPO: quay.io
+    settings:
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - export VERSION_TAG=$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG.txt)
+      - export OSS_IMAGE_NAME="gravitational/teleport-cron:$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-oss"
+      - export ENT_IMAGE_NAME="gravitational/teleport-cron:$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-ent"
+      - export ENT_FIPS_IMAGE_NAME="gravitational/teleport-cron:$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-ent-fips"
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
+      # OSS
+      - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker push $OSS_IMAGE_NAME
+      # Enterprise
+      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker push $ENT_IMAGE_NAME
+      # Enterprise FIPS
+      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker push $ENT_FIPS_IMAGE_NAME
+
+  - name: Build and push Teleport containers (PREVIOUS_VERSION_TWO)
+    image: docker:dind
+    environment:
+      OS: linux
+      ARCH: amd64
+      REPO: quay.io
+    settings:
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - export VERSION_TAG=$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG.txt)
+      - export OSS_IMAGE_NAME="gravitational/teleport-cron:$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-oss"
+      - export ENT_IMAGE_NAME="gravitational/teleport-cron:$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-ent"
+      - export ENT_FIPS_IMAGE_NAME="gravitational/teleport-cron:$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-ent-fips"
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
+      # OSS
+      - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker push $OSS_IMAGE_NAME
+      # Enterprise
+      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker push $ENT_IMAGE_NAME
+      # Enterprise FIPS
+      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker push $ENT_FIPS_IMAGE_NAME
 
 services:
   - name: Start Docker
@@ -325,6 +405,6 @@ steps:
 
 ---
 kind: signature
-hmac: 352905f70d3ad04135715c821528b69eb3364de11547828ce98370fd0920611e
+hmac: 1f1c13ad8b05a4e0a2a95f559c6bb13720a872c2d68c116e0e19167194cc82ad
 
 ...
