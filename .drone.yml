@@ -240,8 +240,8 @@ steps:
     commands:
       - sleep 3 # wait for Docker to start
       - mkdir -p /tmp/build && cd /tmp/build
-      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep ${VERSION_ROOT} | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /tmp/build/VERSION_TAG.txt
-      - wget -O /tmp/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DOCKERFILE_BRANCH}/build.assets/Dockerfile-cron
+      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /tmp/build/VERSION_TAG.txt
+      - wget -O /tmp/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/$DOCKERFILE_BRANCH/build.assets/Dockerfile-cron
 
   - name: Build and push Teleport OSS container
     image: docker:dind
@@ -263,7 +263,7 @@ steps:
     commands:
       - export VERSION_TAG=$(cat /tmp/build/VERSION_TAG.txt)
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
-      - docker build --build-arg VERSION_TAG=${VERSION_TAG} --build-arg OS=$OS --build-arg ARCH=$ARCH --build-arg DOWNLOAD_TYPE=$DOWNLOAD_TYPE --build-arg EXTRA_DOWNLOAD_ARGS=$EXTRA_DOWNLOAD_ARGS -t $OUTPUT_IMAGE -f /tmp/build/Dockerfile-cron /tmp/build
+      - docker build --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH --build-arg DOWNLOAD_TYPE=$DOWNLOAD_TYPE --build-arg EXTRA_DOWNLOAD_ARGS=$EXTRA_DOWNLOAD_ARGS -t $OUTPUT_IMAGE -f /tmp/build/Dockerfile-cron /tmp/build
 
 services:
   - name: Start Docker
@@ -325,6 +325,6 @@ steps:
 
 ---
 kind: signature
-hmac: 8328720775f692fad9592a4de7d595a1f859d0bc6c0a93c6fb965908b8ffc8ff
+hmac: 352905f70d3ad04135715c821528b69eb3364de11547828ce98370fd0920611e
 
 ...
