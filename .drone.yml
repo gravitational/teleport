@@ -3,14 +3,18 @@ kind: pipeline
 type: kubernetes
 name: test
 
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - promote
+#       - rollback
+# TODO(gus): revert
 trigger:
   branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - promote
-      - rollback
+    - dontrun
 
 workspace:
   path: /go
@@ -210,9 +214,16 @@ kind: pipeline
 type: kubernetes
 name: docker-cron-4.2.x
 
+# trigger:
+#   cron:
+#     - docker-cron-42x
+# TODO(gus): revert
 trigger:
-  cron:
-    - docker-cron-42x
+  branch:
+    - master
+  event:
+    include:
+      - pull_request
 
 workspace:
   path: /tmp
@@ -314,6 +325,6 @@ steps:
 
 ---
 kind: signature
-hmac: c1f93c05b46be1428cd07a3d2c7510863d27f2ff9c768ffa89d8cf995d1d5029
+hmac: 8328720775f692fad9592a4de7d595a1f859d0bc6c0a93c6fb965908b8ffc8ff
 
 ...
