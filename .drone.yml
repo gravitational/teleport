@@ -3,18 +3,14 @@ kind: pipeline
 type: kubernetes
 name: test
 
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - promote
-#       - rollback
-# TODO(gus): revert
 trigger:
   branch:
-    - dontrun
+    - master
+    - branch/*
+  event:
+    exclude:
+      - promote
+      - rollback
 
 workspace:
   path: /go
@@ -134,22 +130,29 @@ clone:
   disable: true
 
 steps:
-  - name: Build OSS release artifacts
+  - name: Build release artifacts
     image: golang:1.13.2
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
     commands:
       - git clone https://github.com/gravitational/teleport.git .
       - git fetch --all --tags
       - git checkout $DRONE_TAG
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      - rm -f /root/.ssh/id_rsa
       - mkdir -p build/e
+      # build release artifacts
       - make release
+      # copy release archives to build directory
       - find . -maxdepth 1 -iname "*.tar.gz" -print -exec cp {} build/ \;
-      - find e/ -maxdepth 1 -iname "*.tar.gz" -print -exec cp {} build/e/ \;
-      - cd build
-      - for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done
-      - cd e
-      - ls -l .
-      - for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done
-      - ls -l .
+      - find e -maxdepth 1 -iname "*.tar.gz" -print -exec cp {} build/e \;
+      # generate checksums
+      - pushd build && for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - pushd build/e && for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
 
   - name: Upload to S3
     image: plugins/s3
@@ -235,7 +238,7 @@ steps:
   - name: Set up variables and Dockerfile
     image: alpine
     environment:
-      # increment these when we release a new major/minor version to bump the automatic builds
+      # increment these variables when a new major/minor version is released to bump the automatic builds
       CURRENT_VERSION_ROOT: 4.2
       PREVIOUS_VERSION_ONE_ROOT: 4.1
       PREVIOUS_VERSION_TWO_ROOT: 4.0
@@ -252,6 +255,7 @@ steps:
       # PREVIOUS_VERSION_TWO
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_TWO_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /tmp/build/PREVIOUS_VERSION_TWO_TAG.txt
       - echo "$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1-2 | cut -dv -f2).x" > /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
+      - for FILE in /tmp/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfile
       - curl -Ls -o /tmp/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/$DOCKERFILE_BRANCH/build.assets/Dockerfile-cron
 
@@ -405,6 +409,6 @@ steps:
 
 ---
 kind: signature
-hmac: bec8807536478a51bf7d95feb8d2da6c132039e1b3a885408906e26e9b81d28b
+hmac: dcdc6629dcb292cd685e3c2734c2652e7f4f6153510b2b615b5a042b47cfba12
 
 ...
