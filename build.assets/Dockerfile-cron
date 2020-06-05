@@ -1,7 +1,6 @@
 # This two-stage Dockerfile uses one image to download release versions of Teleport, then
 # builds a second smaller container and copies the binaries in.
-ARG RUNTIME
-FROM golang AS download
+FROM alpine AS download
 
 ARG OS
 ARG ARCH
@@ -10,7 +9,9 @@ ARG DOWNLOAD_TYPE=teleport
 ARG EXTRA_DOWNLOAD_ARGS=""
 
 WORKDIR /tmp
-RUN mkdir -p build && \
+
+RUN apk --update --no-cache add curl tar && \
+    mkdir -p build && \
     curl -Ls https://get.gravitational.com/${DOWNLOAD_TYPE}-${VERSION_TAG}-${OS}-${ARCH}${EXTRA_DOWNLOAD_ARGS}-bin.tar.gz | tar -xzf - && \
     cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE//tctl $DOWNLOAD_TYPE/tsh build
 
