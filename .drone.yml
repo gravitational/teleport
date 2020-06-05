@@ -65,7 +65,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C $GOPATH/src/github.com/gravitational/teleport lint"
+      - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "pwd && ls -l . && make lint"
 
   - name: Run unit tests
     image: docker:dind
@@ -75,7 +75,7 @@ steps:
       GOCACHE: /go/cache
       GOPATH: /gopath
     commands:
-      - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C $GOPATH/src/github.com/gravitational/teleport FLAGS='-cover -count 1' test"
+      - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make FLAGS='-cover -count 1' test"
 
   - name: Run integration tests
     image: docker:dind
@@ -88,7 +88,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C $GOPATH/src/github.com/gravitational/teleport FLAGS='-cover -count 1' integration"
+      - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C FLAGS='-cover -count 1' integration"
 
   - name: Save cache
     image: meltwater/drone-cache
@@ -414,6 +414,6 @@ steps:
 
 ---
 kind: signature
-hmac: 570db7c2ba6c95d301e602420edb008dfd2d036af9b02d9933e542fb73661e6f
+hmac: bd132c78efe08c61a5638cc2199dec11bcccd6156e9620013397f47dae504da0
 
 ...
