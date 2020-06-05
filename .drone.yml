@@ -241,7 +241,7 @@ steps:
       PREVIOUS_VERSION_TWO_ROOT: 4.0
       DOCKERFILE_BRANCH: gus/add-drone-pipeline
     commands:
-      - apk --update --no-cache add wget git
+      - apk --update --no-cache add curl git
       - mkdir -p /tmp/build && cd /tmp/build
       # CURRENT_VERSION
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $CURRENT_VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /tmp/build/CURRENT_VERSION_TAG.txt
@@ -405,6 +405,6 @@ steps:
 
 ---
 kind: signature
-hmac: ba1dea7793691a168077ef7b930632b7e1b3bacb6152599d393c91cc941dd8ab
+hmac: bec8807536478a51bf7d95feb8d2da6c132039e1b3a885408906e26e9b81d28b
 
 ...
