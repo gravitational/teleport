@@ -13,6 +13,7 @@ ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
+GOCACHE ?=
 
 OS ?= linux
 ARCH ?= amd64
@@ -25,6 +26,11 @@ BBOXCENTOS6FIPS=teleport-buildbox-centos6-fips:$(RUNTIME)
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
+endif
+export
+
+ifneq ("$(GOCACHE)","")
+DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 export
 

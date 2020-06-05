@@ -12,7 +12,10 @@ COPY pam/teleport-success /etc/pam.d
 COPY pam/teleport-session-failure /etc/pam.d
 COPY pam/teleport-session-environment /etc/pam.d
 
-RUN apt-get update; apt-get install -q -y libpam-dev libc6-dev-i386 net-tools tree
+RUN apt-get -y update && \
+    apt-get install -q -y libpam-dev libc6-dev-i386 net-tools tree docker && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists
 
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R jenkins /var/lib/teleport)

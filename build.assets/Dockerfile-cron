@@ -1,24 +1,25 @@
-# This Dockerfile uses a buildbox image to build release versions of Teleport followed by a Docker container
-ARG BUILDBOX
-FROM $BUILDBOX AS buildbox
+# This two-stage Dockerfile uses one image to download release versions of Teleport, then
+# builds a second smaller container and copies the binaries in.
+ARG RUNTIME
+FROM golang AS download
 
-ARG UID
-ARG GID
 ARG OS
 ARG ARCH
-ARG RUNTIME
+ARG VERSION_TAG
+ARG DOWNLOAD_TYPE=teleport
+ARG EXTRA_DOWNLOAD_ARGS=""
 
-RUN mkdir -p /go/src/github.com/gravitational/teleport
-COPY . /go/src/github.com/gravitational/teleport
-WORKDIR /go/src/github.com/gravitational/teleport
-RUN make clean release -e OS=${OS} ARCH=${ARCH} RUNTIME=${RUNTIME}
+WORKDIR /tmp
+RUN mkdir -p build && \
+    curl -Ls https://get.gravitational.com/${DOWNLOAD_TYPE}-${VERSION_TAG}-${OS}-${ARCH}${EXTRA_DOWNLOAD_ARGS}-bin.tar.gz | tar -xzf - && \
+    cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE//tctl $DOWNLOAD_TYPE/tsh build
 
 # second stage builds actual container with teleport binaries in
 FROM frolvlad/alpine-glibc AS final
 
 # Install dumb-init and ca-certificates. The dumb-init package is to ensure
 # signals and orphaned processes are are handled correctly. The ca-certificate
-# package is installed because the base Ubuntu image does not come with any
+# package is installed because the base image does not come with any
 # certificate authorities.
 #
 # Note that /var/lib/apt/lists/* is cleaned up in the same RUN command as
@@ -26,9 +27,9 @@ FROM frolvlad/alpine-glibc AS final
 RUN apk --update --no-cache add dumb-init ca-certificates
 
 # Copy "teleport", "tctl", and "tsh" binaries from the previous stage
-COPY --from=buildbox /go/src/github.com/gravitational/teleport/build/teleport /usr/local/bin/teleport
-COPY --from=buildbox /go/src/github.com/gravitational/teleport/build/tctl /usr/local/bin/tctl
-COPY --from=buildbox /go/src/github.com/gravitational/teleport/build/tsh /usr/local/bin/tsh
+COPY --from=download /tmp/build/teleport /usr/local/bin/teleport
+COPY --from=download /tmp/build/tctl /usr/local/bin/tctl
+COPY --from=download /tmp/build/tsh /usr/local/bin/tsh
 
 # By setting this entry point, we expose make target as command.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
