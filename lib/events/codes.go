@@ -252,9 +252,7 @@ var (
 // There is no strict algorithm for picking an event code, however existing
 // event codes are currently loosely categorized as follows:
 //
-//  * OSS event codes start with "T" and belong in this const block.
-//
-//  * Enterprise event codes start with "TE", and are in another const block.
+//  * Teleport event codes start with "T" and belong in this const block.
 //
 //  * Related events are grouped starting with the same number.
 //		eg: All user related events are grouped under 1xxx.
@@ -345,22 +343,19 @@ const (
 	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
 	GithubConnectorDeletedCode = "T8001I"
-)
-
-// Enterprise event codes.
-const (
-	// RoleCreatedCode is the role created event code.
-	RoleCreatedCode = "TE1000I"
-	// RoleDeletedCode is the role deleted event code.
-	RoleDeletedCode = "TE1001I"
 
 	// OIDCConnectorCreatedCode is the OIDC connector created event code.
-	OIDCConnectorCreatedCode = "TE2000I"
+	OIDCConnectorCreatedCode = "T8100I"
 	// OIDCConnectorDeletedCode is the OIDC connector deleted event code.
-	OIDCConnectorDeletedCode = "TE2001I"
+	OIDCConnectorDeletedCode = "T8101I"
 
 	// SAMLConnectorCreatedCode is the SAML connector created event code.
-	SAMLConnectorCreatedCode = "TE3000I"
+	SAMLConnectorCreatedCode = "T8200I"
 	// SAMLConnectorDeletedCode is the SAML connector deleted event code.
-	SAMLConnectorDeletedCode = "TE3001I"
+	SAMLConnectorDeletedCode = "T8201I"
+
+	// RoleCreatedCode is the role created event code.
+	RoleCreatedCode = "T9000I"
+	// RoleDeletedCode is the role deleted event code.
+	RoleDeletedCode = "T9001I"
 )
