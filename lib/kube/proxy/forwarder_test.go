@@ -284,7 +284,117 @@ func (s ForwarderSuite) TestPortForward(c *check.C) {
 }
 
 func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
-	c.Fatal("TODO")
+	tests := []struct {
+		desc          string
+		kubeUsers     []string
+		kubeGroups    []string
+		remoteCluster bool
+		inHeaders     http.Header
+		wantHeaders   http.Header
+		wantErr       bool
+	}{
+		{
+			desc:       "no existing impersonation headers",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders: http.Header{
+				"Host": []string{"example.com"},
+			},
+			wantHeaders: http.Header{
+				"Host":                 []string{"example.com"},
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-a", "kube-group-b"},
+			},
+		},
+		{
+			desc:       "no existing impersonation headers, no default kube users",
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders:  http.Header{},
+			wantErr:    true,
+		},
+		{
+			desc:       "no existing impersonation headers, multiple default kube users",
+			kubeUsers:  []string{"kube-user-a", "kube-user-b"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders:  http.Header{},
+			wantErr:    true,
+		},
+		{
+			desc:          "no existing impersonation headers, remote cluster",
+			kubeUsers:     []string{"kube-user-a"},
+			kubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			remoteCluster: true,
+			inHeaders:     http.Header{},
+			wantHeaders:   http.Header{},
+		},
+		{
+			desc:       "existing user and group headers",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+		},
+		{
+			desc:       "existing user headers not allowed",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"kube-user-other"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+			wantErr: true,
+		},
+		{
+			desc:       "existing group headers not allowed",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders: http.Header{
+				ImpersonateGroupHeader: []string{"kube-group-other"},
+			},
+			wantErr: true,
+		},
+		{
+			desc:       "multiple existing user headers",
+			kubeUsers:  []string{"kube-user-a", "kube-user-b"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders: http.Header{
+				ImpersonateUserHeader: []string{"kube-user-a", "kube-user-b"},
+			},
+			wantErr: true,
+		},
+		{
+			desc:       "unrecognized impersonation header",
+			kubeUsers:  []string{"kube-user-a", "kube-user-b"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders: http.Header{
+				"Impersonate-ev": []string{"evil-ev"},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		c.Log(tt.desc)
+
+		err := setupImpersonationHeaders(
+			&authContext{
+				kubeUsers:  utils.StringsSet(tt.kubeUsers),
+				kubeGroups: utils.StringsSet(tt.kubeGroups),
+				cluster:    cluster{isRemote: tt.remoteCluster},
+			},
+			tt.inHeaders,
+		)
+		c.Log("got error:", err)
+		c.Assert(err != nil, check.Equals, tt.wantErr)
+		if err == nil {
+			c.Assert(tt.inHeaders, check.DeepEquals, tt.wantHeaders)
+		}
+	}
 }
 
 func (s ForwarderSuite) TestNewClusterSession(c *check.C) {

@@ -663,7 +663,7 @@ const (
 )
 
 func (f *Forwarder) setupForwardingHeaders(ctx *authContext, sess *clusterSession, req *http.Request) error {
-	if err := setupImpersonationHeaders(f.Entry, ctx, req.Header); err != nil {
+	if err := setupImpersonationHeaders(ctx, req.Header); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -677,12 +677,13 @@ func (f *Forwarder) setupForwardingHeaders(ctx *authContext, sess *clusterSessio
 	req.Header.Add("X-Forwarded-Proto", "https")
 	req.Header.Add("X-Forwarded-Host", req.Host)
 	req.Header.Add("X-Forwarded-Path", req.URL.Path)
+	req.Header.Add("X-Forwarded-For", req.RemoteAddr)
 
 	return nil
 }
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
-func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers http.Header) error {
+func setupImpersonationHeaders(ctx *authContext, headers http.Header) error {
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
