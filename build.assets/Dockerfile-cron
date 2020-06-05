@@ -11,7 +11,7 @@ ARG RUNTIME
 RUN mkdir -p /go/src/github.com/gravitational/teleport
 COPY . /go/src/github.com/gravitational/teleport
 WORKDIR /go/src/github.com/gravitational/teleport
-RUN make clean full -e OS=${OS} ARCH=${ARCH} RUNTIME=${RUNTIME}
+RUN make clean release -e OS=${OS} ARCH=${ARCH} RUNTIME=${RUNTIME}
 
 # second stage builds actual container with teleport binaries in
 FROM frolvlad/alpine-glibc AS final
