@@ -56,27 +56,39 @@ steps:
 
   - name: Run linter
     image: docker:dind
+    environment:
+      UID: 1000
+      GID: 1000
+      GOCACHE: /go/cache
+      GOPATH: /gopath
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - docker run --rm=true -e GOCACHE=/go/cache -v /go/cache:/go/cache -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport lint"
+      - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C $GOPATH/src/github.com/gravitational/teleport lint"
 
   - name: Run unit tests
     image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
+    environment:
+      UID: 1000
+      GID: 1000
+      GOCACHE: /go/cache
+      GOPATH: /gopath
     commands:
-      - docker run --rm=true -e GOCACHE=/go/cache -v /go/cache:/go/cache -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport FLAGS='-cover -count 1' test"
+      - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C $GOPATH/src/github.com/gravitational/teleport FLAGS='-cover -count 1' test"
 
   - name: Run integration tests
     image: docker:dind
+    environment:
+      UID: 1000
+      GID: 1000
+      GOCACHE: /go/cache
+      GOPATH: /gopath
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - docker run --rm=true -e GOCACHE=/go/cache -v /go/cache:/go/cache -v /go/src/github.com/gravitational/teleport:/go/src/github.com/gravitational/teleport -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C /go/src/github.com/gravitational/teleport FLAGS='-cover -count 1' integration"
+      - docker run --rm=true -e GOCACHE=$GOCACHE -v $GOCACHE:$GOCACHE -v /go:$GOPATH/src/github.com/gravitational/teleport -v /tmp:/tmp -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make -C $GOPATH/src/github.com/gravitational/teleport FLAGS='-cover -count 1' integration"
 
   - name: Save cache
     image: meltwater/drone-cache
@@ -217,16 +229,9 @@ kind: pipeline
 type: kubernetes
 name: docker-cron
 
-# trigger:
-#   cron:
-#     - docker-cron
-# TODO(gus): revert
 trigger:
-  branch:
-    - master
-  event:
-    include:
-      - pull_request
+  cron:
+    - docker-cron
 
 workspace:
   path: /tmp
@@ -409,6 +414,6 @@ steps:
 
 ---
 kind: signature
-hmac: dcdc6629dcb292cd685e3c2734c2652e7f4f6153510b2b615b5a042b47cfba12
+hmac: 570db7c2ba6c95d301e602420edb008dfd2d036af9b02d9933e542fb73661e6f
 
 ...
