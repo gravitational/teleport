@@ -509,9 +509,6 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 	// If the proxy is in recording mode use the agent to dial and build a
 	// in-memory forwarding server.
 	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
-		if params.UserAgent == nil {
-			return nil, trace.BadParameter("user agent missing")
-		}
 		return s.dialWithAgent(params)
 	}
 	return s.DialTCP(params)
@@ -532,11 +529,21 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 }
 
 func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
+	if params.GetUserAgent == nil {
+		return nil, trace.BadParameter("user agent getter missing")
+	}
 	s.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
+
+	// request user agent connection
+	userAgent, err := params.GetUserAgent()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Get a host certificate for the forwarding node from the cache.
 	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
 	if err != nil {
+		userAgent.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -545,6 +552,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		ServerID: params.ServerID,
 	})
 	if err != nil {
+		userAgent.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -556,7 +564,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	// session gets recorded in the local cluster instead of the remote cluster.
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.localClient,
-		UserAgent:       params.UserAgent,
+		UserAgent:       userAgent,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,
 		DstAddr:         params.To,

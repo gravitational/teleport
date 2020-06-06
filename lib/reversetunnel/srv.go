@@ -527,7 +527,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 	return s.srv.Shutdown(ctx)
 }
 
-func (s *server) HandleNewChan(ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
+func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
 	// Apply read/write timeouts to the server connection.
 	conn := utils.ObeyIdleTimeout(ccx.NetConn,
 		s.offlineThreshold,

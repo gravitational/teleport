@@ -17,6 +17,7 @@ limitations under the License.
 package multiplexer
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -80,7 +81,7 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 	defer backend1.Close()
 
 	called := false
-	sshHandler := sshutils.NewChanHandlerFunc(func(_ *sshutils.ConnectionContext, nch ssh.NewChannel) {
+	sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 		called = true
 		err := nch.Reject(ssh.Prohibited, "nothing to see here")
 		c.Assert(err, check.IsNil)
@@ -380,7 +381,7 @@ func (s *MuxSuite) TestDisableTLS(c *check.C) {
 	defer backend1.Close()
 
 	called := false
-	sshHandler := sshutils.NewChanHandlerFunc(func(_ *sshutils.ConnectionContext, nch ssh.NewChannel) {
+	sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 		called = true
 		err := nch.Reject(ssh.Prohibited, "nothing to see here")
 		c.Assert(err, check.IsNil)

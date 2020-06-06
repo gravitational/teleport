@@ -437,7 +437,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	defer keepAliveTick.Stop()
 	keepAlivePayload := [8]byte{0}
 
-	ccx := NewConnectionContext(wconn, sconn)
+	// NOTE: we deliberately don't use s.closeContext here because the server's
+	// closeContext field is used to trigger starvation on cancellation by halting
+	// the acceptance of new connections; it is not intended to halt in-progress
+	// connection handling, and is therefore orthogonal to the role of ConnectionContext.
+	ctx, ccx := NewConnectionContext(context.Background(), wconn, sconn)
 	defer ccx.Close()
 
 	for {
@@ -458,7 +462,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			go s.newChanHandler.HandleNewChan(ccx, nch)
+			go s.newChanHandler.HandleNewChan(ctx, ccx, nch)
 			// send keepalive pings to the clients
 		case <-keepAliveTick.C:
 			const wantReply = true
@@ -466,6 +470,8 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			if err != nil {
 				log.Errorf("Failed sending keepalive request: %v", err)
 			}
+		case <-ctx.Done():
+			log.Debugf("Connection context canceled: %v -> %v", conn.RemoteAddr(), conn.LocalAddr())
 		}
 	}
 }
@@ -475,13 +481,13 @@ type RequestHandler interface {
 }
 
 type NewChanHandler interface {
-	HandleNewChan(*ConnectionContext, ssh.NewChannel)
+	HandleNewChan(context.Context, *ConnectionContext, ssh.NewChannel)
 }
 
-type NewChanHandlerFunc func(*ConnectionContext, ssh.NewChannel)
+type NewChanHandlerFunc func(context.Context, *ConnectionContext, ssh.NewChannel)
 
-func (f NewChanHandlerFunc) HandleNewChan(ccx *ConnectionContext, ch ssh.NewChannel) {
-	f(ccx, ch)
+func (f NewChanHandlerFunc) HandleNewChan(ctx context.Context, ccx *ConnectionContext, ch ssh.NewChannel) {
+	f(ctx, ccx, ch)
 }
 
 type AuthMethods struct {

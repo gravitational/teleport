@@ -22,9 +22,8 @@ import (
 	"net"
 	"time"
 
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // DialParams is a list of parameters used to Dial to a node within a cluster.
@@ -35,9 +34,9 @@ type DialParams struct {
 	// To is the destination address.
 	To net.Addr
 
-	// UserAgent is SSH agent used to connect to the remote host. Used by the
+	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
 	// forwarding proxy.
-	UserAgent agent.Agent
+	GetUserAgent teleagent.Getter
 
 	// Address is used by the forwarding proxy to generate a host certificate for
 	// the target node. This is needed because while dialing occurs via IP
