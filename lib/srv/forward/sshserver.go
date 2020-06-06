@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/trace"
@@ -97,7 +98,7 @@ type Server struct {
 	identityContext srv.IdentityContext
 
 	// userAgent is the SSH user agent that was forwarded to the proxy.
-	userAgent agent.Agent
+	userAgent teleagent.Agent
 
 	// hostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
@@ -133,11 +134,6 @@ type Server struct {
 	sessionServer   session.Service
 	dataDir         string
 
-	// closeContext and closeCancel are used to signal when the in-memory
-	// server is closing and all blocking goroutines should unblock.
-	closeContext context.Context
-	closeCancel  context.CancelFunc
-
 	clock clockwork.Clock
 
 	// hostUUID is the UUID of the underlying proxy that the forwarding server
@@ -148,7 +144,7 @@ type Server struct {
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
 	AuthClient      auth.ClientI
-	UserAgent       agent.Agent
+	UserAgent       teleagent.Agent
 	TargetConn      net.Conn
 	SrcAddr         net.Addr
 	DstAddr         net.Addr
@@ -286,10 +282,6 @@ func New(c ServerConfig) (*Server, error) {
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.sessionRegistry,
 	}
-
-	// Create a close context that is used internally to signal when the server
-	// is closing and for any blocking goroutines to unblock.
-	s.closeContext, s.closeCancel = context.WithCancel(context.Background())
 
 	return s, nil
 }
@@ -430,6 +422,7 @@ func (s *Server) Serve() {
 
 	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
 	if err != nil {
+		s.userAgent.Close()
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
@@ -439,11 +432,13 @@ func (s *Server) Serve() {
 	}
 	s.sconn = sconn
 
-	s.connectionContext = sshutils.NewConnectionContext(s.serverConn, s.sconn)
+	ctx := context.Background()
+	ctx, s.connectionContext = sshutils.NewConnectionContext(ctx, s.serverConn, s.sconn)
 
 	// Take connection and extract identity information for the user from it.
 	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)
 	if err != nil {
+		s.userAgent.Close()
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
@@ -461,6 +456,7 @@ func (s *Server) Serve() {
 		s.rejectChannel(chans, err.Error())
 		sconn.Close()
 
+		s.userAgent.Close()
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
@@ -479,16 +475,17 @@ func (s *Server) Serve() {
 		},
 		Interval:     clusterConfig.GetKeepAliveInterval(),
 		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
-		CloseContext: s.closeContext,
-		CloseCancel:  s.closeCancel,
+		CloseContext: ctx,
+		CloseCancel:  func() { s.connectionContext.Close() },
 	})
 
-	go s.handleConnection(chans, reqs)
+	go s.handleConnection(ctx, chans, reqs)
 }
 
 // Close will close all underlying connections that the forwarding server holds.
 func (s *Server) Close() error {
 	conns := []io.Closer{
+		s.userAgent,
 		s.sconn,
 		s.clientConn,
 		s.serverConn,
@@ -509,10 +506,6 @@ func (s *Server) Close() error {
 			errs = append(errs, err)
 		}
 	}
-
-	// Signal to waiting goroutines that the server is closing (for example,
-	// the keep alive loop).
-	s.closeCancel()
 
 	return trace.NewAggregate(errs...)
 }
@@ -554,7 +547,7 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 	return client, nil
 }
 
-func (s *Server) handleConnection(chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
+func (s *Server) handleConnection(ctx context.Context, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
 	defer s.log.Debugf("Closing forwarding server connected to %v and releasing resources.", s.sconn.LocalAddr())
 	defer s.Close()
 
@@ -571,10 +564,10 @@ func (s *Server) handleConnection(chans <-chan ssh.NewChannel, reqs <-chan *ssh.
 			if newChannel == nil {
 				return
 			}
-			go s.handleChannel(newChannel)
+			go s.handleChannel(ctx, newChannel)
 		// If the server is closing (either the heartbeat failed or Close() was
 		// called, exit out of the connection handler loop.
-		case <-s.closeContext.Done():
+		case <-ctx.Done():
 			return
 		}
 	}
@@ -615,7 +608,7 @@ func (s *Server) handleGlobalRequest(req *ssh.Request) {
 	}
 }
 
-func (s *Server) handleChannel(nch ssh.NewChannel) {
+func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
 
 	switch channelType {
@@ -630,7 +623,7 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 			}
 			return
 		}
-		go s.handleSessionRequests(ch, requests)
+		go s.handleSessionRequests(ctx, ch, requests)
 	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case teleport.ChanDirectTCPIP:
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
@@ -649,7 +642,7 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 			}
 			return
 		}
-		go s.handleDirectTCPIPRequest(ch, req)
+		go s.handleDirectTCPIPRequest(ctx, ch, req)
 	default:
 		if err := nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType)); err != nil {
 			s.log.Warnf("Failed to reject channel of unknown type: %v", err)
@@ -658,43 +651,42 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 }
 
 // handleDirectTCPIPRequest handles port forwarding requests.
-func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	ctx, err := srv.NewServerContext(s.connectionContext, s, s.identityContext)
+	ctx, scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
+		scx.Errorf("Unable to create connection context: %v.", err)
 		s.stderrWrite(ch, "Unable to create connection context.")
 		return
 	}
-	ctx.Connection = s.serverConn
-	ctx.RemoteClient = s.remoteClient
-	ctx.ChannelType = teleport.ChanDirectTCPIP
-	ctx.SrcAddr = fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
-	ctx.DstAddr = fmt.Sprintf("%v:%d", req.Host, req.Port)
-	defer ctx.Close()
+	scx.RemoteClient = s.remoteClient
+	scx.ChannelType = teleport.ChanDirectTCPIP
+	scx.SrcAddr = fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
+	scx.DstAddr = fmt.Sprintf("%v:%d", req.Host, req.Port)
+	defer scx.Close()
 
 	// Check if the role allows port forwarding for this user.
-	err = s.authHandlers.CheckPortForward(ctx.DstAddr, ctx)
+	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
 	if err != nil {
 		s.stderrWrite(ch, err.Error())
 		return
 	}
 
-	s.log.Debugf("Opening direct-tcpip channel from %v to %v in context %v.", ctx.SrcAddr, ctx.DstAddr, ctx.ID())
-	defer s.log.Debugf("Completing direct-tcpip request from %v to %v in context %v.", ctx.SrcAddr, ctx.DstAddr, ctx.ID())
+	s.log.Debugf("Opening direct-tcpip channel from %v to %v in context %v.", scx.SrcAddr, scx.DstAddr, scx.ID())
+	defer s.log.Debugf("Completing direct-tcpip request from %v to %v in context %v.", scx.SrcAddr, scx.DstAddr, scx.ID())
 
 	// Create "direct-tcpip" channel from the remote host to the target host.
-	conn, err := s.remoteClient.Dial("tcp", ctx.DstAddr)
+	conn, err := s.remoteClient.Dial("tcp", scx.DstAddr)
 	if err != nil {
-		ctx.Infof("Failed to connect to: %v: %v", ctx.DstAddr, err)
+		scx.Infof("Failed to connect to: %v: %v", scx.DstAddr, err)
 		return
 	}
 	defer conn.Close()
 
 	// Emit a port forwarding audit event.
 	s.EmitAuditEvent(events.PortForward, events.EventFields{
-		events.PortForwardAddr:    ctx.DstAddr,
+		events.PortForwardAddr:    scx.DstAddr,
 		events.PortForwardSuccess: true,
 		events.EventLogin:         s.identityContext.Login,
 		events.EventUser:          s.identityContext.TeleportUser,
@@ -702,12 +694,13 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 		events.RemoteAddr:         s.sconn.RemoteAddr().String(),
 	})
 
-	wg := &sync.WaitGroup{}
+	var wg sync.WaitGroup
+	wch := make(chan struct{})
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if _, err := io.Copy(ch, conn); err != nil {
-			ctx.Warningf("failed proxying data for port forwarding connection: %v", err)
+			scx.Warningf("failed proxying data for port forwarding connection: %v", err)
 		}
 		ch.Close()
 	}()
@@ -715,34 +708,41 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 	go func() {
 		defer wg.Done()
 		if _, err := io.Copy(conn, ch); err != nil {
-			ctx.Warningf("failed proxying data for port forwarding connection: %v", err)
+			scx.Warningf("failed proxying data for port forwarding connection: %v", err)
 		}
 		conn.Close()
 	}()
-
-	wg.Wait()
+	// block on wg in separate goroutine so that we
+	// can select on wg and context cancellation.
+	go func() {
+		defer close(wch)
+		wg.Wait()
+	}()
+	select {
+	case <-wch:
+	case <-ctx.Done():
+	}
 }
 
 // handleSessionRequests handles out of band session requests once the session
 // channel has been created this function's loop handles all the "exec",
 // "subsystem" and "shell" requests.
-func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
+func (s *Server) handleSessionRequests(ctx context.Context, ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	// There is no need for the forwarding server to initiate disconnects,
 	// based on teleport business logic, because this logic is already
 	// done on the server's terminating side.
-	ctx, err := srv.NewServerContext(s.connectionContext, s, s.identityContext)
+	ctx, scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
+		scx.Errorf("Unable to create connection context: %v.", err)
 		s.stderrWrite(ch, "Unable to create connection context.")
 		return
 	}
-	ctx.Connection = s.serverConn
-	ctx.RemoteClient = s.remoteClient
-	ctx.AddCloser(ch)
-	ctx.ChannelType = teleport.ChanSession
-	defer ctx.Close()
+	scx.RemoteClient = s.remoteClient
+	scx.AddCloser(ch)
+	scx.ChannelType = teleport.ChanSession
+	defer scx.Close()
 
 	// Create a "session" channel on the remote host.
 	remoteSession, err := s.remoteClient.NewSession()
@@ -750,57 +750,59 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 		s.stderrWrite(ch, err.Error())
 		return
 	}
-	ctx.RemoteSession = remoteSession
+	scx.RemoteSession = remoteSession
 
-	s.log.Debugf("Opening session request to %v in context %v.", s.sconn.RemoteAddr(), ctx.ID())
-	defer s.log.Debugf("Closing session request to %v in context %v.", s.sconn.RemoteAddr(), ctx.ID())
+	s.log.Debugf("Opening session request to %v in context %v.", s.sconn.RemoteAddr(), scx.ID())
+	defer s.log.Debugf("Closing session request to %v in context %v.", s.sconn.RemoteAddr(), scx.ID())
 
 	for {
 		// Update the context with the session ID.
-		err := ctx.CreateOrJoinSession(s.sessionRegistry)
+		err := scx.CreateOrJoinSession(s.sessionRegistry)
 		if err != nil {
 			errorMessage := fmt.Sprintf("unable to update context: %v", err)
-			ctx.Errorf("%v", errorMessage)
+			scx.Errorf("%v", errorMessage)
 
 			// Write the error to channel and close it.
 			s.stderrWrite(ch, errorMessage)
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
 			if err != nil {
-				ctx.Errorf("Failed to send exit status %v", errorMessage)
+				scx.Errorf("Failed to send exit status %v", errorMessage)
 			}
 			return
 		}
 
 		select {
-		case result := <-ctx.SubsystemResultCh:
+		case result := <-scx.SubsystemResultCh:
 			// Subsystem has finished executing, close the channel and session.
-			ctx.Debugf("Subsystem execution result: %v", result.Err)
+			scx.Debugf("Subsystem execution result: %v", result.Err)
 			return
 		case req := <-in:
 			if req == nil {
 				// The client has closed or dropped the connection.
-				ctx.Debugf("Client %v disconnected", s.sconn.RemoteAddr())
+				scx.Debugf("Client %v disconnected", s.sconn.RemoteAddr())
 				return
 			}
-			if err := s.dispatch(ch, req, ctx); err != nil {
+			if err := s.dispatch(ch, req, scx); err != nil {
 				s.replyError(ch, req, err)
 				return
 			}
 			if req.WantReply {
 				if err := req.Reply(true, nil); err != nil {
-					ctx.Errorf("failed sending OK response on %q request: %v", req.Type, err)
+					scx.Errorf("failed sending OK response on %q request: %v", req.Type, err)
 				}
 			}
-		case result := <-ctx.ExecResultCh:
-			ctx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
+		case result := <-scx.ExecResultCh:
+			scx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
 
 			// The exec process has finished and delivered the execution result, send
 			// the result back to the client, and close the session and channel.
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
 			if err != nil {
-				ctx.Infof("Failed to send exit status for %v: %v", result.Command, err)
+				scx.Infof("Failed to send exit status for %v: %v", result.Command, err)
 			}
 
+			return
+		case <-ctx.Done():
 			return
 		}
 	}

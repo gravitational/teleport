@@ -115,8 +115,8 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 			events.PortForwardErr:     systemErrorMessage,
 			events.EventLogin:         ctx.Identity.Login,
 			events.EventUser:          ctx.Identity.TeleportUser,
-			events.LocalAddr:          ctx.Conn.LocalAddr().String(),
-			events.RemoteAddr:         ctx.Conn.RemoteAddr().String(),
+			events.LocalAddr:          ctx.ServerConn.LocalAddr().String(),
+			events.RemoteAddr:         ctx.ServerConn.RemoteAddr().String(),
 		}); err != nil {
 			h.Warnf("Failed to emit port forward deny audit event: %v", err)
 		}

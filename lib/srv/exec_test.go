@@ -112,8 +112,9 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 
 	s.usr, _ = user.Current()
 	s.ctx = &ServerContext{
-		IsTestStub:  true,
-		ClusterName: "localhost",
+		ConnectionContext: &sshutils.ConnectionContext{},
+		IsTestStub:        true,
+		ClusterName:       "localhost",
 		srv: &fakeServer{
 			accessPoint: s.a,
 			auditLog:    &fakeLog{},
@@ -123,7 +124,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx.Identity.Login = s.usr.Username
 	s.ctx.session = &session{id: "xxx", term: &fakeTerminal{f: f}}
 	s.ctx.Identity.TeleportUser = "galt"
-	s.ctx.Conn = &ssh.ServerConn{Conn: s}
+	s.ctx.ServerConn = &ssh.ServerConn{Conn: s}
 	s.ctx.ExecRequest = &localExec{Ctx: s.ctx}
 	s.ctx.request = &ssh.Request{
 		Type: sshutils.ExecRequest,
@@ -257,7 +258,8 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	// Create a fake context that will be used to configure a command that will
 	// re-exec "ls".
 	ctx := &ServerContext{
-		IsTestStub: true,
+		ConnectionContext: &sshutils.ConnectionContext{},
+		IsTestStub:        true,
 		srv: &fakeServer{
 			accessPoint: s.a,
 			auditLog:    &fakeLog{},
@@ -266,7 +268,7 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	}
 	ctx.Identity.Login = s.usr.Username
 	ctx.Identity.TeleportUser = "galt"
-	ctx.Conn = &ssh.ServerConn{Conn: s}
+	ctx.ServerConn = &ssh.ServerConn{Conn: s}
 	ctx.ExecRequest = &localExec{
 		Ctx:     ctx,
 		Command: lsPath,
