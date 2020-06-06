@@ -51,7 +51,7 @@ func (s *ServerSuite) SetUpSuite(c *check.C) {
 
 func (s *ServerSuite) TestStartStop(c *check.C) {
 	called := false
-	fn := NewChanHandlerFunc(func(_ *ConnectionContext, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
 		called = true
 		err := nch.Reject(ssh.Prohibited, "nothing to see here")
 		c.Assert(err, check.IsNil)
@@ -88,7 +88,7 @@ func (s *ServerSuite) TestStartStop(c *check.C) {
 // TestShutdown tests graceul shutdown feature
 func (s *ServerSuite) TestShutdown(c *check.C) {
 	closeContext, cancel := context.WithCancel(context.TODO())
-	fn := NewChanHandlerFunc(func(ccx *ConnectionContext, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(_ context.Context, ccx *ConnectionContext, nch ssh.NewChannel) {
 		ch, _, err := nch.Accept()
 		c.Assert(err, check.IsNil)
 		defer ch.Close()
@@ -138,7 +138,7 @@ func (s *ServerSuite) TestShutdown(c *check.C) {
 }
 
 func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
-	fn := NewChanHandlerFunc(func(_ *ConnectionContext, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
 		err := nch.Reject(ssh.Prohibited, "nothing to see here")
 		c.Assert(err, check.IsNil)
 	})
@@ -185,7 +185,7 @@ func (s *ServerSuite) TestHostSignerFIPS(c *check.C) {
 	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.HostCert)
 	c.Assert(err, check.IsNil)
 
-	newChanHandler := NewChanHandlerFunc(func(_ *ConnectionContext, nch ssh.NewChannel) {
+	newChanHandler := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
 		err := nch.Reject(ssh.Prohibited, "nothing to see here")
 		c.Assert(err, check.IsNil)
 	})

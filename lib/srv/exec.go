@@ -248,8 +248,8 @@ func (e *localExec) transformSecureCopy() error {
 	}
 	e.Command = fmt.Sprintf("%s scp --remote-addr=%s --local-addr=%s %v",
 		teleportBin,
-		e.Ctx.Conn.RemoteAddr().String(),
-		e.Ctx.Conn.LocalAddr().String(),
+		e.Ctx.ServerConn.RemoteAddr().String(),
+		e.Ctx.ServerConn.LocalAddr().String(),
 		strings.Join(args[1:], " "))
 
 	return nil
@@ -367,8 +367,8 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	fields := events.EventFields{
 		events.EventUser:      ctx.Identity.TeleportUser,
 		events.EventLogin:     ctx.Identity.Login,
-		events.LocalAddr:      ctx.Conn.LocalAddr().String(),
-		events.RemoteAddr:     ctx.Conn.RemoteAddr().String(),
+		events.LocalAddr:      ctx.ServerConn.LocalAddr().String(),
+		events.RemoteAddr:     ctx.ServerConn.RemoteAddr().String(),
 		events.EventNamespace: ctx.srv.GetNamespace(),
 		// Due to scp being inherently vulnerable to command injection, always
 		// make sure the full command and exit code is recorded for accountability.
