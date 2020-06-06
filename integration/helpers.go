@@ -1262,7 +1262,7 @@ func (s *discardServer) Stop() {
 	s.sshServer.Close()
 }
 
-func (s *discardServer) HandleNewChan(ccx *sshutils.ConnectionContext, newChannel ssh.NewChannel) {
+func (s *discardServer) HandleNewChan(_ context.Context, ccx *sshutils.ConnectionContext, newChannel ssh.NewChannel) {
 	channel, reqs, err := newChannel.Accept()
 	if err != nil {
 		ccx.ServerConn.Close()
@@ -1400,10 +1400,13 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	}
 
 	// create a (unstarted) agent and add the key to it
-	teleAgent := teleagent.NewServer()
-	if err := teleAgent.Add(agentKey); err != nil {
+	keyring := agent.NewKeyring()
+	if err := keyring.Add(agentKey); err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
+	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
+		return teleagent.NopCloser(keyring), nil
+	})
 
 	// start the SSH agent
 	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
