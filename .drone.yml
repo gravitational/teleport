@@ -87,7 +87,16 @@ steps:
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
-      - docker run --rm=true -e GOCACHE=$GOPATH/cache -v /go/cache:$GOPATH/cache -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make FLAGS='-cover -count 1' test"
+      - >-
+        docker run --rm=true
+        -e GOCACHE=$GOPATH/cache
+        -v /go/cache:$GOPATH/cache
+        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
+        -w $GOPATH/src/github.com/gravitational/teleport
+        -h testbox
+        -u $UID:$GID
+        -t quay.io/gravitational/teleport-buildbox:go1.13.2
+        /bin/bash -c "make FLAGS='-cover -count 1' test"
 
   - name: Run integration tests
     image: docker:dind
@@ -100,7 +109,16 @@ steps:
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
-      - docker run --rm=true -e GOCACHE=$GOPATH/cache -v /go/cache:$GOPATH/cache -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make FLAGS='-cover -count 1' integration"
+      - >-
+        docker run --rm=true
+        -e GOCACHE=$GOPATH/cache
+        -v /go/cache:$GOPATH/cache
+        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
+        -w $GOPATH/src/github.com/gravitational/teleport
+        -h testbox
+        -u $UID:$GID
+        -t quay.io/gravitational/teleport-buildbox:go1.13.2
+        /bin/bash -c "make FLAGS='-cover -count 1' integration"
 
   - name: Save cache
     image: meltwater/drone-cache
@@ -426,6 +444,6 @@ steps:
 
 ---
 kind: signature
-hmac: 4aedb3af3ac841d4a79cdb72278ae86aa7ee3fead92a71a3da9c75a677c81720
+hmac: d22d2a33c69e29029d4b4cb25eb041ae9b121834a0ba7145d65352e15a2f433e
 
 ...
