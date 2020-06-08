@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
+	"k8s.io/client-go/transport"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
@@ -398,7 +399,83 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 }
 
 func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
-	c.Fatal("TODO")
+	clusterSessions, err := ttlmap.New(defaults.ClientCacheSize)
+	c.Assert(err, check.IsNil)
+	csrClient, err := newMockCSRClient()
+	c.Assert(err, check.IsNil)
+	f := &Forwarder{
+		Entry: logrus.NewEntry(logrus.New()),
+		ForwarderConfig: ForwarderConfig{
+			Keygen: testauthority.New(),
+			Client: csrClient,
+		},
+		clusterSessions: clusterSessions,
+		creds: kubeCreds{
+			targetAddr:      "k8s.example.com",
+			tlsConfig:       &tls.Config{},
+			transportConfig: &transport.Config{},
+		},
+	}
+	user, err := services.NewUser("bob")
+	c.Assert(err, check.IsNil)
+
+	c.Log("newClusterSession for a local cluster")
+	authCtx := authContext{
+		AuthContext: auth.AuthContext{
+			User: user,
+			Identity: tlsca.Identity{
+				Username:         "bob",
+				Groups:           []string{"group a", "group b"},
+				Usage:            []string{"usage a", "usage b"},
+				Principals:       []string{"principal a", "principal b"},
+				KubernetesGroups: []string{"k8s group a", "k8s group b"},
+				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+			},
+		},
+		cluster: cluster{
+			RemoteSite: mockRemoteSite{name: "local"},
+		},
+		sessionTTL: time.Minute,
+	}
+	sess, err := f.newClusterSession(authCtx)
+	c.Assert(err, check.IsNil)
+	c.Assert(f.clusterSessions.Len(), check.Equals, 1)
+	c.Assert(sess.authContext.cluster.targetAddr, check.Equals, f.creds.targetAddr)
+	c.Assert(sess.forwarder, check.NotNil)
+	// Make sure newClusterSession used f.creds instead of requesting a
+	// Teleport client cert.
+	c.Assert(sess.tlsConfig, check.Equals, f.creds.tlsConfig)
+	c.Assert(csrClient.lastCert, check.IsNil)
+
+	c.Log("newClusterSession for a remote cluster")
+	authCtx = authContext{
+		AuthContext: auth.AuthContext{
+			User: user,
+			Identity: tlsca.Identity{
+				Username:         "bob",
+				Groups:           []string{"group a", "group b"},
+				Usage:            []string{"usage a", "usage b"},
+				Principals:       []string{"principal a", "principal b"},
+				KubernetesGroups: []string{"k8s group a", "k8s group b"},
+				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+			},
+		},
+		cluster: cluster{
+			RemoteSite: mockRemoteSite{name: "remote"},
+			isRemote:   true,
+		},
+		sessionTTL: time.Minute,
+	}
+	sess, err = f.newClusterSession(authCtx)
+	c.Assert(err, check.IsNil)
+	c.Assert(f.clusterSessions.Len(), check.Equals, 2)
+	c.Assert(sess.authContext.cluster.targetAddr, check.Equals, reversetunnel.RemoteKubeProxy)
+	c.Assert(sess.forwarder, check.NotNil)
+	// Make sure newClusterSession obtained a new client cert instead of using
+	// f.creds.
+	c.Assert(sess.tlsConfig, check.Not(check.Equals), f.creds.tlsConfig)
+	c.Assert(sess.tlsConfig.Certificates[0].Certificate[0], check.DeepEquals, csrClient.lastCert.Raw)
+	c.Assert(sess.tlsConfig.RootCAs.Subjects(), check.DeepEquals, [][]byte{csrClient.ca.Cert.RawSubject})
 }
 
 // mockCSRClient to intercept ProcessKubeCSR requests, record them and return a
