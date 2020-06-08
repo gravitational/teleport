@@ -149,7 +149,6 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			Tunnel:      tun,
 			AccessPoint: ap,
 		},
-		creds: kubeCreds{targetAddr: "k8s.example.com"},
 	}
 
 	tests := []struct {
@@ -159,6 +158,7 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 		roleKubeUsers  []string
 		roleKubeGroups []string
 		routeToCluster string
+		haveKubeCreds  bool
 
 		wantKubeUsers  []string
 		wantKubeGroups []string
@@ -170,15 +170,26 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			user:           auth.LocalUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
+			haveKubeCreds:  true,
 
 			wantKubeUsers:  []string{"user-a"},
 			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
+		},
+		{
+			desc:           "local user and cluster, no kubeconfig",
+			user:           auth.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			haveKubeCreds:  false,
+
+			wantErr: true,
 		},
 		{
 			desc:           "remote user and local cluster",
 			user:           auth.RemoteUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
+			haveKubeCreds:  true,
 
 			wantKubeUsers:  []string{"user-a"},
 			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
@@ -188,6 +199,18 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			user:           auth.LocalUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "remote",
+			haveKubeCreds:  true,
+
+			wantKubeUsers:  []string{"user-a"},
+			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
+			wantRemote:     true,
+		},
+		{
+			desc:           "local user and remote cluster, no kubeconfig",
+			user:           auth.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "remote",
+			haveKubeCreds:  false,
 
 			wantKubeUsers:  []string{"user-a"},
 			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
@@ -198,6 +221,7 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			user:           auth.RemoteUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "remote",
+			haveKubeCreds:  true,
 
 			wantErr: true,
 		},
@@ -207,6 +231,7 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			roleKubeUsers:  []string{"kube-user-a", "kube-user-b"},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
+			haveKubeCreds:  true,
 
 			wantKubeUsers:  []string{"kube-user-a", "kube-user-b"},
 			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
@@ -258,6 +283,12 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 		ctx := context.WithValue(context.Background(), auth.ContextUser, tt.user)
 		req = req.WithContext(ctx)
 
+		if tt.haveKubeCreds {
+			f.creds = &kubeCreds{targetAddr: "k8s.example.com"}
+		} else {
+			f.creds = nil
+		}
+
 		gotCtx, err := f.authenticate(req)
 		if tt.wantErr {
 			c.Assert(err, check.NotNil)
@@ -270,7 +301,6 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 		c.Assert(gotCtx.kubeUsers, check.DeepEquals, utils.StringsSet(tt.wantKubeUsers))
 		c.Assert(gotCtx.kubeGroups, check.DeepEquals, utils.StringsSet(tt.wantKubeGroups))
 		c.Assert(gotCtx.cluster.isRemote, check.Equals, tt.wantRemote)
-		c.Assert(gotCtx.cluster.targetAddr, check.Equals, f.creds.targetAddr)
 		c.Assert(gotCtx.cluster.RemoteSite.GetName(), check.Equals, tt.routeToCluster)
 		c.Assert(gotCtx.cluster.remoteAddr.String(), check.Equals, req.RemoteAddr)
 		c.Assert(gotCtx.disconnectExpiredCert, check.DeepEquals, req.TLS.PeerCertificates[0].NotAfter)
@@ -376,7 +406,8 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 		c.Log(tt.desc)
 
 		err := setupImpersonationHeaders(
-			&authContext{
+			logrus.NewEntry(logrus.New()),
+			authContext{
 				kubeUsers:  utils.StringsSet(tt.kubeUsers),
 				kubeGroups: utils.StringsSet(tt.kubeGroups),
 				cluster:    cluster{isRemote: tt.remoteCluster},
@@ -407,17 +438,41 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 			Client: csrClient,
 		},
 		clusterSessions: clusterSessions,
-		creds: kubeCreds{
-			targetAddr:      "k8s.example.com",
-			tlsConfig:       &tls.Config{},
-			transportConfig: &transport.Config{},
-		},
 	}
 	user, err := services.NewUser("bob")
 	c.Assert(err, check.IsNil)
 
-	c.Log("newClusterSession for a local cluster")
+	c.Log("newClusterSession for a local cluster without kubeconfig")
 	authCtx := authContext{
+		AuthContext: auth.AuthContext{
+			User: user,
+			Identity: tlsca.Identity{
+				Username:         "bob",
+				Groups:           []string{"group a", "group b"},
+				Usage:            []string{"usage a", "usage b"},
+				Principals:       []string{"principal a", "principal b"},
+				KubernetesGroups: []string{"k8s group a", "k8s group b"},
+				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+			},
+		},
+		cluster: cluster{
+			RemoteSite: mockRemoteSite{name: "local"},
+		},
+		sessionTTL: time.Minute,
+	}
+	_, err = f.newClusterSession(authCtx)
+	c.Assert(err, check.NotNil)
+	c.Assert(trace.IsNotFound(err), check.Equals, true)
+	c.Assert(f.clusterSessions.Len(), check.Equals, 0)
+
+	f.creds = &kubeCreds{
+		targetAddr:      "k8s.example.com",
+		tlsConfig:       &tls.Config{},
+		transportConfig: &transport.Config{},
+	}
+
+	c.Log("newClusterSession for a local cluster")
+	authCtx = authContext{
 		AuthContext: auth.AuthContext{
 			User: user,
 			Identity: tlsca.Identity{
