@@ -18,6 +18,12 @@ rules:
   - groups
   verbs:
   - impersonate
+- apiGroups:
+  - "authorization.k8s.io"
+  resources:
+  - selfsubjectaccessreviews
+  verbs:
+  - create
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
