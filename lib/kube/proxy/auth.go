@@ -12,7 +12,11 @@ import (
 	"github.com/gravitational/teleport"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
+	authzapi "k8s.io/api/authorization/v1"
+	"k8s.io/client-go/kubernetes"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 
@@ -63,17 +67,27 @@ running in a kubernetes cluster, but could not init in-cluster kubernetes client
 		}
 	}
 
+	log.Debug("Checking kubernetes impersonation permissions granted to proxy.")
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate kubernetes client from kubeconfig: %v", err)
+	}
+	if err := checkImpersonationPermissions(client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Proxy has all necessary kubernetes impersonation permissions.")
+
 	targetAddr, err := parseKubeHost(cfg.Host)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse kubernetes host")
+		return nil, trace.Wrap(err)
 	}
 	tlsConfig, err := rest.TLSConfigFor(cfg)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig")
+		return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig: %v", err)
 	}
 	transportConfig, err := cfg.TransportConfig()
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig")
+		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
 	}
 
 	return &kubeCreds{
@@ -89,7 +103,7 @@ running in a kubernetes cluster, but could not init in-cluster kubernetes client
 func parseKubeHost(host string) (string, error) {
 	u, err := url.Parse(host)
 	if err != nil {
-		return "", trace.Wrap(err, "failed to parse kubernetes host")
+		return "", trace.Wrap(err, "failed to parse kubernetes host: %v", err)
 	}
 	if _, _, err := net.SplitHostPort(u.Host); err != nil {
 		// add default HTTPS port
@@ -100,4 +114,24 @@ func parseKubeHost(host string) (string, error) {
 
 func (c *kubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, error) {
 	return transport.HTTPWrappersForConfig(c.transportConfig, rt)
+}
+
+func checkImpersonationPermissions(sarClient authztypes.SelfSubjectAccessReviewInterface) error {
+	for _, resource := range []string{"users", "groups", "serviceaccounts"} {
+		resp, err := sarClient.Create(&authzapi.SelfSubjectAccessReview{
+			Spec: authzapi.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authzapi.ResourceAttributes{
+					Verb:     "impersonate",
+					Resource: resource,
+				},
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err, "failed to verify impersonation permissions for kubernetes: %v", err)
+		}
+		if !resp.Status.Allowed {
+			return trace.AccessDenied("proxy can't impersonate kubernetes %s at the cluster level", resource)
+		}
+	}
+	return nil
 }
