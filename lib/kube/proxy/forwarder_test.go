@@ -276,14 +276,6 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 	}
 }
 
-func (s ForwarderSuite) TestExec(c *check.C) {
-	c.Fatal("TODO")
-}
-
-func (s ForwarderSuite) TestPortForward(c *check.C) {
-	c.Fatal("TODO")
-}
-
 func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 	tests := []struct {
 		desc          string
