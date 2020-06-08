@@ -65,7 +65,16 @@ steps:
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
-      - docker run --rm=true -e GOCACHE=$GOPATH/cache -v /go/cache:$GOPATH/cache -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport -w $GOPATH/src/github.com/gravitational/teleport -h testbox -u $UID:$GID -t quay.io/gravitational/teleport-buildbox:go1.13.2 /bin/bash -c "make lint"
+      - >-
+        docker run --rm=true
+        -e GOCACHE=$GOPATH/cache
+        -v /go/cache:$GOPATH/cache
+        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
+        -w $GOPATH/src/github.com/gravitational/teleport
+        -h testbox
+        -u $UID:$GID
+        -t quay.io/gravitational/teleport-buildbox:go1.13.2
+        /bin/bash -c "make lint"
 
   - name: Run unit tests
     image: docker:dind
@@ -417,6 +426,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7f8f130e7a755b737d782709f784107eb6c904cc57ff083007b4dccd32d28a14
+hmac: 4aedb3af3ac841d4a79cdb72278ae86aa7ee3fead92a71a3da9c75a677c81720
 
 ...
