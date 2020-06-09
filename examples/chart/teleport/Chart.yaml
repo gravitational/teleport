@@ -1,6 +1,8 @@
 name: teleport
-version: 0.0.4
-description: Teleport Enterprise
+apiVersion: v1
+version: 0.0.5
+description: Teleport Enterprise or Community
+icon: https://gravitational.com/gravitational/images/logos/company-logos/teleport-symbol-400x400.png
 keywords:
-  - Teleport Enterprise
+  - Teleport 
 tillerVersion: ">=2.8.0"

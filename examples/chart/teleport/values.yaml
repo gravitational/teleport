@@ -1,6 +1,18 @@
+# Teleport License Usage
+license:
+  ## Set false to run Teleport in Community edition mode
+  enabled: true
+  secretName: license
+  mountPath: /var/lib/license
+
+# Docker image to use
 image:
-  repository: quay.io/gravitational/teleport-ent
-  tag: 4.2.7
+  #Used if license is enabled
+  enterpriseRepository: quay.io/gravitational/teleport-ent
+  #Used if license is disabled
+  communityRepository: quay.io/gravitational/teleport
+  #Version of Teleport
+  tag: 4.2.10
   pullPolicy: IfNotPresent
   # Optionally specify an array of imagePullSecrets.
   # Secrets must be manually created in the namespace.
@@ -10,53 +22,149 @@ image:
 
 labels: {}
 
-# Pod annotations
-annotations: {}
-## See https://github.com/uswitch/kiam#overview
-## To enable AWS API access from teleport, use kube2iam or kiam, annotate the namespace, and then set something like:
-# iam.amazonaws.com/role: teleport-dynamodb-and-s3-access
 
-replicaCount: 1
-strategy: RollingUpdate
+# Teleport Proxy configuration
+proxy:
+  tls:
+    # We assume TLS is terminated in front of the proxy by default
+    enabled: true
+    # Set this to false if you want to use Teleport's generated self-signed certificates
+    usetlssecret: true
+    # tweak this if you have multiple proxies in a single namespace
+    secretName: tls-web
 
-## Affinity for pod assignment
-## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
-# affinity: {}
-#
-## For the sake of security, make specific node group(s) dedicated to Teleport
-#   nodeAffinity:
-#     requiredDuringSchedulingIgnoredDuringExecution:
-#       nodeSelectorTerms:
-#       - matchExpressions:
-#         - key: gravitational.io/dedicated
-#           operator: In
-#           values:
-#           - teleport
-#
-## For high availability, distribute teleport pods to nodes as evenly as possible
-#   podAntiAffinity:
-#     preferredDuringSchedulingIgnoredDuringExecution:
-#     - podAffinityTerm:
-#         labelSelector:
-#           matchExpressions:
-#           - key: app
-#             operator: In
-#             values:
-#             - teleport
-#         topologyKey: kubernetes.io/hostname
 
-# Tolerations for pod assignment
-# Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
-tolerations: []
+# Teleport configuration
+# See the admin guide for full details
+# https://gravitational.com/teleport/docs/admin-guide/#configuration-file
 #
-# - key: "dedicated"
-#   operator: "Equal"
-#   value: "teleport"
-#   effect: "NoExecute"
-# - key: "dedicated"
-#   operator: "Equal"
-#   value: "teleport"
-#   effect: "NoSchedule"
+# The following variables and parts are included in the templates/config.yaml for the teleport proxy/auth
+# configuration
+#
+config:
+  # used for cluster name, advertise_ip, and public addresses
+  # If high availability is set it is only used for the proxy
+  public_address: teleport.example.com
+  #used for listen addreses in proxy, auth and ssh
+  listen_addr: 0.0.0.0
+
+  # Set to true  to have separate proxy and auth instances for high availability.
+  # You must use non-dir storage for high availability or you can only have 1 auth instance .
+  highAvailability: false
+  # High availability configuration with proxy and auth servers. No SSH configured service.
+  proxyCount: 2
+  authCount: 2
+  authServiceType: ClusterIP
+  auth_public_address: auth.example.com
+
+# Set for proxies in high availability, single proxy and ssh service only deployments
+# auth_service_connection: 
+#   auth_token: dogs-are-much-nicer-than-cats
+#   auth_servers:
+#   - teleportauth:3025
+#   - auth.example.com:3025
+
+
+  teleport:
+    pid_file: /var/run/teleport.pid
+    log:
+      output: stderr
+      severity: INFO
+    data_dir: /var/lib/teleport
+    storage:
+      type: dir
+            
+    # Teleport throttles all connections to avoid abuse. These settings allow
+    # you to adjust the default limits
+    connection_limits:
+      max_connections: 1000
+      max_users: 250
+
+    auth_service:
+      enabled: yes
+      license_file: /var/lib/license/license-enterprise.pem
+      authentication:
+        type: local
+
+      # We recommend to use tools like `pwgen` to generate sufficiently random
+      # tokens of 32+ byte length.
+      tokens:
+      - proxy,node:dogs-are-much-nicer-than-cats
+      - trusted_cluster:trains-are-superior-to-cars
+
+    # Determines if SSH sessions to cluster nodes are forcefully terminated
+    # after no activity from a client (idle client).
+    # Examples: "30m", "1h" or "1h30m"
+      client_idle_timeout: never
+
+    # Determines if the clients will be forcefully disconnected when their
+    # certificates expire in the middle of an active SSH session. (default is 'no')
+      disconnect_expired_cert: no
+
+    # Determines the interval at which Teleport will send keep-alive messages.
+    # keep_alive_count_max is the number of missed keep-alive messages before
+    # the server tears down the connection to the client.
+      keep_alive_interval: 5m
+      keep_alive_count_max: 3
+
+    ssh_service:
+      enabled: yes
+      public_addr: 127.0.0.1
+      commands:
+      - command:
+        - uptime
+        - -p
+        name: uptime
+        period: 30m
+      labels:
+        type: auth
+
+      enhanced_recording:
+       # Enable or disable enhanced auditing for this node. Default value:
+       # false.  See 
+        enabled: false
+
+       # command_buffer_size is optional with a default value of 8 pages.
+        command_buffer_size: 8
+
+       # disk_buffer_size is optional with default value of 128 pages.
+        disk_buffer_size: 128
+
+       # network_buffer_size is optional with default value of 8 pages.
+        network_buffer_size: 8
+
+       # Controls where cgroupv2 hierarchy is mounted. Default value:
+       # /cgroup2.
+        cgroup_path: /cgroup2
+
+    # configures PAM integration. Note that additional volumes of the PAM configuration
+    # will be required.
+      pam:
+        enabled: no
+        service_name: teleport
+
+    proxy_service:
+      enabled: yes
+    #Used if  proxy.tls.usetlssecret is set to true, otherwise the values are not included in teleport.yaml
+      https_key_file: /var/lib/certs/tls.key
+      https_cert_file: /var/lib/certs/tls.crt
+
+    # kubernetes section configures
+    # kubernetes proxy protocol support
+      kubernetes:
+        enabled: yes
+
+#Alternatively you can provide your teleport configuration under teleportConfig with static text.  No variable substituion
+otherConfig:
+  useOtherConfig: false
+  teleportConfig:
+    # place a full teleport.yaml configuration here
+
+# Teleport configuration for high availability deployment 
+otherConfigHA:
+  useOtherConfig: false
+  teleportConfig:
+    # place a full teleport.yaml configuration here
 
 service:
   type: ClusterIP
@@ -120,58 +228,8 @@ ports:
   proxytunnel:
     containerPort: 3024
 
-# Teleport Proxy configuration
-proxy:
-  tls:
-    # We assume TLS is terminated in front of the proxy by default
-    enabled: true
-    # tweak this if you have multiple proxies in a single namespace
-    secretName: tls-web
 
-license:
-  ## Set false to run Teleport in Community edition mode
-  enabled: true
-  secretName: license
-  mountPath: /var/lib/license
 
-# See the admin guide for full details
-# https://gravitational.com/teleport/docs/admin-guide/#configuration-file
-config:
-  teleport:
-    log:
-      output: stderr
-      severity: DEBUG
-    data_dir: /var/lib/teleport
-    storage:
-      type: dir
-
-  auth_service:
-    enabled: yes
-    license_file: /var/lib/license/license-enterprise.pem
-    authentication:
-      type: oidc
-    public_addr: teleport.example.com:3025
-    cluster_name: teleport.example.com
-
-  ssh_service:
-    enabled: yes
-    public_addr: teleport.example.com:3022
-
-  proxy_service:
-    enabled: yes
-    public_addr: teleport.example.com
-    web_listen_addr: 0.0.0.0:3080
-    listen_addr: 0.0.0.0:3023
-    https_key_file: /var/lib/certs/tls.key
-    https_cert_file: /var/lib/certs/tls.crt
-    # kubernetes section configures
-    # kubernetes proxy protocol support
-    kubernetes:
-      enabled: yes
-      listen_addr: 0.0.0.0:3026
-      # public_addr is used to set values
-      # setup in kubeconfig after tsh login
-      # public_addr: [kubeproxy.example.com:443]
 
 ## Additional container arguments
 extraArgs: []
@@ -183,11 +241,14 @@ extraVars: {}
   # SSL_CERT_FILE: "/var/lib/ca-certs/ca.pem"
 
 # Add additional volumes and mounts, for example to read other log files on the host
-extraVolumes: []
+extraVolumes: [] 
+
+
   # - name: ca-certs
   #   configMap:
   #     name: ca-certs
 extraVolumeMounts: []
+
   # - name: ca-certs
   #   mountPath: /var/lib/ca-certs
   #   readOnly: true
@@ -203,6 +264,8 @@ resources: {}
   # requests:
   #  cpu: 100m
   #  memory: 100Mi
+# Specify for the seperate auth service deployment
+authresources: {}
 
 rbac:
   # Specifies whether RBAC resources should be created
@@ -235,3 +298,53 @@ persistence:
 
 # set this to false to avoid running into issues for proxies that run in a separate k8s cluster
 automountServiceAccountToken: true
+
+# Pod annotations
+annotations: {}
+## See https://github.com/uswitch/kiam#overview
+## To enable AWS API access from teleport, use kube2iam or kiam, annotate the namespace, and then set something like:
+# iam.amazonaws.com/role: teleport-dynamodb-and-s3-access
+
+#Replica count is not recommended to increase
+replicaCount: 1
+strategy: RollingUpdate
+
+## Affinity for pod assignment
+## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+# affinity: {}
+#
+## For the sake of security, make specific node group(s) dedicated to Teleport
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: gravitational.io/dedicated
+#           operator: In
+#           values:
+#           - teleport
+#
+## For high availability, distribute teleport pods to nodes as evenly as possible
+#   podAntiAffinity:
+#     preferredDuringSchedulingIgnoredDuringExecution:
+#     - podAffinityTerm:
+#         labelSelector:
+#           matchExpressions:
+#           - key: app
+#             operator: In
+#             values:
+#             - teleport
+#         topologyKey: kubernetes.io/hostname
+
+# Tolerations for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
+#
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "teleport"
+#   effect: "NoExecute"
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "teleport"
+#   effect: "NoSchedule"
+
