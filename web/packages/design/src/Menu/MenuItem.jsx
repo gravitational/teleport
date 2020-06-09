@@ -19,17 +19,17 @@ import styled from 'styled-components';
 import { fontSize, color, space } from 'styled-system';
 import defaultTheme from './../theme';
 
-const defVals = {
+const defaultValues = {
   theme: defaultTheme,
-  fontSize: 2,
-  px: 3,
-  color: 'link',
   bg: 'light',
+  color: 'link',
+  fontSize: 1,
+  px: 3,
 };
 
 const fromTheme = props => {
   const values = {
-    ...defVals,
+    ...defaultValues,
     ...props,
   };
   return {
@@ -37,24 +37,26 @@ const fromTheme = props => {
     ...space(values),
     ...color(values),
     fontWeight: values.theme.regular,
+    color: values.theme.colors.grey[600],
+
     '&:hover, &:focus': {
+      color: values.theme.colors.link,
       background: values.theme.colors.grey[50],
     },
   };
 };
 
 const MenuItem = styled.div`
-  min-height: 48px;
+  min-height: 40px;
   box-sizing: border-box;
   cursor: pointer;
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  min-width: 120px;
+  min-width: 140px;
   overflow: hidden;
   text-decoration: none;
   white-space: nowrap;
-  transition: background 0.3s;
 
   &:hover,
   &:focus {

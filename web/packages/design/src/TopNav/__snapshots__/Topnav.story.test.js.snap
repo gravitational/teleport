@@ -4,35 +4,19 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 .c0 {
   box-sizing: border-box;
   height: 60px;
-  background-color: #1B234A;
-  -webkit-flex: 0 0 auto;
-  -ms-flex: 0 0 auto;
+  background-color: #1C254D;
   flex: 0 0 auto;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-flex-direction: row;
-  -ms-flex-direction: row;
   flex-direction: row;
 }
 
 .c1 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   background: none;
   border: none;
   color: rgba(255,255,255,.56);
   cursor: pointer;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
   font-size: 11px;
   font-weight: 600;
@@ -41,7 +25,6 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   outline: none;
   padding: 0 16px;
   position: relative;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
 }
@@ -57,7 +40,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 }
 
 .c1.active:after {
-  background-color: #FA2A6A;
+  background-color: #651FFF;
   content: "";
   position: absolute;
   bottom: 0;
@@ -67,17 +50,11 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 }
 
 .c2 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   background: none;
   border: none;
   color: rgba(255,255,255,.56);
   cursor: pointer;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
   font-size: 11px;
   font-weight: 600;
@@ -86,7 +63,6 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   outline: none;
   padding: 0 16px;
   position: relative;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
   margin-left: auto;
@@ -104,21 +80,13 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 }
 
 .c2.active:after {
-  background-color: #FA2A6A;
+  background-color: #651FFF;
   content: "";
   position: absolute;
   bottom: 0;
   left: 0;
   width: 100%;
   height: 4px;
-}
-
-.c4 {
-  display: block;
-  outline: none;
-  margin-left: 16px;
-  margin-right: 8px;
-  height: 24px;
 }
 
 .c3 {
@@ -130,8 +98,21 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   margin: 0px;
 }
 
+.c4 {
+  align-items: center;
+  background: #651FFF;
+  border-radius: 50%;
+  display: flex;
+  font-size: 14px;
+  font-weight: bold;
+  justify-content: center;
+  height: 32px;
+  margin-left: 16px;
+  width: 32px;
+}
+
 <nav
-  class="c0"
+  class="sc-AxjAm c0"
   height="60px"
 >
   <button
@@ -152,11 +133,11 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
     >
       example@example.com
     </div>
-    <img
+    <div
       class="c4"
-      height="24px"
-      src="file_stub"
-    />
+    >
+      e
+    </div>
   </button>
 </nav>
 `;

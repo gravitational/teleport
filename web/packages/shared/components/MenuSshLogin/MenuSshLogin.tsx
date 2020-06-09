@@ -19,8 +19,9 @@ import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 import Menu, { MenuItem } from 'design/Menu';
 import { space } from 'design/system';
-import * as Icons from 'design/Icon';
 import { MenuSshLoginProps } from './types';
+import { ButtonBorder } from 'design';
+import { CarrotDown } from 'design/Icon';
 
 class MenuSshLogin extends React.Component<MenuSshLoginProps> {
   static displayName = 'MenuSshLogin';
@@ -62,16 +63,22 @@ class MenuSshLogin extends React.Component<MenuSshLoginProps> {
     const { open, logins } = this.state;
     return (
       <React.Fragment>
-        <StyledSessionButton px="2" ref={this.anchorEl} onClick={this.onOpen}>
-          <Icons.Cli as={StyledCliIcon} />
-          <Icons.CarrotDown as={StyledCarrotIcon} />
-        </StyledSessionButton>
+        <ButtonBorder
+          height="24px"
+          size="small"
+          setRef={e => (this.anchorEl = e)}
+          onClick={this.onOpen}
+        >
+          CONNECT
+          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.secondary" />
+        </ButtonBorder>
         <Menu
           anchorOrigin={anchorOrigin}
           transformOrigin={transformOrigin}
-          anchorEl={this.anchorEl.current}
+          anchorEl={this.anchorEl}
           open={open}
           onClose={this.onClose}
+          getContentAnchorEl={null}
         >
           <LoginItemList
             logins={logins}
@@ -108,8 +115,7 @@ export const LoginItemList = ({ logins, onClick, onKeyPress }) => {
     <React.Fragment>
       <Input
         p="2"
-        mx="2"
-        my="2"
+        m="2"
         onKeyPress={onKeyPress}
         type="text"
         autoFocus
@@ -135,61 +141,6 @@ const StyledMenuItem = styled(MenuItem)(
     margin-bottom: 8px;
   }
 `
-);
-
-const StyledCliIcon = styled.div`
-  opacity: 0.87;
-`;
-
-const StyledCarrotIcon = styled.div`
-  opacity: 0.24;
-`;
-
-const StyledSessionButton = styled.button(
-  ({ theme }) => `
-  display: flex;
-  justify-content: space-between;
-  outline-style: none;
-  outline-width: 0px;
-  -webkit-appearance: none;
-  -webkit-tap-highlight-color: transparent;
-  align-items: center;
-  background: ${theme.colors.bgTerminal};
-  border: 1px solid ${theme.colors.bgTerminal};
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 2px rgba(0, 0, 0, 0.24);
-  color: ${theme.colors.primary};
-  cursor: pointer;
-  height: 24px;
-  width: 56px;
-
-  transition: all 0.3s;
-  > * {
-    transition: all 0.3s;
-  }
-
-  :focus {
-    outline: none;
-  }
-
-  ::-moz-focus-inner {
-    border: 0;
-  }
-
-  :hover,
-  :focus {
-    border: 1px solid ${theme.colors.success};
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
-    ${StyledCliIcon} {
-      opacity: 1;
-    }
-    ${StyledCarrotIcon} {
-      opacity: 0.56;
-    }
-  }
-`,
-  space
 );
 
 const Input = styled.input(

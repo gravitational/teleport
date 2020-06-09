@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Cell } from 'design/DataTable';
-import { ButtonSecondary } from 'design';
+import { ButtonBorder } from 'design';
 import { displayDateTime } from 'shared/services/loc';
 
 export const ActionCell = props => {
@@ -28,9 +28,9 @@ export const ActionCell = props => {
 
   return (
     <Cell align="right">
-      <ButtonSecondary size="small" onClick={onClick}>
+      <ButtonBorder size="small" onClick={onClick}>
         Details
-      </ButtonSecondary>
+      </ButtonBorder>
     </Cell>
   );
 };

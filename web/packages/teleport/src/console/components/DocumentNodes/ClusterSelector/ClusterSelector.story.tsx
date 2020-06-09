@@ -15,9 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
+import { TestLayout } from 'teleport/console/Console.story';
 import ConsoleContext from 'teleport/console/consoleContext';
-import ConsoleContextProvider from 'teleport/console/consoleContextProvider';
 import ClusterSelector from './ClusterSelector';
+import ThemeProvider from './../ThemeProvider';
 
 export default {
   title: 'TeleportConsole/DocumentNodes/ClusterSelector',
@@ -25,7 +26,9 @@ export default {
 
 export const Component = () => {
   const ctx = mockContext();
-  return renderlusterSelector(ctx);
+  return renderlusterSelector(ctx, {
+    defaultMenuIsOpen: true,
+  });
 };
 
 export const Loading = () => {
@@ -52,16 +55,19 @@ export const Failed = () => {
 
 function renderlusterSelector(ctx, { ...props } = {}) {
   return (
-    <ConsoleContextProvider value={ctx}>
-      <ClusterSelector
-        mx="auto"
-        value={'clusterId'}
-        width="400px"
-        maxMenuHeight={200}
-        onChange={() => null}
-        {...props}
-      />
-    </ConsoleContextProvider>
+    <TestLayout ctx={ctx}>
+      <ThemeProvider>
+        <ClusterSelector
+          mx="auto"
+          open={true}
+          value={'clusterId'}
+          width="400px"
+          maxMenuHeight={200}
+          onChange={() => null}
+          {...props}
+        />
+      </ThemeProvider>
+    </TestLayout>
   );
 }
 

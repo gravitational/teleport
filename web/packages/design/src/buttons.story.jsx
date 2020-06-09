@@ -15,16 +15,46 @@ limitations under the License.
 */
 
 import React from 'react';
+import ButtonLink from './ButtonLink';
 import ButtonIcon from './ButtonIcon';
-import { AddUsers, Trash, Ellipsis } from './../Icon';
-import Flex from './../Flex';
+import { AddUsers, Trash, Ellipsis } from './Icon';
+import Flex from './Flex';
+import Button, {
+  ButtonPrimary,
+  ButtonSecondary,
+  ButtonWarning,
+  ButtonBorder,
+} from './Button';
 
 export default {
   title: 'Design/Button',
 };
 
-export const Icons = () => (
+export const Buttons = () => (
   <>
+    <ButtonPrimary mr={3}>Primary</ButtonPrimary>
+    <ButtonSecondary mr={3}>Secondary</ButtonSecondary>
+    <ButtonBorder mr={3}>Border</ButtonBorder>
+    <ButtonWarning mb={5}>Warning</ButtonWarning>
+    <div />
+    <Button size="large" mr={3}>
+      Large
+    </Button>
+    <Button size="medium" mr={3}>
+      Medium
+    </Button>
+    <Button size="small">Small</Button>
+    <Button block mb={3} mt={4}>
+      block = true
+    </Button>
+    <Button mr={3} disabled>
+      Disabled
+    </Button>
+    <Button mb={3} autoFocus>
+      Focused
+    </Button>
+    <div />
+    <ButtonLink href="">Link Button</ButtonLink>
     <Flex mb={3}>
       <ButtonIcon size={2}>
         <AddUsers />

@@ -22,7 +22,7 @@ export function OfflineCluster({ match }) {
   const { siteId } = match.params;
   return (
     <Offline
-      title="This cluster is not available from Gravity"
+      title="This Cluster Is Unavailable"
       message={`To access "${siteId}" please use its local endpoint.`}
     />
   );

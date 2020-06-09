@@ -53,14 +53,14 @@ describe('design/Button', () => {
     expect(container.firstChild).toHaveStyle({ 'min-height': '24px' });
   });
 
-  test('"size" medium renders min-height: 40px', () => {
+  test('"size" medium renders min-height: 32px', () => {
     const { container } = render(<Button size="medium" />);
-    expect(container.firstChild).toHaveStyle('min-height: 40px');
+    expect(container.firstChild).toHaveStyle('min-height: 32px');
   });
 
-  test('"size" large renders min-height: 48px', () => {
+  test('"size" large renders min-height: 40px', () => {
     const { container } = render(<Button size="large" />);
-    expect(container.firstChild).toHaveStyle('min-height: 48px');
+    expect(container.firstChild).toHaveStyle('min-height: 40px');
   });
 
   test('"block" prop renders width 100%', () => {

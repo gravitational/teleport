@@ -16,11 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Flex } from 'design';
-import AjaxPoller from 'teleport/components/AjaxPoller';
-import {
-  useTeleport,
-  useStoreClusters,
-} from 'teleport/teleportContextProvider';
+import { useStoreClusters } from 'teleport/teleportContextProvider';
 import InputSearch from 'teleport/components/InputSearch';
 import {
   FeatureBox,
@@ -29,47 +25,27 @@ import {
 } from 'teleport/dashboard/components/Layout';
 import ClusterList from './ClusterList';
 
-const POLL_INTERVAL = 4000; // every 4 sec
-
 export default function Clusters() {
-  const { clusters, searchValue, setSearchValue, onRefresh } = useClusters();
+  const { clusters, searchValue, setSearchValue } = useClusters();
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <Flex alignItems="center" flex="1">
           <FeatureHeaderTitle mr="5">Clusters</FeatureHeaderTitle>
-          <InputSearch
-            ml="auto"
-            height="30px"
-            bg="primary.light"
-            onChange={setSearchValue}
-          />
+          <InputSearch ml="auto" bg="primary.light" onChange={setSearchValue} />
         </Flex>
       </FeatureHeader>
       <ClusterList clusters={clusters} search={searchValue} />
-      <AjaxPoller
-        time={POLL_INTERVAL}
-        onFetch={onRefresh}
-        immediately={false}
-      />
     </FeatureBox>
   );
 }
 
 function useClusters() {
-  const teleCtx = useTeleport();
   const store = useStoreClusters();
   const [searchValue, setSearchValue] = React.useState('');
 
-  function onRefresh() {
-    return teleCtx.clusterService
-      .fetchClusters()
-      .then(clusters => store.setState(clusters));
-  }
-
   return {
     clusters: store.state,
-    onRefresh,
     searchValue,
     setSearchValue,
   };

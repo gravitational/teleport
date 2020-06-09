@@ -80,7 +80,7 @@ K8sResourceDialog.propTypes = {
 };
 
 const dialogCss = () => `
-  height: 80%
+  height: 80%;
   width: calc(100% - 20%);
   max-width: 1400px;
 `;

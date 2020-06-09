@@ -17,15 +17,17 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import Popover from 'design/Popover';
+import theme from 'design/theme';
+import { Box } from 'design';
 import { debounce } from 'lodash';
-import { Text, Card } from 'design';
 
-export default function JoinedUsers({ users, open = false, ml, mr }) {
+export default function JoinedUsers(props) {
+  const { active, users, open = false, ml, mr } = props;
   const ref = React.useRef(null);
   const [isOpen, setIsOpen] = React.useState(open);
 
   const handleOpen = React.useMemo(() => {
-    return debounce(() => setIsOpen(true), 600);
+    return debounce(() => setIsOpen(true), 300);
   }, []);
 
   function onMouseEnter() {
@@ -42,14 +44,23 @@ export default function JoinedUsers({ users, open = false, ml, mr }) {
     return null;
   }
 
-  const $users = users.map((u, index) => (
-    <Text typography="h5" py="2" key={`${index}${u.user}`}>
-      {u.user}
-    </Text>
-  ));
+  const $users = users.map((u, index) => {
+    const name = u.user || '';
+    const initial = name
+      .trim()
+      .charAt(0)
+      .toUpperCase();
+    return (
+      <UserItem key={`${index}${u.user}`}>
+        <StyledAvatar>{initial}</StyledAvatar>
+        {u.user}
+      </UserItem>
+    );
+  });
 
   return (
     <StyledUsers
+      active={active}
       ml={ml}
       mr={mr}
       ref={ref}
@@ -70,16 +81,14 @@ export default function JoinedUsers({ users, open = false, ml, mr }) {
           horizontal: 'center',
         }}
       >
-        <Card
-          bg="white"
-          color="black"
-          px={4}
-          py={2}
+        <Box
           minWidth="200px"
+          bg="white"
+          borderRadius="8px"
           onMouseLeave={handleClose}
         >
           {$users}
-        </Card>
+        </Box>
       </Popover>
     </StyledUsers>
   );
@@ -87,15 +96,41 @@ export default function JoinedUsers({ users, open = false, ml, mr }) {
 
 const StyledUsers = styled.div`
   display: flex;
-  width: 14px;
-  height: 14px;
-  font-size: 10px;
+  width: 16px;
+  height: 16px;
+  font-size: 11px;
+  font-weight: bold;
   overflow: hidden;
-  position: relative;
   align-items: center;
   flex-shrink: 0;
-  user-select: none;
   border-radius: 50%;
   justify-content: center;
-  background-color: #2196f3;
+  background-color: ${props =>
+    props.active ? theme.colors.accent : theme.colors.grey[900]};
+`;
+
+const StyledAvatar = styled.div`
+  background: ${props => props.theme.colors.accent};
+  color: ${props => props.theme.colors.light};
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  font-weight: bold;
+  height: 24px;
+  margin-right: 16px;
+  width: 24px;
+`;
+
+const UserItem = styled.div`
+  border-bottom: 1px solid ${theme.colors.grey[50]};
+  color: ${theme.colors.grey[600]};
+  font-size: 12px;
+  align-items: center;
+  display: flex;
+  padding: 8px;
+  &:last-child {
+    border: none;
+  }
 `;

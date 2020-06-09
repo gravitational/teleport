@@ -61,12 +61,11 @@ export const StyledButtons = styled.div`
     border: none;
     border-radius: 200px;
     cursor: pointer;
-    height: 24px;
     padding: 0;
-    margin: 0 2px;
-    min-width: 24px;
+    margin: 0 0 0 8px;
     outline: none;
     transition: all 0.3s;
+    text-align: center;
 
     &:hover {
       background: ${props => props.theme.colors.primary.main};
@@ -76,7 +75,8 @@ export const StyledButtons = styled.div`
     }
 
     ${Icon} {
-      opacity: 0.56;
+      opacity: 0.4;
+      font-size: 20px;
       transition: all 0.3s;
     }
   }

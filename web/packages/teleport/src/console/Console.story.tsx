@@ -72,6 +72,6 @@ export function TestLayout(props: PropType) {
 
 type PropType = {
   children: any;
-  ctx: ConsoleContext;
+  ctx?: ConsoleContext;
   history?: History;
 };

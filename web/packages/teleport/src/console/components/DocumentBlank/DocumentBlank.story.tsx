@@ -17,21 +17,25 @@ limitations under the License.
 
 import React from 'react';
 import DocumentBlank from './DocumentBlank';
+import { TestLayout } from './../../Console.story';
 
 export default {
   title: 'TeleportConsole/DocumentBlank',
 };
 
 export const Blank = () => (
-  <DocumentBlank
-    visible={true}
-    doc={
-      {
-        created: new Date(),
-        kind: 'blank',
-        url: '',
-        clusterId: 'one',
-      } as const
-    }
-  />
+  <TestLayout>
+    <DocumentBlank
+      visible={true}
+      doc={
+        {
+          created: new Date(),
+          kind: 'blank',
+          url: '',
+          clusterId: 'one',
+        } as const
+      }
+    />
+  </TestLayout>
+
 );

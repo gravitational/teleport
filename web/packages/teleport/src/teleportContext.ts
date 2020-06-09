@@ -45,8 +45,7 @@ export default class Context implements teleport.Context {
   }
 
   init() {
-    const fetchUserPromise = this.storeUser.fetchUser();
-    return Promise.all([fetchUserPromise]).then(() => {
+    return this.storeUser.fetchUser().then(() => {
       const activator = new Activator<Context>(this.features);
       activator.onload(this);
     });

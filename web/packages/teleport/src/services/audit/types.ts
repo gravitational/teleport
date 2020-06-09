@@ -31,6 +31,10 @@ export const CodeEnum = {
   SESSION_LEAVE: 'T2003I',
   SESSION_START: 'T2000I',
   SESSION_UPLOAD: 'T2005I',
+  SESSION_DATA: 'T2006I',
+  SESSION_COMMAND: 'T4000I',
+  SESSION_DISK: 'T4001I',
+  SESSION_NETWORK: 'T4002I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -38,246 +42,280 @@ export const CodeEnum = {
   USER_LOCAL_LOGINFAILURE: 'T1000W',
   USER_SSO_LOGIN: 'T1001I',
   USER_SSO_LOGINFAILURE: 'T1001W',
-  // Gravity Oss
-  ALERT_CREATED: 'G1007I',
-  ALERT_DELETED: 'G2007I',
-  ALERT_TARGET_CREATED: 'G1008I',
-  ALERT_TARGET_DELETED: 'G2008I',
-  APPLICATION_INSTALL: 'G4000I',
-  APPLICATION_ROLLBACK: 'G4002I',
-  APPLICATION_UNINSTALL: 'G4003I',
-  APPLICATION_UPGRADE: 'G4001I',
-  AUTHGATEWAY_UPDATED: 'G1009I',
-  AUTHPREFERENCE_UPDATED: 'G1005I',
-  CLUSTER_HEALTHY: 'G3001I',
-  CLUSTER_UNHEALTHY: 'G3000W',
-  GITHUB_CONNECTOR_CREATED: 'G1002I',
-  GITHUB_CONNECTOR_DELETED: 'G2002I',
-  LOGFORWARDER_CREATED: 'G1003I',
-  LOGFORWARDER_DELETED: 'G2003I',
-  OPERATION_CONFIG_COMPLETE: 'G0016I',
-  OPERATION_CONFIG_FAILURE: 'G0016E',
-  OPERATION_CONFIG_START: 'G0015I',
-  OPERATION_ENV_COMPLETE: 'G0014I',
-  OPERATION_ENV_FAILURE: 'G0014E',
-  OPERATION_ENV_START: 'G0013I',
-  OPERATION_EXPAND_COMPLETE: 'G0004I',
-  OPERATION_EXPAND_FAILURE: 'G0004E',
-  OPERATION_EXPAND_START: 'G0003I',
-  OPERATION_GC_COMPLETE: 'G0012I',
-  OPERATION_GC_FAILURE: 'G0012E',
-  OPERATION_GC_START: 'G0011I',
-  OPERATION_INSTALL_COMPLETE: 'G0002I',
-  OPERATION_INSTALL_FAILURE: 'G0002E',
-  OPERATION_INSTALL_START: 'G0001I',
-  OPERATION_SHRINK_COMPLETE: 'G0006I',
-  OPERATION_SHRINK_FAILURE: 'G0006E',
-  OPERATION_SHRINK_START: 'G0005I',
-  OPERATION_UNINSTALL_COMPLETE: 'G0010I',
-  OPERATION_UNINSTALL_FAILURE: 'G0010E',
-  OPERATION_UNINSTALL_START: 'G0009I',
-  OPERATION_UPDATE_COMPLETE: 'G0008I',
-  OPERATION_UPDATE_FAILURE: 'G0008E',
-  OPERATION_UPDATE_START: 'G0007I',
-  ROLE_CREATED: 'GE1000I',
-  ROLE_DELETED: 'GE2000I',
-  SMTPCONFIG_CREATED: 'G1006I',
-  SMTPCONFIG_DELETED: 'G2006I',
-  TLSKEYPAIR_CREATED: 'G1004I',
-  TLSKEYPAIR_DELETED: 'G2004I',
-  TOKEN_CREATED: 'G1001I',
-  TOKEN_DELETED: 'G2001I',
-  USER_CREATED: 'G1000I',
-  USER_DELETED: 'G2000I',
-  USER_INVITE_CREATED: 'G1010I',
-  // Gravity E
-  ENDPOINTS_UPDATED: 'GE1003I',
-  LICENSE_EXPIRED: 'GE3003I',
-  LICENSE_GENERATED: 'GE3002I',
-  LICENSE_UPDATED: 'GE3004I',
-  OIDC_CONNECTOR_CREATED: 'GE1001I',
-  OIDC_CONNECTOR_DELETED: 'GE2001I',
-  REMOTE_SUPPORT_DISABLED: 'GE3001I',
-  REMOTE_SUPPORT_ENABLED: 'GE3000I',
-  SAML_CONNECTOR_CREATED: 'GE1002I',
-  SAML_CONNECTOR_DELETED: 'GE2002I',
-  UPDATES_DISABLED: 'GE3006I',
-  UPDATES_DOWNLOADED: 'GE3007I',
-  UPDATES_ENABLED: 'GE3005I',
+  USER_CREATED: 'T1002I',
+  USER_DELETED: 'T1004I',
+  USER_UPDATED: 'T1003I',
+  USER_PASSWORD_CHANGED: 'T1005I',
+  RESET_PASSWORD_TOKEN_CREATED: 'T6000I',
+  ROLE_CREATED: 'T9000I',
+  ROLE_DELETED: 'T9001I',
+  GITHUB_CONNECTOR_CREATED: 'T8000I',
+  GITHUB_CONNECTOR_DELETED: 'T8001I',
+  OIDC_CONNECTOR_CREATED: 'T8100I',
+  OIDC_CONNECTOR_DELETED: 'T8101I',
+  SAML_CONNECTOR_CREATED: 'T8200I',
+  SAML_CONNECTOR_DELETED: 'T8201I',
+  ACCESS_REQUEST_CREATED: 'T5000I',
+  ACCESS_REQUEST_UPDATED: 'T5001I',
+  // Gravity
+  G_ALERT_CREATED: 'G1007I',
+  G_ALERT_DELETED: 'G2007I',
+  G_ALERT_TARGET_CREATED: 'G1008I',
+  G_ALERT_TARGET_DELETED: 'G2008I',
+  G_APPLICATION_INSTALL: 'G4000I',
+  G_APPLICATION_ROLLBACK: 'G4002I',
+  G_APPLICATION_UNINSTALL: 'G4003I',
+  G_APPLICATION_UPGRADE: 'G4001I',
+  G_AUTHGATEWAY_UPDATED: 'G1009I',
+  G_AUTHPREFERENCE_UPDATED: 'G1005I',
+  G_CLUSTER_HEALTHY: 'G3001I',
+  G_CLUSTER_UNHEALTHY: 'G3000W',
+  G_LOGFORWARDER_CREATED: 'G1003I',
+  G_LOGFORWARDER_DELETED: 'G2003I',
+  G_OPERATION_CONFIG_COMPLETE: 'G0016I',
+  G_OPERATION_CONFIG_FAILURE: 'G0016E',
+  G_OPERATION_CONFIG_START: 'G0015I',
+  G_OPERATION_ENV_COMPLETE: 'G0014I',
+  G_OPERATION_ENV_FAILURE: 'G0014E',
+  G_OPERATION_ENV_START: 'G0013I',
+  G_OPERATION_EXPAND_COMPLETE: 'G0004I',
+  G_OPERATION_EXPAND_FAILURE: 'G0004E',
+  G_OPERATION_EXPAND_START: 'G0003I',
+  G_OPERATION_GC_COMPLETE: 'G0012I',
+  G_OPERATION_GC_FAILURE: 'G0012E',
+  G_OPERATION_GC_START: 'G0011I',
+  G_OPERATION_INSTALL_COMPLETE: 'G0002I',
+  G_OPERATION_INSTALL_FAILURE: 'G0002E',
+  G_OPERATION_INSTALL_START: 'G0001I',
+  G_OPERATION_SHRINK_COMPLETE: 'G0006I',
+  G_OPERATION_SHRINK_FAILURE: 'G0006E',
+  G_OPERATION_SHRINK_START: 'G0005I',
+  G_OPERATION_UNINSTALL_COMPLETE: 'G0010I',
+  G_OPERATION_UNINSTALL_FAILURE: 'G0010E',
+  G_OPERATION_UNINSTALL_START: 'G0009I',
+  G_OPERATION_UPDATE_COMPLETE: 'G0008I',
+  G_OPERATION_UPDATE_FAILURE: 'G0008E',
+  G_OPERATION_UPDATE_START: 'G0007I',
+  G_ROLE_CREATED: 'GE1000I',
+  G_ROLE_DELETED: 'GE2000I',
+  G_SMTPCONFIG_CREATED: 'G1006I',
+  G_SMTPCONFIG_DELETED: 'G2006I',
+  G_TLSKEYPAIR_CREATED: 'G1004I',
+  G_TLSKEYPAIR_DELETED: 'G2004I',
+  G_TOKEN_CREATED: 'G1001I',
+  G_TOKEN_DELETED: 'G2001I',
+  G_USER_CREATED: 'G1000I',
+  G_USER_DELETED: 'G2000I',
+  G_USER_INVITE_CREATED: 'G1010I',
+  G_ENDPOINTS_UPDATED: 'GE1003I',
+  G_LICENSE_EXPIRED: 'GE3003I',
+  G_LICENSE_GENERATED: 'GE3002I',
+  G_LICENSE_UPDATED: 'GE3004I',
+  G_GITHUB_CONNECTOR_CREATED: 'G1002I',
+  G_GITHUB_CONNECTOR_DELETED: 'G2002I',
+  G_OIDC_CONNECTOR_CREATED: 'GE1001I',
+  G_OIDC_CONNECTOR_DELETED: 'GE2001I',
+  G_REMOTE_SUPPORT_DISABLED: 'GE3001I',
+  G_REMOTE_SUPPORT_ENABLED: 'GE3000I',
+  G_SAML_CONNECTOR_CREATED: 'GE1002I',
+  G_SAML_CONNECTOR_DELETED: 'GE2002I',
+  G_UPDATES_DISABLED: 'GE3006I',
+  G_UPDATES_DOWNLOADED: 'GE3007I',
+  G_UPDATES_ENABLED: 'GE3005I',
 } as const;
 
 /**
  * Describes all raw event types
  */
 export type RawEvents = {
-  [CodeEnum.ALERT_CREATED]: RawEventAlert<typeof CodeEnum.ALERT_CREATED>;
-  [CodeEnum.ALERT_DELETED]: RawEventAlert<typeof CodeEnum.ALERT_DELETED>;
-  [CodeEnum.ALERT_TARGET_CREATED]: RawEventAlert<
-    typeof CodeEnum.ALERT_TARGET_CREATED
+  [CodeEnum.G_ALERT_CREATED]: RawEventAlert<typeof CodeEnum.G_ALERT_CREATED>;
+  [CodeEnum.G_ALERT_DELETED]: RawEventAlert<typeof CodeEnum.G_ALERT_DELETED>;
+  [CodeEnum.ACCESS_REQUEST_CREATED]: RawEventAccess<
+    typeof CodeEnum.ACCESS_REQUEST_CREATED
   >;
-  [CodeEnum.ALERT_TARGET_DELETED]: RawEvent<
-    typeof CodeEnum.ALERT_TARGET_DELETED
+  [CodeEnum.ACCESS_REQUEST_UPDATED]: RawEventAccess<
+    typeof CodeEnum.ACCESS_REQUEST_UPDATED
   >;
-  [CodeEnum.APPLICATION_INSTALL]: RawEventApplication<
-    typeof CodeEnum.APPLICATION_INSTALL
+  [CodeEnum.G_ALERT_TARGET_CREATED]: RawEventAlert<
+    typeof CodeEnum.G_ALERT_TARGET_CREATED
   >;
-  [CodeEnum.APPLICATION_UPGRADE]: RawEventApplication<
-    typeof CodeEnum.APPLICATION_UPGRADE
+  [CodeEnum.G_ALERT_TARGET_DELETED]: RawEvent<
+    typeof CodeEnum.G_ALERT_TARGET_DELETED
   >;
-  [CodeEnum.APPLICATION_ROLLBACK]: RawEventApplication<
-    typeof CodeEnum.APPLICATION_ROLLBACK
+  [CodeEnum.G_APPLICATION_INSTALL]: RawEventApplication<
+    typeof CodeEnum.G_APPLICATION_INSTALL
   >;
-  [CodeEnum.APPLICATION_UNINSTALL]: RawEventApplication<
-    typeof CodeEnum.APPLICATION_UNINSTALL
+  [CodeEnum.G_APPLICATION_UPGRADE]: RawEventApplication<
+    typeof CodeEnum.G_APPLICATION_UPGRADE
+  >;
+  [CodeEnum.G_APPLICATION_ROLLBACK]: RawEventApplication<
+    typeof CodeEnum.G_APPLICATION_ROLLBACK
+  >;
+  [CodeEnum.G_APPLICATION_UNINSTALL]: RawEventApplication<
+    typeof CodeEnum.G_APPLICATION_UNINSTALL
   >;
 
   [CodeEnum.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof CodeEnum.AUTH_ATTEMPT_FAILURE
   >;
-  [CodeEnum.AUTHGATEWAY_UPDATED]: RawEvent<typeof CodeEnum.AUTHGATEWAY_UPDATED>;
-  [CodeEnum.AUTHPREFERENCE_UPDATED]: RawEvent<
-    typeof CodeEnum.AUTHPREFERENCE_UPDATED
+  [CodeEnum.G_AUTHGATEWAY_UPDATED]: RawEvent<
+    typeof CodeEnum.G_AUTHGATEWAY_UPDATED
+  >;
+  [CodeEnum.G_AUTHPREFERENCE_UPDATED]: RawEvent<
+    typeof CodeEnum.G_AUTHPREFERENCE_UPDATED
   >;
   [CodeEnum.CLIENT_DISCONNECT]: RawEvent<
     typeof CodeEnum.CLIENT_DISCONNECT,
     { reason: string }
   >;
-  [CodeEnum.CLUSTER_HEALTHY]: RawEvent<
-    typeof CodeEnum.CLUSTER_HEALTHY,
+  [CodeEnum.G_CLUSTER_HEALTHY]: RawEvent<
+    typeof CodeEnum.G_CLUSTER_HEALTHY,
     { reason: string }
   >;
-  [CodeEnum.CLUSTER_UNHEALTHY]: RawEvent<
-    typeof CodeEnum.CLUSTER_UNHEALTHY,
+  [CodeEnum.G_CLUSTER_UNHEALTHY]: RawEvent<
+    typeof CodeEnum.G_CLUSTER_UNHEALTHY,
     { reason: string }
   >;
-  [CodeEnum.ENDPOINTS_UPDATED]: RawEvent<typeof CodeEnum.ENDPOINTS_UPDATED>;
+  [CodeEnum.G_ENDPOINTS_UPDATED]: RawEvent<typeof CodeEnum.G_ENDPOINTS_UPDATED>;
   [CodeEnum.EXEC]: RawEvent<typeof CodeEnum.EXEC>;
   [CodeEnum.EXEC_FAILURE]: RawEvent<
     typeof CodeEnum.EXEC_FAILURE,
     { exitError: string }
   >;
-  [CodeEnum.GITHUB_CONNECTOR_CREATED]: RawEvent<
-    typeof CodeEnum.GITHUB_CONNECTOR_CREATED,
-    HasName
+  [CodeEnum.GITHUB_CONNECTOR_CREATED]: RawEventConnector<
+    typeof CodeEnum.GITHUB_CONNECTOR_CREATED
   >;
-  [CodeEnum.GITHUB_CONNECTOR_DELETED]: RawEvent<
-    typeof CodeEnum.GITHUB_CONNECTOR_DELETED,
-    HasName
+  [CodeEnum.GITHUB_CONNECTOR_DELETED]: RawEventConnector<
+    typeof CodeEnum.GITHUB_CONNECTOR_DELETED
   >;
-  [CodeEnum.LICENSE_GENERATED]: RawEvent<
-    typeof CodeEnum.LICENSE_GENERATED,
+  [CodeEnum.G_GITHUB_CONNECTOR_CREATED]: RawEventConnector<
+    typeof CodeEnum.G_GITHUB_CONNECTOR_CREATED
+  >;
+  [CodeEnum.G_GITHUB_CONNECTOR_DELETED]: RawEventConnector<
+    typeof CodeEnum.G_GITHUB_CONNECTOR_DELETED
+  >;
+  [CodeEnum.G_LICENSE_GENERATED]: RawEvent<
+    typeof CodeEnum.G_LICENSE_GENERATED,
     { maxNodes: number }
   >;
-  [CodeEnum.LICENSE_EXPIRED]: RawEvent<typeof CodeEnum.LICENSE_EXPIRED>;
-  [CodeEnum.LICENSE_UPDATED]: RawEvent<typeof CodeEnum.LICENSE_UPDATED>;
-  [CodeEnum.LOGFORWARDER_CREATED]: RawEvent<
-    typeof CodeEnum.LOGFORWARDER_CREATED,
+  [CodeEnum.G_LICENSE_EXPIRED]: RawEvent<typeof CodeEnum.G_LICENSE_EXPIRED>;
+  [CodeEnum.G_LICENSE_UPDATED]: RawEvent<typeof CodeEnum.G_LICENSE_UPDATED>;
+  [CodeEnum.G_LOGFORWARDER_CREATED]: RawEvent<
+    typeof CodeEnum.G_LOGFORWARDER_CREATED,
     HasName
   >;
 
-  [CodeEnum.LOGFORWARDER_DELETED]: RawEvent<
-    typeof CodeEnum.LOGFORWARDER_DELETED,
+  [CodeEnum.G_LOGFORWARDER_DELETED]: RawEvent<
+    typeof CodeEnum.G_LOGFORWARDER_DELETED,
     HasName
   >;
-  [CodeEnum.OIDC_CONNECTOR_CREATED]: RawEvent<
-    typeof CodeEnum.OIDC_CONNECTOR_CREATED,
-    HasName
+  [CodeEnum.OIDC_CONNECTOR_CREATED]: RawEventConnector<
+    typeof CodeEnum.OIDC_CONNECTOR_CREATED
   >;
-  [CodeEnum.OIDC_CONNECTOR_DELETED]: RawEvent<
-    typeof CodeEnum.OIDC_CONNECTOR_DELETED,
-    HasName
+  [CodeEnum.OIDC_CONNECTOR_DELETED]: RawEventConnector<
+    typeof CodeEnum.OIDC_CONNECTOR_DELETED
   >;
-  [CodeEnum.OPERATION_CONFIG_COMPLETE]: RawEvent<
-    typeof CodeEnum.OPERATION_CONFIG_COMPLETE
+  [CodeEnum.G_OIDC_CONNECTOR_CREATED]: RawEventConnector<
+    typeof CodeEnum.G_OIDC_CONNECTOR_CREATED
   >;
-  [CodeEnum.OPERATION_CONFIG_FAILURE]: RawEvent<
-    typeof CodeEnum.OPERATION_CONFIG_FAILURE
+  [CodeEnum.G_OIDC_CONNECTOR_DELETED]: RawEventConnector<
+    typeof CodeEnum.G_OIDC_CONNECTOR_DELETED
   >;
-  [CodeEnum.OPERATION_CONFIG_START]: RawEvent<
-    typeof CodeEnum.OPERATION_CONFIG_START
+  [CodeEnum.G_OPERATION_CONFIG_COMPLETE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_CONFIG_COMPLETE
   >;
-  [CodeEnum.OPERATION_ENV_COMPLETE]: RawEvent<
-    typeof CodeEnum.OPERATION_ENV_COMPLETE
+  [CodeEnum.G_OPERATION_CONFIG_FAILURE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_CONFIG_FAILURE
   >;
-  [CodeEnum.OPERATION_ENV_FAILURE]: RawEvent<
-    typeof CodeEnum.OPERATION_ENV_FAILURE
+  [CodeEnum.G_OPERATION_CONFIG_START]: RawEvent<
+    typeof CodeEnum.G_OPERATION_CONFIG_START
   >;
-  [CodeEnum.OPERATION_ENV_START]: RawEvent<typeof CodeEnum.OPERATION_ENV_START>;
-  [CodeEnum.OPERATION_EXPAND_START]: RawEventOperation<
-    typeof CodeEnum.OPERATION_EXPAND_START
+  [CodeEnum.G_OPERATION_ENV_COMPLETE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_ENV_COMPLETE
   >;
-  [CodeEnum.OPERATION_EXPAND_COMPLETE]: RawEventOperation<
-    typeof CodeEnum.OPERATION_EXPAND_COMPLETE
+  [CodeEnum.G_OPERATION_ENV_FAILURE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_ENV_FAILURE
   >;
-  [CodeEnum.OPERATION_EXPAND_FAILURE]: RawEventOperation<
-    typeof CodeEnum.OPERATION_EXPAND_FAILURE
+  [CodeEnum.G_OPERATION_ENV_START]: RawEvent<
+    typeof CodeEnum.G_OPERATION_ENV_START
   >;
-  [CodeEnum.OPERATION_GC_START]: RawEvent<typeof CodeEnum.OPERATION_GC_START>;
-  [CodeEnum.OPERATION_GC_COMPLETE]: RawEvent<
-    typeof CodeEnum.OPERATION_GC_COMPLETE
+  [CodeEnum.G_OPERATION_EXPAND_START]: RawEventOperation<
+    typeof CodeEnum.G_OPERATION_EXPAND_START
   >;
-  [CodeEnum.OPERATION_GC_FAILURE]: RawEvent<
-    typeof CodeEnum.OPERATION_GC_FAILURE
+  [CodeEnum.G_OPERATION_EXPAND_COMPLETE]: RawEventOperation<
+    typeof CodeEnum.G_OPERATION_EXPAND_COMPLETE
   >;
-  [CodeEnum.OPERATION_INSTALL_START]: RawEvent<
-    typeof CodeEnum.OPERATION_INSTALL_START,
+  [CodeEnum.G_OPERATION_EXPAND_FAILURE]: RawEventOperation<
+    typeof CodeEnum.G_OPERATION_EXPAND_FAILURE
+  >;
+  [CodeEnum.G_OPERATION_GC_START]: RawEvent<
+    typeof CodeEnum.G_OPERATION_GC_START
+  >;
+  [CodeEnum.G_OPERATION_GC_COMPLETE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_GC_COMPLETE
+  >;
+  [CodeEnum.G_OPERATION_GC_FAILURE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_GC_FAILURE
+  >;
+  [CodeEnum.G_OPERATION_INSTALL_START]: RawEvent<
+    typeof CodeEnum.G_OPERATION_INSTALL_START,
     HasCluster
   >;
-  [CodeEnum.OPERATION_INSTALL_COMPLETE]: RawEvent<
-    typeof CodeEnum.OPERATION_INSTALL_COMPLETE,
+  [CodeEnum.G_OPERATION_INSTALL_COMPLETE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_INSTALL_COMPLETE,
     HasCluster
   >;
-  [CodeEnum.OPERATION_INSTALL_FAILURE]: RawEvent<
-    typeof CodeEnum.OPERATION_INSTALL_FAILURE,
+  [CodeEnum.G_OPERATION_INSTALL_FAILURE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_INSTALL_FAILURE,
     HasCluster
   >;
-  [CodeEnum.OPERATION_SHRINK_START]: RawEvent<
-    typeof CodeEnum.OPERATION_SHRINK_START,
+  [CodeEnum.G_OPERATION_SHRINK_START]: RawEvent<
+    typeof CodeEnum.G_OPERATION_SHRINK_START,
     {
       hostname: string;
       ip: string;
       role: string;
     }
   >;
-  [CodeEnum.OPERATION_SHRINK_COMPLETE]: RawEvent<
-    typeof CodeEnum.OPERATION_SHRINK_COMPLETE,
+  [CodeEnum.G_OPERATION_SHRINK_COMPLETE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_SHRINK_COMPLETE,
     {
       hostname: string;
       ip: string;
       role: string;
     }
   >;
-  [CodeEnum.OPERATION_SHRINK_FAILURE]: RawEvent<
-    typeof CodeEnum.OPERATION_SHRINK_FAILURE,
+  [CodeEnum.G_OPERATION_SHRINK_FAILURE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_SHRINK_FAILURE,
     {
       hostname: string;
       ip: string;
       role: string;
     }
   >;
-  [CodeEnum.OPERATION_UNINSTALL_START]: RawEvent<
-    typeof CodeEnum.OPERATION_UNINSTALL_START
+  [CodeEnum.G_OPERATION_UNINSTALL_START]: RawEvent<
+    typeof CodeEnum.G_OPERATION_UNINSTALL_START
   >;
-  [CodeEnum.OPERATION_UNINSTALL_COMPLETE]: RawEvent<
-    typeof CodeEnum.OPERATION_UNINSTALL_COMPLETE
+  [CodeEnum.G_OPERATION_UNINSTALL_COMPLETE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_UNINSTALL_COMPLETE
   >;
-  [CodeEnum.OPERATION_UNINSTALL_FAILURE]: RawEvent<
-    typeof CodeEnum.OPERATION_UNINSTALL_FAILURE
+  [CodeEnum.G_OPERATION_UNINSTALL_FAILURE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_UNINSTALL_FAILURE
   >;
-  [CodeEnum.OPERATION_UPDATE_COMPLETE]: RawEvent<
-    typeof CodeEnum.OPERATION_UPDATE_COMPLETE,
+  [CodeEnum.G_OPERATION_UPDATE_COMPLETE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_UPDATE_COMPLETE,
     {
       version: string;
     }
   >;
-  [CodeEnum.OPERATION_UPDATE_FAILURE]: RawEvent<
-    typeof CodeEnum.OPERATION_UPDATE_FAILURE,
+  [CodeEnum.G_OPERATION_UPDATE_FAILURE]: RawEvent<
+    typeof CodeEnum.G_OPERATION_UPDATE_FAILURE,
     {
       version: string;
     }
   >;
-  [CodeEnum.OPERATION_UPDATE_START]: RawEvent<
-    typeof CodeEnum.OPERATION_UPDATE_START,
+  [CodeEnum.G_OPERATION_UPDATE_START]: RawEvent<
+    typeof CodeEnum.G_OPERATION_UPDATE_START,
     {
       version: string;
     }
@@ -289,21 +327,25 @@ export type RawEvents = {
       error: string;
     }
   >;
-  [CodeEnum.REMOTE_SUPPORT_ENABLED]: RawEvent<
-    typeof CodeEnum.REMOTE_SUPPORT_ENABLED,
+  [CodeEnum.G_REMOTE_SUPPORT_ENABLED]: RawEvent<
+    typeof CodeEnum.G_REMOTE_SUPPORT_ENABLED,
     HasHub
   >;
-  [CodeEnum.REMOTE_SUPPORT_DISABLED]: RawEvent<
-    typeof CodeEnum.REMOTE_SUPPORT_DISABLED,
+  [CodeEnum.G_REMOTE_SUPPORT_DISABLED]: RawEvent<
+    typeof CodeEnum.G_REMOTE_SUPPORT_DISABLED,
     HasHub
   >;
-  [CodeEnum.SAML_CONNECTOR_CREATED]: RawEvent<
-    typeof CodeEnum.SAML_CONNECTOR_CREATED,
-    HasName
+  [CodeEnum.SAML_CONNECTOR_CREATED]: RawEventConnector<
+    typeof CodeEnum.SAML_CONNECTOR_CREATED
   >;
-  [CodeEnum.SAML_CONNECTOR_DELETED]: RawEvent<
-    typeof CodeEnum.SAML_CONNECTOR_DELETED,
-    HasName
+  [CodeEnum.SAML_CONNECTOR_DELETED]: RawEventConnector<
+    typeof CodeEnum.SAML_CONNECTOR_DELETED
+  >;
+  [CodeEnum.G_SAML_CONNECTOR_CREATED]: RawEventConnector<
+    typeof CodeEnum.G_SAML_CONNECTOR_CREATED
+  >;
+  [CodeEnum.G_SAML_CONNECTOR_DELETED]: RawEventConnector<
+    typeof CodeEnum.G_SAML_CONNECTOR_DELETED
   >;
   [CodeEnum.SCP_DOWNLOAD]: RawEvent<
     typeof CodeEnum.SCP_DOWNLOAD,
@@ -331,6 +373,15 @@ export type RawEvents = {
       exitError: string;
     }
   >;
+
+  [CodeEnum.SESSION_COMMAND]: RawEventCommand<typeof CodeEnum.SESSION_COMMAND>;
+
+  [CodeEnum.SESSION_DISK]: RawDiskEvent<typeof CodeEnum.SESSION_DISK>;
+
+  [CodeEnum.SESSION_NETWORK]: RawEventNetwork<typeof CodeEnum.SESSION_NETWORK>;
+
+  [CodeEnum.SESSION_DATA]: RawEventData<typeof CodeEnum.SESSION_DATA>;
+
   [CodeEnum.SESSION_JOIN]: RawEvent<
     typeof CodeEnum.SESSION_JOIN,
     {
@@ -365,8 +416,12 @@ export type RawEvents = {
       sid: string;
     }
   >;
-  [CodeEnum.SMTPCONFIG_CREATED]: RawEvent<typeof CodeEnum.SMTPCONFIG_CREATED>;
-  [CodeEnum.SMTPCONFIG_DELETED]: RawEvent<typeof CodeEnum.SMTPCONFIG_DELETED>;
+  [CodeEnum.G_SMTPCONFIG_CREATED]: RawEvent<
+    typeof CodeEnum.G_SMTPCONFIG_CREATED
+  >;
+  [CodeEnum.G_SMTPCONFIG_DELETED]: RawEvent<
+    typeof CodeEnum.G_SMTPCONFIG_DELETED
+  >;
   [CodeEnum.SUBSYSTEM]: RawEvent<
     typeof CodeEnum.SUBSYSTEM,
     {
@@ -381,37 +436,54 @@ export type RawEvents = {
     }
   >;
   [CodeEnum.TERMINAL_RESIZE]: RawEvent<typeof CodeEnum.TERMINAL_RESIZE>;
-  [CodeEnum.TLSKEYPAIR_CREATED]: RawEvent<typeof CodeEnum.TLSKEYPAIR_CREATED>;
-  [CodeEnum.TLSKEYPAIR_DELETED]: RawEvent<typeof CodeEnum.TLSKEYPAIR_DELETED>;
-  [CodeEnum.TOKEN_CREATED]: RawEvent<
-    typeof CodeEnum.TOKEN_CREATED,
+  [CodeEnum.G_TLSKEYPAIR_CREATED]: RawEvent<
+    typeof CodeEnum.G_TLSKEYPAIR_CREATED
+  >;
+  [CodeEnum.G_TLSKEYPAIR_DELETED]: RawEvent<
+    typeof CodeEnum.G_TLSKEYPAIR_DELETED
+  >;
+  [CodeEnum.G_TOKEN_CREATED]: RawEvent<
+    typeof CodeEnum.G_TOKEN_CREATED,
     {
       owner: string;
     }
   >;
-  [CodeEnum.TOKEN_DELETED]: RawEvent<
-    typeof CodeEnum.TOKEN_DELETED,
+  [CodeEnum.G_TOKEN_DELETED]: RawEvent<
+    typeof CodeEnum.G_TOKEN_DELETED,
     {
       owner: string;
     }
   >;
-  [CodeEnum.UPDATES_ENABLED]: RawEvent<typeof CodeEnum.UPDATES_ENABLED, HasHub>;
-  [CodeEnum.UPDATES_DISABLED]: RawEvent<
-    typeof CodeEnum.UPDATES_DISABLED,
+  [CodeEnum.G_UPDATES_ENABLED]: RawEvent<
+    typeof CodeEnum.G_UPDATES_ENABLED,
     HasHub
   >;
-  [CodeEnum.UPDATES_DOWNLOADED]: RawEvent<
-    typeof CodeEnum.UPDATES_DOWNLOADED,
+  [CodeEnum.G_UPDATES_DISABLED]: RawEvent<
+    typeof CodeEnum.G_UPDATES_DISABLED,
+    HasHub
+  >;
+  [CodeEnum.G_UPDATES_DOWNLOADED]: RawEvent<
+    typeof CodeEnum.G_UPDATES_DOWNLOADED,
     {
       hub: string;
       name: string;
       version: string;
     }
   >;
-  [CodeEnum.USER_CREATED]: RawEvent<typeof CodeEnum.USER_CREATED, HasName>;
-  [CodeEnum.USER_DELETED]: RawEvent<typeof CodeEnum.USER_DELETED, HasName>;
-  [CodeEnum.USER_INVITE_CREATED]: RawEvent<
-    typeof CodeEnum.USER_INVITE_CREATED,
+  [CodeEnum.USER_CREATED]: RawEventUser<typeof CodeEnum.USER_CREATED>;
+  [CodeEnum.USER_DELETED]: RawEventUser<typeof CodeEnum.USER_DELETED>;
+  [CodeEnum.USER_UPDATED]: RawEventUser<typeof CodeEnum.USER_UPDATED>;
+  [CodeEnum.USER_PASSWORD_CHANGED]: RawEvent<
+    typeof CodeEnum.USER_PASSWORD_CHANGED,
+    HasName
+  >;
+  [CodeEnum.RESET_PASSWORD_TOKEN_CREATED]: RawEventPasswordToken<
+    typeof CodeEnum.RESET_PASSWORD_TOKEN_CREATED
+  >;
+  [CodeEnum.G_USER_CREATED]: RawEvent<typeof CodeEnum.G_USER_CREATED, HasName>;
+  [CodeEnum.G_USER_DELETED]: RawEvent<typeof CodeEnum.G_USER_DELETED, HasName>;
+  [CodeEnum.G_USER_INVITE_CREATED]: RawEvent<
+    typeof CodeEnum.G_USER_INVITE_CREATED,
     {
       name: string;
       roles: string;
@@ -433,6 +505,8 @@ export type RawEvents = {
   >;
   [CodeEnum.ROLE_CREATED]: RawEvent<typeof CodeEnum.ROLE_CREATED, HasName>;
   [CodeEnum.ROLE_DELETED]: RawEvent<typeof CodeEnum.ROLE_DELETED, HasName>;
+  [CodeEnum.G_ROLE_CREATED]: RawEvent<typeof CodeEnum.G_ROLE_CREATED, HasName>;
+  [CodeEnum.G_ROLE_DELETED]: RawEvent<typeof CodeEnum.G_ROLE_DELETED, HasName>;
 };
 
 /**
@@ -473,10 +547,104 @@ export type RawEvent<T extends Code, K = {}> = Merge<
   K
 >;
 
+type RawEventData<T extends Code> = RawEvent<
+  T,
+  {
+    login: string;
+    rx: number;
+    server_id: string;
+    sid: string;
+    tx: number;
+    user: string;
+  }
+>;
+
+type RawEventCommand<T extends Code> = RawEvent<
+  T,
+  {
+    login: string;
+    namespace: string;
+    path: string;
+    pid: number;
+    ppid: number;
+    program: string;
+    return_code: number;
+    server_id: string;
+    sid: string;
+  }
+>;
+
+type RawEventNetwork<T extends Code> = RawEvent<
+  T,
+  {
+    login: string;
+    namespace: string;
+    pid: number;
+    cgroup_id: number;
+    program: string;
+    server_id: string;
+    flags: number;
+    sid: string;
+    src_addr: string;
+    dst_addr: string;
+    dst_port: string;
+  }
+>;
+
+type RawDiskEvent<T extends Code> = RawEvent<
+  T,
+  {
+    login: string;
+    namespace: string;
+    pid: number;
+    cgroup_id: number;
+    program: string;
+    path: string;
+    return_code: number;
+    server_id: string;
+    flags: number;
+    sid: string;
+  }
+>;
+
+type RawEventAccess<T extends Code> = RawEvent<
+  T,
+  {
+    id: string;
+    user: string;
+    roles: string[];
+    state: string;
+  }
+>;
+
 type RawEventAlert<T extends Code> = RawEvent<
   T,
   {
     name: string;
+  }
+>;
+
+type RawEventPasswordToken<T extends Code> = RawEvent<
+  T,
+  {
+    entity: string;
+    ttl: string;
+  }
+>;
+
+type RawEventUser<T extends Code> = RawEvent<
+  T,
+  {
+    name: string;
+    entity: string;
+  }
+>;
+
+type RawEventConnector<T extends Code> = RawEvent<
+  T,
+  {
+    name: string;
+    user: string;
   }
 >;
 

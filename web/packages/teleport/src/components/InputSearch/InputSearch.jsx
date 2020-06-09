@@ -53,7 +53,6 @@ class InputSearch extends React.Component {
       <Input
         px="3"
         placeholder="SEARCH..."
-        bg="primary.dark"
         color="text.primary"
         {...rest}
         autoFocus={autoFocus}
@@ -68,13 +67,18 @@ class InputSearch extends React.Component {
 
 function fromTheme(props) {
   return {
+    background: props.theme.colors.primary.light,
+
+    '&:hover': {
+      background: props.theme.colors.primary.lighter,
+    },
     '&:focus, &:active': {
       background: props.theme.colors.light,
       boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, .24)',
       color: props.theme.colors.text.onLight,
     },
     '&::placeholder': {
-      color: props.theme.colors.subtle,
+      color: props.theme.colors.text.placeholder,
       fontSize: props.theme.fontSizes[1],
     },
   };
@@ -82,11 +86,13 @@ function fromTheme(props) {
 
 const Input = styled.input`
   box-sizing: border-box;
+  font-size: 12px;
   min-width: 200px;
   outline: none;
   border: none;
   border-radius: 200px;
-  height: 40px;
+  height: 32px;
+  transition: all .2s;
   ${fromTheme}
   ${space}
   ${color}

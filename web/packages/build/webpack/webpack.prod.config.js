@@ -34,7 +34,7 @@ var cfg = {
 
   optimization: {
     ...baseCfg.optimization,
-    minimize: false,
+    minimize: true,
   },
 
   module: {

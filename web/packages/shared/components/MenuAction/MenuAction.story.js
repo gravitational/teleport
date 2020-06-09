@@ -15,31 +15,28 @@
  */
 
 import React from 'react';
-import ActionMenu, { MenuItem } from '.';
+import { Flex } from 'design';
+import { MenuIcon, MenuButton, MenuItem } from '.';
 
 export default {
-  title: 'Shared/Action Menu',
+  title: 'Shared/MenuAction',
 };
 
-export const Basic = () => (
-  <ActionMenu>
-    <MenuItem>Edit...</MenuItem>
-    <MenuItem>Delete...</MenuItem>
-  </ActionMenu>
-);
-
-export const EmptyList = () => <ActionMenu />;
-
-const inlineCss = {
-  style: {
-    right: '10px',
-    position: 'absolute',
-    top: '10px',
-  },
-};
-export const ButtonRightSide = () => (
-  <ActionMenu buttonIconProps={inlineCss}>
-    <MenuItem>Edit...</MenuItem>
-    <MenuItem>Delete...</MenuItem>
-  </ActionMenu>
+export const Menu = () => (
+  <Flex
+    mx="auto"
+    width="200px"
+    height="100px"
+    justifyContent="space-around"
+    alignItems="center"
+  >
+    <MenuIcon>
+      <MenuItem>Edit...</MenuItem>
+      <MenuItem>Delete...</MenuItem>
+    </MenuIcon>
+    <MenuButton>
+      <MenuItem>Edit...</MenuItem>
+      <MenuItem>Delete...</MenuItem>
+    </MenuButton>
+  </Flex>
 );

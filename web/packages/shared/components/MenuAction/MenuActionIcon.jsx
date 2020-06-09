@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import { ButtonIcon } from 'design';
 import { Ellipsis } from 'design/Icon';
 import PropTypes from 'prop-types';
 
-class ActionMenu extends React.Component {
+export default class MenuActionIcon extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -92,7 +92,7 @@ class ActionMenu extends React.Component {
   }
 }
 
-ActionMenu.propTypes = {
+MenuActionIcon.propTypes = {
   /** displays menu */
   open: PropTypes.bool,
 
@@ -103,12 +103,10 @@ ActionMenu.propTypes = {
   buttonIconProps: PropTypes.object,
 };
 
-ActionMenu.defaultProps = {
+MenuActionIcon.defaultProps = {
   open: false,
 };
 
 const menuListCss = () => `
   min-width: 100px;
 `;
-
-export default ActionMenu;

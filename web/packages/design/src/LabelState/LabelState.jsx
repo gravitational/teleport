@@ -48,7 +48,7 @@ const kinds = ({ theme, kind, shadow }) => {
 
   if (shadow) {
     styles.boxShadow = `
-    0 0 8px ${fade(styles.background, 0.24)}, 
+    0 0 8px ${fade(styles.background, 0.24)},
     0 4px 16px ${fade(styles.background, 0.56)}
     `;
   }
@@ -57,19 +57,21 @@ const kinds = ({ theme, kind, shadow }) => {
 };
 
 const LabelState = styled.span`
+  box-sizing: border-box;
   border-radius: 100px;
-  font-weight: bold;
-  outline: none;
-  text-transform: uppercase;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  white-space: nowrap;
-  ${fontSize}
+  min-height: 16px;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
   ${space}
   ${kinds}
   ${width}
   ${color}
+  ${fontSize}
 `;
 LabelState.defaultProps = {
   fontSize: 0,

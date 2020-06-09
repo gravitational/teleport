@@ -18,6 +18,7 @@ import Button, {
   ButtonPrimary,
   ButtonWarning,
   ButtonSecondary,
+  ButtonBorder,
 } from './Button';
 export default Button;
-export { ButtonPrimary, ButtonWarning, ButtonSecondary };
+export { ButtonPrimary, ButtonWarning, ButtonSecondary, ButtonBorder };

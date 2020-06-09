@@ -18,5 +18,14 @@ import { useState, useRef, useEffect } from 'react';
 import withState from './withState';
 import useAttempt from './useAttempt';
 import useFavicon from './useFavicon';
+import useDocTitle from './useDocTitle';
 
-export { useRef, useAttempt, useState, withState, useEffect, useFavicon };
+export {
+  useRef,
+  useAttempt,
+  useState,
+  withState,
+  useEffect,
+  useFavicon,
+  useDocTitle,
+};

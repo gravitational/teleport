@@ -1,46 +1,32 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render ConsoleTabs 1`] = `
-.c8 {
+.c7 {
   display: inline-block;
-  -webkit-transition: color .3s;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c10 {
   display: inline-block;
-  -webkit-transition: color .3s;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c10 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
   outline: none;
   border-radius: 50%;
   overflow: visible;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
   text-align: center;
-  -webkit-flex: 0 0 auto;
-  -ms-flex: 0 0 auto;
   flex: 0 0 auto;
   background: transparent;
   color: inherit;
-  -webkit-transition: all .3s;
   transition: all .3s;
   -webkit-font-smoothing: antialiased;
   font-size: 12px;
@@ -49,24 +35,24 @@ exports[`render ConsoleTabs 1`] = `
   margin-left: 8px;
 }
 
-.c10 .c7 {
+.c9 .c6 {
   color: inherit;
 }
 
-.c10:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c10:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c10:hover,
-.c10:focus {
+.c9:hover,
+.c9:focus {
   background: rgba(255,255,255,0.1);
 }
 
-.c5 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -80,50 +66,12 @@ exports[`render ConsoleTabs 1`] = `
   height: 100%;
   width: 100%;
   background-color: #010B1C;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-}
-
-.c4 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
-  display: flex;
-  width: 14px;
-  height: 14px;
-  font-size: 10px;
-  overflow: hidden;
-  position: relative;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  -webkit-flex-shrink: 0;
-  -ms-flex-negative: 0;
-  flex-shrink: 0;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-  border-radius: 50%;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
-  justify-content: center;
-  background-color: #2196f3;
 }
 
 .c2 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   max-width: 200px;
   height: 100%;
@@ -132,26 +80,18 @@ exports[`render ConsoleTabs 1`] = `
   background-color: #010B1C;
   color: #FFFFFF;
   font-weight: bold;
-  -webkit-transition: none;
   transition: none;
 }
 
 .c2:hover,
 .c2:focus {
   color: #FFFFFF;
-  -webkit-transition: color .3s;
   transition: color .3s;
 }
 
-.c9 {
+.c8 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   max-width: 200px;
   height: 100%;
@@ -159,42 +99,32 @@ exports[`render ConsoleTabs 1`] = `
   border-right: 1px solid #010B1C;
 }
 
-.c9:hover,
-.c9:focus {
+.c8:hover,
+.c8:focus {
   color: #FFFFFF;
-  -webkit-transition: color .3s;
   transition: color .3s;
 }
 
 .c3 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex: 1;
-  -ms-flex: 1;
   flex: 1;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   cursor: pointer;
-  -webkit-text-decoration: none;
   text-decoration: none;
   outline: none;
   margin: 0;
-  -webkit-text-decoration: none;
   text-decoration: none;
   color: inherit;
   line-height: 32px;
   background-color: transparent;
   white-space: nowrap;
   overflow: hidden;
+  padding: 0 16px;
   text-overflow: ellipsis;
   border: none;
 }
 
-.c6 {
+.c5 {
   background: transparent;
   border-radius: 2px;
   border: none;
@@ -203,36 +133,25 @@ exports[`render ConsoleTabs 1`] = `
   width: 16px;
   outline: none;
   padding: 0;
-  margin: 0;
+  margin: 0 8px 0 0;
+  transition: all 0.3s;
 }
 
-.c6:hover {
-  background: light:#ff5252;
-  main: #ff1744;
-  dark: #d50000;
+.c5:hover {
+  background: #f50057;
 }
 
 .c1 {
   box-sizing: border-box;
-  height: 36px;
+  height: 32px;
   width: 100%;
   color: rgba(255,255,255,0.56);
-  background-color: #0C143D;
-  min-height: 36px;
+  background: #01172C;
+  min-height: 32px;
   border-radius: 4px;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex-wrap: no-wrap;
-  -ms-flex-wrap: no-wrap;
   flex-wrap: no-wrap;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-flex-shrink: 0;
-  -ms-flex-negative: 0;
   flex-shrink: 0;
   overflow: hidden;
   font-weight: 600;
@@ -241,19 +160,19 @@ exports[`render ConsoleTabs 1`] = `
 }
 
 <div
-  class="c0"
+  class="sc-AxiKw c0"
   height="100%"
   style="position: absolute;"
   width="100%"
 >
   <nav
-    class="c1"
+    class="sc-AxiKw c1"
     color="text.secondary"
-    height="36px"
+    height="32px"
     width="100%"
   >
     <div
-      class="c2"
+      class="sc-AxiKw c2"
       style="flex: 1; flex-basis: 0px; flex-grow: 1;"
     >
       <button
@@ -261,28 +180,23 @@ exports[`render ConsoleTabs 1`] = `
       >
         <div
           class="c4"
-        >
-          2
-        </div>
-        <div
-          class="c5"
           title="tuguwog"
         >
           tuguwog
         </div>
       </button>
       <button
-        class="c6"
+        class="c5"
         title="Close"
       >
         <span
-          class="icon icon-close  c7 c8"
+          class="c6 c7 icon icon-close "
           color="light"
         />
       </button>
     </div>
     <div
-      class="c9"
+      class="sc-AxiKw c8"
       style="flex: 1; flex-basis: 0px; flex-grow: 1;"
     >
       <button
@@ -290,56 +204,51 @@ exports[`render ConsoleTabs 1`] = `
       >
         <div
           class="c4"
-        >
-          2
-        </div>
-        <div
-          class="c5"
           title="emwonepu"
         >
           emwonepu
         </div>
       </button>
       <button
-        class="c6"
+        class="c5"
         title="Close"
       >
         <span
-          class="icon icon-close  c7 c8"
+          class="c6 c7 icon icon-close "
           color="light"
         />
       </button>
     </div>
     <div
-      class="c9"
+      class="sc-AxiKw c8"
       style="flex: 1; flex-basis: 0px; flex-grow: 1;"
     >
       <button
         class="c3"
       >
         <div
-          class="c5"
+          class="c4"
           title="foguzaziw"
         >
           foguzaziw
         </div>
       </button>
       <button
-        class="c6"
+        class="c5"
         title="Close"
       >
         <span
-          class="icon icon-close  c7 c8"
+          class="c6 c7 icon icon-close "
           color="light"
         />
       </button>
     </div>
     <button
-      class="c10"
+      class="c9"
       title="New Tab"
     >
       <span
-        class="icon icon-add  c7 c11"
+        class="c6 c10 icon icon-add "
         color="light"
         font-size="16px"
       />

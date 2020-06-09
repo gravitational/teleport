@@ -19,19 +19,16 @@ import LabelInput from './LabelInput';
 import InputComp from './../Input';
 
 export default {
-  title: 'Design/Label',
+  title: 'Design/LabelInput',
 };
 
-export const Input = () => (
+export const Inputs = () => (
   <>
     <LabelInput>Label for Input</LabelInput>
     <InputComp />
-  </>
-);
-
-export const InputWithError = () => (
-  <>
-    <LabelInput hasError={true}>Label for Input</LabelInput>
+    <LabelInput mt={4} hasError={true}>
+      With Error
+    </LabelInput>
     <InputComp hasError={true} />
   </>
 );

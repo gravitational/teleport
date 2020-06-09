@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Auth2faTypeEnum } from '../../services/enums';
-import { Box, Text } from 'design';
+import { Box, Text, ButtonLink } from 'design';
 
 const U2F_HELP_URL = 'https://support.google.com/accounts/answer/6103523?hl=en';
 
@@ -33,6 +33,16 @@ export default function TwoFAData(props) {
           token.
         </Text>
         <img width="152" src={imgSrc} border="8" />
+        <ButtonLink
+          width="100%"
+          kind="secondary"
+          target="_blank"
+          size="small"
+          href="https://support.google.com/accounts/answer/1066447?co=GENIE.Platform%3DiOS&hl=en&oco=0"
+          rel="noreferrer"
+        >
+          Download Google Authenticator
+        </ButtonLink>
       </div>
     );
   }

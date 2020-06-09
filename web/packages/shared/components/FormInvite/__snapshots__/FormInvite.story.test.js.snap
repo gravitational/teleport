@@ -4,8 +4,6 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
 .c2 {
   box-sizing: border-box;
   padding: 40px;
-  -webkit-flex: 3;
-  -ms-flex: 3;
   flex: 3;
 }
 
@@ -17,89 +15,23 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
 .c9 {
   box-sizing: border-box;
   margin-bottom: 24px;
-  width: 180px;
+  width: 50%;
 }
 
-.c13 {
+.c11 {
   box-sizing: border-box;
   padding: 40px;
-  background-color: #1B234A;
-  -webkit-flex: 1;
-  -ms-flex: 1;
+  background-color: #1C254D;
   flex: 1;
-}
-
-.c12 {
-  line-height: 1.5;
-  margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
-  display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
-  justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  -webkit-text-decoration: none;
-  text-decoration: none;
-  text-transform: uppercase;
-  -webkit-transition: all 0.3s;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #00BFA5;
-  color: #FFFFFF;
-  min-height: 48px;
-  font-size: 14px;
-  padding: 0px 48px;
-  margin-top: 16px;
-  width: 100%;
-}
-
-.c12:active {
-  opacity: 0.56;
-}
-
-.c12:hover,
-.c12:focus {
-  background: #00EAC3;
-}
-
-.c12:active {
-  background: #26A69A;
-}
-
-.c12:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 
 .c10 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border: none;
@@ -110,17 +42,16 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: #FFFFFF;
-  font-size: 10px;
-  min-height: 24px;
-  padding: 0px 16px;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 16px;
   width: 100%;
 }
 
@@ -130,7 +61,11 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
 
 .c10:hover,
 .c10:focus {
-  background: #373F64;
+  background: #651FFF;
+}
+
+.c10:active {
+  background: #354AA4;
 }
 
 .c10:disabled {
@@ -138,17 +73,58 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c11 {
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 100%;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #2C3A73;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
   color: #03a9f4;
   font-weight: normal;
   background: none;
-  -webkit-text-decoration: underline;
   text-decoration: underline;
   text-transform: none;
+  padding: 0 8px;
 }
 
-.c11:hover,
-.c11:focus {
+.c13:hover,
+.c13:focus {
   background: #222C59;
 }
 
@@ -165,20 +141,18 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
 }
 
 .c7 {
-  -webkit-appearance: none;
-  -moz-appearance: none;
   appearance: none;
+  border: none;
   border-radius: 4px;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   height: 40px;
   font-size: 16px;
-  padding: 12px 16px;
+  padding: 0 16px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
+  color: #324148;
   background-color: #FFFFFF;
 }
 
@@ -186,20 +160,8 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   display: none;
 }
 
-.c7::-webkit-input-placeholder {
-  opacity: 0.24;
-}
-
-.c7::-moz-placeholder {
-  opacity: 0.24;
-}
-
-.c7:-ms-input-placeholder {
-  opacity: 0.24;
-}
-
 .c7::placeholder {
-  opacity: 0.24;
+  opacity: 0.4;
 }
 
 .c6 {
@@ -216,8 +178,8 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
-  font-size: 26px;
-  line-height: 40px;
+  font-size: 28px;
+  line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;
   color: #FFFFFF;
@@ -235,7 +197,7 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   margin-bottom: 16px;
 }
 
-.c14 {
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -247,20 +209,12 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
 
 .c1 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
 }
 
 .c8 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex-direction: row;
-  -ms-flex-direction: row;
   flex-direction: row;
 }
 
@@ -324,7 +278,7 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
       >
         <div
           class="c9"
-          width="180px"
+          width="50%"
         >
           <label
             class="c6"
@@ -340,8 +294,31 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
             value=""
           />
         </div>
+      </div>
+      <button
+        class="c10"
+        kind="primary"
+        width="100%"
+      >
+        Submit
+      </button>
+    </div>
+    <div
+      class="c11"
+    >
+      <div>
+        <div
+          class="c12"
+        >
+          Scan the bar code with Google Authenticator to generate a two factor token.
+        </div>
+        <img
+          border="8"
+          src="data:image/png;base64,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"
+          width="152"
+        />
         <a
-          class="c10 c11"
+          class="c13 c14"
           href="https://support.google.com/accounts/answer/1066447?co=GENIE.Platform%3DiOS&hl=en&oco=0"
           kind="secondary"
           rel="noreferrer"
@@ -351,29 +328,6 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
           Download Google Authenticator
         </a>
       </div>
-      <button
-        class="c12"
-        kind="primary"
-        width="100%"
-      >
-        Submit
-      </button>
-    </div>
-    <div
-      class="c13"
-    >
-      <div>
-        <div
-          class="c14"
-        >
-          Scan the bar code with Google Authenticator to generate a two factor token.
-        </div>
-        <img
-          border="8"
-          src="data:image/png;base64,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"
-          width="152"
-        />
-      </div>
     </div>
   </div>
 </form>
@@ -381,28 +335,18 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
 
 exports[`shared/components/Invite.story story.OtpError 1`] = `
 .c4 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 2px;
   box-sizing: border-box;
-  box-shadow: 0 0 2px rgba(0,0,0,.12),0 2px 2px rgba(0,0,0,.24);
-  font-weight: 400;
-  font-size: 16px;
-  margin: 0 0 16px 0;
-  min-height: 48px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
   padding: 8px 16px;
   overflow: auto;
   word-break: break-all;
+  line-height: 1.5;
   background: #f50057;
   color: #FFFFFF;
 }
@@ -414,8 +358,6 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
 .c2 {
   box-sizing: border-box;
   padding: 40px;
-  -webkit-flex: 3;
-  -ms-flex: 3;
   flex: 3;
 }
 
@@ -427,89 +369,23 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
 .c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
-  width: 180px;
+  width: 50%;
 }
 
-.c14 {
+.c12 {
   box-sizing: border-box;
   padding: 40px;
-  background-color: #1B234A;
-  -webkit-flex: 1;
-  -ms-flex: 1;
+  background-color: #1C254D;
   flex: 1;
-}
-
-.c13 {
-  line-height: 1.5;
-  margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
-  display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
-  justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  -webkit-text-decoration: none;
-  text-decoration: none;
-  text-transform: uppercase;
-  -webkit-transition: all 0.3s;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #00BFA5;
-  color: #FFFFFF;
-  min-height: 48px;
-  font-size: 14px;
-  padding: 0px 48px;
-  margin-top: 16px;
-  width: 100%;
-}
-
-.c13:active {
-  opacity: 0.56;
-}
-
-.c13:hover,
-.c13:focus {
-  background: #00EAC3;
-}
-
-.c13:active {
-  background: #26A69A;
-}
-
-.c13:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 
 .c11 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border: none;
@@ -520,17 +396,16 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: #FFFFFF;
-  font-size: 10px;
-  min-height: 24px;
-  padding: 0px 16px;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 16px;
   width: 100%;
 }
 
@@ -540,7 +415,11 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
 
 .c11:hover,
 .c11:focus {
-  background: #373F64;
+  background: #651FFF;
+}
+
+.c11:active {
+  background: #354AA4;
 }
 
 .c11:disabled {
@@ -548,17 +427,58 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c12 {
+.c15 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 100%;
+}
+
+.c15:active {
+  opacity: 0.56;
+}
+
+.c15:hover,
+.c15:focus {
+  background: #2C3A73;
+}
+
+.c15:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c14 {
   color: #03a9f4;
   font-weight: normal;
   background: none;
-  -webkit-text-decoration: underline;
   text-decoration: underline;
   text-transform: none;
+  padding: 0 8px;
 }
 
-.c12:hover,
-.c12:focus {
+.c14:hover,
+.c14:focus {
   background: #222C59;
 }
 
@@ -575,20 +495,18 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
 }
 
 .c8 {
-  -webkit-appearance: none;
-  -moz-appearance: none;
   appearance: none;
+  border: none;
   border-radius: 4px;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   height: 40px;
   font-size: 16px;
-  padding: 12px 16px;
+  padding: 0 16px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
+  color: #324148;
   background-color: #FFFFFF;
 }
 
@@ -596,20 +514,8 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   display: none;
 }
 
-.c8::-webkit-input-placeholder {
-  opacity: 0.24;
-}
-
-.c8::-moz-placeholder {
-  opacity: 0.24;
-}
-
-.c8:-ms-input-placeholder {
-  opacity: 0.24;
-}
-
 .c8::placeholder {
-  opacity: 0.24;
+  opacity: 0.4;
 }
 
 .c7 {
@@ -626,8 +532,8 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
-  font-size: 26px;
-  line-height: 40px;
+  font-size: 28px;
+  line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;
   color: #FFFFFF;
@@ -645,7 +551,7 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   margin-bottom: 16px;
 }
 
-.c15 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -657,20 +563,12 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
 
 .c1 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
 }
 
 .c9 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex-direction: row;
-  -ms-flex-direction: row;
   flex-direction: row;
 }
 
@@ -742,7 +640,7 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
       >
         <div
           class="c10"
-          width="180px"
+          width="50%"
         >
           <label
             class="c7"
@@ -758,19 +656,9 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
             value=""
           />
         </div>
-        <a
-          class="c11 c12"
-          href="https://support.google.com/accounts/answer/1066447?co=GENIE.Platform%3DiOS&hl=en&oco=0"
-          kind="secondary"
-          rel="noreferrer"
-          target="_blank"
-          width="100%"
-        >
-          Download Google Authenticator
-        </a>
       </div>
       <button
-        class="c13"
+        class="c11"
         kind="primary"
         width="100%"
       >
@@ -778,11 +666,11 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
       </button>
     </div>
     <div
-      class="c14"
+      class="c12"
     >
       <div>
         <div
-          class="c15"
+          class="c13"
         >
           Scan the bar code with Google Authenticator to generate a two factor token.
         </div>
@@ -791,6 +679,16 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
           src="data:image/png;base64,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"
           width="152"
         />
+        <a
+          class="c14 c15"
+          href="https://support.google.com/accounts/answer/1066447?co=GENIE.Platform%3DiOS&hl=en&oco=0"
+          kind="secondary"
+          rel="noreferrer"
+          target="_blank"
+          width="100%"
+        >
+          Download Google Authenticator
+        </a>
       </div>
     </div>
   </div>
@@ -801,8 +699,6 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
 .c2 {
   box-sizing: border-box;
   padding: 40px;
-  -webkit-flex: 3;
-  -ms-flex: 3;
   flex: 3;
 }
 
@@ -814,10 +710,10 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
 .c10 {
   box-sizing: border-box;
   padding: 40px;
-  background-color: #1B234A;
-  -webkit-flex: 1;
-  -ms-flex: 1;
+  background-color: #1C254D;
   flex: 1;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 
 .c12 {
@@ -828,17 +724,8 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
 .c8 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border: none;
@@ -849,17 +736,15 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #00BFA5;
-  color: #FFFFFF;
-  min-height: 48px;
-  font-size: 14px;
-  padding: 0px 48px;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
   margin-top: 16px;
   width: 100%;
 }
@@ -870,11 +755,11 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: #00EAC3;
+  background: #651FFF;
 }
 
 .c8:active {
-  background: #26A69A;
+  background: #354AA4;
 }
 
 .c8:disabled {
@@ -895,20 +780,18 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
 }
 
 .c7 {
-  -webkit-appearance: none;
-  -moz-appearance: none;
   appearance: none;
+  border: none;
   border-radius: 4px;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   height: 40px;
   font-size: 16px;
-  padding: 12px 16px;
+  padding: 0 16px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
+  color: #324148;
   background-color: #FFFFFF;
 }
 
@@ -916,20 +799,8 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   display: none;
 }
 
-.c7::-webkit-input-placeholder {
-  opacity: 0.24;
-}
-
-.c7::-moz-placeholder {
-  opacity: 0.24;
-}
-
-.c7:-ms-input-placeholder {
-  opacity: 0.24;
-}
-
 .c7::placeholder {
-  opacity: 0.24;
+  opacity: 0.4;
 }
 
 .c6 {
@@ -946,8 +817,8 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
-  font-size: 26px;
-  line-height: 40px;
+  font-size: 28px;
+  line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;
   color: #FFFFFF;
@@ -961,16 +832,6 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   font-size: 18px;
   line-height: 32px;
   word-break: break-all;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c13 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
   margin: 0px;
   margin-bottom: 16px;
 }
@@ -996,11 +857,18 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   margin-bottom: 8px;
 }
 
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
 .c1 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
 }
 
@@ -1120,8 +988,6 @@ exports[`shared/components/Invite.story story.off 1`] = `
 .c2 {
   box-sizing: border-box;
   padding: 40px;
-  -webkit-flex: 3;
-  -ms-flex: 3;
   flex: 3;
 }
 
@@ -1133,17 +999,8 @@ exports[`shared/components/Invite.story story.off 1`] = `
 .c8 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border: none;
@@ -1154,17 +1011,15 @@ exports[`shared/components/Invite.story story.off 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #00BFA5;
-  color: #FFFFFF;
-  min-height: 48px;
-  font-size: 14px;
-  padding: 0px 48px;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
   margin-top: 16px;
   width: 100%;
 }
@@ -1175,11 +1030,11 @@ exports[`shared/components/Invite.story story.off 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: #00EAC3;
+  background: #651FFF;
 }
 
 .c8:active {
-  background: #26A69A;
+  background: #354AA4;
 }
 
 .c8:disabled {
@@ -1200,20 +1055,18 @@ exports[`shared/components/Invite.story story.off 1`] = `
 }
 
 .c7 {
-  -webkit-appearance: none;
-  -moz-appearance: none;
   appearance: none;
+  border: none;
   border-radius: 4px;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   height: 40px;
   font-size: 16px;
-  padding: 12px 16px;
+  padding: 0 16px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
+  color: #324148;
   background-color: #FFFFFF;
 }
 
@@ -1221,20 +1074,8 @@ exports[`shared/components/Invite.story story.off 1`] = `
   display: none;
 }
 
-.c7::-webkit-input-placeholder {
-  opacity: 0.24;
-}
-
-.c7::-moz-placeholder {
-  opacity: 0.24;
-}
-
-.c7:-ms-input-placeholder {
-  opacity: 0.24;
-}
-
 .c7::placeholder {
-  opacity: 0.24;
+  opacity: 0.4;
 }
 
 .c6 {
@@ -1251,8 +1092,8 @@ exports[`shared/components/Invite.story story.off 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
-  font-size: 26px;
-  line-height: 40px;
+  font-size: 28px;
+  line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;
   color: #FFFFFF;
@@ -1272,9 +1113,6 @@ exports[`shared/components/Invite.story story.off 1`] = `
 
 .c1 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
 }
 

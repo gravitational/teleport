@@ -26,7 +26,7 @@ FeatureHeader.defaultProps = {
   my: 4,
 };
 
-const FeatureHeaderTitle = props => <Text typography="h1" as="h1" {...props} />;
+const FeatureHeaderTitle = props => <Text typography="h2" as="h2" {...props} />;
 
 const FeatureBox = styled(Flex)`
   overflow: auto;

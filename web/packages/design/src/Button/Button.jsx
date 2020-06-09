@@ -38,16 +38,16 @@ const size = props => {
       };
     case 'large':
       return {
-        minHeight: '48px',
-        fontSize: '14px',
-        padding: '0px 48px',
+        minHeight: '40px',
+        fontSize: '12px',
+        padding: '0px 40px',
       };
     default:
       // medium
       return {
-        minHeight: '40px',
+        minHeight: '32px',
         fontSize: `12px`,
-        padding: '0px 32px',
+        padding: '0px 24px',
       };
   }
 };
@@ -55,7 +55,7 @@ const size = props => {
 const themedStyles = props => {
   const { colors } = props.theme;
   const style = {
-    color: colors.secondary.contrastText,
+    color: colors.text.primary,
     '&:disabled': {
       background: colors.action.disabledBackground,
       color: colors.action.disabled,
@@ -79,9 +79,21 @@ const kinds = props => {
     case 'secondary':
       return {
         background: theme.colors.primary.light,
-
         '&:hover, &:focus': {
           background: theme.colors.primary.lighter,
+        },
+      };
+    case 'border':
+      return {
+        background: theme.colors.primary.lighter,
+        border: '1px solid ' + theme.colors.primary.main,
+        opacity: '.87',
+        '&:hover, &:focus': {
+          background: theme.colors.primary.lighter,
+          opacity: 1,
+        },
+        '&:active': {
+          opacity: 0.24,
         },
       };
     case 'warning':
@@ -166,8 +178,11 @@ Button.propTypes = {
 
 Button.defaultProps = {
   size: 'medium',
-  theme: defaultTheme,
   kind: 'primary',
+};
+
+StyledButton.defaultProps = {
+  theme: defaultTheme,
 };
 
 Button.displayName = 'Button';
@@ -175,4 +190,5 @@ Button.displayName = 'Button';
 export default Button;
 export const ButtonPrimary = props => <Button kind="primary" {...props} />;
 export const ButtonSecondary = props => <Button kind="secondary" {...props} />;
+export const ButtonBorder = props => <Button kind="border" {...props} />;
 export const ButtonWarning = props => <Button kind="warning" {...props} />;

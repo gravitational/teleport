@@ -16,10 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import MenuAction, {
-  MenuItem,
-  MenuItemIcon,
-} from 'teleport/components/ActionMenu';
+import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 import * as Icons from 'design/Icon';
 import { Flex, ButtonPrimary } from 'design';
 import cfg from 'teleport/config';
@@ -27,7 +24,7 @@ import cfg from 'teleport/config';
 export default function ActionBar({ clusterId = '', onLogout }) {
   return (
     <Flex alignItems="center">
-      <MenuAction
+      <MenuIcon
         buttonIconProps={{ mr: 2, ml: 2, size: 0, style: { fontSize: '16px' } }}
         menuProps={menuProps}
       >
@@ -40,7 +37,7 @@ export default function ActionBar({ clusterId = '', onLogout }) {
             Sign Out
           </ButtonPrimary>
         </MenuItem>
-      </MenuAction>
+      </MenuIcon>
     </Flex>
   );
 }

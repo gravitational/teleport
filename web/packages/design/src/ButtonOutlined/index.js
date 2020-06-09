@@ -14,6 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Button, { OutlinedPrimary } from './ButtonOutlined';
-export default Button;
-export { OutlinedPrimary };
+import ButtonOutlined from './ButtonOutlined';
+export default ButtonOutlined;

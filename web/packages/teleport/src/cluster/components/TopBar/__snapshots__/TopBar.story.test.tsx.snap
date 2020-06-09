@@ -3,27 +3,18 @@
 exports[`rendering of ClusterTopBar 1`] = `
 .c5 {
   display: inline-block;
-  -webkit-transition: color .3s;
   transition: color .3s;
-  margin-left: 16px;
-  margin-right: 16px;
+  margin-left: 8px;
+  margin-right: 8px;
   color: rgba(255,255,255,0.56);
   font-size: 12px;
 }
 
 .c7 {
+  line-height: 1.5;
   border-radius: 4px;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   border: 1px solid;
   box-sizing: border-box;
@@ -32,39 +23,33 @@ exports[`rendering of ClusterTopBar 1`] = `
   font-family: inherit;
   font-weight: bold;
   outline: none;
+  opacity: .56;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all .3s;
   transition: all .3s;
   -webkit-font-smoothing: antialiased;
   border-color: rgba(255,255,255,0.87);
   color: #FFFFFF;
   font-size: 10px;
-  padding: 8px 8px;
-  width: 120px;
+  min-height: 24px;
+  padding: 0px 16px;
   border-color: rgba(255,255,255,0.87);
   color: rgba(255,255,255,0.87);
 }
 
+.c7:hover {
+  opacity: 1;
+}
+
 .c7:active {
-  opacity: .56;
+  opacity: .24;
 }
 
 .c7 > span {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
 }
 
@@ -91,15 +76,7 @@ exports[`rendering of ClusterTopBar 1`] = `
   margin-left: 16px;
   margin-right: 16px;
   max-width: 160px;
-  max-height: 40px;
-}
-
-.c11 {
-  display: block;
-  outline: none;
-  margin-left: 16px;
-  margin-right: 8px;
-  height: 24px;
+  max-height: 24px;
 }
 
 .c6 {
@@ -109,7 +86,7 @@ exports[`rendering of ClusterTopBar 1`] = `
   font-size: 16px;
   line-height: 24px;
   margin: 0px;
-  margin-right: 32px;
+  margin-right: 16px;
   color: rgba(255,255,255,0.87);
 }
 
@@ -124,33 +101,17 @@ exports[`rendering of ClusterTopBar 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  height: 72px;
-  background-color: #1B234A;
-  -webkit-flex: 0 0 auto;
-  -ms-flex: 0 0 auto;
+  height: 56px;
+  background-color: #1C254D;
   flex: 0 0 auto;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-flex-direction: row;
-  -ms-flex-direction: row;
   flex-direction: row;
 }
 
 .c3 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
 }
 
@@ -158,24 +119,15 @@ exports[`rendering of ClusterTopBar 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   height: 100%;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
 }
 
 .c1 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   background: none;
   border: none;
   color: rgba(255,255,255,.56);
   cursor: pointer;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
   font-size: 11px;
   font-weight: 600;
@@ -184,11 +136,9 @@ exports[`rendering of ClusterTopBar 1`] = `
   outline: none;
   padding: 0 16px;
   position: relative;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  padding-right: 32px;
-  width: 192px;
+  width: 208px;
 }
 
 .c1:hover,
@@ -202,7 +152,7 @@ exports[`rendering of ClusterTopBar 1`] = `
 }
 
 .c1.active:after {
-  background-color: #FA2A6A;
+  background-color: #651FFF;
   content: "";
   position: absolute;
   bottom: 0;
@@ -212,17 +162,11 @@ exports[`rendering of ClusterTopBar 1`] = `
 }
 
 .c9 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   background: none;
   border: none;
   color: rgba(255,255,255,.56);
   cursor: pointer;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
   font-size: 11px;
   font-weight: 600;
@@ -231,7 +175,6 @@ exports[`rendering of ClusterTopBar 1`] = `
   outline: none;
   padding: 0 16px;
   position: relative;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
   margin-left: auto;
@@ -249,13 +192,26 @@ exports[`rendering of ClusterTopBar 1`] = `
 }
 
 .c9.active:after {
-  background-color: #FA2A6A;
+  background-color: #651FFF;
   content: "";
   position: absolute;
   bottom: 0;
   left: 0;
   width: 100%;
   height: 4px;
+}
+
+.c11 {
+  align-items: center;
+  background: #651FFF;
+  border-radius: 50%;
+  display: flex;
+  font-size: 14px;
+  font-weight: bold;
+  justify-content: center;
+  height: 32px;
+  margin-left: 16px;
+  width: 32px;
 }
 
 .c4 {
@@ -267,8 +223,9 @@ exports[`rendering of ClusterTopBar 1`] = `
   margin: 0px;
   margin-left: 40px;
   color: rgba(255,255,255,0.56);
-  -webkit-text-decoration: none;
   text-decoration: none;
+  font-size: 14px;
+  font-weight: 300;
 }
 
 .c4:hover {
@@ -276,15 +233,14 @@ exports[`rendering of ClusterTopBar 1`] = `
 }
 
 <nav
-  class="c0"
-  height="72px"
-  style="z-index: 1; box-shadow: 0 4px 16px rgba(0,0,0,.24);"
+  class="sc-AxiKw c0"
+  height="56px"
+  style="z-index: 1; box-shadow: 0 8px 24px rgba(0,0,0,.24);"
 >
   <a
     class="c1"
     href="/web"
-    pr="5"
-    width="192px"
+    width="208px"
   >
     <img
       class="c2"
@@ -292,7 +248,7 @@ exports[`rendering of ClusterTopBar 1`] = `
     />
   </a>
   <div
-    class="c3"
+    class="sc-AxiKw c3"
   >
     <a
       class="c4"
@@ -307,7 +263,7 @@ exports[`rendering of ClusterTopBar 1`] = `
       All Clusters
     </a>
     <span
-      class="icon icon-chevron-right  c5"
+      class="c5 icon icon-chevron-right "
       color="text.secondary"
       font-size="12"
     />
@@ -320,7 +276,6 @@ exports[`rendering of ClusterTopBar 1`] = `
     </div>
     <button
       class="c7"
-      width="120px"
     >
       <span>
         Cluster Info
@@ -328,7 +283,7 @@ exports[`rendering of ClusterTopBar 1`] = `
     </button>
   </div>
   <div
-    class="c8"
+    class="sc-AxiKw c8"
     height="100%"
   >
     <button
@@ -339,11 +294,11 @@ exports[`rendering of ClusterTopBar 1`] = `
       >
         Timothy Kim
       </div>
-      <img
+      <div
         class="c11"
-        height="24px"
-        src="file_stub"
-      />
+      >
+        T
+      </div>
     </button>
   </div>
 </nav>

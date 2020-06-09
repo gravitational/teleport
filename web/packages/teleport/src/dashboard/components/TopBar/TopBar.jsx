@@ -50,15 +50,15 @@ export class DashboardTopNav extends React.Component {
 
     return (
       <TopNav
-        height="72px"
+        height="56px"
         pl={pl}
-        style={{ zIndex: '1', boxShadow: '0 4px 16px rgba(0,0,0,.24)' }}
+        style={{ zIndex: '1', boxShadow: '0 8px 24px rgba(0,0,0,.24)' }}
       >
         <TopNavItem pr="5" as={Link} to={cfg.routes.app}>
           <Image
             src={teleportLogoSvg}
             mx="3"
-            maxHeight="40px"
+            maxHeight="24px"
             maxWidth="160px"
           />
         </TopNavItem>

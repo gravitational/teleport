@@ -25,9 +25,15 @@ export const colors = {
   link: '#039BE5',
   error: '#FF1744',
   terminal: '#28FE14',
-  terminalDark: '#18381F',
+  terminalDark: '#01172C',
   bgTerminal: '#010B1C',
+  primary: {
+    light: '#01172C',
+    lighter: '#01172C',
+    dark: '#010B1C',
+    main: '#010B1C',
+  },
   text: '#263238',
   success: '#00BFA5',
-  primary: '#00BFA5',
-}
+  progressBarColor: '#00BFA5',
+};

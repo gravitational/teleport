@@ -19,6 +19,7 @@ import { useAttempt } from 'shared/hooks';
 import { useStore } from 'shared/libs/stores';
 import TeleportContext from 'teleport/teleportContext';
 import cfg from 'teleport/config';
+import history from 'teleport/services/history';
 import { Node } from 'teleport/services/nodes';
 
 export default function useClusterNodes(teleCtx: TeleportContext) {
@@ -36,10 +37,20 @@ export default function useClusterNodes(teleCtx: TeleportContext) {
     [logins]
   );
 
+  const startSshSession = (login: string, serverId: string) => {
+    const url = cfg.getSshConnectRoute({
+      serverId,
+      login,
+    });
+
+    history.push(url);
+  };
+
   return {
     attempt,
     nodes,
     getNodeLoginOptions,
+    startSshSession,
   };
 }
 

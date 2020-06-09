@@ -21,28 +21,21 @@ import { render } from 'design/utils/testing';
 const data = [1, 2, 3, 4, 5, 6, 7];
 const pageSize = 2;
 
-describe('design/DataTable TablePaged', () => {
-  it('respects pagerPosition prop set to bottom', () => {
-    let { container } = render(
-      <TablePaged pageSize={pageSize} data={data} pagerPosition={'bottom'} />
-    );
-    expect(container.firstChild.children[1].nodeName).toEqual('NAV');
-  });
+test('pagerPosition set to bottom', () => {
+  let { container } = render(
+    <TablePaged pageSize={pageSize} data={data} pagerPosition={'bottom'} />
+  );
+  expect(container.firstChild.children[1].nodeName).toEqual('NAV');
+});
 
-  it('respects pagerPosition prop set to top', () => {
-    let { container } = render(
-      <TablePaged pageSize={pageSize} data={data} pagerPosition={'top'} />
-    );
-    expect(container.firstChild.children[0].nodeName).toEqual('NAV');
-  });
+test('pagerPosition set to top', () => {
+  let { container } = render(
+    <TablePaged pageSize={pageSize} data={data} pagerPosition={'top'} />
+  );
+  expect(container.firstChild.children[0].nodeName).toEqual('NAV');
+});
 
-  it('respects pagerPosition prop default (show both top and bottom)', () => {
-    let { container } = render(<TablePaged pageSize={pageSize} data={data} />);
-    expect(container.querySelectorAll('nav')).toHaveLength(2);
-  });
-
-  test('no data results in no pager', () => {
-    let { container } = render(<TablePaged />);
-    expect(container.querySelectorAll('nav')).toHaveLength(0);
-  });
+test('pagerPosition prop default (show only top)', () => {
+  let { container } = render(<TablePaged pageSize={pageSize} data={data} />);
+  expect(container.querySelectorAll('nav')).toHaveLength(1);
 });

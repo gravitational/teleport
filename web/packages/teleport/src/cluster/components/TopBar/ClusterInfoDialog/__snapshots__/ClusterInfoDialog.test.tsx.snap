@@ -1,6 +1,162 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`rendering of static texts 1`] = `
+.c4 {
+  box-sizing: border-box;
+  width: 600px;
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #651FFF;
+}
+
+.c11:active {
+  background: #354AA4;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c16 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c16:active {
+  opacity: 0.56;
+}
+
+.c16:hover,
+.c16:focus {
+  background: #651FFF;
+}
+
+.c16:active {
+  background: #354AA4;
+}
+
+.c16:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c8 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  padding: 8px;
+  background-color: #222C59;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  display: flex;
+}
+
 .c1 {
   z-index: -1;
   position: fixed;
@@ -26,238 +182,45 @@ exports[`rendering of static texts 1`] = `
   height: 100%;
   outline: none;
   color: black;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
   opacity: 1;
   will-change: opacity;
-  -webkit-transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
   transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
 }
 
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1B234A;
+  background: #1C254D;
   color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex-direction: column;
-  -ms-flex-direction: column;
   flex-direction: column;
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 26px;
-  line-height: 40px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: rgba(255,255,255,0.87);
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 16px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 32px;
-}
-
-.c4 {
-  box-sizing: border-box;
-  width: 600px;
-}
-
-.c9 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  padding: 8px;
-  background-color: #222C59;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
-  display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  -webkit-box-pack: justify;
-  -webkit-justify-content: space-between;
-  -ms-flex-pack: justify;
-  justify-content: space-between;
-}
-
 .c5 {
   box-sizing: border-box;
   margin-bottom: 16px;
   min-height: 32px;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-}
-
-.c11 {
-  line-height: 1.5;
-  margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
-  display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
-  justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  -webkit-text-decoration: none;
-  text-decoration: none;
-  text-transform: uppercase;
-  -webkit-transition: all 0.3s;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #00BFA5;
-  color: #FFFFFF;
-  font-size: 10px;
-  min-height: 24px;
-  padding: 0px 16px;
-}
-
-.c11:active {
-  opacity: 0.56;
-}
-
-.c11:hover,
-.c11:focus {
-  background: #00EAC3;
-}
-
-.c11:active {
-  background: #26A69A;
-}
-
-.c11:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c14 {
-  line-height: 1.5;
-  margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
-  display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
-  justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  -webkit-text-decoration: none;
-  text-decoration: none;
-  text-transform: uppercase;
-  -webkit-transition: all 0.3s;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: #FFFFFF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 32px;
-}
-
-.c14:active {
-  opacity: 0.56;
-}
-
-.c14:hover,
-.c14:focus {
-  background: #373F64;
-}
-
-.c14:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c8 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c7 {
   box-sizing: border-box;
   margin-bottom: 32px;
-  -webkit-flex: 1;
-  -ms-flex: 1;
   flex: 1;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex-direction: column;
-  -ms-flex-direction: column;
   flex-direction: column;
 }
 
-.c13 {
+.c15 {
   box-sizing: border-box;
 }
 
@@ -316,48 +279,60 @@ exports[`rendering of static texts 1`] = `
               Copy
             </button>
           </div>
-          <label
-            class="c8"
-            font-size="0"
-          >
-            Cluster Name
-          </label>
           <div
             class="c12"
           >
-            applePie
+            <div
+              class="c13"
+            >
+              Cluster Name
+              :
+            </div>
+            <div
+              class="c14"
+            >
+              applePie
+            </div>
           </div>
-          <label
-            class="c8"
-            font-size="0"
-          >
-            Auth Service Version
-          </label>
           <div
             class="c12"
           >
-            5.0.0
+            <div
+              class="c13"
+            >
+              Auth Service Version
+              :
+            </div>
+            <div
+              class="c14"
+            >
+              5.0.0
+            </div>
           </div>
-          <label
-            class="c8"
-            font-size="0"
-          >
-            Proxy Service Version
-          </label>
           <div
             class="c12"
           >
-            4.2.2
+            <div
+              class="c13"
+            >
+              Proxy Service Version
+              :
+            </div>
+            <div
+              class="c14"
+            >
+              4.2.2
+            </div>
           </div>
         </div>
         <div
-          class="c13"
+          class="c15"
         >
           <button
-            class="c14"
-            kind="secondary"
+            class="c16"
+            kind="primary"
           >
-            Close
+            Done
           </button>
         </div>
       </div>

@@ -40,6 +40,7 @@ const StyledButtonLink = styled.a`
   background: none;
   text-decoration: underline;
   text-transform: none;
+  padding: 0 8px;
 
   &:hover,
   &:focus {

@@ -54,7 +54,7 @@ class TtyTerminal {
       cursorBlink: false,
     });
 
-    this.term.open(this._el);
+    this.term.open(this._el, true);
 
     // fit xterm to available space
     this.resize(this.cols, this.rows);

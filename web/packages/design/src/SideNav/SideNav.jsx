@@ -17,7 +17,7 @@ limitations under the License.
 import styled from 'styled-components';
 
 const SideNav = styled.nav`
-  background: ${props => props.theme.colors.primary.main};
+  background: ${props => props.theme.colors.primary.light};
   min-width: 240px;
   width: 240px;
   overflow: auto;

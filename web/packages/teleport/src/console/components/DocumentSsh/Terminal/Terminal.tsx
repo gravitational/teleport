@@ -34,7 +34,7 @@ export default class Terminal extends React.Component<{ tty: Tty }> {
     this.terminal.open();
 
     // TODO deprecated, use attachCustomKeyEventHandler when we upgrade xterm
-    this.terminal.term.attachCustomKeydownHandler(event => {
+    this.terminal.term.attachCustomKeyEventHandler(event => {
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;

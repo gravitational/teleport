@@ -16,20 +16,17 @@ limitations under the License.
 
 import React from 'react';
 import Alert from './index';
+import { Box } from './../';
 
 export default {
-  title: 'Design/Alert',
-  component: Alert,
+  title: 'Design/Alerts',
 };
 
-export const Default = () => <Alert>Default is danger</Alert>;
-
-export const Danger = () => <Alert kind="danger">Some error message</Alert>;
-
-export const Warning = () => <Alert kind="warning">Some warning message</Alert>;
-
-export const Informational = () => (
-  <Alert kind="info">Some informational message</Alert>
+export const Alerts = () => (
+  <Box maxWidth="600px">
+    <Alert kind="danger">Some error message</Alert>
+    <Alert kind="warning">Some warning message</Alert>
+    <Alert kind="info">Some informational message</Alert>
+    <Alert kind="success">This is success</Alert>
+  </Box>
 );
-
-export const Success = () => <Alert kind="success">Some success message</Alert>;

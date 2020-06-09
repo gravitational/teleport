@@ -15,36 +15,25 @@ limitations under the License.
 */
 
 import { useState } from 'react';
-import { keyBy } from 'lodash';
 import { useAttempt } from 'shared/hooks';
-import { Node } from 'teleport/services/nodes';
 import { Session } from 'teleport/services/ssh';
 import TeleportContext from 'teleport/teleportContext';
 
 export default function useClusterSessions(teleCtx: TeleportContext) {
-  const [nodes, setNodes] = useState<Record<string, Node>>({});
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
 
-  function fetchSessions() {
+  function onRefresh() {
     return teleCtx.sshService.fetchSessions().then(setSessions);
   }
 
   useState(() => {
-    attemptActions.do(() =>
-      Promise.all([
-        fetchSessions(),
-        teleCtx.nodeService
-          .fetchNodes()
-          .then(nodes => setNodes(keyBy(nodes, 'id'))),
-      ])
-    );
+    attemptActions.do(() => onRefresh());
   });
 
   return {
     attempt,
     sessions,
-    nodes,
-    onRefresh: fetchSessions,
+    onRefresh,
   };
 }

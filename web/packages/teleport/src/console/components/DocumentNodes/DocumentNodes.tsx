@@ -22,8 +22,16 @@ import Document from './../Document';
 import QuickLaunch from './QuickLaunch';
 import ClusterSelector from './ClusterSelector';
 import useNodes from './useNodes';
+import ThemeProvider from './ThemeProvider';
+import * as stores from './../../stores/types';
 
-export default function DocumentNodes({ visible, doc }) {
+type Props = {
+  visible: boolean;
+  doc: stores.DocumentNodes;
+};
+
+export default function DocumentNodes(props: Props) {
+  const { doc, visible } = props;
   const {
     nodes,
     attempt,
@@ -59,38 +67,40 @@ export default function DocumentNodes({ visible, doc }) {
   }
 
   return (
-    <Document visible={visible}>
-      <Flex
-        flex="1"
-        maxWidth="1024px"
-        flexDirection="column"
-        mx="auto"
-        mt="8"
-        px="5"
-      >
-        <Flex justifyContent="space-between">
-          <QuickLaunch mb="5" onPress={onQuickLaunchEnter} mr="3" />
-          <ClusterSelector
-            value={doc.clusterId}
-            width="400px"
-            maxMenuHeight={200}
-            onChange={onChangeCluster}
-          />
+    <ThemeProvider>
+      <Document visible={visible}>
+        <Flex
+          flex="1"
+          maxWidth="1024px"
+          flexDirection="column"
+          mx="auto"
+          mt="4"
+          px="5"
+        >
+          <Flex justifyContent="space-between" mb="4">
+            <ClusterSelector
+              value={doc.clusterId}
+              width="400px"
+              maxMenuHeight={200}
+              onChange={onChangeCluster}
+            />
+            <QuickLaunch onPress={onQuickLaunchEnter} mr="3" />
+          </Flex>
+          {isProcessing && (
+            <Box textAlign="center" m={10}>
+              <Indicator />
+            </Box>
+          )}
+          {isFailed && <Alerts.Danger>{message}</Alerts.Danger>}
+          {isSuccess && (
+            <NodeList
+              onLoginMenuOpen={onLoginMenuOpen}
+              onLoginSelect={onLoginMenuSelect}
+              nodes={nodes}
+            />
+          )}
         </Flex>
-        {isProcessing && (
-          <Box textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        )}
-        {isFailed && <Alerts.Danger mt="5">{message}</Alerts.Danger>}
-        {isSuccess && (
-          <NodeList
-            onLoginMenuOpen={onLoginMenuOpen}
-            onLoginSelect={onLoginMenuSelect}
-            nodes={nodes}
-          />
-        )}
-      </Flex>
-    </Document>
+      </Document>
+    </ThemeProvider>
   );
 }

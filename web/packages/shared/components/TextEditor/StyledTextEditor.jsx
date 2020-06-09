@@ -29,11 +29,6 @@ const StyledTextEditor = styled.div`
     background: ${props => props.theme.colors.bgTerminal};
   }
 
-  //.ace-monokai .ace_marker-layer .ace_active-line {
-  //  color: #FFF;
-  //  background: #000;
-  //}
-
   .ace-monokai .ace_gutter,
   .ace-monokai .ace_gutter-cell {
     color: rgba(255, 255, 255, 0.56);

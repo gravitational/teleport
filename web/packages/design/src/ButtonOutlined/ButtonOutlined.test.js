@@ -40,7 +40,7 @@ describe('design/ButtonOutlined', () => {
 
   it('respects "size" large prop', () => {
     const { container } = render(<ButtonOutlined size="large" />);
-    expect(container.firstChild).toHaveStyle('font-size: 14px');
+    expect(container.firstChild).toHaveStyle('font-size: 12px');
   });
 
   it('respects "kind" primary prop', () => {

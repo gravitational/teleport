@@ -18,15 +18,13 @@ import React from 'react';
 import Input from '../Input';
 
 export default {
-  title: 'Design/Input',
+  title: 'Design/Inputs',
 };
 
-export const Empty = () => <Input placeholder="Enter SomeText" />;
-
-export const Error = () => (
-  <Input hasError={true} defaultValue="This field has an error" />
-);
-
-export const Focused = () => (
-  <Input autoFocus defaultValue="This field is focused" />
+export const Inputs = () => (
+  <>
+    <Input mb={4} placeholder="Enter SomeText" />
+    <Input mb={4} hasError={true} defaultValue="This field has an error" />
+    <Input mb={4} autoFocus defaultValue="This field is focused" />
+  </>
 );

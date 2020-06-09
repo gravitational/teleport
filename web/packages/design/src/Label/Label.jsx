@@ -54,12 +54,12 @@ const Label = styled.div`
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 16px;
   font-size: 10px;
   font-weight: 500;
-  min-height: 24px;
-  padding: 2px 12px;
+  padding: 0 8px;
   text-transform: uppercase;
-  line-height: 1.43;
+
   ${kind}
   ${space}
 `;

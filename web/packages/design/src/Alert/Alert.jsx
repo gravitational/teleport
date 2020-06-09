@@ -55,16 +55,15 @@ const Alert = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 2px;
   box-sizing: border-box;
-  box-shadow: 0 0 2px rgba(0, 0, 0, .12),  0 2px 2px rgba(0, 0, 0, .24);
-  font-weight: ${({ theme }) => theme.fontWeights.regular};
-  font-size: 16px;
-  margin: 0 0 16px 0;
-  min-height: 48px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
   padding: 8px 16px;
   overflow: auto;
   word-break: break-all;
+  line-height: 1.5;
   ${space}
   ${kind}
   ${width}

@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import styled from 'styled-components';
 import { Box, Input, LabelInput } from 'design';
 
 export default function FieldInputSsh({ onPress, ...boxProps }) {
@@ -37,13 +38,13 @@ export default function FieldInputSsh({ onPress, ...boxProps }) {
   const labelText = hasError ? 'Invalid' : 'Quick Launch';
 
   return (
-    <Box mb="4" {...boxProps}>
+    <Box {...boxProps}>
       <LabelInput hasError={hasError}>{labelText}</LabelInput>
-      <Input
+      <StyledInput
         hasError={hasError}
         height="34px"
         width="240px"
-        bg="primary.dark"
+        bg="primary.light"
         color="text.primary"
         placeholder="login@host"
         onKeyPress={onKeyPress}
@@ -58,3 +59,20 @@ const check = value => {
   const match = SSH_STR_REGEX.exec(value);
   return match !== null;
 };
+
+const StyledInput = styled(Input)(
+  ({ theme }) => `
+  background: ${theme.colors.primary.light};
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  &:hover {
+    background: ${theme.colors.primary.lighter};
+  }
+
+  font-size: ${theme.fontSizes[2]}px;
+  font-family: ${theme.font};
+
+  &::placeholder {
+    font-size: ${theme.fontSizes[2]}px;
+  }
+`
+);

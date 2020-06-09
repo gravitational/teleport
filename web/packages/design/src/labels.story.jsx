@@ -15,36 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
+import Label from './Label';
 import LabelState from './LabelState';
-import Flex from './../Flex';
+import Flex from './Flex';
 
 export default {
   title: 'Design/Label',
 };
 
-export const TagsStates = () => (
-  <Flex
-    height="100px"
-    bg="primary.main"
-    justifyContent="center"
-    alignItems="center"
-  >
-    <LabelState mr="4" kind="success">
-      Success
-    </LabelState>
-    <LabelState mr="4" kind="secondary">
-      Secondary
-    </LabelState>
-    <LabelState mr="4" kind="warning">
-      Warning
-    </LabelState>
-    <LabelState mr="4" kind="danger">
-      Danger
-    </LabelState>
-  </Flex>
-);
-
-export const TagsStatesShadowed = () => (
+export const Labels = () => (
   <>
     <Flex
       height="100px"
@@ -52,25 +31,41 @@ export const TagsStatesShadowed = () => (
       justifyContent="center"
       alignItems="center"
     >
-      <LabelState shadow mr="4" kind="success">
+      <Label mr={4} kind="primary">
+        Primary
+      </Label>
+      <Label mr={4} kind="secondary">
+        Secondary
+      </Label>
+      <Label mr={4} kind="warning">
+        Warning
+      </Label>
+      <Label kind="danger">Danger</Label>
+    </Flex>
+    <Flex
+      height="100px"
+      bg="primary.main"
+      justifyContent="center"
+      alignItems="center"
+    >
+      <LabelState mr="4" kind="success">
         Success
       </LabelState>
-      <LabelState shadow mr="4" kind="secondary">
+      <LabelState mr="4" kind="secondary">
         Secondary
       </LabelState>
-      <LabelState shadow mr="4" kind="warning">
+      <LabelState mr="4" kind="warning">
         Warning
       </LabelState>
-      <LabelState shadow mr="4" kind="danger">
+      <LabelState mr="4" kind="danger">
         Danger
       </LabelState>
     </Flex>
     <Flex
       height="100px"
-      bg="primary.lighter"
+      bg="primary.main"
       justifyContent="center"
       alignItems="center"
-      mt={5}
     >
       <LabelState shadow mr="4" kind="success">
         Success

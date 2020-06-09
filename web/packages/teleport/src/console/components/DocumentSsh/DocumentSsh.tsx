@@ -15,10 +15,9 @@ limitations under the License.
 */
 
 import React, { useRef, useEffect } from 'react';
-import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import * as Icons from 'design/Icon';
-import { Indicator, Text, Box, ButtonSecondary } from 'design';
+import { Indicator, Text, Box, ButtonPrimary } from 'design';
 import * as Alerts from 'design/Alert';
 import * as stores from 'teleport/console/stores';
 import FileTransfer, { useFileTransferDialogs } from './../FileTransfer';
@@ -31,11 +30,6 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const scpDialogs = useFileTransferDialogs();
   const { tty, status, statusText } = useSshSession(doc);
-
-  function onOpenPlayer() {
-    const routeUrl = cfg.getPlayerRoute(doc);
-    history.push(routeUrl);
-  }
 
   function onCloseScpDialogs() {
     scpDialogs.close();
@@ -68,7 +62,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           Connection error: {statusText}
         </Alerts.Danger>
       )}
-      {status === 'notfound' && <SidNotFoundError onReplay={onOpenPlayer} />}
+      {status === 'notfound' && <SidNotFoundError sid={doc.sid} />}
       {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
       <FileTransfer
         clusterId={doc.clusterId}
@@ -82,14 +76,20 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
   );
 }
 
-const SidNotFoundError = ({ onReplay }) => (
+const SidNotFoundError = ({ sid = '', clusterId = '' }) => (
   <Box my={10} mx="auto" width="300px">
     <Text typography="h4" mb="3" textAlign="center">
       The session is no longer active
     </Text>
-    <ButtonSecondary block secondary onClick={onReplay}>
+    <ButtonPrimary
+      block
+      secondary
+      as="a"
+      href={cfg.getPlayerRoute({ sid, clusterId })}
+      target="_blank"
+    >
       <Icons.CirclePlay fontSize="5" mr="2" /> Replay Session
-    </ButtonSecondary>
+    </ButtonPrimary>
   </Box>
 );
 

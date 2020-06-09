@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,16 +16,17 @@ limitations under the License.
 
 import React from 'react';
 import Menu from 'design/Menu';
-import { ButtonIcon } from 'design';
-import { Ellipsis } from 'design/Icon';
+import { ButtonBorder } from 'design';
+import { CarrotDown } from 'design/Icon';
+import PropTypes from 'prop-types';
 
-class ActionMenu extends React.Component {
-  constructor(props){
-    super(props)
+export default class MenuActionButton extends React.Component {
+  constructor(props) {
+    super(props);
     this.state = {
-      open: Boolean(props.open),
+      open: props.open,
       anchorEl: null,
-    }
+    };
   }
 
   onOpen = e => {
@@ -35,34 +36,42 @@ class ActionMenu extends React.Component {
 
   onClose = () => {
     this.setState({ open: false });
-  }
+  };
 
   render() {
     const { open } = this.state;
-    const { children, buttonIconProps, menuProps } = this.props;
+    const { children, menuProps, buttonProps } = this.props;
     return (
-      <React.Fragment>
-        <ButtonIcon {...buttonIconProps} setRef={e => this.anchorEl = e } onClick={this.onOpen}>
-          <Ellipsis/>
-        </ButtonIcon>
+      <>
+        <ButtonBorder
+          height="24px"
+          size="small"
+          setRef={e => (this.anchorEl = e)}
+          onClick={this.onOpen}
+          {...buttonProps}
+        >
+          OPTIONS
+          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.secondary" />
+        </ButtonBorder>
         <Menu
+          getContentAnchorEl={null}
           menuListCss={menuListCss}
           anchorEl={this.anchorEl}
           open={open}
           onClose={this.onClose}
-          anchorOrigin={{
-            vertical: 'center',
-            horizontal: 'center',
-          }}
           transformOrigin={{
             vertical: 'top',
-            horizontal: 'center',
+            horizontal: 'right',
+          }}
+          anchorOrigin={{
+            vertical: 'center',
+            horizontal: 'right',
           }}
           {...menuProps}
-          >
+        >
           {open && this.renderItems(children)}
         </Menu>
-      </React.Fragment>
+      </>
     );
   }
 
@@ -70,26 +79,37 @@ class ActionMenu extends React.Component {
     const filtered = React.Children.toArray(children);
     const cloned = filtered.map(child => {
       return React.cloneElement(child, {
-        onClick: this.makeOnClick(child.props.onClick)
+        onClick: this.makeOnClick(child.props.onClick),
       });
-    })
+    });
 
     return cloned;
   }
 
-  makeOnClick(cb){
+  makeOnClick(cb) {
     return e => {
       e.stopPropagation();
       this.onClose();
       cb && cb(e);
-    }
+    };
   }
-
 }
+
+MenuActionButton.propTypes = {
+  /** displays menu */
+  open: PropTypes.bool,
+
+  /** the list of items for menu */
+  children: PropTypes.node,
+
+  /** wrap in style object to provide inline css to position button */
+  buttonProps: PropTypes.object,
+};
+
+MenuActionButton.defaultProps = {
+  open: false,
+};
 
 const menuListCss = () => `
   min-width: 100px;
-
-`
-
-export default ActionMenu;
+`;

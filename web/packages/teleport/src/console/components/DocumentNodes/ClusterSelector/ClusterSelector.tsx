@@ -72,7 +72,7 @@ export default function ClusterSelector({
   }
 
   return (
-    <Box mb="4" {...styles}>
+    <Box {...styles}>
       <LabelInput> Clusters </LabelInput>
       <StyledSelect>
         <SelectAsync
@@ -108,23 +108,33 @@ const StyledSelect = styled(Box)(
   ({ theme }) => `
   .react-select__control,
   .react-select__control--is-focused {
-    min-height: 40px;
+    height: 34px;
+    min-height: 34px;
+  }
+
+  .react-select__option {
+    padding: 4px 12px;
+  }
+  .react-select__option--is-focused,
+  .react-select__option--is-focused:active {
+    background-color: ${theme.colors.grey[300]};
   }
 
   .react-select__menu {
     margin-top: 0px;
+    font-size: 14px;
   }
 
   react-select__menu-list {
   }
 
-  .react-select-container{
-    background-color: transparent;
-
-  }
-
   .react-select__indicator-separator {
     display: none;
+  }
+
+  .react-select__value-container{
+    height: 30px;
+    padding: 0 8px;
   }
 
   .react-select__control--is-focused {
@@ -134,10 +144,9 @@ const StyledSelect = styled(Box)(
     border-style: solid;
     border-width: 1px;
     box-shadow: none;
-
     border-color: ${theme.colors.text.primary};
     .react-select__dropdown-indicator{
-      color: ${theme.colors.text.primary};
+      color: ${theme.colors.text.secondary};
     }
   }
 
@@ -147,22 +156,34 @@ const StyledSelect = styled(Box)(
   }
 
   .react-select__single-value{
+    padding: 0 4px !important;
+    margin: 0 !important;
     color: white;
+    font-size: 14px;
   }
 
   .react-select__dropdown-indicator{
-    color: ${theme.colors.primary.dark};
+    padding: 4px 8px;
+    color: ${theme.colors.text.secondary};
+  }
+
+  input {
+    font-family: ${theme.font};
+    font-size: 14px;
+    height: 26px;
   }
 
   .react-select__input {
     color: white;
-    font-size: 16px;
+    height: 20px;
+    font-size: 14px;
+    font-family: ${theme.font};
   }
 
   .react-select__control {
     border-radius: 4px;
-    border-color: ${theme.colors.primary.dark};
-    background-color: ${theme.colors.primary.main};
+    border-color: rgba(255, 255, 255, 0.56);
+    background-color: ${theme.colors.primary.light};
     color: ${theme.colors.text.secondary};
     &:hover {
       border-color: ${theme.colors.text.primary};

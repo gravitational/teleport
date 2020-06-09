@@ -1,58 +1,39 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`rendering of Events 1`] = `
-.c4 {
-  display: inline-block;
-  -webkit-transition: color .3s;
-  transition: color .3s;
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
   color: #FFFFFF;
 }
 
-.c7 {
+.c6 {
   display: inline-block;
-  -webkit-transition: color .3s;
   transition: color .3s;
-  margin-right: 16px;
-  padding: 4px;
   color: #FFFFFF;
-  background-color: #039be5;
-  font-size: 18px;
+  font-size: 16px;
+}
+
+.c8 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
 }
 
 .c10 {
   display: inline-block;
-  -webkit-transition: color .3s;
   transition: color .3s;
   margin-right: 16px;
   padding: 4px;
   color: #FFFFFF;
-  background-color: #010B1C;
-  font-size: 18px;
+  font-size: 16px;
 }
 
-.c12 {
-  display: inline-block;
-  -webkit-transition: color .3s;
-  transition: color .3s;
-  margin-right: 16px;
-  padding: 4px;
-  color: #FFFFFF;
-  background-color: #f50057;
-  font-size: 18px;
-}
-
-.c14 {
-  display: inline-block;
-  -webkit-transition: color .3s;
-  transition: color .3s;
-  margin-right: 16px;
-  padding: 4px;
-  color: #FFFFFF;
-  background-color: #546e7a;
-  font-size: 18px;
-}
-
-.c2 {
+.c7 {
   background: #222C59;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -62,46 +43,63 @@ exports[`rendering of Events 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
-  padding: 16px;
+.c7 > thead > tr > th,
+.c7 > tbody > tr > th,
+.c7 > tfoot > tr > th,
+.c7 > thead > tr > td,
+.c7 > tbody > tr > td,
+.c7 > tfoot > tr > td {
+  padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
-  background: #1B234A;
+.c7 > thead > tr > th:first-child,
+.c7 > tbody > tr > th:first-child,
+.c7 > tfoot > tr > th:first-child,
+.c7 > thead > tr > td:first-child,
+.c7 > tbody > tr > td:first-child,
+.c7 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c7 > thead > tr > th:last-child,
+.c7 > tbody > tr > th:last-child,
+.c7 > tfoot > tr > th:last-child,
+.c7 > thead > tr > td:last-child,
+.c7 > tbody > tr > td:last-child,
+.c7 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c7 > thead > tr > th {
+  background: #111B48;
   color: rgba(255,255,255,0.56);
   cursor: pointer;
   font-size: 10px;
-  font-weight: 600;
-  padding: 4px 16px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
   text-align: left;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.c2 > thead > tr > th .c3 {
+.c7 > thead > tr > th .c5 {
   font-weight: bold;
+  font-size: 8px;
   margin-left: 8px;
 }
 
-.c8 {
+.c7 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c11 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border: none;
@@ -112,89 +110,86 @@ exports[`rendering of Events 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
   text-transform: uppercase;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
 }
 
-.c8:active {
+.c11:active {
   opacity: 0.56;
 }
 
-.c8:hover,
-.c8:focus {
-  background: #373F64;
+.c11:hover,
+.c11:focus {
+  background: #2C3A73;
+  opacity: 1;
 }
 
-.c8:disabled {
+.c11:active {
+  opacity: 0.24;
+}
+
+.c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c6 {
-  display: inline-block;
-  -webkit-transition: color .3s;
-  transition: color .3s;
-  margin-right: 16px;
-  padding: 4px;
-  color: #FFFFFF;
-  background-color: #039be5;
-  font-size: 18px;
-  border-radius: 50%;
+.c0 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.c4 button {
+  background: none;
+  border: none;
+  border-radius: 200px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0 0 0 8px;
+  outline: none;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.c4 button:hover {
+  background: #1C254D;
+}
+
+.c4 button:hover .c5 {
+  opacity: 1;
+}
+
+.c4 button .c5 {
+  opacity: 0.4;
+  font-size: 20px;
+  transition: all 0.3s;
+}
+
+.c2 {
+  padding: 8px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
 }
 
 .c9 {
-  display: inline-block;
-  -webkit-transition: color .3s;
-  transition: color .3s;
-  margin-right: 16px;
-  padding: 4px;
-  color: #FFFFFF;
-  background-color: #010B1C;
-  font-size: 18px;
-  border-radius: 50%;
-}
-
-.c11 {
-  display: inline-block;
-  -webkit-transition: color .3s;
-  transition: color .3s;
-  margin-right: 16px;
-  padding: 4px;
-  color: #FFFFFF;
-  background-color: #f50057;
-  font-size: 18px;
-  border-radius: 50%;
-}
-
-.c13 {
-  display: inline-block;
-  -webkit-transition: color .3s;
-  transition: color .3s;
-  margin-right: 16px;
-  padding: 4px;
-  color: #FFFFFF;
-  background-color: #546e7a;
-  font-size: 18px;
-  border-radius: 50%;
-}
-
-.c5 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   min-width: 130px;
   font-size: 12px;
@@ -205,76 +200,40 @@ exports[`rendering of Events 1`] = `
 
 .c1 {
   box-sizing: border-box;
+  font-size: 12px;
   min-width: 200px;
   outline: none;
   border: none;
   border-radius: 200px;
-  height: 40px;
+  height: 32px;
+  transition: all .2s;
+  background: #222C59;
   margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
   color: rgba(255,255,255,0.87);
-  background-color: #0C143D;
   height: 30px;
+}
+
+.c1:hover {
+  background: #2C3A73;
 }
 
 .c1:focus,
 .c1:active {
   background: #FFFFFF;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  color: rgba(0,0,0,0.87);
-}
-
-.c1::-webkit-input-placeholder {
-  color: #eceff1;
-  font-size: 12px;
-}
-
-.c1::-moz-placeholder {
-  color: #eceff1;
-  font-size: 12px;
-}
-
-.c1:-ms-input-placeholder {
-  color: #eceff1;
-  font-size: 12px;
+  color: #324148;
 }
 
 .c1::placeholder {
-  color: #eceff1;
+  color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
 
-.c0 {
-  padding: 16px;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
-  display: flex;
-  height: 24px;
-  -webkit-flex-shrink: 0;
-  -ms-flex-negative: 0;
-  flex-shrink: 0;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  -webkit-box-pack: justify;
-  -webkit-justify-content: space-between;
-  -ms-flex-pack: justify;
-  justify-content: space-between;
-  background: #222C59;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-}
-
-.c0 .c15 {
-  margin-left: 16px;
-}
-
 <div>
-  <nav
-    class="c0"
+  <div
+    class="sc-AxgMl c0"
   >
     <input
       class="c1"
@@ -283,359 +242,1270 @@ exports[`rendering of Events 1`] = `
       placeholder="SEARCH..."
       value=""
     />
-  </nav>
-  <table
-    class="c2"
-  >
-    <thead>
-      <tr>
-        <th>
-          <a>
-            Type
-            <span
-              class="icon icon-chevrons-expand-vertical  c3 c4"
-              color="light"
-            />
-          </a>
-        </th>
-        <th>
-          Description
-        </th>
-        <th>
-          <a>
-            User
-            <span
-              class="icon icon-chevrons-expand-vertical  c3 c4"
-              color="light"
-            />
-          </a>
-        </th>
-        <th>
-          <a>
-            Created
-            <span
-              class="icon icon-chevron-up  c3 c4"
-              color="light"
-            />
-          </a>
-        </th>
-        <th />
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td
-          style="font-size: 14px;"
+  </div>
+  <div>
+    <nav
+      class="c2"
+    >
+      <div
+        class="c3"
+        color="primary.contrastText"
+      >
+        SHOWING 
+        <strong>
+          1
+        </strong>
+         to 
+        <strong>
+          37
+        </strong>
+         of
+         
+        <strong>
+          37
+        </strong>
+      </div>
+      <div
+        class="c4"
+      >
+        <button
+          disabled=""
+          title="Previous Page"
         >
-          <div
-            class="c5"
+          <span
+            class="c5 c6 icon icon-arrow-left-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+        <button
+          disabled=""
+          title="Next Page"
+        >
+          <span
+            class="c5 c6 icon icon-arrow-right-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+      </div>
+    </nav>
+    <table
+      class="c7"
+    >
+      <thead>
+        <tr>
+          <th>
+            <a>
+              Type
+              <span
+                class="c5 c8 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            Description
+          </th>
+          <th>
+            <a>
+              Created
+              <span
+                class="c5 c8 icon icon-chevron-up "
+                color="light"
+              />
+            </a>
+          </th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-note_add c5 c10"
+                color="light"
+                font-size="3"
+              />
+              OIDC Auth Connector Created
+            </div>
+          </td>
+          <td>
+            User "unimplemented" created OIDC connector "new_oidc_connector"
+          </td>
+          <td
+            style="min-width: 120px;"
           >
-            <span
-              class="icon icon-get_app c3 c6 c3 c7"
-              color="light"
-              font-size="4"
-            />
-            SCP Download
-          </div>
-        </td>
-        <td>
-          User admin@example.com downloaded a file ~/fsdfsdfsdfsdfs from node 172.31.28.130:3022
-        </td>
-        <td
-          style="min-width: 48px;"
-        >
-          admin@example.com
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22 19:41:23
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c8"
-            kind="secondary"
+            2020-06-05 19:29:14
+          </td>
+          <td
+            align="right"
           >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="font-size: 14px;"
-        >
-          <div
-            class="c5"
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-note_add c5 c10"
+                color="light"
+                font-size="3"
+              />
+              GITHUB Auth Connector Deleted
+            </div>
+          </td>
+          <td>
+            User "unimplemented" deleted Github connector "new_github_connector"
+          </td>
+          <td
+            style="min-width: 120px;"
           >
-            <span
-              class="icon icon-terminal c3 c9 c3 c10"
-              color="light"
-              font-size="4"
-            />
-            User Joined
-          </div>
-        </td>
-        <td>
-          User admin@example.com has joined the session 56408539-6536-11e9-80a1-427cfde50f5a
-        </td>
-        <td
-          style="min-width: 48px;"
-        >
-          admin@example.com
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22 19:39:52
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c8"
-            kind="secondary"
+            2020-06-05 19:28:28
+          </td>
+          <td
+            align="right"
           >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="font-size: 14px;"
-        >
-          <div
-            class="c5"
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-note_add c5 c10"
+                color="light"
+                font-size="3"
+              />
+              GITHUB Auth Connector Created
+            </div>
+          </td>
+          <td>
+            User "unimplemented" created Github connector "new_github_connector" has been created
+          </td>
+          <td
+            style="min-width: 120px;"
           >
-            <span
-              class="icon icon-terminal c3 c9 c3 c10"
-              color="light"
-              font-size="4"
-            />
-            Terminal Resize
-          </div>
-        </td>
-        <td>
-          User admin@example.com resized the terminal
-        </td>
-        <td
-          style="min-width: 48px;"
-        >
-          admin@example.com
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22 19:39:52
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c8"
-            kind="secondary"
+            2020-06-05 19:28:00
+          </td>
+          <td
+            align="right"
           >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="font-size: 14px;"
-        >
-          <div
-            class="c5"
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              User Password Updated
+            </div>
+          </td>
+          <td>
+            User "Ivan_Jordan" has changed a password
+          </td>
+          <td
+            style="min-width: 120px;"
           >
-            <span
-              class="icon icon-terminal c3 c9 c3 c10"
-              color="light"
-              font-size="4"
-            />
-            Session Started
-          </div>
-        </td>
-        <td>
-          User admin@example.com has started a session 56408539-6536-11e9-80a1-427cfde50f5a
-        </td>
-        <td
-          style="min-width: 48px;"
-        >
-          admin@example.com
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22 19:39:26
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c8"
-            kind="secondary"
+            2020-06-05 19:26:53
+          </td>
+          <td
+            align="right"
           >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="font-size: 14px;"
-        >
-          <div
-            class="c5"
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Access Request Updated
+            </div>
+          </td>
+          <td>
+            Access request "66b827b2-1b0b-512b-965d-6c789388d3c9" has been updated to APPROVED
+          </td>
+          <td
+            style="min-width: 120px;"
           >
-            <span
-              class="icon icon-person c3 c11 c3 c12"
-              color="light"
-              font-size="4"
-            />
-            Local Login Failed
-          </div>
-        </td>
-        <td>
-          Local user fsdfsdf login failed: user(name="fsdfsdf") not found
-        </td>
-        <td
-          style="min-width: 48px;"
-        >
-          fsdfsdf
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22 18:06:32
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c8"
-            kind="secondary"
+            2020-06-05 19:26:53
+          </td>
+          <td
+            align="right"
           >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="font-size: 14px;"
-        >
-          <div
-            class="c5"
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Access Request Created
+            </div>
+          </td>
+          <td>
+            Access request "66b827b2-1b0b-512b-965d-6c789388d3c9" has been created and is PENDING
+          </td>
+          <td
+            style="min-width: 120px;"
           >
-            <span
-              class="icon icon-vpn_key c3 c11 c3 c12"
-              color="light"
-              font-size="4"
-            />
-            Auth Attempt Failed
-          </div>
-        </td>
-        <td>
-          User admin@example.com failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
-        </td>
-        <td
-          style="min-width: 48px;"
-        >
-          admin@example.com
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22 02:09:06
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c8"
-            kind="secondary"
+            2020-06-05 19:26:53
+          </td>
+          <td
+            align="right"
           >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="font-size: 14px;"
-        >
-          <div
-            class="c5"
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Reset Password Token Created
+            </div>
+          </td>
+          <td>
+            User "b331fb6c-85f9-4cb0-b308-3452420bf81e.one" created a password reset token for user "hello" which expires in 8h0m0s
+          </td>
+          <td
+            style="min-width: 120px;"
           >
-            <span
-              class="icon icon-person c3 c6 c3 c7"
-              color="light"
-              font-size="4"
-            />
-            Local Login
-          </div>
-        </td>
-        <td>
-          Local user admin@example.com successfully logged in
-        </td>
-        <td
-          style="min-width: 48px;"
-        >
-          admin@example.com
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22 00:49:03
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c8"
-            kind="secondary"
+            2020-06-05 16:24:22
+          </td>
+          <td
+            align="right"
           >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="font-size: 14px;"
-        >
-          <div
-            class="c5"
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              User Created
+            </div>
+          </td>
+          <td>
+            User hello has been created
+          </td>
+          <td
+            style="min-width: 120px;"
           >
-            <span
-              class="icon icon-terminal c3 c13 c3 c14"
-              color="light"
-              font-size="4"
-            />
-            Session Ended
-          </div>
-        </td>
-        <td>
-          User admin@example.com has ended the session 9febab45-6491-11e9-80a1-427cfde50f5a
-        </td>
-        <td
-          style="min-width: 48px;"
-        >
-          admin@example.com
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22 00:00:51
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c8"
-            kind="secondary"
+            2020-06-05 16:24:05
+          </td>
+          <td
+            align="right"
           >
-            Details
-          </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-list c5 c10"
+                color="light"
+                font-size="3"
+              />
+              User Updated
+            </div>
+          </td>
+          <td>
+            User bob has been updated
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05 16:24:05
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              User Deleted
+            </div>
+          </td>
+          <td>
+            User bob has been deleted
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05 16:24:05
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session Report
+            </div>
+          </td>
+          <td>
+            Report has been created for session "5fc8bf85-a73e-11ea-afd1-0242ac0a0101"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05 15:14:51
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session Report
+            </div>
+          </td>
+          <td>
+            Report has been created for session "5fc8bf85-a73e-11ea-afd1-0242ac0a0101"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05 15:14:51
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-list c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session Command
+            </div>
+          </td>
+          <td>
+            ping has been executed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-01-13 18:05:53
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-add-fowarder c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Log Forwarder Deleted
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" deleted log forwarder "forwarder1"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:55:55
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-add-fowarder c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Log Forwarder Created
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" created log forwarder "forwarder1"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:55:18
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Invite Created
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" invited user "fdsfsdf" with roles @teleadmin
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:50:48
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-list c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Role Created
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" created role "admin323232323"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:44:04
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-list c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Role Deleted
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" deleted role "admin323232323f"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:43:30
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-list c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Role Created
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" created role "admin323232323f"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:42:37
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-get_app c5 c10"
+                color="light"
+                font-size="3"
+              />
+              SCP Download
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" downloaded a file ~/fsdfsdfsdfsdfs from node 172.31.28.130:3022
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:41:23
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-get_app c5 c10"
+                color="light"
+                font-size="3"
+              />
+              SCP Download
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" downloaded a file ~/fsdfsdfsdfsdfs from node 172.31.28.130:3022
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:41:23
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              User Joined
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" has joined the session "56408539-6536-11e9-80a1-427cfde50f5a"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:39:52
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              User Joined
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" has joined the session "56408539-6536-11e9-80a1-427cfde50f5a"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:39:52
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Terminal Resize
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" resized the terminal
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:39:52
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Terminal Resize
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" resized the terminal
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:39:52
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session Started
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" has started a session "56408539-6536-11e9-80a1-427cfde50f5a"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:39:26
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session Started
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" has started a session "56408539-6536-11e9-80a1-427cfde50f5a"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:39:26
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session File Access
+            </div>
+          </td>
+          <td>
+            /etc/profile.d/
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:39:26
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session Network Connection
+            </div>
+          </td>
+          <td>
+            Session "44c6cea8-362f-11ea-83aa-125400432324" opened a connection bash: 10.217.136.161 &lt;-&gt; 190.58.129.4:3000
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 19:39:26
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Local Login Failed
+            </div>
+          </td>
+          <td>
+            Local user "fsdfsdf" login failed: user(name="fsdfsdf") not found
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 18:06:32
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Local Login Failed
+            </div>
+          </td>
+          <td>
+            Local user "fsdfsdf" login failed: user(name="fsdfsdf") not found
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 18:06:32
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-vpn_key c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Auth Attempt Failed
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 02:09:06
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-vpn_key c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Auth Attempt Failed
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 02:09:06
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Local Login
+            </div>
+          </td>
+          <td>
+            Local user "admin@example.com" successfully logged in
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 00:49:03
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-person c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Local Login
+            </div>
+          </td>
+          <td>
+            Local user "admin@example.com" successfully logged in
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 00:49:03
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session Ended
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" has ended the session "9febab45-6491-11e9-80a1-427cfde50f5a"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 00:00:51
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session Ended
+            </div>
+          </td>
+          <td>
+            User "admin@example.com" has ended the session "9febab45-6491-11e9-80a1-427cfde50f5a"
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2019-04-22 00:00:51
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 `;

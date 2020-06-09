@@ -23,19 +23,15 @@ export default {
   title: 'Design/CardError',
 };
 
-export const NotFound = () => <CardError.NotFound message={message} />;
-
-export const AccessDenied = () => <CardError.AccessDenied message={message} />;
-
-export const Failed = () => <CardError.Failed message={message} />;
-
-export const LoginFailed = () => (
-  <CardError.LoginFailed message={message} loginUrl="https://localhost" />
-);
-
-export const Offline = () => (
-  <CardError.Offline
-    title={'This cluster is not available from Gravity.'}
-    message={'To access this cluster, please use its local endpoint'}
-  />
+export const Cards = () => (
+  <>
+    <CardError.NotFound message={message} />
+    <CardError.AccessDenied message={message} />
+    <CardError.Failed message={message} />
+    <CardError.LoginFailed message={message} loginUrl="https://localhost" />
+    <CardError.Offline
+      title={'This cluster is not available from Gravity.'}
+      message={'To access this cluster, please use its local endpoint'}
+    />
+  </>
 );

@@ -37,16 +37,16 @@ export default function ClusterTopBar({ onClickClusterInfo }) {
         >
           All Clusters
         </BreadCrumbLink>
-        <ArrowRight mx="3" fontSize={12} color="text.secondary" />
+        <ArrowRight mx="2" fontSize={12} color="text.secondary" />
         <Text
-          mr="5"
+          mr="3"
           typography="h5"
           color="text.primary"
           style={{ maxWidth: '200px' }}
         >
           {clusterId}
         </Text>
-        <ButtonOutlined width="120px" size="small" onClick={onClickClusterInfo}>
+        <ButtonOutlined size="small" onClick={onClickClusterInfo}>
           Cluster Info
         </ButtonOutlined>
       </Flex>
@@ -56,6 +56,9 @@ export default function ClusterTopBar({ onClickClusterInfo }) {
 
 const BreadCrumbLink = styled(Text)`
   text-decoration: none;
+  font-size: 14px; 
+  font-weight: 300;
+
   &:hover {
     color: ${props => props.theme.colors.text.primary};
   }

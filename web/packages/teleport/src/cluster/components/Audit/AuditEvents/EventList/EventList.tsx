@@ -15,22 +15,16 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components';
 import { sortBy } from 'lodash';
 import isMatch from 'design/utils/match';
-import * as DataTable from 'design/DataTable';
+import * as Table from 'design/DataTable';
+import PagedTable from 'design/DataTable/Paged';
 import { Flex } from 'design';
 import { ActionCell, TimeCell, DescCell } from './EventListCells';
 import TypeCell from './EventTypeCell';
 import { Event } from 'teleport/services/audit';
 import EventDialog from '../../EventDialog';
 import InputSearch from 'teleport/components/InputSearch';
-import {
-  usePages,
-  Pager,
-  StyledPanel,
-  StyledButtons,
-} from 'design/DataTable/Paged';
 
 export default function EventList(props: EventListProps) {
   const { events = [], search = '', onSearchChange } = props;
@@ -39,7 +33,7 @@ export default function EventList(props: EventListProps) {
       searchableProps: ['codeDesc', 'message', 'user', 'time'],
       detailsToShow: null,
       colSortDirs: {
-        time: DataTable.SortTypes.ASC,
+        time: Table.SortTypes.ASC,
       },
     };
   });
@@ -78,7 +72,7 @@ export default function EventList(props: EventListProps) {
     const columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
     const sortDir = colSortDirs[columnKey];
     const sorted = sortBy(filtered, columnKey);
-    if (sortDir === DataTable.SortTypes.ASC) {
+    if (sortDir === Table.SortTypes.ASC) {
       return sorted.reverse();
     }
 
@@ -86,54 +80,34 @@ export default function EventList(props: EventListProps) {
   }, [state, events, search]);
 
   // paginate
-  const pagging = usePages({ pageSize: 20, data });
+  const tableProps = { pageSize: 50, data };
   const { detailsToShow, colSortDirs } = state;
   return (
     <React.Fragment>
-      <CustomStyledPanel
-        borderTopRightRadius="3"
-        borderTopLeftRadius="3"
-        justifyContent="space-between"
-      >
+      <Flex mb={4} alignItems="center" justifyContent="flex-start">
         <InputSearch height="30px" mr="3" onChange={onSearchChange} />
-        {pagging.hasPages && (
-          <Flex alignItems="center" justifyContent="flex-end">
-            <Pager {...pagging} />
-          </Flex>
-        )}
-      </CustomStyledPanel>
-      <DataTable.Table data={pagging.data}>
-        <DataTable.Column
+      </Flex>
+      <PagedTable {...tableProps}>
+        <Table.Column
           columnKey="codeDesc"
           cell={<TypeCell />}
           header={
-            <DataTable.SortHeaderCell
+            <Table.SortHeaderCell
               sortDir={colSortDirs.codeDesc}
               onSortChange={onSortChange}
               title="Type"
             />
           }
         />
-        <DataTable.Column
+        <Table.Column
           columnKey="message"
-          header={<DataTable.Cell>Description</DataTable.Cell>}
+          header={<Table.Cell>Description</Table.Cell>}
           cell={<DescCell style={{ wordBreak: 'break-all' }} />}
         />
-        <DataTable.Column
-          columnKey="user"
-          header={
-            <DataTable.SortHeaderCell
-              sortDir={colSortDirs.user}
-              onSortChange={onSortChange}
-              title="User"
-            />
-          }
-          cell={<DataTable.TextCell style={{ minWidth: '48px' }} />}
-        />
-        <DataTable.Column
+        <Table.Column
           columnKey="time"
           header={
-            <DataTable.SortHeaderCell
+            <Table.SortHeaderCell
               sortDir={colSortDirs.time}
               onSortChange={onSortChange}
               title="Created"
@@ -141,23 +115,17 @@ export default function EventList(props: EventListProps) {
           }
           cell={<TimeCell />}
         />
-        <DataTable.Column
-          header={<DataTable.Cell />}
+        <Table.Column
+          header={<Table.Cell />}
           cell={<ActionCell onViewDetails={showDetails} />}
         />
-      </DataTable.Table>
+      </PagedTable>
       {detailsToShow && (
         <EventDialog event={detailsToShow} onClose={closeDetails} />
       )}
     </React.Fragment>
   );
 }
-
-const CustomStyledPanel = styled(StyledPanel)`
-  ${StyledButtons} {
-    margin-left: ${props => `${props.theme.space[3]}px`};
-  }
-`;
 
 type EventListState = {
   searchableProps: string[];

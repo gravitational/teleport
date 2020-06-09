@@ -21,18 +21,12 @@ import { space } from 'design/system';
 import { Flex, Text } from 'design';
 import JoinedUsers from './JoinedUsers';
 
-export default function TabItem({
-  name,
-  users,
-  active,
-  onClick,
-  onClose,
-  style,
-}) {
+export default function TabItem(props: Props) {
+  const { name, users, active, onClick, onClose, style } = props;
   return (
     <StyledTabItem alignItems="center" active={active} style={style}>
       <StyledTabButton onClick={onClick}>
-        <JoinedUsers mr="2" users={users} />
+        <JoinedUsers mr="1" users={users} active={active} />
         <Text mx="auto" title={name}>
           {name}
         </Text>
@@ -44,8 +38,17 @@ export default function TabItem({
   );
 }
 
+type Props = {
+  name: string;
+  users: { user: string }[];
+  active: boolean;
+  onClick: () => void;
+  onClose: () => void;
+  style: any;
+};
+
 function fromProps({ theme, active }) {
-  let styles = {
+  let styles: Record<any, any> = {
     border: 'none',
     borderRight: `1px solid ${theme.colors.bgTerminal}`,
     '&:hover, &:focus': {
@@ -87,6 +90,7 @@ const StyledTabButton = styled.button`
   background-color: transparent;
   white-space: nowrap;
   overflow: hidden;
+  padding: 0 16px;
   text-overflow: ellipsis;
   border: none;
 `;
@@ -100,9 +104,11 @@ const StyledCloseButton = styled.button`
   width: 16px;
   outline: none;
   padding: 0;
-  margin: 0;
+  margin: 0 8px 0 0;
+  transition: all 0.3s;
+
   &:hover {
-    background: ${props => props.theme.colors.error};
+    background: ${props => props.theme.colors.danger};
   }
   ${space}
 `;

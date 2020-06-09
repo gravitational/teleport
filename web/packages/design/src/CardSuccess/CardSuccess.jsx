@@ -21,13 +21,13 @@ import { CircleCheck } from 'design/Icon';
 export default function CardSuccess({ title, children }) {
   return (
     <Card width="540px" p={7} my={4} mx="auto" textAlign="center">
-      <CircleCheck mb={3} fontSize={64} color="success" />
+      <CircleCheck mb={3} fontSize={56} color="success" />
       {title && (
-        <Text typography="h1" mb="3">
+        <Text typography="h2" mb="4">
           {title}
         </Text>
       )}
-      {children && <Text typography="paragraph">{children}</Text>}
+      {children}
     </Card>
   );
 }
@@ -35,8 +35,8 @@ export default function CardSuccess({ title, children }) {
 export function CardSuccessLogin() {
   return (
     <CardSuccess title="Login Successful">
-      You have successfully signed into your account. You can close this window
-      and continue using the product.
+      You have successfully signed into your account. <br /> You can close this
+      window and continue using the product.
     </CardSuccess>
   );
 }

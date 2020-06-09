@@ -34,12 +34,6 @@ export function useConsoleContext() {
   return ctx;
 }
 
-export function useStoreDocs() {
-  const console = React.useContext(ConsoleReactContext);
-  return useStore(console.storeDocs);
-}
-
-export function useParties() {
-  const teleconsole = React.useContext(ConsoleReactContext);
-  return useStore(teleconsole.storeParties);
+export function useStoreDocs(ctx: ConsoleContext) {
+  return useStore(ctx.storeDocs);
 }

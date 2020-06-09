@@ -20,6 +20,7 @@ import Button, {
   ButtonPrimary,
   ButtonWarning,
   ButtonSecondary,
+  ButtonBorder,
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
@@ -46,6 +47,7 @@ export {
   Button,
   ButtonIcon,
   ButtonLink,
+  ButtonBorder,
   ButtonOutlined,
   ButtonPrimary,
   ButtonSecondary,

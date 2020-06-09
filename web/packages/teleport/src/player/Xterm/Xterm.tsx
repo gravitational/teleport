@@ -27,7 +27,10 @@ export default function Xterm({ tty }: { tty: Tty }) {
       scrollBack: 1000,
     });
 
+    window['mama'] = term;
+
     term.open();
+    term.term.focus();
 
     function cleanup() {
       term.destroy();

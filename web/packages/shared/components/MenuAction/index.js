@@ -14,11 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import Card from './Card';
+import MenuIcon from './MenuActionIcon';
+import MenuButton from './MenuActionButton';
+import { MenuItem, MenuItemIcon } from 'design/Menu';
 
-export default {
-  title: 'Design/Card',
-};
-
-export const Basic = () => <Card width="500px" height="200px" m="0 auto" />;
+export { MenuIcon, MenuButton, MenuItem, MenuItemIcon };

@@ -15,10 +15,13 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
-import JoinedUsers from './JoinedUsers';
+import Component from './JoinedUsers';
 
-storiesOf('TeleportConsole', module).add('JoinedUsers', () => {
+export default {
+  title: 'TeleportConsole',
+};
+
+export const JoinedUsers = () => {
   const users = [{ user: 'jiawu@ninfsdfsfsdfsfu.fo' }, { user: 'gigbu@fe.ac' }];
-  return <JoinedUsers users={users} open={true} />;
-});
+  return <Component users={users} open={true} />;
+};

@@ -68,7 +68,10 @@ export function createContext() {
 
 const doc = {
   clusterId: 'cluseter-1',
-};
+  created: new Date('2019-05-13T20:18:09Z'),
+  kind: 'nodes',
+  url: 'localhost',
+} as const;
 
 const clusters = [
   {

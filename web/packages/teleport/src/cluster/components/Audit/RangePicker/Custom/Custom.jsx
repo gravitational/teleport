@@ -20,6 +20,7 @@ import styled from 'styled-components';
 import DayPicker, { DateUtils } from 'react-day-picker';
 import 'react-day-picker/lib/style.css';
 import { Flex } from 'design';
+import { Close as CloseIcon } from 'design/Icon';
 
 export default class CustomRange extends React.Component {
 
@@ -68,6 +69,9 @@ export default class CustomRange extends React.Component {
 
     return (
       <StyledDateRange>
+        <StyledCloseButton title="Close" onClick={this.props.onClosePicker}>
+          <CloseIcon color="primary" />
+        </StyledCloseButton>
         <DayPicker
           className="Selectable"
           numberOfMonths={2}
@@ -83,6 +87,30 @@ export default class CustomRange extends React.Component {
     );
   }
 }
+
+const StyledCloseButton = styled.button`
+  background: transparent;
+  border-radius: 2px;
+  border: none;
+  color: ${props => props.theme.colors.grey[900]}; 
+  cursor: pointer;
+  height: 24px;
+  width: 24px;
+  outline: none;
+  padding: 0;
+  margin: 0 8px 0 0;
+  transition: all .3s;
+  position: absolute; 
+  font-size: 20px;
+  z-index: 100;
+  top: 8px; 
+  right: 0px; 
+
+  &:hover {
+    background: ${props => props.theme.colors.grey[200]};
+  }
+`;
+
 
 const StyledDateRange = styled(Flex)`
   position: relative;

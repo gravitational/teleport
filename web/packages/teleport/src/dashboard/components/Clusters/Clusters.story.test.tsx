@@ -16,14 +16,10 @@ limitations under the License.
 
 import React from 'react';
 import { AllClusters, createContext } from './Clusters.story';
-import { wait, render } from 'design/utils/testing';
+import { render } from 'design/utils/testing';
 
-test('render DocumentNodes', async () => {
+test('render cluster nodes', async () => {
   const ctx = createContext();
-  jest.spyOn(ctx.clusterService, 'fetchClusters');
   const { container } = render(<AllClusters value={ctx} />);
-  await wait(() =>
-    expect(ctx.clusterService.fetchClusters).toHaveBeenCalledTimes(1)
-  );
   expect(container.firstChild).toMatchSnapshot();
 });

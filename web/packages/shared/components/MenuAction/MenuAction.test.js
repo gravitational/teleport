@@ -15,15 +15,15 @@
  */
 
 import React from 'react';
-import ActionMenu, { MenuItem } from '.';
+import { MenuIcon, MenuItem } from '.';
 import { render, fireEvent } from 'design/utils/testing';
 
 test('basic functionality of clicking is respected', () => {
   const { queryByTestId, getByTestId, getByText } = render(
-    <ActionMenu>
+    <MenuIcon>
       <MenuItem>Edit</MenuItem>
       <MenuItem>Delete</MenuItem>
-    </ActionMenu>
+    </MenuIcon>
   );
 
   // prop open is set to false as default
@@ -53,8 +53,8 @@ const menuListCss = {
     top: '10px',
   },
 };
-test('menuActionProps is respected', () => {
-  const { getByTestId } = render(<ActionMenu buttonIconProps={menuListCss} />);
 
+test('menuActionProps is respected', () => {
+  const { getByTestId } = render(<MenuIcon buttonIconProps={menuListCss} />);
   expect(getByTestId('button')).toHaveStyle(menuListCss.style);
 });

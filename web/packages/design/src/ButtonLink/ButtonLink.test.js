@@ -26,6 +26,6 @@ describe('design/ButtonLink', () => {
 
   it('respects the button size prop', () => {
     const { container } = render(<ButtonLink size="large" />);
-    expect(container.firstChild).toHaveStyle('min-height: 48px');
+    expect(container.firstChild).toHaveStyle('min-height: 40px');
   });
 });

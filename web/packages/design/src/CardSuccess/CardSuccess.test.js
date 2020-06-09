@@ -15,28 +15,10 @@
  */
 
 import React from 'react';
-import CardSuccess from './index';
+import { Cards } from './CardSuccess.story';
 import { render } from 'design/utils/testing';
 
-describe('design/CardSuccess', () => {
-  it('renders checkmark icon', () => {
-    const { container } = render(<CardSuccess />);
-
-    expect(
-      container
-        .querySelector('span')
-        .classList.contains('icon-checkmark-circle')
-    ).toBe(true);
-  });
-
-  it('respects title prop and render text children', () => {
-    const title = 'some title';
-    const text = 'some text';
-    const { container } = render(
-      <CardSuccess title={title}>{text}</CardSuccess>
-    );
-
-    expect(container.firstChild.children[1].textContent).toBe(title);
-    expect(container.firstChild.children[2].textContent).toBe(text);
-  });
+test('rendering of CardSuccess components', () => {
+  const { container } = render(<Cards />);
+  expect(container.firstChild).toMatchSnapshot();
 });

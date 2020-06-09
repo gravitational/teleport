@@ -87,7 +87,7 @@ const ActionButton = styled.button`
     opacity: 1;
 
     .icon {
-      color: ${colors.primary};
+      color: ${colors.progressBarColor};
     }
   }
 

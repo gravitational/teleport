@@ -21,28 +21,30 @@ import Flex from './../Flex';
 
 const fromTheme = ({ theme = defaultTheme }) => {
   return {
+    background: theme.colors.primary.light,
+    color: theme.colors.text.secondary,
     fontSize: theme.fontSizes[1],
     fontWeight: theme.bold,
     '&:active, &.active': {
-      background: theme.colors.primary.light,
       borderLeftColor: theme.colors.accent,
+      background: theme.colors.primary.lighter,
       color: theme.colors.primary.contrastText,
     },
     '&:hover': {
-      background: theme.colors.primary.light,
+      background: theme.colors.primary.lighter,
     },
   };
 };
 
 const SideNavItem = styled(Flex)`
-  min-height: 72px;
+  min-height: 56px;
   align-items: center;
-  cursor: pointer;
   justify-content: flex-start;
+  border-left: 4px solid transparent;
+  cursor: pointer;
   outline: none;
   text-decoration: none;
   width: 100%;
-  border-left: 4px solid transparent;
   ${fromTheme}
   ${borderColor}
 `;
@@ -50,10 +52,11 @@ const SideNavItem = styled(Flex)`
 SideNavItem.displayName = 'SideNavItem';
 
 SideNavItem.defaultProps = {
-  pl: '10',
-  pr: '5',
+  pl: 10,
+  pr: 5,
   bg: 'primary.main',
   color: 'text.primary',
+  theme: defaultTheme,
 };
 
 export default SideNavItem;

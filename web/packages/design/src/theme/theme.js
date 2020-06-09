@@ -23,24 +23,24 @@ const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
 
 const colors = {
-  accent: '#FA2A6A',
+  accent: '#651FFF',
 
   dark: '#000',
 
   light: '#FFFFFF',
 
   primary: {
-    main: '#1B234A',
+    main: '#1C254D',
     light: '#222C59',
-    lighter: '#373F64',
-    dark: '#0C143D',
+    lighter: '#2C3A73',
+    dark: '#111B48',
     contrastText: '#FFFFFF',
   },
 
   secondary: {
-    main: '#00BFA5',
-    light: '#00EAC3',
-    dark: '#26A69A',
+    main: '#512FC9',
+    light: '#651FFF',
+    dark: '#354AA4',
     contrastText: '#FFFFFF',
   },
 
@@ -49,14 +49,16 @@ const colors = {
     primary: 'rgba(255,255,255,0.87)',
     // Secondary text.
     secondary: 'rgba(255, 255, 255, 0.56)',
+    // Placeholder text for forms.
+    placeholder: 'rgba(255, 255, 255, 0.24)',
     // Disabled text have even lower visual prominence.
-    disabled: 'rgba(0, 0, 0, 0.38)',
+    disabled: 'rgba(0, 0, 0, 0.24)',
     // Text hints.
-    hint: 'rgba(0, 0, 0, 0.38)',
+    hint: 'rgba(0, 0, 0, 0.24)',
     // On light backgrounds
-    onLight: 'rgba(0, 0, 0, 0.87)',
+    onLight: '#324148',
     // On dark backgrounds
-    onDark: 'rgba(255, 255, 255, 0.56)',
+    onDark: 'rgba(255, 255, 255, 0.87)',
   },
 
   grey: {
@@ -65,8 +67,8 @@ const colors = {
 
   error: {
     light: red['A200'],
-    main: red['A400'],
     dark: red['A700'],
+    main: red['A400'],
   },
 
   action: {

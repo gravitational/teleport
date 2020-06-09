@@ -20,29 +20,44 @@ import { typography } from 'design/system';
 import TabItem from './TabItem';
 import * as Icons from 'design/Icon';
 import { Box, ButtonIcon } from 'design';
+import * as stores from 'teleport/console/stores';
+import { useStore } from 'shared/libs/stores';
+import { useConsoleContext } from 'teleport/console/consoleContextProvider';
+import { colors } from '../colors';
 
-export default function Tabs({
-  items,
-  parties,
-  activeTab,
-  onSelect,
-  onClose,
-  onNew,
-  disableNew,
-  ...styledProps
-}) {
+export default function TabsContainer(props: Props) {
+  const ctx = useConsoleContext();
+  // subscribe to store changes
+  useStore(ctx.storeParties);
+  return <Tabs {...props} parties={ctx.storeParties.state} />;
+}
+
+export function Tabs(props: Props & { parties: stores.Parties }) {
+  const {
+    items,
+    parties,
+    activeTab,
+    onSelect,
+    onClose,
+    onNew,
+    disableNew,
+    ...styledProps
+  } = props;
+
   const $items = items
     .filter(i => i.kind !== 'blank')
     .map(i => {
-      const { title, url, id, sid } = i;
-      const active = id === activeTab;
-      const tabParties = parties[sid] || [];
+      const active = i.id === activeTab;
+      let users: { user: string }[] = [];
+      if (i.kind === 'terminal') {
+        users = parties[i.sid] || [];
+      }
+
       return (
         <TabItem
-          url={url}
-          name={title}
-          key={id}
-          users={tabParties}
+          name={i.title}
+          key={i.id}
+          users={users}
           active={active}
           onClick={() => onSelect(i)}
           onClose={() => onClose(i)}
@@ -58,7 +73,6 @@ export default function Tabs({
   return (
     <StyledTabs
       as="nav"
-      bg="primary.dark"
       typography="h5"
       color="text.secondary"
       bold
@@ -80,8 +94,18 @@ export default function Tabs({
   );
 }
 
+type Props = {
+  items: stores.Document[];
+  activeTab: number;
+  disableNew: boolean;
+  onNew: () => void;
+  onSelect: (doc: stores.Document) => void;
+  [index: string]: any;
+};
+
 const StyledTabs = styled(Box)`
-  min-height: 36px;
+  background: ${colors.terminalDark};
+  min-height: 32px;
   border-radius: 4px;
   display: flex;
   flex-wrap: no-wrap;

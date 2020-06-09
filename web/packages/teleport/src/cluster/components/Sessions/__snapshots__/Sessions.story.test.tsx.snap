@@ -5,98 +5,111 @@ exports[`loaded 1`] = `
   box-sizing: border-box;
 }
 
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  height: 24px;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #2C3A73;
+  opacity: 1;
+}
+
+.c12:active {
+  opacity: 0.24;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
 .c8 {
   display: inline-block;
-  -webkit-transition: color .3s;
   transition: color .3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c11 {
+  display: inline-block;
+  transition: color .3s;
+  margin-right: 16px;
   padding: 4px;
   color: #FFFFFF;
   background-color: #010B1C;
-  font-size: 18px;
+  font-size: 14px;
 }
 
-.c10 {
+.c13 {
   display: inline-block;
-  -webkit-transition: color .3s;
   transition: color .3s;
+  margin-left: 8px;
+  margin-right: -8px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
   color: #FFFFFF;
-}
-
-.c9 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
-  justify-content: center;
-  text-align: center;
-  -webkit-flex: 0 0 auto;
-  -ms-flex: 0 0 auto;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  -webkit-transition: all .3s;
-  transition: all .3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-}
-
-.c9 .c6 {
-  color: inherit;
-}
-
-.c9:disabled {
-  color: rgba(255,255,255,0.3);
-}
-
-.c9:disabled {
-  color: rgba(255,255,255,0.3);
-}
-
-.c9:hover,
-.c9:focus {
-  background: rgba(255,255,255,0.1);
 }
 
 .c1 {
   box-sizing: border-box;
   margin-bottom: 24px;
-  margin-top: 24px;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-flex-shrink: 0;
-  -ms-flex-negative: 0;
   flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
-  font-size: 34px;
-  line-height: 56px;
+  font-size: 22px;
+  line-height: 32px;
   margin: 0px;
-  -webkit-flex-shrink: 0;
-  -ms-flex-negative: 0;
   flex-shrink: 0;
 }
 
@@ -104,15 +117,10 @@ exports[`loaded 1`] = `
   box-sizing: border-box;
   padding-left: 40px;
   padding-right: 40px;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
   overflow: auto;
   width: 100%;
   height: 100%;
-  -webkit-flex-direction: column;
-  -ms-flex-direction: column;
   flex-direction: column;
 }
 
@@ -121,7 +129,7 @@ exports[`loaded 1`] = `
   padding-bottom: 24px;
 }
 
-.c4 {
+.c9 {
   background: #222C59;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -131,71 +139,174 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c4 > thead > tr > th,
-.c4 > tbody > tr > th,
-.c4 > tfoot > tr > th,
-.c4 > thead > tr > td,
-.c4 > tbody > tr > td,
-.c4 > tfoot > tr > td {
-  padding: 16px;
+.c9 > thead > tr > th,
+.c9 > tbody > tr > th,
+.c9 > tfoot > tr > th,
+.c9 > thead > tr > td,
+.c9 > tbody > tr > td,
+.c9 > tfoot > tr > td {
+  padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c4 > thead > tr > th {
-  background: #1B234A;
+.c9 > thead > tr > th:first-child,
+.c9 > tbody > tr > th:first-child,
+.c9 > tfoot > tr > th:first-child,
+.c9 > thead > tr > td:first-child,
+.c9 > tbody > tr > td:first-child,
+.c9 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c9 > thead > tr > th:last-child,
+.c9 > tbody > tr > th:last-child,
+.c9 > tfoot > tr > th:last-child,
+.c9 > thead > tr > td:last-child,
+.c9 > tbody > tr > td:last-child,
+.c9 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c9 > thead > tr > th {
+  background: #111B48;
   color: rgba(255,255,255,0.56);
   cursor: pointer;
   font-size: 10px;
-  font-weight: 600;
-  padding: 4px 16px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
   text-align: left;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.c4 > thead > tr > th .c6 {
+.c9 > thead > tr > th .c7 {
   font-weight: bold;
+  font-size: 8px;
   margin-left: 8px;
 }
 
-.c7 {
-  display: inline-block;
-  -webkit-transition: color .3s;
-  transition: color .3s;
-  padding: 4px;
-  color: #FFFFFF;
-  background-color: #010B1C;
-  font-size: 18px;
-  border-radius: 50%;
+.c9 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
 }
 
-.c5 {
-  width: 0;
+.c6 button {
+  background: none;
+  border: none;
+  border-radius: 200px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0 0 0 8px;
+  outline: none;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.c6 button:hover {
+  background: #1C254D;
+}
+
+.c6 button:hover .c7 {
+  opacity: 1;
+}
+
+.c6 button .c7 {
+  opacity: 0.4;
+  font-size: 20px;
+  transition: all 0.3s;
+}
+
+.c4 {
+  padding: 8px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c10 {
+  display: flex;
+  align-items: center;
+  min-width: 130px;
 }
 
 <div
-  class="c0"
+  class="sc-fzqBZW c0"
 >
   <div
-    class="c1"
+    class="sc-fzqBZW c1"
   >
-    <h1
+    <div
       class="c2"
     >
       Active Sessions
-    </h1>
+    </div>
   </div>
   <div
     class="c3"
   >
     <div>
-      <table
+      <nav
         class="c4"
+      >
+        <div
+          class="c5"
+          color="primary.contrastText"
+        >
+          SHOWING 
+          <strong>
+            1
+          </strong>
+           to 
+          <strong>
+            1
+          </strong>
+           of
+           
+          <strong>
+            1
+          </strong>
+        </div>
+        <div
+          class="c6"
+        >
+          <button
+            disabled=""
+            title="Previous Page"
+          >
+            <span
+              class="c7 c8 icon icon-arrow-left-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+          <button
+            disabled=""
+            title="Next Page"
+          >
+            <span
+              class="c7 c8 icon icon-arrow-right-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+        </div>
+      </nav>
+      <table
+        class="c9"
       >
         <thead>
           <tr>
-            <th />
             <th>
               Description
+            </th>
+            <th>
+              Session ID
             </th>
             <th>
               Users
@@ -204,13 +315,7 @@ exports[`loaded 1`] = `
               Node
             </th>
             <th>
-              Started (UTC)
-            </th>
-            <th>
               Duration
-            </th>
-            <th>
-              Session ID
             </th>
             <th />
           </tr>
@@ -219,17 +324,23 @@ exports[`loaded 1`] = `
           <tr>
             <td>
               <div
-                class="c5"
+                class="c10"
               >
-                <span
-                  class="icon icon-terminal c6 c7 c6 c8"
+                <a
+                  bg="bgTerminal"
+                  class="c7 c11 icon icon-terminal "
                   color="light"
-                  font-size="4"
+                  font-size="2"
+                  href="/web/cluster/localhost/console/session/sid0"
+                  mr="3"
+                  p="1"
+                  style="border-radius: 50%; border: 2px solid #00bfa5; text-decoration: none;"
                 />
+                Session is in progress [root@localhost]
               </div>
             </td>
             <td>
-              Session is in progress...
+              sid0
             </td>
             <td>
               hehwawe@aw.sg [129.232.123.132], ma@pewu.tz [129.232.123.132]
@@ -241,24 +352,21 @@ exports[`loaded 1`] = `
               ]
             </td>
             <td>
-              2019-04-22 00:00:51
-            </td>
-            <td>
               12 min
-            </td>
-            <td>
-              sid0
             </td>
             <td
               align="right"
             >
               <button
-                class="c9"
-                data-testid="button"
+                class="c12"
+                height="24px"
+                kind="border"
               >
+                OPTIONS
                 <span
-                  class="icon icon-ellipsis  c6 c10"
-                  color="light"
+                  class="c7 c13 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
                 />
               </button>
             </td>

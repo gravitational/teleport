@@ -15,29 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
-import Label from './Label';
-import Flex from './../Flex';
 
-export default {
-  title: 'Design/Label',
-};
-
-export const Tags = () => (
-  <Flex
-    height="100px"
-    bg="primary.main"
-    justifyContent="center"
-    alignItems="center"
-  >
-    <Label mr={4} kind="primary">
-      Primary
-    </Label>
-    <Label mr={4} kind="secondary">
-      Secondary
-    </Label>
-    <Label mr={4} kind="warning">
-      Warning
-    </Label>
-    <Label kind="danger">Danger</Label>
-  </Flex>
-);
+export default function useDocTitle(title = '') {
+  React.useEffect(() => {
+    document.title = title;
+  }, [title]);
+}

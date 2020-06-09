@@ -16,7 +16,7 @@
 
 import React from 'react';
 import * as Icons from 'design/Icon';
-import { Card, Box, Text, Flex, Link } from 'design';
+import { Card, Box, Text, Flex } from 'design';
 import {
   FeatureBox,
   FeatureHeader,
@@ -24,6 +24,7 @@ import {
 } from 'teleport/components/Layout';
 import { useTeleport } from 'teleport/teleportContextProvider';
 import cfg from 'teleport/config';
+import styled from 'styled-components';
 
 /**
  * Support component lists links to teleport's documentation
@@ -43,7 +44,7 @@ const Support = () => {
       <Card px={5} pt={1} pb={6}>
         <Flex justifyContent="space-between" flexWrap="wrap">
           <Box>
-            <Header title="Support" icon={<Icons.Stars />} />
+            <Header title="Support" icon={<Icons.LocalPlay />} />
             {cfg.isEnterprise && (
               <SupportLink
                 title="Create a Support Ticket"
@@ -64,7 +65,7 @@ const Support = () => {
             />
           </Box>
           <Box>
-            <Header title="Resources" icon={<Icons.Stars />} />
+            <Header title="Resources" icon={<Icons.ListCheck />} />
             <SupportLink title="Quickstart Guide" url={docs.quickstart} />
             <SupportLink title="tsh User Guide" url={docs.userManual} />
             <SupportLink title="Admin Guide" url={docs.adminGuide} />
@@ -79,7 +80,7 @@ const Support = () => {
             <SupportLink title="FAQ" url={docs.faq} />
           </Box>
           <Box>
-            <Header title="Troubleshooting" icon={<Icons.Stars />} />
+            <Header title="Troubleshooting" icon={<Icons.Graph />} />
             <SupportLink
               title="Monitoring Teleport"
               url={docs.troubleshooting}
@@ -94,7 +95,7 @@ const Support = () => {
             />
           </Box>
           <Box>
-            <Header title="Updates" icon={<Icons.Stars />} />
+            <Header title="Updates" icon={<Icons.NotificationsActive />} />
             <SupportLink
               title="Product Changelog"
               url="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
@@ -109,12 +110,13 @@ const Support = () => {
       <Box
         border="1px solid"
         borderColor="primary.light"
-        mt={8}
+        mt={4}
         mb={10}
         borderRadius={3}
-        p={5}
+        px={5}
+        py={4}
       >
-        <Text as="h5" typography="h5" mb={4} fontWeight="bold" caps>
+        <Text as="h5" mb={4} fontWeight="bold" caps>
           Cluster Information
         </Text>
         <ClusterData title="Cluster Name" data={cluster.clusterId} />
@@ -158,22 +160,29 @@ const getDocURLs = (version = '') => {
 };
 
 const SupportLink = ({ title = '', url = '' }) => (
-  <Text mb={3}>
-    <Link
-      href={url}
-      target="_blank"
-      mb={2}
-      style={{ textDecoration: 'none', color: 'inherit' }}
-    >
-      {title}
-    </Link>
-  </Text>
+  <StyledSupportLink href={url}>{title}</StyledSupportLink>
 );
+
+const StyledSupportLink = styled.a`
+  display: block;
+  color: ${props => props.theme.colors.light};
+  border-radius: 4px;
+  text-decoration: none;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  transition: all 0.3s;
+  ${props => props.theme.typography.body2}
+  &:hover, &:focus {
+    background: ${props => props.theme.colors.primary.lighter};
+  }
+`;
 
 const ClusterData = ({ title = '', data = null }) => (
   <Flex mb={3}>
-    <Box width={130}>{title}: </Box>
-    {data}
+    <Text typography="body2" bold mr={3}>
+      {title}:
+    </Text>
+    <Text typography="body2">{data}</Text>
   </Flex>
 );
 
@@ -187,10 +196,10 @@ const Header = ({ title = '', icon = null }) => (
     mt={4}
     pb={2}
   >
-    <Text pr={2} fontSize={30}>
+    <Text pr={2} fontSize={18}>
       {icon}
     </Text>
-    <Text as="h5" typography="h5" fontWeight="bold" caps>
+    <Text as="h5" caps>
       {title}
     </Text>
   </Flex>

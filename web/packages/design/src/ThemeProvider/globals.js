@@ -31,35 +31,31 @@ const GlobalStyle = createGlobalStyle`
     padding: 0;
   }
 
-  ${({ theme }) => {
-    // custom scrollbars
-    return `
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
+  input {
+    font-family: ${props => props.theme.font};
+  }
 
-      ::-webkit-scrollbar-track {
-        background: ${theme.colors.primary.main};
-      }
+  // custom scrollbars
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-      ::-webkit-scrollbar-thumb {
-        background: #757575;
-      }
+  ::-webkit-scrollbar-thumb {
+    background: #757575;
+  }
 
-      ::-webkit-scrollbar-corner {
-        background: rgba(0,0,0,0.5);
-      }
+  ::-webkit-scrollbar-corner {
+    background: rgba(0,0,0,0.5);
+  }
 
-      // remove dotted Firefox outline
-      button {
-        ::-moz-focus-inner {
-          border: 0;
-        }
-      }
-
-    `;
-  }}
+  // remove dotted Firefox outline
+  button, a {
+    outline: 0;
+    ::-moz-focus-inner {
+      border: 0;
+    }
+  }
 `;
 
 export { GlobalStyle };

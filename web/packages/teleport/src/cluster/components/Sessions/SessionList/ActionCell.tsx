@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import MenuAction, { MenuItem } from 'shared/components/ActionMenu';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { NavLink } from 'react-router-dom';
 import { Cell } from 'design/DataTable';
 import { Session } from 'teleport/services/ssh';
@@ -28,11 +28,11 @@ export default function ActionCell(props: any) {
 
   return (
     <Cell align="right">
-      <MenuAction>
+      <MenuButton>
         <MenuItem as={NavLink} to={url}>
           Join Session
         </MenuItem>
-      </MenuAction>
+      </MenuButton>
     </Cell>
   );
 }

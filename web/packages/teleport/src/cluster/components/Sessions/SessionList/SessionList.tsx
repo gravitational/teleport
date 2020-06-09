@@ -17,42 +17,37 @@ limitations under the License.
 import React from 'react';
 import { TablePaged, Column, Cell, TextCell } from 'design/DataTable';
 import { Box } from 'design';
-import IconCell from './IconCell';
+import { Session } from 'teleport/services/ssh';
+import CardEmpty from 'teleport/components/CardEmpty';
+import DescCell from './DescCell';
 import UserCell from './UserCell';
 import ActionCell from './ActionCell';
-import CreatedCell from './CreatedCell';
 import NodeCell from './NodeCell';
-import { Session } from 'teleport/services/ssh';
-import { Node } from 'teleport/services/nodes';
 
 export default function SessionList(props: Props) {
   const { sessions, pageSize = 100, ...rest } = props;
-
   const tableProps = {
     data: sessions,
     pageSize,
-    pagerPosition: 'bottom',
   };
+
+  if (sessions.length === 0)
+    return <CardEmpty title="No Active Sessions Found" />;
 
   return (
     <Box {...rest}>
       <TablePaged {...tableProps}>
-        <Column header={<Cell />} cell={<IconCell />} />
-        <Column
-          header={<Cell>Description</Cell>}
-          cell={<Cell>Session is in progress...</Cell>}
-        />
-        <Column header={<Cell>Users</Cell>} cell={<UserCell />} />
-        <Column header={<Cell>Node</Cell>} cell={<NodeCell />} />
-        <Column header={<Cell>Started (UTC)</Cell>} cell={<CreatedCell />} />
-        <Column
-          columnKey="durationText"
-          header={<Cell>Duration</Cell>}
-          cell={<TextCell />}
-        />
+        <Column header={<Cell>Description</Cell>} cell={<DescCell />} />
         <Column
           columnKey="sid"
           header={<Cell>Session ID</Cell>}
+          cell={<TextCell />}
+        />
+        <Column header={<Cell>Users</Cell>} cell={<UserCell />} />
+        <Column header={<Cell>Node</Cell>} cell={<NodeCell />} />
+        <Column
+          columnKey="durationText"
+          header={<Cell>Duration</Cell>}
           cell={<TextCell />}
         />
         <Column header={<Cell />} cell={<ActionCell />} />
@@ -63,6 +58,5 @@ export default function SessionList(props: Props) {
 
 type Props = {
   sessions: Session[];
-  nodes: Record<string, Node>;
   pageSize?: number;
 };

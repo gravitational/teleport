@@ -22,10 +22,17 @@ import { Flex, Text } from 'design';
  */
 const FeatureHeader = styled(Flex)`
   flex-shrink: 0;
+  border-bottom: 1px solid ${props => props.theme.colors.primary.main};
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
 `;
 
 FeatureHeader.defaultProps = {
-  my: 4,
+  mb: 4,
+  alignItems: 'center',
+  height: '56px',
 };
 
 /**
@@ -37,8 +44,7 @@ const FeatureHeaderTitle = styled(Text)`
 
 FeatureHeaderTitle.defaultProps = {
   ...Text.defaultProps,
-  as: 'h1',
-  typography: 'h1',
+  typography: 'h3',
 };
 
 /**

@@ -18,6 +18,8 @@ import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { Flex } from 'design';
 import MenuSshLogin from './MenuSshLogin';
+import { Router } from 'react-router';
+import { createMemoryHistory } from 'history';
 
 storiesOf('Shared/MenuSshLogin', module).add('MenuSshLogin', () => (
   <Flex
@@ -41,11 +43,13 @@ class SampleMenu extends React.Component {
 
   render() {
     return (
-      <MenuSshLogin
-        ref={this.menuRef}
-        onOpen={() => loginItems}
-        onSelect={() => null}
-      />
+      <Router history={createMemoryHistory()}>
+        <MenuSshLogin
+          ref={this.menuRef}
+          onOpen={() => loginItems}
+          onSelect={() => null}
+        />
+      </Router>
     );
   }
 }

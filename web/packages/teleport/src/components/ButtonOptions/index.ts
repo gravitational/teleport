@@ -14,11 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import ButtonLink from './ButtonLink';
-
-export default {
-  title: 'Design/Button',
-};
-
-export const Link = () => <ButtonLink href="">Link Button</ButtonLink>;
+import ButtonOptions from './ButtonOptions';
+export default ButtonOptions;

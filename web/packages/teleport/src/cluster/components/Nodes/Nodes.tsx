@@ -32,9 +32,19 @@ export default function ClusterNodes() {
   return <Nodes {...state} />;
 }
 
-export function Nodes({ nodes, getNodeLoginOptions, attempt }: NodesProp) {
+export function Nodes({
+  nodes,
+  getNodeLoginOptions,
+  startSshSession,
+  attempt,
+}: NodesProp) {
   if (attempt.isFailed) {
     return <Cards.Failed alignSelf="baseline" message={attempt.message} />;
+  }
+
+  function onLoginSelect(e: React.MouseEvent, login: string, serverId: string) {
+    e.preventDefault();
+    startSshSession(login, serverId);
   }
 
   return (
@@ -48,7 +58,11 @@ export function Nodes({ nodes, getNodeLoginOptions, attempt }: NodesProp) {
         </Box>
       )}
       {attempt.isSuccess && (
-        <NodeList onLoginMenuOpen={getNodeLoginOptions} nodes={nodes} />
+        <NodeList
+          onLoginMenuOpen={getNodeLoginOptions}
+          nodes={nodes}
+          onLoginSelect={onLoginSelect}
+        />
       )}
     </FeatureBox>
   );

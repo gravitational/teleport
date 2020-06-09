@@ -47,6 +47,7 @@ function render(attemptOptions: Partial<PropTypes['attempt']>) {
   return (
     <Nodes
       attempt={attempt}
+      startSshSession={() => null}
       getNodeLoginOptions={() => [{ login: 'root', url: 'fd' }]}
       nodes={nodes}
     />

@@ -15,30 +15,24 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components';
 import { Text, Box } from 'design';
 
 export default function CardEmpty(props) {
   const { title, children, ...styles } = props;
   return (
-    <Container
+    <Box
       bg="primary.light"
-      p="8"
+      p="4"
       width="100%"
       m="0 auto"
       maxWidth="600px"
       textAlign="center"
       color="text.primary"
+      style={{ borderRadius: '6px' }}
       {...styles}
     >
-      <Text typography="h2" mb="3">
-        {title}
-      </Text>
+      <Text typography="h4">{title}</Text>
       {children}
-    </Container>
+    </Box>
   );
 }
-
-const Container = styled(Box)`
-  border-radius: 12px;
-`;

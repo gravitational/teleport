@@ -30,7 +30,7 @@ import { useTeleport } from 'teleport/teleportContextProvider';
 const POLLING_INTERVAL = 3000; // every 3 sec
 
 export function Sessions(props: SessionsProps) {
-  const { attempt, onRefresh, nodes, sessions } = props;
+  const { attempt, onRefresh, sessions } = props;
   if (attempt.isFailed) {
     return <Cards.Failed alignSelf="baseline" message={attempt.message} />;
   }
@@ -47,7 +47,7 @@ export function Sessions(props: SessionsProps) {
       )}
       {attempt.isSuccess && (
         <>
-          <SessionList sessions={sessions} nodes={nodes} />
+          <SessionList sessions={sessions} />
           <AjaxPoller time={POLLING_INTERVAL} onFetch={onRefresh} />
         </>
       )}

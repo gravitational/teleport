@@ -18,12 +18,12 @@ import React from 'react';
 import styled from 'styled-components';
 import { useParams } from 'shared/components/Router';
 import { Flex } from 'design';
-import { colors } from 'teleport/console/components/colors';
 import cfg from 'teleport/config';
 import Tabs, { TabItem } from './PlayerTabs';
 import SshPlayer from './SshPlayer';
 import ActionBar from './ActionBar';
 import session from 'teleport/services/session';
+import { colors } from 'teleport/console/components/colors';
 
 export default function Player() {
   const { sid, clusterId } = useParams();
@@ -38,14 +38,14 @@ export default function Player() {
 
   return (
     <StyledPlayer>
-      <Flex bg="primary.dark" height="38px">
+      <Flex bg={colors.primary.light} height="38px">
         <Tabs flex="1 0">
           <TabItem title="Session Player" />
         </Tabs>
         <ActionBar onLogout={onLogout} />
       </Flex>
       <Flex
-        bg={colors.bgTerminal}
+        bg={colors.primary.dark}
         flex="1"
         style={{
           overflow: 'auto',
@@ -63,4 +63,14 @@ const StyledPlayer = styled.div`
   width: 100%;
   position: absolute;
   flex-direction: column;
+
+  // always render cursor as focused
+  .terminal:not(.focus) .terminal-cursor {
+    outline: none !important;
+    background-color: #fff;
+  }
+
+  .terminal .xterm-viewport {
+    overflow-y: hidden !important;
+  }
 `;

@@ -57,7 +57,7 @@ const StyledButton = styled(Button)`
   &:focus {
     background: ${props => fade(props.color, 0.4)};
   }
-  height: 48px;
+  height: 40px;
   position: relative;
   box-sizing: border-box;
 

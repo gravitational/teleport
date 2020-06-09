@@ -31,14 +31,14 @@ function error({ hasError, theme }) {
 
 const Input = styled.input`
   appearance: none;
+  border:none;
   border-radius: 4px;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, .24);
   box-sizing: border-box;
-  border: none;
   display: block;
   height: 40px;
   font-size: 16px;
-  padding: 12px 16px;
+  padding: 0 16px;
   outline: none;
   width: 100%;
 
@@ -47,7 +47,7 @@ const Input = styled.input`
   }
 
   ::placeholder {
-    opacity: 0.24;
+    opacity: 0.4;
   }
 
   ${color} ${space} ${width} ${height} ${error};

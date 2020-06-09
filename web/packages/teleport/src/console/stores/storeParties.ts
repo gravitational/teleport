@@ -15,9 +15,7 @@ limitations under the License.
 */
 
 import { Store } from 'shared/libs/stores';
-import { Participant } from 'teleport/services/ssh';
-
-type Parties = Record<string, Participant[]>;
+import { Parties } from './types';
 
 export default class StoreParties extends Store<Parties> {
   state: Parties = {};

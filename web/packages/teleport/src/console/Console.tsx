@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
 import AjaxPoller from 'teleport/components/AjaxPoller';
-import { useConsoleContext } from './consoleContextProvider';
+import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
 import * as stores from './stores/types';
 import { colors } from './components/colors';
 import Tabs from './components/Tabs';
@@ -26,6 +26,7 @@ import ActionBar from './components/ActionBar';
 import DocumentSsh from './components/DocumentSsh';
 import DocumentNodes from './components/DocumentNodes';
 import DocumentBlank from './components/DocumentBlank';
+import usePageTitle from './usePageTitle';
 import useTabRouting from './useTabRouting';
 import useOnExitConfirmation from './useOnExitConfirmation';
 import useKeyboardNav from './useKeyboardNav';
@@ -34,11 +35,17 @@ const POLL_INTERVAL = 5000; // every 5 sec
 
 export default function Console() {
   const consoleCtx = useConsoleContext();
-  useKeyboardNav(consoleCtx);
   const { verifyAndConfirm } = useOnExitConfirmation(consoleCtx);
   const { clusterId, activeDocId } = useTabRouting(consoleCtx);
+
   const storeDocs = consoleCtx.storeDocs;
+  const documents = storeDocs.getDocuments();
+  const activeDoc = documents.find(d => d.id === activeDocId);
   const hasSshSessions = storeDocs.getSshDocuments().length > 0;
+
+  useKeyboardNav(consoleCtx);
+  useStoreDocs(consoleCtx);
+  usePageTitle(activeDoc);
 
   function onTabClick(doc: stores.Document) {
     consoleCtx.gotoTab(doc);
@@ -63,14 +70,13 @@ export default function Console() {
   }
 
   const disableNewTab = storeDocs.getNodeDocuments().length > 0;
-  const documents = storeDocs.getDocuments();
   const $docs = documents.map(doc => (
     <MemoizedDocument doc={doc} visible={doc.id === activeDocId} key={doc.id} />
   ));
 
   return (
     <StyledConsole>
-      <Flex bg="primary.dark" height="38px">
+      <Flex bg={colors.primary.light} height="32px">
         <Tabs
           flex="1"
           items={documents}

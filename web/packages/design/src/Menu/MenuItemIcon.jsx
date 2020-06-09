@@ -18,14 +18,19 @@ import styled from 'styled-components';
 import theme from './../theme';
 import Icon from './../Icon';
 
-const MenuItemIcon = styled(Icon)``;
+const MenuItemIcon = styled(Icon)`
+  &:hover,
+  &:focus {
+    color: ${props => props.theme.colors.link};
+  }
+`;
 
 MenuItemIcon.displayName = 'MenuItemIcon';
 MenuItemIcon.defaultProps = {
   fontSize: 4,
   theme: theme,
-  mr: 3,
-  color: 'link',
+  mr: 2,
+  color: 'colors.grey[400]',
 };
 
 export default MenuItemIcon;

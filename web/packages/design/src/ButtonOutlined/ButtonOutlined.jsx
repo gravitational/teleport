@@ -32,18 +32,21 @@ const size = props => {
     case 'small':
       return {
         fontSize: '10px',
-        padding: '8px 8px',
+        minHeight: '24px',
+        padding: '0px 16px',
       };
     case 'large':
       return {
-        fontSize: '14px',
-        padding: '20px 40px',
+        minHeight: '40px',
+        fontSize: '12px',
+        padding: '0px 40px',
       };
     default:
       // medium
       return {
+        minHeight: '32px',
         fontSize: `12px`,
-        padding: '12px 32px',
+        padding: '0px 24px',
       };
   }
 };
@@ -102,6 +105,7 @@ const block = props =>
     : null;
 
 const StyledButton = styled.button`
+  line-height: 1.5;
   border-radius: 4px;
   display: inline-flex;
   justify-content: center;
@@ -113,6 +117,7 @@ const StyledButton = styled.button`
   font-family: inherit;
   font-weight: bold;
   outline: none;
+  opacity: .56;
   position: relative;
   text-align: center;
   text-decoration: none;
@@ -120,8 +125,12 @@ const StyledButton = styled.button`
   transition: all .3s;
   -webkit-font-smoothing: antialiased;
 
+  &:hover {
+    opacity: 1;
+  }
+
   &:active {
-    opacity: .56;
+    opacity: .24;
   }
 
   > span {
@@ -147,6 +156,3 @@ ButtonOutlined.defaultProps = {
 ButtonOutlined.displayName = 'ButtonOutlined';
 
 export default ButtonOutlined;
-export const OutlinedPrimary = props => (
-  <ButtonOutlined kind="primary" {...props} />
-);

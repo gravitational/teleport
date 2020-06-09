@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, Card, ButtonLink, ButtonPrimary, Flex, Box } from 'design';
+import { Text, Card, ButtonPrimary, Flex, Box } from 'design';
 import * as Alerts from 'design/Alert';
 import FieldInput from './../FieldInput';
 import Validation from './../Validation';
@@ -103,21 +103,11 @@ export default function FormInvite(props) {
                     label="Two factor token"
                     rule={requiredToken}
                     autoComplete="off"
-                    width="180px"
+                    width="50%"
                     value={token}
                     onChange={e => setToken(e.target.value)}
                     placeholder="123 456"
                   />
-                  <ButtonLink
-                    width="100%"
-                    kind="secondary"
-                    target="_blank"
-                    size="small"
-                    href="https://support.google.com/accounts/answer/1066447?co=GENIE.Platform%3DiOS&hl=en&oco=0"
-                    rel="noreferrer"
-                  >
-                    Download Google Authenticator
-                  </ButtonLink>
                 </Flex>
               )}
               <ButtonPrimary
@@ -141,7 +131,7 @@ export default function FormInvite(props) {
               )}
             </Box>
             {secondFactorEnabled && (
-              <Box flex="1" bg="primary.main" p="6">
+              <Box flex="1" bg="primary.main" p="6" borderTopRightRadius="3" borderBottomRightRadius="3">
                 <TwoFAData auth2faType={auth2faType} qr={qr} />
               </Box>
             )}

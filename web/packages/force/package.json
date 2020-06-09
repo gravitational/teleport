@@ -27,7 +27,7 @@
     "ts-protoc-gen": "^0.12.0",
     "typescript": "3.7.5",
     "google-protobuf": "^3.11.4",
-    "string-replace-loader": "^2.2.0"
+    "string-replace-loader": "^2.3.0"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",

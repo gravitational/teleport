@@ -14,20 +14,13 @@ limitations under the License.
 import React from 'react';
 import copyToClipboard from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
+import { Text, Box, Flex, LabelInput, ButtonPrimary } from 'design';
 import Dialog, {
   DialogFooter,
   DialogTitle,
   DialogContent,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import {
-  Text,
-  Box,
-  Flex,
-  LabelInput,
-  ButtonSecondary,
-  ButtonPrimary,
-} from 'design';
 
 type ClusterInfoDialogProps = {
   onClose: () => void;
@@ -52,29 +45,29 @@ const ClusterInfoDialog: React.FC<ClusterInfoDialogProps> = ({
         </DialogHeader>
         <DialogContent>
           <LabelInput>Public URL</LabelInput>
-          <BoxUrl url={publicURL} />
-          <TextRow labelText="Cluster Name" infoText={clusterId} />
-          <TextRow labelText="Auth Service Version" infoText={authVersion} />
-          <TextRow labelText="Proxy Service Version" infoText={proxyVersion} />
+          <PublicURL url={publicURL} />
+          <Attribute title="Cluster Name" value={clusterId} />
+          <Attribute title="Auth Service Version" value={authVersion} />
+          <Attribute title="Proxy Service Version" value={proxyVersion} />
         </DialogContent>
         <DialogFooter>
-          <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>
+          <ButtonPrimary onClick={onClose}>Done</ButtonPrimary>
         </DialogFooter>
       </Box>
     </Dialog>
   );
 };
 
-const TextRow = ({ labelText = '', infoText = '' }) => {
-  return (
-    <>
-      <LabelInput>{labelText}</LabelInput>
-      <Text mb={5}>{infoText}</Text>
-    </>
-  );
-};
+const Attribute = ({ title = '', value = null }) => (
+  <Flex mb={3}>
+    <Text typography="body2" bold mr={3}>
+      {title}:
+    </Text>
+    <Text typography="body2">{value}</Text>
+  </Flex>
+);
 
-const BoxUrl = ({ url = '' }) => {
+const PublicURL = ({ url = '' }) => {
   const ref = React.useRef();
   const [copyCmd, setCopyCmd] = React.useState(() => 'Copy');
 

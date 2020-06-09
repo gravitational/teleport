@@ -14,13 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { withState } from 'shared/hooks';
-import { useParties } from 'teleport/console/consoleContextProvider';
-import Tabs from './Tabs';
+import React from 'react';
+import theme from 'design/theme';
+import ThemeProvider from 'design/ThemeProvider';
+import { colors } from '../colors';
 
-export default withState(() => {
-  const storeParties = useParties();
-  return {
-    parties: storeParties.state,
-  };
-})(Tabs);
+const customTheme = {
+  ...theme,
+  colors: {
+    ...theme.colors,
+    primary: {
+      ...theme.colors.primary,
+      ...colors.primary,
+    },
+  },
+};
+
+const NodesThemeProvider = props => (
+  <ThemeProvider theme={customTheme} children={props.children} />
+);
+
+export default NodesThemeProvider;

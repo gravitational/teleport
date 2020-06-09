@@ -38,8 +38,8 @@ const FeatureHeaderTitle = styled(Text)`
 
 FeatureHeaderTitle.defaultProps = {
   ...Text.defaultProps,
-  as: 'h1',
-  typography: 'h1'
+  as: 'h2',
+  typography: 'h2'
 }
 
 /**

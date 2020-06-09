@@ -21,13 +21,7 @@ import { Flex, Box } from 'design';
 
 const Tabs = props => {
   return (
-    <StyledTabs
-      height="40px"
-      color="text.secondary"
-      as="nav"
-      bg="primary.dark"
-      {...props}
-    />
+    <StyledTabs height="40px" color="text.secondary" as="nav" {...props} />
   );
 };
 
@@ -42,6 +36,7 @@ const StyledTabItem = styled(Box)`
   color: inherit;
   align-items: center;
   display: flex;
+  font-size: 11px;
   justify-content: center;
   flex: 1;
 

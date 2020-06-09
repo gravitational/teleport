@@ -34,7 +34,7 @@ export default function CardError(props) {
 }
 
 const Header = props => (
-  <Text typography="h1" mb={3} textAlign="center" children={props.children} />
+  <Text typography="h2" mb={4} textAlign="center" children={props.children} />
 );
 
 const Content = ({ message = '', desc = null }) => {

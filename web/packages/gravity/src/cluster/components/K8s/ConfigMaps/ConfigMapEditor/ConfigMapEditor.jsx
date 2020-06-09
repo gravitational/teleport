@@ -18,16 +18,8 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { endsWith } from 'lodash';
 import * as Alerts from 'design/Alert';
-import Dialog, {
-  DialogContent,
-  DialogHeader,
-} from 'design/Dialog';
-import {
-  Flex,
-  ButtonPrimary,
-  ButtonSecondary,
-  Text,
-} from 'design';
+import Dialog, { DialogContent, DialogHeader } from 'design/Dialog';
+import { Flex, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import Attempt from './Attempt';
 import Tabs from './Tabs';
@@ -151,7 +143,7 @@ function getType(name) {
 }
 
 const dialogCss = () => `
-  height: 80%
+  height: 80%;
   width: calc(100% - 20%);
   max-width: 1400px;
 `;

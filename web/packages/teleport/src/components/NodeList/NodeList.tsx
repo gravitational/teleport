@@ -19,19 +19,16 @@ import styled from 'styled-components';
 import { sortBy } from 'lodash';
 import isMatch from 'design/utils/match';
 import { Flex, Label } from 'design';
-import { borderRadius } from 'design/system';
 import {
-  Table,
   Column,
   SortHeaderCell,
   Cell,
   TextCell,
   SortTypes,
 } from 'design/DataTable';
-import { usePages } from 'design/DataTable/Paged';
+import Table from 'design/DataTable/Paged';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
 import { Node } from 'teleport/services/nodes';
-import Pager, { StyledButtons } from 'design/DataTable/Paged/Pager';
 import InputSearch from 'teleport/components/InputSearch';
 
 function NodeList(props: NodeListProps) {
@@ -67,28 +64,13 @@ function NodeList(props: NodeListProps) {
   }
 
   const data = sortAndFilter(searchValue);
-  const pagging = usePages({ pageSize, data });
 
   return (
     <div style={{ width: '100%' }}>
-      <StyledPanel
-        alignItems="center"
-        borderTopRightRadius="3"
-        borderTopLeftRadius="3"
-        justifyContent="space-between"
-      >
+      <Flex mb={4} alignItems="center" justifyContent="flex-start">
         <InputSearch height="30px" mr="3" onChange={onSearchChange} />
-        {pagging.hasPages && (
-          <Flex alignItems="center" justifyContent="flex-end">
-            <Pager {...pagging} />
-          </Flex>
-        )}
-      </StyledPanel>
-      <StyledTable data={pagging.data}>
-        <Column
-          header={<Cell>Login as</Cell>}
-          cell={<LoginCell onOpen={onLoginMenuOpen} onSelect={onLoginSelect} />}
-        />
+      </Flex>
+      <StyledTable pageSize={pageSize} data={data}>
         <Column
           columnKey="hostname"
           header={
@@ -112,6 +94,10 @@ function NodeList(props: NodeListProps) {
           cell={<AddressCell />}
         />
         <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
+        <Column
+          header={<Cell />}
+          cell={<LoginCell onOpen={onLoginMenuOpen} onSelect={onLoginSelect} />}
+        />
       </StyledTable>
     </div>
   );
@@ -158,8 +144,19 @@ const LoginCell: React.FC<Required<{
   }
 
   return (
-    <Cell>
-      <MenuSshLogin onOpen={handleOnOpen} onSelect={handleOnSelect} />
+    <Cell align="right">
+      <MenuSshLogin
+        onOpen={handleOnOpen}
+        onSelect={handleOnSelect}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        anchorOrigin={{
+          vertical: 'center',
+          horizontal: 'right',
+        }}
+      />
     </Cell>
   );
 };
@@ -191,17 +188,6 @@ function renderTunnel() {
   );
 }
 
-const StyledPanel = styled(Flex)`
-  box-sizing: content-box;
-  padding: 16px;
-  height: 24px;
-  background: ${props => props.theme.colors.primary.light};
-  ${borderRadius}
-  ${StyledButtons} {
-    margin-left: ${props => `${props.theme.space[3]}px`};
-  }
-`;
-
 const StyledTable = styled(Table)`
   & > tbody > tr > td {
     vertical-align: baseline;
@@ -211,7 +197,7 @@ const StyledTable = styled(Table)`
 type NodeListProps = {
   nodes: Node[];
   onLoginMenuOpen: (serverId: string) => { login: string; url: string }[];
-  onLoginSelect?: (
+  onLoginSelect: (
     e: React.SyntheticEvent,
     login: string,
     serverId: string

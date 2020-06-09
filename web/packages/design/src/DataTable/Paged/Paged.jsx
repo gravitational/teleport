@@ -30,10 +30,8 @@ export default function TablePaged(props) {
     data: pagedState.data,
   };
 
-  const showTopPager =
-    pagedState.hasPages && (!pagerPosition || pagerPosition === 'top');
-  const showBottomPager =
-    pagedState.hasPages && (!pagerPosition || pagerPosition === 'bottom');
+  const showTopPager = !pagerPosition || pagerPosition === 'top';
+  const showBottomPager = pagerPosition === 'bottom';
 
   if (showBottomPager) {
     tableProps.borderBottomRightRadius = '0';
@@ -62,7 +60,7 @@ TablePaged.propTypes = {
 };
 
 export const StyledPanel = styled.nav`
-  padding: 16px;
+  padding: 8px 24px;
   display: flex;
   height: 24px;
   flex-shrink: 0;

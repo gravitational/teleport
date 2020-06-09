@@ -17,7 +17,6 @@ limitations under the License.
 import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import { keyBy } from 'lodash';
 import { Sessions } from './Sessions';
 
 type PropTypes = Parameters<typeof Sessions>[0];
@@ -30,7 +29,6 @@ export function Loaded() {
   const props = {
     sessions,
     onRefresh,
-    nodes,
     attempt: {
       isSuccess: true,
       isProcessing: false,
@@ -75,18 +73,3 @@ const sessions = [
     ],
   },
 ];
-
-const nodes = keyBy(
-  [
-    {
-      clusterId: 'localhost',
-      tunnel: false,
-      tags: [],
-      addr: '232.232.323.232',
-      advertiseIp: '10.128.0.6',
-      hostname: 'demo.gravitational.io',
-      id: '10_128_0_6.demo.gravitational.io',
-    },
-  ],
-  'id'
-);

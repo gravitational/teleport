@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,24 +15,12 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Cell } from 'design/DataTable';
-import Icon, * as Icons from 'design/Icon/Icon';
+import * as stores from './stores/types';
 
-export default function TypeCell() {
-  return (
-    <Cell>
-      <StyledEventType>
-        <StyledIcon p="1" bg="bgTerminal" as={Icons.Cli} fontSize="4" />
-      </StyledEventType>
-    </Cell>
-  );
+export default function usePageTitle(doc: stores.Document) {
+  const title =
+    doc && doc.title ? `${doc.clusterId} • ${doc.title}` : 'Console';
+  React.useEffect(() => {
+    document.title = title;
+  }, [title]);
 }
-
-const StyledIcon = styled(Icon)`
-  border-radius: 50%;
-`;
-
-const StyledEventType = styled.div`
-  width: 0;
-`;

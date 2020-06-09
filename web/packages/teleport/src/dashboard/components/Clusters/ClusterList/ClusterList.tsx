@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 import isMatch from 'design/utils/match';
 import history from 'teleport/services/history';
@@ -28,14 +29,8 @@ import {
   Column,
   SortTypes,
 } from 'design/DataTable';
-import {
-  usePages,
-  Pager,
-  StyledPanel,
-  StyledButtons,
-} from 'design/DataTable/Paged';
-import { Flex, ButtonSecondary, Text } from 'design';
-import { NavLink } from 'shared/components/Router';
+import { usePages, Pager, StyledPanel } from 'design/DataTable/Paged';
+import { ButtonBorder } from 'design';
 import * as Labels from 'design/Label';
 import cfg from 'teleport/config';
 
@@ -77,17 +72,22 @@ export default function ClustersList(props: ClusterListProps) {
     }
   }
 
+  // add empty rows for decorative purposes
+  if (filtered.length === clusters.length) {
+    for (let i = paged.data.length; i < 5; i++) {
+      paged.data.push({});
+    }
+  }
+
   return (
     <>
-      <Panel
+      <StyledPanel
         borderTopRightRadius="3"
         borderTopLeftRadius="3"
         justifyContent="space-between"
       >
-        <Flex alignItems="center" justifyContent="space-between" flex="1">
-          <Pager {...paged} />
-        </Flex>
-      </Panel>
+        <Pager {...paged} />
+      </StyledPanel>
       <ClusterTable data={paged.data} onClick={onTableRowClick}>
         <Column
           header={<Cell style={{ width: '40px' }} />}
@@ -188,7 +188,7 @@ export function NameCell(props) {
   const { clusterId } = data[rowIndex];
   return (
     <Cell>
-      <Text typography="h6">{clusterId}</Text>
+      <strong>{clusterId}</strong>
     </Cell>
   );
 }
@@ -202,16 +202,18 @@ function RootLabelCell(props) {
 
 function ActionCell(props) {
   const { rowIndex, data } = props;
-  const { url } = data[rowIndex];
+  const { clusterId } = data[rowIndex];
+
+  if (!clusterId) {
+    return <Cell />;
+  }
+
+  const url = cfg.getClusterRoute(clusterId);
   return (
     <Cell align="right">
-      <ButtonSecondary
-        as={NavLink}
-        to={url}
-        size="small"
-        width="90px"
-        children="view"
-      />
+      <ButtonBorder as={NavLink} to={url} size="small">
+        View
+      </ButtonBorder>
     </Cell>
   );
 }
@@ -228,14 +230,18 @@ type ClusterListProps = {
 };
 
 const ClusterTable = styled(Table)`
-  tr:hover {
-    cursor: pointer;
-    background-color: rgba(0, 0, 0, 0.075);
+  td {
+    padding 4px 24px !important;
+    height: 22px;
   }
-`;
 
-const Panel = styled(StyledPanel)`
-  ${StyledButtons} {
-    margin-left: ${props => `${props.theme.space[3]}px`};
+  tbody tr {
+    border-bottom: 1px solid ${props => props.theme.colors.primary.main};
+  }
+
+  tbody tr:hover {
+    cursor: pointer;
+    background-color: ${props => props.theme.colors.primary.lighter};
+    border-bottom: 1px solid ${props => props.theme.colors.primary.lighter};
   }
 `;

@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Flex } from 'design';
+import { colors } from '../colors';
 
 const Document: React.FC<{ visible: boolean; [x: string]: any }> = ({
   visible,
@@ -26,6 +27,7 @@ const Document: React.FC<{ visible: boolean; [x: string]: any }> = ({
     flex="1"
     style={{
       overflow: 'auto',
+      background: colors.bgTerminal,
       display: visible ? 'flex' : 'none',
       position: 'relative',
     }}

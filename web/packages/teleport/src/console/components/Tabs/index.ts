@@ -14,16 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import ButtonOutlinedDefault, { OutlinedPrimary } from './ButtonOutlined';
+import Tabs from './Tabs';
 
-export default {
-  title: 'Design/Button',
-};
-
-export const Outlines = () => (
-  <>
-    <ButtonOutlinedDefault mr={3}>Default</ButtonOutlinedDefault>
-    <OutlinedPrimary>Primary</OutlinedPrimary>
-  </>
-);
+export default Tabs;

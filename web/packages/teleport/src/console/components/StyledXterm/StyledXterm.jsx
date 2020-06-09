@@ -19,7 +19,8 @@ import { Box } from 'design';
 import 'xterm/dist/xterm.css';
 import { colors } from 'teleport/console/components/colors';
 
-const StyledXterm = styled(Box)`
+const StyledXterm = styled(Box)(
+  props => `
   height: 100%;
   width: 100%;
   font-size: 14px;
@@ -27,7 +28,7 @@ const StyledXterm = styled(Box)`
   overflow: auto;
   background-color: ${colors.bgTerminal};
   .terminal {
-    font-family: ${props => props.theme.fonts.mono};
+    font-family: ${props.theme.fonts.mono};
     border: none;
     font-size: inherit;
     line-height: normal;
@@ -35,11 +36,15 @@ const StyledXterm = styled(Box)`
   }
   .terminal .xterm-viewport {
     background-color: ${colors.bgTerminal};
-    overflow-y: hidden;
   }
+
   .terminal * {
     font-weight: normal !important;
   }
-`;
+
+}
+
+`
+);
 
 export default StyledXterm;

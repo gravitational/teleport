@@ -43,6 +43,6 @@ test('button clicks', async () => {
   await wait(() => fireEvent.click(getByText(/copy/i)));
   expect(queryByText(/copied/i)).not.toBeNull();
 
-  fireEvent.click(getByText(/close/i));
+  fireEvent.click(getByText(/done/i));
   expect(onClose).toHaveBeenCalledTimes(1);
 });

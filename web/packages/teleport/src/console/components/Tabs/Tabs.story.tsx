@@ -26,10 +26,13 @@ export const ConsoleTabs = () => (
   <TestLayout>
     <Tabs
       width="100%"
-      height="36px"
+      height="32px"
       activeTab={35}
       items={items}
       parties={parties}
+      disableNew={false}
+      onNew={() => null}
+      onSelect={() => null}
     />
   </TestLayout>
 );
@@ -49,18 +52,24 @@ const items = [
     id: 35,
     title: 'tuguwog',
     type: 'terminal',
-    sid: '15',
-  },
+    kind: 'nodes',
+    url: 'localhost',
+    created: new Date('2019-05-13T20:18:09Z'),
+  } as const,
   {
     id: 22,
     title: 'emwonepu',
     type: 'terminal',
-    sid: '16',
-  },
+    kind: 'nodes',
+    url: 'localhost',
+    created: new Date('2019-05-13T20:18:09Z'),
+  } as const,
   {
     id: 23,
     title: 'foguzaziw',
     type: 'terminal',
-    sid: '27',
-  },
+    kind: 'nodes',
+    url: 'localhost',
+    created: new Date('2019-05-13T20:18:09Z'),
+  } as const,
 ];

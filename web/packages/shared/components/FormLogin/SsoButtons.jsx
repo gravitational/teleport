@@ -30,7 +30,7 @@ const SsoBtnList = ({ providers, prefixText, isDisabled, onClick }) => {
         title={title}
         ssoType={ssoType}
         disabled={isDisabled}
-        mt={5}
+        mt={3}
         onClick={e => {
           e.preventDefault();
           onClick(item);

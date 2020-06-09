@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Router, Route } from 'shared/components/Router';
+import { Flex } from 'design';
 import PlayerComponent from './Player';
 import { createMemoryHistory } from 'history';
 
@@ -31,9 +32,11 @@ export const Player = () => {
 
   return (
     <Router history={history}>
-      <Route path="/web/cluster/:clusterId/session/:sid">
-        <PlayerComponent />
-      </Route>
+      <Flex m={-3}>
+        <Route path="/web/cluster/:clusterId/session/:sid">
+          <PlayerComponent />
+        </Route>
+      </Flex>
     </Router>
   );
 };

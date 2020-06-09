@@ -18,8 +18,12 @@ import React from 'react';
 import CardSuccess, { CardSuccessLogin } from './index';
 
 export default {
-  title: 'Design/Card',
+  title: 'Design/CardSuccess',
 };
 
-export const Success = () => <CardSuccess />;
-export const SuccessfulLogin = () => <CardSuccessLogin />;
+export const Cards = () => (
+  <>
+    <CardSuccess />
+    <CardSuccessLogin />
+  </>
+);

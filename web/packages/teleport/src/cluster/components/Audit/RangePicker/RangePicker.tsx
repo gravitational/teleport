@@ -16,10 +16,9 @@ limitations under the License.
 
 import React from 'react';
 import moment from 'moment';
-import styled from 'styled-components';
 import 'react-day-picker/lib/style.css';
-import { Box, ButtonOutlined } from 'design';
-import Icon, { CarrotDown } from 'design/Icon';
+import { ButtonOutlined } from 'design';
+import { CarrotDown } from 'design/Icon';
 import Menu, { MenuItem } from 'design/Menu';
 import Dialog from 'design/DialogConfirmation';
 import { displayDate } from 'shared/services/loc';
@@ -64,22 +63,22 @@ export default function DataRange(props) {
 
   return (
     <>
-      <DropDownButton
+      <ButtonOutlined
         size="small"
-        width="180px"
+        width="auto"
         disabled={disabled}
         ml={ml}
         setRef={anchorEl}
         onClick={onOpenMenu}
       >
-        <Box mr="2">{btnText}</Box>
-        <CarrotDown position="absolute" fontSize="3" color="text.onDark" />
-      </DropDownButton>
+        {btnText}
+        <CarrotDown ml={2} mr={-2} fontSize="2" color="text.primary" />
+      </ButtonOutlined>
       <Menu
         anchorEl={anchorEl.current}
         open={isMenuOpen}
         onClose={onCloseMenu}
-        menuListCss={menuListCss}
+        menuListCss={() => ({ width: '200px' })}
       >
         {renderOptions(options, onMenuClick)}
       </Menu>
@@ -89,7 +88,12 @@ export default function DataRange(props) {
         onClose={onClosePicker}
         open={isPickerOpen}
       >
-        <CustomRange from={from} to={to} onChange={onSetRange} />
+        <CustomRange
+          from={from}
+          to={to}
+          onChange={onSetRange}
+          onClosePicker={onClosePicker}
+        />
       </Dialog>
     </>
   );
@@ -102,10 +106,6 @@ function renderOptions(options, onClick) {
     </MenuItem>
   ));
 }
-
-const menuListCss = () => `
-  width: 200px;
-`;
 
 export function getRangeOptions() {
   return [
@@ -136,12 +136,3 @@ export function getRangeOptions() {
     },
   ];
 }
-
-const DropDownButton = styled(ButtonOutlined)`
-  position: relative;
-  ${Icon} {
-    position: absolute;
-    right: 16px;
-    top: 6px;
-  }
-`;

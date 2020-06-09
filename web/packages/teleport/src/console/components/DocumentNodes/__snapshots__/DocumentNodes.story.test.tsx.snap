@@ -3,85 +3,96 @@
 exports[`render DocumentNodes 1`] = `
 .c4 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  margin-right: 16px;
-}
-
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
   width: 400px;
 }
 
-.c15 {
+.c8 {
+  box-sizing: border-box;
+  margin-right: 16px;
+}
+
+.c21 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #01172C;
+  border: 1px solid #010B1C;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  height: 24px;
+}
+
+.c21:active {
+  opacity: 0.56;
+}
+
+.c21:hover,
+.c21:focus {
+  background: #01172C;
+  opacity: 1;
+}
+
+.c21:active {
+  opacity: 0.24;
+}
+
+.c21:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c16 {
   display: inline-block;
-  -webkit-transition: color .3s;
+  transition: color .3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c19 {
+  display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c6 {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  box-sizing: border-box;
-  border: none;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 12px 16px;
-  outline: none;
-  width: 100%;
-  color: rgba(255,255,255,0.87);
-  background-color: #0C143D;
-  width: 240px;
-  height: 34px;
+.c22 {
+  display: inline-block;
+  transition: color .3s;
+  margin-left: 8px;
+  margin-right: -8px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
 }
 
-.c6::-ms-clear {
-  display: none;
-}
-
-.c6::-webkit-input-placeholder {
-  opacity: 0.24;
-}
-
-.c6::-moz-placeholder {
-  opacity: 0.24;
-}
-
-.c6:-ms-input-placeholder {
-  opacity: 0.24;
-}
-
-.c6::placeholder {
-  opacity: 0.24;
-}
-
-.c21 {
+.c20 {
   box-sizing: border-box;
   border-radius: 100px;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
+  min-height: 16px;
   font-size: 10px;
   font-weight: 500;
-  min-height: 24px;
-  padding: 2px 12px;
+  padding: 0 8px;
   text-transform: uppercase;
-  line-height: 1.43;
-  background-color: #0C143D;
+  background-color: #010B1C;
   color: rgba(255,255,255,0.87);
   margin-bottom: 4px;
   margin-right: 4px;
@@ -97,63 +108,61 @@ exports[`render DocumentNodes 1`] = `
   margin-bottom: 4px;
 }
 
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
   margin: -16px;
   height: 100%;
   width: 100%;
   background-color: #010B1C;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
 }
 
 .c1 {
   box-sizing: border-box;
-  -webkit-flex: 1;
-  -ms-flex: 1;
   flex: 1;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
 }
 
 .c2 {
   box-sizing: border-box;
   max-width: 1024px;
-  margin-top: 56px;
+  margin-top: 24px;
   margin-left: auto;
   margin-right: auto;
   padding-left: 32px;
   padding-right: 32px;
-  -webkit-flex: 1;
-  -ms-flex: 1;
   flex: 1;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex-direction: column;
-  -ms-flex-direction: column;
   flex-direction: column;
 }
 
 .c3 {
   box-sizing: border-box;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
+  margin-bottom: 24px;
   display: flex;
-  -webkit-box-pack: justify;
-  -webkit-justify-content: space-between;
-  -ms-flex-pack: justify;
   justify-content: space-between;
 }
 
-.c13 {
-  background: #222C59;
+.c10 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.c17 {
+  background: #01172C;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
@@ -162,181 +171,177 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
 }
 
-.c13 > thead > tr > th,
-.c13 > tbody > tr > th,
-.c13 > tfoot > tr > th,
-.c13 > thead > tr > td,
-.c13 > tbody > tr > td,
-.c13 > tfoot > tr > td {
-  padding: 16px;
+.c17 > thead > tr > th,
+.c17 > tbody > tr > th,
+.c17 > tfoot > tr > th,
+.c17 > thead > tr > td,
+.c17 > tbody > tr > td,
+.c17 > tfoot > tr > td {
+  padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c13 > thead > tr > th {
-  background: #1B234A;
+.c17 > thead > tr > th:first-child,
+.c17 > tbody > tr > th:first-child,
+.c17 > tfoot > tr > th:first-child,
+.c17 > thead > tr > td:first-child,
+.c17 > tbody > tr > td:first-child,
+.c17 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c17 > thead > tr > th:last-child,
+.c17 > tbody > tr > th:last-child,
+.c17 > tfoot > tr > th:last-child,
+.c17 > thead > tr > td:last-child,
+.c17 > tbody > tr > td:last-child,
+.c17 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c17 > thead > tr > th {
+  background: #010B1C;
   color: rgba(255,255,255,0.56);
   cursor: pointer;
   font-size: 10px;
-  font-weight: 600;
-  padding: 4px 16px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
   text-align: left;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.c13 > thead > tr > th .c14 {
+.c17 > thead > tr > th .c15 {
   font-weight: bold;
+  font-size: 8px;
   margin-left: 8px;
 }
 
-.c18 {
-  opacity: 0.87;
+.c17 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
 }
 
-.c20 {
-  opacity: 0.24;
-}
-
-.c16 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
-  display: flex;
-  -webkit-box-pack: justify;
-  -webkit-justify-content: space-between;
-  -ms-flex-pack: justify;
-  justify-content: space-between;
-  outline-style: none;
-  outline-width: 0px;
-  -webkit-appearance: none;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  background: #010B1C;
-  border: 1px solid #010B1C;
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 0 2px rgba(0,0,0,0.12),0 2px 2px rgba(0,0,0,0.24);
-  color: [object Object];
+.c14 button {
+  background: none;
+  border: none;
+  border-radius: 200px;
   cursor: pointer;
-  height: 24px;
-  width: 56px;
-  -webkit-transition: all 0.3s;
-  transition: all 0.3s;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.c16 > * {
-  -webkit-transition: all 0.3s;
-  transition: all 0.3s;
-}
-
-.c16:focus {
+  padding: 0;
+  margin: 0 0 0 8px;
   outline: none;
+  transition: all 0.3s;
+  text-align: center;
 }
 
-.c16::-moz-focus-inner {
-  border: 0;
+.c14 button:hover {
+  background: #010B1C;
 }
 
-.c16:hover,
-.c16:focus {
-  border: 1px solid #00bfa5;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
-}
-
-.c16:hover .c17,
-.c16:focus .c17 {
+.c14 button:hover .c15 {
   opacity: 1;
 }
 
-.c16:hover .c19,
-.c16:focus .c19 {
-  opacity: 0.56;
+.c14 button .c15 {
+  opacity: 0.4;
+  font-size: 20px;
+  transition: all 0.3s;
+}
+
+.c12 {
+  padding: 8px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #01172C;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
 }
 
 .c11 {
   box-sizing: border-box;
+  font-size: 12px;
   min-width: 200px;
   outline: none;
   border: none;
   border-radius: 200px;
-  height: 40px;
+  height: 32px;
+  transition: all .2s;
+  background: #01172C;
   margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
   color: rgba(255,255,255,0.87);
-  background-color: #0C143D;
   height: 30px;
+}
+
+.c11:hover {
+  background: #01172C;
 }
 
 .c11:focus,
 .c11:active {
   background: #FFFFFF;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  color: rgba(0,0,0,0.87);
-}
-
-.c11::-webkit-input-placeholder {
-  color: #eceff1;
-  font-size: 12px;
-}
-
-.c11::-moz-placeholder {
-  color: #eceff1;
-  font-size: 12px;
-}
-
-.c11:-ms-input-placeholder {
-  color: #eceff1;
-  font-size: 12px;
+  color: #324148;
 }
 
 .c11::placeholder {
-  color: #eceff1;
+  color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
 
-.c10 {
-  box-sizing: border-box;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
-  display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  -webkit-box-pack: justify;
-  -webkit-justify-content: space-between;
-  -ms-flex-pack: justify;
-  justify-content: space-between;
-  box-sizing: content-box;
-  padding: 16px;
-  height: 24px;
-  background: #222C59;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-}
-
-.c10 .c22 {
-  margin-left: 16px;
-}
-
-.c12 > tbody > tr > td {
+.c18 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c9 .react-select__control,
-.c9 .react-select__control--is-focused {
+.c9 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: rgba(255,255,255,0.87);
+  background-color: #01172C;
+  width: 240px;
+  height: 34px;
+  background: #01172C;
+  border: 1px solid rgba(255,255,255,0.56);
+  font-size: 14px;
+  font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+}
+
+.c9::-ms-clear {
+  display: none;
+}
+
+.c9::placeholder {
+  opacity: 0.4;
+}
+
+.c9:hover {
+  background: #01172C;
+}
+
+.c9::placeholder {
+  font-size: 14px;
+}
+
+.c7 .react-select__control,
+.c7 .react-select__control--is-focused {
   min-height: 40px;
 }
 
-.c9 .react-select-container {
+.c7 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   border: none;
@@ -350,19 +355,19 @@ exports[`render DocumentNodes 1`] = `
   border-radius: 4px;
 }
 
-.c9 .react-select__menu {
+.c7 .react-select__menu {
   margin-top: 0px;
 }
 
-.c9 .react-select__indicator-separator {
+.c7 .react-select__indicator-separator {
   display: none;
 }
 
-.c9 .react-select__control:hover {
+.c7 .react-select__control:hover {
   border-color: transparent;
 }
 
-.c9 .react-select__control--is-focused {
+.c7 .react-select__control--is-focused {
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -371,33 +376,45 @@ exports[`render DocumentNodes 1`] = `
   box-shadow: none;
 }
 
-.c9 .react-select__option--is-selected {
+.c7 .react-select__option--is-selected {
   background-color: #cfd8dc;
   color: inherit;
 }
 
-.c8 {
+.c6 {
   box-sizing: border-box;
 }
 
-.c8 .react-select__control,
-.c8 .react-select__control--is-focused {
-  min-height: 40px;
+.c6 .react-select__control,
+.c6 .react-select__control--is-focused {
+  height: 34px;
+  min-height: 34px;
 }
 
-.c8 .react-select__menu {
+.c6 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c6 .react-select__option--is-focused,
+.c6 .react-select__option--is-focused:active {
+  background-color: #90a4ae;
+}
+
+.c6 .react-select__menu {
   margin-top: 0px;
+  font-size: 14px;
 }
 
-.c8 .react-select-container {
-  background-color: transparent;
-}
-
-.c8 .react-select__indicator-separator {
+.c6 .react-select__indicator-separator {
   display: none;
 }
 
-.c8 .react-select__control--is-focused {
+.c6 .react-select__value-container {
+  height: 30px;
+  padding: 0 8px;
+}
+
+.c6 .react-select__control--is-focused {
   background-color: white;
   border-color: transparent;
   border-radius: 4px;
@@ -407,49 +424,61 @@ exports[`render DocumentNodes 1`] = `
   border-color: rgba(255,255,255,0.87);
 }
 
-.c8 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.87);
-}
-
-.c8 .react-select__option--is-selected {
-  background-color: #cfd8dc;
-  color: inherit;
-}
-
-.c8 .react-select__single-value {
-  color: white;
-}
-
-.c8 .react-select__dropdown-indicator {
-  color: #0C143D;
-}
-
-.c8 .react-select__input {
-  color: white;
-  font-size: 16px;
-}
-
-.c8 .react-select__control {
-  border-radius: 4px;
-  border-color: #0C143D;
-  background-color: #1B234A;
+.c6 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.56);
 }
 
-.c8 .react-select__control:hover {
-  border-color: rgba(255,255,255,0.87);
-}
-
-.c8 .react-select__control:hover .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.87);
-}
-
-.c8 .react-select__option--is-selected {
+.c6 .react-select__option--is-selected {
   background-color: #cfd8dc;
   color: inherit;
 }
 
-.c8 .react-select__menu {
+.c6 .react-select__single-value {
+  padding: 0 4px !important;
+  margin: 0 !important;
+  color: white;
+  font-size: 14px;
+}
+
+.c6 .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c6 input {
+  font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+  font-size: 14px;
+  height: 26px;
+}
+
+.c6 .react-select__input {
+  color: white;
+  height: 20px;
+  font-size: 14px;
+  font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+}
+
+.c6 .react-select__control {
+  border-radius: 4px;
+  border-color: rgba(255,255,255,0.56);
+  background-color: #01172C;
+  color: rgba(255,255,255,0.56);
+}
+
+.c6 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.87);
+}
+
+.c6 .react-select__control:hover .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.87);
+}
+
+.c6 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c6 .react-select__menu {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -462,7 +491,7 @@ exports[`render DocumentNodes 1`] = `
 >
   <div
     class="c1"
-    style="overflow: auto; display: flex; position: relative;"
+    style="overflow: auto; background: rgb(1, 11, 28); display: flex; position: relative;"
   >
     <div
       class="c2"
@@ -472,23 +501,6 @@ exports[`render DocumentNodes 1`] = `
       >
         <div
           class="c4"
-        >
-          <label
-            class="c5"
-            font-size="0"
-          >
-            Quick Launch
-          </label>
-          <input
-            class="c6"
-            color="text.primary"
-            height="34px"
-            placeholder="login@host"
-            width="240px"
-          />
-        </div>
-        <div
-          class="c7"
           width="400px"
         >
           <label
@@ -498,10 +510,10 @@ exports[`render DocumentNodes 1`] = `
              Clusters 
           </label>
           <div
-            class="c8"
+            class="c6"
           >
             <div
-              class="c9"
+              class="c7"
             >
               <div
                 class="react-select-container css-2b097c-container"
@@ -537,7 +549,7 @@ exports[`render DocumentNodes 1`] = `
                           value=""
                         />
                         <div
-                          style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
+                          style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-size: 14px; font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,\\"Segoe UI\\",Helvetica,Arial,sans-serif,\\"Apple Color Emoji\\",\\"Segoe UI Emoji\\",\\"Segoe UI Symbol\\"; letter-spacing: normal; text-transform: none;"
                         />
                       </div>
                     </div>
@@ -571,6 +583,23 @@ exports[`render DocumentNodes 1`] = `
             </div>
           </div>
         </div>
+        <div
+          class="c8"
+        >
+          <label
+            class="c5"
+            font-size="0"
+          >
+            Quick Launch
+          </label>
+          <input
+            class="sc-fzozJi c9"
+            color="text.primary"
+            height="34px"
+            placeholder="login@host"
+            width="240px"
+          />
+        </div>
       </div>
       <div
         style="width: 100%;"
@@ -586,254 +615,310 @@ exports[`render DocumentNodes 1`] = `
             value=""
           />
         </div>
-        <table
-          class="c12 c13"
-        >
-          <thead>
-            <tr>
-              <th>
-                Login as
-              </th>
-              <th>
-                <a>
-                  Hostname
-                  <span
-                    class="icon icon-chevron-up  c14 c15"
-                    color="light"
-                  />
-                </a>
-              </th>
-              <th>
-                <a>
-                  Address
-                  <span
-                    class="icon icon-chevrons-expand-vertical  c14 c15"
-                    color="light"
-                  />
-                </a>
-              </th>
-              <th>
-                Labels
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>
-                <button
-                  class="c16"
-                >
-                  <div
-                    class="icon icon-terminal  c14 c15 c17 c18"
-                    color="light"
-                  />
-                  <div
-                    class="icon icon-caret-down  c14 c15 c19 c20"
-                    color="light"
-                  />
-                </button>
-              </td>
-              <td>
-                zebpecda
-              </td>
-              <td>
-                172.10.1.24:3022
-              </td>
-              <td>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  cluster: one
-                </div>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  kernel: 4.15.0-51-generic
-                </div>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  lortavma: one
-                </div>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  lenisret: 4.15.0-51-generic
-                </div>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  lofdevod: one
-                </div>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  llhurlaz: 4.15.0-51-generic
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <button
-                  class="c16"
-                >
-                  <div
-                    class="icon icon-terminal  c14 c15 c17 c18"
-                    color="light"
-                  />
-                  <div
-                    class="icon icon-caret-down  c14 c15 c19 c20"
-                    color="light"
-                  />
-                </button>
-              </td>
-              <td>
-                kuhinur
-              </td>
-              <td>
+        <div>
+          <nav
+            class="c12"
+          >
+            <div
+              class="c13"
+              color="primary.contrastText"
+            >
+              SHOWING 
+              <strong>
+                1
+              </strong>
+               to 
+              <strong>
+                5
+              </strong>
+               of
+               
+              <strong>
+                5
+              </strong>
+            </div>
+            <div
+              class="c14"
+            >
+              <button
+                disabled=""
+                title="Previous Page"
+              >
                 <span
-                  style="cursor: default;"
-                  title="This node is connected to cluster through reverse tunnel"
-                >
-                  ⟵ tunnel
-                </span>
-              </td>
-              <td>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  cluster: one
-                </div>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  kernel: 4.15.0-51-generic
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <button
-                  class="c16"
-                >
-                  <div
-                    class="icon icon-terminal  c14 c15 c17 c18"
-                    color="light"
-                  />
-                  <div
-                    class="icon icon-caret-down  c14 c15 c19 c20"
-                    color="light"
-                  />
-                </button>
-              </td>
-              <td>
-                fujedu
-              </td>
-              <td>
-                172.10.1.20:3022
-              </td>
-              <td>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  cluster: one
-                </div>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  kernel: 4.15.0-51-generic
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <button
-                  class="c16"
-                >
-                  <div
-                    class="icon icon-terminal  c14 c15 c17 c18"
-                    color="light"
-                  />
-                  <div
-                    class="icon icon-caret-down  c14 c15 c19 c20"
-                    color="light"
-                  />
-                </button>
-              </td>
-              <td>
-                facuzguv
-              </td>
-              <td>
-                172.10.1.42:3022
-              </td>
-              <td>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  cluster: one
-                </div>
-                <div
-                  class="c21"
-                  kind="secondary"
-                >
-                  kernel: 4.15.0-51-generic
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <button
-                  class="c16"
-                >
-                  <div
-                    class="icon icon-terminal  c14 c15 c17 c18"
-                    color="light"
-                  />
-                  <div
-                    class="icon icon-caret-down  c14 c15 c19 c20"
-                    color="light"
-                  />
-                </button>
-              </td>
-              <td>
-                duzsevkig
-              </td>
-              <td>
+                  class="c15 c16 icon icon-arrow-left-circle "
+                  color="light"
+                  font-size="3"
+                />
+              </button>
+              <button
+                disabled=""
+                title="Next Page"
+              >
                 <span
-                  style="cursor: default;"
-                  title="This node is connected to cluster through reverse tunnel"
+                  class="c15 c16 icon icon-arrow-right-circle "
+                  color="light"
+                  font-size="3"
+                />
+              </button>
+            </div>
+          </nav>
+          <table
+            class="c17 c18"
+          >
+            <thead>
+              <tr>
+                <th>
+                  <a>
+                    Hostname
+                    <span
+                      class="c15 c19 icon icon-chevron-up "
+                      color="light"
+                    />
+                  </a>
+                </th>
+                <th>
+                  <a>
+                    Address
+                    <span
+                      class="c15 c19 icon icon-chevrons-expand-vertical "
+                      color="light"
+                    />
+                  </a>
+                </th>
+                <th>
+                  Labels
+                </th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  zebpecda
+                </td>
+                <td>
+                  172.10.1.24:3022
+                </td>
+                <td>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    cluster: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    kernel: 4.15.0-51-generic
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    lortavma: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    lenisret: 4.15.0-51-generic
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    lofdevod: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    llhurlaz: 4.15.0-51-generic
+                  </div>
+                </td>
+                <td
+                  align="right"
                 >
-                  ⟵ tunnel
-                </span>
-              </td>
-              <td>
-                <div
-                  class="c21"
-                  kind="secondary"
+                  <button
+                    class="c21"
+                    height="24px"
+                    kind="border"
+                  >
+                    CONNECT
+                    <span
+                      class="c15 c22 icon icon-caret-down "
+                      color="text.secondary"
+                      font-size="2"
+                    />
+                  </button>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  kuhinur
+                </td>
+                <td>
+                  <span
+                    style="cursor: default;"
+                    title="This node is connected to cluster through reverse tunnel"
+                  >
+                    ⟵ tunnel
+                  </span>
+                </td>
+                <td>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    cluster: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    kernel: 4.15.0-51-generic
+                  </div>
+                </td>
+                <td
+                  align="right"
                 >
-                  cluster: one
-                </div>
-                <div
-                  class="c21"
-                  kind="secondary"
+                  <button
+                    class="c21"
+                    height="24px"
+                    kind="border"
+                  >
+                    CONNECT
+                    <span
+                      class="c15 c22 icon icon-caret-down "
+                      color="text.secondary"
+                      font-size="2"
+                    />
+                  </button>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  fujedu
+                </td>
+                <td>
+                  172.10.1.20:3022
+                </td>
+                <td>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    cluster: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    kernel: 4.15.0-51-generic
+                  </div>
+                </td>
+                <td
+                  align="right"
                 >
-                  kernel: 4.15.0-51-generic
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  <button
+                    class="c21"
+                    height="24px"
+                    kind="border"
+                  >
+                    CONNECT
+                    <span
+                      class="c15 c22 icon icon-caret-down "
+                      color="text.secondary"
+                      font-size="2"
+                    />
+                  </button>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  facuzguv
+                </td>
+                <td>
+                  172.10.1.42:3022
+                </td>
+                <td>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    cluster: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    kernel: 4.15.0-51-generic
+                  </div>
+                </td>
+                <td
+                  align="right"
+                >
+                  <button
+                    class="c21"
+                    height="24px"
+                    kind="border"
+                  >
+                    CONNECT
+                    <span
+                      class="c15 c22 icon icon-caret-down "
+                      color="text.secondary"
+                      font-size="2"
+                    />
+                  </button>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  duzsevkig
+                </td>
+                <td>
+                  <span
+                    style="cursor: default;"
+                    title="This node is connected to cluster through reverse tunnel"
+                  >
+                    ⟵ tunnel
+                  </span>
+                </td>
+                <td>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    cluster: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    kernel: 4.15.0-51-generic
+                  </div>
+                </td>
+                <td
+                  align="right"
+                >
+                  <button
+                    class="c21"
+                    height="24px"
+                    kind="border"
+                  >
+                    CONNECT
+                    <span
+                      class="c15 c22 icon icon-caret-down "
+                      color="text.secondary"
+                      font-size="2"
+                    />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
