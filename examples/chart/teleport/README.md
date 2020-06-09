@@ -99,9 +99,9 @@ $ tsh login --auth=local --user=$USER login
 ```
 
 
-## Configuring High Availability and Multiple Replicas
+## Configuring High Availability
 
-Running multiple instances of the Authentication Services requires using a high availability storage configuration.  The [documentation](https://gravitational.com/teleport/docs/admin-guide/#high-availability) provides detailed examples on AWS, ETCD and GCP options. Here we provide detailed steps for a AWS example configuration.
+Running multiple instances of the Authentication Services requires using a high availability storage configuration.  The [documentation](https://gravitational.com/teleport/docs/admin-guide/#high-availability) provides detailed examples on AWS, ETCD and GCP options. Here we provide detailed steps for an AWS example configuration.
 
 ### Prerequisites
  - Available AWS credentials (/home/<user>/.aws/credentials)
