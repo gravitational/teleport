@@ -1,5 +1,5 @@
 import React from 'react';
-import MenuAction, { MenuItem } from 'shared/components/ActionMenu';
+import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 
 class RoleMenuAction extends React.Component {
   onEdit = () => {
@@ -12,10 +12,10 @@ class RoleMenuAction extends React.Component {
 
   render() {
     return (
-      <MenuAction>
+      <MenuIcon>
         <MenuItem onClick={this.onEdit}>Edit...</MenuItem>
         <MenuItem onClick={this.onDelete}>Delete...</MenuItem>
-      </MenuAction>
+      </MenuIcon>
     );
   }
 }

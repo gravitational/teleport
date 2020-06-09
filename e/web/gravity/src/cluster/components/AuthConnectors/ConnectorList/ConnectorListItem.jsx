@@ -1,10 +1,19 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Text, Flex, ButtonPrimary } from 'design';
-import ActionMenu, { MenuItem } from 'gravity/cluster/components/components/ActionMenu';
+import ActionMenu, {
+  MenuItem,
+} from 'gravity/cluster/components/components/ActionMenu';
 import getSsoIcon from './../getSsoIcon';
 
-export default function ConnectorListItem({ name, kind, id, onEdit, onDelete, ...rest }) {
+export default function ConnectorListItem({
+  name,
+  kind,
+  id,
+  onEdit,
+  onDelete,
+  ...rest
+}) {
   const onClickEdit = () => onEdit(id);
   const onClickDelete = () => onDelete(id);
   const { desc, SsoIcon } = getSsoIcon(kind);
@@ -31,7 +40,13 @@ export default function ConnectorListItem({ name, kind, id, onEdit, onDelete, ..
           <MenuItem onClick={onClickDelete}>Delete...</MenuItem>
         </ActionMenu>
       </Flex>
-      <Flex flex="1" mb="3" alignItems="center" justifyContent="center" flexDirection="column">
+      <Flex
+        flex="1"
+        mb="3"
+        alignItems="center"
+        justifyContent="center"
+        flexDirection="column"
+      >
         <SsoIcon height="100px" width="160px" fontSize="100px" my={2} />
         <Text typography="body2" color="text.primary">
           {desc}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Cell } from 'design/DataTable';
-import MenuAction, { MenuItem } from 'shared/components/ActionMenu';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 export const RoleNameCell = ({ rowIndex, data }) => {
   const { displayName } = data[rowIndex];
@@ -13,12 +13,12 @@ export const ActionCell = ({ rowIndex, onEdit, onDelete, data }) => {
   const onEditClick = () => onEdit(id);
   return (
     <Cell align="right">
-      <MenuAction>
+      <MenuButton>
         <MenuItem onClick={onEditClick}>Edit...</MenuItem>
         <MenuItem disabled={owner} onClick={onDeleteClick}>
           Delete...
         </MenuItem>
-      </MenuAction>
+      </MenuButton>
     </Cell>
   );
 };

@@ -22,7 +22,7 @@ export default function DeleteConnectorDialog(props) {
       <Box width="540px">
         {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
         <DialogContent>
-          <Text typography="h2">Remove Connector?</Text>
+          <Text typography="h3">Remove Connector?</Text>
           <Text typography="paragraph" mt="2" mb="6">
             Are you sure you want to delete connector{' '}
             <Text as="span" bold color="primary.contrastText">
@@ -33,7 +33,7 @@ export default function DeleteConnectorDialog(props) {
         </DialogContent>
         <DialogFooter>
           <ButtonWarning mr="3" disabled={isDisabled} onClick={onOk}>
-            DELETE
+            Yes, Remove Connector
           </ButtonWarning>
           <ButtonSecondary disabled={isDisabled} onClick={onClose}>
             Cancel

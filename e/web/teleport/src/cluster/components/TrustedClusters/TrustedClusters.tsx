@@ -4,7 +4,7 @@ import { Danger } from 'design/Alert';
 import { Indicator, Text, Box, Flex, ButtonPrimary } from 'design';
 import ResourceEditor from 'e-shared/components/ResourceEditor';
 import useResources from 'e-shared/components/Resources/useResources';
-import CardEmpty from 'gravity/components/CardEmpty';
+import CardEmpty from 'teleport/components/CardEmpty';
 import TrustedList from './TrustedList';
 import DeleteTrustedClusterDialog from './DeleteTrustedClusterDialog';
 import templates from './templates';
@@ -54,7 +54,7 @@ export default function TrustedClusters() {
       {tclusters.isFailed && <Danger>{tclusters.message} </Danger>}
       <Flex alignItems="start">
         {isEmpty && (
-          <CardEmpty title="Not sharing cluster access to a root cluster"></CardEmpty>
+          <CardEmpty title="Not sharing cluster access to a root cluster" />
         )}
         {!isEmpty && (
           <TrustedList

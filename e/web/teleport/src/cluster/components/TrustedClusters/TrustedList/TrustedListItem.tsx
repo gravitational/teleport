@@ -1,8 +1,7 @@
 import React from 'react';
-import styled from 'styled-components';
 import { Text, Flex, ButtonPrimary } from 'design';
 import * as Icons from 'design/Icon';
-import ActionMenu, { MenuItem } from 'shared/components/ActionMenu';
+import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 
 export default function TrustedListItem(props: Props) {
   const { name, id, onEdit, onDelete, ...rest } = props;
@@ -10,9 +9,13 @@ export default function TrustedListItem(props: Props) {
   const onClickDelete = () => onDelete(id);
 
   return (
-    <StyledItem
-      width="260px"
-      height="260px"
+    <Flex
+      style={{
+        position: 'relative',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.24)',
+      }}
+      width="240px"
+      height="240px"
       borderRadius="3"
       flexDirection="column"
       alignItems="center"
@@ -24,9 +27,9 @@ export default function TrustedListItem(props: Props) {
       {...rest}
     >
       <Flex width="100%" justifyContent="center">
-        <ActionMenu buttonIconProps={menuActionProps}>
+        <MenuIcon buttonIconProps={menuActionProps}>
           <MenuItem onClick={onClickDelete}>Delete...</MenuItem>
-        </ActionMenu>
+        </MenuIcon>
       </Flex>
       <Flex
         flex="1"
@@ -38,28 +41,19 @@ export default function TrustedListItem(props: Props) {
         <Icons.LanAlt
           my="4"
           style={{ textAlign: 'center' }}
-          fontSize="80px"
+          fontSize="48px"
           color="text.primary"
         />
-        <Text typography="h5" bold caps="uppercase" mb="1">
+        <Text typography="p" bold caps="uppercase" mb="1">
           {name}
         </Text>
       </Flex>
       <ButtonPrimary mt="auto" px="1" size="medium" block onClick={onClickEdit}>
         EDIT TRUSTED CLUSTER
       </ButtonPrimary>
-    </StyledItem>
+    </Flex>
   );
 }
-
-const StyledItem = styled(Flex)`
-  position: relative;
-  transition: all 0.3s;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
-  &:hover {
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.56);
-  }
-`;
 
 const menuActionProps = {
   style: {

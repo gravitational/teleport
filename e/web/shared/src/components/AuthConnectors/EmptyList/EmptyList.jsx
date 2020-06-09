@@ -6,8 +6,8 @@ import getSsoIcon, { AuthProviderTypeEnum } from './../getSsoIcon';
 
 export default function EmptyList({ onCreate }) {
   return (
-    <Card color="text.primary" bg="primary.light" p="6">
-      <Text typography="h2" textAlign="center">
+    <Card color="text.primary" bg="primary.light" p="5" textAlign="center" style={{boxShadow: 'none'}}>
+      <Text typography="h3" textAlign="center">
         Create Your First Auth Connector
         <Text typography="subtitle1" mt="2">
           Select a service provider below to create your first Authentication
@@ -30,8 +30,8 @@ function renderItem(kind, onClick) {
     <StyledConnectorBox
       px="5"
       py="4"
-      mr="4"
-      mb="4"
+      mx="2"
+      mb="0"
       bg="primary.light"
       as="button"
       onClick={onBtnClick}
@@ -52,14 +52,22 @@ const StyledConnectorBox = styled(Box)(
   transition: all 0.3s;
   border-radius: 4px;
   width: 160px;
+  margin-bottom: 16px;
   border: 2px solid ${props.theme.colors.primary.main};
   &:hover {
     border: 2px solid ${props.theme.colors.secondary.main};
   }
 
   &:focus {
+    opacity: .24;
+    box-shadow: none;
+  }
+
+  &:hover {
+    background: ${props.theme.colors.primary.lighter};
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.56);
   }
+
 
   color: inherit;
   cursor: pointer;

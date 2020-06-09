@@ -8,7 +8,7 @@ const RoleList = ({ items, onEdit, onDelete }) => {
     <Table data={items}>
       <Column header={<Cell>Name</Cell>} cell={<RoleNameCell />} />
       <Column
-        header={<Cell style={{ textAlign: 'right' }}>Actions</Cell>}
+        header={<Cell />}
         cell={<ActionCell onEdit={onEdit} onDelete={onDelete} />}
       />
     </Table>

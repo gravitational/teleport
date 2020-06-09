@@ -21,7 +21,7 @@ export default function DeleteRoleDialog(props) {
     <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
       {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
       <DialogContent width="400px">
-        <Text typography="h2">Remove Role?</Text>
+        <Text typography="h3">Remove Role?</Text>
         <Text typography="paragraph" mt="2" mb="6">
           Are you sure you want to delete role{' '}
           <Text as="span" bold color="primary.contrastText">
@@ -32,7 +32,7 @@ export default function DeleteRoleDialog(props) {
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={onOk}>
-          DELETE
+          Yes, Remove Role
         </ButtonWarning>
         <ButtonSecondary disabled={isDisabled} onClick={onClose}>
           Cancel

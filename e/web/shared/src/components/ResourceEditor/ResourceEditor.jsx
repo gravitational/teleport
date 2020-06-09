@@ -20,6 +20,7 @@ import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
 import {
   ButtonPrimary,
   ButtonSecondary,
+  ButtonOutlined,
   Flex,
   Text,
   Box,
@@ -101,9 +102,15 @@ export default function ResourceEditor(props) {
                 {directions}
               </Text>
             </Box>
-            <ButtonSecondary as="a" href={docsURL} target="_blank" width="100%">
+            <ButtonOutlined
+              size="medium"
+              as="a"
+              href={docsURL}
+              target="_blank"
+              width="100%"
+            >
               VIEW DOCUMENTATION
-            </ButtonSecondary>
+            </ButtonOutlined>
           </Flex>
         )}
       </Flex>
@@ -124,7 +131,7 @@ ResourceEditor.propTypes = {
 };
 
 const dialogCss = () => `
-  height: 80%
+  height: 80%;
   width: calc(100% - 20%);
   max-width: 1400px;
 `;
