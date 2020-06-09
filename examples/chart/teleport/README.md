@@ -127,7 +127,7 @@ kubectl create secret generic awscredentials --from-file=credentials
 
 3. With the `values.yaml` set the volume and volume mount for AWS credentials
 ```yaml
-extraVolumes:
+extraAuthVolumes:
   - name: awscredentials
     secret:
       secretName: awscredentials
@@ -136,7 +136,7 @@ extraVolumes:
   # - name: ca-certs
   #   configMap:
   #     name: ca-certs
-extraVolumeMounts:
+extraAuthVolumeMounts:
   - mountPath: /root/.aws
     name: awscredentials
 ```
