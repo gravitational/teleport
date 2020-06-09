@@ -125,7 +125,7 @@ kubectl create secret generic awscredentials --from-file=credentials
       audit_sessions_uri: 's3://teleportexample/sessions?region=us-east-1'
 ```
 
-3. With the `values.yaml` set the volume and volume mount for AWS credentials
+3. With the `values.yaml` set the volume and volume mount for AWS credentials only available to the Auth service.
 ```yaml
 extraAuthVolumes:
   - name: awscredentials
