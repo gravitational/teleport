@@ -252,6 +252,10 @@ extraVolumeMounts: []
   # - name: ca-certs
   #   mountPath: /var/lib/ca-certs
   #   readOnly: true
+  
+# Volume mounts only for the auth service in high availability deployments
+extraAuthVolumes: []
+extraAuthVolumeMounts: []  
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
