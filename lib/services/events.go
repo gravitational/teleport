@@ -65,11 +65,9 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 	if kind.Name != "" && kind.Name != e.Resource.GetName() {
 		return false, nil
 	}
-	if len(kind.Filter) > 0 {
-		// no filters currently match delete events
-		if e.Type != backend.OpPut {
-			return false, nil
-		}
+	// we don't have a good model for filtering non-put events,
+	// so only apply filters to OpPut events.
+	if len(kind.Filter) > 0 && e.Type == backend.OpPut {
 		// Currently only access request make use of filters,
 		// so expect the resource to be an access request.
 		req, ok := e.Resource.(AccessRequest)
