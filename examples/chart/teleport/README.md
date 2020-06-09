@@ -52,7 +52,7 @@ kubectl create secret generic license --from-file=license-enterprise.pem
 ## TLS Certificates
 
 ### Certificate Usage Configuration
-Teleport can generate self-signed certificates that is useful for first time or non-production deployments. You can set Teleport to use self-signed certificates by setting `usetlssecret: false` under the `proxy.tls settings` in `values.yaml`. You will need to add `--insecure` to some interactions such as `tsh` and browser interaction will require confirming interaction.  Please see our [article](https://gravitational.com/blog/letsencrypt-teleport-ssh/) on generating certificates via Let's Encrypt.
+Teleport can generate self-signed certificates that is useful for first time or non-production deployments. You can set Teleport to use self-signed certificates by setting `usetlssecret: false` under the `proxy.tls settings` in `values.yaml`. You will need to add `--insecure` to some interactions such as `tsh` and browser interaction will require confirming interaction.  Please see our [article](https://gravitational.com/blog/letsencrypt-teleport-ssh/) on generating certificates via Let's Encrypt as a method to generate signed TLScertificates.
 
 If you plan to have TLS terminate at a seperate load balancer  you should set both `proxy.tls.enabled` and `proxy.usetlssecret` to false. 
 
@@ -108,7 +108,7 @@ Running multiple instances of the Authentication Services requires using a high 
  - Have AWS credentials that can create and access DyanmoDB details as documented here.
  - Bucket for storing Sessions as documented [here](https://gravitational.com/teleport/docs/admin-guide/#using-amazon-s3).
 
-### Configuring AWS Credentials and Storage
+### Example High Availability Storage
 1. First add the credentials file as a secret
 ```bash
 kubectl create secret generic awscredentials --from-file=credentials
@@ -145,7 +145,40 @@ extraVolumeMounts:
 
 ### Configuring Multiple Instances of Teleport
 
+A high availability deployment of Teleport will typically have at least 2 proxy and 2 auth service instances.  SSH service is typically not enabled on these instances.  To enable separate deployments of the auth and auth services follow these steps.
 
+1. In the configuration section set the highAvailability to true.  Also confirm the auth public address and Service Type.
+```yaml
+  highAvailability: true
+  # High availability configuration with proxy and auth servers. No SSH configured service.
+  proxyCount: 2
+  authCount: 2
+  authServiceType: ClusterIP
+  auth_public_address: auth.example.com
+```
+2. Set the connection for the proxies to connec to the auth service in the config section. Below the first auth service service is from the service named <helm app>auth.  So if you deploy a app named myexample then the auth service will be available in the Cluster at myexampleauth.
+
+```yaml
+  auth_service_connection:
+    auth_token: dogs-are-much-nicer-than-cats
+    auth_servers:
+    - teleportauth:3025
+    - teleport.example.com:3025
+```
+### Confirming
+
+After configuring both of these options run the install.  In the example below you will see two teleport pods that are the Proxy instances  (teleport-) and two teleport pods that that are the Auth instances (teleportauth-).
+
+``` bash
+$ helm install --name teleport ./
+
+$ kubectl get pods 
+NAME                            READY   STATUS    RESTARTS   AGE
+teleport-d67584df8-8vfls        1/1     Running   0          62m
+teleport-d67584df8-p9l2g        1/1     Running   0          62m
+teleportauth-66455f85ff-7x7g4   1/1     Running   0          62m
+teleportauth-66455f85ff-hgsdj   1/1     Running   0          62m
+```
 
 ## Troubleshooting
 
