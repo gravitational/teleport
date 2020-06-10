@@ -127,10 +127,10 @@ func checkImpersonationPermissions(sarClient authztypes.SelfSubjectAccessReviewI
 			},
 		})
 		if err != nil {
-			return trace.Wrap(err, "failed to verify impersonation permissions for kubernetes: %v", err)
+			return trace.Wrap(err, "failed to verify impersonation permissions for kubernetes: %v; this may be due to missing the SelfSubjectAccessReview permission on the ClusterRole used by the proxy; please make sure that proxy has all the necessary permissions: https://gravitational.com/teleport/docs/kubernetes_ssh/#impersonation", err)
 		}
 		if !resp.Status.Allowed {
-			return trace.AccessDenied("proxy can't impersonate kubernetes %s at the cluster level", resource)
+			return trace.AccessDenied("proxy can't impersonate kubernetes %s at the cluster level; please make sure that proxy has all the necessary permissions: https://gravitational.com/teleport/docs/kubernetes_ssh/#impersonation", resource)
 		}
 	}
 	return nil
