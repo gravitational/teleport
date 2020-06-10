@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"net/http"
+	"sort"
 	"testing"
 	"time"
 
@@ -385,6 +386,10 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 		c.Log("got error:", err)
 		c.Assert(err != nil, check.Equals, tt.wantErr)
 		if err == nil {
+			// Sort header values to get predictable ordering.
+			for _, vals := range tt.inHeaders {
+				sort.Strings(vals)
+			}
 			c.Assert(tt.inHeaders, check.DeepEquals, tt.wantHeaders)
 		}
 	}
