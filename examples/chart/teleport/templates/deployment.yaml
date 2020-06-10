@@ -60,8 +60,10 @@ spec:
         # See https://gravitational.com/teleport/docs/admin-guide/#ports
         ports:
 {{- range $key, $port := .Values.ports }}
+{{ if or ( not $.Values.config.highAvailability) (and ($.Values.config.highAvailability) (not (eq $key "authssh") ) ) }}
         - name: {{ $key }}
 {{ toYaml $port | indent 10 }}
+{{ end }}
 {{- end }}
         resources:
 {{ toYaml .Values.resources | indent 10 }}
