@@ -191,10 +191,6 @@ const (
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
 
-	// ActionOnBehalfOf is the name of the user, whom record is being modified:
-	// resetting passwords, creating/updating user, etc.
-	ActionOnBehalfOf = "entity"
-
 	// FieldName contains name, e.g. resource name, etc.
 	FieldName = "name"
 
