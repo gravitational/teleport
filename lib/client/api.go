@@ -2265,7 +2265,11 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout
 func passwordFromConsole() (string, error) {
-	fd := syscall.Stdin
+	// syscall.Stdin is not an int on windows. The linter will complain only on
+	// linux where syscall.Stdin is an int.
+	//
+	// nolint:unconvert
+	fd := int(syscall.Stdin)
 	state, err := terminal.GetState(fd)
 
 	// intercept Ctr+C and restore terminal
