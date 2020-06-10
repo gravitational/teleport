@@ -18,7 +18,6 @@ package proxy
 
 import (
 	"errors"
-	"testing"
 
 	"gopkg.in/check.v1"
 	authzapi "k8s.io/api/authorization/v1"
@@ -28,8 +27,6 @@ import (
 type AuthSuite struct{}
 
 var _ = check.Suite(AuthSuite{})
-
-func Test(t *testing.T) { check.TestingT(t) }
 
 func (s AuthSuite) TestCheckImpersonationPermissions(c *check.C) {
 	tests := []struct {
