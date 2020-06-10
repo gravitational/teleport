@@ -30,13 +30,13 @@ const events = [
     uid: 'b121fc4c-e419-56a2-a760-19cd746c0650',
     time: '2020-06-05T16:24:05Z',
     event: 'user.delete',
-    entity: 'bob',
+    name: 'bob',
     user: 'benarent',
   },
   {
     code: 'T1003I',
     event: 'user.update',
-    entity: 'bob',
+    name: 'bob',
     time: '2020-06-05T16:24:05Z',
     uid: '3a8cd55b5-bce9-5a4c-882d-8e0a5ae10008',
     expires: 111111,
@@ -130,7 +130,7 @@ const events = [
   },
   {
     code: 'T6000I',
-    entity: 'hello',
+    name: 'hello',
     event: 'reset_password_token.create',
     time: '2020-06-05T16:24:22Z',
     ttl: '8h0m0s',
@@ -164,7 +164,7 @@ const events = [
   {
     code: 'T1002I',
     connector: 'local',
-    entity: 'hello',
+    name: 'hello',
     event: 'user.create',
     expires: '0001-01-01T00:00:00Z',
     roles: ['admin'],

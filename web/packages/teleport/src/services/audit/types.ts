@@ -627,7 +627,7 @@ type RawEventAlert<T extends Code> = RawEvent<
 type RawEventPasswordToken<T extends Code> = RawEvent<
   T,
   {
-    entity: string;
+    name: string;
     ttl: string;
   }
 >;
@@ -636,7 +636,6 @@ type RawEventUser<T extends Code> = RawEvent<
   T,
   {
     name: string;
-    entity: string;
   }
 >;
 

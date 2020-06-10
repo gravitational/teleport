@@ -69,13 +69,13 @@ export const formatters: Formatters = {
 
   [CodeEnum.USER_UPDATED]: {
     desc: 'User Updated',
-    format: ({ entity }) => `User ${entity} has been updated`,
+    format: ({ name }) => `User ${name} has been updated`,
   },
 
   [CodeEnum.RESET_PASSWORD_TOKEN_CREATED]: {
     desc: 'Reset Password Token Created',
-    format: ({ entity, ttl, user }) =>
-      `User "${user}" created a password reset token for user "${entity}" which expires in ${ttl}`,
+    format: ({ name, ttl, user }) =>
+      `User "${user}" created a password reset token for user "${name}" which expires in ${ttl}`,
   },
 
   [CodeEnum.G_ALERT_CREATED]: {
@@ -457,11 +457,11 @@ export const formatters: Formatters = {
   },
   [CodeEnum.USER_CREATED]: {
     desc: 'User Created',
-    format: ({ entity }) => `User ${entity} has been created`,
+    format: ({ name }) => `User ${name} has been created`,
   },
   [CodeEnum.USER_DELETED]: {
     desc: 'User Deleted',
-    format: ({ entity }) => `User ${entity} has been deleted`,
+    format: ({ name }) => `User ${name} has been deleted`,
   },
   [CodeEnum.G_USER_CREATED]: {
     desc: 'User Created',
