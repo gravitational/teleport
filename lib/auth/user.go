@@ -55,11 +55,11 @@ func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 	}
 
 	if err := s.EmitAuditEvent(events.UserCreate, events.EventFields{
-		events.EventUser:        createdBy.User.Name,
-		events.UserExpires:      user.Expiry(),
-		events.UserRoles:        user.GetRoles(),
-		events.ActionOnBehalfOf: user.GetName(),
-		events.UserConnector:    connectorName,
+		events.EventUser:     createdBy.User.Name,
+		events.UserExpires:   user.Expiry(),
+		events.UserRoles:     user.GetRoles(),
+		events.FieldName:     user.GetName(),
+		events.UserConnector: connectorName,
 	}); err != nil {
 		log.Warnf("Failed to emit user create event: %v", err)
 	}
@@ -86,11 +86,11 @@ func (s *AuthServer) UpdateUser(ctx context.Context, user services.User) error {
 	}
 
 	if err := s.EmitAuditEvent(events.UserUpdate, events.EventFields{
-		events.EventUser:        updateBy,
-		events.UserExpires:      user.Expiry(),
-		events.UserRoles:        user.GetRoles(),
-		events.ActionOnBehalfOf: user.GetName(),
-		events.UserConnector:    connectorName,
+		events.EventUser:     updateBy,
+		events.FieldName:     user.GetName(),
+		events.UserExpires:   user.Expiry(),
+		events.UserRoles:     user.GetRoles(),
+		events.UserConnector: connectorName,
 	}); err != nil {
 		log.Warnf("Failed to emit user update event: %v", err)
 	}
@@ -151,8 +151,8 @@ func (s *AuthServer) DeleteUser(ctx context.Context, user string) error {
 
 	// If the user was successfully deleted, emit an event.
 	if err := s.EmitAuditEvent(events.UserDelete, events.EventFields{
-		events.ActionOnBehalfOf: user,
-		events.EventUser:        deletedBy,
+		events.FieldName: user,
+		events.EventUser: deletedBy,
 	}); err != nil {
 		log.Warnf("Failed to emit user delete event: %v", err)
 	}

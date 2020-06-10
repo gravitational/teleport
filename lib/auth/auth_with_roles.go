@@ -1120,7 +1120,7 @@ func (a *AuthWithRoles) CreateResetPasswordToken(ctx context.Context, req Create
 	}
 
 	if err := a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
-		events.ActionOnBehalfOf:      req.Name,
+		events.FieldName:             req.Name,
 		events.ResetPasswordTokenTTL: req.TTL.String(),
 		events.EventUser:             a.user.GetName(),
 	}); err != nil {
