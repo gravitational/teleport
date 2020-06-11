@@ -549,6 +549,11 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
+	// caSigningAlg is only set when (1) rotation is started manually and (2)
+	// signing algorithm was explicitly set in the config file.
+	//
+	// For automatic rotations or when config file doesn't set a value,
+	// preserve the signing algorithm of the existing CA.
 	if req.caSigningAlg != nil {
 		ca.SetSigningAlg(*req.caSigningAlg)
 	}
