@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -72,7 +73,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 
 	cert, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
-		CASigningAlg:        ssh.SigAlgoRSASHA2512,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "id1",
 		NodeName:            "node-name",
@@ -94,7 +95,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	expiryDate := time.Now().Add(ttl)
 	bytes, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
-		CASigningAlg:        ssh.SigAlgoRSASHA2512,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "id1",
 		NodeName:            "node-name",
@@ -122,7 +123,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	// missing authority domain
 	cert, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
-		CASigningAlg:        ssh.SigAlgoRSASHA2512,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "id2",
 		NodeName:            "",
@@ -138,7 +139,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	// missing host uuid
 	cert, err = t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
-		CASigningAlg:        ssh.SigAlgoRSASHA2512,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "example.com",
 		NodeName:            "",
@@ -154,7 +155,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	// unrecognized role
 	cert, err = t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
-		CASigningAlg:        ssh.SigAlgoRSASHA2512,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "example.com",
 		NodeName:            "",

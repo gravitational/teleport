@@ -144,7 +144,7 @@ type Config struct {
 	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
 	// algorithm that the server uses for signing user and host certificates.
 	// If omitted, the default will be used.
-	CASignatureAlgorithm string
+	CASignatureAlgorithm *string
 
 	// DiagnosticAddr is an address for diagnostic and healthz endpoint service
 	DiagnosticAddr utils.NetAddr
@@ -484,7 +484,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Ciphers = sc.Ciphers
 	cfg.KEXAlgorithms = kex
 	cfg.MACAlgorithms = macs
-	cfg.CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
 
 	// Auth service defaults.
 	cfg.Auth.Enabled = true

@@ -207,6 +207,9 @@ type AuthServer struct {
 	// cipherSuites is a list of ciphersuites that the auth server supports.
 	cipherSuites []uint16
 
+	// caSigningAlg is an SSH signing algorithm to use when generating new CAs.
+	caSigningAlg *string
+
 	// cache is a fast cache that allows auth server
 	// to use cache for most frequent operations,
 	// if not set, cache uses itself

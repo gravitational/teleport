@@ -187,7 +187,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: cfg.Priv,
-		CASigningAlg:        ssh.SigAlgoRSASHA2512,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       cfg.Pub,
 		HostID:              cfg.HostID,
 		NodeName:            cfg.NodeName,
@@ -256,11 +256,25 @@ func (s *InstanceSecrets) GetRoles() []services.Role {
 // case we always return hard-coded userCA + hostCA (and they share keys
 // for simplicity)
 func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
-	hostCA := services.NewCertAuthority(services.HostCA, s.SiteName, [][]byte{s.PrivKey}, [][]byte{s.PubKey}, []string{})
+	hostCA := services.NewCertAuthority(
+		services.HostCA,
+		s.SiteName,
+		[][]byte{s.PrivKey},
+		[][]byte{s.PubKey},
+		[]string{},
+		services.CertAuthoritySpecV2_RSA_SHA2_512,
+	)
 	hostCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
 	return []services.CertAuthority{
 		hostCA,
-		services.NewCertAuthority(services.UserCA, s.SiteName, [][]byte{s.PrivKey}, [][]byte{s.PubKey}, []string{services.RoleNameForCertAuthority(s.SiteName)}),
+		services.NewCertAuthority(
+			services.UserCA,
+			s.SiteName,
+			[][]byte{s.PrivKey},
+			[][]byte{s.PubKey},
+			[]string{services.RoleNameForCertAuthority(s.SiteName)},
+			services.CertAuthoritySpecV2_RSA_SHA2_512,
+		),
 	}
 }
 
