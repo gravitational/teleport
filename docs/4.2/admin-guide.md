@@ -426,12 +426,13 @@ ssh_service:
     # set to false, can be set true here or as a command line flag.
     permit_user_env: false
 
-    # Enhanced Session Recording was introduced with Teleport 4.2. For more details 
-    # see 
+    # Enhanced Session Recording was introduced with Teleport 4.2.   To enable 
+    # enhanced sessions recording the machine must have Linux Kernel (4.18+)  and BCC tools installed. For more details 
+    # see https://gravitational.com/teleport/docs/features/enhanced_session_recording/ 
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value: 
        # false.
-       enabled: true
+       enabled: false
 
        # command_buffer_size is optional with a default value of 8 pages.
        command_buffer_size: 8
