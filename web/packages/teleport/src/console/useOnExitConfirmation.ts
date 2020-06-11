@@ -17,6 +17,7 @@
 import React from 'react';
 import ConsoleContext from './consoleContext';
 import * as stores from './stores/types';
+import session from 'teleport/services/session';
 
 // TAB_MIN_AGE defines "active terminal" session in ms
 const TAB_MIN_AGE = 30000;
@@ -37,6 +38,13 @@ function useOnExitConfirmation(ctx: ConsoleContext) {
      * of document opened and how long it has been active for.
      */
     const handleBeforeunload = event => {
+      // Do not ask for confirmation when session is expired, which may trigger prompt
+      // when browser triggers page reload before it receives session.end event,
+      // which is not guaranteed to happen in that order.
+      if (!session.isValid()) {
+        return;
+      }
+
       const shouldNotify = ctx.getDocuments().some(hasLastingSshConnection);
 
       if (shouldNotify) {

@@ -17,6 +17,7 @@
 import renderHook from 'design/utils/renderHook';
 import ConsoleContext from './consoleContext';
 import useOnExitConfirmation from './useOnExitConfirmation';
+import session from 'teleport/services/session';
 
 test('confirmation dialog before terminating an active ssh session', () => {
   const ctx = new ConsoleContext();
@@ -74,12 +75,18 @@ test('confirmation dialog before terminating an active ssh session', () => {
   // change date to an old date
   docTerminal.created = new Date('2019-04-01');
 
+  // test that expired session does not prompt
+  jest.spyOn(session, '_timeLeft').mockReturnValue(0);
+  window.dispatchEvent(event);
+  expect(event.preventDefault).not.toHaveBeenCalled();
+
   // test aged terminal doc calls prompt
   retVal = current.verifyAndConfirm(docTerminal);
   expect(retVal).toBe(false);
   expect(window.confirm).toHaveReturnedWith(false);
 
   // test aged terminal doc triggers prompt
+  jest.spyOn(session, '_timeLeft').mockReturnValue(5);
   window.dispatchEvent(event);
   expect(event.preventDefault).toHaveBeenCalledTimes(1);
 });
