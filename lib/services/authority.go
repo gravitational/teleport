@@ -39,6 +39,8 @@ import (
 type HostCertParams struct {
 	// PrivateCASigningKey is the private key of the CA that will sign the public key of the host
 	PrivateCASigningKey []byte
+	// CASigningAlg is the signature algorithm used by the CA private key.
+	CASigningAlg string
 	// PublicHostKey is the public key of the host
 	PublicHostKey []byte
 	// HostID is used by Teleport to uniquely identify a node within a cluster
@@ -56,7 +58,10 @@ type HostCertParams struct {
 }
 
 // Check checks parameters for errors
-func (c *HostCertParams) Check() error {
+func (c HostCertParams) Check() error {
+	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
+		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")
+	}
 	if c.HostID == "" && len(c.Principals) == 0 {
 		return trace.BadParameter("HostID [%q] or Principals [%q] are required",
 			c.HostID, c.Principals)
@@ -90,6 +95,8 @@ type ChangePasswordReq struct {
 type UserCertParams struct {
 	// PrivateCASigningKey is the private key of the CA that will sign the public key of the user
 	PrivateCASigningKey []byte
+	// CASigningAlg is the signature algorithm used by the CA private key.
+	CASigningAlg string
 	// PublicUserKey is the public key of the user
 	PublicUserKey []byte
 	// TTL defines how long a certificate is valid for
@@ -117,6 +124,19 @@ type UserCertParams struct {
 	// ActiveRequests tracks privilege escalation requests applied during
 	// certificate construction.
 	ActiveRequests RequestIDs
+}
+
+func (c UserCertParams) Check() error {
+	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
+		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")
+	}
+	if c.TTL < defaults.MinCertDuration {
+		return trace.BadParameter("TTL can't be less than %v", defaults.MinCertDuration)
+	}
+	if len(c.AllowedLogins) == 0 {
+		return trace.BadParameter("AllowedLogins are required")
+	}
+	return nil
 }
 
 // CertRoles defines certificate roles
@@ -175,8 +195,10 @@ type CertAuthority interface {
 	GetClusterName() string
 	// GetCheckingKeys returns public keys to check signature
 	GetCheckingKeys() [][]byte
-	// GetSigning keys returns signing keys
+	// GetSigningKeys returns signing keys
 	GetSigningKeys() [][]byte
+	//GetSigningAlg returns the signing algorithm used by signing keys.
+	GetSigningAlg() string
 	// CombinedMapping is used to specify combined mapping from legacy property Roles
 	// and new property RoleMap
 	CombinedMapping() RoleMap
@@ -275,7 +297,14 @@ func TLSCerts(ca CertAuthority) [][]byte {
 }
 
 // NewCertAuthority returns new cert authority
-func NewCertAuthority(caType CertAuthType, clusterName string, signingKeys, checkingKeys [][]byte, roles []string) CertAuthority {
+func NewCertAuthority(
+	caType CertAuthType,
+	clusterName string,
+	signingKeys [][]byte,
+	checkingKeys [][]byte,
+	roles []string,
+	signingAlg CertAuthoritySpecV2_SigningAlgType,
+) CertAuthority {
 	return &CertAuthorityV2{
 		Kind:    KindCertAuthority,
 		Version: V2,
@@ -290,6 +319,7 @@ func NewCertAuthority(caType CertAuthType, clusterName string, signingKeys, chec
 			ClusterName:  clusterName,
 			CheckingKeys: checkingKeys,
 			SigningKeys:  signingKeys,
+			SigningAlg:   signingAlg,
 		},
 	}
 }
@@ -564,6 +594,22 @@ func (ca *CertAuthorityV2) Signers(alg string) ([]ssh.Signer, error) {
 	return out, nil
 }
 
+func (ca *CertAuthorityV2) GetSigningAlg() string {
+	switch ca.Spec.SigningAlg {
+	// UNKNOWN algorithm can come from a cluster that existed before SigningAlg
+	// field was added. Default to RSA-SHA1 to match the implicit algorithm
+	// used in those clusters.
+	case CertAuthoritySpecV2_RSA_SHA1, CertAuthoritySpecV2_UNKNOWN:
+		return ssh.SigAlgoRSA
+	case CertAuthoritySpecV2_RSA_SHA2_256:
+		return ssh.SigAlgoRSASHA2256
+	case CertAuthoritySpecV2_RSA_SHA2_512:
+		return ssh.SigAlgoRSASHA2512
+	default:
+		return ""
+	}
+}
+
 // Check checks if all passed parameters are valid
 func (ca *CertAuthorityV2) Check() error {
 	err := ca.ID().Check()
@@ -601,6 +647,24 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// ParseSigningAlg converts the SSH signature algorithm strings to the
+// corresponding proto enum value.
+//
+// alg should be one of ssh.SigAlgo* constants. If it's not one of those
+// constants, CertAuthoritySpecV2_UNKNOWN is returned.
+func ParseSigningAlg(alg string) CertAuthoritySpecV2_SigningAlgType {
+	switch alg {
+	case ssh.SigAlgoRSA:
+		return CertAuthoritySpecV2_RSA_SHA1
+	case ssh.SigAlgoRSASHA2256:
+		return CertAuthoritySpecV2_RSA_SHA2_256
+	case ssh.SigAlgoRSASHA2512:
+		return CertAuthoritySpecV2_RSA_SHA2_512
+	default:
+		return CertAuthoritySpecV2_UNKNOWN
+	}
 }
 
 // RemoveCASecrets removes secret values and keys

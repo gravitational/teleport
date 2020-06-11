@@ -28,7 +28,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -61,8 +60,6 @@ type Keygen struct {
 	cancel          context.CancelFunc
 	precomputeCount int
 
-	caSignatureAlg string
-
 	// clock is used to control time.
 	clock clockwork.Clock
 }
@@ -83,14 +80,6 @@ func SetClock(clock clockwork.Clock) KeygenOption {
 func PrecomputeKeys(count int) KeygenOption {
 	return func(k *Keygen) error {
 		k.precomputeCount = count
-		return nil
-	}
-}
-
-// SetCASignatureAlg overrides the signature algorithm for SSH certificates.
-func SetCASignatureAlg(alg string) KeygenOption {
-	return func(k *Keygen) error {
-		k.caSignatureAlg = alg
 		return nil
 	}
 }
@@ -204,7 +193,7 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer = sshutils.AlgSigner(signer, k.caSignatureAlg)
+	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
 
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
@@ -246,11 +235,8 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 // GenerateUserCert generates a host certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
 func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
-	if c.TTL < defaults.MinCertDuration {
-		return nil, trace.BadParameter("wrong certificate TTL")
-	}
-	if len(c.AllowedLogins) == 0 {
-		return nil, trace.BadParameter("allowedLogins: need allowed OS logins")
+	if err := c.Check(); err != nil {
+		return nil, trace.Wrap(err, "error validating UserCertParams")
 	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
 	if err != nil {
@@ -319,7 +305,7 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer = sshutils.AlgSigner(signer, k.caSignatureAlg)
+	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
 		return nil, trace.Wrap(err)
 	}

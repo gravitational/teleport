@@ -187,6 +187,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: cfg.Priv,
+		CASigningAlg:        ssh.SigAlgoRSASHA2512,
 		PublicHostKey:       cfg.Pub,
 		HostID:              cfg.HostID,
 		NodeName:            cfg.NodeName,

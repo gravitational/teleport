@@ -351,7 +351,7 @@ func (t *testCertGetter) GetTrustedCA(ctx context.Context, clusterName string) (
 
 	for _, clusterName := range t.clusterNames {
 		// Only the cluster name is checked in tests, pass in nil for the keys.
-		cas = append(cas, services.NewCertAuthority(services.HostCA, clusterName, nil, nil, nil))
+		cas = append(cas, services.NewCertAuthority(services.HostCA, clusterName, nil, nil, nil, services.CertAuthoritySpecV2_UNKNOWN))
 	}
 
 	return cas, nil

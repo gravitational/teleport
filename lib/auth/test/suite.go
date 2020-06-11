@@ -64,6 +64,7 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 	cert, err := s.A.GenerateHostCert(
 		services.HostCertParams{
 			PrivateCASigningKey: priv,
+			CASigningAlg:        ssh.SigAlgoRSASHA2512,
 			PublicHostKey:       pub,
 			HostID:              "00000000-0000-0000-0000-000000000000",
 			NodeName:            "auth.example.com",
@@ -94,6 +95,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	cert, err := s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          ssh.SigAlgoRSASHA2512,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"centos", "root"},
@@ -123,6 +125,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          ssh.SigAlgoRSASHA2512,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -135,6 +138,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          ssh.SigAlgoRSASHA2512,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -147,6 +151,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          ssh.SigAlgoRSASHA2512,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -160,6 +165,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	inRoles := []string{"role-1", "role-2"}
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          ssh.SigAlgoRSASHA2512,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},

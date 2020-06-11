@@ -72,6 +72,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 
 	cert, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        ssh.SigAlgoRSASHA2512,
 		PublicHostKey:       pub,
 		HostID:              "id1",
 		NodeName:            "node-name",
@@ -93,6 +94,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	expiryDate := time.Now().Add(ttl)
 	bytes, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        ssh.SigAlgoRSASHA2512,
 		PublicHostKey:       pub,
 		HostID:              "id1",
 		NodeName:            "node-name",
@@ -120,6 +122,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	// missing authority domain
 	cert, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        ssh.SigAlgoRSASHA2512,
 		PublicHostKey:       pub,
 		HostID:              "id2",
 		NodeName:            "",
@@ -135,6 +138,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	// missing host uuid
 	cert, err = t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        ssh.SigAlgoRSASHA2512,
 		PublicHostKey:       pub,
 		HostID:              "example.com",
 		NodeName:            "",
@@ -150,6 +154,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	// unrecognized role
 	cert, err = t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        ssh.SigAlgoRSASHA2512,
 		PublicHostKey:       pub,
 		HostID:              "example.com",
 		NodeName:            "",
