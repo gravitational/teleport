@@ -35,6 +35,10 @@ it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluste
 option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr` 
 in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat)
 
+## Can nodes use a single port for reverse tunnels?
+
+Yes, Teleport supports multiplexing on a single port.  The tunnel_public_addr and tunnel_listen_addr can be set to the same port as the web address setting. Teleport will automatically use multiplexing with that configuration.
+
 ### What are Teleport's scalability and hardware recommendations?
 
 We recommend setting up Teleport with a [High Availability configuration](admin-guide.md#high-availability). Below is our
