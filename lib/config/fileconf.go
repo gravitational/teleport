@@ -349,8 +349,8 @@ func (conf *FileConfig) Check() error {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
-	if conf.CASignatureAlgorithm != "" && !utils.SliceContainsStr(validCASigAlgos, conf.CASignatureAlgorithm) {
-		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", conf.CASignatureAlgorithm, validCASigAlgos)
+	if conf.CASignatureAlgorithm != nil && !utils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
+		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", *conf.CASignatureAlgorithm, validCASigAlgos)
 	}
 
 	return nil
@@ -412,7 +412,7 @@ type Global struct {
 	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
 	// algorithm that the server uses for signing user and host certificates.
 	// If omitted, the default will be used.
-	CASignatureAlgorithm string `yaml:"ca_signature_algo,omitempty"`
+	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
 	CAPin string `yaml:"ca_pin"`

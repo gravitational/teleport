@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"io"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
@@ -22,27 +23,27 @@ func (s *AlgSignerSuite) TestAlgSignerNoop(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// ECDSA key should be returned as-is, not wrapped.
-	c.Assert(AlgSigner(ecdsaSigner, ssh.SigAlgoRSASHA2512), check.Equals, ecdsaSigner)
+	c.Assert(AlgSigner(ecdsaSigner, defaults.CASignatureAlgorithm), check.Equals, ecdsaSigner)
 }
 
 func (s *AlgSignerSuite) TestAlgSigner(c *check.C) {
 	rsaSigner, err := newMockRSASigner()
 	c.Assert(err, check.IsNil)
 
-	wrapped := AlgSigner(rsaSigner, ssh.SigAlgoRSASHA2512)
+	wrapped := AlgSigner(rsaSigner, defaults.CASignatureAlgorithm)
 	// RSA key should get wrapped.
 	c.Assert(wrapped, check.Not(check.Equals), rsaSigner)
 	wrappedAS := wrapped.(ssh.AlgorithmSigner)
 
 	// Simple Sign call should use the enforced SHA-2 algorithm.
 	wrapped.Sign(nil, nil)
-	c.Assert(rsaSigner.lastAlg, check.Equals, ssh.SigAlgoRSASHA2512)
+	c.Assert(rsaSigner.lastAlg, check.Equals, defaults.CASignatureAlgorithm)
 	rsaSigner.lastAlg = ""
 
 	// SignWithAlgorithm without specifying an algorithm should use the
 	// enforced SHA-2 algorithm.
 	wrappedAS.SignWithAlgorithm(nil, nil, "")
-	c.Assert(rsaSigner.lastAlg, check.Equals, ssh.SigAlgoRSASHA2512)
+	c.Assert(rsaSigner.lastAlg, check.Equals, defaults.CASignatureAlgorithm)
 	rsaSigner.lastAlg = ""
 
 	// SignWithAlgorithm *with* an algorithm should respect the provided

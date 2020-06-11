@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
 
 	"gopkg.in/check.v1"
 )
@@ -78,7 +77,7 @@ func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 		"hmac-sha2-256-etm@openssh.com",
 		"hmac-sha2-256",
 	})
-	c.Assert(config.CASignatureAlgorithm, check.Equals, ssh.SigAlgoRSASHA2512)
+	c.Assert(config.CASignatureAlgorithm, check.IsNil)
 
 	// auth section
 	auth := config.Auth

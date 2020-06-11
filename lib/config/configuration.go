@@ -287,7 +287,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.MACAlgorithms != nil {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
-	if fc.CASignatureAlgorithm != "" {
+	if fc.CASignatureAlgorithm != nil {
 		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
 	}
 

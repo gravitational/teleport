@@ -242,7 +242,7 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 
 	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   CAPriv,
-		CASigningAlg:          ssh.SigAlgoRSASHA2512,
+		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              username,
 		AllowedLogins:         allowedLogins,
