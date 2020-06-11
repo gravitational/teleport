@@ -239,6 +239,7 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	c.Assert(err, check.IsNil)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPriv,
+		CASigningAlg:        ssh.SigAlgoRSASHA2512,
 		PublicHostKey:       hostPub,
 		HostID:              "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
 		NodeName:            "server01",
@@ -429,6 +430,7 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   pemBytes,
+		CASigningAlg:          ssh.SigAlgoRSASHA2512,
 		PublicUserKey:         publicKey,
 		Username:              username,
 		AllowedLogins:         allowedLogins,

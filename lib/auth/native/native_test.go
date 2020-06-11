@@ -51,7 +51,6 @@ func (s *NativeSuite) SetUpSuite(c *check.C) {
 		context.TODO(),
 		PrecomputeKeys(1),
 		SetClock(fakeClock),
-		SetCASignatureAlg(ssh.SigAlgoRSASHA2256),
 	)
 	c.Assert(err, check.IsNil)
 
@@ -172,6 +171,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 		hostCertificateBytes, err := s.suite.A.GenerateHostCert(
 			services.HostCertParams{
 				PrivateCASigningKey: caPrivateKey,
+				CASigningAlg:        ssh.SigAlgoRSASHA2512,
 				PublicHostKey:       hostPublicKey,
 				HostID:              tt.inHostID,
 				NodeName:            tt.inNodeName,
@@ -219,6 +219,7 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 
 		userCertificateBytes, err := s.suite.A.GenerateUserCert(services.UserCertParams{
 			PrivateCASigningKey:   priv,
+			CASigningAlg:          ssh.SigAlgoRSASHA2512,
 			PublicUserKey:         pub,
 			Username:              "user",
 			AllowedLogins:         []string{"centos", "root"},
@@ -236,7 +237,7 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 		userCertificate, ok := publicKey.(*ssh.Certificate)
 		c.Assert(ok, check.Equals, true, comment)
 		// Check that the signature algorithm is correct.
-		c.Assert(userCertificate.Signature.Format, check.Equals, s.suite.A.(*Keygen).caSignatureAlg)
+		c.Assert(userCertificate.Signature.Format, check.Equals, ssh.SigAlgoRSASHA2512)
 		// check if we added the roles extension
 		_, ok = userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
 		c.Assert(ok, check.Equals, tt.outHasRoles, comment)

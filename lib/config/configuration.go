@@ -665,7 +665,9 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 		clusterName,
 		nil,
 		[][]byte{ssh.MarshalAuthorizedKey(pubkey)},
-		nil)
+		nil,
+		services.CertAuthoritySpecV2_UNKNOWN,
+	)
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)

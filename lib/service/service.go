@@ -627,7 +627,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		var err error
 		cfg.Keygen, err = native.New(process.ExitContext(),
 			native.PrecomputeKeys(precomputeCount),
-			native.SetCASignatureAlg(cfg.CASignatureAlgorithm),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1006,6 +1005,7 @@ func (process *TeleportProcess) initAuthService() error {
 		OIDCConnectors:       cfg.OIDCConnectors,
 		AuditLog:             process.auditLog,
 		CipherSuites:         cfg.CipherSuites,
+		CASigningAlg:         cfg.CASignatureAlgorithm,
 	})
 	if err != nil {
 		return trace.Wrap(err)
