@@ -64,7 +64,7 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 		return nil
 	}
 	return a.checker.CheckAccessToRule(&services.Context{User: a.user},
-		defaults.Namespace, services.KindUser, services.VerbCreate, false)
+		defaults.Namespace, services.KindUser, services.VerbCreate, true)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -1506,10 +1506,11 @@ func (a *AuthWithRoles) UpsertRole(role services.Role) error {
 
 // GetRole returns role by name
 func (a *AuthWithRoles) GetRole(name string) (services.Role, error) {
-	if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
-		// allow user to read roles assigned to them
-		log.Infof("%v %v %v", a.user, a.user.GetRoles(), name)
-		if !utils.SliceContainsStr(a.user.GetRoles(), name) {
+	// Current-user exception: we always allow users to read roles
+	// that they hold.  This requirement is checked first to avoid
+	// misleading denial messages in the logs.
+	if !utils.SliceContainsStr(a.user.GetRoles(), name) {
+		if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

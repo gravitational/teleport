@@ -754,7 +754,7 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 }
 
-// TestOwnRole tests that user can read roles assigned to them
+// TestOwnRole tests that user can read roles assigned to them (used by web UI)
 func (s *TLSSuite) TestReadOwnRole(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
