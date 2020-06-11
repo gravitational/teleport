@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -50,7 +51,7 @@ func (p *clusterPeers) GetTunnelsCount() int {
 func (p *clusterPeers) pickPeer() (*clusterPeer, error) {
 	var currentPeer *clusterPeer
 	for _, peer := range p.peers {
-		if currentPeer == nil || peer.connInfo.GetLastHeartbeat().After(currentPeer.connInfo.GetLastHeartbeat()) {
+		if currentPeer == nil || peer.getConnInfo().GetLastHeartbeat().After(currentPeer.getConnInfo().GetLastHeartbeat()) {
 			currentPeer = peer
 		}
 	}
@@ -65,12 +66,12 @@ func (p *clusterPeers) updatePeer(conn services.TunnelConnection) bool {
 	if !ok {
 		return false
 	}
-	peer.connInfo = conn
+	peer.setConnInfo(conn)
 	return true
 }
 
 func (p *clusterPeers) addPeer(peer *clusterPeer) {
-	p.peers[peer.connInfo.GetName()] = peer
+	p.peers[peer.getConnInfo().GetName()] = peer
 }
 
 func (p *clusterPeers) removePeer(connInfo services.TunnelConnection) {
@@ -156,7 +157,9 @@ func newClusterPeer(srv *server, connInfo services.TunnelConnection, offlineThre
 // clusterPeer is a remote cluster that has established
 // a tunnel to the peers
 type clusterPeer struct {
-	log      *log.Entry
+	log *log.Entry
+
+	mu       sync.Mutex
 	connInfo services.TunnelConnection
 	srv      *server
 
@@ -168,6 +171,18 @@ type clusterPeer struct {
 	offlineThreshold time.Duration
 }
 
+func (s *clusterPeer) getConnInfo() services.TunnelConnection {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.connInfo
+}
+
+func (s *clusterPeer) setConnInfo(ci services.TunnelConnection) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.connInfo = ci
+}
+
 func (s *clusterPeer) CachingAccessPoint() (auth.AccessPoint, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
 }
@@ -177,18 +192,26 @@ func (s *clusterPeer) GetClient() (auth.ClientI, error) {
 }
 
 func (s *clusterPeer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return fmt.Sprintf("clusterPeer(%v)", s.connInfo)
 }
 
 func (s *clusterPeer) GetStatus() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return services.TunnelConnectionStatus(s.clock, s.connInfo, s.offlineThreshold)
 }
 
 func (s *clusterPeer) GetName() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.connInfo.GetClusterName()
 }
 
 func (s *clusterPeer) GetLastConnected() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.connInfo.GetLastHeartbeat()
 }
 
