@@ -17,7 +17,7 @@
                   <a class="{% if nav_item.active%}is-active{%endif%}" href="{{ nav_item.url|url }}">{{ nav_item.title }}</a>
                 </li>
               </ul>
-              {% if nav_item.active%}
+              <!-- {% if nav_item.active%}
                 <ul class="side-nav-secondary-buttons">
                   {% for toc_item in page.toc %}
                     <li class="{% if toc_item.active%}is-active{%endif%}"><a href="{{ nav_item.url|url }}">{{ toc_item.title }}</a></li>
@@ -26,7 +26,7 @@
                     {% endfor %}
                   {% endfor %}
                 </ul>
-              {% endif %}
+              {% endif %} -->
             {% endfor %}
           {% endif %}
         {% else %}

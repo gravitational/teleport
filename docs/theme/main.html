@@ -5,8 +5,10 @@
   {% include "topnav.html" %}
   {% include "toc.html" %}
 
-  <div class="l-section">
+  <div class="l-section is-thin has-jump-nav" data-sticky-container>
     <section id="docs-content" class="l-section-content text-article">
+      {% include "jumpnav.html" %}
+
       {% block content %}
         {{ page.content }}
       {% endblock %}
@@ -14,11 +16,10 @@
       {%- block footer %}
         {% include "pagination.html" %}
       {% endblock %}
-
     </section>
   </div>
-  {% include "cta.html" %}
 
+  {% include "cta.html" %}
   {%- block grvfooter %}{% endblock %}
   {% include "footer.html" %}
   {% include "scripts.html" %}
