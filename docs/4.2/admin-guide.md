@@ -426,8 +426,8 @@ ssh_service:
     # set to false, can be set true here or as a command line flag.
     permit_user_env: false
 
-    # Enhanced Session Recording was introduced with Teleport 4.2.   To enable 
-    # enhanced sessions recording the machine must have Linux Kernel (4.18+)  and BCC tools installed. For more details 
+    # Enhanced Session Recording was introduced with Teleport 4.2. To enable 
+    # enhanced session recording the machine must have Linux Kernel (4.18+)  and BCC tools installed. For more details 
     # see https://gravitational.com/teleport/docs/features/enhanced_session_recording/ 
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value: 
@@ -1017,8 +1017,8 @@ and 3024 on the proxy. Port 3080 is used to initially fetch the credentials (SSH
 and for discovery (where is the reverse tunnel running, in this case 3024). Port 3024 is used to
 establish a connection to the Auth Server through the proxy.
 
-To enable multiplexing so only one port is used simply set the `tunnel_public_addr` and `tunnel_listen_addr` the same as the `public_addr`
-and `web_listen_addr` respectively within the `proxy_service`.  Teleport will automatically recognize using the same port and enable multiplexing. 
+To enable multiplexing so only one port is used simply set the `tunnel_listen_addr` the same as the 
+`web_listen_addr` respectively within the `proxy_service`.  Teleport will automatically recognize using the same port and enable multiplexing. 
 
 ## Labeling Nodes
 
