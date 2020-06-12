@@ -63,6 +63,7 @@ type SrvSuite struct {
 	srvPort     string
 	srvHostPort string
 	clt         *ssh.Client
+	cltConfig   *ssh.ClientConfig
 	up          *upack
 	signer      ssh.Signer
 	user        string
@@ -187,13 +188,13 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	}
 	c.Assert(keyring.Add(addedKey), IsNil)
 	s.up = up
-	sshConfig := &ssh.ClientConfig{
+	s.cltConfig = &ssh.ClientConfig{
 		User:            s.user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
-	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	client, err := ssh.Dial("tcp", s.srv.Addr(), s.cltConfig)
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 	s.clt = client
@@ -1148,6 +1149,222 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 	c.Assert(response, Equals, true)
 }
 
+// rawNode is a basic non-teleport node which holds a
+// valid teleport cert and allows any client to connect.
+// useful for simulating basic behaviors of openssh nodes.
+type rawNode struct {
+	listener net.Listener
+	cfg      ssh.ServerConfig
+	addr     string
+}
+
+// accept an incoming connection and perform a basic ssh handshake
+func (r *rawNode) accept() (*ssh.ServerConn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	netConn, err := r.listener.Accept()
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	srvConn, chs, reqs, err := ssh.NewServerConn(netConn, &r.cfg)
+	if err != nil {
+		netConn.Close()
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	return srvConn, chs, reqs, nil
+}
+
+func (r *rawNode) Close() error {
+	return trace.Wrap(r.listener.Close())
+}
+
+// newRawNode constructs a new raw node instance.
+func (s *SrvSuite) newRawNode(c *C) *rawNode {
+	hostname, err := os.Hostname()
+	c.Assert(err, IsNil)
+
+	// Create host key and certificate for node.
+	keys, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+		HostID:               "raw-node",
+		NodeName:             "raw-node",
+		Roles:                teleport.Roles{teleport.RoleNode},
+		AdditionalPrincipals: []string{hostname},
+		DNSNames:             []string{hostname},
+	})
+	c.Assert(err, IsNil)
+
+	signer, err := sshutils.NewSigner(keys.Key, keys.Cert)
+	c.Assert(err, IsNil)
+
+	// configure a server which allows any client to connect
+	cfg := ssh.ServerConfig{
+		NoClientAuth: true,
+		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			return &ssh.Permissions{}, nil
+		},
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			return &ssh.Permissions{}, nil
+		},
+	}
+	cfg.AddHostKey(signer)
+
+	listener, err := net.Listen("tcp", ":0")
+	c.Assert(err, IsNil)
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	c.Assert(err, IsNil)
+
+	addr := net.JoinHostPort(hostname, port)
+
+	return &rawNode{
+		listener: listener,
+		cfg:      cfg,
+		addr:     addr,
+	}
+}
+
+// startX11EchoServer starts a fake node which, for each incoming SSH connection, accepts an
+// X11 forwarding request and then dials a single X11 channel which echoes all bytes written
+// to it.  Used to verify the behavior of X11 forwarding in recording proxies.
+func (s *SrvSuite) startX11EchoServer(ctx context.Context, c *C) *rawNode {
+	node := s.newRawNode(c)
+	go func() {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		for {
+			conn, chs, _, err := node.accept()
+			if err != nil {
+				log.Warnf("X11 echo server closing: %v", err)
+				return
+			}
+			go func() {
+				defer conn.Close()
+
+				// expect client to open a session channel
+				var nch ssh.NewChannel
+				select {
+				case nch = <-chs:
+				case <-time.After(time.Second * 3):
+					c.Fatalf("Timeout waiting for session channel")
+				case <-ctx.Done():
+					return
+				}
+				c.Assert(nch.ChannelType(), Equals, teleport.ChanSession)
+
+				sch, creqs, err := nch.Accept()
+				c.Assert(err, IsNil)
+				defer sch.Close()
+
+				// expect client to send an X11 forwarding request
+				var req *ssh.Request
+				select {
+				case req = <-creqs:
+				case <-time.After(time.Second * 3):
+					c.Fatalf("Timeout waiting for x11 forwarding request")
+				case <-ctx.Done():
+					return
+				}
+
+				c.Assert(req.Type, Equals, sshutils.X11ForwardRequest)
+				c.Assert(req.Reply(true, nil), IsNil)
+
+				// start a fake X11 channel
+				xch, _, err := conn.OpenChannel(sshutils.X11ChannelRequest, nil)
+				c.Assert(err, IsNil)
+
+				defer xch.Close()
+				// echo all bytes back across the X11 channel
+				_, err = io.Copy(xch, xch)
+				if err == nil {
+					xch.CloseWrite()
+				} else {
+					log.Errorf("X11 channel error: %v", err)
+				}
+			}()
+		}
+	}()
+	return node
+}
+
+// TestX11ProxySupport verifies that recording proxies correctly forward
+// X11 request/channels.
+func (s *SrvSuite) TestX11ProxySupport(c *C) {
+	// set cluster config to record at the proxy
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtProxy,
+	})
+	c.Assert(err, IsNil)
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	// verify that the proxy is in recording mode
+	ok, responseBytes, err := s.clt.SendRequest(teleport.RecordingProxyReqType, true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	response, err := strconv.ParseBool(string(responseBytes))
+	c.Assert(err, IsNil)
+	c.Assert(response, Equals, true)
+
+	// setup our fake X11 echo server
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	node := s.startX11EchoServer(ctx, c)
+
+	// Create a direct TCP/IP connection from proxy to our X11 test server.
+	netConn, err := s.clt.Dial("tcp", node.addr)
+	c.Assert(err, IsNil)
+	defer netConn.Close()
+
+	// make an insecure version of our client config (this test is only about X11 forwarding,
+	// so we don't bother to verify recording proxy key generation here).
+	cltConfig := *s.cltConfig
+	cltConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+
+	// Perform ssh handshake and setup client for X11 test server.
+	cltConn, chs, reqs, err := ssh.NewClientConn(netConn, node.addr, &cltConfig)
+	c.Assert(err, IsNil)
+	clt := ssh.NewClient(cltConn, chs, reqs)
+
+	sess, err := clt.NewSession()
+	c.Assert(err, IsNil)
+
+	// register X11 channel handler before requesting forwarding to avoid races
+	xchs := clt.HandleChannelOpen(sshutils.X11ChannelRequest)
+	c.Assert(xchs, NotNil)
+
+	// Send an X11 forwarding request to the server
+	ok, err = sess.SendRequest(sshutils.X11ForwardRequest, true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	// wait for server to start an X11 channel
+	var xnc ssh.NewChannel
+	select {
+	case xnc = <-xchs:
+	case <-time.After(time.Second * 3):
+		c.Fatalf("Timeout waiting for X11 channel open from %v", node.addr)
+	}
+	c.Assert(xnc, NotNil)
+	c.Assert(xnc.ChannelType(), Equals, sshutils.X11ChannelRequest)
+
+	xch, _, err := xnc.Accept()
+	c.Assert(err, IsNil)
+
+	defer xch.Close()
+
+	// write some data to the channel
+	msg := []byte("testing!")
+	_, err = xch.Write(msg)
+	c.Assert(err, IsNil)
+
+	// send EOF
+	c.Assert(xch.CloseWrite(), IsNil)
+
+	// expect node to successfully echo the data
+	rsp := make([]byte, len(msg))
+	_, err = io.ReadFull(xch, rsp)
+	c.Assert(err, IsNil)
+	c.Assert(string(msg), Equals, string(rsp))
+}
+
 // upack holds all ssh signing artefacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
@@ -1187,6 +1404,9 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	rules := role.GetRules(services.Allow)
 	rules = append(rules, services.NewRule(services.Wildcard, services.RW()))
 	role.SetRules(services.Allow, rules)
+	opts := role.GetOptions()
+	opts.PermitX11Forwarding = services.NewBool(true)
+	role.SetOptions(opts)
 	role.SetLogins(services.Allow, allowedLogins)
 	role.SetNodeLabels(services.Allow, allowedLabels)
 	err = auth.UpsertRole(ctx, role)

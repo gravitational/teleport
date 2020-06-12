@@ -694,6 +694,13 @@ message RoleOptions {
 
     // BPF defines what events to record for the BPF-based session recorder.
     repeated string BPF = 7 [ (gogoproto.jsontag) = "enhanced_recording,omitempty" ];
+
+    // PermitX11Forwarding authorizes use of X11 forwarding.
+    bool PermitX11Forwarding = 8 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "permit_x11_forwarding,omitempty",
+        (gogoproto.casttype) = "Bool"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
