@@ -97,6 +97,8 @@ type UserCertParams struct {
 	Username string
 	// AllowedLogins is a list of SSH principals
 	AllowedLogins []string
+	// PermitX11Forwarding permits X11 forwarding for this cert
+	PermitX11Forwarding bool
 	// PermitAgentForwarding permits agent forwarding for this cert
 	PermitAgentForwarding bool
 	// PermitPortForwarding permits port forwarding.

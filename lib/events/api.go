@@ -206,6 +206,11 @@ const (
 	SubsystemName  = "name"
 	SubsystemError = "exitError"
 
+	// X11 forwarding event
+	X11ForwardEvent   = "x11-forward"
+	X11ForwardSuccess = "success"
+	X11ForwardErr     = "error"
+
 	// Port forwarding event
 	PortForwardEvent   = "port"
 	PortForwardAddr    = "addr"
