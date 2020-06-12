@@ -321,7 +321,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 			return nil, trace.Wrap(err)
 		}
 		sigAlg := defaults.CASignatureAlgorithm
-		if cfg.CASigningAlg != nil {
+		if cfg.CASigningAlg != nil && *cfg.CASigningAlg != "" {
 			sigAlg = *cfg.CASigningAlg
 		}
 
@@ -381,7 +381,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 			return nil, trace.Wrap(err)
 		}
 		sigAlg := defaults.CASignatureAlgorithm
-		if cfg.CASigningAlg != nil {
+		if cfg.CASigningAlg != nil && *cfg.CASigningAlg != "" {
 			sigAlg = *cfg.CASigningAlg
 		}
 
