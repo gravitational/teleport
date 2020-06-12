@@ -1018,7 +1018,10 @@ and for discovery (where is the reverse tunnel running, in this case 3024). Port
 establish a connection to the Auth Server through the proxy.
 
 To enable multiplexing so only one port is used, simply set the `tunnel_listen_addr` the same as the 
-`web_listen_addr` respectively within the `proxy_service`.  Teleport will automatically recognize using the same port and enable multiplexing. 
+`web_listen_addr` respectively within the `proxy_service`.  Teleport will automatically recognize using the same port and enable multiplexing. If the log setting is set to DEBUG you will see multiplexing enabled in the server log.
+```bash
+DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on. service/service.go:1944
+```
 
 ## Labeling Nodes
 
