@@ -427,7 +427,7 @@ ssh_service:
     permit_user_env: false
 
     # Enhanced Session Recording was introduced with Teleport 4.2. To enable 
-    # enhanced session recording the machine must have Linux Kernel (4.18+)  and BCC tools installed. For more details 
+    # enhanced session recording the machine must have Linux kernel (4.18+)  and BCC tools installed. For more details 
     # see https://gravitational.com/teleport/docs/features/enhanced_session_recording/ 
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value: 
