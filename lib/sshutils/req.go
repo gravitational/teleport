@@ -160,6 +160,12 @@ const (
 
 	// AuthAgentRequest is a request to a SSH client to open an agent channel.
 	AuthAgentRequest = "auth-agent@openssh.com"
+
+	// X11ForwardRequest is a request to initiate X11 forwarding.
+	X11ForwardRequest = "x11-req"
+
+	// X11ChannelRequest is the type of an X11 forwarding channel.
+	X11ChannelRequest = "x11"
 )
 
 const (
