@@ -521,6 +521,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		CertificateFormat:     certificateFormat,
 		PermitPortForwarding:  req.checker.CanPortForward(),
 		PermitAgentForwarding: req.checker.CanForwardAgents(),
+		PermitX11Forwarding:   req.checker.PermitX11Forwarding(),
 		RouteToCluster:        req.routeToCluster,
 		Traits:                req.traits,
 		ActiveRequests:        req.activeRequests,

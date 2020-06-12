@@ -1710,9 +1710,14 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	_, exists := parsedCert.Extensions[teleport.CertExtensionPermitAgentForwarding]
 	c.Assert(exists, check.Equals, true)
 
-	// now update role to permit agent forwarding
+	// user should not have X11 forwarding (default setting)
+	_, exists = parsedCert.Extensions[teleport.CertExtensionPermitX11Forwarding]
+	c.Assert(exists, check.Equals, false)
+
+	// now update role to permit agent and X11 forwarding
 	roleOptions := userRole.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
+	roleOptions.PermitX11Forwarding = services.NewBool(true)
 	userRole.SetOptions(roleOptions)
 	err = s.server.Auth().UpsertRole(userRole)
 	c.Assert(err, check.IsNil)
@@ -1728,6 +1733,10 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 
 	// user should get agent forwarding
 	_, exists = parsedCert.Extensions[teleport.CertExtensionPermitAgentForwarding]
+	c.Assert(exists, check.Equals, true)
+
+	// user should get X11 forwarding
+	_, exists = parsedCert.Extensions[teleport.CertExtensionPermitX11Forwarding]
 	c.Assert(exists, check.Equals, true)
 
 	// apply HTTP Auth to generate user cert:

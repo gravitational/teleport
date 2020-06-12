@@ -120,6 +120,16 @@ var (
 		Name: ExecEvent,
 		Code: ExecFailureCode,
 	}
+	// X11Forward is emitted when a user requests X11 forwarding.
+	X11Forward = Event{
+		Name: X11ForwardEvent,
+		Code: X11ForwardCode,
+	}
+	// X11ForwardFailure is emitted when an X11 forwarding request fails.
+	X11ForwardFailure = Event{
+		Name: X11ForwardEvent,
+		Code: X11ForwardFailureCode,
+	}
 	// PortForward is emitted when a user requests port forwarding.
 	PortForward = Event{
 		Name: PortForwardEvent,
@@ -315,6 +325,10 @@ const (
 	ClientDisconnectCode = "T3006I"
 	// AuthAttemptFailureCode is the auth attempt failure event code.
 	AuthAttemptFailureCode = "T3007W"
+	// X11ForwardCode is the x11 forward event code.
+	X11ForwardCode = "T3008I"
+	// X11ForwardFailureCode is the x11 forward failure event code.
+	X11ForwardFailureCode = "T3008W"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
