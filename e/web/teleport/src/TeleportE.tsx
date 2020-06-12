@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Route, Switch } from 'shared/components/Router';
+import { Route, Switch } from 'teleport/components/Router';
 import Console from 'teleport/console';
 import Dashboard from 'teleport/dashboard';
 import Player from 'teleport/player';

@@ -9,7 +9,7 @@ class FeatureAuthConnectors extends FeatureBase {
 
   getRoute() {
     return {
-      title: 'Auth. Connectors',
+      title: 'Auth Connectors',
       path: cfg.routes.clusterAuthConnectors,
       component: this.Component,
     };
