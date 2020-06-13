@@ -21,7 +21,7 @@ import {
   Route,
   useParams,
   useRouteMatch,
-} from 'shared/components/Router';
+} from 'teleport/components/Router';
 import { Flex } from 'design';
 import cfg from 'teleport/config';
 import Tabs, { TabItem } from './PlayerTabs';

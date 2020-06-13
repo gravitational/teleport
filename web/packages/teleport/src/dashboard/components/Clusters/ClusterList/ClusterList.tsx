@@ -21,6 +21,7 @@ import isMatch from 'design/utils/match';
 import history from 'teleport/services/history';
 import { Cluster } from 'teleport/services/clusters';
 import { sortBy } from 'lodash';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import {
   SortHeaderCell,
   TextCell,
@@ -30,7 +31,6 @@ import {
   SortTypes,
 } from 'design/DataTable';
 import { usePages, Pager, StyledPanel } from 'design/DataTable/Paged';
-import { ButtonBorder } from 'design';
 import * as Labels from 'design/Label';
 import cfg from 'teleport/config';
 
@@ -208,12 +208,18 @@ function ActionCell(props) {
     return <Cell />;
   }
 
-  const url = cfg.getClusterRoute(clusterId);
+  const nodeListURL = cfg.getClusterRoute(clusterId);
+  const terminalURL = cfg.getConsoleNodesRoute(clusterId);
   return (
     <Cell align="right">
-      <ButtonBorder as={NavLink} to={url} size="small">
-        View
-      </ButtonBorder>
+      <MenuButton>
+        <MenuItem as="a" href={terminalURL} target="_blank">
+          New Session
+        </MenuItem>
+        <MenuItem as={NavLink} to={nodeListURL}>
+          View Cluster
+        </MenuItem>
+      </MenuButton>
     </Cell>
   );
 }

@@ -37,13 +37,24 @@ export default function useClusterNodes(teleCtx: TeleportContext) {
     [logins]
   );
 
+  const openNewTab = (url: string) => {
+    const element = document.createElement('a');
+    element.setAttribute('href', `${url}`);
+    // works in ie11
+    element.setAttribute('target', `_blank`);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
   const startSshSession = (login: string, serverId: string) => {
     const url = cfg.getSshConnectRoute({
       serverId,
       login,
     });
 
-    history.push(url);
+    openNewTab(url);
   };
 
   return {

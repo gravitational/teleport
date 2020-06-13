@@ -27,6 +27,7 @@ exports[`render cluster nodes 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
+  height: 24px;
 }
 
 .c14:active {
@@ -59,6 +60,15 @@ exports[`render cluster nodes 1`] = `
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
+}
+
+.c15 {
+  display: inline-block;
+  transition: color .3s;
+  margin-left: 8px;
+  margin-right: -8px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
 }
 
 .c13 {
@@ -417,14 +427,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/localhost"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -446,14 +460,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/nidvojik"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -475,14 +493,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/lidtabih"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -504,14 +526,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/farovluv"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -533,14 +559,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/rozpaari"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -562,14 +592,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/wetjolune"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -591,14 +625,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/dashawic"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -620,14 +658,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/jesushenry58"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -649,14 +691,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/jordansimpson35"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -678,14 +724,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/leonamann249"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -707,14 +757,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/bessiecohen207"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -736,14 +790,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/philipjohnson10"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -765,14 +823,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/teresastone14"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -794,14 +856,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/connorsharp137"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -823,14 +889,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/ricardosingleton242"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -852,14 +922,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/rozpaari"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -881,14 +955,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/wetjolune"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -910,14 +988,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/dashawic"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -939,14 +1021,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/williepayne223"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -968,14 +1054,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/samlewis176"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -997,14 +1087,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/nellwheeler72"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1026,14 +1120,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/albertowens200"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1055,14 +1153,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/beatricecarson171"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1084,14 +1186,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/besscarroll152"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1113,14 +1219,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/hannahsutton232"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1142,14 +1252,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/barrynelson110"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1171,14 +1285,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/rozpaari"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1200,14 +1318,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/wetjolune"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1229,14 +1351,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/dashawic"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1258,14 +1384,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/henriettarios78"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1287,14 +1417,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/josephinewolfe55"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1316,14 +1450,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/jaysandoval137"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1345,14 +1483,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/isabellekim81"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1374,14 +1516,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/francismoran134"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1403,14 +1549,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/theodorefrazier78"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1432,14 +1582,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/hattiestanley34"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
       <tr>
@@ -1461,14 +1615,18 @@ exports[`render cluster nodes 1`] = `
         <td
           align="right"
         >
-          <a
+          <button
             class="c14"
-            href="/web/cluster/tommybrooks146"
+            height="24px"
             kind="border"
-            theme="[object Object]"
           >
-            View
-          </a>
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
         </td>
       </tr>
     </tbody>

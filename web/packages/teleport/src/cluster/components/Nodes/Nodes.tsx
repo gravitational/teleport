@@ -16,13 +16,15 @@ limitations under the License.
 
 import React from 'react';
 import * as Cards from 'design/CardError';
-import { Indicator, Box } from 'design';
+import { Indicator, Box, ButtonPrimary } from 'design';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { useTeleport } from 'teleport/teleportContextProvider';
+import { useParams } from 'teleport/components/Router';
+import cfg from 'teleport/config';
 import NodeList from 'teleport/components/NodeList';
 import useClusterNodes from './useClusterNodes';
 
@@ -38,6 +40,8 @@ export function Nodes({
   startSshSession,
   attempt,
 }: NodesProp) {
+  const { clusterId } = useParams();
+
   if (attempt.isFailed) {
     return <Cards.Failed alignSelf="baseline" message={attempt.message} />;
   }
@@ -51,6 +55,15 @@ export function Nodes({
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="5">Nodes</FeatureHeaderTitle>
+        <ButtonPrimary
+          ml="auto"
+          width="240px"
+          as="a"
+          href={cfg.getConsoleNodesRoute(clusterId)}
+          target="_blank"
+        >
+          New Session
+        </ButtonPrimary>
       </FeatureHeader>
       {attempt.isProcessing && (
         <Box textAlign="center" m={10}>

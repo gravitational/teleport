@@ -29,7 +29,7 @@ export default function ActionCell(props: any) {
   return (
     <Cell align="right">
       <MenuButton>
-        <MenuItem as={NavLink} to={url}>
+        <MenuItem as="a" href={url} target="_blank">
           Join Session
         </MenuItem>
       </MenuButton>

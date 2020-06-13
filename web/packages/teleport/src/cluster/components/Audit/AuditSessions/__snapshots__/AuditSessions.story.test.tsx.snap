@@ -345,7 +345,6 @@ exports[`rendering of Audit Sessions 1`] = `
               href="/web/cluster/localhost/session/240355-6491-11e9-80a1-427cfde50f5a/player"
               kind="border"
               target="_blank"
-              theme="[object Object]"
             >
               Play
             </a>
@@ -385,7 +384,6 @@ exports[`rendering of Audit Sessions 1`] = `
               href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a/player"
               kind="border"
               target="_blank"
-              theme="[object Object]"
             >
               Play
             </a>
@@ -425,7 +423,6 @@ exports[`rendering of Audit Sessions 1`] = `
               href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a/player"
               kind="border"
               target="_blank"
-              theme="[object Object]"
             >
               Play
             </a>

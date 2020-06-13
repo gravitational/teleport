@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Redirect, Switch, Route } from 'shared/components/Router';
+import { Redirect, Switch, Route } from 'teleport/components/Router';
 import {
   FeatureBox,
   FeatureHeader,
@@ -35,10 +35,6 @@ export default function Audit() {
   const rangeOptions = useMemo(() => getRangeOptions(), []);
   const [range, handleOnRange] = useState(rangeOptions[0]);
 
-  const auditRoute = cfg.getAuditRoute();
-  const eventsRoute = cfg.getAuditEventsRoute();
-  const sessionsRoute = cfg.getAuditSessionsRoute();
-
   const { overflow, attempt, maxLimit, events } = useEvents(range);
   const { isSuccess, isFailed, message, isProcessing } = attempt;
 
@@ -47,8 +43,8 @@ export default function Audit() {
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="8">Audit Log</FeatureHeaderTitle>
         <Tabs>
-          <TabItem to={sessionsRoute} title="Sessions" />
-          <TabItem to={eventsRoute} title="Events" />
+          <TabItem to={cfg.getAuditSessionsRoute()} title="Sessions" />
+          <TabItem to={cfg.getAuditEventsRoute()} title="Events" />
         </Tabs>
         <RangePicker
           ml="auto"
@@ -71,13 +67,17 @@ export default function Audit() {
       )}
       {isSuccess && (
         <Switch>
-          <Route title="Sessions" path={sessionsRoute}>
+          <Route title="Sessions" path={cfg.routes.clusterAuditSessions}>
             <AuditSessions pageSize={20} events={events} />
           </Route>
-          <Route title="Events" path={eventsRoute}>
+          <Route title="Events" path={cfg.routes.clusterAuditEvents}>
             <AuditEvents events={events} />
           </Route>
-          <Redirect exact from={auditRoute} to={sessionsRoute} />
+          <Redirect
+            exact
+            from={cfg.routes.clusterAudit}
+            to={cfg.routes.clusterAuditSessions}
+          />
         </Switch>
       )}
     </FeatureBox>

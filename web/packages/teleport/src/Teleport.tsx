@@ -16,7 +16,7 @@ limitations under the License.
 import { hot } from 'react-hot-loader/root';
 import React from 'react';
 import ThemeProvider from 'design/ThemeProvider';
-import { Router, Route, Switch } from 'shared/components/Router';
+import { Router, Route, Switch } from 'teleport/components/Router';
 import Invite, { ResetPassword } from 'teleport/components/Invite';
 import CatchError from 'teleport/components/CatchError';
 import Login, { LoginSuccess, LoginFailed } from 'teleport/components/Login';

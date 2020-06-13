@@ -185,7 +185,7 @@ const PlayCell = props => {
   const url = cfg.getSessionAuditPlayerRoute(row);
   return (
     <Table.Cell align="right">
-      <ButtonBorder as={NavLink} to={url} target="_blank" size="small">
+      <ButtonBorder as="a" href={url} target="_blank" size="small">
         Play
       </ButtonBorder>
     </Table.Cell>

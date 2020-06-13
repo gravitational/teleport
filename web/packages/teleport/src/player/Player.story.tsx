@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Router, Route } from 'shared/components/Router';
+import { Router, Route } from 'teleport/components/Router';
 import { Flex } from 'design';
 import PlayerComponent from './Player';
 import { createMemoryHistory } from 'history';

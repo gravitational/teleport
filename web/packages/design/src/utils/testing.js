@@ -22,6 +22,7 @@ import {
   waitForElement,
 } from '@testing-library/react';
 import { screen, wait, prettyDOM, getByTestId } from '@testing-library/dom';
+import { MemoryRouter as Router } from 'react-router-dom';
 import ThemeProvider from 'design/ThemeProvider';
 import theme from 'design/theme';
 import '@testing-library/jest-dom';
@@ -49,4 +50,5 @@ export {
   prettyDOM,
   waitForElement,
   getByTestId,
+  Router,
 };

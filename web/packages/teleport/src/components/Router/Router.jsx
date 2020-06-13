@@ -39,8 +39,14 @@ const Switch = props => (
 
 const Route = props => {
   const { title = '', ...rest } = props;
+  const { clusterId } = useParams();
+
   React.useEffect(() => {
-    document.title = title;
+    if (title && clusterId) {
+      document.title = `${clusterId} • ${title}`;
+    } else if (title) {
+      document.title = `${title}`;
+    }
   }, [title]);
 
   return <RouterDOM.Route {...rest} />;

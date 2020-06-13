@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { useParams } from 'shared/components/Router';
+import { useParams } from 'teleport/components/Router';
 import FeatureAccount from 'teleport/features/featureAccount';
 import FeatureAudit from 'teleport/cluster/features/featureAudit';
 import FeatureNodes from 'teleport/cluster/features/featureNodes';

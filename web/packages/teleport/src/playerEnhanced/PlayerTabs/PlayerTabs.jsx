@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { NavLink } from 'shared/components/Router';
+import { NavLink } from 'teleport/components/Router';
 import { typography } from 'design/system';
 import { Flex, Box } from 'design';
 

@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { useParams } from 'shared/components/Router';
+import { useParams } from 'teleport/components/Router';
 import { Flex } from 'design';
 import cfg from 'teleport/config';
 import Tabs, { TabItem } from './PlayerTabs';
@@ -27,6 +27,7 @@ import { colors } from 'teleport/console/components/colors';
 
 export default function Player() {
   const { sid, clusterId } = useParams();
+  document.title = `${clusterId} • Play ${sid}`;
 
   React.useMemo(() => {
     cfg.setClusterId(clusterId);
