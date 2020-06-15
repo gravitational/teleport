@@ -37,7 +37,7 @@ See the comments in the default `values.yaml` and also the [Teleport documentati
 
 If you are deploying the Enterprise version you will require the license file as a secret available to Teleport. To use the community edition of Teleport simply set `enabled: false` under the `license:` settings in `values.yaml`.
 
-Download the `license.pem` from the Teleport dashboard, and then <b>rename it to the filename</b> that this chart expects:
+Download the `license.pem` from the [Teleport dashboard](https://dashboard.gravitational.com/web/login), and then <b>rename it to the filename</b> that this chart expects:
 
 ```
 cp ~/Downloads/license.pem license-enterprise.pem
