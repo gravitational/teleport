@@ -81,7 +81,7 @@ func (s *AccessService) CreateRole(role services.Role) error {
 }
 
 // UpsertRole updates parameters about role
-func (s *AccessService) UpsertRole(role services.Role) error {
+func (s *AccessService) UpsertRole(ctx context.Context, role services.Role) error {
 	value, err := services.GetRoleMarshaler().MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -94,7 +94,7 @@ func (s *AccessService) UpsertRole(role services.Role) error {
 		ID:      role.GetResourceID(),
 	}
 
-	_, err = s.Put(context.TODO(), item)
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -118,11 +118,11 @@ func (s *AccessService) GetRole(name string) (services.Role, error) {
 }
 
 // DeleteRole deletes a role from the backend
-func (s *AccessService) DeleteRole(name string) error {
+func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing role name")
 	}
-	err := s.Delete(context.TODO(), backend.Key(rolesPrefix, name, paramsPrefix))
+	err := s.Delete(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("role %q is not found", name)

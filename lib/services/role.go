@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -208,7 +209,7 @@ type Access interface {
 	CreateRole(role Role) error
 
 	// UpsertRole creates or updates role
-	UpsertRole(role Role) error
+	UpsertRole(ctx context.Context, role Role) error
 
 	// DeleteAllRoles deletes all roles
 	DeleteAllRoles() error
@@ -217,7 +218,7 @@ type Access interface {
 	GetRole(name string) (Role, error)
 
 	// DeleteRole deletes role by name
-	DeleteRole(name string) error
+	DeleteRole(ctx context.Context, name string) error
 }
 
 const (

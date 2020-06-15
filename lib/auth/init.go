@@ -154,12 +154,14 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 		return nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
+	ctx := context.TODO()
+
 	domainName := cfg.ClusterName.GetClusterName()
-	err := backend.AcquireLock(context.TODO(), cfg.Backend, domainName, 30*time.Second)
+	err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer backend.ReleaseLock(context.TODO(), cfg.Backend, domainName)
+	defer backend.ReleaseLock(ctx, cfg.Backend, domainName)
 
 	// check that user CA and host CA are present and set the certs if needed
 	asrv, err := NewAuthServer(&cfg, opts...)
@@ -179,7 +181,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 			if err := checkResourceConsistency(domainName, cfg.Resources...); err != nil {
 				return nil, trace.Wrap(err, "refusing to bootstrap backend")
 			}
-			if err := local.CreateResources(context.TODO(), cfg.Backend, cfg.Resources...); err != nil {
+			if err := local.CreateResources(ctx, cfg.Backend, cfg.Resources...); err != nil {
 				return nil, trace.Wrap(err, "backend bootstrap failed")
 			}
 		} else {
@@ -194,7 +196,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	// same pattern as the rest of the configuration (they are not configuration
 	// singletons). However, we need to keep them around while Telekube uses them.
 	for _, role := range cfg.Roles {
-		if err := asrv.UpsertRole(role); err != nil {
+		if err := asrv.UpsertRole(ctx, role); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		log.Infof("Created role: %v.", role)
@@ -433,7 +435,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	}
 
 	// Migrate any legacy resources to new format.
-	err = migrateLegacyResources(cfg, asrv)
+	err = migrateLegacyResources(ctx, cfg, asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -448,13 +450,13 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	return asrv, nil
 }
 
-func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
+func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *AuthServer) error {
 	err := migrateRemoteClusters(asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = migrateRoleOptions(asrv)
+	err = migrateRoleOptions(ctx, asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -933,7 +935,7 @@ func migrateRemoteClusters(asrv *AuthServer) error {
 
 // DELETE IN: 4.3.0.
 // migrateRoleOptions adds the "enhanced_recording" option to all roles.
-func migrateRoleOptions(asrv *AuthServer) error {
+func migrateRoleOptions(ctx context.Context, asrv *AuthServer) error {
 	roles, err := asrv.GetRoles()
 	if err != nil {
 		return trace.Wrap(err)
@@ -949,7 +951,7 @@ func migrateRoleOptions(asrv *AuthServer) error {
 			continue
 		}
 		role.SetOptions(options)
-		err := asrv.UpsertRole(role)
+		err := asrv.UpsertRole(ctx, role)
 		if err != nil {
 			return trace.Wrap(err)
 		}

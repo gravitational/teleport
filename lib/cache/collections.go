@@ -30,9 +30,9 @@ import (
 // of resources updates
 type collection interface {
 	// fetch fetches resources
-	fetch() error
+	fetch(ctx context.Context) error
 	// process processes event
-	processEvent(e services.Event) error
+	processEvent(ctx context.Context, e services.Event) error
 	// watchKind returns a watch
 	// required for this collection
 	watchKind() services.WatchKind
@@ -137,8 +137,8 @@ func (r *accessRequest) erase() error {
 	return nil
 }
 
-func (r *accessRequest) fetch() error {
-	resources, err := r.DynamicAccess.GetAccessRequests(context.TODO(), services.AccessRequestFilter{})
+func (r *accessRequest) fetch(ctx context.Context) error {
+	resources, err := r.DynamicAccess.GetAccessRequests(ctx, services.AccessRequestFilter{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -146,17 +146,17 @@ func (r *accessRequest) fetch() error {
 		return trace.Wrap(err)
 	}
 	for _, resource := range resources {
-		if err := r.dynamicAccessCache.UpsertAccessRequest(context.TODO(), resource); err != nil {
+		if err := r.dynamicAccessCache.UpsertAccessRequest(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-func (r *accessRequest) processEvent(event services.Event) error {
+func (r *accessRequest) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		err := r.dynamicAccessCache.DeleteAccessRequest(context.TODO(), event.Resource.GetName())
+		err := r.dynamicAccessCache.DeleteAccessRequest(ctx, event.Resource.GetName())
 		if err != nil {
 			// resource could be missing in the cache
 			// expired or not created, if the first consumed
@@ -172,7 +172,7 @@ func (r *accessRequest) processEvent(event services.Event) error {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		r.setTTL(resource)
-		if err := r.dynamicAccessCache.UpsertAccessRequest(context.TODO(), resource); err != nil {
+		if err := r.dynamicAccessCache.UpsertAccessRequest(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -200,7 +200,7 @@ func (c *tunnelConnection) erase() error {
 	return nil
 }
 
-func (c *tunnelConnection) fetch() error {
+func (c *tunnelConnection) fetch(ctx context.Context) error {
 	resources, err := c.Presence.GetAllTunnelConnections()
 	if err != nil {
 		return trace.Wrap(err)
@@ -216,7 +216,7 @@ func (c *tunnelConnection) fetch() error {
 	return nil
 }
 
-func (c *tunnelConnection) processEvent(event services.Event) error {
+func (c *tunnelConnection) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.presenceCache.DeleteTunnelConnection(event.Resource.GetSubKind(), event.Resource.GetName())
@@ -263,7 +263,7 @@ func (c *reverseTunnel) erase() error {
 	return nil
 }
 
-func (c *reverseTunnel) fetch() error {
+func (c *reverseTunnel) fetch(ctx context.Context) error {
 	resources, err := c.Presence.GetReverseTunnels(services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
@@ -280,7 +280,7 @@ func (c *reverseTunnel) fetch() error {
 	return nil
 }
 
-func (c *reverseTunnel) processEvent(event services.Event) error {
+func (c *reverseTunnel) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.presenceCache.DeleteReverseTunnel(event.Resource.GetName())
@@ -327,7 +327,7 @@ func (c *proxy) erase() error {
 	return nil
 }
 
-func (c *proxy) fetch() error {
+func (c *proxy) fetch(ctx context.Context) error {
 	resources, err := c.Presence.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
@@ -346,7 +346,7 @@ func (c *proxy) fetch() error {
 	return nil
 }
 
-func (c *proxy) processEvent(event services.Event) error {
+func (c *proxy) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.presenceCache.DeleteProxy(event.Resource.GetName())
@@ -393,7 +393,7 @@ func (c *authServer) erase() error {
 	return nil
 }
 
-func (c *authServer) fetch() error {
+func (c *authServer) fetch(ctx context.Context) error {
 	resources, err := c.Presence.GetAuthServers()
 	if err != nil {
 		return trace.Wrap(err)
@@ -412,7 +412,7 @@ func (c *authServer) fetch() error {
 	return nil
 }
 
-func (c *authServer) processEvent(event services.Event) error {
+func (c *authServer) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.presenceCache.DeleteAuthServer(event.Resource.GetName())
@@ -459,7 +459,7 @@ func (c *node) erase() error {
 	return nil
 }
 
-func (c *node) fetch() error {
+func (c *node) fetch(ctx context.Context) error {
 	resources, err := c.Presence.GetNodes(defaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
@@ -476,7 +476,7 @@ func (c *node) fetch() error {
 	return nil
 }
 
-func (c *node) processEvent(event services.Event) error {
+func (c *node) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.presenceCache.DeleteNode(event.Resource.GetMetadata().Namespace, event.Resource.GetName())
@@ -523,7 +523,7 @@ func (c *namespace) erase() error {
 	return nil
 }
 
-func (c *namespace) fetch() error {
+func (c *namespace) fetch(ctx context.Context) error {
 	resources, err := c.Presence.GetNamespaces()
 	if err != nil {
 		return trace.Wrap(err)
@@ -540,7 +540,7 @@ func (c *namespace) fetch() error {
 	return nil
 }
 
-func (c *namespace) processEvent(event services.Event) error {
+func (c *namespace) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.presenceCache.DeleteNamespace(event.Resource.GetName())
@@ -592,7 +592,7 @@ func (c *certAuthority) erase() error {
 	return nil
 }
 
-func (c *certAuthority) fetch() error {
+func (c *certAuthority) fetch(ctx context.Context) error {
 	if err := c.updateCertAuthorities(services.HostCA); err != nil {
 		return trace.Wrap(err)
 	}
@@ -621,7 +621,7 @@ func (c *certAuthority) updateCertAuthorities(caType services.CertAuthType) erro
 	return nil
 }
 
-func (c *certAuthority) processEvent(event services.Event) error {
+func (c *certAuthority) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.trustCache.DeleteCertAuthority(services.CertAuthID{
@@ -672,7 +672,7 @@ func (c *staticTokens) erase() error {
 	return nil
 }
 
-func (c *staticTokens) fetch() error {
+func (c *staticTokens) fetch(ctx context.Context) error {
 	staticTokens, err := c.ClusterConfig.GetStaticTokens()
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -691,7 +691,7 @@ func (c *staticTokens) fetch() error {
 	return nil
 }
 
-func (c *staticTokens) processEvent(event services.Event) error {
+func (c *staticTokens) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.clusterConfigCache.DeleteStaticTokens()
@@ -738,7 +738,7 @@ func (c *provisionToken) erase() error {
 	return nil
 }
 
-func (c *provisionToken) fetch() error {
+func (c *provisionToken) fetch(ctx context.Context) error {
 	tokens, err := c.Provisioner.GetTokens()
 	if err != nil {
 		return trace.Wrap(err)
@@ -755,7 +755,7 @@ func (c *provisionToken) fetch() error {
 	return nil
 }
 
-func (c *provisionToken) processEvent(event services.Event) error {
+func (c *provisionToken) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.provisionerCache.DeleteToken(event.Resource.GetName())
@@ -803,7 +803,7 @@ func (c *clusterConfig) erase() error {
 	return nil
 }
 
-func (c *clusterConfig) fetch() error {
+func (c *clusterConfig) fetch(ctx context.Context) error {
 	clusterConfig, err := c.ClusterConfig.GetClusterConfig()
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -823,7 +823,7 @@ func (c *clusterConfig) fetch() error {
 	return nil
 }
 
-func (c *clusterConfig) processEvent(event services.Event) error {
+func (c *clusterConfig) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.clusterConfigCache.DeleteClusterConfig()
@@ -871,7 +871,7 @@ func (c *clusterName) erase() error {
 	return nil
 }
 
-func (c *clusterName) fetch() error {
+func (c *clusterName) fetch(ctx context.Context) error {
 	clusterName, err := c.ClusterConfig.GetClusterName()
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -891,7 +891,7 @@ func (c *clusterName) fetch() error {
 	return nil
 }
 
-func (c *clusterName) processEvent(event services.Event) error {
+func (c *clusterName) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
 		err := c.clusterConfigCache.DeleteClusterName()
@@ -938,7 +938,7 @@ func (c *user) erase() error {
 	return nil
 }
 
-func (c *user) fetch() error {
+func (c *user) fetch(ctx context.Context) error {
 	resources, err := c.Users.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -955,10 +955,10 @@ func (c *user) fetch() error {
 	return nil
 }
 
-func (c *user) processEvent(event services.Event) error {
+func (c *user) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		err := c.usersCache.DeleteUser(context.TODO(), event.Resource.GetName())
+		err := c.usersCache.DeleteUser(ctx, event.Resource.GetName())
 		if err != nil {
 			// resource could be missing in the cache
 			// expired or not created, if the first consumed
@@ -1003,7 +1003,7 @@ func (c *role) erase() error {
 	return nil
 }
 
-func (c *role) fetch() error {
+func (c *role) fetch(ctx context.Context) error {
 	resources, err := c.Access.GetRoles()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1013,17 +1013,17 @@ func (c *role) fetch() error {
 	}
 	for _, resource := range resources {
 		c.setTTL(resource)
-		if err := c.accessCache.UpsertRole(resource); err != nil {
+		if err := c.accessCache.UpsertRole(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-func (c *role) processEvent(event services.Event) error {
+func (c *role) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		err := c.accessCache.DeleteRole(event.Resource.GetName())
+		err := c.accessCache.DeleteRole(ctx, event.Resource.GetName())
 		if err != nil {
 			// resource could be missing in the cache
 			// expired or not created, if the first consumed
@@ -1039,7 +1039,7 @@ func (c *role) processEvent(event services.Event) error {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		c.setTTL(resource)
-		if err := c.accessCache.UpsertRole(resource); err != nil {
+		if err := c.accessCache.UpsertRole(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
