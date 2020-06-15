@@ -27,7 +27,6 @@ import (
 	"sync"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -45,13 +44,13 @@ import (
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
-	proxySubsysConfig
-	log          *logrus.Entry
-	closeC       chan struct{}
-	error        error
-	closeOnce    sync.Once
-	agent        agent.Agent
-	agentChannel ssh.Channel
+	proxySubsysRequest
+	srv       *Server
+	ctx       *srv.ServerContext
+	log       *logrus.Entry
+	closeC    chan struct{}
+	error     error
+	closeOnce sync.Once
 }
 
 // parseProxySubsys looks at the requested subsystem name and returns a fully configured
@@ -62,7 +61,7 @@ type proxySubsys struct {
 //  "proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
 //  "proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
 //  "proxy:host:22@namespace@clustername"
-func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*proxySubsys, error) {
+func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 	log.Debugf("parse_proxy_subsys(%q)", request)
 	var (
 		clusterName  string
@@ -73,7 +72,7 @@ func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*pro
 	const prefix = "proxy:"
 	// get rid of 'proxy:' prefix:
 	if strings.Index(request, prefix) != 0 {
-		return nil, trace.BadParameter(paramMessage)
+		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 	}
 	requestBody := strings.TrimPrefix(request, prefix)
 	namespace := defaults.Namespace
@@ -81,100 +80,100 @@ func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*pro
 	parts := strings.Split(requestBody, "@")
 	switch {
 	case len(parts) == 0: // "proxy:"
-		return nil, trace.BadParameter(paramMessage)
+		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 	case len(parts) == 1: // "proxy:host:22"
 		targetHost, targetPort, err = utils.SplitHostPort(parts[0])
 		if err != nil {
-			return nil, trace.BadParameter(paramMessage)
+			return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 		}
 	case len(parts) == 2: // "proxy:@clustername" or "proxy:host:22@clustername"
 		if parts[0] != "" {
 			targetHost, targetPort, err = utils.SplitHostPort(parts[0])
 			if err != nil {
-				return nil, trace.BadParameter(paramMessage)
+				return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 			}
 		}
 		clusterName = parts[1]
 		if clusterName == "" && targetHost == "" {
-			return nil, trace.BadParameter("invalid format for proxy request: missing cluster name or target host in %q", request)
+			return proxySubsysRequest{}, trace.BadParameter("invalid format for proxy request: missing cluster name or target host in %q", request)
 		}
 	case len(parts) >= 3: // "proxy:host:22@namespace@clustername"
 		clusterName = strings.Join(parts[2:], "@")
 		namespace = parts[1]
 		targetHost, targetPort, err = utils.SplitHostPort(parts[0])
 		if err != nil {
-			return nil, trace.BadParameter(paramMessage)
+			return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 		}
 	}
 
-	return newProxySubsys(proxySubsysConfig{
+	return proxySubsysRequest{
 		namespace:   namespace,
-		srv:         srv,
-		ctx:         ctx,
 		host:        targetHost,
 		port:        targetPort,
 		clusterName: clusterName,
-	})
+	}, nil
 }
 
-// proxySubsysConfig is a proxy subsystem configuration
-type proxySubsysConfig struct {
+// parseProxySubsys decodes a proxy subsystem request and sets up a proxy subsystem instance.
+// See parseProxySubsysRequest for details on the request format.
+func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*proxySubsys, error) {
+	req, err := parseProxySubsysRequest(request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	subsys, err := newProxySubsys(ctx, srv, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return subsys, nil
+}
+
+// proxySubsysRequest encodes proxy subsystem request parameters.
+type proxySubsysRequest struct {
 	namespace   string
 	host        string
 	port        string
 	clusterName string
-	srv         *Server
-	ctx         *srv.ServerContext
 }
 
-func (p *proxySubsysConfig) String() string {
+func (p *proxySubsysRequest) String() string {
 	return fmt.Sprintf("host=%v, port=%v, cluster=%v", p.host, p.port, p.clusterName)
 }
 
-// CheckAndSetDefaults checks and sets defaults
-func (p *proxySubsysConfig) CheckAndSetDefaults() error {
+// SetDefaults sets default values.
+func (p *proxySubsysRequest) SetDefaults() {
 	if p.namespace == "" {
 		p.namespace = defaults.Namespace
 	}
-	if p.srv == nil {
-		return trace.BadParameter("missing parameter server")
-	}
-	if p.ctx == nil {
-		return trace.BadParameter("missing parameter context")
-	}
-	if p.clusterName == "" && p.ctx.Identity.RouteToCluster != "" {
-		log.Debugf("Proxy subsystem: routing user %q to cluster %q based on the route to cluster extension.",
-			p.ctx.Identity.TeleportUser, p.ctx.Identity.RouteToCluster,
-		)
-		p.clusterName = p.ctx.Identity.RouteToCluster
-	}
-	if p.clusterName != "" && p.srv.proxyTun != nil {
-		_, err := p.srv.proxyTun.GetSite(p.clusterName)
-		if err != nil {
-			return trace.BadParameter("invalid format for proxy request: unknown cluster %q", p.clusterName)
-		}
-	}
-
-	return nil
 }
 
 // newProxySubsys is a helper that creates a proxy subsystem from
 // a port forwarding request, used to implement ProxyJump feature in proxy
 // and reuse the code
-func newProxySubsys(cfg proxySubsysConfig) (*proxySubsys, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest) (*proxySubsys, error) {
+	req.SetDefaults()
+	if req.clusterName == "" && ctx.Identity.RouteToCluster != "" {
+		log.Debugf("Proxy subsystem: routing user %q to cluster %q based on the route to cluster extension.",
+			ctx.Identity.TeleportUser, ctx.Identity.RouteToCluster,
+		)
+		req.clusterName = ctx.Identity.RouteToCluster
 	}
-	log.Debugf("newProxySubsys(%v).", cfg)
+	if req.clusterName != "" && srv.proxyTun != nil {
+		_, err := srv.proxyTun.GetSite(req.clusterName)
+		if err != nil {
+			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q", req.clusterName)
+		}
+	}
+	log.Debugf("newProxySubsys(%v).", req)
 	return &proxySubsys{
-		proxySubsysConfig: cfg,
+		proxySubsysRequest: req,
+		ctx:                ctx,
+		srv:                srv,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component:       teleport.ComponentSubsystemProxy,
 			trace.ComponentFields: map[string]string{},
 		}),
-		closeC:       make(chan struct{}),
-		agent:        cfg.ctx.GetAgent(),
-		agentChannel: cfg.ctx.GetAgentChannel(),
+		closeC: make(chan struct{}),
 	}, nil
 }
 
@@ -410,12 +409,12 @@ func (t *proxySubsys) proxyToHost(
 		Addr:        serverAddr,
 	}
 	conn, err := site.Dial(reversetunnel.DialParams{
-		From:       remoteAddr,
-		To:         toAddr,
-		UserAgent:  t.agent,
-		Address:    t.host,
-		ServerID:   serverID,
-		Principals: principals,
+		From:         remoteAddr,
+		To:           toAddr,
+		GetUserAgent: t.ctx.StartAgentChannel,
+		Address:      t.host,
+		ServerID:     serverID,
+		Principals:   principals,
 	})
 	if err != nil {
 		return trace.Wrap(err)

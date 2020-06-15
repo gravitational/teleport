@@ -211,11 +211,23 @@ func (h *Handler) Close() error {
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	path := h.path(sessionID)
 	h.Logger.Debugf("uploading %s", path)
+
+	// Make sure we don't overwrite an existing recording.
+	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).Attrs(ctx)
+	if err != storage.ErrObjectNotExist {
+		if err != nil {
+			return "", convertGCSError(err)
+		}
+		return "", trace.AlreadyExists("recording for session %q already exists in GCS", sessionID)
+	}
+
 	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewWriter(ctx)
 	start := time.Now()
-	_, err := io.Copy(writer, reader)
+	_, err = io.Copy(writer, reader)
+	// Always close the writer, even if upload failed.
+	closeErr := writer.Close()
 	if err == nil {
-		err = writer.Close()
+		err = closeErr
 	}
 	uploadLatencies.Observe(time.Since(start).Seconds())
 	uploadRequests.Inc()
@@ -227,22 +239,27 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 
 // Download downloads recorded session from GCS bucket and writes the results into writer
 // return trace.NotFound error is object is not found
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
 	path := h.path(sessionID)
 	h.Logger.Debugf("downloading %s", path)
+	writer, ok := writerAt.(io.Writer)
+	if !ok {
+		return trace.BadParameter("the provided writerAt is %T which does not implement io.Writer", writerAt)
+	}
 	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
 	if err != nil {
 		return convertGCSError(err)
 	}
+	defer reader.Close()
 	start := time.Now()
-	written, err := io.Copy(writer.(io.Writer), reader)
+	written, err := io.Copy(writer, reader)
 	if err != nil {
 		return convertGCSError(err)
 	}
 	downloadLatencies.Observe(time.Since(start).Seconds())
 	downloadRequests.Inc()
 	if written == 0 {
-		return trace.NotFound("recording for %v is not found", sessionID)
+		return trace.NotFound("recording for %v is empty", sessionID)
 	}
 	return nil
 }
@@ -264,11 +281,15 @@ func (h *Handler) ensureBucket() error {
 		return nil
 	}
 	if !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+		h.Errorf("Failed to ensure that bucket %q exists (%v). GCS session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", h.Bucket, err)
+		return nil
 	}
 	err = h.gcsClient.Bucket(h.Config.Bucket).Create(h.clientContext, h.Config.ProjectID, &storage.BucketAttrs{
 		VersioningEnabled: true,
 		Encryption:        &storage.BucketEncryption{DefaultKMSKeyName: h.Config.KMSKeyName},
+		// See https://cloud.google.com/storage/docs/json_api/v1/buckets/insert#parameters
+		PredefinedACL:              "projectPrivate",
+		PredefinedDefaultObjectACL: "projectPrivate",
 	})
 	err = convertGCSError(err)
 	if err != nil {
@@ -290,6 +311,6 @@ func convertGCSError(err error, args ...interface{}) error {
 	case storage.ErrBucketNotExist, storage.ErrObjectNotExist:
 		return trace.NotFound(err.Error(), args...)
 	default:
-		return trace.BadParameter(err.Error(), args...)
+		return trace.Wrap(err, args...)
 	}
 }

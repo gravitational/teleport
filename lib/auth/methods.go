@@ -84,19 +84,23 @@ type SessionCreds struct {
 // AuthenticateUser authenticates user based on the request type
 func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
 	err := s.authenticateUser(req)
+	var emitErr error
 	if err != nil {
-		s.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+		emitErr = s.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
 			events.EventUser:          req.Username,
 			events.LoginMethod:        events.LoginMethodLocal,
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     err.Error(),
 		})
 	} else {
-		s.EmitAuditEvent(events.UserLocalLogin, events.EventFields{
+		emitErr = s.EmitAuditEvent(events.UserLocalLogin, events.EventFields{
 			events.EventUser:          req.Username,
 			events.LoginMethod:        events.LoginMethodLocal,
 			events.AuthAttemptSuccess: true,
 		})
+	}
+	if emitErr != nil {
+		log.Warnf("Failed to emit user login event: %v", err)
 	}
 	return err
 }
@@ -126,7 +130,7 @@ func (s *AuthServer) authenticateUser(req AuthenticateUserRequest) error {
 			// provide obscure message on purpose, while logging the real
 			// error server side
 			log.Debugf("Failed to authenticate: %v.", err)
-			return trace.AccessDenied(err.Error())
+			return trace.AccessDenied("invalid username or password")
 		}
 		return nil
 	case req.U2F != nil:
@@ -216,6 +220,7 @@ type AuthenticateSSHRequest struct {
 	TTL time.Duration `json:"ttl"`
 	// CompatibilityMode sets certificate compatibility mode with old SSH clients
 	CompatibilityMode string `json:"compatibility_mode"`
+	RouteToCluster    string `json:"route_to_cluster"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -288,8 +293,8 @@ func AuthoritiesToTrustedCerts(authorities []services.CertAuthority) []TrustedCe
 	return out
 }
 
-// AuthenticateSSHUser authenticates web user, creates and  returns web session
-// in case if authentication is successful
+// AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
+// certificates for the public key in req.
 func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
@@ -333,12 +338,13 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 	}
 
 	certs, err := s.generateUserCert(certRequest{
-		user:          user,
-		ttl:           req.TTL,
-		publicKey:     req.PublicKey,
-		compatibility: req.CompatibilityMode,
-		checker:       checker,
-		traits:        user.GetTraits(),
+		user:           user,
+		ttl:            req.TTL,
+		publicKey:      req.PublicKey,
+		compatibility:  req.CompatibilityMode,
+		checker:        checker,
+		traits:         user.GetTraits(),
+		routeToCluster: req.RouteToCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -361,7 +367,9 @@ func (s *AuthServer) emitNoLocalAuthEvent(username string) {
 		fields[events.EventUser] = username
 	}
 
-	s.IAuditLog.EmitAuditEvent(events.AuthAttemptFailure, fields)
+	if err := s.IAuditLog.EmitAuditEvent(events.AuthAttemptFailure, fields); err != nil {
+		log.Warnf("Failed to emit no local auth event: %v", err)
+	}
 }
 
 func (s *AuthServer) createUserWebSession(user services.User) (services.WebSession, error) {

@@ -362,7 +362,7 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if bytes.Compare(expected.Key, replaceWith.Key) != 0 {
+	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	m.Lock()
@@ -373,7 +373,7 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 		return nil, trace.CompareFailed("key %q is not found", string(expected.Key))
 	}
 	existingItem := i.(*btreeItem).Item
-	if bytes.Compare(existingItem.Value, expected.Value) != 0 {
+	if !bytes.Equal(existingItem.Value, expected.Value) {
 		return nil, trace.CompareFailed("current value does not match expected for %v", string(expected.Key))
 	}
 	event := backend.Event{

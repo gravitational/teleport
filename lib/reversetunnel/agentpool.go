@@ -163,9 +163,8 @@ func (m *AgentPool) Stop() {
 }
 
 // Wait returns when agent pool is closed
-func (m *AgentPool) Wait() error {
+func (m *AgentPool) Wait() {
 	<-m.ctx.Done()
-	return nil
 }
 
 func (m *AgentPool) processSeekEvents() {
@@ -254,7 +253,9 @@ func (m *AgentPool) closeAgents(matchKey *agentKey) {
 func (m *AgentPool) pollAndSyncAgents() {
 	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
-	m.FetchAndSyncAgents()
+	if err := m.FetchAndSyncAgents(); err != nil {
+		m.Warningf("Failed to get reverse tunnels: %v.", err)
+	}
 	for {
 		select {
 		case <-m.ctx.Done():

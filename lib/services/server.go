@@ -781,20 +781,20 @@ func (s SortedReverseTunnels) Swap(i, j int) {
 // version will also be returned.
 //
 // Returns empty value if there are no proxies.
-func GuessProxyHostAndVersion(proxies []Server) (string, string) {
-	if len(proxies) < 1 {
-		return "", ""
+func GuessProxyHostAndVersion(proxies []Server) (string, string, error) {
+	if len(proxies) == 0 {
+		return "", "", trace.NotFound("list of proxies empty")
 	}
 
-	// find the first proxy with a public address set
+	// Find the first proxy with a public address set and return it.
 	for _, proxy := range proxies {
 		proxyHost := proxy.GetPublicAddr()
 		if proxyHost != "" {
-			return proxyHost, proxy.GetTeleportVersion()
+			return proxyHost, proxy.GetTeleportVersion(), nil
 		}
 	}
 
+	// No proxies have a public address set, return guessed value.
 	guessProxyHost := fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-
-	return guessProxyHost, proxies[0].GetTeleportVersion()
+	return guessProxyHost, proxies[0].GetTeleportVersion(), nil
 }

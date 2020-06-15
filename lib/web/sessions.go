@@ -437,6 +437,7 @@ func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*aut
 		PublicKey:         c.PubKey,
 		CompatibilityMode: c.Compatibility,
 		TTL:               c.TTL,
+		RouteToCluster:    c.RouteToCluster,
 	})
 }
 
@@ -452,6 +453,7 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.S
 		PublicKey:         c.PubKey,
 		CompatibilityMode: c.Compatibility,
 		TTL:               c.TTL,
+		RouteToCluster:    c.RouteToCluster,
 	})
 
 }
@@ -467,6 +469,7 @@ func (s *sessionCache) GetCertificateWithU2F(c client.CreateSSHCertWithU2FReq) (
 		PublicKey:         c.PubKey,
 		CompatibilityMode: c.Compatibility,
 		TTL:               c.TTL,
+		RouteToCluster:    c.RouteToCluster,
 	})
 }
 

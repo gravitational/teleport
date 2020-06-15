@@ -111,7 +111,8 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	var elapsedExists time.Duration
 	for i := 0; i < 10; i++ {
 		start := time.Now()
-		s.a.CheckPasswordWOToken(username, []byte(password))
+		err = s.a.CheckPasswordWOToken(username, []byte(password))
+		c.Assert(err, IsNil)
 		elapsed := time.Since(start)
 		elapsedExists = elapsedExists + elapsed
 	}
@@ -119,7 +120,8 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	var elapsedNotExists time.Duration
 	for i := 0; i < 10; i++ {
 		start := time.Now()
-		s.a.CheckPasswordWOToken("blah", []byte(password))
+		err = s.a.CheckPasswordWOToken("blah", []byte(password))
+		c.Assert(err, NotNil)
 		elapsed := time.Since(start)
 		elapsedNotExists = elapsedNotExists + elapsed
 	}
@@ -130,6 +132,16 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	c.Assert(elapsedDifference.Seconds() < 0.040, Equals, true, comment)
 }
 
+func (s *PasswordSuite) TestUserNotFound(c *C) {
+	username := "unknown-user"
+	password := "barbaz"
+
+	err := s.a.CheckPasswordWOToken(username, []byte(password))
+	c.Assert(err, NotNil)
+	// Make sure the error is not a NotFound. That would be a username oracle.
+	c.Assert(trace.IsBadParameter(err), Equals, true)
+}
+
 func (s *PasswordSuite) TestChangePassword(c *C) {
 	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), teleport.OFF)
 	c.Assert(err, IsNil)
@@ -138,18 +150,10 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("abce456")
 
-	// test change password event
-	eventEmitted := false
-	s.mockedAuditLog.MockEmitAuditEvent = func(event events.Event, fields events.EventFields) error {
-		eventEmitted = true
-		c.Assert(event, DeepEquals, events.UserPasswordChange)
-		c.Assert(fields[events.EventUser], Equals, "user1")
-		return nil
-	}
-
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
-	c.Assert(eventEmitted, Equals, true)
+	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserPasswordChange)
+	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "user1")
 
 	s.shouldLockAfterFailedAttempts(c, req)
 

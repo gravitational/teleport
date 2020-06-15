@@ -132,6 +132,9 @@ func (p *clusterPeers) DialTCP(params DialParams) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy has not been discovered yet, try again later")
 }
 
+// IsClosed always returns false because clusterPeers is never closed.
+func (s *clusterPeers) IsClosed() bool { return false }
+
 // newClusterPeer returns new cluster peer
 func newClusterPeer(srv *server, connInfo services.TunnelConnection, offlineThreshold time.Duration) (*clusterPeer, error) {
 	clusterPeer := &clusterPeer{

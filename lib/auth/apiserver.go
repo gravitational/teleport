@@ -87,7 +87,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
 	srv.GET("/:version/users/:user", srv.withAuth(srv.getUser))
-	srv.DELETE("/:version/users/:user", srv.withAuth(srv.deleteUser))
+	srv.DELETE("/:version/users/:user", srv.withAuth(srv.deleteUser)) // DELETE IN: 5.2 REST method is replaced by grpc method with context.
 
 	// Generating keypairs
 	srv.POST("/:version/keypair", srv.withAuth(srv.generateKeyPair))
@@ -569,6 +569,7 @@ type upsertTrustedClusterReq struct {
 	TrustedCluster json.RawMessage `json:"trusted_cluster"`
 }
 
+// upsertTrustedCluster creates or updates a trusted cluster.
 func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertTrustedClusterReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -619,6 +620,7 @@ func (s *APIServer) getTrustedClusters(auth ClientI, w http.ResponseWriter, r *h
 	return auth.GetTrustedClusters()
 }
 
+// deleteTrustedCluster deletes a trusted cluster by name.
 func (s *APIServer) deleteTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteTrustedCluster(p.ByName("name"))
 	if err != nil {
@@ -896,12 +898,13 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 	return out, nil
 }
 
+// DELETE IN: 5.2 REST method is replaced by grpc method with context.
 func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user := p.ByName("user")
-	if err := auth.DeleteUser(user); err != nil {
+	if err := auth.DeleteUser(r.Context(), user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message(fmt.Sprintf("user '%v' deleted", user)), nil
+	return message(fmt.Sprintf("user %q deleted", user)), nil
 }
 
 type generateKeyPairReq struct {

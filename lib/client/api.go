@@ -256,6 +256,15 @@ type Config struct {
 	// Browser can be used to pass the name of a browser to override the system default
 	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
 	Browser string
+
+	// UseLocalSSHAgent will write user certificates to the local ssh-agent (or
+	// similar) socket at $SSH_AUTH_SOCK.
+	UseLocalSSHAgent bool
+
+	// EnableEscapeSequences will scan Stdin for SSH escape sequences during
+	// command/shell execution. This also requires Stdin to be an interactive
+	// terminal.
+	EnableEscapeSequences bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -269,9 +278,11 @@ type CachePolicy struct {
 // MakeDefaultConfig returns default client config
 func MakeDefaultConfig() *Config {
 	return &Config{
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-		Stdin:  os.Stdin,
+		Stdout:                os.Stdout,
+		Stderr:                os.Stderr,
+		Stdin:                 os.Stdin,
+		UseLocalSSHAgent:      true,
+		EnableEscapeSequences: true,
 	}
 }
 
@@ -834,7 +845,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	} else {
 		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
 		webProxyHost, _ := tc.WebProxyHostPort()
-		tc.localAgent, err = NewLocalAgent(c.KeysDir, webProxyHost, c.Username)
+		tc.localAgent, err = NewLocalAgent(c.KeysDir, webProxyHost, c.Username, c.UseLocalSSHAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1016,7 +1027,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	return tc.runShell(nodeClient, nil)
 }
 
-func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
+func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
 	if len(tc.Config.LocalForwardPorts) > 0 {
 		for _, fp := range tc.Config.LocalForwardPorts {
 			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
@@ -1039,7 +1050,6 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 			go nodeClient.dynamicListenAndForward(ctx, socket)
 		}
 	}
-	return nil
 }
 
 // Join connects to the existing/active SSH session
@@ -1402,7 +1412,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 }
 
 func isRemoteDest(name string) bool {
-	return strings.IndexRune(name, ':') >= 0
+	return strings.ContainsRune(name, ':')
 }
 
 // ListNodes returns a list of nodes connected to a proxy
@@ -1465,7 +1475,7 @@ func (tc *TeleportClient) runCommand(
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
+			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 			if err != nil {
 				log.Error(err)
 				return
@@ -1499,7 +1509,7 @@ func (tc *TeleportClient) runCommand(
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
-	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient))
+	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1898,21 +1908,33 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 }
 
 // applyProxySettings updates configuration changes based on the advertised
-// proxy settings, user supplied values take precedence - will be preserved
-// if set
+// proxy settings, overriding existing fields in tc.
 func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error {
 	// Kubernetes proxy settings.
-	if proxySettings.Kube.Enabled && proxySettings.Kube.PublicAddr != "" && tc.KubeProxyAddr == "" {
-		_, err := utils.ParseAddr(proxySettings.Kube.PublicAddr)
-		if err != nil {
-			return trace.BadParameter(
-				"failed to parse value received from the server: %q, contact your administrator for help",
-				proxySettings.Kube.PublicAddr)
+	if proxySettings.Kube.Enabled {
+		switch {
+		// PublicAddr is the first preference.
+		case proxySettings.Kube.PublicAddr != "":
+			if _, err := utils.ParseAddr(proxySettings.Kube.PublicAddr); err != nil {
+				return trace.BadParameter(
+					"failed to parse value received from the server: %q, contact your administrator for help",
+					proxySettings.Kube.PublicAddr)
+			}
+			tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
+		// ListenAddr is the second preference.
+		case proxySettings.Kube.ListenAddr != "":
+			if _, err := utils.ParseAddr(proxySettings.Kube.ListenAddr); err != nil {
+				return trace.BadParameter(
+					"failed to parse value received from the server: %q, contact your administrator for help",
+					proxySettings.Kube.ListenAddr)
+			}
+			tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
+		// If neither PublicAddr nor ListenAddr are passed, use the web
+		// interface hostname with default k8s port as a guess.
+		default:
+			webProxyHost, _ := tc.WebProxyHostPort()
+			tc.KubeProxyAddr = fmt.Sprintf("%s:%d", webProxyHost, defaults.KubeProxyListenPort)
 		}
-		tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
-	} else if proxySettings.Kube.Enabled && tc.KubeProxyAddr == "" {
-		webProxyHost, _ := tc.WebProxyHostPort()
-		tc.KubeProxyAddr = fmt.Sprintf("%s:%d", webProxyHost, defaults.KubeProxyListenPort)
 	}
 
 	// Read in settings for HTTP endpoint of the proxy.
@@ -2034,17 +2056,20 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 	}
 
 	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentLogin(
-		ctx,
-		tc.WebProxyAddr,
-		tc.Config.Username,
-		password,
-		otpToken,
-		pub,
-		tc.KeyTTL,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr),
-		tc.CertificateFormat)
+	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
+		SSHLogin: SSHLogin{
+			ProxyAddr:      tc.WebProxyAddr,
+			PubKey:         pub,
+			TTL:            tc.KeyTTL,
+			Insecure:       tc.InsecureSkipVerify,
+			Pool:           loopbackPool(tc.WebProxyAddr),
+			Compatibility:  tc.CertificateFormat,
+			RouteToCluster: tc.SiteName,
+		},
+		User:     tc.Config.Username,
+		Password: password,
+		OTPToken: otpToken,
+	})
 
 	return response, trace.Wrap(err)
 }
@@ -2053,18 +2078,21 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
 	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentSSOLogin(SSHLogin{
-		Context:       ctx,
-		ConnectorID:   connectorID,
-		PubKey:        pub,
-		TTL:           tc.KeyTTL,
-		Protocol:      protocol,
-		Compatibility: tc.CertificateFormat,
-		BindAddr:      tc.BindAddr,
-		ProxyAddr:     tc.WebProxyAddr,
-		Insecure:      tc.InsecureSkipVerify,
-		Pool:          loopbackPool(tc.WebProxyAddr),
-	}, tc.Browser)
+	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
+		SSHLogin: SSHLogin{
+			ProxyAddr:      tc.WebProxyAddr,
+			PubKey:         pub,
+			TTL:            tc.KeyTTL,
+			Insecure:       tc.InsecureSkipVerify,
+			Pool:           loopbackPool(tc.WebProxyAddr),
+			Compatibility:  tc.CertificateFormat,
+			RouteToCluster: tc.SiteName,
+		},
+		ConnectorID: connectorID,
+		Protocol:    protocol,
+		BindAddr:    tc.BindAddr,
+		Browser:     tc.Browser,
+	})
 	return response, trace.Wrap(err)
 }
 
@@ -2081,16 +2109,19 @@ func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLo
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := SSHAgentU2FLogin(
-		ctx,
-		tc.WebProxyAddr,
-		tc.Config.Username,
-		password,
-		pub,
-		tc.KeyTTL,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr),
-		tc.CertificateFormat)
+	response, err := SSHAgentU2FLogin(ctx, SSHLoginU2F{
+		SSHLogin: SSHLogin{
+			ProxyAddr:      tc.WebProxyAddr,
+			PubKey:         pub,
+			TTL:            tc.KeyTTL,
+			Insecure:       tc.InsecureSkipVerify,
+			Pool:           loopbackPool(tc.WebProxyAddr),
+			Compatibility:  tc.CertificateFormat,
+			RouteToCluster: tc.SiteName,
+		},
+		User:     tc.Config.Username,
+		Password: password,
+	})
 
 	return response, trace.Wrap(err)
 }
@@ -2234,7 +2265,11 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout
 func passwordFromConsole() (string, error) {
-	fd := syscall.Stdin
+	// syscall.Stdin is not an int on windows. The linter will complain only on
+	// linux where syscall.Stdin is an int.
+	//
+	// nolint:unconvert
+	fd := int(syscall.Stdin)
 	state, err := terminal.GetState(fd)
 
 	// intercept Ctr+C and restore terminal
@@ -2347,7 +2382,7 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 		return ports, nil
 	}
 	const errTemplate = "Invalid port forwarding spec: '%s'. Could be like `80:remote.host:80`"
-	ports = make([]ForwardedPort, len(spec), len(spec))
+	ports = make([]ForwardedPort, len(spec))
 
 	for i, str := range spec {
 		parts := strings.Split(str, ":")

@@ -327,22 +327,17 @@ func (c *Client) GetTransport() *http.Transport {
 }
 
 // PostJSON is a generic method that issues http POST request to the server
-func (c *Client) PostJSON(
-	endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *Client) PostJSON(endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostJSON(context.TODO(), endpoint, val))
 }
 
 // PutJSON is a generic method that issues http PUT request to the server
-func (c *Client) PutJSON(
-	endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *Client) PutJSON(endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PutJSON(context.TODO(), endpoint, val))
 }
 
 // PostForm is a generic method that issues http POST request to the server
-func (c *Client) PostForm(
-	endpoint string,
-	vals url.Values,
-	files ...roundtrip.File) (*roundtrip.Response, error) {
+func (c *Client) PostForm(endpoint string, vals url.Values, files ...roundtrip.File) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostForm(context.TODO(), endpoint, vals, files...))
 }
 
@@ -1567,10 +1562,30 @@ func (c *Client) grpcGetUsers(withSecrets bool) ([]services.User, error) {
 	return users, nil
 }
 
-// DeleteUser deletes a user by username
-func (c *Client) DeleteUser(user string) error {
-	_, err := c.Delete(c.Endpoint("users", user))
-	return trace.Wrap(err)
+// DeleteUser deletes a user by username.
+func (c *Client) DeleteUser(ctx context.Context, user string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := &proto.DeleteUserRequest{Name: user}
+	_, err = clt.DeleteUser(ctx, req)
+	if err == nil {
+		return nil
+	}
+
+	// Allows cross-version compatibility.
+	// DELETE IN: 5.2 REST method is replaced by grpc with context.
+	if status.Code(err) != codes.Unimplemented {
+		return trace.Wrap(trail.FromGRPC(err))
+	}
+
+	if _, err := c.Delete(c.Endpoint("users", user)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // GenerateKeyPair generates SSH private/public key pair optionally protected
@@ -2468,6 +2483,7 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 	return trustedClusters, nil
 }
 
+// UpsertTrustedCluster creates or updates a trusted cluster.
 func (c *Client) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	trustedClusterBytes, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
 	if err != nil {
@@ -2507,6 +2523,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	return validateResponse, nil
 }
 
+// DeleteTrustedCluster deletes a trusted cluster by name.
 func (c *Client) DeleteTrustedCluster(name string) error {
 	_, err := c.Delete(c.Endpoint("trustedclusters", name))
 	return trace.Wrap(err)
@@ -2761,8 +2778,8 @@ type IdentityService interface {
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user services.User) error
 
-	// DeleteUser deletes a user by username
-	DeleteUser(user string) error
+	// DeleteUser deletes an existng user in a backend by username.
+	DeleteUser(ctx context.Context, user string) error
 
 	// GetUsers returns a list of usernames registered in the system
 	GetUsers(withSecrets bool) ([]services.User, error)

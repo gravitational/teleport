@@ -18,6 +18,7 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
+// This is bcrypt hash for password "barbaz".
 var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
 
 // ChangePasswordWithTokenRequest defines a request to change user password
@@ -109,9 +110,11 @@ func (s *AuthServer) ChangePassword(req services.ChangePasswordReq) error {
 		return trace.Wrap(err)
 	}
 
-	s.EmitAuditEvent(events.UserPasswordChange, events.EventFields{
+	if err := s.EmitAuditEvent(events.UserPasswordChange, events.EventFields{
 		events.EventUser: userID,
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit password change event: %v", err)
+	}
 
 	return nil
 }
@@ -130,13 +133,21 @@ func (s *AuthServer) CheckPasswordWOToken(user string, password []byte) error {
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
+	userFound := true
 	if trace.IsNotFound(err) {
+		userFound = false
 		log.Debugf("Username %q not found, using fake hash to mitigate timing attacks.", user)
 		hash = fakePasswordHash
 	}
 
 	if err = bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		log.Debugf("Password for %q does not match", user)
+		return trace.BadParameter(errMsg)
+	}
+
+	// Careful! The bcrypt check above may succeed for an unknown user when the
+	// provided password is "barbaz", which is what fakePasswordHash hashes to.
+	if !userFound {
 		return trace.BadParameter(errMsg)
 	}
 

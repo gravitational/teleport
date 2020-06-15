@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -39,24 +40,22 @@ import (
 func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	var exists bool
 
-	// it is recommended to omit trusted cluster name, because
-	// it will be always set to the cluster name as set by the cluster
+	// It is recommended to omit trusted cluster name because the trusted cluster name
+	// is updated to the roots cluster name during the handshake with the root cluster.
 	var existingCluster services.TrustedCluster
-	var err error
 	if trustedCluster.GetName() != "" {
-		existingCluster, err = a.Presence.GetTrustedCluster(trustedCluster.GetName())
-		if err == nil {
+		var err error
+		if existingCluster, err = a.Presence.GetTrustedCluster(trustedCluster.GetName()); err == nil {
 			exists = true
 		}
 	}
 
 	enable := trustedCluster.GetEnabled()
 
-	// if the trusted cluster already exists in the backend, make sure it's a
-	// valid state change client is trying to make
+	// If the trusted cluster already exists in the backend, make sure it's a
+	// valid state change client is trying to make.
 	if exists {
-		err := existingCluster.CanChangeStateTo(trustedCluster)
-		if err != nil {
+		if err := existingCluster.CanChangeStateTo(trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -66,31 +65,27 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 	case exists == true && enable == true:
 		log.Debugf("Enabling existing Trusted Cluster relationship.")
 
-		err := a.activateCertAuthority(trustedCluster)
-		if err != nil {
+		if err := a.activateCertAuthority(trustedCluster); err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.BadParameter("enable only supported for Trusted Clusters created with Teleport 2.3 and above")
 			}
 			return nil, trace.Wrap(err)
 		}
 
-		err = a.createReverseTunnel(trustedCluster)
-		if err != nil {
+		if err := a.createReverseTunnel(trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case exists == true && enable == false:
 		log.Debugf("Disabling existing Trusted Cluster relationship.")
 
-		err := a.deactivateCertAuthority(trustedCluster)
-		if err != nil {
+		if err := a.deactivateCertAuthority(trustedCluster); err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.BadParameter("enable only supported for Trusted Clusters created with Teleport 2.3 and above")
 			}
 			return nil, trace.Wrap(err)
 		}
 
-		err = a.DeleteReverseTunnel(trustedCluster.GetName())
-		if err != nil {
+		if err := a.DeleteReverseTunnel(trustedCluster.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case exists == false && enable == true:
@@ -105,17 +100,15 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 			return nil, trace.Wrap(err)
 		}
 
-		// force name of the trusted cluster resource
-		// to be equal to the name of the remote cluster it is connecting to
+		// Force name of the trusted cluster resource
+		// to be equal to the name of the remote cluster it is connecting to.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		err = a.addCertAuthorities(trustedCluster, remoteCAs)
-		if err != nil {
+		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = a.createReverseTunnel(trustedCluster)
-		if err != nil {
+		if err := a.createReverseTunnel(trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -131,20 +124,30 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 			return nil, trace.Wrap(err)
 		}
 
-		// force name to the name of the trusted cluster
+		// Force name to the name of the trusted cluster.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		err = a.addCertAuthorities(trustedCluster, remoteCAs)
-		if err != nil {
+		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = a.deactivateCertAuthority(trustedCluster)
-		if err != nil {
+		if err := a.deactivateCertAuthority(trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.Presence.UpsertTrustedCluster(trustedCluster)
+
+	tc, err := a.Presence.UpsertTrustedCluster(trustedCluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.EmitAuditEvent(events.TrustedClusterCreate, events.EventFields{
+		events.EventUser: "unimplemented",
+	}); err != nil {
+		log.Warnf("Failed to emit trusted cluster create event: %v", err)
+	}
+
+	return tc, nil
 }
 
 func (a *AuthServer) checkLocalRoles(roleMap services.RoleMap) error {
@@ -170,30 +173,42 @@ func (a *AuthServer) checkLocalRoles(roleMap services.RoleMap) error {
 // DeleteTrustedCluster removes services.CertAuthority, services.ReverseTunnel,
 // and services.TrustedCluster resources.
 func (a *AuthServer) DeleteTrustedCluster(name string) error {
-	err := a.DeleteCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: name})
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	err = a.DeleteCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: name})
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	err = a.DeleteReverseTunnel(name)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	err = a.Presence.DeleteTrustedCluster(name)
+	cn, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// This check ensures users are not deleting their root/own cluster.
+	if cn.GetClusterName() == name {
+		return trace.BadParameter("trusted cluster %q is the name of this root cluster and cannot be removed.", name)
+	}
+
+	if err := a.DeleteCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: name}); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := a.DeleteCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: name}); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := a.DeleteReverseTunnel(name); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := a.Presence.DeleteTrustedCluster(name); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.EmitAuditEvent(events.TrustedClusterDelete, events.EventFields{
+		events.EventUser: "unimplemented",
+	}); err != nil {
+		log.Warnf("Failed to emit trusted cluster delete event: %v", err)
 	}
 
 	return nil

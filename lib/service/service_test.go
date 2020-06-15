@@ -22,8 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"strconv"
-
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -66,34 +64,29 @@ func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 func (s *ServiceTestSuite) TestMonitor(c *check.C) {
 	fakeClock := clockwork.NewFakeClock()
 
-	ports, err := utils.GetFreeTCPPorts(2)
-	c.Assert(err, check.IsNil)
-	authPort, err := strconv.Atoi(ports.Pop())
-	c.Assert(err, check.IsNil)
-	authAddr, err := utils.ParseHostPortAddr("127.0.0.1", authPort)
-	c.Assert(err, check.IsNil)
-	diagPort, err := strconv.Atoi(ports.Pop())
-	c.Assert(err, check.IsNil)
-	diagAddr, err := utils.ParseHostPortAddr("127.0.0.1", diagPort)
-	c.Assert(err, check.IsNil)
-
-	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
-
 	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	cfg.DataDir = c.MkDir()
-	cfg.DiagnosticAddr = *diagAddr
-	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = c.MkDir()
+	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 
 	process, err := NewTeleport(cfg)
 	c.Assert(err, check.IsNil)
 
+	diagAddr, err := process.DiagnosticAddr()
+	c.Assert(err, check.IsNil)
+	c.Assert(diagAddr, check.NotNil)
+	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
+
 	// Start Teleport and make sure the status is OK.
-	go process.Run()
+	go func() {
+		c.Assert(process.Run(), check.IsNil)
+	}()
 	err = waitForStatus(endpoint, http.StatusOK)
 	c.Assert(err, check.IsNil)
 

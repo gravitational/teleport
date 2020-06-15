@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -27,8 +26,9 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 type ResetPasswordTokenTest struct {
@@ -36,27 +36,23 @@ type ResetPasswordTokenTest struct {
 	a  *AuthServer
 }
 
-var _ = fmt.Printf
-var _ = Suite(&ResetPasswordTokenTest{})
+var _ = check.Suite(&ResetPasswordTokenTest{})
 
-func (s *ResetPasswordTokenTest) SetUpSuite(c *C) {
+func (s *ResetPasswordTokenTest) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 }
 
-func (s *ResetPasswordTokenTest) TearDownSuite(c *C) {
-}
-
-func (s *ResetPasswordTokenTest) SetUpTest(c *C) {
+func (s *ResetPasswordTokenTest) SetUpTest(c *check.C) {
 	var err error
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	// set cluster name
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
@@ -64,29 +60,26 @@ func (s *ResetPasswordTokenTest) SetUpTest(c *C) {
 		SkipPeriodicOperations: true,
 	}
 	s.a, err = NewAuthServer(authConfig)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	err = s.a.SetClusterName(clusterName)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	// Set services.ClusterConfig to disallow local auth.
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		LocalAuth: services.NewBool(true),
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	err = s.a.SetClusterConfig(clusterConfig)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 }
 
-func (s *ResetPasswordTokenTest) TearDownTest(c *C) {
-}
-
-func (s *ResetPasswordTokenTest) TestCreateResetPasswordToken(c *C) {
+func (s *ResetPasswordTokenTest) TestCreateResetPasswordToken(c *check.C) {
 	username := "joe@example.com"
 	pass := "pass123"
 	_, _, err := CreateUserAndRole(s.a, username, []string{username})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	req := CreateResetPasswordTokenRequest{
 		Name: username,
@@ -94,29 +87,29 @@ func (s *ResetPasswordTokenTest) TestCreateResetPasswordToken(c *C) {
 	}
 
 	token, err := s.a.CreateResetPasswordToken(context.TODO(), req)
-	c.Assert(err, IsNil)
-	c.Assert(token.GetUser(), Equals, username)
-	c.Assert(token.GetURL(), Equals, "https://<proxyhost>:3080/web/reset/"+token.GetName())
+	c.Assert(err, check.IsNil)
+	c.Assert(token.GetUser(), check.Equals, username)
+	c.Assert(token.GetURL(), check.Equals, "https://<proxyhost>:3080/web/reset/"+token.GetName())
 
 	// verify that password was reset
 	err = s.a.CheckPasswordWOToken(username, []byte(pass))
-	c.Assert(err, NotNil)
+	c.Assert(err, check.NotNil)
 
 	// create another reset token for the same user
 	token, err = s.a.CreateResetPasswordToken(context.TODO(), req)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	// previous token must be deleted
 	tokens, err := s.a.GetResetPasswordTokens(context.TODO())
-	c.Assert(err, IsNil)
-	c.Assert(len(tokens), Equals, 1)
-	c.Assert(tokens[0].GetName(), Equals, token.GetName())
+	c.Assert(err, check.IsNil)
+	c.Assert(len(tokens), check.Equals, 1)
+	c.Assert(tokens[0].GetName(), check.Equals, token.GetName())
 }
 
-func (s *ResetPasswordTokenTest) TestCreateResetPasswordTokenErrors(c *C) {
+func (s *ResetPasswordTokenTest) TestCreateResetPasswordTokenErrors(c *check.C) {
 	username := "joe@example.com"
 	_, _, err := CreateUserAndRole(s.a, username, []string{username})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	type testCase struct {
 		desc string
@@ -163,6 +156,95 @@ func (s *ResetPasswordTokenTest) TestCreateResetPasswordTokenErrors(c *C) {
 
 	for _, tc := range testCases {
 		_, err := s.a.CreateResetPasswordToken(context.TODO(), tc.req)
-		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
+		c.Assert(err, check.NotNil, check.Commentf("test case %q", tc.desc))
 	}
+}
+
+// TestFormatAccountName makes sure that the OTP account name fallback values
+// are correct. description
+func (s *ResetPasswordTokenTest) TestFormatAccountName(c *check.C) {
+	tests := []struct {
+		description    string
+		inDebugAuth    *debugAuth
+		outAccountName string
+		outError       bool
+	}{
+		{
+			description: "failed to fetch proxies",
+			inDebugAuth: &debugAuth{
+				proxiesError: true,
+			},
+			outAccountName: "",
+			outError:       true,
+		},
+		{
+			description: "proxies with public address",
+			inDebugAuth: &debugAuth{
+				proxies: []services.Server{
+					&services.ServerV2{
+						Spec: services.ServerSpecV2{
+							PublicAddr: "foo",
+							Version:    "bar",
+						},
+					},
+				},
+			},
+			outAccountName: "foo@foo",
+			outError:       false,
+		},
+		{
+			description: "proxies with no public address",
+			inDebugAuth: &debugAuth{
+				proxies: []services.Server{
+					&services.ServerV2{
+						Spec: services.ServerSpecV2{
+							Hostname: "baz",
+							Version:  "quxx",
+						},
+					},
+				},
+			},
+			outAccountName: "foo@baz:3080",
+			outError:       false,
+		},
+		{
+			description: "no proxies, with domain name",
+			inDebugAuth: &debugAuth{
+				clusterName: "example.com",
+			},
+			outAccountName: "foo@example.com",
+			outError:       false,
+		},
+		{
+			description:    "no proxies, no domain name",
+			inDebugAuth:    &debugAuth{},
+			outAccountName: "foo@00000000-0000-0000-0000-000000000000",
+			outError:       false,
+		},
+	}
+	for _, tt := range tests {
+		accountName, err := formatAccountName(tt.inDebugAuth, "foo", "00000000-0000-0000-0000-000000000000")
+		c.Assert(err != nil, check.Equals, tt.outError, check.Commentf("Test case: %q.", tt.description))
+		c.Assert(accountName, check.Equals, tt.outAccountName, check.Commentf("Test case: %q.", tt.description))
+	}
+}
+
+type debugAuth struct {
+	proxies      []services.Server
+	proxiesError bool
+	clusterName  string
+}
+
+func (s *debugAuth) GetProxies() ([]services.Server, error) {
+	if s.proxiesError {
+		return nil, trace.BadParameter("failed to fetch proxies")
+	}
+	return s.proxies, nil
+}
+
+func (s *debugAuth) GetDomainName() (string, error) {
+	if s.clusterName == "" {
+		return "", trace.NotFound("no cluster name set")
+	}
+	return s.clusterName, nil
 }

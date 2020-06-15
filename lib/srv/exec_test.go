@@ -95,7 +95,8 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 		ClusterName: clusterName,
 	})
 	c.Assert(err, check.IsNil)
-	s.a.SetClusterName(clusterName)
+	err = s.a.SetClusterName(clusterName)
+	c.Assert(err, check.IsNil)
 
 	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
@@ -111,8 +112,9 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 
 	s.usr, _ = user.Current()
 	s.ctx = &ServerContext{
-		IsTestStub:  true,
-		ClusterName: "localhost",
+		ConnectionContext: &sshutils.ConnectionContext{},
+		IsTestStub:        true,
+		ClusterName:       "localhost",
 		srv: &fakeServer{
 			accessPoint: s.a,
 			auditLog:    &fakeLog{},
@@ -122,7 +124,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx.Identity.Login = s.usr.Username
 	s.ctx.session = &session{id: "xxx", term: &fakeTerminal{f: f}}
 	s.ctx.Identity.TeleportUser = "galt"
-	s.ctx.Conn = &ssh.ServerConn{Conn: s}
+	s.ctx.ServerConn = &ssh.ServerConn{Conn: s}
 	s.ctx.ExecRequest = &localExec{Ctx: s.ctx}
 	s.ctx.request = &ssh.Request{
 		Type: sshutils.ExecRequest,
@@ -144,7 +146,7 @@ func (s *ExecSuite) TearDownSuite(c *check.C) {
 func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	expectedEnv := []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath("1000", defaultLoginDefsPath),
+		getDefaultEnvPath(strconv.Itoa(os.Geteuid()), defaultLoginDefsPath),
 		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
 		fmt.Sprintf("USER=%s", s.usr.Username),
 		"SHELL=/bin/sh",
@@ -256,7 +258,8 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	// Create a fake context that will be used to configure a command that will
 	// re-exec "ls".
 	ctx := &ServerContext{
-		IsTestStub: true,
+		ConnectionContext: &sshutils.ConnectionContext{},
+		IsTestStub:        true,
 		srv: &fakeServer{
 			accessPoint: s.a,
 			auditLog:    &fakeLog{},
@@ -265,7 +268,7 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	}
 	ctx.Identity.Login = s.usr.Username
 	ctx.Identity.TeleportUser = "galt"
-	ctx.Conn = &ssh.ServerConn{Conn: s}
+	ctx.ServerConn = &ssh.ServerConn{Conn: s}
 	ctx.ExecRequest = &localExec{
 		Ctx:     ctx,
 		Command: lsPath,
@@ -282,21 +285,20 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	cmd, err := ConfigureCommand(ctx)
 	c.Assert(err, check.IsNil)
 
-	// Create a context that will be used to signal that execution is complete.
-	doneContext, doneCancel := context.WithCancel(context.Background())
+	// Create a channel that will be used to signal that execution is complete.
+	cmdDone := make(chan error, 1)
 
 	// Re-execute Teleport and run "ls". Signal over the context when execution
 	// is complete.
 	go func() {
-		cmd.Run()
-		doneCancel()
+		cmdDone <- cmd.Run()
 	}()
 
 	// Wait for the process. Since the continue pipe has not been closed, the
 	// process should not have exited yet.
 	select {
-	case <-doneContext.Done():
-		c.Fatalf("Process exited before continue.")
+	case err := <-cmdDone:
+		c.Fatalf("Process exited before continue with error %v", err)
 	case <-time.After(5 * time.Second):
 	}
 
@@ -310,7 +312,8 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	select {
 	case <-time.After(5 * time.Second):
 		c.Fatalf("Timed out waiting for process to finish.")
-	case <-doneContext.Done():
+	case err := <-cmdDone:
+		c.Assert(err, check.IsNil)
 	}
 }
 

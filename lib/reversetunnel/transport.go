@@ -212,12 +212,12 @@ func (p *transport) start() {
 		authServers, err := p.authClient.GetAuthServers()
 		if err != nil {
 			p.log.Errorf("Transport request failed: unable to get list of Auth Servers: %v.", err)
-			req.Reply(false, []byte("connection rejected: failed to connect to auth server"))
+			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
 			return
 		}
 		if len(authServers) == 0 {
 			p.log.Errorf("Transport request failed: no auth servers found.")
-			req.Reply(false, []byte("connection rejected: failed to connect to auth server"))
+			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
 			return
 		}
 		for _, as := range authServers {
@@ -226,32 +226,35 @@ func (p *transport) start() {
 	// Connect to the Kubernetes proxy.
 	case RemoteKubeProxy:
 		if p.component == teleport.ComponentReverseTunnelServer {
-			req.Reply(false, []byte("connection rejected: no remote kubernetes proxy"))
+			p.reply(req, false, []byte("connection rejected: no remote kubernetes proxy"))
 			return
 		}
 
 		// If Kubernetes is not configured, reject the connection.
 		if p.kubeDialAddr.IsEmpty() {
-			req.Reply(false, []byte("connection rejected: configure kubernetes proxy for this cluster."))
+			p.reply(req, false, []byte("connection rejected: configure kubernetes proxy for this cluster."))
 			return
 		}
 		servers = append(servers, p.kubeDialAddr.Addr)
 	// LocalNode requests are for the single server running in the agent pool.
 	case LocalNode:
 		if p.component == teleport.ComponentReverseTunnelServer {
-			req.Reply(false, []byte("connection rejected: no local node"))
+			p.reply(req, false, []byte("connection rejected: no local node"))
 			return
 		}
 		if p.server == nil {
-			req.Reply(false, []byte("connection rejected: server missing"))
+			p.reply(req, false, []byte("connection rejected: server missing"))
 			return
 		}
 		if p.sconn == nil {
-			req.Reply(false, []byte("connection rejected: server connection missing"))
+			p.reply(req, false, []byte("connection rejected: server connection missing"))
 			return
 		}
 
-		req.Reply(true, []byte("Connected."))
+		if err := req.Reply(true, []byte("Connected.")); err != nil {
+			p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
+			return
+		}
 
 		// Hand connection off to the SSH server.
 		p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
@@ -267,12 +270,15 @@ func (p *transport) start() {
 	if err != nil {
 		errorMessage := fmt.Sprintf("connection rejected: %v", err)
 		fmt.Fprint(p.channel.Stderr(), errorMessage)
-		req.Reply(false, []byte(errorMessage))
+		p.reply(req, false, []byte(errorMessage))
 		return
 	}
 
 	// Dial was successful.
-	req.Reply(true, []byte("Connected."))
+	if err := req.Reply(true, []byte("Connected.")); err != nil {
+		p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
+		return
+	}
 	p.log.Debugf("Successfully dialed to %v %v, start proxying.", dreq.Address, dreq.ServerID)
 
 	// Start processing channel requests. Pass in a context that wraps the passed
@@ -321,17 +327,9 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 			}
 			switch req.Type {
 			case utils.ConnectionTypeRequest:
-				err := req.Reply(useTunnel, nil)
-				if err != nil {
-					p.log.Debugf("Failed to reply to %v request: %v.", req.Type, err)
-					continue
-				}
+				p.reply(req, useTunnel, nil)
 			default:
-				err := req.Reply(false, nil)
-				if err != nil {
-					p.log.Debugf("Failed to reply to %v request: %v.", req.Type, err)
-					continue
-				}
+				p.reply(req, false, nil)
 			}
 		case <-closeContext.Done():
 			return
@@ -392,6 +390,12 @@ func (p *transport) tunnelDial(serverID string) (net.Conn, error) {
 	}
 
 	return conn, nil
+}
+
+func (p *transport) reply(req *ssh.Request, ok bool, msg []byte) {
+	if err := req.Reply(ok, msg); err != nil {
+		p.log.Warnf("Failed sending reply to %q request on SSH channel: %v", req.Type, err)
+	}
 }
 
 // directDial attempst to directly dial to the target host.

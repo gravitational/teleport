@@ -170,9 +170,6 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
-		if params.UserAgent == nil {
-			return nil, trace.BadParameter("user agent missing")
-		}
 		return s.dialWithAgent(params)
 	}
 
@@ -191,19 +188,33 @@ func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
+// IsClosed always returns false because localSite is never closed.
+func (s *localSite) IsClosed() bool { return false }
+
 func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
+	if params.GetUserAgent == nil {
+		return nil, trace.BadParameter("user agent getter missing")
+	}
 	s.log.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
+
+	// request user agent connection
+	userAgent, err := params.GetUserAgent()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a connection to that node. Otherwise net.Dial to the target host.
 	targetConn, useTunnel, err := s.getConn(params)
 	if err != nil {
+		userAgent.Close()
 		return nil, trace.Wrap(err)
 	}
 
 	// Get a host certificate for the forwarding node from the cache.
 	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
 	if err != nil {
+		userAgent.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -212,7 +223,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	// once conn is closed.
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.client,
-		UserAgent:       params.UserAgent,
+		UserAgent:       userAgent,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,
 		DstAddr:         params.To,
@@ -312,9 +323,7 @@ func (s *localSite) fanOutProxies(proxies []services.Server) {
 	s.Lock()
 	defer s.Unlock()
 	for _, conn := range s.remoteConns {
-		if err := conn.updateProxies(proxies); err != nil {
-			conn.markInvalid(err)
-		}
+		conn.updateProxies(proxies)
 	}
 }
 

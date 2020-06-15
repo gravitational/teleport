@@ -14,4 +14,10 @@ rules:
   - serviceaccounts
   verbs:
   - impersonate
+- apiGroups:
+  - "authorization.k8s.io"
+  resources:
+  - selfsubjectaccessreviews
+  verbs:
+  - create
 {{- end -}}

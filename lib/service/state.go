@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -25,25 +26,30 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// Note: these consts are not using iota because they get exposed via a
+// Prometheus metric. Using iota makes it possible to accidentally change the
+// values.
 const (
 	// stateOK means Teleport is operating normally.
 	stateOK = 0
-
 	// stateRecovering means Teleport has begun recovering from a degraded state.
 	stateRecovering = 1
-
 	// stateDegraded means some kind of connection error has occurred to put
 	// Teleport into a degraded state.
 	stateDegraded = 2
+	// stateStarting means the process is starting but hasn't joined the
+	// cluster yet.
+	stateStarting = 3
 )
 
 var stateGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Name: teleport.MetricState,
-	Help: "State of the teleport process: 0 - ok, 1 - recovering, 2 - degraded",
+	Help: fmt.Sprintf("State of the teleport process: %d - ok, %d - recovering, %d - degraded, %d - starting", stateOK, stateRecovering, stateDegraded, stateStarting),
 })
 
 func init() {
 	prometheus.MustRegister(stateGauge)
+	stateGauge.Set(stateStarting)
 }
 
 // processState tracks the state of the Teleport process.
@@ -58,7 +64,7 @@ func newProcessState(process *TeleportProcess) *processState {
 	return &processState{
 		process:      process,
 		recoveryTime: process.Clock.Now(),
-		currentState: stateOK,
+		currentState: stateStarting,
 	}
 }
 

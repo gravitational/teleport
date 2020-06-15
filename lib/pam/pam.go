@@ -30,6 +30,7 @@ package pam
 // extern void writeCallback(int n, int s, char* c);
 // extern struct pam_conv *make_pam_conv(int);
 // extern int _pam_start(void *, const char *, const char *, const struct pam_conv *, pam_handle_t **);
+// extern int _pam_putenv(void *, pam_handle_t *, const char *);
 // extern int _pam_end(void *, pam_handle_t *, int);
 // extern int _pam_authenticate(void *, pam_handle_t *, int);
 // extern int _pam_acct_mgmt(void *, pam_handle_t *, int);
@@ -43,7 +44,9 @@ import "C"
 
 import (
 	"bufio"
+	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"syscall"
@@ -278,6 +281,22 @@ func Open(config *Config) (*PAM, error) {
 	p.retval = C._pam_start(pamHandle, p.service_name, p.login, p.conv, &p.pamh)
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
+	}
+
+	for k, v := range config.Env {
+		// Set a regular OS env var on this process which should be available
+		// to child PAM processes.
+		os.Setenv(k, v)
+
+		// Also set it via PAM-specific pam_putenv, which is respected by
+		// pam_exec (and possibly others), where parent env vars are not.
+		kv := C.CString(fmt.Sprintf("%s=%s", k, v))
+		// pam_putenv makes a copy of kv, so we can free it right away.
+		defer C.free(unsafe.Pointer(kv))
+		retval := C._pam_putenv(pamHandle, p.pamh, kv)
+		if retval != C.PAM_SUCCESS {
+			return nil, p.codeToError(retval)
+		}
 	}
 
 	// Check that the *nix account is valid. Checking an account varies based off

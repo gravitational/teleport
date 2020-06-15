@@ -314,7 +314,7 @@ func (l *LiteBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if bytes.Compare(expected.Key, replaceWith.Key) != 0 {
+	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	now := l.clock.Now().UTC()
@@ -333,7 +333,7 @@ func (l *LiteBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 			return trace.Wrap(err)
 		}
 
-		if bytes.Compare(value, expected.Value) != 0 {
+		if !bytes.Equal(value, expected.Value) {
 			return trace.CompareFailed("current value does not match expected for %v", string(expected.Key))
 		}
 

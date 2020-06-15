@@ -175,7 +175,7 @@ func (s *KubeconfigSuite) TestUpdate(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	wantConfig := s.initialConfig
+	wantConfig := s.initialConfig.DeepCopy()
 	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
 		CertificateAuthorityData: caCertPEM,
@@ -198,7 +198,67 @@ func (s *KubeconfigSuite) TestUpdate(c *check.C) {
 
 	config, err := Load(s.kubeconfigPath)
 	c.Assert(err, check.IsNil)
-	c.Assert(*config, check.DeepEquals, wantConfig)
+	c.Assert(config, check.DeepEquals, wantConfig)
+}
+
+func (s *KubeconfigSuite) TestRemove(c *check.C) {
+	const (
+		clusterName = "teleport-cluster"
+		clusterAddr = "https://1.2.3.6:3080"
+	)
+	creds, _, err := s.genUserKey()
+	c.Assert(err, check.IsNil)
+
+	// Add teleport-generated entries to kubeconfig.
+	err = Update(s.kubeconfigPath, Values{
+		Name:        clusterName,
+		ClusterAddr: clusterAddr,
+		Credentials: creds,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Remove those generated entries from kubeconfig.
+	err = Remove(s.kubeconfigPath, clusterName)
+	c.Assert(err, check.IsNil)
+
+	// Verify that kubeconfig changed back to the initial state.
+	wantConfig := s.initialConfig.DeepCopy()
+	config, err := Load(s.kubeconfigPath)
+	c.Assert(err, check.IsNil)
+	// CurrentContext can end up as either of the remaining contexts, as long
+	// as it's not the one we just removed.
+	c.Assert(config.CurrentContext, check.Not(check.Equals), clusterName)
+	wantConfig.CurrentContext = config.CurrentContext
+	c.Assert(config, check.DeepEquals, wantConfig)
+
+	// Add teleport-generated entries to kubeconfig again.
+	err = Update(s.kubeconfigPath, Values{
+		Name:        clusterName,
+		ClusterAddr: clusterAddr,
+		Credentials: creds,
+	})
+	c.Assert(err, check.IsNil)
+
+	// This time, explicitly switch CurrentContext to "prod".
+	// Remove should preserve this CurrentContext!
+	config, err = Load(s.kubeconfigPath)
+	c.Assert(err, check.IsNil)
+	config.CurrentContext = "prod"
+	err = save(s.kubeconfigPath, *config)
+	c.Assert(err, check.IsNil)
+
+	// Remove teleport-generated entries from kubeconfig.
+	err = Remove(s.kubeconfigPath, clusterName)
+	c.Assert(err, check.IsNil)
+
+	wantConfig = s.initialConfig.DeepCopy()
+	// CurrentContext should always end up as "prod" because we explicitly set
+	// it above and Remove shouldn't touch it unless it matches the cluster
+	// being removed.
+	wantConfig.CurrentContext = "prod"
+	config, err = Load(s.kubeconfigPath)
+	c.Assert(err, check.IsNil)
+	c.Assert(config, check.DeepEquals, wantConfig)
 }
 
 func (s *KubeconfigSuite) genUserKey() (*client.Key, []byte, error) {

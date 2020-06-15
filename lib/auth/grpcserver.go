@@ -412,6 +412,22 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*emp
 	return &empty.Empty{}, nil
 }
 
+// DeleteUser deletes an existng user in a backend by username.
+func (g *GRPCServer) DeleteUser(ctx context.Context, req *proto.DeleteUserRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteUser(ctx, req.GetName()); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	log.Infof("%q user deleted", req.GetName())
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

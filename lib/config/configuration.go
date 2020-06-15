@@ -927,9 +927,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		if err := validateRoles(clf.Roles); err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.SSH.Enabled = strings.Index(clf.Roles, defaults.RoleNode) != -1
-		cfg.Auth.Enabled = strings.Index(clf.Roles, defaults.RoleAuthService) != -1
-		cfg.Proxy.Enabled = strings.Index(clf.Roles, defaults.RoleProxy) != -1
+		cfg.SSH.Enabled = strings.Contains(clf.Roles, defaults.RoleNode)
+		cfg.Auth.Enabled = strings.Contains(clf.Roles, defaults.RoleAuthService)
+		cfg.Proxy.Enabled = strings.Contains(clf.Roles, defaults.RoleProxy)
 	}
 
 	// apply --auth-server flag:
@@ -1021,8 +1021,8 @@ func parseLabels(spec string, sshConf *service.SSHConfig) error {
 		return trace.Wrap(err)
 	}
 	if len(lmap) > 0 {
-		sshConf.CmdLabels = make(services.CommandLabels, 0)
-		sshConf.Labels = make(map[string]string, 0)
+		sshConf.CmdLabels = make(services.CommandLabels)
+		sshConf.Labels = make(map[string]string)
 	}
 	// see which labels are actually command labels:
 	for key, value := range lmap {

@@ -77,8 +77,6 @@ type CLIConf struct {
 	NodeLogin string
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
 	InsecureSkipVerify bool
-	// IsUnderTest is set to true for unit testing
-	IsUnderTest bool
 	// Remote SSH session to join
 	SessionID string
 	// Src:dest parameter for SCP
@@ -107,10 +105,6 @@ type CLIConf struct {
 	Namespace string
 	// NoCache is used to turn off client cache for nodes discovery
 	NoCache bool
-	// LoadSystemAgentOnly when set to true will cause tsh agent to load keys into the system agent and
-	// then exit. This is useful when calling tsh agent from a script (for example ~/.bash_profile)
-	// to load keys into your system agent.
-	LoadSystemAgentOnly bool
 	// BenchThreads is amount of concurrent threads to run
 	BenchThreads int
 	// BenchDuration is a duration for the benchmark
@@ -165,6 +159,15 @@ type CLIConf struct {
 	// Browser can be used to pass the name of a browser to override the system default
 	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
 	Browser string
+
+	// UseLocalSSHAgent set to false will prevent this client from attempting to
+	// connect to the local ssh-agent (or similar) socket at $SSH_AUTH_SOCK.
+	UseLocalSSHAgent bool
+
+	// EnableEscapeSequences will scan stdin for SSH escape sequences during
+	// command/shell execution. This also requires stdin to be an interactive
+	// terminal.
+	EnableEscapeSequences bool
 }
 
 func main() {
@@ -181,21 +184,21 @@ func main() {
 	default:
 		cmdLine = cmdLineOrig
 	}
-	Run(cmdLine, false)
+	Run(cmdLine)
 }
 
 const (
-	clusterEnvVar  = "TELEPORT_SITE"
-	clusterHelp    = "Specify the cluster to connect"
-	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
-	authEnvVar     = "TELEPORT_AUTH"
-	browserHelp    = "Set to 'none' to suppress browser opening on login"
+	clusterEnvVar          = "TELEPORT_SITE"
+	clusterHelp            = "Specify the cluster to connect"
+	bindAddrEnvVar         = "TELEPORT_LOGIN_BIND_ADDR"
+	authEnvVar             = "TELEPORT_AUTH"
+	browserHelp            = "Set to 'none' to suppress browser opening on login"
+	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 )
 
 // Run executes TSH client. same as main() but easier to test
-func Run(args []string, underTest bool) {
+func Run(args []string) {
 	var cf CLIConf
-	cf.IsUnderTest = underTest
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	// configure CLI argument parser:
@@ -220,6 +223,13 @@ func Run(args []string, underTest bool) {
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
+	app.Flag("use-local-ssh-agent", "Load generated SSH certificates into the local ssh-agent (specified via $SSH_AUTH_SOCK). You can also set TELEPORT_USE_LOCAL_SSH_AGENT environment variable. Default is true.").
+		Envar(useLocalSSHAgentEnvVar).
+		Default("true").
+		BoolVar(&cf.UseLocalSSHAgent)
+	app.Flag("enable-escape-sequences", "Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences. Default is enabled.").
+		Default("true").
+		BoolVar(&cf.EnableEscapeSequences)
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
 	// ssh
@@ -1086,6 +1096,14 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	// (not currently implemented) or set to 'none' to suppress browser opening entirely.
 	c.Browser = cf.Browser
 
+	// Do not write SSH certs into the local ssh-agent if user requested it.
+	//
+	// This is specifically for gpg-agent, which doesn't support SSH
+	// certificates (https://dev.gnupg.org/T1756)
+	c.UseLocalSSHAgent = cf.UseLocalSSHAgent
+
+	c.EnableEscapeSequences = cf.EnableEscapeSequences
+
 	tc, err := client.NewClient(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1182,7 +1200,7 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	} else {
 		prefix = "  "
 	}
-	duration := p.ValidUntil.Sub(time.Now())
+	duration := time.Until(p.ValidUntil)
 	humanDuration := "EXPIRED"
 	if duration.Nanoseconds() > 0 {
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))

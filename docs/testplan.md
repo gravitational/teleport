@@ -198,96 +198,149 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 - [ ] Test receiving a message via Teleport Slackbot
 - [ ] Test receiving a new Jira Ticket via Teleport Jira
 
-## Web UI
+## WEB UI
 
-- [ ] Creating a new SSH session.
+### Dashboard
 
-    Open a terminal to existing server
-    - [ ] Verify that input/output works as expected by typing on the keyboard.
-    - [ ] Verify that participant indicator is shown.
-    - [ ] Verify that window resize works.
-    - [ ] Verify that terminal is automatically closed after session ends (by typing `exit`)
+#### Top Nav
+- [ ] Verify that user name is displayed.
+- [ ] Verify that user menu shows a logout button.
 
-    Open a terminal to non-existing server
-    - [ ] Verify that connection error is shown to the user.
+#### Cluster List
+- [ ] Verify that root cluster is displayed with the proper label.
+- [ ] Verify that "Name", "Version", "Nodes" and "Public URL" shows the correct information.
+- [ ] Verify that column sorting works.
+- [ ] Verify that cluster "View" button works as a hyperlink by opening a new browser tab.
+- [ ] Verify that search works.
 
-- [ ] Joining an existing SSH session.
+### Cluster
 
-    Start a new session then copy the session URL and open it in another tab.
+#### Top Nav
+- [ ] Verify that user name is displayed.
+- [ ] Verify that Breadcrumb Navigation has a link to dashboard.
+- [ ] Verify that cluster name is displayed.
+- [ ] Verify that clicking on Teleport logo navigates to the Dashboard.
 
-    - [ ] Should be able to join an existing session.
-    - [ ] Should be able to see what another participant is typing.
-    - [ ] Should display the correct number of participants.
-    - [ ] Verify that resize works in both terminals. Use midnight commander (`apt-get install mc`) as it clearly shows the actual screen of the terminal.
+#### Side Nav
+- [ ] Verify that "Nodes" item is highlighted.
+- [ ] Verify that each item has an icon.
 
-    Start a new session and then open the Sessions Page in another tab:
+#### Nodes
+- [ ] Verify that "Nodes" table shows all joined nodes.
+- [ ] Verify that "Connect" button shows a list of available logins.
+- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values.
+- [ ] Verify that "Search" works.
+- [ ] Verify that terminal opens when clicking on one of the available logins.
 
-    - [ ] Should see 1 active session and participant.
-    - [ ] Should be able to join this session by clicking on "Join" button.
+#### Active Sessions
+- [ ] Verify that "empty" state is handled.
+- [ ] Verify that it displays the session when session is active.
+- [ ] Verify that "Description", "Session ID", "Users", "Nodes" and "Duration" columns show correct values.
+- [ ] Verify that "OPTIONS" button allows to join a session.
 
-    Join a session that has ended:
+#### Audit log
+- [ ] Verify that Audit log has "Sessions" and "Events" tabs where "Sessions" is active by default.
+- [ ] Verify that time range button is shown and works.
 
-    - [ ] Should see a message saying that this session has ended.
-    - [ ] Should see 2 buttons: "Start new" and "Replay". Verify that both work as expected.
+#### Audit log (Sessions)
+- [ ] Verify that Sessions table shows the correct session values.
+- [ ] Verify that Play button opens a session player.
+- [ ] Verify that search works (it should do a search on all table cells).
 
-- [ ] Node List.
+#### Auth Connectors.
+- [ ] Verify that creating OIDC/SAML/GITHUB connectors works.
+- [ ] Verify that editing  OIDC/SAML/GITHUB connectors works.
+- [ ] Verify that error is shown when saving an invalid YAML.
+- [ ] Verify that correct hint text is shown on the right side.
 
-    Open the Node List page.
+  Card Icons
+  - [ ] Verify that GITHUB card has github icon
+  - [ ] Verify that SAML card has SAML icon
+  - [ ] Verify that OIDC card has OIDC icon
 
-    - [ ] Verify that sorting works.
-    - [ ] Verify that dynamic labels are getting updated.
-    - [ ] Verify that login dropdown control shows the correct list of available logins.
-    - [ ] Verify that search works.
-    - [ ] Verify that ssh control works (input validation).
-    - [ ] Verify that cluster dropdown control shows the correct list of clusters.
+#### Roles
+- [ ] Verify that roles are shown.
+- [ ] Verify that "Create New Role" dialog works.
+- [ ] Verify that deleting and editing works.
+- [ ] Verify that error is shown when saving an invalid YAML.
+- [ ] Verify that correct hint text is shown on the right side.
 
+#### Trusted Clusters
+- [ ] Verify that adding/removing a trusted cluster works.
+- [ ] Verify that correct hint text is shown on the right side.
 
-- [ ] Session List (stored sessions).
+#### Help&Support
+- [ ] Verify that all URLs work and correct (no 404)
 
-    Open the Sessions page.
+### Account
+- [ ] Verify that Account screen is accessibly from the user menu for local users.
+- [ ] Verify that changing a local password works (OTP, U2F)
 
-    - [ ] Verify that it displays the list of stored sessions.
-    - [ ] Should be able to open a session player by clicking on "Play" button.
-    - [ ] Verify that all columns display correct information.
-    - [ ] Verify that date-picker works.
-    - [ ] Verify that search works.
+### Terminal
+- [ ] Verify that top nav has a user menu (Dashboard and Logout).
+- [ ] Verify that switching between tabs works on alt+[1...9].
 
-    Create a new session and open the Session List in another browser window.
+#### Node List Tab
+- [ ] Verify that Cluster selector works (URL should change too)
+- [ ] Verify that Quick access input works. It
+- [ ] Verify that Quick access input handles input errors.
+- [ ] Verify that "Connect" button shows a list of available logins.
+- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values.
+- [ ] Verify that "Search" works.
+- [ ] Verify that new tab is created when starting a session.
 
-    - [ ] Verify that this session is shown as active in the Session List.
-    - [ ] Verify that "Join" button works.
+#### Session Tab
+- [ ] Verify that session and browser tabs both show the title with login and node name.
+- [ ] Verify that terminal resize works (use midnight commander (sudo apt-get install mc))
+- [ ] Verify that session tab shows a list of participants when a new user joins the session.
+- [ ] Verify that tab automatically closes on "$ exit" command.
+- [ ] Verify that SCP Upload works.
+- [ ] Verify that SCP Upload handles invalid paths and network errors.
+- [ ] Verify that SCP Download works.
+- [ ] Verify that SCP Download handles invalid paths and network errors.
 
+### Session Player
+- [ ] Verify that it can replay a session.
+- [ ] Verify that scrolling behavior.
+- [ ] Verify that error message is displayed (use invalid SID)
 
-- [ ] Invite
+### Invite Form
+- [ ] Verify that input validation.
+- [ ] Verify that invite works with 2FA disabled.
+- [ ] Verify that invite works with OTP enabled.
+- [ ] Verify that invite works with U2F enabled.
+- [ ] Verify that error message is shown if an invite is expired/invalid.
 
-    Create user invite URL and use this URL to:
+### Login Form
+- [ ] Verify that input validation.
+- [ ] Verify that login works with 2FA disabled.
+- [ ] Verify that login works with OTP enabled.
+- [ ] Verify that login works with U2F enabled.
+- [ ] Verify that login works for Github/SAML/OIDC.
+- [ ] Verify that account is locked after several unsuccessful attempts.
+- [ ] Verify that redirect to original URL works after successful login.
 
-    - [ ] Verify that invite works with OTP enabled.
-    - [ ] Verify that invite works with U2F enabled.
-    - [ ] Verify that invite works with 2nd factor disabled.
-
-
-- [ ] Expired Invite
-
-    Create invalid or expired invite URL.
-
-    - [ ] Verify that "Invite code has expired" message is displayed.
-
-
-- [ ] User lock
-
-    Open a login screen.
-
-    - [ ] Verify that a user gets locked after several unsuccessful attempts.
-
-
-- [ ] Login redirects.
-
-    Log out and then navigate to Nodes list.
-
-    - [ ] Verify that a user is redirected to the login page.
-    - [ ] Verify that after successful login, a user is redirected to the Node List.
-
+### RBAC
+ Create the following role
+```
+  spec:
+  allow:
+    logins:
+    - root
+    - '{{internal.logins}}'
+    node_labels:
+      '*': '*'
+  deny:
+    logins: null
+  options:
+    cert_format: standard
+    forward_agent: true
+    max_session_ttl: 30h0m0s
+    port_forwarding: true
+```
+  - [ ] Verify that a user has access only to: "Cluster List", "Nodes", and "Active Sessions".
+  - [ ] Verify that a user is redirected to the login page.
+  - [ ] Verify that after successful login, a user is redirected to the Node List.
 
 ## Performance/Soak Test
 

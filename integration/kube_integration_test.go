@@ -477,6 +477,9 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 
 	clusterMain := "cluster-main"
 	mainConf := s.teleKubeConfig(Host)
+	// Main cluster doesn't need a kubeconfig to forward requests to auxiliary
+	// cluster.
+	mainConf.Proxy.Kube.KubeconfigPath = ""
 	main := NewInstance(InstanceConfig{
 		ClusterName: clusterMain,
 		HostID:      HostID,
@@ -1215,6 +1218,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 		Groups:           user.GetRoles(),
 		KubernetesUsers:  cfg.kubeUsers,
 		KubernetesGroups: cfg.kubeGroups,
+		RouteToCluster:   cfg.routeToCluster,
 	}
 	subj, err := id.Subject()
 	if err != nil {
@@ -1313,9 +1317,8 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 			upgradeRoundTripper)
 	}
 
-	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}
 	stopC, readyC := make(chan struct{}), make(chan struct{})
-	fwd, err := portforward.New(dialer, args.ports, stopC, readyC, out, errOut)
+	fwd, err := portforward.New(dialer, args.ports, stopC, readyC, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

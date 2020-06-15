@@ -522,6 +522,13 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	kubeGroups, kubeUsers, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL)
+	// NotFound errors are acceptable - this user may have no k8s access
+	// granted and that shouldn't prevent us from issuing a TLS cert.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
 	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: clusterName,
@@ -535,12 +542,14 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	identity := tlsca.Identity{
-		Username:       req.user.GetName(),
-		Groups:         req.checker.RoleNames(),
-		Principals:     allowedLogins,
-		Usage:          req.usage,
-		RouteToCluster: req.routeToCluster,
-		Traits:         req.traits,
+		Username:         req.user.GetName(),
+		Groups:           req.checker.RoleNames(),
+		Principals:       allowedLogins,
+		Usage:            req.usage,
+		RouteToCluster:   req.routeToCluster,
+		KubernetesGroups: kubeGroups,
+		KubernetesUsers:  kubeUsers,
+		Traits:           req.traits,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -569,6 +578,12 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) error {
 	user, err := s.Identity.GetUser(username, false)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// If user is not found, still call authenticateFn. It should
+			// always return an error. This prevents username oracles and
+			// timing attacks.
+			return authenticateFn()
+		}
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
@@ -799,18 +814,29 @@ func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GenerateToken generates multi-purpose authentication token
-func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
+// GenerateToken generates multi-purpose authentication token.
+func (a *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
-	token, err := services.NewProvisionToken(req.Token, req.Roles, s.clock.Now().UTC().Add(req.TTL))
+	token, err := services.NewProvisionToken(req.Token, req.Roles, a.clock.Now().UTC().Add(req.TTL))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if err := s.Provisioner.UpsertToken(token); err != nil {
+	if err := a.Provisioner.UpsertToken(token); err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	for _, role := range req.Roles {
+		if role == teleport.RoleTrustedCluster {
+			if err := a.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
+				events.EventUser: "unimplemented",
+			}); err != nil {
+				log.Warnf("Failed to emit trusted cluster token create event: %v", err)
+			}
+		}
+	}
+
 	return req.Token, nil
 }
 
@@ -1362,10 +1388,12 @@ func (a *AuthServer) DeleteRole(name string) error {
 		return trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
+	if err := a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
 		events.FieldName: name,
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit role deleted event: %v", err)
+	}
 
 	return nil
 }
@@ -1376,10 +1404,12 @@ func (a *AuthServer) upsertRole(role services.Role) error {
 		return trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.RoleCreated, events.EventFields{
+	if err := a.EmitAuditEvent(events.RoleCreated, events.EventFields{
 		events.FieldName: role.GetName(),
 		events.EventUser: "unimplemented",
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit role created event: %v", err)
+	}
 
 	return nil
 }

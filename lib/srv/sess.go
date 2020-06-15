@@ -128,12 +128,12 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 		events.EventNamespace:  s.srv.GetNamespace(),
 		events.EventLogin:      ctx.Identity.Login,
 		events.EventUser:       ctx.Identity.TeleportUser,
-		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
+		events.RemoteAddr:      ctx.ServerConn.RemoteAddr().String(),
 		events.SessionServerID: ctx.srv.HostUUID(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
-		sessionJoinEvent[events.LocalAddr] = ctx.Conn.LocalAddr().String()
+		sessionJoinEvent[events.LocalAddr] = ctx.ServerConn.LocalAddr().String()
 	}
 
 	// Emit session join event to Audit Log.
@@ -672,14 +672,14 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		events.SessionServerID:       ctx.srv.HostUUID(),
 		events.EventLogin:            ctx.Identity.Login,
 		events.EventUser:             ctx.Identity.TeleportUser,
-		events.RemoteAddr:            ctx.Conn.RemoteAddr().String(),
+		events.RemoteAddr:            ctx.ServerConn.RemoteAddr().String(),
 		events.TerminalSize:          params.Serialize(),
 		events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
 		events.SessionServerLabels:   ctx.srv.GetInfo().GetAllLabels(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
-		eventFields[events.LocalAddr] = ctx.Conn.LocalAddr().String()
+		eventFields[events.LocalAddr] = ctx.ServerConn.LocalAddr().String()
 	}
 	s.emitAuditEvent(events.SessionStart, eventFields)
 
@@ -787,13 +787,13 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		events.SessionServerID:       ctx.srv.HostUUID(),
 		events.EventLogin:            ctx.Identity.Login,
 		events.EventUser:             ctx.Identity.TeleportUser,
-		events.RemoteAddr:            ctx.Conn.RemoteAddr().String(),
+		events.RemoteAddr:            ctx.ServerConn.RemoteAddr().String(),
 		events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
 		events.SessionServerLabels:   ctx.srv.GetInfo().GetAllLabels(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
-		eventFields[events.LocalAddr] = ctx.Conn.LocalAddr().String()
+		eventFields[events.LocalAddr] = ctx.ServerConn.LocalAddr().String()
 	}
 	s.emitAuditEvent(events.SessionStart, eventFields)
 
@@ -1188,12 +1188,12 @@ func newParty(s *session, ch ssh.Channel, ctx *ServerContext) *party {
 		user:      ctx.Identity.TeleportUser,
 		login:     ctx.Identity.Login,
 		serverID:  s.registry.srv.ID(),
-		site:      ctx.Conn.RemoteAddr().String(),
+		site:      ctx.ServerConn.RemoteAddr().String(),
 		id:        rsession.NewID(),
 		ch:        ch,
 		ctx:       ctx,
 		s:         s,
-		sconn:     ctx.Conn,
+		sconn:     ctx.ServerConn,
 		termSizeC: make(chan []byte, 5),
 		closeC:    make(chan bool),
 	}

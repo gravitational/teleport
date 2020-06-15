@@ -219,7 +219,7 @@ func (u *Uploader) emitEvent(e UploadEvent) {
 }
 
 func (u *Uploader) uploadFile(lockFilePath string, sessionID session.ID) error {
-	lockFile, err := os.Open(lockFilePath)
+	lockFile, err := os.OpenFile(lockFilePath, os.O_RDWR, 0)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}

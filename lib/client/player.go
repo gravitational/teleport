@@ -51,7 +51,7 @@ func newSessionPlayer(sessionEvents []events.EventFields, stream []byte) *sessio
 	return &sessionPlayer{
 		stream:        stream,
 		sessionEvents: sessionEvents,
-		stopC:         make(chan int, 0),
+		stopC:         make(chan int),
 	}
 }
 

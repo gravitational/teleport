@@ -141,7 +141,7 @@ func (s *IntSuite) SetUpTest(c *check.C) {
 func (s *IntSuite) newUnstartedTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
 	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 	// use passed logins, but use suite's default login if nothing was passed
-	if logins == nil || len(logins) == 0 {
+	if len(logins) == 0 {
 		logins = []string{s.me.Username}
 	}
 	for _, login := range logins {
@@ -170,7 +170,7 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	// use passed logins, but use suite's default login if nothing was passed
-	if logins == nil || len(logins) == 0 {
+	if len(logins) == 0 {
 		logins = []string{s.me.Username}
 	}
 	for _, login := range logins {
@@ -293,7 +293,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		c.Assert(len(sessions), check.Equals, 0)
 
 		// create interactive session (this goroutine is this user's terminal time)
-		endC := make(chan error, 0)
+		endC := make(chan error)
 		myTerm := NewTerminal(250)
 		go func() {
 			cl, err := t.NewClient(ClientConfig{
@@ -567,14 +567,15 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 		cl.Stderr = outbuf
 
 		// run command and wait a maximum of 10 seconds for it to complete
-		sessionEndC := make(chan interface{}, 0)
+		sessionEndC := make(chan interface{})
 		go func() {
 			// don't check for err, because sometimes this process should fail
 			// with an error and that's what the test is checking for.
 			cl.SSH(context.TODO(), []string{tt.inCommand}, false)
 			sessionEndC <- true
 		}()
-		waitFor(sessionEndC, time.Second*10)
+		err = waitFor(sessionEndC, time.Second*10)
+		c.Assert(err, check.IsNil)
 
 		// if we are looking for the output in a file, look in the file
 		// otherwise check stdout and stderr for the expected output
@@ -682,7 +683,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	t := s.newTeleport(c, nil, true)
 	defer t.StopAll()
 
-	sessionEndC := make(chan interface{}, 0)
+	sessionEndC := make(chan interface{})
 
 	// get a reference to site obj:
 	site := t.GetSiteAPI(Site)
@@ -733,7 +734,8 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	go joinSession()
 
 	// wait for the session to end
-	waitFor(sessionEndC, time.Second*10)
+	err := waitFor(sessionEndC, time.Second*10)
+	c.Assert(err, check.IsNil)
 
 	// make sure the output of B is mirrored in A
 	outputOfA := personA.Output(100)
@@ -756,7 +758,7 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 	person := NewTerminal(250)
 
 	// commandsC receive commands
-	commandsC := make(chan string, 0)
+	commandsC := make(chan string)
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
@@ -1159,12 +1161,14 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 		c.Assert(outputA.String(), check.DeepEquals, outputB.String())
 
 		// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
-		a.StopAuth(false)
+		err = a.StopAuth(false)
+		c.Assert(err, check.IsNil)
 		err = tc.SSH(context.TODO(), cmd, false)
 		c.Assert(err, check.FitsTypeOf, trace.ConnectionProblem(nil, ""))
 
 		// Reset and start "Site-A" again
-		a.Reset()
+		err = a.Reset()
+		c.Assert(err, check.IsNil)
 		err = a.Start()
 		c.Assert(err, check.IsNil)
 
@@ -2961,10 +2965,9 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
-	runCtx, runCancel := context.WithCancel(context.TODO())
+	runErrCh := make(chan error, 1)
 	go func() {
-		defer runCancel()
-		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -3083,7 +3086,8 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	svc.Close()
 
 	select {
-	case <-runCtx.Done():
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}
@@ -3108,10 +3112,9 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
-	runCtx, runCancel := context.WithCancel(context.TODO())
+	runErrCh := make(chan error, 1)
 	go func() {
-		defer runCancel()
-		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -3208,7 +3211,8 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	svc.Close()
 
 	select {
-	case <-runCtx.Done():
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}
@@ -3237,10 +3241,9 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	serviceC := make(chan *service.TeleportProcess, 20)
-	runCtx, runCancel := context.WithCancel(context.TODO())
+	runErrCh := make(chan error, 1)
 	go func() {
-		defer runCancel()
-		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -3428,7 +3431,8 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	svc.Close()
 
 	select {
-	case <-runCtx.Done():
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}

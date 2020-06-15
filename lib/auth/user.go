@@ -54,13 +54,15 @@ func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	s.EmitAuditEvent(events.UserCreate, events.EventFields{
-		events.EventUser:        createdBy.User.Name,
-		events.UserExpires:      user.Expiry(),
-		events.UserRoles:        user.GetRoles(),
-		events.ActionOnBehalfOf: user.GetName(),
-		events.UserConnector:    connectorName,
-	})
+	if err := s.EmitAuditEvent(events.UserCreate, events.EventFields{
+		events.EventUser:     createdBy.User.Name,
+		events.UserExpires:   user.Expiry(),
+		events.UserRoles:     user.GetRoles(),
+		events.FieldName:     user.GetName(),
+		events.UserConnector: connectorName,
+	}); err != nil {
+		log.Warnf("Failed to emit user create event: %v", err)
+	}
 
 	return nil
 }
@@ -83,13 +85,15 @@ func (s *AuthServer) UpdateUser(ctx context.Context, user services.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	s.EmitAuditEvent(events.UserUpdate, events.EventFields{
-		events.EventUser:        updateBy,
-		events.UserExpires:      user.Expiry(),
-		events.UserRoles:        user.GetRoles(),
-		events.ActionOnBehalfOf: user.GetName(),
-		events.UserConnector:    connectorName,
-	})
+	if err := s.EmitAuditEvent(events.UserUpdate, events.EventFields{
+		events.EventUser:     updateBy,
+		events.FieldName:     user.GetName(),
+		events.UserExpires:   user.Expiry(),
+		events.UserRoles:     user.GetRoles(),
+		events.UserConnector: connectorName,
+	}); err != nil {
+		log.Warnf("Failed to emit user update event: %v", err)
+	}
 
 	return nil
 }
@@ -108,18 +112,25 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	s.EmitAuditEvent(events.UserUpdate, events.EventFields{
+	if err := s.EmitAuditEvent(events.UserUpdate, events.EventFields{
 		events.EventUser:     user.GetName(),
 		events.UserExpires:   user.Expiry(),
 		events.UserRoles:     user.GetRoles(),
 		events.UserConnector: connectorName,
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit user update event: %v", err)
+	}
 
 	return nil
 }
 
-// DeleteUser deletes a user.
-func (s *AuthServer) DeleteUser(user string) error {
+// DeleteUser deletes an existng user in a backend by username.
+func (s *AuthServer) DeleteUser(ctx context.Context, user string) error {
+	deletedBy, err := getUpdateBy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	role, err := s.Access.GetRole(services.RoleNameForUser(user))
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -133,15 +144,18 @@ func (s *AuthServer) DeleteUser(user string) error {
 		}
 	}
 
-	err = s.Identity.DeleteUser(user)
+	err = s.Identity.DeleteUser(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// If the user was successfully deleted, emit an event.
-	s.EmitAuditEvent(events.UserDelete, events.EventFields{
-		events.EventUser: user,
-	})
+	if err := s.EmitAuditEvent(events.UserDelete, events.EventFields{
+		events.FieldName: user,
+		events.EventUser: deletedBy,
+	}); err != nil {
+		log.Warnf("Failed to emit user delete event: %v", err)
+	}
 
 	return nil
 }

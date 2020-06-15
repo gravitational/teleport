@@ -34,6 +34,7 @@ import (
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -67,6 +68,8 @@ type NodeSession struct {
 	closer *utils.CloseBroadcaster
 
 	ExitMsg string
+
+	enableEscapeSequences bool
 }
 
 // newSession creates a new Teleport session with the given remote node
@@ -78,7 +81,9 @@ func newSession(client *NodeClient,
 	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
-	legacyID bool) (*NodeSession, error) {
+	legacyID bool,
+	enableEscapeSequences bool,
+) (*NodeSession, error) {
 
 	if stdin == nil {
 		stdin = os.Stdin
@@ -95,13 +100,14 @@ func newSession(client *NodeClient,
 
 	var err error
 	ns := &NodeSession{
-		env:        env,
-		nodeClient: client,
-		stdin:      stdin,
-		stdout:     stdout,
-		stderr:     stderr,
-		namespace:  client.Namespace,
-		closer:     utils.NewCloseBroadcaster(),
+		env:                   env,
+		nodeClient:            client,
+		stdin:                 stdin,
+		stdout:                stdout,
+		stderr:                stderr,
+		namespace:             client.Namespace,
+		closer:                utils.NewCloseBroadcaster(),
+		enableEscapeSequences: enableEscapeSequences,
 	}
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
@@ -280,7 +286,9 @@ func (ns *NodeSession) allocateTerminal(termType string, s *ssh.Session) (io.Rea
 		go ns.updateTerminalSize(s)
 	}
 	go func() {
-		io.Copy(os.Stderr, stderr)
+		if _, err := io.Copy(os.Stderr, stderr); err != nil {
+			log.Debugf("Error reading remote STDERR: %v", err)
+		}
 	}()
 	return utils.NewPipeNetConn(
 		reader,
@@ -543,12 +551,28 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 	go func() {
 		defer ns.closer.Close()
 		buf := make([]byte, 128)
+
+		stdin := ns.stdin
+		if ns.isTerminalAttached() && ns.enableEscapeSequences {
+			stdin = escape.NewReader(stdin, ns.stderr, func(err error) {
+				switch err {
+				case escape.ErrDisconnect:
+					fmt.Fprintf(ns.stderr, "\r\n%v\r\n", err)
+				case escape.ErrTooMuchBufferedData:
+					fmt.Fprintf(ns.stderr, "\r\nerror: %v\r\nremote peer may be unreachable, check your connectivity\r\n", trace.Wrap(err))
+				default:
+					fmt.Fprintf(ns.stderr, "\r\nerror: %v\r\n", trace.Wrap(err))
+				}
+				ns.closer.Close()
+			})
+		}
 		for {
-			n, err := ns.stdin.Read(buf)
+			n, err := stdin.Read(buf)
 			if err != nil {
-				fmt.Fprintln(ns.stderr, trace.Wrap(err))
+				fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
 				return
 			}
+
 			if n > 0 {
 				_, err = shell.Write(buf[:n])
 				if err != nil {

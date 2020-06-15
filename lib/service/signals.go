@@ -129,7 +129,9 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			return nil
 		case <-ctx.Done():
 			process.Close()
-			process.Wait()
+			if err := process.Wait(); err != nil {
+				process.Warnf("Error waiting for all services to exit: %v", err)
+			}
 			process.Info("Got request to shutdown, context is closing")
 			return nil
 		case event := <-serviceErrorsC:
@@ -200,17 +202,17 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 
 // importOrCreateListener imports listener passed by the parent process (happens during live reload)
 // or creates a new listener if there was no listener registered
-func (process *TeleportProcess) importOrCreateListener(listenerType, address string) (net.Listener, error) {
-	l, err := process.importListener(listenerType, address)
+func (process *TeleportProcess) importOrCreateListener(typ listenerType, address string) (net.Listener, error) {
+	l, err := process.importListener(typ, address)
 	if err == nil {
-		process.Infof("Using file descriptor %v %v passed by the parent process.", listenerType, address)
+		process.Infof("Using file descriptor %v %v passed by the parent process.", typ, address)
 		return l, nil
 	}
 	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	process.Infof("Service %v is creating new listener on %v.", listenerType, address)
-	return process.createListener(listenerType, address)
+	process.Infof("Service %v is creating new listener on %v.", typ, address)
+	return process.createListener(typ, address)
 }
 
 func (process *TeleportProcess) importSignalPipe() (*os.File, error) {
@@ -230,35 +232,35 @@ func (process *TeleportProcess) importSignalPipe() (*os.File, error) {
 
 // importListener imports listener passed by the parent process, if no listener is found
 // returns NotFound, otherwise removes the file from the list
-func (process *TeleportProcess) importListener(listenerType, address string) (net.Listener, error) {
+func (process *TeleportProcess) importListener(typ listenerType, address string) (net.Listener, error) {
 	process.Lock()
 	defer process.Unlock()
 
 	for i := range process.importedDescriptors {
 		d := process.importedDescriptors[i]
-		if d.Type == listenerType && d.Address == address {
+		if d.Type == string(typ) && d.Address == address {
 			l, err := d.ToListener()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			process.importedDescriptors = append(process.importedDescriptors[:i], process.importedDescriptors[i+1:]...)
-			process.registeredListeners = append(process.registeredListeners, RegisteredListener{Type: listenerType, Address: address, Listener: l})
+			process.registeredListeners = append(process.registeredListeners, registeredListener{typ: typ, address: address, listener: l})
 			return l, nil
 		}
 	}
 
-	return nil, trace.NotFound("no file descriptor for type %v and address %v has been imported", listenerType, address)
+	return nil, trace.NotFound("no file descriptor for type %v and address %v has been imported", typ, address)
 }
 
 // createListener creates listener and adds to a list of tracked listeners
-func (process *TeleportProcess) createListener(listenerType, address string) (net.Listener, error) {
+func (process *TeleportProcess) createListener(typ listenerType, address string) (net.Listener, error) {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	process.Lock()
 	defer process.Unlock()
-	r := RegisteredListener{Type: listenerType, Address: address, Listener: listener}
+	r := registeredListener{typ: typ, address: address, listener: listener}
 	process.registeredListeners = append(process.registeredListeners, r)
 	return listener, nil
 }
@@ -269,11 +271,11 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]FileDescriptor, error
 	process.Lock()
 	defer process.Unlock()
 	for _, r := range process.registeredListeners {
-		file, err := utils.GetListenerFile(r.Listener)
+		file, err := utils.GetListenerFile(r.listener)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out = append(out, FileDescriptor{File: file, Type: r.Type, Address: r.Address})
+		out = append(out, FileDescriptor{File: file, Type: string(r.typ), Address: r.address})
 	}
 	return out, nil
 }
@@ -298,15 +300,15 @@ func importFileDescriptors() ([]FileDescriptor, error) {
 	return files, nil
 }
 
-// RegisteredListener is a listener registered
+// registeredListener is a listener registered
 // within teleport process, can be passed to child process
-type RegisteredListener struct {
+type registeredListener struct {
 	// Type is a listener type, e.g. auth:ssh
-	Type string
+	typ listenerType
 	// Address is an address listener is serving on, e.g. 127.0.0.1:3025
-	Address string
+	address string
 	// Listener is a file listener object
-	Listener net.Listener
+	listener net.Listener
 }
 
 // FileDescriptor is a file descriptor associated

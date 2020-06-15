@@ -250,9 +250,10 @@ func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw service
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
+
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("trusted cluster '%s' already exists", name)
+		return trace.AlreadyExists("trusted cluster %q already exists", name)
 	}
 
 	out, err := client.UpsertTrustedCluster(tc)
@@ -359,10 +360,10 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		}
 		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
 	case services.KindUser:
-		if err = client.DeleteUser(rc.ref.Name); err != nil {
+		if err = client.DeleteUser(context.TODO(), rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("user %v has been deleted\n", rc.ref.Name)
+		fmt.Printf("user %q has been deleted\n", rc.ref.Name)
 	case services.KindSAMLConnector:
 		if err = client.DeleteSAMLConnector(rc.ref.Name); err != nil {
 			return trace.Wrap(err)
