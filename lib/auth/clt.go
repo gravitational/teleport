@@ -87,6 +87,9 @@ type Client struct {
 	closedFlag int32
 }
 
+// Make sure Client implements all the necessary methods.
+var _ ClientI = &Client{}
+
 // TLSConfig returns TLS config used by the client, could return nil
 // if the client is not using TLS
 func (c *Client) TLSConfig() *tls.Config {
@@ -599,7 +602,7 @@ func (c *Client) DeactivateCertAuthority(id services.CertAuthID) error {
 //
 // If token is not supplied, it will be auto generated and returned.
 // If TTL is not supplied, token will be valid until removed.
-func (c *Client) GenerateToken(req GenerateTokenRequest) (string, error) {
+func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens"), req)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -1669,7 +1672,7 @@ func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePassword
 }
 
 // UpsertOIDCConnector updates or creates OIDC connector
-func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector) error {
+func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
 	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1719,7 +1722,7 @@ func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, 
 }
 
 // DeleteOIDCConnector deletes OIDC connector by ID
-func (c *Client) DeleteOIDCConnector(connectorID string) error {
+func (c *Client) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
@@ -1780,7 +1783,7 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 }
 
 // CreateOIDCConnector creates SAML connector
-func (c *Client) CreateSAMLConnector(connector services.SAMLConnector) error {
+func (c *Client) CreateSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1795,7 +1798,7 @@ func (c *Client) CreateSAMLConnector(connector services.SAMLConnector) error {
 }
 
 // UpsertSAMLConnector updates or creates OIDC connector
-func (c *Client) UpsertSAMLConnector(connector services.SAMLConnector) error {
+func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1845,7 +1848,7 @@ func (c *Client) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, 
 }
 
 // DeleteSAMLConnector deletes SAML connector by ID
-func (c *Client) DeleteSAMLConnector(connectorID string) error {
+func (c *Client) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
@@ -1921,7 +1924,7 @@ func (c *Client) CreateGithubConnector(connector services.GithubConnector) error
 }
 
 // UpsertGithubConnector creates or updates a Github connector
-func (c *Client) UpsertGithubConnector(connector services.GithubConnector) error {
+func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
 	bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1970,7 +1973,7 @@ func (c *Client) GetGithubConnector(id string, withSecrets bool) (services.Githu
 }
 
 // DeleteGithubConnector deletes the specified Github connector
-func (c *Client) DeleteGithubConnector(id string) error {
+func (c *Client) DeleteGithubConnector(ctx context.Context, id string) error {
 	_, err := c.Delete(c.Endpoint("github", "connectors", id))
 	if err != nil {
 		return trace.Wrap(err)
@@ -2241,7 +2244,7 @@ func (c *Client) CreateRole(role services.Role) error {
 }
 
 // UpsertRole creates or updates role
-func (c *Client) UpsertRole(role services.Role) error {
+func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
 	data, err := services.GetRoleMarshaler().MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2267,7 +2270,7 @@ func (c *Client) GetRole(name string) (services.Role, error) {
 }
 
 // DeleteRole deletes role by name
-func (c *Client) DeleteRole(name string) error {
+func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	_, err := c.Delete(c.Endpoint("roles", name))
 	return trace.Wrap(err)
 }
@@ -2484,7 +2487,7 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 }
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
-func (c *Client) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	trustedClusterBytes, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2524,7 +2527,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 }
 
 // DeleteTrustedCluster deletes a trusted cluster by name.
-func (c *Client) DeleteTrustedCluster(name string) error {
+func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 	_, err := c.Delete(c.Endpoint("trustedclusters", name))
 	return trace.Wrap(err)
 }
@@ -2707,7 +2710,7 @@ type IdentityService interface {
 	UpsertPassword(user string, password []byte) error
 
 	// UpsertOIDCConnector updates or creates OIDC connector
-	UpsertOIDCConnector(connector services.OIDCConnector) error
+	UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error
 
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error)
@@ -2716,7 +2719,7 @@ type IdentityService interface {
 	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
 
 	// DeleteOIDCConnector deletes OIDC connector by ID
-	DeleteOIDCConnector(connectorID string) error
+	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
@@ -2725,10 +2728,10 @@ type IdentityService interface {
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
 
 	// CreateSAMLConnector creates SAML connector
-	CreateSAMLConnector(connector services.SAMLConnector) error
+	CreateSAMLConnector(ctx context.Context, connector services.SAMLConnector) error
 
 	// UpsertSAMLConnector updates or creates SAML connector
-	UpsertSAMLConnector(connector services.SAMLConnector) error
+	UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error
 
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error)
@@ -2737,7 +2740,7 @@ type IdentityService interface {
 	GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error)
 
 	// DeleteSAMLConnector deletes SAML connector by ID
-	DeleteSAMLConnector(connectorID string) error
+	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error)
@@ -2748,13 +2751,13 @@ type IdentityService interface {
 	// CreateGithubConnector creates a new Github connector
 	CreateGithubConnector(connector services.GithubConnector) error
 	// UpsertGithubConnector creates or updates a Github connector
-	UpsertGithubConnector(connector services.GithubConnector) error
+	UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector
 	GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
-	DeleteGithubConnector(id string) error
+	DeleteGithubConnector(ctx context.Context, id string) error
 	// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 	CreateGithubAuthRequest(services.GithubAuthRequest) (*services.GithubAuthRequest, error)
 	// ValidateGithubAuthCallback validates Github auth callback
@@ -2798,7 +2801,7 @@ type IdentityService interface {
 	//
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(GenerateTokenRequest) (string, error)
+	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
 
 	// GenerateKeyPair generates SSH private/public key pair optionally protected
 	// by password. If the pass parameter is an empty string, the key pair

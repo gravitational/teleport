@@ -580,7 +580,7 @@ func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r 
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := auth.UpsertTrustedCluster(trustedCluster)
+	out, err := auth.UpsertTrustedCluster(r.Context(), trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -622,7 +622,7 @@ func (s *APIServer) getTrustedClusters(auth ClientI, w http.ResponseWriter, r *h
 
 // deleteTrustedCluster deletes a trusted cluster by name.
 func (s *APIServer) deleteTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteTrustedCluster(p.ByName("name"))
+	err := auth.DeleteTrustedCluster(r.Context(), p.ByName("name"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -958,7 +958,7 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := auth.GenerateToken(req)
+	token, err := auth.GenerateToken(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1266,7 +1266,7 @@ func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *
 	if req.TTL != 0 {
 		connector.SetTTL(s, req.TTL)
 	}
-	err = auth.UpsertOIDCConnector(connector)
+	err = auth.UpsertOIDCConnector(r.Context(), connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1286,7 +1286,7 @@ func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *htt
 }
 
 func (s *APIServer) deleteOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteOIDCConnector(p.ByName("id"))
+	err := auth.DeleteOIDCConnector(r.Context(), p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1400,7 +1400,7 @@ func (s *APIServer) createSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.CreateSAMLConnector(connector)
+	err = auth.CreateSAMLConnector(r.Context(), connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1420,7 +1420,7 @@ func (s *APIServer) upsertSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.UpsertSAMLConnector(connector)
+	err = auth.UpsertSAMLConnector(r.Context(), connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1440,7 +1440,7 @@ func (s *APIServer) getSAMLConnector(auth ClientI, w http.ResponseWriter, r *htt
 }
 
 func (s *APIServer) deleteSAMLConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteSAMLConnector(p.ByName("id"))
+	err := auth.DeleteSAMLConnector(r.Context(), p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1589,7 +1589,7 @@ func (s *APIServer) upsertGithubConnector(auth ClientI, w http.ResponseWriter, r
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertGithubConnector(connector); err != nil {
+	if err := auth.UpsertGithubConnector(r.Context(), connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -1646,7 +1646,7 @@ func (s *APIServer) getGithubConnector(auth ClientI, w http.ResponseWriter, r *h
    Success response: {"message": "ok"}
 */
 func (s *APIServer) deleteGithubConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	if err := auth.DeleteGithubConnector(p.ByName("id")); err != nil {
+	if err := auth.DeleteGithubConnector(r.Context(), p.ByName("id")); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -2099,7 +2099,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.UpsertRole(role)
+	err = auth.UpsertRole(r.Context(), role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2132,7 +2132,7 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 
 func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role := p.ByName("role")
-	if err := auth.DeleteRole(role); err != nil {
+	if err := auth.DeleteRole(r.Context(), role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("role %q deleted", role)), nil

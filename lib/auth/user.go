@@ -137,7 +137,7 @@ func (s *AuthServer) DeleteUser(ctx context.Context, user string) error {
 			return trace.Wrap(err)
 		}
 	} else {
-		if err := s.Access.DeleteRole(role.GetName()); err != nil {
+		if err := s.Access.DeleteRole(ctx, role.GetName()); err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}

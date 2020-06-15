@@ -1350,6 +1350,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 
 // TestMapRoles tests local to remote role mapping and access patterns
 func (s *IntSuite) TestMapRoles(c *check.C) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1397,7 +1398,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -1549,9 +1550,10 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 // retries on connection problems and access denied errors to let caches
 // propagate and services to start
 func tryCreateTrustedCluster(c *check.C, authServer *auth.AuthServer, trustedCluster services.TrustedCluster) {
+	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(trustedCluster)
+		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
@@ -1608,6 +1610,7 @@ func (s *IntSuite) TestMultiplexingTrustedClusters(c *check.C) {
 }
 
 func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
+	ctx := context.Background()
 	username := s.me.Username
 
 	clusterMain := "cluster-main"
@@ -1661,7 +1664,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(auxRole)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -1732,7 +1735,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -1742,7 +1745,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// ListNodes expect labels as a value of host
 	tc.Host = ""
-	servers, err := tc.ListNodes(context.TODO())
+	servers, err := tc.ListNodes(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(servers, check.HasLen, 2)
 	tc.Host = Loopback
@@ -1758,7 +1761,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err != nil {
 			break
 		}
@@ -1767,9 +1770,9 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// remove trusted cluster from aux cluster side, and recrete right after
 	// this should re-establish connection
-	err = aux.Process.GetAuthServer().DeleteTrustedCluster(trustedCluster.GetName())
+	err = aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName())
 	c.Assert(err, check.IsNil)
-	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
 	c.Assert(err, check.IsNil)
 
 	// check that remote cluster has been re-provisioned
@@ -1792,7 +1795,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	tc.Stdout = output
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -1806,6 +1809,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 }
 
 func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
+	ctx := context.Background()
 	username := s.me.Username
 
 	clusterMain := "cluster-main"
@@ -1850,7 +1854,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -3283,7 +3287,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = svc.GetAuthServer().UpsertToken(
