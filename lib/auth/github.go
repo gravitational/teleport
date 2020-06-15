@@ -63,14 +63,14 @@ func (s *AuthServer) CreateGithubAuthRequest(req services.GithubAuthRequest) (*s
 }
 
 // upsertGithubConnector creates or updates a Github connector.
-func (s *AuthServer) upsertGithubConnector(connector services.GithubConnector) error {
+func (s *AuthServer) upsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
 	if err := s.Identity.UpsertGithubConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if err := s.EmitAuditEvent(events.GithubConnectorCreated, events.EventFields{
 		events.FieldName: connector.GetName(),
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit GitHub connector create event: %v", err)
 	}
@@ -79,14 +79,14 @@ func (s *AuthServer) upsertGithubConnector(connector services.GithubConnector) e
 }
 
 // deleteGithubConnector deletes a Github connector by name.
-func (s *AuthServer) deleteGithubConnector(connectorName string) error {
+func (s *AuthServer) deleteGithubConnector(ctx context.Context, connectorName string) error {
 	if err := s.Identity.DeleteGithubConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if err := s.EmitAuditEvent(events.GithubConnectorDeleted, events.EventFields{
 		events.FieldName: connectorName,
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit GitHub connector delete event: %v", err)
 	}

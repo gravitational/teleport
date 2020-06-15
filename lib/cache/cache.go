@@ -286,7 +286,7 @@ func New(config Config) (*Cache, error) {
 	}
 	cs.collections = collections
 
-	err = cs.fetch()
+	err = cs.fetch(ctx)
 	if err != nil {
 		// "only recent" behavior does not tolerate
 		// stale data, so it has to initialize itself
@@ -295,7 +295,7 @@ func New(config Config) (*Cache, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	go cs.update()
+	go cs.update(ctx)
 	return cs, nil
 }
 
@@ -316,7 +316,7 @@ func (c *Cache) setClosed() {
 	atomic.StoreInt32(&c.closedFlag, 1)
 }
 
-func (c *Cache) update() {
+func (c *Cache) update(ctx context.Context) {
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step: c.RetryPeriod / 10,
 		Max:  c.RetryPeriod,
@@ -326,7 +326,7 @@ func (c *Cache) update() {
 		return
 	}
 	for {
-		err := c.fetchAndWatch(retry)
+		err := c.fetchAndWatch(ctx, retry)
 		if err != nil {
 			c.setCacheState(err)
 			if !c.isClosed() {
@@ -429,7 +429,7 @@ func (c *Cache) notify(event CacheEvent) {
 //   we assume that this cache will eventually end up in a correct state
 //   potentially lagging behind the state of the database.
 //
-func (c *Cache) fetchAndWatch(retry utils.Retry) error {
+func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, services.Watch{
 		QueueSize:       c.QueueSize,
 		Name:            c.Component,
@@ -465,7 +465,7 @@ func (c *Cache) fetchAndWatch(retry utils.Retry) error {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
 	}
-	err = c.fetch()
+	err = c.fetch(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -479,7 +479,7 @@ func (c *Cache) fetchAndWatch(retry utils.Retry) error {
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
-			err = c.processEvent(event)
+			err = c.processEvent(ctx, event)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -512,22 +512,22 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) fetch() error {
+func (c *Cache) fetch(ctx context.Context) error {
 	for _, collection := range c.collections {
-		if err := collection.fetch(); err != nil {
+		if err := collection.fetch(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-func (c *Cache) processEvent(event services.Event) error {
+func (c *Cache) processEvent(ctx context.Context, event services.Event) error {
 	collection, ok := c.collections[event.Resource.GetKind()]
 	if !ok {
 		c.Warningf("Skipping unsupported event %v.", event.Resource.GetKind())
 		return nil
 	}
-	if err := collection.processEvent(event); err != nil {
+	if err := collection.processEvent(ctx, event); err != nil {
 		return trace.Wrap(err)
 	}
 	c.eventsFanout.Emit(event)

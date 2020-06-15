@@ -763,6 +763,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 
 // TestRoles tests caching of roles
 func (s *CacheSuite) TestRoles(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForNode(c)
 	defer p.Close()
 
@@ -777,7 +778,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		Deny: services.RoleConditions{},
 	})
 	c.Assert(err, check.IsNil)
-	err = p.accessS.UpsertRole(role)
+	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
 	role, err = p.accessS.GetRole(role.GetName())
@@ -798,7 +799,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	// update role
 	role.SetLogins(services.Allow, []string{"admin"})
 	c.Assert(err, check.IsNil)
-	err = p.accessS.UpsertRole(role)
+	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
 	role, err = p.accessS.GetRole(role.GetName())
@@ -816,7 +817,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
 
-	err = p.accessS.DeleteRole(role.GetName())
+	err = p.accessS.DeleteRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {

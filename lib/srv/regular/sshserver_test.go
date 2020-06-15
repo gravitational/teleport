@@ -277,6 +277,7 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 // TestAgentForwardPermission makes sure if RBAC rules don't allow agent
 // forwarding, we don't start an agent even if requested.
 func (s *SrvSuite) TestAgentForwardPermission(c *C) {
+	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.server.Auth().GetRole(roleName)
@@ -284,7 +285,7 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(false)
 	role.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(role)
+	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -304,13 +305,14 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 
 // TestAgentForward tests agent forwarding via unix sockets
 func (s *SrvSuite) TestAgentForward(c *C) {
+	ctx := context.Background()
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.server.Auth().GetRole(roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(role)
+	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -1171,6 +1173,7 @@ type upack struct {
 }
 
 func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabels services.Labels) (*upack, error) {
+	ctx := context.Background()
 	auth := s.server.Auth()
 	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
@@ -1186,7 +1189,7 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	role.SetRules(services.Allow, rules)
 	role.SetLogins(services.Allow, allowedLogins)
 	role.SetNodeLabels(services.Allow, allowedLabels)
-	err = auth.UpsertRole(role)
+	err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

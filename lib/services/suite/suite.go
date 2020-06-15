@@ -553,7 +553,8 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 			},
 		},
 	}
-	err = s.Access.UpsertRole(&role)
+	ctx := context.Background()
+	err = s.Access.UpsertRole(ctx, &role)
 	c.Assert(err, check.IsNil)
 	rout, err := s.Access.GetRole(role.Metadata.Name)
 	c.Assert(err, check.IsNil)
@@ -561,14 +562,14 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	fixtures.DeepCompare(c, rout, &role)
 
 	role.Spec.Allow.Logins = []string{"bob"}
-	err = s.Access.UpsertRole(&role)
+	err = s.Access.UpsertRole(ctx, &role)
 	c.Assert(err, check.IsNil)
 	rout, err = s.Access.GetRole(role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
 	c.Assert(rout, check.DeepEquals, &role)
 
-	err = s.Access.DeleteRole(role.Metadata.Name)
+	err = s.Access.DeleteRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 
 	_, err = s.Access.GetRole(role.Metadata.Name)
@@ -1012,6 +1013,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...SuiteOption) {
 
 // Events tests various events variations
 func (s *ServicesTestSuite) Events(c *check.C) {
+	ctx := context.Background()
 	testCases := []eventTest{
 		{
 			name: "Cert authority with secrets",
@@ -1148,13 +1150,13 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				})
 				c.Assert(err, check.IsNil)
 
-				err = s.Access.UpsertRole(role)
+				err = s.Access.UpsertRole(ctx, role)
 				c.Assert(err, check.IsNil)
 
 				out, err := s.Access.GetRole(role.GetName())
 				c.Assert(err, check.IsNil)
 
-				err = s.Access.DeleteRole(role.GetName())
+				err = s.Access.DeleteRole(ctx, role.GetName())
 				c.Assert(err, check.IsNil)
 
 				return out

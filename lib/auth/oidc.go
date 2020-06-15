@@ -138,14 +138,14 @@ func oidcConfig(conn services.OIDCConnector) oidc.ClientConfig {
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
-func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector) error {
+func (s *AuthServer) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
 	if err := s.Identity.UpsertOIDCConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if err := s.EmitAuditEvent(events.OIDCConnectorCreated, events.EventFields{
 		events.FieldName: connector.GetName(),
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit OIDC connector create event: %v", err)
 	}
@@ -154,14 +154,14 @@ func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector) error
 }
 
 // DeleteOIDCConnector deletes an OIDC connector by name.
-func (s *AuthServer) DeleteOIDCConnector(connectorName string) error {
+func (s *AuthServer) DeleteOIDCConnector(ctx context.Context, connectorName string) error {
 	if err := s.Identity.DeleteOIDCConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if err := s.EmitAuditEvent(events.OIDCConnectorDeleted, events.EventFields{
 		events.FieldName: connectorName,
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit OIDC connector delete event: %v", err)
 	}
