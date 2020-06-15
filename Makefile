@@ -223,7 +223,7 @@ docs-test-whitespace:
 # milv is installed if missing.
 #
 .PHONY:docs-test-links
-docs-test-links: DOCS_FOLDERS := $(shell find -name milv.config.yaml | xargs dirname)
+docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
 docs-test-links:
 	go get -v github.com/magicmatatjahu/milv
 	for docs_dir in $(DOCS_FOLDERS); do \

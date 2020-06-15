@@ -167,7 +167,6 @@ spec:
       kubernetes_groups: ["system:masters"]
       # Optional: If not set, users will impersonate themselves.
       # kubernetes_users: ['barent']
-
 ```
 To obtain client ID and client secret from Github, please follow [Github documentation](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) on how to create and register an OAuth app. Be sure to set the "Authorization callback URL" to the same value as redirect_url in the resource spec.
 
@@ -187,7 +186,6 @@ Teleport will log the audit record and record the session.
 !!! note
 
     For more information on integrating Teleport with Github SSO, please see the [Github section in the Admin Manual](admin-guide.md#github-oauth-20).
-
 
 ### Okta Auth
 
@@ -240,4 +238,3 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
     For more information on integrating Teleport with Okta, please see the
     [Okta integration guide](ssh_okta.md).
-

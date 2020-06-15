@@ -149,7 +149,6 @@ spec:
       '*': '*'
 ```
 
-
 ## Multiple SSO Providers
 
 Teleport can also support multiple connectors, i.e. a Teleport administrator
@@ -183,7 +182,6 @@ SAML and OIDC types:
 * [SSH Authentication with OneLogin](../ssh_one_login.md)
 * [SSH Authentication with ADFS](../ssh_adfs.md)
 * [SSH Authentication with OAuth2 / OpenID Connect](../oidc.md)
-
 
 ## SSO Customization
 

@@ -886,4 +886,3 @@ $ tctl top http://127.0.0.1:3434 5s
 Print cluster version
 
 **Usage:** `tctl version`
-

@@ -35,6 +35,8 @@ extra:
         version: 4.3
         golang: 1.13
         sha: 1c14362c9ba10f28088c7228b357dc6a70072d3d4afaa5510c70a8734068684c
+        plugin:
+            version: 0.1.0.alpha
 nav:
     - Documentation:
         - Introduction: index.md
@@ -59,6 +61,7 @@ nav:
         - Single sign-on (SSO): enterprise/ssh_sso.md   
         - FedRAMP & FIPS: enterprise/ssh_fips.md        
         - RBAC: enterprise/ssh_rbac.md 
+        - RBAC Approval Workflow: enterprise/workflow/index.md
     - SSO Guides:
         - Active Directory (ADFS): ssh_adfs.md
         - G Suite: ssh_gsuite.md
