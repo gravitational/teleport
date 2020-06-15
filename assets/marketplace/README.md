@@ -33,22 +33,22 @@ Follow instructions at: https://www.packer.io/docs/install/index.html
 3. Decide which region you'd like to build and distribute AMIs in. We'll use these in the next step.
 4. Set the following Makefile values:
 
-| Param               | Description                                                                                                |
-|---------------------|------------------------------------------------------------------------------------------------------------|
-| BUILD_VPC_ID        | With the region you selected in step 3, create or use an existing VPC. ex. `vpc-xxxxxxxx`.                 |
-| BUILD_SUBNET_ID     | Within the VPC above, select a subnet. ex. `subnet-xxxxxxxx`                                               |
-| AWS_REGION          | Region you selected in step 3. ex. `us-east-1`                                                             |
-| TELEPORT_VERSION    | Teleport version. See [Teleport releases](https://github.com/gravitational/teleport/releases). ex. `4.2.9` |
-| INSTANCE_TYPE       | The instance type used for the build. ex. `ts.micro`                                                       |
-| DESTINATION_REGIONS | The regions the AMI will be replicated to. ex. `us-east-1,us-east-2`                                       |
-| S3_BUCKET_ID        | The S3 bucket used for AMI distribution.                                                                   |
+| Param               | Description                                                                                                 |
+|---------------------|-------------------------------------------------------------------------------------------------------------|
+| BUILD_VPC_ID        | With the region you selected in step 3, create or use an existing VPC. ex. `vpc-xxxxxxxx`.                  |
+| BUILD_SUBNET_ID     | Within the VPC above, select a subnet. ex. `subnet-xxxxxxxx`                                                |
+| AWS_REGION          | Region you selected in step 3. ex. `us-east-1`                                                              |
+| TELEPORT_VERSION    | Teleport version. See [Teleport releases](https://github.com/gravitational/teleport/releases). ex. `4.2.10` |
+| INSTANCE_TYPE       | The instance type used for the build. ex. `t2.micro`                                                        |
+| DESTINATION_REGIONS | The regions the AMI will be replicated to. ex. `us-east-1,us-east-2`                                        |
+| S3_BUCKET_ID        | The S3 bucket used for AMI distribution.                                                                    |
 
 5. Run 
 ```
 make oss
 ```
 
-6. Once complete, your AMI should be available, in the regions you specified, with the name  `teleport-debug-ami-<type>-<version>`.
+6. Once complete, your AMI should be available, in the regions you specified, with the name  `teleport-debug-ami-<type>-<version>`. (e.g. teleport-debug-ami-oss-4.2.10)
 
 ## Usage instructions
 
