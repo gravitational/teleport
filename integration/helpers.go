@@ -378,6 +378,7 @@ func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds
 
 // SetupUser sets up user in the cluster
 func SetupUser(process *service.TeleportProcess, username string, roles []services.Role) error {
+	ctx := context.TODO()
 	auth := process.GetAuthServer()
 	teleUser, err := services.NewUser(username)
 	if err != nil {
@@ -392,14 +393,14 @@ func SetupUser(process *service.TeleportProcess, username string, roles []servic
 		roleOptions.ForwardAgent = services.NewBool(true)
 		role.SetOptions(roleOptions)
 
-		err = auth.UpsertRole(role)
+		err = auth.UpsertRole(ctx, role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		teleUser.AddRole(role.GetMetadata().Name)
 	} else {
 		for _, role := range roles {
-			err := auth.UpsertRole(role)
+			err := auth.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -552,6 +553,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 // Unlike Create() it allows for greater customization because it accepts
 // a full Teleport config structure
 func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
+	ctx := context.TODO()
 	tconf, err := i.GenerateConfig(trustedSecrets, tconf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -588,14 +590,14 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 			roleOptions.ForwardAgent = services.NewBool(true)
 			role.SetOptions(roleOptions)
 
-			err = auth.UpsertRole(role)
+			err = auth.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			teleUser.AddRole(role.GetMetadata().Name)
 		} else {
 			for _, role := range user.Roles {
-				err := auth.UpsertRole(role)
+				err := auth.UpsertRole(ctx, role)
 				if err != nil {
 					return trace.Wrap(err)
 				}

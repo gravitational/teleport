@@ -348,6 +348,7 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 }
 
 func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpSecret string) {
+	ctx := context.Background()
 	teleUser, err := services.NewUser(user)
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
@@ -355,14 +356,14 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	options := role.GetOptions()
 	options.ForwardAgent = services.NewBool(true)
 	role.SetOptions(options)
-	err = s.server.Auth().UpsertRole(role)
+	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
 
 	teleUser.SetCreatedBy(services.CreatedBy{
 		User: services.UserRef{Name: "some-auth-user"},
 	})
-	err = s.server.Auth().CreateUser(context.TODO(), teleUser)
+	err = s.server.Auth().CreateUser(ctx, teleUser)
 	c.Assert(err, IsNil)
 
 	err = s.server.Auth().UpsertPassword(user, []byte(pass))
@@ -373,6 +374,7 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 }
 
 func (s *WebSuite) TestSAMLSuccess(c *C) {
+	ctx := context.Background()
 	input := fixtures.SAMLOktaConnectorV2
 
 	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
@@ -399,7 +401,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	})
 	c.Assert(err, IsNil)
 	role.SetLogins(services.Allow, []string{s.user})
-	err = s.server.Auth().UpsertRole(role)
+	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
 	err = s.server.Auth().CreateSAMLConnector(connector)
@@ -1407,6 +1409,7 @@ func (s *WebSuite) TestPing(c *C) {
 }
 
 func (s *WebSuite) TestMultipleConnectors(c *C) {
+	ctx := context.Background()
 	wc := s.client()
 
 	// create two oidc connectors, one named "foo" and another named "bar"
@@ -1425,9 +1428,9 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 			},
 		},
 	}
-	err := s.server.Auth().UpsertOIDCConnector(services.NewOIDCConnector("foo", oidcConnectorSpec))
+	err := s.server.Auth().UpsertOIDCConnector(ctx, services.NewOIDCConnector("foo", oidcConnectorSpec))
 	c.Assert(err, IsNil)
-	err = s.server.Auth().UpsertOIDCConnector(services.NewOIDCConnector("bar", oidcConnectorSpec))
+	err = s.server.Auth().UpsertOIDCConnector(ctx, services.NewOIDCConnector("bar", oidcConnectorSpec))
 	c.Assert(err, IsNil)
 
 	// set the auth preferences to oidc with no connector name
@@ -1439,7 +1442,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	c.Assert(err, IsNil)
 
 	// hit the ping endpoint to get the auth type and connector name
-	re, err := wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 	var out *client.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
@@ -1460,7 +1463,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	c.Assert(err, IsNil)
 
 	// hit the ping endpoing to get the auth type and connector name
-	re, err = wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err = wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 

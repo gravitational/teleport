@@ -37,7 +37,7 @@ import (
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
-func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
+func (a *AuthServer) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	var exists bool
 
 	// It is recommended to omit trusted cluster name because the trusted cluster name
@@ -136,13 +136,13 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 		}
 	}
 
-	tc, err := a.Presence.UpsertTrustedCluster(trustedCluster)
+	tc, err := a.Presence.UpsertTrustedCluster(ctx, trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err := a.EmitAuditEvent(events.TrustedClusterCreate, events.EventFields{
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit trusted cluster create event: %v", err)
 	}
@@ -172,7 +172,7 @@ func (a *AuthServer) checkLocalRoles(roleMap services.RoleMap) error {
 
 // DeleteTrustedCluster removes services.CertAuthority, services.ReverseTunnel,
 // and services.TrustedCluster resources.
-func (a *AuthServer) DeleteTrustedCluster(name string) error {
+func (a *AuthServer) DeleteTrustedCluster(ctx context.Context, name string) error {
 	cn, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -201,12 +201,12 @@ func (a *AuthServer) DeleteTrustedCluster(name string) error {
 		}
 	}
 
-	if err := a.Presence.DeleteTrustedCluster(name); err != nil {
+	if err := a.Presence.DeleteTrustedCluster(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if err := a.EmitAuditEvent(events.TrustedClusterDelete, events.EventFields{
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit trusted cluster delete event: %v", err)
 	}

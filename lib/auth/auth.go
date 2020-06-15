@@ -815,7 +815,7 @@ func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
 }
 
 // GenerateToken generates multi-purpose authentication token.
-func (a *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
+func (a *AuthServer) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -827,10 +827,11 @@ func (a *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
+	user := clientUsername(ctx)
 	for _, role := range req.Roles {
 		if role == teleport.RoleTrustedCluster {
 			if err := a.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
-				events.EventUser: "unimplemented",
+				events.EventUser: user,
 			}); err != nil {
 				log.Warnf("Failed to emit trusted cluster token create event: %v", err)
 			}
@@ -1351,7 +1352,7 @@ func (a *AuthServer) NewWatcher(ctx context.Context, watch services.Watch) (serv
 }
 
 // DeleteRole deletes a role by name of the role.
-func (a *AuthServer) DeleteRole(name string) error {
+func (a *AuthServer) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
 	users, err := a.Identity.GetUsers(false)
 	if err != nil {
@@ -1384,13 +1385,13 @@ func (a *AuthServer) DeleteRole(name string) error {
 		}
 	}
 
-	if err := a.Access.DeleteRole(name); err != nil {
+	if err := a.Access.DeleteRole(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if err := a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
 		events.FieldName: name,
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit role deleted event: %v", err)
 	}
@@ -1399,14 +1400,14 @@ func (a *AuthServer) DeleteRole(name string) error {
 }
 
 // UpsertRole creates or updates role.
-func (a *AuthServer) upsertRole(role services.Role) error {
-	if err := a.UpsertRole(role); err != nil {
+func (a *AuthServer) upsertRole(ctx context.Context, role services.Role) error {
+	if err := a.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if err := a.EmitAuditEvent(events.RoleCreated, events.EventFields{
 		events.FieldName: role.GetName(),
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit role created event: %v", err)
 	}

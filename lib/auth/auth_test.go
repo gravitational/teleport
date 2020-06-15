@@ -158,6 +158,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 }
 
 func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
+	ctx := context.Background()
 	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
 	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
@@ -182,7 +183,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	// Give the role some k8s principals too.
 	role.SetKubeUsers(services.Allow, []string{user})
 	role.SetKubeGroups(services.Allow, []string{"system:masters"})
-	err = s.a.UpsertRole(role)
+	err = s.a.UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
 	kg := testauthority.New()
@@ -311,6 +312,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 }
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
+	ctx := context.Background()
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
@@ -320,7 +322,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(len(btokens), Equals, 0)
 
 	// generate persistent token
-	tok, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}})
+	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}})
 	c.Assert(err, IsNil)
 	c.Assert(len(tok), Equals, 2*TokenLenBytes)
 
@@ -347,7 +349,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	// generate predefined token
 	customToken := "custom-token"
-	tok, err = s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}, Token: customToken})
+	tok, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}, Token: customToken})
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, customToken)
 
@@ -360,7 +362,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// generate multi-use token with long TTL:
-	multiUseToken, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleProxy}, TTL: time.Hour})
+	multiUseToken, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleProxy}, TTL: time.Hour})
 	c.Assert(err, IsNil)
 	_, err = s.a.ValidateToken(multiUseToken)
 	c.Assert(err, IsNil)
@@ -441,6 +443,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 }
 
 func (s *AuthSuite) TestBadTokens(c *C) {
+	ctx := context.Background()
 	// empty
 	_, err := s.a.ValidateToken("")
 	c.Assert(err, NotNil)
@@ -450,7 +453,7 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	c.Assert(err, NotNil)
 
 	// tampered
-	tok, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleAuth}})
+	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleAuth}})
 	c.Assert(err, IsNil)
 
 	tampered := string(tok[0]+1) + tok[1:]
@@ -459,14 +462,15 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 }
 
 func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
+	ctx := context.Background()
 	// test trusted cluster token emit
-	_, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleTrustedCluster}})
+	_, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleTrustedCluster}})
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterTokenCreate)
 	s.mockedAuditLog.Reset()
 
 	// test emit with multiple roles
-	_, err = s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{
+	_, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{
 		teleport.RoleNode,
 		teleport.RoleTrustedCluster,
 		teleport.RoleAuth,
@@ -734,6 +738,7 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 }
 
 func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
+	ctx := context.Background()
 	// test create new role
 	roleTest, err := services.NewRole("test", services.RoleSpecV3{
 		Options: services.RoleOptions{},
@@ -741,7 +746,7 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	err = s.a.upsertRole(roleTest)
+	err = s.a.upsertRole(ctx, roleTest)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.RoleCreated)
 	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.FieldName], Equals, "test")
@@ -752,7 +757,7 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
 
 	// test update role
-	err = s.a.upsertRole(roleTest)
+	err = s.a.upsertRole(ctx, roleTest)
 	c.Assert(err, IsNil)
 	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.RoleCreated)
@@ -760,7 +765,7 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	s.mockedAuditLog.Reset()
 
 	// test delete role
-	err = s.a.DeleteRole("test")
+	err = s.a.DeleteRole(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.RoleDeleted)
 	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.FieldName], Equals, "test")
@@ -772,12 +777,13 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	c.Assert(roleRetrieved, IsNil)
 
 	// test role that doesn't exist
-	err = s.a.DeleteRole("test")
+	err = s.a.DeleteRole(ctx, "test")
 	c.Assert(trace.IsNotFound(err), Equals, true)
 	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
 }
 
 func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
+	ctx := context.Background()
 	s.a.IAuditLog = s.mockedAuditLog
 
 	// set up existing cluster to bypass switch cases that
@@ -788,7 +794,7 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 		ReverseTunnelAddress: "b",
 	})
 	c.Assert(err, IsNil)
-	_, err = s.a.Presence.UpsertTrustedCluster(tc)
+	_, err = s.a.Presence.UpsertTrustedCluster(ctx, tc)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "test")), IsNil)
@@ -800,7 +806,7 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 	// test create event for switch case: when tc exists but enabled is false
 	tc.SetEnabled(false)
 
-	_, err = s.a.UpsertTrustedCluster(tc)
+	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterCreate)
 	s.mockedAuditLog.Reset()
@@ -808,58 +814,61 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 	// test create event for switch case: when tc exists but enabled is true
 	tc.SetEnabled(true)
 
-	_, err = s.a.UpsertTrustedCluster(tc)
+	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterCreate)
 	s.mockedAuditLog.Reset()
 
 	// test delete event
-	err = s.a.DeleteTrustedCluster("test")
+	err = s.a.DeleteTrustedCluster(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterDelete)
 }
 
 func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
+	ctx := context.Background()
 	// test github create event
 	github := services.NewGithubConnector("test", services.GithubConnectorSpecV3{})
-	err := s.a.upsertGithubConnector(github)
+	err := s.a.upsertGithubConnector(ctx, github)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.GithubConnectorCreated)
 	s.mockedAuditLog.Reset()
 
 	// test github update event
-	err = s.a.upsertGithubConnector(github)
+	err = s.a.upsertGithubConnector(ctx, github)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.GithubConnectorCreated)
 	s.mockedAuditLog.Reset()
 
 	// test github delete event
-	err = s.a.deleteGithubConnector("test")
+	err = s.a.deleteGithubConnector(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.GithubConnectorDeleted)
 }
 
 func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
+	ctx := context.Background()
 	// test oidc create event
 	oidc := services.NewOIDCConnector("test", services.OIDCConnectorSpecV2{ClientID: "a"})
-	err := s.a.UpsertOIDCConnector(oidc)
+	err := s.a.UpsertOIDCConnector(ctx, oidc)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.OIDCConnectorCreated)
 	s.mockedAuditLog.Reset()
 
 	// test oidc update event
-	err = s.a.UpsertOIDCConnector(oidc)
+	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.OIDCConnectorCreated)
 	s.mockedAuditLog.Reset()
 
 	// test oidc delete event
-	err = s.a.DeleteOIDCConnector("test")
+	err = s.a.DeleteOIDCConnector(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.OIDCConnectorDeleted)
 }
 
 func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
+	ctx := context.Background()
 	// generate a certificate that makes ParseCertificatePEM happy, copied from ca_test.go
 	ca, err := tlsca.New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	c.Assert(err, IsNil)
@@ -884,19 +893,19 @@ func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 		Cert:                     string(certBytes),
 	})
 
-	err = s.a.UpsertSAMLConnector(saml)
+	err = s.a.UpsertSAMLConnector(ctx, saml)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.SAMLConnectorCreated)
 	s.mockedAuditLog.Reset()
 
 	// test saml update event
-	err = s.a.UpsertSAMLConnector(saml)
+	err = s.a.UpsertSAMLConnector(ctx, saml)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.SAMLConnectorCreated)
 	s.mockedAuditLog.Reset()
 
 	// test saml delete event
-	err = s.a.DeleteSAMLConnector("test")
+	err = s.a.DeleteSAMLConnector(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.SAMLConnectorDeleted)
 }

@@ -307,11 +307,11 @@ func (a *AuthWithRoles) DeactivateCertAuthority(id services.CertAuthID) error {
 }
 
 // GenerateToken generates multi-purpose authentication token.
-func (a *AuthWithRoles) GenerateToken(req GenerateTokenRequest) (string, error) {
+func (a *AuthWithRoles) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GenerateToken(req)
+	return a.authServer.GenerateToken(ctx, req)
 }
 
 func (a *AuthWithRoles) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
@@ -1188,14 +1188,14 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
-func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector) error {
+func (a *AuthWithRoles) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertOIDCConnector(connector)
+	return a.authServer.UpsertOIDCConnector(ctx, connector)
 }
 
 func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
@@ -1237,29 +1237,29 @@ func (a *AuthWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthRespons
 	return a.authServer.ValidateOIDCAuthCallback(q)
 }
 
-func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
+func (a *AuthWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteOIDCConnector(connectorID)
+	return a.authServer.DeleteOIDCConnector(ctx, connectorID)
 }
 
-func (a *AuthWithRoles) CreateSAMLConnector(connector services.SAMLConnector) error {
+func (a *AuthWithRoles) CreateSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertSAMLConnector(connector)
+	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (a *AuthWithRoles) UpsertSAMLConnector(connector services.SAMLConnector) error {
+func (a *AuthWithRoles) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertSAMLConnector(connector)
+	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
 
 func (a *AuthWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
@@ -1302,11 +1302,11 @@ func (a *AuthWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, erro
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
-func (a *AuthWithRoles) DeleteSAMLConnector(connectorID string) error {
+func (a *AuthWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteSAMLConnector(connectorID)
+	return a.authServer.DeleteSAMLConnector(ctx, connectorID)
 }
 
 func (a *AuthWithRoles) CreateGithubConnector(connector services.GithubConnector) error {
@@ -1317,14 +1317,14 @@ func (a *AuthWithRoles) CreateGithubConnector(connector services.GithubConnector
 }
 
 // UpsertGithubConnector creates or updates a Github connector.
-func (a *AuthWithRoles) UpsertGithubConnector(connector services.GithubConnector) error {
+func (a *AuthWithRoles) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.upsertGithubConnector(connector)
+	return a.authServer.upsertGithubConnector(ctx, connector)
 }
 
 func (a *AuthWithRoles) GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error) {
@@ -1355,11 +1355,11 @@ func (a *AuthWithRoles) GetGithubConnectors(withSecrets bool) ([]services.Github
 }
 
 // DeleteGithubConnector deletes a Github connector by name.
-func (a *AuthWithRoles) DeleteGithubConnector(connectorID string) error {
+func (a *AuthWithRoles) DeleteGithubConnector(ctx context.Context, connectorID string) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.deleteGithubConnector(connectorID)
+	return a.authServer.deleteGithubConnector(ctx, connectorID)
 }
 
 func (a *AuthWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
@@ -1493,7 +1493,7 @@ func (a *AuthWithRoles) CreateRole(role services.Role) error {
 }
 
 // UpsertRole creates or updates role.
-func (a *AuthWithRoles) UpsertRole(role services.Role) error {
+func (a *AuthWithRoles) UpsertRole(ctx context.Context, role services.Role) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1501,7 +1501,7 @@ func (a *AuthWithRoles) UpsertRole(role services.Role) error {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.upsertRole(role)
+	return a.authServer.upsertRole(ctx, role)
 }
 
 // GetRole returns role by name
@@ -1518,11 +1518,11 @@ func (a *AuthWithRoles) GetRole(name string) (services.Role, error) {
 }
 
 // DeleteRole deletes role by name
-func (a *AuthWithRoles) DeleteRole(name string) error {
+func (a *AuthWithRoles) DeleteRole(ctx context.Context, name string) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteRole(name)
+	return a.authServer.DeleteRole(ctx, name)
 }
 
 // GetClusterConfig gets cluster level configuration.
@@ -1686,7 +1686,7 @@ func (a *AuthWithRoles) GetTrustedCluster(name string) (services.TrustedCluster,
 }
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
-func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) (services.TrustedCluster, error) {
+func (a *AuthWithRoles) UpsertTrustedCluster(ctx context.Context, tc services.TrustedCluster) (services.TrustedCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1694,7 +1694,7 @@ func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) (servic
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.UpsertTrustedCluster(tc)
+	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
 func (a *AuthWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
@@ -1703,12 +1703,12 @@ func (a *AuthWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedC
 }
 
 // DeleteTrustedCluster deletes a trusted cluster by name.
-func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
+func (a *AuthWithRoles) DeleteTrustedCluster(ctx context.Context, name string) error {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.DeleteTrustedCluster(name)
+	return a.authServer.DeleteTrustedCluster(ctx, name)
 }
 
 func (a *AuthWithRoles) UpsertTunnelConnection(conn services.TunnelConnection) error {

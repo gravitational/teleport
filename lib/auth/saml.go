@@ -35,14 +35,14 @@ import (
 )
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (s *AuthServer) UpsertSAMLConnector(connector services.SAMLConnector) error {
+func (s *AuthServer) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	if err := s.Identity.UpsertSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if err := s.EmitAuditEvent(events.SAMLConnectorCreated, events.EventFields{
 		events.FieldName: connector.GetName(),
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit SAML connector create event: %v", err)
 	}
@@ -51,14 +51,14 @@ func (s *AuthServer) UpsertSAMLConnector(connector services.SAMLConnector) error
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
-func (s *AuthServer) DeleteSAMLConnector(connectorName string) error {
+func (s *AuthServer) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
 	if err := s.Identity.DeleteSAMLConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if err := s.EmitAuditEvent(events.SAMLConnectorDeleted, events.EventFields{
 		events.FieldName: connectorName,
-		events.EventUser: "unimplemented",
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit SAML connector delete event: %v", err)
 	}

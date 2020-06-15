@@ -409,7 +409,7 @@ func (s *PresenceService) DeleteReverseTunnel(clusterName string) error {
 }
 
 // UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
-func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
+func (s *PresenceService) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	if err := trustedCluster.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -417,7 +417,7 @@ func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(context.TODO(), backend.Item{
+	_, err = s.Put(ctx, backend.Item{
 		Key:     backend.Key(trustedClustersPrefix, trustedCluster.GetName()),
 		Value:   value,
 		Expires: trustedCluster.Expiry(),
@@ -463,11 +463,11 @@ func (s *PresenceService) GetTrustedClusters() ([]services.TrustedCluster, error
 }
 
 // DeleteTrustedCluster removes a TrustedCluster from the backend by name.
-func (s *PresenceService) DeleteTrustedCluster(name string) error {
+func (s *PresenceService) DeleteTrustedCluster(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing trusted cluster name")
 	}
-	err := s.Delete(context.TODO(), backend.Key(trustedClustersPrefix, name))
+	err := s.Delete(ctx, backend.Key(trustedClustersPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("trusted cluster %q is not found", name)
