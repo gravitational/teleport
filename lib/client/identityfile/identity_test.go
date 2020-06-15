@@ -33,7 +33,7 @@ func (s *IdentityfileTestSuite) TestWrite(c *check.C) {
 	}
 
 	// test OpenSSH-compatible identity file creation:
-	_, err := Write(keyFilePath, &key, FormatOpenSSH, nil, "")
+	_, err := Write(keyFilePath, &key, FormatOpenSSH, "")
 	c.Assert(err, check.IsNil)
 
 	// key is OK:
@@ -48,17 +48,17 @@ func (s *IdentityfileTestSuite) TestWrite(c *check.C) {
 
 	// test standard Teleport identity file creation:
 	keyFilePath = c.MkDir() + "file"
-	_, err = Write(keyFilePath, &key, FormatFile, nil, "")
+	_, err = Write(keyFilePath, &key, FormatFile, "")
 	c.Assert(err, check.IsNil)
 
 	// key+cert are OK:
 	out, err = ioutil.ReadFile(keyFilePath)
 	c.Assert(err, check.IsNil)
-	c.Assert(string(out), check.Equals, "priv\ncert\ntls-cert\n")
+	c.Assert(string(out), check.Equals, "priv\ncert\ntls-cert\nca-cert\n")
 
 	// Test kubeconfig creation.
 	kubeconfigPath := filepath.Join(c.MkDir(), "kubeconfig")
-	_, err = Write(kubeconfigPath, &key, FormatKubernetes, nil, "far.away.cluster")
+	_, err = Write(kubeconfigPath, &key, FormatKubernetes, "far.away.cluster")
 	c.Assert(err, check.IsNil)
 
 	// Check that kubeconfig is OK.
