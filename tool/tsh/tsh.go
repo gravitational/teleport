@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -487,12 +488,16 @@ func onLogin(cf *CLIConf) {
 		if err := setupNoninteractiveClient(tc, key); err != nil {
 			utils.FatalError(err)
 		}
+		// key.TrustedCA at this point only has the CA of the root cluster we
+		// logged into. We need to fetch all the CAs for leaf clusters too, to
+		// make them available in the identity file.
 		authorities, err := tc.GetTrustedCA(cf.Context, key.ClusterName)
 		if err != nil {
 			utils.FatalError(err)
 		}
+		key.TrustedCA = auth.AuthoritiesToTrustedCerts(authorities)
 
-		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities, tc.KubeClusterAddr())
+		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, tc.KubeClusterAddr())
 		if err != nil {
 			utils.FatalError(err)
 		}
