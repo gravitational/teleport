@@ -153,6 +153,65 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: test-docs
+
+trigger:
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - promote
+      - rollback
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: golang:1.13.2
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - make init-submodules-e
+      - rm -f /root/.ssh/id_rsa
+
+  - name: Run milv on docs
+    image: docker:dind
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /gopath
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - >-
+        DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$)
+        if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
+          for VERSION in DOCS_VERSIONS_CHANGED; do
+            pushd $VERSION
+            milv
+            popd
+          done
+        fi
+
+---
+kind: pipeline
+type: kubernetes
 name: build
 
 trigger:
@@ -444,6 +503,6 @@ steps:
 
 ---
 kind: signature
-hmac: d22d2a33c69e29029d4b4cb25eb041ae9b121834a0ba7145d65352e15a2f433e
+hmac: 81e1242c0989f562dd484c169843a9440df8302de9f59755a5b0ae771a158f90
 
 ...
