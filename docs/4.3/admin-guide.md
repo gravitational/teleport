@@ -410,7 +410,6 @@ ssh_service:
     # See "Labeling Nodes" section below for more information and more examples.
     commands:
     # this command will add a label 'arch=x86_64' to a node
-
     - name: arch
       command: ['/bin/uname', '-p']
       period: 1h0m0s
@@ -780,14 +779,10 @@ auth_service:
     enabled: true
     tokens:
     # This static token allows new hosts to join the cluster as "proxy" or "node"
-
     - "proxy,node:secret-token-value"
-
     # A token can also be stored in a file. In this example the token for adding
     # new auth servers is stored in /path/to/tokenfile
-
     - "auth:/path/to/tokenfile"
-
 ```
 
 ### Short-lived Tokens
@@ -1346,7 +1341,6 @@ metadata:
   name: joe
 spec:
   roles: admin
-
   status:
     # users can be temporarily locked in a Teleport system, but this
     # functionality is reserved for internal use for now.
@@ -1357,10 +1351,8 @@ spec:
     # these are "allowed logins" which are usually specified as the
     # last argument to `tctl users add`
     logins:
-
     - joe
     - root
-
   # any resource in Teleport can automatically expire.
   expires: 0001-01-01T00:00:00Z
   # for internal use only
@@ -1548,9 +1540,7 @@ spec:
   # the role mapping allows to map user roles from one cluster to another
   # (enterprise editions of Teleport only)
   role_map:
-
     - remote: "admin"    # users who have "admin" role on "main"
-
       local: ["auditor"] # will be assigned "auditor" role when logging into "east"
 ```
 
@@ -1682,15 +1672,11 @@ spec:
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
   # mapping of org/team memberships onto allowed logins and roles
   teams_to_logins:
-
     - organization: octocats # Github organization name
-
       team: admins # Github team name within that organization
       # allowed logins for users in this org/team
       logins:
-
         - root
-
       # List of Kubernetes groups this Github team is allowed to connect to
       # (see Kubernetes integration for more information)
       kubernetes_groups: ["system:masters"]
