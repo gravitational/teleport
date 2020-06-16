@@ -695,26 +695,14 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	}}))
 }
 
-func (s *AuthSuite) TestUpdateByWithContext(c *C) {
-	ctx := withUpdateBy(context.TODO(), "some-user")
-	updatedBy, err := getUpdateBy(ctx)
-	c.Assert(err, IsNil)
-	c.Assert(updatedBy, Equals, "some-user")
-
-	// trigger error
-	ctx = withUpdateBy(context.TODO(), "")
-	updatedBy, err = getUpdateBy(ctx)
-	c.Assert(trace.IsBadParameter(err), Equals, true)
-	c.Assert(err, ErrorMatches, `missing value "updated_by"`)
-	c.Assert(updatedBy, Equals, "")
-}
-
 func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	user, err := services.NewUser("some-user")
 	c.Assert(err, IsNil)
 
+	ctx := context.Background()
+
 	// test create user, trigger error
-	err = s.a.CreateUser(context.TODO(), user)
+	err = s.a.CreateUser(ctx, user)
 	c.Assert(err, ErrorMatches, `created by is not set for new user "some-user"`)
 	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
 
@@ -722,19 +710,17 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	user.SetCreatedBy(services.CreatedBy{
 		User: services.UserRef{Name: "some-auth-user"},
 	})
-	err = s.a.CreateUser(context.TODO(), user)
+	err = s.a.CreateUser(ctx, user)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserCreate)
 	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "some-auth-user")
 	s.mockedAuditLog.Reset()
 
 	// test update user
-	ctx := withUpdateBy(context.TODO(), "some-context-user")
-	c.Assert(ctx, NotNil)
 	err = s.a.UpdateUser(ctx, user)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserUpdate)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "some-context-user")
+	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, teleport.UserSystem)
 }
 
 func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {

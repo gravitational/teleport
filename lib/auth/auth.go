@@ -1456,19 +1456,15 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
 		return trace.Wrap(err)
 	}
-	updateBy, err := getUpdateBy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	fields := events.EventFields{
 		events.AccessRequestID:    reqID,
 		events.AccessRequestState: state.String(),
-		events.UpdatedBy:          updateBy,
+		events.UpdatedBy:          clientUsername(ctx),
 	}
 	if delegator := getDelegator(ctx); delegator != "" {
 		fields[events.AccessRequestDelegator] = delegator
 	}
-	err = a.EmitAuditEvent(events.AccessRequestUpdated, fields)
+	err := a.EmitAuditEvent(events.AccessRequestUpdated, fields)
 	return trace.Wrap(err)
 }
 

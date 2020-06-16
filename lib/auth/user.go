@@ -69,11 +69,6 @@ func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 
 // UpdateUser updates an existing user in a backend.
 func (s *AuthServer) UpdateUser(ctx context.Context, user services.User) error {
-	updateBy, err := getUpdateBy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := s.Identity.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
@@ -86,7 +81,7 @@ func (s *AuthServer) UpdateUser(ctx context.Context, user services.User) error {
 	}
 
 	if err := s.EmitAuditEvent(events.UserUpdate, events.EventFields{
-		events.EventUser:     updateBy,
+		events.EventUser:     clientUsername(ctx),
 		events.FieldName:     user.GetName(),
 		events.UserExpires:   user.Expiry(),
 		events.UserRoles:     user.GetRoles(),
@@ -126,11 +121,6 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 
 // DeleteUser deletes an existng user in a backend by username.
 func (s *AuthServer) DeleteUser(ctx context.Context, user string) error {
-	deletedBy, err := getUpdateBy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	role, err := s.Access.GetRole(services.RoleNameForUser(user))
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -152,7 +142,7 @@ func (s *AuthServer) DeleteUser(ctx context.Context, user string) error {
 	// If the user was successfully deleted, emit an event.
 	if err := s.EmitAuditEvent(events.UserDelete, events.EventFields{
 		events.FieldName: user,
-		events.EventUser: deletedBy,
+		events.EventUser: clientUsername(ctx),
 	}); err != nil {
 		log.Warnf("Failed to emit user delete event: %v", err)
 	}

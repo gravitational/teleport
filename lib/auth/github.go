@@ -421,7 +421,6 @@ func (s *AuthServer) createGithubUser(p *createUserParams) (services.User, error
 				existingUser.GetName())
 		}
 
-		ctx = withUpdateBy(ctx, teleport.UserSystem)
 		if err := s.UpdateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
