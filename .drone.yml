@@ -173,34 +173,24 @@ clone:
 steps:
   - name: Check out code
     image: golang:1.13.2
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-      # fetch enterprise submodules
-      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - make init-submodules-e
-      - rm -f /root/.ssh/id_rsa
 
   - name: Run milv on docs
     image: golang:1.13.2
     commands:
-      - >-
-        DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$) \
-        if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then \
-          for VERSION in DOCS_VERSIONS_CHANGED; do \
-            pushd $VERSION \
-            echo "Running milv on docs/$VERSION:" \
-            milv \
-            popd \
-          done \
-        fi
+      - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$)
+      - if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
+      - for VERSION in DOCS_VERSIONS_CHANGED; do
+      - pushd $VERSION
+      - echo "Running milv on docs/$VERSION:"
+      - milv
+      - popd
+      - done
+      - fi
 
 ---
 kind: pipeline
@@ -496,6 +486,6 @@ steps:
 
 ---
 kind: signature
-hmac: 99ff016f5025c2c1543aa114e1411791332d97a1893c6d1a813bb192cd3ff308
+hmac: 757ee64b337b3acaf8ba68a9ae095c8a00d3fcc7005c330ea80af542ac9e156f
 
 ...
