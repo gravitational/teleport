@@ -201,12 +201,12 @@ steps:
       - chown -R $UID:$GID /go
       - >-
         DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$)
-        if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
-          for VERSION in DOCS_VERSIONS_CHANGED; do
-            pushd $VERSION
-            milv
-            popd
-          done
+        if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then \
+          for VERSION in DOCS_VERSIONS_CHANGED; do \
+            pushd $VERSION \
+            milv \
+            popd \
+          done \
         fi
 
 ---
@@ -503,6 +503,6 @@ steps:
 
 ---
 kind: signature
-hmac: 81e1242c0989f562dd484c169843a9440df8302de9f59755a5b0ae771a158f90
+hmac: b28eb50983d18f8bc9163a09f5c87a7a817056094c5e1628c690ae2edfe45d5f
 
 ...
