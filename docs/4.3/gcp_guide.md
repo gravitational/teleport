@@ -113,7 +113,6 @@ record is sufficient.
 The Authentication server will need to read and write to Firestore.  For this it'll need
 the correct permission via Server Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
 
-
 ![Service Account](img/gcp/gcp-permissions.png)
 
 **Download JSON Service Key**
@@ -207,4 +206,4 @@ proxy_service:
 
 **4. Add Users**
 
-Follow [adding users](enterprise/quickstart-enterprise.md#adding-users) or integrate with [G Suite](ssh_gsuite.md) to provide SSO access.
+Follow [adding users](enterprise/quickstart-enterprise.md#adding-users) or integrate with [G Suite](enterprise/sso/ssh_gsuite.md) to provide SSO access.

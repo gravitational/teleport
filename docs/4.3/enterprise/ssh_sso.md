@@ -6,8 +6,7 @@ credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign
 
 Examples of supported SSO systems include commercial solutions like [Okta](https://www.okta.com),
 [Auth0](https://auth0.com/), [SailPoint](https://www.sailpoint.com/),
-[OneLogin](https://www.onelogin.com/) or [Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as
-well as open source products like [Keycloak](http://www.keycloak.org).
+[OneLogin](https://www.onelogin.com/) or [Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as well as open source products like [Keycloak](http://www.keycloak.org).
 Other identity management systems are supported as long as they provide an
 SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
 or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
@@ -20,7 +19,6 @@ or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 - [OneLogin](sso/ssh_one_login.md)
 - [OIDC](sso/oidc.md)
 - [Okta](sso/ssh_okta.md)
-
 
 ## How does SSO work with SSH?
 
@@ -105,8 +103,6 @@ spec:
 * See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources)
   directory in the Teleport Github repository for examples of possible connectors.
 
-
-
 ### User Logins
 
 Often it is required to restrict SSO users to their unique UNIX logins when they
@@ -153,7 +149,6 @@ $ tsh --proxy=proxy.example.com login --auth=okta
 # use local Teleport user DB:
 $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 ```
-
 
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:

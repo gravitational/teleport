@@ -1781,7 +1781,6 @@ existing SSH implementations, such as OpenSSH. This section will cover:
 
 * Configuring OpenSSH client `ssh` to login into nodes inside a Teleport
   cluster.
-
 * Configuring OpenSSH server `sshd` to join a Teleport cluster.
 
 ### Using OpenSSH Client

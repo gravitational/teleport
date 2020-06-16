@@ -96,10 +96,10 @@ A good place to start if you want to jump right in.
 
 We also have several guides that go through the most typical configurations and integrations.
 
-- [Okta Integration](ssh_okta.md) - How to integrate Teleport Enterprise with Okta.
-- [ADFS Integration](ssh_adfs.md) - How to integrate Teleport Enterprise with Active Directory.
-- [One Login Integration](ssh_one_login.md) - How to integrate Teleport Enterprise with One Login.
-- [OIDC Integration](oidc.md) - How to integrate Teleport Enterprise with identity providers using OIDC/OAuth2.
+- [Okta Integration](enterprise/sso/ssh_okta.md) - How to integrate Teleport Enterprise with Okta.
+- [ADFS Integration](enterprise/sso/ssh_adfs.md) - How to integrate Teleport Enterprise with Active Directory.
+- [One Login Integration](enterprise/sso/ssh_one_login.md) - How to integrate Teleport Enterprise with One Login.
+- [OIDC Integration](enterprise/sso/oidc.md) - How to integrate Teleport Enterprise with identity providers using OIDC/OAuth2.
 - [Kubernetes Integration](kubernetes_ssh.md) - How to configure Teleport to serve as a unified gateway for Kubernetes clusters and clusters of regular SSH nodes.
 
 ## Why Build Teleport?
@@ -120,7 +120,6 @@ Teleport was created by [Gravitational Inc](https://gravitational.com). We have 
 Teleport by borrowing from our previous experiences at Rackspace. It has been extracted
 from [Gravity](https://gravitational.com/gravity/), our system for helping our clients
 to deploy and remotely manage their SaaS applications on many cloud regions or even on-premise.
-
 
 ## Support and Contributing
 

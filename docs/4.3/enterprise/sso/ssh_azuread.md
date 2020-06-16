@@ -26,8 +26,6 @@ Before you get started you’ll need:
 - To register one or more users in the directory
 - To create at least two security groups in AzureAD and assign one or more users to each group
 
-
-
 ## Configure Azure AD
 
 1. Select Enterprise Applications from the AzureAD Directory Home
@@ -160,7 +158,6 @@ $ tctl create dev.yaml
 
 ## Testing
 
-
 Update the Teleport settings to use the SAML settings to make this the default.
 ```yaml
 auth_service:
@@ -184,7 +181,6 @@ automatically in a browser).
     Teleport can use multiple SAML connectors. In this case a connector name
     can be passed via `tsh login --auth=connector_name`
 
-
 ## Troubleshooting
 
 If you get "access denied" errors the number one place to check is the audit
@@ -195,8 +191,6 @@ Example of a user being denied due as the role `clusteradmin` wasn't setup.
 ```json
 {"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"saml","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
 ```
-
-
 Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 

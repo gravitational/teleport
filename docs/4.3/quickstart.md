@@ -6,10 +6,6 @@ This tutorial will guide you through the steps needed to install and run
 Teleport on a single node, which could be your local machine but we recommend a
 VM.
 
-**Table of Contents**
-
-[TOC]
-
 ### Prerequisites
 
 * In this tutorial you will start a web UI which must be accessible via a web

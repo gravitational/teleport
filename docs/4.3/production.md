@@ -4,8 +4,6 @@ This guide provides more in-depth details for running Teleport in Production.
 
 <!-- TODO: Minimal Config example -->
 
-[TOC]
-
 ## Prerequisites
 
 * Read the [Architecture Overview](architecture/teleport_architecture_overview.md)
