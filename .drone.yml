@@ -189,22 +189,18 @@ steps:
       - rm -f /root/.ssh/id_rsa
 
   - name: Run milv on docs
-    image: docker:dind
-    environment:
-      UID: 1000
-      GID: 1000
-      GOPATH: /gopath
-    volumes:
-      - name: dockersock
-        path: /var/run
+    image: golang:1.13.2
     commands:
-      - chown -R $UID:$GID /go
-      - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$)
-      - if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
-      - for VERSION in DOCS_VERSIONS_CHANGED; do
-      - pushd $VERSION; milv; popd
-      - done
-      - fi
+      - >-
+        DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$) \
+        if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then \
+          for VERSION in DOCS_VERSIONS_CHANGED; do \
+            pushd $VERSION \
+            echo "Running milv on docs/$VERSION:" \
+            milv \
+            popd \
+          done \
+        fi
 
 ---
 kind: pipeline
@@ -500,6 +496,6 @@ steps:
 
 ---
 kind: signature
-hmac: b4ecc9f79ed8c0cbcf540b3e9d84c7cdf05fa4a5a557f9d183cb994b76880fcc
+hmac: 99ff016f5025c2c1543aa114e1411791332d97a1893c6d1a813bb192cd3ff308
 
 ...
