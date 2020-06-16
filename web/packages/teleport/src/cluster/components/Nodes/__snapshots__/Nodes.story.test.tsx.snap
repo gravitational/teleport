@@ -325,6 +325,11 @@ exports[`loaded 1`] = `
   line-height: 16px;
 }
 
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+}
+
 .c8 button {
   background: none;
   border: none;
@@ -458,7 +463,7 @@ exports[`loaded 1`] = `
           </strong>
         </div>
         <div
-          class="c8"
+          class="sc-AxirZ c8"
         >
           <button
             disabled=""

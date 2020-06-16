@@ -179,7 +179,7 @@ const StyledSupportLink = styled.a`
 
 const ClusterData = ({ title = '', data = null }) => (
   <Flex mb={3}>
-    <Text typography="body2" bold mr={3}>
+    <Text typography="body2" bold style={{ width: '130px' }}>
       {title}:
     </Text>
     <Text typography="body2">{data}</Text>

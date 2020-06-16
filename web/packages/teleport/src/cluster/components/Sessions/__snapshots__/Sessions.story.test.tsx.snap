@@ -191,6 +191,11 @@ exports[`loaded 1`] = `
   line-height: 16px;
 }
 
+.c6 {
+  box-sizing: border-box;
+  display: flex;
+}
+
 .c6 button {
   background: none;
   border: none;
@@ -273,7 +278,7 @@ exports[`loaded 1`] = `
           </strong>
         </div>
         <div
-          class="c6"
+          class="sc-fzqBZW c6"
         >
           <button
             disabled=""

@@ -151,6 +151,11 @@ exports[`rendering of Audit Sessions 1`] = `
   line-height: 16px;
 }
 
+.c4 {
+  box-sizing: border-box;
+  display: flex;
+}
+
 .c4 button {
   background: none;
   border: none;
@@ -257,7 +262,7 @@ exports[`rendering of Audit Sessions 1`] = `
         </strong>
       </div>
       <div
-        class="c4"
+        class="sc-AxirZ c4"
       >
         <button
           disabled=""
@@ -325,7 +330,9 @@ exports[`rendering of Audit Sessions 1`] = `
               240355-6491-11e9-80a1-427cfde50f5a
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             one, two
           </td>
           <td>
@@ -364,7 +371,9 @@ exports[`rendering of Audit Sessions 1`] = `
               377875-6491-11e9-80a1-427cfde50f5a
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             one, two
           </td>
           <td>
@@ -403,7 +412,9 @@ exports[`rendering of Audit Sessions 1`] = `
               426485-6491-11e9-80a1-427cfde50f5a
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             one, two
           </td>
           <td>

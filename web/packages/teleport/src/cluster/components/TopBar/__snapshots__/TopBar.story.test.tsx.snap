@@ -226,6 +226,7 @@ exports[`rendering of ClusterTopBar 1`] = `
   text-decoration: none;
   font-size: 14px;
   font-weight: 300;
+  white-space: nowrap;
 }
 
 .c4:hover {
@@ -235,7 +236,7 @@ exports[`rendering of ClusterTopBar 1`] = `
 <nav
   class="sc-AxiKw c0"
   height="56px"
-  style="z-index: 1; box-shadow: 0 8px 24px rgba(0,0,0,.24);"
+  style="z-index: 1; box-shadow: 0 8px 24px rgba(0,0,0,.24); overflow-x: auto;"
 >
   <a
     class="c1"
@@ -270,12 +271,14 @@ exports[`rendering of ClusterTopBar 1`] = `
     <div
       class="c6"
       color="text.primary"
-      style="max-width: 200px;"
+      style="max-width: 200px; white-space: nowrap;"
+      title="localhost"
     >
       localhost
     </div>
     <button
       class="c7"
+      style="white-space: nowrap;"
     >
       <span>
         Cluster Info

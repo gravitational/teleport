@@ -3,6 +3,7 @@
 exports[`render DocumentNodes 1`] = `
 .c4 {
   box-sizing: border-box;
+  margin-right: 20px;
   width: 400px;
 }
 
@@ -221,6 +222,11 @@ exports[`render DocumentNodes 1`] = `
 .c17 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
+}
+
+.c14 {
+  box-sizing: border-box;
+  display: flex;
 }
 
 .c14 button {

@@ -237,7 +237,6 @@ type ClusterListProps = {
 
 const ClusterTable = styled(Table)`
   td {
-    padding 4px 24px !important;
     height: 22px;
   }
 

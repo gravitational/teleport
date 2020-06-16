@@ -102,7 +102,7 @@ export default function EventList(props: EventListProps) {
         <Table.Column
           columnKey="message"
           header={<Table.Cell>Description</Table.Cell>}
-          cell={<DescCell style={{ wordBreak: 'break-all' }} />}
+          cell={<DescCell />}
         />
         <Table.Column
           columnKey="time"

@@ -17,7 +17,6 @@ limitations under the License.
 import React from 'react';
 import { sortBy } from 'lodash';
 import isMatch from 'design/utils/match';
-import { NavLink } from 'react-router-dom';
 import { ButtonBorder, Flex } from 'design';
 import { displayDateTime } from 'shared/services/loc';
 import * as Icons from 'design/Icon';
@@ -107,7 +106,7 @@ export default function SessionList(props: SessionListProps) {
         <Table.Column
           columnKey="users"
           header={<Table.Cell>User(s)</Table.Cell>}
-          cell={<Table.TextCell />}
+          cell={<Table.TextCell style={{ wordBreak: 'break-word' }} />}
         />
         <Table.Column
           columnKey="hostname"

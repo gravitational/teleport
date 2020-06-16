@@ -82,6 +82,7 @@ export default function DocumentNodes(props: Props) {
               value={doc.clusterId}
               width="400px"
               maxMenuHeight={200}
+              mr="20px"
               onChange={onChangeCluster}
             />
             <QuickLaunch onPress={onQuickLaunchEnter} mr="3" />

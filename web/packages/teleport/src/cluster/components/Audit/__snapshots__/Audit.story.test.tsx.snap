@@ -272,6 +272,11 @@ exports[`overflow 1`] = `
   line-height: 16px;
 }
 
+.c13 {
+  box-sizing: border-box;
+  display: flex;
+}
+
 .c13 button {
   background: none;
   border: none;

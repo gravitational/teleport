@@ -150,6 +150,11 @@ exports[`rendering of Events 1`] = `
   justify-content: flex-start;
 }
 
+.c4 {
+  box-sizing: border-box;
+  display: flex;
+}
+
 .c4 button {
   background: none;
   border: none;
@@ -266,7 +271,7 @@ exports[`rendering of Events 1`] = `
         </strong>
       </div>
       <div
-        class="c4"
+        class="sc-AxgMl c4"
       >
         <button
           disabled=""
@@ -333,7 +338,9 @@ exports[`rendering of Events 1`] = `
               OIDC Auth Connector Created
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "unimplemented" created OIDC connector "new_oidc_connector"
           </td>
           <td
@@ -365,7 +372,9 @@ exports[`rendering of Events 1`] = `
               GITHUB Auth Connector Deleted
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "unimplemented" deleted Github connector "new_github_connector"
           </td>
           <td
@@ -397,7 +406,9 @@ exports[`rendering of Events 1`] = `
               GITHUB Auth Connector Created
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "unimplemented" created Github connector "new_github_connector" has been created
           </td>
           <td
@@ -429,7 +440,9 @@ exports[`rendering of Events 1`] = `
               User Password Updated
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "Ivan_Jordan" has changed a password
           </td>
           <td
@@ -461,7 +474,9 @@ exports[`rendering of Events 1`] = `
               Access Request Updated
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             Access request "66b827b2-1b0b-512b-965d-6c789388d3c9" has been updated to APPROVED
           </td>
           <td
@@ -493,7 +508,9 @@ exports[`rendering of Events 1`] = `
               Access Request Created
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             Access request "66b827b2-1b0b-512b-965d-6c789388d3c9" has been created and is PENDING
           </td>
           <td
@@ -525,7 +542,9 @@ exports[`rendering of Events 1`] = `
               Reset Password Token Created
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "b331fb6c-85f9-4cb0-b308-3452420bf81e.one" created a password reset token for user "hello" which expires in 8h0m0s
           </td>
           <td
@@ -557,7 +576,9 @@ exports[`rendering of Events 1`] = `
               User Created
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User hello has been created
           </td>
           <td
@@ -589,7 +610,9 @@ exports[`rendering of Events 1`] = `
               User Updated
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User bob has been updated
           </td>
           <td
@@ -621,7 +644,9 @@ exports[`rendering of Events 1`] = `
               User Deleted
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User bob has been deleted
           </td>
           <td
@@ -653,7 +678,9 @@ exports[`rendering of Events 1`] = `
               Session Report
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             Report has been created for session "5fc8bf85-a73e-11ea-afd1-0242ac0a0101"
           </td>
           <td
@@ -685,7 +712,9 @@ exports[`rendering of Events 1`] = `
               Session Report
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             Report has been created for session "5fc8bf85-a73e-11ea-afd1-0242ac0a0101"
           </td>
           <td
@@ -717,7 +746,9 @@ exports[`rendering of Events 1`] = `
               Session Command
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             ping has been executed
           </td>
           <td
@@ -749,7 +780,9 @@ exports[`rendering of Events 1`] = `
               Log Forwarder Deleted
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" deleted log forwarder "forwarder1"
           </td>
           <td
@@ -781,7 +814,9 @@ exports[`rendering of Events 1`] = `
               Log Forwarder Created
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" created log forwarder "forwarder1"
           </td>
           <td
@@ -813,7 +848,9 @@ exports[`rendering of Events 1`] = `
               Invite Created
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" invited user "fdsfsdf" with roles @teleadmin
           </td>
           <td
@@ -845,7 +882,9 @@ exports[`rendering of Events 1`] = `
               Role Created
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" created role "admin323232323"
           </td>
           <td
@@ -877,7 +916,9 @@ exports[`rendering of Events 1`] = `
               Role Deleted
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" deleted role "admin323232323f"
           </td>
           <td
@@ -909,7 +950,9 @@ exports[`rendering of Events 1`] = `
               Role Created
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" created role "admin323232323f"
           </td>
           <td
@@ -941,7 +984,9 @@ exports[`rendering of Events 1`] = `
               SCP Download
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" downloaded a file ~/fsdfsdfsdfsdfs from node 172.31.28.130:3022
           </td>
           <td
@@ -973,7 +1018,9 @@ exports[`rendering of Events 1`] = `
               SCP Download
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" downloaded a file ~/fsdfsdfsdfsdfs from node 172.31.28.130:3022
           </td>
           <td
@@ -1005,7 +1052,9 @@ exports[`rendering of Events 1`] = `
               User Joined
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" has joined the session "56408539-6536-11e9-80a1-427cfde50f5a"
           </td>
           <td
@@ -1037,7 +1086,9 @@ exports[`rendering of Events 1`] = `
               User Joined
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" has joined the session "56408539-6536-11e9-80a1-427cfde50f5a"
           </td>
           <td
@@ -1069,7 +1120,9 @@ exports[`rendering of Events 1`] = `
               Terminal Resize
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" resized the terminal
           </td>
           <td
@@ -1101,7 +1154,9 @@ exports[`rendering of Events 1`] = `
               Terminal Resize
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" resized the terminal
           </td>
           <td
@@ -1133,7 +1188,9 @@ exports[`rendering of Events 1`] = `
               Session Started
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" has started a session "56408539-6536-11e9-80a1-427cfde50f5a"
           </td>
           <td
@@ -1165,7 +1222,9 @@ exports[`rendering of Events 1`] = `
               Session Started
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" has started a session "56408539-6536-11e9-80a1-427cfde50f5a"
           </td>
           <td
@@ -1197,7 +1256,9 @@ exports[`rendering of Events 1`] = `
               Session File Access
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             /etc/profile.d/
           </td>
           <td
@@ -1229,7 +1290,9 @@ exports[`rendering of Events 1`] = `
               Session Network Connection
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             Session "44c6cea8-362f-11ea-83aa-125400432324" opened a connection bash: 10.217.136.161 &lt;-&gt; 190.58.129.4:3000
           </td>
           <td
@@ -1261,7 +1324,9 @@ exports[`rendering of Events 1`] = `
               Local Login Failed
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             Local user "fsdfsdf" login failed: user(name="fsdfsdf") not found
           </td>
           <td
@@ -1293,7 +1358,9 @@ exports[`rendering of Events 1`] = `
               Local Login Failed
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             Local user "fsdfsdf" login failed: user(name="fsdfsdf") not found
           </td>
           <td
@@ -1325,7 +1392,9 @@ exports[`rendering of Events 1`] = `
               Auth Attempt Failed
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
           </td>
           <td
@@ -1357,7 +1426,9 @@ exports[`rendering of Events 1`] = `
               Auth Attempt Failed
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
           </td>
           <td
@@ -1389,7 +1460,9 @@ exports[`rendering of Events 1`] = `
               Local Login
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             Local user "admin@example.com" successfully logged in
           </td>
           <td
@@ -1421,7 +1494,9 @@ exports[`rendering of Events 1`] = `
               Local Login
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             Local user "admin@example.com" successfully logged in
           </td>
           <td
@@ -1453,7 +1528,9 @@ exports[`rendering of Events 1`] = `
               Session Ended
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" has ended the session "9febab45-6491-11e9-80a1-427cfde50f5a"
           </td>
           <td
@@ -1485,7 +1562,9 @@ exports[`rendering of Events 1`] = `
               Session Ended
             </div>
           </td>
-          <td>
+          <td
+            style="word-break: break-word;"
+          >
             User "admin@example.com" has ended the session "9febab45-6491-11e9-80a1-427cfde50f5a"
           </td>
           <td

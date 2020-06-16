@@ -44,5 +44,5 @@ export const TimeCell = props => {
 export function DescCell(props) {
   const { rowIndex, data } = props;
   const { message } = data[rowIndex];
-  return <Cell>{message}</Cell>;
+  return <Cell style={{ wordBreak: 'break-word' }}>{message}</Cell>;
 }

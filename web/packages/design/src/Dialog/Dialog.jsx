@@ -69,5 +69,5 @@ const DialogBox = styled.div`
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
-  ${props => props.dialogCss && props.dialogCss(props)}
+  ${props => props.dialogCss && props.dialogCss(props)};
 `;

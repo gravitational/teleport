@@ -1,12 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`rendering of static texts 1`] = `
-.c4 {
-  box-sizing: border-box;
-  width: 600px;
-}
-
-.c11 {
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -32,25 +27,25 @@ exports[`rendering of static texts 1`] = `
   padding: 0px 16px;
 }
 
-.c11:active {
+.c10:active {
   opacity: 0.56;
 }
 
-.c11:hover,
-.c11:focus {
+.c10:hover,
+.c10:focus {
   background: #651FFF;
 }
 
-.c11:active {
+.c10:active {
   background: #354AA4;
 }
 
-.c11:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c16 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -76,25 +71,25 @@ exports[`rendering of static texts 1`] = `
   padding: 0px 24px;
 }
 
-.c16:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c15:hover,
+.c15:focus {
   background: #651FFF;
 }
 
-.c16:active {
+.c15:active {
   background: #354AA4;
 }
 
-.c16:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c8 {
+.c7 {
   color: #FFFFFF;
   display: block;
   font-size: 11px;
@@ -104,7 +99,7 @@ exports[`rendering of static texts 1`] = `
   margin-bottom: 4px;
 }
 
-.c6 {
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -115,24 +110,23 @@ exports[`rendering of static texts 1`] = `
   color: rgba(255,255,255,0.87);
 }
 
-.c10 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-right: 16px;
 }
 
-.c13 {
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 16px;
 }
 
-.c14 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -141,7 +135,7 @@ exports[`rendering of static texts 1`] = `
   margin: 0px;
 }
 
-.c9 {
+.c8 {
   box-sizing: border-box;
   margin-bottom: 32px;
   padding: 8px;
@@ -151,7 +145,7 @@ exports[`rendering of static texts 1`] = `
   justify-content: space-between;
 }
 
-.c12 {
+.c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
   display: flex;
@@ -202,9 +196,12 @@ exports[`rendering of static texts 1`] = `
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
+  max-width: 600px;
+  minWidth: 400px;
+  width: 100%;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
   min-height: 32px;
@@ -212,7 +209,7 @@ exports[`rendering of static texts 1`] = `
   align-items: center;
 }
 
-.c7 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 32px;
   flex: 1;
@@ -220,7 +217,7 @@ exports[`rendering of static texts 1`] = `
   flex-direction: column;
 }
 
-.c15 {
+.c14 {
   box-sizing: border-box;
 }
 
@@ -241,100 +238,98 @@ exports[`rendering of static texts 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
-        width="600px"
+        class="sc-AxirZ c4"
       >
         <div
           class="c5"
+          color="text.primary"
         >
-          <div
-            class="c6"
-            color="text.primary"
-          >
-            Cluster Information
-          </div>
+          Cluster Information
         </div>
-        <div
+      </div>
+      <div
+        class="sc-AxirZ c6"
+      >
+        <label
           class="c7"
+          font-size="0"
         >
-          <label
-            class="c8"
-            font-size="0"
-          >
-            Public URL
-          </label>
+          Public URL
+        </label>
+        <div
+          class="sc-AxirZ c8"
+        >
           <div
             class="c9"
+            style="word-break: break-all;"
           >
-            <div
-              class="c10"
-              style="word-break: break-all;"
-            >
-              some.kind.of.host:8080
-            </div>
-            <button
-              class="c11"
-              kind="primary"
-            >
-              Copy
-            </button>
+            some.kind.of.host:8080
           </div>
+          <button
+            class="c10"
+            kind="primary"
+          >
+            Copy
+          </button>
+        </div>
+        <div
+          class="sc-AxirZ c11"
+        >
           <div
             class="c12"
+            style="width: 150px;"
           >
-            <div
-              class="c13"
-            >
-              Cluster Name
-              :
-            </div>
-            <div
-              class="c14"
-            >
-              applePie
-            </div>
+            Cluster Name
+            :
           </div>
           <div
-            class="c12"
+            class="c13"
           >
-            <div
-              class="c13"
-            >
-              Auth Service Version
-              :
-            </div>
-            <div
-              class="c14"
-            >
-              5.0.0
-            </div>
-          </div>
-          <div
-            class="c12"
-          >
-            <div
-              class="c13"
-            >
-              Proxy Service Version
-              :
-            </div>
-            <div
-              class="c14"
-            >
-              4.2.2
-            </div>
+            applePie
           </div>
         </div>
         <div
-          class="c15"
+          class="sc-AxirZ c11"
         >
-          <button
-            class="c16"
-            kind="primary"
+          <div
+            class="c12"
+            style="width: 150px;"
           >
-            Done
-          </button>
+            Auth Service Version
+            :
+          </div>
+          <div
+            class="c13"
+          >
+            5.0.0
+          </div>
         </div>
+        <div
+          class="sc-AxirZ c11"
+        >
+          <div
+            class="c12"
+            style="width: 150px;"
+          >
+            Proxy Service Version
+            :
+          </div>
+          <div
+            class="c13"
+          >
+            4.2.2
+          </div>
+        </div>
+      </div>
+      <div
+        class="sc-AxirZ c14"
+      >
+        <button
+          class="c15"
+          kind="primary"
+        >
+          Done
+        </button>
       </div>
     </div>
   </div>

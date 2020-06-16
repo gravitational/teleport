@@ -160,7 +160,6 @@ exports[`render cluster nodes 1`] = `
   padding-right: 40px;
   display: flex;
   flex-direction: column;
-  overflow: auto;
   width: 100%;
   height: 100%;
 }
@@ -232,6 +231,11 @@ exports[`render cluster nodes 1`] = `
   line-height: 16px;
 }
 
+.c7 {
+  box-sizing: border-box;
+  display: flex;
+}
+
 .c7 button {
   background: none;
   border: none;
@@ -271,7 +275,6 @@ exports[`render cluster nodes 1`] = `
 }
 
 .c11 td {
-  padding: 4px 24px !important;
   height: 22px;
 }
 
@@ -329,7 +332,7 @@ exports[`render cluster nodes 1`] = `
       </strong>
     </div>
     <div
-      class="c7"
+      class="sc-AxirZ c7"
     >
       <button
         disabled=""

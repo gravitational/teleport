@@ -64,7 +64,8 @@ EventDialog.propTypes = {
 
 const dialogCss = () => `
   min-height: 400px;
-  min-width: 600px;
+  max-width: 600px;
+  width: 100%;
 `;
 
 export default EventDialog;

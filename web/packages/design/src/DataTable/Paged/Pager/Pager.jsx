@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import Icon, { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
-import { Text } from 'design';
+import { Text, Flex } from 'design';
 import PropTypes from 'prop-types';
 
 export default function Pager(props) {
@@ -55,7 +55,7 @@ Pager.propTypes = {
   onNext: PropTypes.func.isRequired,
 };
 
-export const StyledButtons = styled.div`
+export const StyledButtons = styled(Flex)`
   button {
     background: none;
     border: none;

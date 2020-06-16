@@ -38,29 +38,38 @@ const ClusterInfoDialog: React.FC<ClusterInfoDialogProps> = ({
   proxyVersion,
 }) => {
   return (
-    <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
-      <Box width="600px">
-        <DialogHeader>
-          <DialogTitle>Cluster Information</DialogTitle>
-        </DialogHeader>
-        <DialogContent>
-          <LabelInput>Public URL</LabelInput>
-          <PublicURL url={publicURL} />
-          <Attribute title="Cluster Name" value={clusterId} />
-          <Attribute title="Auth Service Version" value={authVersion} />
-          <Attribute title="Proxy Service Version" value={proxyVersion} />
-        </DialogContent>
-        <DialogFooter>
-          <ButtonPrimary onClick={onClose}>Done</ButtonPrimary>
-        </DialogFooter>
-      </Box>
+    <Dialog
+      disableEscapeKeyDown={false}
+      onClose={onClose}
+      open={true}
+      dialogCss={dialogCss}
+    >
+      <DialogHeader>
+        <DialogTitle>Cluster Information</DialogTitle>
+      </DialogHeader>
+      <DialogContent>
+        <LabelInput>Public URL</LabelInput>
+        <PublicURL url={publicURL} />
+        <Attribute title="Cluster Name" value={clusterId} />
+        <Attribute title="Auth Service Version" value={authVersion} />
+        <Attribute title="Proxy Service Version" value={proxyVersion} />
+      </DialogContent>
+      <DialogFooter>
+        <ButtonPrimary onClick={onClose}>Done</ButtonPrimary>
+      </DialogFooter>
     </Dialog>
   );
 };
 
+const dialogCss = () => `
+  max-width: 600px;
+  minWidth: 400px;
+  width: 100%;
+`;
+
 const Attribute = ({ title = '', value = null }) => (
   <Flex mb={3}>
-    <Text typography="body2" bold mr={3}>
+    <Text typography="body2" bold style={{ width: '150px' }}>
       {title}:
     </Text>
     <Text typography="body2">{value}</Text>

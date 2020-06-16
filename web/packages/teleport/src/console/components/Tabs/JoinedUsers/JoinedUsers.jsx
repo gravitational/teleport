@@ -105,6 +105,7 @@ const StyledUsers = styled.div`
   flex-shrink: 0;
   border-radius: 50%;
   justify-content: center;
+  margin-right: 3px;
   background-color: ${props =>
     props.active ? theme.colors.accent : theme.colors.grey[900]};
 `;
