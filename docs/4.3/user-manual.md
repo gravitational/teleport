@@ -1,7 +1,8 @@
 # Teleport User Manual
 
-This User Manual covers usage of the Teleport client tool, `tsh`. In this
-document you will learn how to:
+This User Manual covers usage of the Teleport client tool, `tsh` and Teleports Web interface.
+
+In this document you will learn how to:
 
 * Log into an interactive shell on remote cluster nodes.
 * Copy files to and from cluster nodes.
@@ -14,6 +15,7 @@ document you will learn how to:
 
 In addition to this document, you can always simply type `tsh` into your
 terminal for the [CLI reference](cli-docs.md).
+
 
 ## Introduction
 
@@ -45,6 +47,13 @@ $ tsh logout
 In other words, Teleport was designed to be fully compatible with existing
 SSH-based workflows and does not require users to learn anything new, other than
 to call [`tsh login`](cli-docs.md#tsh-login) in the beginning.
+
+## Installing tsh
+
+- Windows Users: [Download tsh Binary](https://gravitational.com/teleport/download?os=windows)
+- Mac Users: [Download Mac Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=macos)
+- Mac Users with [Brew](https://brew.sh/): `brew install teleport`
+- Linux Users: [Download Mac Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=linux)
 
 ## User Identities
 

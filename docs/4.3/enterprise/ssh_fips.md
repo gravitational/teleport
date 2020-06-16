@@ -118,19 +118,17 @@ $ sudo systemctl enable teleport
 
 When using `teleport start --fips`, Teleport will start in FIPS mode.
 
-In FIPS mode, Teleport will configure the TLS and SSH servers with FIPS-compliant cryptographic algorithms. If non-compliant algorithms are chosen, Teleport will fail to start. Teleport will
-configure the TLS and SSH servers with FIPS compliant cryptographic algorithms.
-In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to start.
-In addition, Teleport checks if the binary was compiled against an approved
-cryptographic module (BoringCrypto) and fails to start if it was not.
+Teleport will configure the TLS and SSH servers with FIPS compliant
+cryptographic algorithms.  In FIPS mode, if non-compliant algorithms are
+chosen, Teleport will fail to start.  In addition, Teleport checks if the
+binary was compiled against an approved cryptographic module (BoringCrypto) and
+fails to start if it was not.
 
 * For OSS and Enterprise binaries not compiled with BoringCrypto, this flag will report that this version of Teleport is not compiled with the appropriate cryptographic module.
 
-* Be useful when running commands like `ps aux` to note that Teleport is running in FedRAMP enforcing mode.
+* Running commands like `ps aux` can be useful to note that Teleport is running in FedRAMP enforcing mode.
 
 * If no ciphersuites are provided, Teleport will set the default ciphersuites to be FIPS 140-2 compliant.
-
-* If ciphersuites are provided in the Teleport configuration, Teleport will validate that they are FIPS 140-2 compliant.
 
 * If ciphersuites, key exchange and MAC algorithms are provided in the Teleport configuration, Teleport will validate that they are FIPS 140-2 compliant..
 
@@ -147,5 +145,5 @@ is emitted to the Audit Log.
 ## What else does the Teleport FIPS binary enforce?
 * Supporting configurable TLS versions. This is to ensure that only TLS 1.2 is supported in FedRAMP mode.
 * Removes all uses of non-compliant algorithms like NaCl and replace with compliant algorithms like AES-GCM.
-* Teleport is complied  with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/Certificate/2964)
-* User and host certificates (and host keys for recording proxy mode) should only be 2048-bit RSA. For a certificate, the signer should also be.
+* Teleport is compiled  with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/Certificate/2964)
+* User, host and CA certificates (and host keys for recording proxy mode) should only use 2048-bit RSA private keys.

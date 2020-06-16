@@ -346,17 +346,12 @@ Teleport install.
 
 To reconfigure any of this, or to do it on a running instance:
 
-1. Make the appropriate changes to /etc/teleport.d/conf
-
-* `rm -f /etc/teleport.yaml`
-
-* `systemctl restart teleport-generate-config.service`
-
-* `systemctl restart teleport-acm.service`
-
+1. Make the appropriate changes to `/etc/teleport.d/conf`
+    1. `rm -f /etc/teleport.yaml`
+    * `systemctl restart teleport-generate-config.service`
+    * `systemctl restart teleport-acm.service`
 
 If you have changed the external hostname, you may need to delete `/var/lib/teleport` and start again.
-
 
 ## Deploying with CloudFormation
 We are currently working on an updated CloudFormation guide but you can start with our
@@ -372,6 +367,7 @@ Customers run many workloads within EC2 and depending on how you work there are 
 ways to integrate Teleport onto your servers. We recommend looking at our [Admin manual](https://gravitational.com/teleport/docs/admin-guide/#installing).
 
 In short, to add new nodes / EC2 servers that you can "SSH into" you'll need to
+
 1. [Install the Teleport Binary on the Server](https://gravitational.com/teleport/docs/admin-guide/#installing)
 - [Run Teleport, we recommend using SystemD](https://gravitational.com/teleport/docs/admin-guide/#systemd-unit-file)
 - [Set the correct settings in /etc/teleport.yaml](https://gravitational.com/teleport/docs/admin-guide/#configuration-file)

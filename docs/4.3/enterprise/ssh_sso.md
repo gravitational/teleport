@@ -1,7 +1,5 @@
 # Single Sign-On (SSO) for SSH
 
-## Introduction
-
 The commercial edition of Teleport allows users to login and retrieve their SSH
 credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign-on)
 (SSO) system used by the rest of the organization.
@@ -13,6 +11,15 @@ well as open source products like [Keycloak](http://www.keycloak.org).
 Other identity management systems are supported as long as they provide an
 SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
 or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
+
+### SSO Setup Guides
+
+- [Azure Active Directory (AD)](sso/ssh_azuread.md)
+- [Active Directory (ADFS)](sso/ssh_adfs.md)
+- [G Suite](sso/ssh_gsuite.md)
+- [OneLogin](sso/ssh_one_login.md)
+- [OIDC](sso/oidc.md)
+- [Okta](sso/ssh_okta.md)
 
 
 ## How does SSO work with SSH?
@@ -33,6 +40,7 @@ Teleport will wait for up to 3 minutes for a user to authenticate. If authentica
 succeeds, Teleport will retrieve an SSH certificate and will store it in
 `~/.tsh/keys/proxy.example.com` directory and also will add it to an
 [SSH agent](https://en.wikipedia.org/wiki/Ssh-agent) if there's one running.
+
 
 ## Configuring SSO
 
@@ -97,6 +105,8 @@ spec:
 * See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources)
   directory in the Teleport Github repository for examples of possible connectors.
 
+
+
 ### User Logins
 
 Often it is required to restrict SSO users to their unique UNIX logins when they
@@ -115,36 +125,6 @@ spec:
   allow:
     logins:
     - '{% raw %}{{external.unix_login}}{% endraw %}'
-    node_labels:
-      '*': '*'
-```
-
-## Working with External Email Identity
-
-Along with sending groups, an SSO provider will also provide a user's email address.
-In many organizations, the username that a person uses to log into a system is the
-same as the first part of their email address - the 'local' part. For example, `dave.smith@acme.com`
- might log in with the username `dave.smith`. Teleport 4.2.6+ adds an easy way to
- extract the first part of an email address so it can be used as a username - this
- is the `{% raw %}{{email.local}}{% endraw %}` function.
-
-If the email claim from the identity provider (which can be accessed via `{% raw %}{{external.email}}{% endraw %}`)
-is sent and contains an email address, you can extract the 'local' part of the email
-address before the @ sign like this: `{% raw %}{{email.local(external.email)}}{% endraw %}`
-
-Here's how this looks in a Teleport role:
-
-```yaml
-kind: role
-version: v3
-metadata:
-  name: sso_user
-spec:
-  allow:
-    logins:
-    # Extracts the local part of dave.smith@acme.com, so the login will
-    # now support dave.smith.
-    - '{% raw %}{{email.local(external.email)}}{% endraw %}'
     node_labels:
       '*': '*'
 ```
@@ -178,10 +158,10 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-* [SSH Authentication with Okta](../ssh_okta.md)
-* [SSH Authentication with OneLogin](../ssh_one_login.md)
-* [SSH Authentication with ADFS](../ssh_adfs.md)
-* [SSH Authentication with OAuth2 / OpenID Connect](../oidc.md)
+* [SSH Authentication with Okta](sso/ssh_okta.md)
+* [SSH Authentication with OneLogin](sso/ssh_one_login.md)
+* [SSH Authentication with ADFS](sso/ssh_adfs.md)
+* [SSH Authentication with OAuth2 / OpenID Connect](sso/oidc.md)
 
 ## SSO Customization
 

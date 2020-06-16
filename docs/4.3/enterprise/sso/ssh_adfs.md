@@ -12,8 +12,9 @@ like:
 
 !!! warning "Version Warning"
 
-    This guide requires Teleport Enterprise. The Community open source
-    edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
+
+    This guide requires a commercial edition of Teleport. The open source
+    edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
     an SSO provider.
 
 ## Enable ADFS Authentication
@@ -40,15 +41,15 @@ mapping of the LDAP Attribute `E-Mail-Addresses` to `Name ID`. A group
 membership claim should be used to map users to roles (for example to
 separate normal users and admins).
 
-![Name ID Configuration](img/adfs-1.png)
-![Group Configuration](img/adfs-2.png)
+![Name ID Configuration](../../img/adfs-1.png)
+![Group Configuration](../../img/adfs-2.png)
 
 In addition if you are using dynamic roles (see below), it may be useful to map
 the LDAP Attribute `SAM-Account-Name` to `Windows account name` and create
 another mapping of `E-Mail-Addresses` to `UPN`.
 
-![WAN Configuration](img/adfs-3.png)
-![UPN Configuration](img/adfs-4.png)
+![WAN Configuration](../../img/adfs-3.png)
+![UPN Configuration](../../img/adfs-4.png)
 
 You'll also need to create a Relying Party Trust, use the below information to
 help guide you through the Wizard. Note, for development purposes we recommend
@@ -126,7 +127,7 @@ This role declares:
 * Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
-Next, create a SAML connector [resource](admin-guide.md#resources):
+Next, create a SAML connector [resource](../../admin-guide.md#resources):
 
 ```yaml
 {!examples/resources/adfs-connector.yaml!}
@@ -138,8 +139,8 @@ obtain the `entity_descriptor_url` from ADFS under _"ADFS -> Service -> Endpoint
 
 The `attributes_to_roles` is used to map attributes to the Teleport roles you
 just created. In our situation, we are mapping the _"Group"_ attribute whose full
-name is `http://schemas.xmlsoap.org/claims/Group` with a value of _"teleadmins"_
-to the _"admin"_ role. Groups with the value _"teleusers"_ is being mapped to the
+name is `http://schemas.xmlsoap.org/claims/Group` with a value of _"admins"_
+to the _"admin"_ role. Groups with the value _"users"_ is being mapped to the
 _"users"_ role.
 
 ## Export the Signing Key
@@ -192,3 +193,4 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
+
