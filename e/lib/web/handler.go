@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -95,7 +96,7 @@ func (p *Plugin) upsertResourceHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.NotFound("Cannot find resource with a name %q", rawRes.Metadata.Name)
 	}
 
-	items, err := upsertResource(*rawRes, clt)
+	items, err := upsertResource(r.Context(), *rawRes, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -112,7 +113,7 @@ func (p *Plugin) deleteResourceHandle(w http.ResponseWriter, r *http.Request, pa
 
 	resourceKind := params.ByName("kind")
 	resourceName := params.ByName("name")
-	if err := deleteResource(resourceKind, resourceName, clt); err != nil {
+	if err := deleteResource(r.Context(), resourceKind, resourceName, clt); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -147,30 +148,30 @@ func ok() interface{} {
 }
 
 // deleteResource deletes a resource
-func deleteResource(resourceKind string, resourceName string, client auth.ClientI) error {
+func deleteResource(ctx context.Context, resourceKind string, resourceName string, client auth.ClientI) error {
 	switch resourceKind {
 	case services.KindSAMLConnector:
-		if err := client.DeleteSAMLConnector(resourceName); err != nil {
+		if err := client.DeleteSAMLConnector(ctx, resourceName); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
 	case services.KindOIDCConnector:
-		if err := client.DeleteOIDCConnector(resourceName); err != nil {
+		if err := client.DeleteOIDCConnector(ctx, resourceName); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
 	case services.KindGithubConnector:
-		if err := client.DeleteGithubConnector(resourceName); err != nil {
+		if err := client.DeleteGithubConnector(ctx, resourceName); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
 	case services.KindRole:
-		if err := client.DeleteRole(resourceName); err != nil {
+		if err := client.DeleteRole(ctx, resourceName); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
 	case services.KindTrustedCluster:
-		if err := client.DeleteTrustedCluster(resourceName); err != nil {
+		if err := client.DeleteTrustedCluster(ctx, resourceName); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -236,7 +237,7 @@ func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error
 }
 
 // upsertResource updates a resource and returns ConfigItem wrapper with the updated resource
-func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (interface{}, error) {
+func upsertResource(ctx context.Context, unknownRes services.UnknownResource, client auth.ClientI) (interface{}, error) {
 	json := unknownRes.Raw
 	switch unknownRes.Kind {
 	case services.KindSAMLConnector:
@@ -247,7 +248,7 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 		if err := conn.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := client.UpsertSAMLConnector(conn); err != nil {
+		if err := client.UpsertSAMLConnector(ctx, conn); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		items, err := ui.ConvertSAMLConnectors([]services.SAMLConnector{conn})
@@ -260,7 +261,7 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := client.UpsertOIDCConnector(conn); err != nil {
+		if err := client.UpsertOIDCConnector(ctx, conn); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		items, err := ui.ConvertOIDCConnectors([]services.OIDCConnector{conn})
@@ -273,7 +274,7 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := client.UpsertGithubConnector(conn); err != nil {
+		if err := client.UpsertGithubConnector(ctx, conn); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		items, err := ui.ConvertGithubConnectors([]services.GithubConnector{conn})
@@ -290,7 +291,7 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := client.UpsertRole(role); err != nil {
+		if err := client.UpsertRole(ctx, role); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		items, err := ui.ConvertRoles([]services.Role{role})
@@ -304,7 +305,7 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 			return nil, trace.Wrap(err)
 		}
 		var upserted services.TrustedCluster
-		if upserted, err = client.UpsertTrustedCluster(tc); err != nil {
+		if upserted, err = client.UpsertTrustedCluster(ctx, tc); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		items, err := ui.ConvertTrustedClusters([]services.TrustedCluster{upserted})

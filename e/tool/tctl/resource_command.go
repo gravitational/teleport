@@ -7,6 +7,7 @@ This file implements the enterprise version of `tctl create` or `tctl rm` subcom
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gravitational/kingpin"
@@ -38,11 +39,12 @@ func (cmd *ResourceCommandE) Initialize(app *kingpin.Application, cfg *service.C
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
 func (cmd *ResourceCommandE) TryRun(selectedCommand string, c auth.ClientI) (match bool, err error) {
+	ctx := context.TODO()
 	ref := cmd.base.GetRef()
 
 	// implement 'tctl rm role/xxx' (OSS lacks this)
 	if cmd.base.IsDeleteSubcommand(selectedCommand) && ref.Kind == services.KindRole {
-		if err := c.DeleteRole(ref.Name); err != nil {
+		if err := c.DeleteRole(ctx, ref.Name); err != nil {
 			return true, trace.Wrap(err)
 		}
 		fmt.Printf("role %s has been deleted\n", ref.Name)
@@ -55,6 +57,7 @@ func (cmd *ResourceCommandE) TryRun(selectedCommand string, c auth.ClientI) (mat
 
 // createConnector implements 'tctl create role.yaml' command
 func (cmd *ResourceCommandE) createRole(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
 	role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -72,7 +75,7 @@ func (cmd *ResourceCommandE) createRole(client auth.ClientI, raw services.Unknow
 	if roleExists && !cmd.base.IsForced() {
 		return trace.AlreadyExists("role '%s' already exists", roleName)
 	}
-	if err := client.UpsertRole(role); err != nil {
+	if err := client.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("role '%s' has been %s\n", roleName, common.UpsertVerb(roleExists, cmd.base.IsForced()))
@@ -84,6 +87,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 	var (
 		connectorName string
 		exists        bool
+		ctx           = context.TODO()
 	)
 	switch raw.Kind {
 
@@ -118,7 +122,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 			return trace.Wrap(err)
 		}
 
-		if err = client.UpsertSAMLConnector(conn); err != nil {
+		if err = client.UpsertSAMLConnector(ctx, conn); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -140,7 +144,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 		if cmd.base.IsForced() == false && exists {
 			return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
 		}
-		if err = client.UpsertOIDCConnector(conn); err != nil {
+		if err = client.UpsertOIDCConnector(ctx, conn); err != nil {
 			return trace.Wrap(err)
 		}
 
