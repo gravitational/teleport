@@ -184,7 +184,8 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$)
-      - if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
+      - echo $$DOCS_VERSIONS_CHANGED
+      - if [ $${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
       - for VERSION in DOCS_VERSIONS_CHANGED; do
       - pushd $VERSION
       - echo "Running milv on docs/$VERSION:"
@@ -487,6 +488,6 @@ steps:
 
 ---
 kind: signature
-hmac: c1f2828f015cd7182ca846b2ebf222d79c41b5611b12a661c6bc5c6fac272bc3
+hmac: 3aef52d2dd0722593dd712923d6caea67874cca5d4d823e1467931955c66f513
 
 ...
