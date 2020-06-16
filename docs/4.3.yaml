@@ -32,7 +32,7 @@ extra_javascript: []
 extra:
     version: 4.3
     teleport:
-        version: 4.3
+        version: 4.3.0
         golang: 1.13
         sha: 1c14362c9ba10f28088c7228b357dc6a70072d3d4afaa5510c70a8734068684c
         plugin:
@@ -46,7 +46,7 @@ nav:
         - Admin Manual: admin-guide.md
         - Production Guide: production.md
         - FAQ: faq.md
-    - Teleport Features: 
+    - Teleport Features:
         - Enhanced Session Recording: features/enhanced_session_recording.md
         - Using Teleport with PAM: features/ssh_pam.md
     - Infrastructure Guides:
@@ -58,9 +58,9 @@ nav:
     - Enterprise Guides:
         - Introduction: enterprise/index.md
         - Quick Start Guide: enterprise/quickstart-enterprise.md
-        - Single sign-on (SSO): enterprise/ssh_sso.md   
-        - FedRAMP & FIPS: enterprise/ssh_fips.md        
-        - RBAC: enterprise/ssh_rbac.md 
+        - Single sign-on (SSO): enterprise/ssh_sso.md
+        - FedRAMP & FIPS: enterprise/ssh_fips.md
+        - RBAC: enterprise/ssh_rbac.md
         - RBAC Approval Workflow: enterprise/workflow/index.md
     - SSO Guides:
         - Active Directory (ADFS): ssh_adfs.md

@@ -142,7 +142,7 @@ using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/
 teleport:
   nodename: teleport-auth-server
   data_dir: /var/lib/teleport
-  pid_file: /var/run/teleport.pid
+  pid_file: /run/teleport.pid
   auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
   auth_servers:
   - 0.0.0.0:3025

@@ -5,9 +5,9 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
-ExecStart=/usr/local/bin/teleport-pagerduty start --config=/etc/teleport-pagerduty.toml --pid-file=/var/run/teleport-pagerduty.pid
+ExecStart=/usr/local/bin/teleport-pagerduty start --config=/etc/teleport-pagerduty.toml --pid-file=/run/teleport-pagerduty.pid
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/teleport-pagerduty.pid
+PIDFile=/run/teleport-pagerduty.pid
 
 [Install]
 WantedBy=multi-user.target

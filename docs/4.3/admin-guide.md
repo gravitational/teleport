@@ -51,7 +51,7 @@ $ shasum -a 256 teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 **Checking Checksum on Linux**
 
 ``` bash
-$ sha256sum teleport-v4.0.8-darwin-amd64-bin.tar.gz
+$ sha256sum teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 {{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
 ```
 
@@ -115,9 +115,9 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
-ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/var/run/teleport.pid
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/teleport.pid
+PIDFile=/run/teleport.pid
 
 [Install]
 WantedBy=multi-user.target
@@ -225,7 +225,6 @@ teleport:
     #  auth_servers:
     #     - teleport-proxy.example.com:3080
     auth_servers:
-
         - 10.1.0.5:3025
         - 10.1.0.6:3025
 
@@ -346,7 +345,6 @@ auth_service:
     # We recommend to use tools like `pwgen` to generate sufficiently random
     # tokens of 32+ byte length.
     tokens:
-
         - "proxy,node:xxxxx"
         - "auth:yyyy"
 
@@ -414,7 +412,6 @@ ssh_service:
     # this command will add a label 'arch=x86_64' to a node
 
     - name: arch
-
       command: ['/bin/uname', '-p']
       period: 1h0m0s
 
