@@ -199,15 +199,12 @@ steps:
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
-      - >-
-        DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$)
-        if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then \
-          for VERSION in DOCS_VERSIONS_CHANGED; do \
-            pushd $VERSION \
-            milv \
-            popd \
-          done \
-        fi
+      - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$)
+      - if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
+      - for VERSION in DOCS_VERSIONS_CHANGED; do
+      - pushd $VERSION; milv; popd
+      - done
+      - fi
 
 ---
 kind: pipeline
@@ -503,6 +500,6 @@ steps:
 
 ---
 kind: signature
-hmac: b28eb50983d18f8bc9163a09f5c87a7a817056094c5e1628c690ae2edfe45d5f
+hmac: b4ecc9f79ed8c0cbcf540b3e9d84c7cdf05fa4a5a557f9d183cb994b76880fcc
 
 ...
