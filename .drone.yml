@@ -183,9 +183,9 @@ steps:
     image: golang:1.13.2
     commands:
       - cd /go/src/github.com/gravitational/teleport
-      - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | cut -d/ -f2 | sort | uniq | grep -v ^$)
-      - echo $$DOCS_VERSIONS_CHANGED
-      - if [ $${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
+      - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq)
+      - if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
+      - echo $DOCS_VERSIONS_CHANGED
       - for VERSION in DOCS_VERSIONS_CHANGED; do
       - pushd $VERSION
       - echo "Running milv on docs/$VERSION:"
@@ -488,6 +488,6 @@ steps:
 
 ---
 kind: signature
-hmac: 3aef52d2dd0722593dd712923d6caea67874cca5d4d823e1467931955c66f513
+hmac: d986c82d2c8bd0008a4409df5a083dec8fa19c126a4a50d0c01ceaaf9b8ef31c
 
 ...
