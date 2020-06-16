@@ -808,7 +808,6 @@ func (a *AuthWithRoles) SetAccessRequestState(ctx context.Context, reqID string,
 	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	ctx = withUpdateBy(ctx, a.user.GetName())
 	return a.authServer.SetAccessRequestState(ctx, reqID, state)
 }
 
@@ -857,21 +856,6 @@ func (a *AuthWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 }
 
 type contextKey string
-
-// withUpdateBy creates a child context with the updated_by value set.
-// Helps capture the user who modified a resource.
-func withUpdateBy(ctx context.Context, user string) context.Context {
-	return context.WithValue(ctx, contextKey(events.UpdatedBy), user)
-}
-
-// getUpdateBy attempts to load the context value updated_by.
-func getUpdateBy(ctx context.Context) (string, error) {
-	updateBy, ok := ctx.Value(contextKey(events.UpdatedBy)).(string)
-	if !ok || updateBy == "" {
-		return "", trace.BadParameter("missing value %q", events.UpdatedBy)
-	}
-	return updateBy, nil
-}
 
 // WithDelegator creates a child context with the AccessRequestDelegator
 // value set.  Optionally used by AuthServer.SetAccessRequestState to log
@@ -960,8 +944,6 @@ func (a *AuthWithRoles) DeleteUser(ctx context.Context, user string) error {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-
-	ctx = withUpdateBy(ctx, a.user.GetName())
 
 	return a.authServer.DeleteUser(ctx, user)
 }
@@ -1164,8 +1146,6 @@ func (a *AuthWithRoles) UpdateUser(ctx context.Context, user services.User) erro
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-
-	ctx = withUpdateBy(ctx, a.user.GetName())
 
 	return a.authServer.UpdateUser(ctx, user)
 }
