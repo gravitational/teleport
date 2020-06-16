@@ -633,12 +633,12 @@ exports[`render DocumentNodes 1`] = `
               <strong>
                 1
               </strong>
-               to 
+               - 
               <strong>
                 5
               </strong>
-               of
                
+              of 
               <strong>
                 5
               </strong>
@@ -677,7 +677,7 @@ exports[`render DocumentNodes 1`] = `
                   <a>
                     Hostname
                     <span
-                      class="c15 c19 icon icon-chevron-up "
+                      class="c15 c19 icon icon-chevron-down "
                       color="light"
                     />
                   </a>
@@ -700,69 +700,7 @@ exports[`render DocumentNodes 1`] = `
             <tbody>
               <tr>
                 <td>
-                  zebpecda
-                </td>
-                <td>
-                  172.10.1.24:3022
-                </td>
-                <td>
-                  <div
-                    class="c20"
-                    kind="secondary"
-                  >
-                    cluster: one
-                  </div>
-                  <div
-                    class="c20"
-                    kind="secondary"
-                  >
-                    kernel: 4.15.0-51-generic
-                  </div>
-                  <div
-                    class="c20"
-                    kind="secondary"
-                  >
-                    lortavma: one
-                  </div>
-                  <div
-                    class="c20"
-                    kind="secondary"
-                  >
-                    lenisret: 4.15.0-51-generic
-                  </div>
-                  <div
-                    class="c20"
-                    kind="secondary"
-                  >
-                    lofdevod: one
-                  </div>
-                  <div
-                    class="c20"
-                    kind="secondary"
-                  >
-                    llhurlaz: 4.15.0-51-generic
-                  </div>
-                </td>
-                <td
-                  align="right"
-                >
-                  <button
-                    class="c21"
-                    height="24px"
-                    kind="border"
-                  >
-                    CONNECT
-                    <span
-                      class="c15 c22 icon icon-caret-down "
-                      color="text.secondary"
-                      font-size="2"
-                    />
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  kuhinur
+                  duzsevkig
                 </td>
                 <td>
                   <span
@@ -771,44 +709,6 @@ exports[`render DocumentNodes 1`] = `
                   >
                     ⟵ tunnel
                   </span>
-                </td>
-                <td>
-                  <div
-                    class="c20"
-                    kind="secondary"
-                  >
-                    cluster: one
-                  </div>
-                  <div
-                    class="c20"
-                    kind="secondary"
-                  >
-                    kernel: 4.15.0-51-generic
-                  </div>
-                </td>
-                <td
-                  align="right"
-                >
-                  <button
-                    class="c21"
-                    height="24px"
-                    kind="border"
-                  >
-                    CONNECT
-                    <span
-                      class="c15 c22 icon icon-caret-down "
-                      color="text.secondary"
-                      font-size="2"
-                    />
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  fujedu
-                </td>
-                <td>
-                  172.10.1.20:3022
                 </td>
                 <td>
                   <div
@@ -881,7 +781,45 @@ exports[`render DocumentNodes 1`] = `
               </tr>
               <tr>
                 <td>
-                  duzsevkig
+                  fujedu
+                </td>
+                <td>
+                  172.10.1.20:3022
+                </td>
+                <td>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    cluster: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    kernel: 4.15.0-51-generic
+                  </div>
+                </td>
+                <td
+                  align="right"
+                >
+                  <button
+                    class="c21"
+                    height="24px"
+                    kind="border"
+                  >
+                    CONNECT
+                    <span
+                      class="c15 c22 icon icon-caret-down "
+                      color="text.secondary"
+                      font-size="2"
+                    />
+                  </button>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  kuhinur
                 </td>
                 <td>
                   <span
@@ -903,6 +841,68 @@ exports[`render DocumentNodes 1`] = `
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
+                  </div>
+                </td>
+                <td
+                  align="right"
+                >
+                  <button
+                    class="c21"
+                    height="24px"
+                    kind="border"
+                  >
+                    CONNECT
+                    <span
+                      class="c15 c22 icon icon-caret-down "
+                      color="text.secondary"
+                      font-size="2"
+                    />
+                  </button>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  zebpecda
+                </td>
+                <td>
+                  172.10.1.24:3022
+                </td>
+                <td>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    cluster: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    kernel: 4.15.0-51-generic
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    lortavma: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    lenisret: 4.15.0-51-generic
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    lofdevod: one
+                  </div>
+                  <div
+                    class="c20"
+                    kind="secondary"
+                  >
+                    llhurlaz: 4.15.0-51-generic
                   </div>
                 </td>
                 <td

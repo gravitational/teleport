@@ -35,7 +35,7 @@ function NodeList(props: NodeListProps) {
   const { nodes = [], onLoginMenuOpen, onLoginSelect, pageSize = 100 } = props;
   const [searchValue, setSearchValue] = React.useState('');
   const [sortDir, setSortDir] = React.useState<Record<string, string>>({
-    hostname: SortTypes.ASC,
+    hostname: SortTypes.DESC,
   });
 
   function sortAndFilter(search) {

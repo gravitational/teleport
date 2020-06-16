@@ -66,7 +66,14 @@ function useOnExitConfirmation(ctx: ConsoleContext) {
   /**
    * confirmCloseSession prompts user to confirm to close.
    */
-  function confirmCloseSession() {
+  function confirmCloseSession(doc) {
+    if (!doc || !doc.sid) return false;
+
+    const numUsers = ctx.storeParties.state[doc.sid];
+    if (numUsers.length > 1) {
+      return window.confirm('Are you sure you want to leave this session?');
+    }
+
     return window.confirm('Are you sure you want to terminate this session?');
   }
 
@@ -95,7 +102,7 @@ function useOnExitConfirmation(ctx: ConsoleContext) {
    */
   function verifyAndConfirm(doc: stores.Document) {
     if (hasLastingSshConnection(doc)) {
-      return confirmCloseSession();
+      return confirmCloseSession(doc);
     }
 
     return true;

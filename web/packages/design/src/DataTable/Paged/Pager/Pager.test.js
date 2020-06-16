@@ -24,7 +24,7 @@ describe('design/DataTable Pager', () => {
     ${2}      | ${5}  | ${10}     | ${[false, false]} | ${[3, 5, 10]}
     ${0}      | ${5}  | ${10}     | ${[true, false]}  | ${[1, 5, 10]}
     ${1}      | ${5}  | ${5}      | ${[false, true]}  | ${[2, 5, 5]}
-    ${1}      | ${2}  | ${0}      | ${[true, true]}   | ${[2, 2, 0]}
+    ${0}      | ${0}  | ${0}      | ${[true, true]}   | ${[0, 0, 0]}
   `(
     'respects props: startFrom=$startFrom, endAt=$endAt, totalRows=$totalRows, disablePrevNext=$expPrevNextBtns',
     ({ startFrom, endAt, totalRows, expPrevNextBtns, expNumRanges }) => {
@@ -40,7 +40,7 @@ describe('design/DataTable Pager', () => {
       );
 
       expect(container.firstChild.textContent).toEqual(
-        `SHOWING ${expNumRanges[0]} to ${expNumRanges[1]} of ${expNumRanges[2]}`
+        `SHOWING ${expNumRanges[0]} - ${expNumRanges[1]} of ${expNumRanges[2]}`
       );
 
       const buttons = container.querySelectorAll('button');

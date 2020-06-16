@@ -59,6 +59,7 @@ test('confirmation dialog before terminating an active ssh session', () => {
     serverId: 'serverId',
     login: 'login',
     created: new Date(),
+    sid: 'random-123-sid',
   });
   docs = ctx.getDocuments();
 
@@ -81,6 +82,7 @@ test('confirmation dialog before terminating an active ssh session', () => {
   expect(event.preventDefault).not.toHaveBeenCalled();
 
   // test aged terminal doc calls prompt
+  ctx.storeParties.setParties({ 'random-123-sid': [] });
   retVal = current.verifyAndConfirm(docTerminal);
   expect(retVal).toBe(false);
   expect(window.confirm).toHaveReturnedWith(false);

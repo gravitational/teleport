@@ -149,7 +149,7 @@ describe('design/Table SortIndicator', () => {
     const header1 = anchorTags[0];
     const header2 = anchorTags[1];
 
-    // TableSample initially sorts with "Hostname" DESC
+    // TableSample initially sorts with "Hostname" ASC
     fireEvent.click(screen.getByText(tableSampleHeaders[0]));
     expect(
       header1.querySelector('span').classList.contains('icon-chevron-up')

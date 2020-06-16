@@ -500,6 +500,10 @@ export const formatters: Formatters = {
     desc: 'User Role Deleted',
     format: ({ user, name }) => `User "${user}" deleted role "${name}"`,
   },
+  [CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED]: {
+    desc: 'Trusted Cluster Token Created',
+    format: ({ user }) => `User "${user}" has created a trusted cluster token`,
+  },
 };
 
 const unknownFormatter = {

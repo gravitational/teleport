@@ -420,14 +420,14 @@ exports[`overflow 1`] = `
       >
         SHOWING 
         <strong>
-          1
+          0
         </strong>
-         to 
+         - 
         <strong>
           0
         </strong>
-         of
          
+        of 
         <strong>
           0
         </strong>

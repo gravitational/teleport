@@ -57,6 +57,8 @@ export const CodeEnum = {
   SAML_CONNECTOR_DELETED: 'T8201I',
   ACCESS_REQUEST_CREATED: 'T5000I',
   ACCESS_REQUEST_UPDATED: 'T5001I',
+  TRUSTED_CLUSTER_TOKEN_CREATED: 'T7002I',
+
   // Gravity
   G_ALERT_CREATED: 'G1007I',
   G_ALERT_DELETED: 'G2007I',
@@ -507,6 +509,9 @@ export type RawEvents = {
   [CodeEnum.ROLE_DELETED]: RawEvent<typeof CodeEnum.ROLE_DELETED, HasName>;
   [CodeEnum.G_ROLE_CREATED]: RawEvent<typeof CodeEnum.G_ROLE_CREATED, HasName>;
   [CodeEnum.G_ROLE_DELETED]: RawEvent<typeof CodeEnum.G_ROLE_DELETED, HasName>;
+  [CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED]: RawEvent<
+    typeof CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED
+  >;
 };
 
 /**
