@@ -111,8 +111,7 @@ yet. Let's create one for your OS user. In this example the OS user is
 # mapping to an OS user of the same name
 # This is the same as running `tctl users add teleport teleport`
 [teleport@grav-00 ~]$ tctl users add teleport
-Signup token has been created and is valid for 1 hours. Share this URL with the user:
-https://grav-00:3080/web/newuser/3a8e9fb6a5093a47b547c0f32e3a98d4
+User teleport has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s: https://grav-00:3080/web/invite/3a8e9fb6a5093a47b547c0f32e3a98d4
 
 NOTE: Make sure grav-00:3080 points at a Teleport proxy which users can access.
 ```
