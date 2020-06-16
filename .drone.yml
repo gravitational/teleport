@@ -172,15 +172,15 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.13.2
+    image: quay.io/gravitational/teleport-buildbox:go1.13.2
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
 
-  - name: Run milv on docs
-    image: golang:1.13.2
+  - name: Run docs tests
+    image: quay.io/gravitational/teleport-buildbox:go1.13.2
     commands:
       - cd /go/src/github.com/gravitational/teleport
       - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq)
@@ -489,6 +489,6 @@ steps:
 
 ---
 kind: signature
-hmac: 157f88a05695d01a4fae8fa8a0db108b644a1bb57eb76733f5e88a5595971946
+hmac: 119d43161bb3159c80e40f8f1c2a6e6b810ac7108c38ad71d0d9669503882c71
 
 ...
