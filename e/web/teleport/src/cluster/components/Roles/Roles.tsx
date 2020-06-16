@@ -1,5 +1,9 @@
 import React from 'react';
-import { FeatureBox, FeatureHeader, FeatureHeaderTitle } from 'design/Layout';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
 import { Indicator, Flex, Box, ButtonPrimary, Text } from 'design';
 import { Danger } from 'design/Alert';
 import ResourceEditor from 'e-shared/components/ResourceEditor';

@@ -18,21 +18,19 @@ export default function LicenseWarning(props: LicenseWarningProps) {
       bg="white"
       dialogCss={dialogCss}
     >
-      <Box width="540px">
-        <DialogContent>
-          <Flex alignItems="center">
-            <Text typography="h1">Warning!</Text>
-          </Flex>
-          <Text typography="paragraph" mt="2" mb="4">
-            <div dangerouslySetInnerHTML={{ __html: props.html }} />
-          </Text>
-        </DialogContent>
-        <DialogFooter>
-          <ButtonSecondary mr="3" onClick={props.onClose}>
-            Acknowledge and Close
-          </ButtonSecondary>
-        </DialogFooter>
-      </Box>
+      <DialogContent>
+        <Flex alignItems="center">
+          <Text typography="h1">Warning!</Text>
+        </Flex>
+        <Text typography="paragraph" mt="2" mb="4">
+          <div dangerouslySetInnerHTML={{ __html: props.html }} />
+        </Text>
+      </DialogContent>
+      <DialogFooter>
+        <ButtonSecondary mr="3" onClick={props.onClose}>
+          Acknowledge and Close
+        </ButtonSecondary>
+      </DialogFooter>
     </Dialog>
   );
 }
@@ -41,4 +39,5 @@ const dialogCss = ({ theme }: any): any => ({
   a: {
     color: theme.colors.light,
   },
+  maxWidth: '540px',
 });
