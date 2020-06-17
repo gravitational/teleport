@@ -18,12 +18,12 @@ import React from 'react';
 import { Indicator, Flex, Box } from 'design';
 import * as Alerts from 'design/Alert';
 import NodeList from 'teleport/components/NodeList';
-import Document from './../Document';
-import QuickLaunch from './QuickLaunch';
+import Document from 'teleport/console/components/Document';
+import QuickLaunch from 'teleport/components/QuickLaunch';
 import ClusterSelector from './ClusterSelector';
 import useNodes from './useNodes';
 import ThemeProvider from './ThemeProvider';
-import * as stores from './../../stores/types';
+import * as stores from 'teleport/console/stores/types';
 
 type Props = {
   visible: boolean;

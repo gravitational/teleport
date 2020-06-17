@@ -16,17 +16,17 @@ limitations under the License.
 
 import React from 'react';
 import * as Cards from 'design/CardError';
-import { Indicator, Box, ButtonPrimary } from 'design';
+import { Indicator, Box } from 'design';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { useTeleport } from 'teleport/teleportContextProvider';
-import { useParams } from 'teleport/components/Router';
-import cfg from 'teleport/config';
 import NodeList from 'teleport/components/NodeList';
 import useClusterNodes from './useClusterNodes';
+import QuickLaunch from 'teleport/components/QuickLaunch';
+import styled from 'styled-components';
 
 export default function ClusterNodes() {
   const teleCtx = useTeleport();
@@ -40,8 +40,6 @@ export function Nodes({
   startSshSession,
   attempt,
 }: NodesProp) {
-  const { clusterId } = useParams();
-
   if (attempt.isFailed) {
     return <Cards.Failed alignSelf="baseline" message={attempt.message} />;
   }
@@ -55,15 +53,7 @@ export function Nodes({
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="5">Nodes</FeatureHeaderTitle>
-        <ButtonPrimary
-          ml="auto"
-          width="240px"
-          as="a"
-          href={cfg.getConsoleNodesRoute(clusterId)}
-          target="_blank"
-        >
-          New Session
-        </ButtonPrimary>
+        <StyledQuickLaunch onPress={startSshSession} />
       </FeatureHeader>
       {attempt.isProcessing && (
         <Box textAlign="center" m={10}>
@@ -82,3 +72,14 @@ export function Nodes({
 }
 
 type NodesProp = ReturnType<typeof useClusterNodes>;
+
+const StyledQuickLaunch = styled(QuickLaunch)`
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  margin-right: 0;
+
+  label {
+    margin: 0 5px 0 0;
+  }
+`;
