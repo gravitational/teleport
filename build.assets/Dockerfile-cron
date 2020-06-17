@@ -1,6 +1,7 @@
 # First stage downloads pre-compiled Teleport archive from get.gravitational.com
 # and extracts binaries from the archive.
-FROM alpine AS download
+ARG ALPINE_VERSION
+FROM alpine:$ALPINE_VERSION AS download
 
 ARG DOWNLOAD_TYPE=teleport
 ARG VERSION_TAG
@@ -24,7 +25,7 @@ RUN curl -Ls -o /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/relea
 
 # Second stage builds final container with teleport binaries.
 # We can't use busybox:glibc as it doesn't provide all of Teleport's glibc library dependencies.
-FROM frolvlad/alpine-glibc AS teleport
+FROM quay.io/gravitational/alpine-glibc:$ALPINE_VERSION AS teleport
 
 # Copy ca-certificates from the package that we installed in the previous stage.
 COPY --from=download /usr/share/ca-certificates /usr/share/ca-certificates
