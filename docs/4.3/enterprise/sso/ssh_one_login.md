@@ -32,7 +32,14 @@ auth_service:
 Using OneLogin control panel, create a SAML 2.0 Web App in SAML configuration
 section:
 
-![Create APP](../../img/onelogin-saml-1.png)
+![Create APP](../../img/sso/onelogin/onelogin-saml-1.png)
+
+![Create APP](../../img/sso/onelogin/onelogin-saml-1a.png)
+
+### Download Icons
+
+- [Square Icon](../../img/sso/onelogin/teleport.png)
+- [Rectangular Icon](../../img/sso/onelogin/teleportlogo@2x.png)
 
 !!! tip "Important"
 
@@ -44,13 +51,13 @@ Set `Audience`, `Recipient` and `ACS (Consumer) URL Validator` to the same value
 `https://teleport.example.com/v1/webapi/saml/acs` where `teleport.example.com` is the
 public name of the teleport web proxy service:
 
-![Configure APP](../../img/onelogin-saml-2.png)
+![Configure APP](../../img/sso/onelogin/onelogin-saml-2.png)
 
 Teleport needs to assign groups to users. Configure the application with some parameters
 exposed as SAML attribute statements:
 
-![Configure APP](../../img/onelogin-saml-3.png)
-![Configure APP](../../img/onelogin-saml-4.png)
+![Configure APP](../../img/sso/onelogin/onelogin-saml-3.png)
+![Configure APP](../../img/sso/onelogin/onelogin-saml-4.png)
 
 !!! warning "Important"
 
@@ -58,7 +65,7 @@ exposed as SAML attribute statements:
 
 Add users to the application:
 
-![Configure APP](../../img/onelogin-saml-5.png)
+![Configure APP](../../img/sso/onelogin/onelogin-saml-5.png)
 
 ## Create a SAML Connector
 
@@ -71,7 +78,7 @@ Write down this template as `onelogin-connector.yaml`:
 
 To fill in the fields, open `SSO` tab:
 
-![Configure APP](../../img/onelogin-saml-6.png)
+![Configure APP](../../img/sso/onelogin/onelogin-saml-6.png)
 
 * `acs` - is the name of the teleport web proxy, e.g. `https://teleport.example.com/v1/webapi/saml/acs`
 * `issuer` - use value from `Issuer URL field`, e.g. `https://app.onelogin.com/saml/metadata/123456`
@@ -83,7 +90,7 @@ To fill in the fields, open `SSO` tab:
 
 * `cert` - download certificate, by clicking "view details link" and add to `cert` section
 
-![Configure APP](../../img/onelogin-saml-7.png)
+![Configure APP](../../img/sso/onelogin/onelogin-saml-7.png)
 
 Create the connector using `tctl` tool:
 
@@ -161,6 +168,8 @@ automatically in a browser).
     means you can not initiate login from your identity provider, you have to
     initiate login from either the Teleport Web UI or CLI.
 
+![Teleport](../../img/sso/onelogin/onelogin-saml-8.png)
+
 ## Troubleshooting
 
 If you get "access denied errors" the number one place to check is the audit
@@ -176,4 +185,3 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
-
