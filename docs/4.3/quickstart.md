@@ -106,12 +106,14 @@ yet. Let's create one for your OS user. In this example the OS user is
     do not map to a real OS user you will get authentication errors later on in
     this tutorial!
 
-``` bash
+```bash
 # A new Teleport user will be assigned a
 # mapping to an OS user of the same name
 # This is the same as running `tctl users add teleport teleport`
 [teleport@grav-00 ~]$ tctl users add teleport
-User teleport has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s: https://grav-00:3080/web/invite/3a8e9fb6a5093a47b547c0f32e3a98d4
+User teleport has been created but requires a password.
+Share this URL with the user to complete user setup, link is valid for 1h0m0s:
+https://grav-00:3080/web/invite/3a8e9fb6a5093a47b547c0f32e3a98d4
 
 NOTE: Make sure grav-00:3080 points at a Teleport proxy which users can access.
 ```
@@ -140,7 +142,7 @@ do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`.
 
 <!-- Link to networking/production guide -->
 
-![Teleport User Registration](img/login.png)
+![Teleport User Registration](img/quickstart/login.png)
 
 Teleport enforces two-factor authentication by default <!-- Link to
 Configuration -->. If you do not already have [Google
@@ -151,7 +153,7 @@ Teleport login web page, pick a password and enter the two-factor token.
 
 After completing registration you will be logged in automatically
 
-![Teleport UI Dashboard](img/ui-dashboard.png)
+![Teleport UI Dashboard](img/quickstart/teleport-nodes.png)
 
 ## Step 5: Log in through the CLI
 
@@ -214,7 +216,7 @@ which has been authenticated by Teleport!
 
 Try a few things to get familiar with recorded sessions:
 
-![Sessions View](img/sessions.png)
+![Sessions View](img/quickstart/teleport-join-session.png)
 
 1. Navigate to `https://[HOST]:3080/web/sessions` in your web browser to see the
 list of current and past sessions on the cluster. The session you just created
@@ -223,7 +225,7 @@ should be listed.
 2. After you end a session (type `$ exit` in session), replay it in your browser.
 3. Join the session in your web browser.
 
-![Two Recorded Sessions](img/recorded-session.png)
+<!-- TODO ![Two Recorded Sessions](img/recorded-session.png)e -->
 
 Here we've started two recorded sessions on the node `grav-00` : one via the web
 browser and one in the command line. Notice that there are distinct SSH sessions
@@ -274,13 +276,14 @@ $ echo "Awesome!"
 
 ## Next Steps
 
-Congratulations! You've completed the Teleport Quickstart. In this guide you've
-learned how to install Teleport on a single-node and seen a few of the most
-practical features in action. When you're ready to learn how to set up Teleport
-for your team, we recommend that you read our [Admin Guide](admin-guide.md) to
-get all the important details. This guide will lay out
-everything you need to safely run Teleport in production, including SSL
-certificates, security considerations, and YAML configuration.
+Congratulations! You've completed the Teleport Quickstart.
+
+In this guide you've learned how to install Teleport on a single-node and seen a
+few of the most practical features in action. When you're ready to learn how to set
+up Teleport for your team, we recommend that you read our [Admin Guide](admin-guide.md)
+to get all the important details. This guide will lay out everything you need to
+safely run Teleport in production, including SSL certificates, security considerations,
+and YAML configuration.
 
 ### Guides
 

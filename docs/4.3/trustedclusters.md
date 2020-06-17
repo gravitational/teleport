@@ -72,7 +72,7 @@ Leaf clusters also have their own restrictions on user access, i.e.
 _permissions mapping_ takes place.
 
 **Once connection has been established it's easy to switch from the "main" root cluster**
-![Teleport Cluster Switcher](img/trusted-clusters/Teleport-Cluster-switcher.png)
+![Teleport Cluster Page](img/trusted-clusters/teleport-trusted-cluster.png)
 
 ## Join Tokens
 
@@ -193,7 +193,7 @@ spec:
       "environment": "production"
 ```
 
-Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is
+Now, we need to establish trust between roles "main:admin" and "east:admin". This is
 done by creating a trusted cluster [resource](admin-guide.md#resources) on "east"
 which looks like this:
 
@@ -203,13 +203,15 @@ which looks like this:
 kind: trusted_cluster
 version: v1
 metadata:
-  name: "main"
+  name: "name-of-main-cluster"
 spec:
   enabled: true
   role_map:
-    - remote: "admin"
-      local: [local-admin]
-  token: "join-token"
+    - remote: admin
+      # admin <-> admin works for community edition. Enterprise users
+      # have great control over RBAC.
+      local: [admin]
+  token: "join-token-from-main"
   tunnel_addr: main.example.com:3024
   web_proxy_addr: main.example.com:3080
 ```
@@ -237,7 +239,6 @@ role name and use reference it to name the local role:
 **NOTE:** The regexp matching is activated only when the expression starts
 with `^` and ends with `$`
 
-
 ### Trusted Cluster UI
 For customers using Teleport Enterprise, they can easily configure _leaf_ nodes using the
 Teleport Proxy UI.
@@ -245,8 +246,6 @@ Teleport Proxy UI.
 **Creating Trust from the Leaf node to the root node.**
 ![Tunnels](img/trusted-clusters/setting-up-trust.png)
 
-**The root cluster showing the cluster switching UI.**
-![Teleport Cluster Switcher](img/trusted-clusters/Teleport-Cluster-switcher.png)
 
 ## Updating Trusted Cluster Role Map
 
