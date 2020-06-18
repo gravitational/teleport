@@ -216,8 +216,9 @@ trigger:
       - promote
       - rollback
 
-depends_on:
-  - test
+# TODO(gus): remove
+# depends_on:
+#   - test
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -314,6 +315,18 @@ steps:
       # TODO(gus): remove
       target: teleport/tag/${TEST_TAG}
       strip_prefix: /go/src/github.com/gravitational/teleport/build
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -549,6 +562,6 @@ steps:
 
 ---
 kind: signature
-hmac: 401b941efb4b2a386fbfdb8def7bc3f30231dda0ff48385086188c6c35484829
+hmac: ed16845d8fcdbfa2847abf1fe008f98521b7a9b676ec1640dd950f76970fe827
 
 ...
