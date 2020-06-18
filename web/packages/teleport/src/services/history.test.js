@@ -41,6 +41,7 @@ describe('services/history', () => {
       },
     });
 
+    // eslint-disable-next-line jest/expect-expect
     it('should push if allowed else fallback to default route', () => {
       history.getRoutes.mockReturnValue([
         '/valid',
@@ -75,7 +76,7 @@ describe('services/history', () => {
       let route = '/';
       history.getRoutes.mockReturnValue([route]);
       history.push(route, true);
-      expect(history._pageRefresh).toBeCalledWith(route);
+      expect(history._pageRefresh).toHaveBeenCalledWith(route);
     });
   });
 
@@ -87,7 +88,7 @@ describe('services/history', () => {
 
       const expected =
         '/web/login?redirect_uri=http://localhost/current-location';
-      expect(history._pageRefresh).toBeCalledWith(expected);
+      expect(history._pageRefresh).toHaveBeenCalledWith(expected);
     });
   });
 });

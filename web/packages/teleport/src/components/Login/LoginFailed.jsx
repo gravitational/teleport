@@ -22,7 +22,7 @@ import cfg from 'teleport/config';
 import LogoHero from './../LogoHero';
 
 export default function LoginFailed() {
-  const message = getUrlParameter('details');
+  const message = getUrlParameter('details', window.location.search);
   return (
     <>
       <LogoHero />
