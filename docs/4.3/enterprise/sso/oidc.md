@@ -199,6 +199,8 @@ spec:
      - claim: "group"
        value: "user"
        roles: [ "user" ]
+  # Glob matches of values instead of static matches:
+  # - {claim: "roles", value: "gravitational/*", roles: ["clusteradmin"]}
 ```
 
 ## Testing
@@ -228,4 +230,3 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
-
