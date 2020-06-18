@@ -8,8 +8,8 @@ install any version listed in our [Release History](https://gravitational.com/te
 
 ## Checksums
 
-Gravitational Teleport provides a checksum from the Downloads page.  This should
-be used to verify the integrity of our binary.
+Gravitational Teleport provides a checksum from the [Downloads](https://gravitational.com/teleport/download/).
+This should be used to verify the integrity of our binary.
 
 ![Teleport Checksum](./img/teleport-sha.png)
 
