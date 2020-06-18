@@ -1,6 +1,6 @@
 # Teleport User Manual
 
-This User Manual covers usage of the Teleport client tool, `tsh` and Teleports Web interface.
+This User Manual covers usage of the Teleport client tool, `tsh` and Teleport's Web interface.
 
 In this document you will learn how to:
 
