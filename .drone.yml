@@ -272,6 +272,8 @@ steps:
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - make init-submodules-e
       - rm -f /root/.ssh/id_rsa
+      # create cache directory
+      - mkdir -p /go/cache
 
   - name: Build release artifacts
     image: docker:git
@@ -562,6 +564,6 @@ steps:
 
 ---
 kind: signature
-hmac: 583136fcde73a7d7ef08add14626a4b364efc3386b5bb70c5c25ca4538fafcc1
+hmac: 2383dac8c3f25acd94a91f3de5aa6c34b49782a8542cb29609b53046bf197282
 
 ...
