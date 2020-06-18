@@ -113,7 +113,7 @@ func (s *AuthServer) createOIDCClient(conn services.OIDCConnector) (*oidc.Client
 		// return user-friendly error hiding the actual error in the event
 		// logs for security purposes
 		return nil, trace.ConnectionProblem(nil,
-			"failed to login with %v, please contact your system administrator to check audit logs",
+			"Failed to login with %v.",
 			conn.GetDisplay())
 	}
 
