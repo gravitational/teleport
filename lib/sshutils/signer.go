@@ -81,7 +81,7 @@ func AlgSigner(s ssh.Signer, alg string) ssh.Signer {
 	if alg == "" {
 		return s
 	}
-	if s.PublicKey().Type() != ssh.KeyAlgoRSA {
+	if s.PublicKey().Type() != ssh.KeyAlgoRSA && s.PublicKey().Type() != ssh.CertAlgoRSAv01 {
 		return s
 	}
 	as, ok := s.(ssh.AlgorithmSigner)
