@@ -1,0 +1,13 @@
+[Unit]
+Description=Teleport Jira Plugin
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/local/bin/teleport-jira start --config=/etc/teleport-jira.toml --pid-file=/run/teleport-jira.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/teleport-jira.pid
+
+[Install]
+WantedBy=multi-user.target

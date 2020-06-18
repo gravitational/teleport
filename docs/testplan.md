@@ -198,7 +198,6 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 - [ ] Test receiving a message via Teleport Slackbot
 - [ ] Test receiving a new Jira Ticket via Teleport Jira
 
-
 ## WEB UI
 
 ### Dashboard
@@ -340,11 +339,8 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     port_forwarding: true
 ```
   - [ ] Verify that a user has access only to: "Cluster List", "Nodes", and "Active Sessions".
-
-
-
-
-
+  - [ ] Verify that a user is redirected to the login page.
+  - [ ] Verify that after successful login, a user is redirected to the Node List.
 
 ## Performance/Soak Test
 

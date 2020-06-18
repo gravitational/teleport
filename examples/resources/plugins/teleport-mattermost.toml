@@ -1,0 +1,22 @@
+# example mattermost configuration TOML file
+[teleport]
+auth-server = "example.com:3025"  # Teleport Auth Server GRPC API address
+client-key = "/var/lib/teleport/plugins/mattermost/auth.key" # Teleport GRPC client secret key
+client-crt = "/var/lib/teleport/plugins/mattermost/auth.crt" # Teleport GRPC client certificate
+root-cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport cluster CA certs
+
+[mattermost]
+token = "api-token"              # Mattermost Bot OAuth token
+secret = "signing-secret-value"  # Mattermost API Signing Secret
+# team = "mattermost-team-name"        # Mattermost Team Name
+# url = "mattermost.example.com:8065"  # Mattermost URL. With Optional Port. 
+channel = "channel-name"         # Mattermost Channel name to post requests to
+
+[http]
+listen = ":8081"          # Mattermost interaction callback listener
+# https-key-file = "/var/lib/teleport/plugins/mattermost/server.key"  # TLS private key
+# https-cert-file = "/var/lib/teleport/plugins/mattermost/server.crt" # TLS certificate
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

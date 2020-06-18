@@ -18,16 +18,16 @@ See `web/README.md` for more info.
 
 ## Running Locally
 
-We recommend using Docker to run and build the docs. 
+We recommend using Docker to run and build the docs.
 
-`make run-docs` will run the docs and setup a [livereload server](https://chrome.google.com/webstore/detail/livereload/jnihajbhpnppcggbcgedagnkighmdlei?hl=en) for easy previewing of changes.  
+`make run-docs` will run the docs and setup a [livereload server](https://chrome.google.com/webstore/detail/livereload/jnihajbhpnppcggbcgedagnkighmdlei?hl=en) for easy previewing of changes.
 
-`make docs` will build the docs, so they are ready to ship to production. 
+`make docs` will build the docs, so they are ready to ship to production.
 
 
 ## Tools used to build the Docs
 
-Teleport Docs are made with MkDocs and a few markdown extensions, First time users will need to install MkDocs https://www.mkdocs.org/#installation. 
+Teleport Docs are made with MkDocs and a few markdown extensions, First time users will need to install MkDocs https://www.mkdocs.org/#installation.
 
 To run the latest version of the docs on [http://127.0.0.1:8000](http://127.0.0.1:8000/quickstart):
 

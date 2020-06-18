@@ -2,7 +2,7 @@
 
 Welcome to the Teleport Quick Start Guide!
 
-The goal of this document is to show off the basic capabilities of Teleport. 
+The goal of this document is to show off the basic capabilities of Teleport.
 There are three types of services Teleport nodes can run: `nodes`, `proxies`
 and `auth servers`.
 
@@ -28,7 +28,7 @@ using Teleport's client-side tools:
 
 ## Installing and Starting
 
-Teleport runs on Linux, MacOS and Teleport 3.0 now supports Windows for running `tsh login`. 
+Teleport runs on Linux, MacOS and Teleport 3.0 now supports Windows for running `tsh login`.
 You can download pre-built binaries from [here](https://gravitational.com/teleport/download/)
 or you can [build it from source](https://github.com/gravitational/teleport).
 
@@ -42,7 +42,7 @@ $ sudo ./install
 
 This will copy Teleport binaries to `/usr/local/bin`.
 
-Let's start Teleport on a single-node. First, create a directory for Teleport 
+Let's start Teleport on a single-node. First, create a directory for Teleport
 to keep its data. By default it's `/var/lib/teleport`. Then start `teleport` daemon:
 
 ```bash
@@ -58,7 +58,7 @@ $ sudo teleport start
 
 At this point you should see Teleport print listening IPs of all 3 services into the console.
 
-Congratulations - you are now running Teleport! 
+Congratulations - you are now running Teleport!
 
 If you wish to deploy Teleport inside a Docker container:
 
@@ -71,7 +71,7 @@ $ docker pull quay.io/gravitational/teleport:3.1.8
 ## Creating Users
 
 Teleport users are defined on a cluster level and every Teleport user must be associated with
-a list of machine-level OS usernames it can authenticate as during a login. This list is 
+a list of machine-level OS usernames it can authenticate as during a login. This list is
 called "user mappings".
 
 If you do not specify the mappings, the new Teleport user will be assigned a mapping with
@@ -84,7 +84,7 @@ Signup token has been created. Share this URL with the user:
 https://localhost:3080/web/newuser/96c85ed60b47ad345525f03e1524ac95d78d94ffd2d0fb3c683ff9d6221747c2
 ```
 
-`tctl` prints a sign-up URL for you to open in your browser and complete registration: 
+`tctl` prints a sign-up URL for you to open in your browser and complete registration:
 
 ![teleport login](/img/login.png?style=grv-image-center-md)
 
@@ -92,7 +92,7 @@ Teleport enforces two-factor authentication. If you do not already have Google
 Authenticator (or another 2FA client), you will have to install it on your
 smart phone. Then you can scan the bar code on the Teleport login web page,
 pick a password and enter in the two factor token.
- 
+
 The default TTL for a login is 12 hours but this can be configured to be another value.
 
 Having done that, you will be presented with a Web UI where you will see your
@@ -126,11 +126,11 @@ $ tsh ssh localhost
 ```
 
 !!! tip "Tip":
-    To avoid typing "tsh ssh" a user may rename `tsh` binary to `ssh` and use the familiar syntax as in `ssh localhost`. 
+    To avoid typing "tsh ssh" a user may rename `tsh` binary to `ssh` and use the familiar syntax as in `ssh localhost`.
 
 ## Adding Nodes to Cluster
 
-Let's add another node to the cluster. The `tctl` command below will create a single-use 
+Let's add another node to the cluster. The `tctl` command below will create a single-use
 token for a node to join and will print instructions for you to follow:
 
 ```bash
@@ -141,7 +141,7 @@ Run this on the new node to join the cluster:
 teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=10.0.10.1
 ```
 
-Start `teleport` daemon on a new node as shown above, but make sure to use the proper 
+Start `teleport` daemon on a new node as shown above, but make sure to use the proper
 `--auth-server` IP to point back to your localhost.
 
 Once you do that, verify that the new node has joined the cluster:
@@ -151,17 +151,17 @@ $ tsh --proxy=localhost ls
 
 Node Name     Node ID                     Address            Labels
 ---------     -------                     -------            ------
-localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022     
-new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     
+localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
+new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022
 ```
 
-!!! tip "NOTE": 
+!!! tip "NOTE":
     Teleport also supports static pre-defined invitation tokens which can be set in the [configuration file](admin-guide.md#adding-nodes-to-the-cluster)
 
 ## Using Node Labels
 
-Notice the "Labels" column in the output above. It is currently not populated. Teleport lets 
-you apply static or dynamic labels to your nodes. As the cluster grows and nodes assume different 
+Notice the "Labels" column in the output above. It is currently not populated. Teleport lets
+you apply static or dynamic labels to your nodes. As the cluster grows and nodes assume different
 roles, labels will help to find the right node quickly.
 
 Let's see labels in action. Stop Teleport `ctrl-c` on the node we just added and restart it with the following command:
@@ -184,7 +184,7 @@ $ tsh --proxy=localhost ls
 
 Node Name     Node ID                     Address            Labels
 ---------     -------                     -------            ------
-localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022     
+localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
 db            xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     location=virginia,arch=x86_64
 ```
 
@@ -206,14 +206,14 @@ on all servers located in Virginia:
 $ tsh --proxy=localhost ssh location=virginia ls -l /
 ```
 
-## Sharing SSH Sessions 
+## Sharing SSH Sessions
 
-Suppose you are trying to troubleshoot a problem on a node. Sometimes it makes sense to ask 
-another team member for help. Traditionally this could be done by letting them know which 
-node you're on, having them SSH in, start a terminal multiplexer like `screen` and join a 
+Suppose you are trying to troubleshoot a problem on a node. Sometimes it makes sense to ask
+another team member for help. Traditionally this could be done by letting them know which
+node you're on, having them SSH in, start a terminal multiplexer like `screen` and join a
 session there.
 
-Teleport makes this a bit more convenient. Let's log into "db" and ask Teleport for your 
+Teleport makes this a bit more convenient. Let's log into "db" and ask Teleport for your
 current session status:
 
 ```bash
@@ -233,7 +233,7 @@ Also, people can join your session via terminal assuming they have Teleport inst
 $ tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
-!!! tip "NOTE": 
+!!! tip "NOTE":
     For this to work, both of you must have proper user mappings allowing you access `db` under the same OS user.
 
 ## Running in Production
@@ -241,9 +241,9 @@ $ tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
 We hope this quickstart guide has helped you to quickly set up and play with Teleport. For production environments, we strongly recommend the following:
 
 - Install HTTPS certificates for every Teleport proxy.
-- Run Teleport `auth` on isolated servers. The auth service can run in a 
+- Run Teleport `auth` on isolated servers. The auth service can run in a
   highly available (HA) configuration.
-- Use a configuration file instead of command line flags because it gives you 
+- Use a configuration file instead of command line flags because it gives you
   more flexibility.
 - Review the [Architecture Overview](architecture.md), [Admin Manual](admin-guide.md) and [User Manual](user-manual.md) for a better understanding of Teleport.
 

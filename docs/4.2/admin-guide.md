@@ -34,7 +34,7 @@ $ sudo mkdir -p -m0700 /var/lib/teleport
 
 ### Teleport Checksum
 
-Gravitational Teleport provides a checksum from the 
+Gravitational Teleport provides a checksum from the
 [Downloads](https://gravitational.com/teleport/download/) page. This can be
 used to verify the integrity of our binary.
 
@@ -115,9 +115,9 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
-ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/var/run/teleport.pid
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/teleport.pid
+PIDFile=/run/teleport.pid
 
 [Install]
 WantedBy=multi-user.target
@@ -188,7 +188,7 @@ Docs](cli-docs.md#teleport-start) or run `teleport start --help`
 
 ### Configuration File
 
-Teleport uses the YAML file format for configuration. A sample configuration file is shown below. By default, it is stored in `/etc/teleport.yaml`. 
+Teleport uses the YAML file format for configuration. A sample configuration file is shown below. By default, it is stored in `/etc/teleport.yaml`.
 
 For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
 
@@ -243,7 +243,7 @@ teleport:
         max_users: 250
 
     # Logging configuration. Possible output values to disk via '/var/lib/teleport/teleport.log',
-    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN 
+    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
     # and ERROR (default).
     log:
         output: /var/lib/teleport/teleport.log
@@ -262,7 +262,7 @@ teleport:
         audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name', 'firestore://events_table_name', 'stdout://']
 
         # Use this setting to configure teleport to store the recorded sessions in
-        # an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using Amazon S3" 
+        # an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using Amazon S3"
         # chapter for more information.
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
@@ -319,8 +319,8 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', and 'saml' for Enterprise.
-        #  To support FedRAMP / FIPS, local_auth needs to be turned off by setting it to 'false' and a SSO   
-        #  connector is required to log into Teleport, see 
+        #  To support FedRAMP / FIPS, local_auth needs to be turned off by setting it to 'false' and a SSO
+        #  connector is required to log into Teleport, see
         #  https://gravitational.com/teleport/docs/enterprise/ssh_fips#teleport-auth-server
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
@@ -426,10 +426,10 @@ ssh_service:
     # set to false, can be set true here or as a command line flag.
     permit_user_env: false
 
-    # Enhanced Session Recording was introduced with Teleport 4.2. For more details 
-    # see 
+    # Enhanced Session Recording was introduced with Teleport 4.2. For more details
+    # see
     enhanced_recording:
-       # Enable or disable enhanced auditing for this node. Default value: 
+       # Enable or disable enhanced auditing for this node. Default value:
        # false.
        enabled: true
 
@@ -438,11 +438,11 @@ ssh_service:
 
        # disk_buffer_size is optional with default value of 128 pages.
        disk_buffer_size: 128
-       
+
        # network_buffer_size is optional with default value of 8 pages.
        network_buffer_size: 8
 
-       # Controls where cgroupv2 hierarchy is mounted. Default value: 
+       # Controls where cgroupv2 hierarchy is mounted. Default value:
        # /cgroup2.
        cgroup_path: /cgroup2
 
@@ -483,7 +483,7 @@ proxy_service:
     # behind a load balancer, this name must point to the load balancer.
     # Use a TCP load balancer because this port uses SSH protocol.
     ssh_public_addr: proxy.example.com:3023
-    
+
     # The DNS name of the tunnel SSH endpoint as accessible by trusted clusters and
     # nodes joining the cluster via Teleport IoT/node tunneling.
     # Defaults to the proxy's hostname if not specified. If running multiple proxies
@@ -546,7 +546,7 @@ command. Teleport also supports second factor authentication (2FA) for the local
 connector. There are three possible values (types) of 2FA:
 
   + `otp` is the default. It implements [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-     standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) 
+     standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator)
      or [Authy](https://www.authy.com/) or any other TOTP client.
 
   + `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
@@ -668,8 +668,8 @@ $ tsh --proxy <proxy-addr> ssh <hostname>
 ```
 
 !!! tip "Version Warning"
-  
-    External user identities are only supported in [Teleport Enterprise](enterprise/index.md). 
+
+    External user identities are only supported in [Teleport Enterprise](enterprise/index.md).
 
     Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
 
@@ -867,13 +867,13 @@ dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro
 
 ### Removing Nodes from a Cluster
 
-To remove a node from a cluster, simply stop the node that you want to remove. 
+To remove a node from a cluster, simply stop the node that you want to remove.
 
 #### Time to live
 Node processes that are stopped have a TTL time of 10 minutes.
-You can restart the node within this time limit to keep the node. 
+You can restart the node within this time limit to keep the node.
 
-After 10 minutes, the node is no longer considered `active` and is removed from 
+After 10 minutes, the node is no longer considered `active` and is removed from
 the `active SSH nodes` list within the cluster. You can check that the node has been removed with
 the command: [`tctl nodes ls`](cli-docs.md#tctl-nodes-ls).
 
@@ -996,7 +996,7 @@ setting up a [Trusted Cluster](trustedclusters.md) if you have workloads split
 across different networks / clouds.
 
 Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
-useful for IoT applications or for managing a couple of servers in a different network.  
+useful for IoT applications or for managing a couple of servers in a different network.
 
 Similar to [Adding Nodes to Cluster](#adding-nodes-to-the-cluster), use `tctl` to
 create a single-use token for a node, but this time you'll replace the auth
@@ -1022,8 +1022,8 @@ In addition to specifying a custom nodename, Teleport also allows for the
 application of arbitrary key:value pairs to each node, called labels. There are
 two kinds of labels:
 
-1. `static labels` do not change over time, while [`teleport`](cli-docs.md#teleport) 
-    process is running.  Examples of static labels are physical location of nodes, 
+1. `static labels` do not change over time, while [`teleport`](cli-docs.md#teleport)
+    process is running.  Examples of static labels are physical location of nodes,
     name of the environment (staging vs production), etc.
 
 2. `dynamic labels` also known as "label commands" allow to generate labels at
@@ -1095,14 +1095,14 @@ command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+'"]
 Teleport logs every SSH event into its audit log. There are two components of
 the audit log:
 
-1. **SSH Events:** Teleport logs events like successful user logins along with 
+1. **SSH Events:** Teleport logs events like successful user logins along with
    the metadata like remote IP address, time and the session ID.
 
 2. **Recorded Sessions:** Every SSH shell session is recorded and can be
    replayed later. The recording is done by the nodes themselves, by default,
    but can be configured to be done by the proxy.
 
-3. **Optional: Enhanced Session Recording** 
+3. **Optional: Enhanced Session Recording**
 
 Refer to the ["Audit Log" chapter in the Teleport
 Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit log and
@@ -1114,7 +1114,7 @@ Teleport supports multiple storage back-ends for storing the SSH events. The
 section below uses the `dir` backend as an example. `dir` backend uses the local
 filesystem of an auth server using the configurable `data_dir` directory.
 
-For highly available (HA) configuration, users can refer to our 
+For highly available (HA) configuration, users can refer to our
 [DynamoDB](#using-dynamodb) or [etcd](#using-etcd) chapters on how to configure
 the SSH events and recorded sessions to be stored on network storage. It is even
 possible to store the audit log in multiple places at the same time, see
@@ -1753,7 +1753,7 @@ spec:
 
 To obtain client ID and client secret, please follow Github documentation on how
 to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
-Be sure to set the "Authorization callback URL" to the same value as `redirect_url` in 
+Be sure to set the "Authorization callback URL" to the same value as `redirect_url` in
 the resource spec.
 
 Finally, create the connector using [`tctl`](cli-docs.md#tctl)
@@ -1833,7 +1833,7 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 
 !!! tip "Note"
 
-    Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport. 
+    Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport.
 
 ## Using Teleport with OpenSSH
 
@@ -2202,7 +2202,7 @@ proxy is running without problems.
 
     As the new auth servers get added to the cluster and the old
     servers get decommissioned, nodes and proxies will refresh the list of
-    available auth servers and store it in their local cache 
+    available auth servers and store it in their local cache
     `/var/lib/teleport/authservers.json` - the values from the cache file will take
     precedence over the configuration file.
 
@@ -2427,8 +2427,8 @@ Firestore:
 * Deploy several auth servers connected to Firestore storage back-end.
 * Deploy several proxy nodes.
 * Make sure that all Teleport nodes have `auth_servers` configuration setting
-  populated with the auth servers or use a load balancer for the auth servers in 
-  high availability mode. 
+  populated with the auth servers or use a load balancer for the auth servers in
+  high availability mode.
 
 ```yaml
 teleport:
@@ -2508,7 +2508,7 @@ As an extra precaution you might want to backup your application prior to upgrad
 
     Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
     two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
-   
+
     [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
 
 ### Backup Before Upgrading
@@ -2546,11 +2546,11 @@ When upgrading multiple clusters:
 
 ## Backing Up Teleport
 
-As of version v4.1 you can now quickly export a collection of resources from 
+As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature set works best for local and etcd, it's currently experimental
-for AWS/GCP. 
+for AWS/GCP.
 
-Using `tctl get all` will backup. 
+Using `tctl get all` will backup.
 
 - Users
 - Certificate Authorities
@@ -2561,7 +2561,7 @@ Using `tctl get all` will backup.
     - OIDC [Teleport Enterprise]
     - Roles [Teleport Enterprise]
 
-When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly. 
+When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly.
 
 **Example of backing up and restoring a cluster.**
 
