@@ -484,7 +484,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		ServerID:       ctx.srv.ID(),
 		Namespace:      r.srv.GetNamespace(),
 		ServerHostname: ctx.srv.GetInfo().GetHostname(),
-		ServerAddr:     ctx.srv.GetInfo().GetAddr(),
+		ServerAddr:     ctx.ServerConn.LocalAddr().String(),
 		ClusterName:    ctx.ClusterName,
 	}
 
