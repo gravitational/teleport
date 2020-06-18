@@ -178,7 +178,7 @@ Save this as `teleport-jira.service`.
 
 ## Audit Log
 The plugin will let anyone with access to the Jira board approve/deny requests so it's
-important to review Teleports audit log.
+important to review Teleport's audit log.
 
 ## Feedback
 If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).

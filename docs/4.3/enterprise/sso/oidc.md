@@ -200,7 +200,7 @@ spec:
        value: "user"
        roles: [ "user" ]
   # Glob matches of values instead of static matches:
-  # - {claim: "roles", value: "gravitational/*", roles: ["clusteradmin"]}
+     - {claim: "roles", value: "gravitational/*", roles: ["clusteradmin"]}
 ```
 
 ## Testing

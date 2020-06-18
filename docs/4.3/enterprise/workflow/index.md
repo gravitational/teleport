@@ -136,8 +136,8 @@ deny:
 
 | Integration | Feature | Type          | Setup Instructions |
 |-------------|---------|---------------|--------------------|
-| Slack       |         | Chatbot       | Setup Slack        |
-| Mattermost  |         | Chatbot       | Setup Mattermost   |
-| Jira Server |         | Project Board | Setup Jira Server  |
-| Jira Cloud  |         | Project Board | Setup Jira Cloud   |
-| PagerDuty   |         | Schedule      | Setup PagerDuty    |
+| Slack       |         | Chatbot       | [Setup Slack](ssh_approval_slack.md) |
+| Mattermost  |         | Chatbot       | [Setup Mattermost](ssh_approval_mattermost.md) |
+| Jira Server |         | Project Board | [Setup Jira Server](ssh_approval_jira_server.md) |
+| Jira Cloud  |         | Project Board | [Setup Jira Cloud](ssh_approval_jira_cloud.md) |
+| PagerDuty   |         | Schedule      | [Setup PagerDuty](ssh_approval_pagerduty.md) |
