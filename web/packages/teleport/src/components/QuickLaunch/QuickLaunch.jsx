@@ -54,7 +54,7 @@ export default function FieldInputSsh({ onPress, ...boxProps }) {
   );
 }
 
-const SSH_STR_REGEX = /(^\w+@(\S+)$)/;
+const SSH_STR_REGEX = /(^(\w+-?\w+)+@(\S+)$)/;
 const check = value => {
   const match = SSH_STR_REGEX.exec(value);
   return match !== null;
