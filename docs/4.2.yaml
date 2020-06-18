@@ -31,9 +31,9 @@ extra_javascript: []
 extra:
     version: 4.2
     teleport:
-        version: 4.2.9
+        version: 4.2.10
         golang: 1.13
-        sha: 87ef75e6fe62d49dd75e41d43433e43cf38aed6077b991582166a1cd8e9c14e7
+        sha: d31ec5a5d31aefa772d53b70ee25cd5fce40554ad61c1d1af69ee38ac421e9b6
 nav:
     - Documentation:
         - Introduction: index.md
@@ -52,9 +52,9 @@ nav:
     - Teleport Enterprise :
         - Introduction: enterprise/index.md
         - Quick Start Guide: enterprise/quickstart-enterprise.md
-        - Single sign-on (SSO): enterprise/ssh_sso.md   
-        - FedRAMP & FIPS: enterprise/ssh_fips.md        
-        - RBAC: enterprise/ssh_rbac.md 
+        - Single sign-on (SSO): enterprise/ssh_sso.md
+        - FedRAMP & FIPS: enterprise/ssh_fips.md
+        - RBAC: enterprise/ssh_rbac.md
         #- SSO Guides:
         #    - Azure Active Directory (AD): enterprise/sso/ssh_azuread.md
         #    - Active Directory (ADFS):  enterprise/sso/ssh_adfs.md
@@ -69,7 +69,7 @@ nav:
         - Teleport Auth: architecture/teleport_auth.md
         - Teleport Proxy: architecture/teleport_proxy.md
         - Trusted Clusters: trustedclusters.md
-    - Teleport Advanced Features: 
+    - Teleport Advanced Features:
         - Enhanced Session Recording: features/enhanced_session_recording.md
         - Using Teleport with PAM: features/ssh_pam.md
     - CLI Reference:

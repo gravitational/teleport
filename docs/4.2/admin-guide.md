@@ -6,64 +6,7 @@ understanding of Linux administration.
 
 ## Installing
 
-To install, download the official binaries from the [Teleport
-Downloads](https://gravitational.com/teleport/download/) section on our web site
-and run:
-
-``` bash
-$ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-$ sudo make install
-```
-
-### Installing from Source
-
-Gravitational Teleport is written in Go language. It requires Golang v{{ teleport.golang }} or
-newer.
-
-``` bash
-# get the source & build:
-$ mkdir -p $GOPATH/src/github.com/gravitational
-$ cd $GOPATH/src/github.com/gravitational
-$ git clone https://github.com/gravitational/teleport.git
-$ cd teleport
-$ make full
-
-# create the default data directory before starting:
-$ sudo mkdir -p -m0700 /var/lib/teleport
-```
-
-### Teleport Checksum
-
-Gravitational Teleport provides a checksum from the
-[Downloads](https://gravitational.com/teleport/download/) page. This can be
-used to verify the integrity of our binary.
-
-Example using v4.0.8 *(replace v4.0.8 with the version of Teleport you are using)*:
-![Teleport Checksum](img/teleport-sha.png)
-
-**Checking Checksum on Mac OS**
-
-``` bash
-$ shasum -a 256 teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
-{{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
-```
-
-**Checking Checksum on Linux**
-
-``` bash
-$ sha256sum teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
-{{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
-```
-
-**Checking Checksum on Automated Systems**
-
-If you download Teleport via an automated system, you can programmatically
-obtain the checksum by adding `.sha256` to the binary.
-
-``` bash
-$ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz.sha256
-{{ teleport.sha }}  teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
-```
+Please visit our [installation page](installation.md) for instructions on downloading and installing Teleport.
 
 ## Definitions
 
