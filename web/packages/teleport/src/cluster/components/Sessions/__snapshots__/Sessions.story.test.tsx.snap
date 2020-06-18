@@ -269,12 +269,12 @@ exports[`loaded 1`] = `
           </strong>
            - 
           <strong>
-            1
+            2
           </strong>
            
           of 
           <strong>
-            1
+            2
           </strong>
         </div>
         <div
@@ -352,12 +352,60 @@ exports[`loaded 1`] = `
             </td>
             <td>
               localhost
-               [
-              1.1.1.1:1111
-              ]
+               
+              [1.1.1.1]
             </td>
             <td>
               12 min
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c12"
+                height="24px"
+                kind="border"
+              >
+                OPTIONS
+                <span
+                  class="c7 c13 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div
+                class="c10"
+              >
+                <a
+                  bg="bgTerminal"
+                  class="c7 c11 icon icon-terminal "
+                  color="light"
+                  font-size="2"
+                  href="/web/cluster/localhost/console/session/sid1"
+                  mr="3"
+                  p="1"
+                  style="border-radius: 50%; border: 2px solid #00bfa5; text-decoration: none;"
+                />
+                Session is in progress [root@10_128_0_6.demo.gravitational.io]
+              </div>
+            </td>
+            <td>
+              sid1
+            </td>
+            <td>
+              hehwawe@aw.sg [129.232.123.132]
+            </td>
+            <td>
+              10_128_0_6.demo.gravitational.io
+               
+              
+            </td>
+            <td>
+              5 min
             </td>
             <td
               align="right"

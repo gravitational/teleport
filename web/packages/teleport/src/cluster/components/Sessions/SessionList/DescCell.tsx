@@ -25,6 +25,9 @@ import cfg from 'teleport/config';
 export default function TypeCell(props: any) {
   const { rowIndex, data } = props;
   const { sid, serverId, login, hostname } = data[rowIndex] as Session;
+
+  // DELETE IN: 5.2 remove check for hostname.
+  // Older teleport versions do not set/retrieve hostname.
   const nodeDesc = hostname || serverId;
   const url = cfg.getSshSessionRoute({ sid });
   const theme = useTheme();
