@@ -126,7 +126,21 @@ $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 # Login using Github as an SSO provider, assuming the Github connector is called "github"
 $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 ```
+
+When using an external identity provider to log in, `tsh` will need to open a web browser to
+complete the authentication flow. By default, `tsh` will use your system's default browser to open
+such links. If you wish to suppress this behaviour, you can use the `--browser=none` flag:
+
+```
+# Don't open the system default browser when logging in
+$ tsh login --proxy=work.example.com --browser=none
+```
+
+In this situation, a link will be printed to the screen. You can copy and paste this link into
+a browser of your choice to continue the login flow.
+
 [CLI Docs - tsh login](cli-docs.md#tsh-login)
+
 
 ### Inspecting SSH Certificate
 
