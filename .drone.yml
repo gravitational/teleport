@@ -257,7 +257,7 @@ steps:
   #     - pushd build/e && for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
 
   - name: Check out code
-    image: docker:git
+    image: golang:1.13.2
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -562,6 +562,6 @@ steps:
 
 ---
 kind: signature
-hmac: ed16845d8fcdbfa2847abf1fe008f98521b7a9b676ec1640dd950f76970fe827
+hmac: f002a154e9824b59d85b4a5251e22d313c823dfab1abcf989e7614409d9f1339
 
 ...
