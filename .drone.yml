@@ -221,7 +221,7 @@ trigger:
 #   - test
 
 workspace:
-  path: /go/src/github.com/gravitational/teleport
+  path: /go
 
 clone:
   disable: true
@@ -295,7 +295,7 @@ steps:
         -v /go/cache:$GOPATH/cache
         -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
         -w $GOPATH/src/github.com/gravitational/teleport
-        -h testbox
+        -h buildbox
         -u $UID:$GID
         -t quay.io/gravitational/teleport-buildbox:go1.13.2
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME"
@@ -562,6 +562,6 @@ steps:
 
 ---
 kind: signature
-hmac: f002a154e9824b59d85b4a5251e22d313c823dfab1abcf989e7614409d9f1339
+hmac: 583136fcde73a7d7ef08add14626a4b364efc3386b5bb70c5c25ca4538fafcc1
 
 ...
