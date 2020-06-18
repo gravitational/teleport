@@ -200,12 +200,21 @@ kind: pipeline
 type: kubernetes
 name: build
 
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+# TODO(gus): remove
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - promote
+      - rollback
 
 depends_on:
   - test
@@ -217,29 +226,78 @@ clone:
   disable: true
 
 steps:
-  - name: Build release artifacts
-    image: golang:1.13.2
+  # build on directly in kubernetes
+  # - name: Build release artifacts
+  #   image: golang:1.13.2
+  #   environment:
+  #     GITHUB_PRIVATE_KEY:
+  #       from_secret: GITHUB_PRIVATE_KEY
+  #     TEST_TAG: v4.2.10
+  #   commands:
+  #     - git clone https://github.com/gravitational/teleport.git .
+  #     - git fetch --all --tags
+  #     #- git checkout $DRONE_TAG
+  #     # TODO(gus): remove
+  #     - git checkout $TEST_TAG
+  #     # fetch enterprise submodules
+  #     - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  #     - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  #     - git submodule update --init e
+  #     - git submodule update --init --recursive webassets || true
+  #     - rm -f /root/.ssh/id_rsa
+  #     - mkdir -p build/e
+  #     # build release artifacts
+  #     - make release
+  #     # copy release archives to build directory
+  #     - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} build/ \;
+  #     - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} build/e \;
+  #     # generate checksums
+  #     - pushd build && for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+  #     - pushd build/e && for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+
+  - name: Check out code
+    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git fetch --all --tags
-      - git checkout $DRONE_TAG
+      - git checkout $DRONE_COMMIT
+      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
+      - make init-submodules-e
       - rm -f /root/.ssh/id_rsa
-      - mkdir -p build/e
-      # build release artifacts
-      - make release
-      # copy release archives to build directory
-      - find . -maxdepth 1 -iname "*.tar.gz" -print -exec cp {} build/ \;
-      - find e -maxdepth 1 -iname "*.tar.gz" -print -exec cp {} build/e \;
-      # generate checksums
-      - pushd build && for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
-      - pushd build/e && for FILE in *.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+
+  - name: Build release artifacts
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+      UID: 1000
+      GID: 1000
+      GOPATH: /gopath
+      OS: linux
+      ARCH: amd64
+      RUNTIME: go1.13.2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - >-
+        docker run --rm=true
+        -e GOCACHE=$GOPATH/cache
+        -v /go/cache:$GOPATH/cache
+        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
+        -w $GOPATH/src/github.com/gravitational/teleport
+        -h testbox
+        -u $UID:$GID
+        -t quay.io/gravitational/teleport-buildbox:go1.13.2
+        /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME"
 
   - name: Upload to S3
     image: plugins/s3
@@ -252,7 +310,9 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/src/github.com/gravitational/teleport/build/*
-      target: teleport/tag/${DRONE_TAG}
+      # target: teleport/tag/${DRONE_TAG}
+      # TODO(gus): remove
+      target: teleport/tag/${TEST_TAG}
       strip_prefix: /go/src/github.com/gravitational/teleport/build
 
 ---
@@ -489,6 +549,6 @@ steps:
 
 ---
 kind: signature
-hmac: dd394fef656a6d54a532f9bd575bdb6fcdb3c448860a4a02b21f88d39b6c7909
+hmac: 401b941efb4b2a386fbfdb8def7bc3f30231dda0ff48385086188c6c35484829
 
 ...
