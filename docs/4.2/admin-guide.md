@@ -370,7 +370,7 @@ ssh_service:
     permit_user_env: false
 
     # Enhanced Session Recording was introduced with Teleport 4.2. For more details
-    # see
+    # see https://gravitational.com/teleport/docs/features/enhanced_session_recording
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value:
        # false.
