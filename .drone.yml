@@ -735,11 +735,20 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 
+# TODO(gus): remove
+# trigger:
+#   branch:
+#     - master
+#   event:
+#     - push
 trigger:
   branch:
     - master
+    - branch/*
   event:
-    - push
+    exclude:
+      - promote
+      - rollback
 
 workspace:
   path: /go
@@ -767,6 +776,7 @@ steps:
       repo: quay.io/gravitational/teleport-buildbox
       tags:
         - go1.13.2
+      pull_image: true
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
       context: /go/src/github.com/gravitational/teleport/build.assets
       build_args:
@@ -785,6 +795,7 @@ steps:
       repo: quay.io/gravitational/teleport-buildbox-fips
       tags:
         - go1.13.2
+      pull_image: true
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-fips
       context: /go/src/github.com/gravitational/teleport/build.assets
       build_args:
@@ -803,6 +814,7 @@ steps:
       repo: quay.io/gravitational/teleport-buildbox-centos6
       tags:
         - go1.13.2
+      pull_image: true
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6
       context: /go/src/github.com/gravitational/teleport/build.assets
       build_args:
@@ -821,6 +833,7 @@ steps:
       repo: quay.io/gravitational/teleport-buildbox-centos6-fips
       tags:
         - go1.13.2
+      pull_image: true
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6-fips
       context: /go/src/github.com/gravitational/teleport/build.assets
       build_args:
@@ -1018,6 +1031,6 @@ steps:
 
 ---
 kind: signature
-hmac: 388885398b3e0e795b3620060f1b4c1f6b89e639a1bfa94962758e820d2235e1
+hmac: 0901b766c1eeeab1505f5c9bb46901d570ab31a37ba6032c41c68f3bd1afabf8
 
 ...
