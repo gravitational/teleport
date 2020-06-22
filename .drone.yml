@@ -327,8 +327,8 @@ steps:
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/oss \;
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent \;
       # rename artifacts
-      - mv /go/artifacts/oss/teleport-v${TEST_TAG}-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-v${TEST_TAG}-linux-amd64-bin.tar.gz
-      - mv /go/artifacts/ent/teleport-ent-v${TEST_TAG}-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-ent-v${TEST_TAG}-linux-amd64-bin.tar.gz
+      - mv /go/artifacts/oss/teleport-v$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-v$TEST_TAG-linux-amd64-bin.tar.gz
+      - mv /go/artifacts/ent/teleport-ent-v$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-ent-v$TEST_TAG-linux-amd64-bin.tar.gz
 
   - name: Build FIPS release artifacts
     image: docker:git
@@ -368,7 +368,7 @@ steps:
       - mkdir -p /go/artifacts/ent-fips
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-fips \;
       # rename artifacts
-      - mv /go/artifacts/ent-fips/teleport-ent-v${TEST_TAG}-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-ent-v${TEST_TAG}-linux-amd64-fips-bin.tar.gz
+      - mv /go/artifacts/ent-fips/teleport-ent-v$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-ent-v$TEST_TAG-linux-amd64-fips-bin.tar.gz
 
   - name: Build CentOS 6 release artifacts
     image: docker:git
@@ -406,8 +406,8 @@ steps:
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/oss-centos6 \;
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-centos6 \;
       # rename artifacts
-      - mv /go/artifacts/oss-centos6/teleport-v${TEST_TAG}-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-v${TEST_TAG}-linux-amd64-centos6-bin.tar.gz
-      - mv /go/artifacts/ent-centos6/teleport-ent-v${TEST_TAG}-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-ent-v${TEST_TAG}-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/oss-centos6/teleport-v$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-v$TEST_TAG-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/ent-centos6/teleport-ent-v$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-ent-v$TEST_TAG-linux-amd64-centos6-bin.tar.gz
 
   - name: Build CentOS 6 FIPS release artifacts
     image: docker:git
@@ -445,7 +445,7 @@ steps:
       - mkdir -p /go/artifacts/ent-centos6-fips
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-centos6-fips \;
       # rename artifact
-      - mv /go/artifacts/ent-centos6-fips/teleport-v${TEST_TAG}-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-v${TEST_TAG}-linux-amd64-centos6-fips-bin.tar.gz
+      - mv /go/artifacts/ent-centos6-fips/teleport-v$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/final/teleport-v$TEST_TAG-linux-amd64-centos6-fips-bin.tar.gz
 
   - name: Build Windows release artifacts
     image: docker:git
@@ -747,6 +747,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7184b8bba7c2544055a5954f1badd4a53f3762809d73988e003c7f786a286693
+hmac: e0c058315d2121edfddb6c5438221ab74e67fbf255ae873ca6256be14223c4ef
 
 ...
