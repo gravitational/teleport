@@ -102,7 +102,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if err != nil {
 		log.Warningf("error while processing callback: %v", err)
 
-		message := "Unable to process callback from SAML provider. Ask your system administrator to check audit logs for details."
+		message := "Unable to process callback from SAML provider."
 		// for not implemented errors it's ok to provide a more specific
 		// message as it could give more guidance on what's not enabled
 		if trace.IsNotImplemented(err) {
