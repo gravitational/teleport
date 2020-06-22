@@ -261,7 +261,9 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      # TODO(gus): remove
       TEST_TAG: v4.2.10
+      REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAY_IO_DOCKER_USERNAME
       QUAYIO_DOCKER_PASSWORD:
@@ -688,6 +690,6 @@ steps:
 
 ---
 kind: signature
-hmac: 37d173b8b5a14395e3e72ad2a23e1c07702649d07f4c384fcaac7e4b6240b2e6
+hmac: 96e8f6ccc79cc8ae4ec80a0678b25add46c28a3ae71e1396d05e49f54cad4795
 
 ...
