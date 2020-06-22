@@ -172,7 +172,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: quay.io/gravitational/teleport-buildbox:go1.13.2
+    image: golang:1.13.2
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -180,8 +180,9 @@ steps:
       - git checkout $DRONE_COMMIT
 
   - name: Run docs tests
-    image: quay.io/gravitational/teleport-buildbox:go1.13.2
+    image: golang:1.13.2
     commands:
+      - go get -u -v github.com/magicmatatjahu/milv
       - cd /go/src/github.com/gravitational/teleport
       - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq)
       - if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
@@ -1055,6 +1056,6 @@ steps:
 
 ---
 kind: signature
-hmac: c834a5ca2fef77e75c843934d0b11df48100e6669202e697d5738dd644742b30
+hmac: bb28eac0dfaf5a3a6493366274f4acd60d5780324f6911b005d9d7a32673f6b1
 
 ...

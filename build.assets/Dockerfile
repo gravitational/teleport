@@ -38,8 +38,5 @@ RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.24.0
      cp golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ ;\
      rm -r golangci-lint*)
 
-# Install milv.
-RUN go get -u -v github.com/magicmatatjahu/milv
-
 VOLUME ["/gopath/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
