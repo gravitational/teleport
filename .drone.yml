@@ -760,10 +760,10 @@ steps:
   - name: Check out code
     image: docker:git
     environment:
-      repo: quay.io
-      username:
+      REPO: quay.io
+      QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
-      password:
+      QUAYIO_DOCKER_PASSWORD:
         from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
@@ -1139,6 +1139,6 @@ steps:
 
 ---
 kind: signature
-hmac: 1f5fcd66a7c2e994877afb64686731b2a84d2884f7ee7704248c85f947580d20
+hmac: fe8e7bce59b6f93fa50e94518b26d3f23dbd38e43d5a8fa94bc811f1eb6da139
 
 ...
