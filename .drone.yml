@@ -302,8 +302,9 @@ steps:
 
   - name: Upload to S3
     image: plugins/s3
+    environment:
+      TEST_TAG: v4.2.10
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -312,9 +313,9 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
+      # target: teleport/tag/$DRONE_TAG
       # TODO(gus): remove
-      target: teleport/tag/${PLUGIN_TEST_TAG}
+      target: teleport/tag/$TEST_TAG
       strip_prefix: /go/artifacts/
 
 services:
@@ -435,8 +436,9 @@ steps:
 
   - name: Upload to S3
     image: plugins/s3
+    environment:
+      TEST_TAG: v4.2.10
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -445,9 +447,9 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
+      # target: teleport/tag/$DRONE_TAG
       # TODO(gus): remove
-      target: teleport/tag/${PLUGIN_TEST_TAG}
+      target: teleport/tag/$TEST_TAG
       strip_prefix: /go/artifacts/
 
 services:
@@ -567,8 +569,9 @@ steps:
 
   - name: Upload to S3
     image: plugins/s3
+    environment:
+      TEST_TAG: v4.2.10
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -577,9 +580,9 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
+      # target: teleport/tag/$DRONE_TAG
       # TODO(gus): remove
-      target: teleport/tag/${PLUGIN_TEST_TAG}
+      target: teleport/tag/$TEST_TAG
       strip_prefix: /go/artifacts/
 
 services:
@@ -698,8 +701,9 @@ steps:
 
   - name: Upload to S3
     image: plugins/s3
+    environment:
+      TEST_TAG: v4.2.10
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -708,9 +712,9 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
+      # target: teleport/tag/$DRONE_TAG
       # TODO(gus): remove
-      target: teleport/tag/${PLUGIN_TEST_TAG}
+      target: teleport/tag/$TEST_TAG
       strip_prefix: /go/artifacts/
 
 services:
@@ -823,8 +827,9 @@ steps:
 
   - name: Upload to S3
     image: plugins/s3
+    environment:
+      TEST_TAG: v4.2.10
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -833,9 +838,9 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
+      # target: teleport/tag/$DRONE_TAG
       # TODO(gus): remove
-      target: teleport/tag/${PLUGIN_TEST_TAG}
+      target: teleport/tag/$TEST_TAG
       strip_prefix: /go/artifacts/
 
 services:
@@ -1084,6 +1089,6 @@ steps:
 
 ---
 kind: signature
-hmac: 5d96e4fd2e9c3f64678a7fde45163a0da42e5a9e11b20e3dca2442dee851d574
+hmac: a5006e5c00895444bb75bbc93f459af7661c5d9c49fb9f1cf6dcd187cd75457d
 
 ...
