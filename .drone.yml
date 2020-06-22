@@ -325,8 +325,8 @@ steps:
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/oss \;
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent \;
       # generate checksums
-      - pushd /go/artifacts/oss && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
-      - pushd /go/artifacts/ent && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - cd /go/artifacts/oss && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && pwd && ls -l
+      - cd /go/artifacts/ent && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && pwd && ls -l
 
   - name: Build FIPS release artifacts
     image: docker:git
@@ -364,7 +364,7 @@ steps:
       - mkdir -p /go/artifacts/ent-fips
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-fips \;
       # generate checksums
-      - pushd /go/artifacts/ent-fips && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - cd /go/artifacts/ent-fips && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && pwd && ls -l
 
   - name: Build CentOS 6 release artifacts
     image: docker:git
@@ -400,8 +400,8 @@ steps:
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/oss-centos6 \;
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-centos6 \;
       # generate checksums
-      - pushd /go/artifacts/oss-centos6 && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
-      - pushd /go/artifacts/ent-centos6 && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - cd /go/artifacts/oss-centos6 && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && pwd && ls -l
+      - cd /go/artifacts/ent-centos6 && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && pwd && ls -l
 
   - name: Build CentOS 6 FIPS release artifacts
     image: docker:git
@@ -437,7 +437,7 @@ steps:
       - mkdir -p /go/artifacts/ent-centos6-fips
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-centos6-fips \;
       # generate checksums
-      - pushd /go/artifacts/ent-centos6-fips && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - cd /go/artifacts/ent-centos6-fips && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && pwd && ls -l
 
   - name: Build Windows release artifacts
     image: docker:git
@@ -467,9 +467,10 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to build directory
+      - mkdir -p /go/artifacts/windows
       - find . -maxdepth 1 -iname "teleport*.zip" -print -exec cp {} /go/artifacts/windows \;
       # generate checksums
-      - pushd /go/artifacts/windows && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - cd /go/artifacts/windows && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256; done && pwd &&  ls -l
 
   - name: Upload to S3
     image: plugins/s3
