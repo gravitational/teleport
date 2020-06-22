@@ -751,7 +751,7 @@ trigger:
       - rollback
 
 workspace:
-  path: /go
+  path: /go/src/github.com/gravitational/teleport
 
 clone:
   disable: true
@@ -759,87 +759,195 @@ clone:
 steps:
   - name: Check out code
     image: docker:git
+    environment:
+      repo: quay.io
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_USERNAME" $REPO
+
+  # - name: Build and push buildbox container
+  #   image: plugins/docker
+  #   settings:
+  #     registry: quay.io
+  #     username:
+  #       from_secret: QUAYIO_DOCKER_USERNAME
+  #     password:
+  #       from_secret: QUAYIO_DOCKER_PASSWORD
+  #     repo: quay.io/gravitational/teleport-buildbox
+  #     tags:
+  #       - go1.13.2
+  #     pull_image: true
+  #     dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
+  #     context: /go/src/github.com/gravitational/teleport/build.assets
+  #     build_args:
+  #       - UID=1000
+  #       - GID=1000
+  #       - RUNTIME=go1.13.2
 
   - name: Build and push buildbox container
-    image: plugins/docker
-    settings:
-      registry: quay.io
-      username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      repo: quay.io/gravitational/teleport-buildbox
-      tags:
-        - go1.13.2
-      pull_image: true
-      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
-      context: /go/src/github.com/gravitational/teleport/build.assets
-      build_args:
-        - UID=1000
-        - GID=1000
-        - RUNTIME=go1.13.2
+    image: docker:git
+    environment:
+      UID: 1000
+      GID: 1000
+      RUNTIME: go1.13.2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - >-
+        docker build
+        --pull
+        --build-arg UID=$UID
+        --build-arg GID=$GID
+        --build-arg RUNTIME=$RUNTIME
+        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
+        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
+        /go/src/github.com/gravitational/teleport/build.assets
+      - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+
+  # - name: Build and push buildbox-fips container
+  #   image: plugins/docker
+  #   settings:
+  #     registry: quay.io
+  #     username:
+  #       from_secret: QUAYIO_DOCKER_USERNAME
+  #     password:
+  #       from_secret: QUAYIO_DOCKER_PASSWORD
+  #     repo: quay.io/gravitational/teleport-buildbox-fips
+  #     tags:
+  #       - go1.13.2
+  #     pull_image: true
+  #     dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-fips
+  #     context: /go/src/github.com/gravitational/teleport/build.assets
+  #     build_args:
+  #       - UID=1000
+  #       - GID=1000
+  #       - RUNTIME=go1.13.2
 
   - name: Build and push buildbox-fips container
-    image: plugins/docker
-    settings:
-      registry: quay.io
-      username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      repo: quay.io/gravitational/teleport-buildbox-fips
-      tags:
-        - go1.13.2
-      pull_image: true
-      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-fips
-      context: /go/src/github.com/gravitational/teleport/build.assets
-      build_args:
-        - UID=1000
-        - GID=1000
-        - RUNTIME=go1.13.2
+    image: docker:git
+    environment:
+      UID: 1000
+      GID: 1000
+      RUNTIME: go1.13.2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - >-
+        docker build
+        --pull
+        --build-arg UID=$UID
+        --build-arg GID=$GID
+        --build-arg RUNTIME=$RUNTIME
+        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-fips
+        -t quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+        /go/src/github.com/gravitational/teleport/build.assets
+      - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+
+  # - name: Build and push buildbox-centos6 container
+  #   image: plugins/docker
+  #   settings:
+  #     registry: quay.io
+  #     username:
+  #       from_secret: QUAYIO_DOCKER_USERNAME
+  #     password:
+  #       from_secret: QUAYIO_DOCKER_PASSWORD
+  #     repo: quay.io/gravitational/teleport-buildbox-centos6
+  #     tags:
+  #       - go1.13.2
+  #     pull_image: true
+  #     dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6
+  #     context: /go/src/github.com/gravitational/teleport/build.assets
+  #     build_args:
+  #       - UID=1000
+  #       - GID=1000
+  #       - RUNTIME=go1.13.2
 
   - name: Build and push buildbox-centos6 container
-    image: plugins/docker
-    settings:
-      registry: quay.io
-      username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      repo: quay.io/gravitational/teleport-buildbox-centos6
-      tags:
-        - go1.13.2
-      pull_image: true
-      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6
-      context: /go/src/github.com/gravitational/teleport/build.assets
-      build_args:
-        - UID=1000
-        - GID=1000
-        - RUNTIME=go1.13.2
+    image: docker:git
+    environment:
+      UID: 1000
+      GID: 1000
+      RUNTIME: go1.13.2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - >-
+        docker build
+        --pull
+        --build-arg UID=$UID
+        --build-arg GID=$GID
+        --build-arg RUNTIME=$RUNTIME
+        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6
+        -t quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+        /go/src/github.com/gravitational/teleport/build.assets
+      - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+
+  # - name: Build and push buildbox-centos6-fips container
+  #   image: plugins/docker
+  #   settings:
+  #     registry: quay.io
+  #     username:
+  #       from_secret: QUAYIO_DOCKER_USERNAME
+  #     password:
+  #       from_secret: QUAYIO_DOCKER_PASSWORD
+  #     repo: quay.io/gravitational/teleport-buildbox-centos6-fips
+  #     tags:
+  #       - go1.13.2
+  #     pull_image: true
+  #     dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6-fips
+  #     context: /go/src/github.com/gravitational/teleport/build.assets
+  #     build_args:
+  #       - UID=1000
+  #       - GID=1000
+  #       - RUNTIME=go1.13.2
 
   - name: Build and push buildbox-centos6-fips container
-    image: plugins/docker
-    settings:
-      registry: quay.io
-      username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      repo: quay.io/gravitational/teleport-buildbox-centos6-fips
-      tags:
-        - go1.13.2
-      pull_image: true
-      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6-fips
-      context: /go/src/github.com/gravitational/teleport/build.assets
-      build_args:
-        - UID=1000
-        - GID=1000
-        - RUNTIME=go1.13.2
+    image: docker:git
+    environment:
+      UID: 1000
+      GID: 1000
+      RUNTIME: go1.13.2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - >-
+        docker build
+        --pull
+        --build-arg UID=$UID
+        --build-arg GID=$GID
+        --build-arg RUNTIME=$RUNTIME
+        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6-fips
+        -t quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
+        /go/src/github.com/gravitational/teleport/build.assets
+      - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -1031,6 +1139,6 @@ steps:
 
 ---
 kind: signature
-hmac: 0901b766c1eeeab1505f5c9bb46901d570ab31a37ba6032c41c68f3bd1afabf8
+hmac: 1f5fcd66a7c2e994877afb64686731b2a84d2884f7ee7704248c85f947580d20
 
 ...
