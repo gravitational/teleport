@@ -487,7 +487,7 @@ steps:
       source: /go/artifacts/**/*
       # target: teleport/tag/${DRONE_TAG}
       # TODO(gus): remove
-      target: teleport/tag/${TEST_TAG}/
+      target: teleport/tag/$TEST_TAG
       strip_prefix: /go/artifacts
 
 services:
@@ -736,6 +736,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7a00ec6d2e0b9552a10daed47e16e78c893e86b3bf02d6e7ec0eff7f768aabd9
+hmac: b2733ddf2f468400b72a87e2f435ef25db4b63d3bfb469d35b2e773d5481f305
 
 ...
