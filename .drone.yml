@@ -319,6 +319,7 @@ steps:
   - name: Copy artifacts
     image: docker:git
     commands:
+      - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - mkdir -p /go/artifacts/oss /go/artifacts/ent
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/oss \;
@@ -358,6 +359,7 @@ steps:
   - name: Copy FIPS artifacts
     image: docker:git
     commands:
+      - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - mkdir -p /go/artifacts/ent-fips
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-fips \;
@@ -392,6 +394,7 @@ steps:
   - name: Copy CentOS 6 artifacts
     image: docker:git
     commands:
+      - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - mkdir -p /go/artifacts/oss-centos6 /go/artifacts/ent-centos6
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/oss-centos6 \;
@@ -429,6 +432,7 @@ steps:
   - name: Copy CentOS 6 FIPS artifacts
     image: docker:git
     commands:
+      - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - mkdir -p /go/artifacts/ent-centos6-fips
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-centos6-fips \;
@@ -461,6 +465,7 @@ steps:
   - name: Copy Windows artifacts
     image: docker:git
     commands:
+      - cd /go/src/github.com/gravitational/teleport
       # copy release archives to build directory
       - find . -maxdepth 1 -iname "teleport*.zip" -print -exec cp {} /go/artifacts/windows \;
       # generate checksums
@@ -730,6 +735,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7d1000ba49855cfcb14a09ac8fcf827a58a61a674891f7940f0b2038228b3e61
+hmac: 818a2dab139acde4585e3207c4e29af0b8fce1f38cd6483634f560973641f394
 
 ...
