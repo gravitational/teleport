@@ -283,7 +283,7 @@ steps:
       # create cache directory
       - mkdir -p /go/cache
       # log into docker (to allow images to be pulled)
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAY_IO_DOCKER_PASSWORD" $REPO
 
   - name: Build release artifacts
     image: docker:git
@@ -688,6 +688,6 @@ steps:
 
 ---
 kind: signature
-hmac: e3c2587b8db65e1b53e6bcb7ce7e4e4401a885cf64653d0aaddc1b942f91a677
+hmac: 37d173b8b5a14395e3e72ad2a23e1c07702649d07f4c384fcaac7e4b6240b2e6
 
 ...
