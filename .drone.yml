@@ -33,7 +33,8 @@ steps:
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - make init-submodules-e
+      - git submodule update --init e
+      - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
 
   - name: Restore cache
@@ -238,14 +239,11 @@ steps:
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # update submodules (old style)
       - git submodule update --init e
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
-      # create cache directory
-      - mkdir -p /go/cache
-      # create artifact directory
-      - mkdir -p /go/artifacts
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
 
   - name: Build release artifacts
     image: docker:git
@@ -355,14 +353,11 @@ steps:
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # update submodules (old style)
       - git submodule update --init e
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
-      # create cache directory
-      - mkdir -p /go/cache
-      # create artifact directory
-      - mkdir -p /go/artifacts
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
 
   - name: Build FIPS release artifacts
     image: docker:git
@@ -471,14 +466,11 @@ steps:
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # update submodules (old style)
       - git submodule update --init e
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
-      # create cache directory
-      - mkdir -p /go/cache
-      # create artifact directory
-      - mkdir -p /go/artifacts
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
 
   - name: Build CentOS 6 release artifacts
     image: docker:git
@@ -586,14 +578,11 @@ steps:
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # update submodules (old style)
       - git submodule update --init e
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
-      # create cache directory
-      - mkdir -p /go/cache
-      # create artifact directory
-      - mkdir -p /go/artifacts
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
 
   - name: Build CentOS 6 FIPS release artifacts
     image: docker:git
@@ -700,14 +689,11 @@ steps:
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # update submodules (old style)
       - git submodule update --init e
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
-      # create cache directory
-      - mkdir -p /go/cache
-      # create artifact directory
-      - mkdir -p /go/artifacts
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
 
   - name: Build Windows release artifacts
     image: docker:git
@@ -1056,6 +1042,6 @@ steps:
 
 ---
 kind: signature
-hmac: bb28eac0dfaf5a3a6493366274f4acd60d5780324f6911b005d9d7a32673f6b1
+hmac: e9bc6e0031d94b5f4c9795283eb74058c22e9828732cff4f5e8c4fcb54de206d
 
 ...
