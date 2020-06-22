@@ -261,12 +261,18 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      TEST_TAG: v4.2.10
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAY_IO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAY_IO_DOCKER_PASSWORD
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_COMMIT
+      - git checkout $TEST_TAG
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
+      - echo $TEST_TAG > /go/.drone_tag
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -274,6 +280,8 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create cache directory
       - mkdir -p /go/cache
+      # log into docker (to allow images to be pulled)
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
 
   - name: Build release artifacts
     image: docker:git
@@ -302,8 +310,122 @@ steps:
         -t quay.io/gravitational/teleport-buildbox:go1.13.2
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME"
 
+  - name: Build FIPS release artifacts
+    image: docker:git
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /gopath
+      OS: linux
+      ARCH: amd64
+      RUNTIME: go1.13.2
+      FIPS: "yes"
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - export GITTAG=$(cat /go/.drone_tag)
+      - export VERSION=${TAG##v}
+      - >-
+        docker run --rm=true
+        -e GOCACHE=$GOPATH/cache
+        -v /go/cache:$GOPATH/cache
+        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
+        -w $GOPATH/src/github.com/gravitational/teleport
+        -h buildbox
+        -u $UID:$GID
+        -t quay.io/gravitational/teleport-buildbox-fips:go1.13.2
+        /bin/bash -c "/usr/bin/make -C release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS"
+
+  - name: Build CentOS 6 release artifacts
+    image: docker:git
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /gopath
+      OS: linux
+      ARCH: amd64
+      RUNTIME: go1.13.2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - >-
+        docker run --rm=true
+        -e GOCACHE=$GOPATH/cache
+        -v /go/cache:$GOPATH/cache
+        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
+        -w $GOPATH/src/github.com/gravitational/teleport
+        -h buildbox
+        -u $UID:$GID
+        -t quay.io/gravitational/teleport-buildbox-centos6:go1.13.2
+        /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME"
+
+  - name: Build CentOS 6 FIPS release artifacts
+    image: docker:git
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /gopath
+      OS: linux
+      ARCH: amd64
+      RUNTIME: go1.13.2
+      FIPS: "yes"
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - >-
+        docker run --rm=true
+        -e GOCACHE=$GOPATH/cache
+        -v /go/cache:$GOPATH/cache
+        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
+        -w $GOPATH/src/github.com/gravitational/teleport
+        -h buildbox
+        -u $UID:$GID
+        -t quay.io/gravitational/teleport-buildbox-centos6-fips:go1.13.2
+        /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS"
+
+  - name: Build Windows release artifacts
+    image: docker:git
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /gopath
+      OS: windows
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - >-
+        docker run --rm=true
+        -e GOCACHE=$GOPATH/cache
+        -v /go/cache:$GOPATH/cache
+        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
+        -w $GOPATH/src/github.com/gravitational/teleport
+        -h buildbox
+        -u $UID:$GID
+        -t quay.io/gravitational/teleport-buildbox-centos6-fips:go1.13.2
+        /bin/bash -c "/usr/bin/make release OS=$OS"
+
+  - name: Copy artifacts
+    image: docker:git
+    commands:
+      # copy release archives to build directory
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} build/ \;
+      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} build/e \;
+      # generate checksums
+      - pushd build && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - pushd build/e && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+
   - name: Upload to S3
     image: plugins/s3
+    environment:
+      TEST_TAG: v4.2.10
     settings:
       bucket:
         from_secret: AWS_S3_BUCKET
@@ -312,7 +434,7 @@ steps:
       secret_key:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
-      source: /go/src/github.com/gravitational/teleport/build/*
+      source: /go/src/github.com/gravitational/teleport/build/*.tar.gz
       # target: teleport/tag/${DRONE_TAG}
       # TODO(gus): remove
       target: teleport/tag/${TEST_TAG}
@@ -564,6 +686,6 @@ steps:
 
 ---
 kind: signature
-hmac: 2383dac8c3f25acd94a91f3de5aa6c34b49782a8542cb29609b53046bf197282
+hmac: fc7f76cf9a45aad94712284c0031589788f40dbb31620182c36897100fb75b4b
 
 ...
