@@ -15,17 +15,13 @@ limitations under the License.
 */
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Redirect, Switch, Route } from 'teleport/components/Router';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import Tabs, { TabItem } from './Tabs';
-import AuditSessions from './AuditSessions';
 import AuditEvents from './AuditEvents';
 import RangePicker, { getRangeOptions } from './RangePicker';
-import cfg from 'teleport/config';
 import { useAttempt } from 'shared/hooks';
 import { Danger } from 'design/Alert';
 import { Indicator, Box } from 'design';
@@ -42,10 +38,6 @@ export default function Audit() {
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="8">Audit Log</FeatureHeaderTitle>
-        <Tabs>
-          <TabItem to={cfg.getAuditSessionsRoute()} title="Sessions" />
-          <TabItem to={cfg.getAuditEventsRoute()} title="Events" />
-        </Tabs>
         <RangePicker
           ml="auto"
           value={range}
@@ -65,21 +57,7 @@ export default function Audit() {
           <Indicator />
         </Box>
       )}
-      {isSuccess && (
-        <Switch>
-          <Route title="Sessions" path={cfg.routes.clusterAuditSessions}>
-            <AuditSessions pageSize={20} events={events} />
-          </Route>
-          <Route title="Events" path={cfg.routes.clusterAuditEvents}>
-            <AuditEvents events={events} />
-          </Route>
-          <Redirect
-            exact
-            from={cfg.routes.clusterAudit}
-            to={cfg.routes.clusterAuditSessions}
-          />
-        </Switch>
-      )}
+      {isSuccess && <AuditEvents events={events} />}
     </FeatureBox>
   );
 }

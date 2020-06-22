@@ -87,7 +87,7 @@ export default function Console() {
           disableNew={disableNewTab}
           onNew={onTabNew}
         />
-        <ActionBar onLogout={onLogout} />
+        <ActionBar onLogout={onLogout} clusterId={clusterId} />
       </Flex>
       {$docs}
       {hasSshSessions && (

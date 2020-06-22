@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`overflow 1`] = `
-.c8 {
+.c6 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,11 +18,11 @@ exports[`overflow 1`] = `
   color: #FFFFFF;
 }
 
-.c8 a {
+.c6 a {
   color: #FFFFFF;
 }
 
-.c7 {
+.c5 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -31,20 +31,20 @@ exports[`overflow 1`] = `
   font-size: 14px;
 }
 
-.c14 {
+.c12 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c16 {
+.c14 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c5 {
+.c3 {
   line-height: 1.5;
   border-radius: 4px;
   display: inline-flex;
@@ -75,38 +75,38 @@ exports[`overflow 1`] = `
   color: rgba(255,255,255,0.87);
 }
 
-.c5:hover {
+.c3:hover {
   opacity: 1;
 }
 
-.c5:active {
+.c3:active {
   opacity: .24;
 }
 
-.c5 > span {
+.c3 > span {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c5:hover,
-.c5:focus {
+.c3:hover,
+.c3:focus {
   border-color: #FFFFFF;
   color: #FFFFFF;
 }
 
-.c5:disabled {
+.c3:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c5:hover,
-.c5:focus {
+.c3:hover,
+.c3:focus {
   border-color: #FFFFFF;
   color: #FFFFFF;
 }
 
-.c12 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -116,7 +116,7 @@ exports[`overflow 1`] = `
   color: #FFFFFF;
 }
 
-.c17 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -126,7 +126,7 @@ exports[`overflow 1`] = `
   color: rgba(255,255,255,0.87);
 }
 
-.c9 {
+.c7 {
   box-sizing: border-box;
   margin-bottom: 24px;
   display: flex;
@@ -175,42 +175,7 @@ exports[`overflow 1`] = `
   padding-bottom: 24px;
 }
 
-.c4 {
-  align-items: center;
-  border-bottom: 3px solid transparent;
-  font-size: 12px;
-  font-weight: normal;
-  display: flex;
-  height: 50px;
-  margin: 0 0 0 24px;
-  padding: 3px 8px 0 8px;
-  text-decoration: none;
-  color: inherit;
-  cursor: pointer;
-}
-
-.c4:hover,
-.c4.active,
-.c4:focus {
-  color: #FFFFFF;
-}
-
-.c4.active {
-  border-bottom: 3px solid #651FFF;
-  font-weight: bold;
-}
-
-.c3 {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  font-weight: 600;
-  font-size: 16px;
-  line-height: 24px;
-  color: rgba(255,255,255,0.87);
-}
-
-.c15 {
+.c13 {
   background: #222C59;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -220,35 +185,35 @@ exports[`overflow 1`] = `
   width: 100%;
 }
 
-.c15 > thead > tr > th,
-.c15 > tbody > tr > th,
-.c15 > tfoot > tr > th,
-.c15 > thead > tr > td,
-.c15 > tbody > tr > td,
-.c15 > tfoot > tr > td {
+.c13 > thead > tr > th,
+.c13 > tbody > tr > th,
+.c13 > tfoot > tr > th,
+.c13 > thead > tr > td,
+.c13 > tbody > tr > td,
+.c13 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c15 > thead > tr > th:first-child,
-.c15 > tbody > tr > th:first-child,
-.c15 > tfoot > tr > th:first-child,
-.c15 > thead > tr > td:first-child,
-.c15 > tbody > tr > td:first-child,
-.c15 > tfoot > tr > td:first-child {
+.c13 > thead > tr > th:first-child,
+.c13 > tbody > tr > th:first-child,
+.c13 > tfoot > tr > th:first-child,
+.c13 > thead > tr > td:first-child,
+.c13 > tbody > tr > td:first-child,
+.c13 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c15 > thead > tr > th:last-child,
-.c15 > tbody > tr > th:last-child,
-.c15 > tfoot > tr > th:last-child,
-.c15 > thead > tr > td:last-child,
-.c15 > tbody > tr > td:last-child,
-.c15 > tfoot > tr > td:last-child {
+.c13 > thead > tr > th:last-child,
+.c13 > tbody > tr > th:last-child,
+.c13 > tfoot > tr > th:last-child,
+.c13 > thead > tr > td:last-child,
+.c13 > tbody > tr > td:last-child,
+.c13 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c15 > thead > tr > th {
+.c13 > thead > tr > th {
   background: #111B48;
   color: rgba(255,255,255,0.56);
   cursor: pointer;
@@ -261,23 +226,23 @@ exports[`overflow 1`] = `
   white-space: nowrap;
 }
 
-.c15 > thead > tr > th .c6 {
+.c13 > thead > tr > th .c4 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c15 > tbody > tr > td {
+.c13 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c13 {
+.c11 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c13 button {
+.c11 button {
   background: none;
   border: none;
   border-radius: 200px;
@@ -289,21 +254,21 @@ exports[`overflow 1`] = `
   text-align: center;
 }
 
-.c13 button:hover {
+.c11 button:hover {
   background: #1C254D;
 }
 
-.c13 button:hover .c6 {
+.c11 button:hover .c4 {
   opacity: 1;
 }
 
-.c13 button .c6 {
+.c11 button .c4 {
   opacity: 0.4;
   font-size: 20px;
   transition: all 0.3s;
 }
 
-.c11 {
+.c9 {
   padding: 8px 24px;
   display: flex;
   height: 24px;
@@ -315,7 +280,7 @@ exports[`overflow 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c10 {
+.c8 {
   box-sizing: border-box;
   font-size: 12px;
   min-width: 200px;
@@ -332,18 +297,18 @@ exports[`overflow 1`] = `
   height: 30px;
 }
 
-.c10:hover {
+.c8:hover {
   background: #2C3A73;
 }
 
-.c10:focus,
-.c10:active {
+.c8:focus,
+.c8:active {
   background: #FFFFFF;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: #324148;
 }
 
-.c10::placeholder {
+.c8::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
@@ -359,32 +324,14 @@ exports[`overflow 1`] = `
     >
       Audit Log
     </div>
-    <div
-      class="c3"
-      color="text.primary"
-    >
-      <a
-        class="c4"
-        href="/web/cluster/localhost/audit/sessions"
-      >
-        Sessions
-      </a>
-      <a
-        aria-current="page"
-        class="c4 active"
-        href="/web/cluster/localhost/audit/events"
-      >
-        Events
-      </a>
-    </div>
     <button
-      class="c5"
+      class="c3"
       width="auto"
     >
       <span>
         Today
         <span
-          class="c6 c7 icon icon-caret-down "
+          class="c4 c5 icon icon-caret-down "
           color="text.primary"
           font-size="2"
         />
@@ -392,7 +339,7 @@ exports[`overflow 1`] = `
     </button>
   </div>
   <div
-    class="c8"
+    class="c6"
     kind="danger"
   >
     Number of events retrieved for specified date range has exceeded the maximum limit of 
@@ -400,10 +347,10 @@ exports[`overflow 1`] = `
      events
   </div>
   <div
-    class="c9"
+    class="c7"
   >
     <input
-      class="c10"
+      class="c8"
       color="text.primary"
       height="30px"
       placeholder="SEARCH..."
@@ -412,10 +359,10 @@ exports[`overflow 1`] = `
   </div>
   <div>
     <nav
-      class="c11"
+      class="c9"
     >
       <div
-        class="c12"
+        class="c10"
         color="primary.contrastText"
       >
         SHOWING 
@@ -433,14 +380,14 @@ exports[`overflow 1`] = `
         </strong>
       </div>
       <div
-        class="c13"
+        class="c11"
       >
         <button
           disabled=""
           title="Previous Page"
         >
           <span
-            class="c6 c14 icon icon-arrow-left-circle "
+            class="c4 c12 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
@@ -450,7 +397,7 @@ exports[`overflow 1`] = `
           title="Next Page"
         >
           <span
-            class="c6 c14 icon icon-arrow-right-circle "
+            class="c4 c12 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
@@ -458,7 +405,7 @@ exports[`overflow 1`] = `
       </div>
     </nav>
     <table
-      class="c15"
+      class="c13"
     >
       <thead>
         <tr>
@@ -466,7 +413,7 @@ exports[`overflow 1`] = `
             <a>
               Type
               <span
-                class="c6 c16 icon icon-chevrons-expand-vertical "
+                class="c4 c14 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -478,7 +425,7 @@ exports[`overflow 1`] = `
             <a>
               Created
               <span
-                class="c6 c16 icon icon-chevron-up "
+                class="c4 c14 icon icon-chevron-up "
                 color="light"
               />
             </a>
@@ -493,7 +440,7 @@ exports[`overflow 1`] = `
             colspan="4"
           >
             <div
-              class="c17"
+              class="c15"
               color="text.primary"
             >
               NO DATA AVAILABLE

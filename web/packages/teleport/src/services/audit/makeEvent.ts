@@ -58,7 +58,7 @@ export const formatters: Formatters = {
   },
 
   [CodeEnum.SESSION_DATA]: {
-    desc: 'Session Report',
+    desc: 'Session Data',
     format: ({ sid }) => `Report has been created for session "${sid}"`,
   },
 

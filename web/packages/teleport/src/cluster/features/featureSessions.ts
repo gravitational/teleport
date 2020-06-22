@@ -25,7 +25,7 @@ class FeatureNodes extends FeatureBase {
 
   getRoute() {
     return {
-      title: 'Active Sessions',
+      title: 'Sessions',
       path: cfg.routes.clusterSessions,
       exact: true,
       component: this.Component,
@@ -34,7 +34,7 @@ class FeatureNodes extends FeatureBase {
 
   onload(context: Ctx) {
     context.storeNav.addSideItem({
-      title: 'Active Sessions',
+      title: 'Sessions',
       Icon: Icons.Cli,
       exact: true,
       to: cfg.getSessionsRoute(),

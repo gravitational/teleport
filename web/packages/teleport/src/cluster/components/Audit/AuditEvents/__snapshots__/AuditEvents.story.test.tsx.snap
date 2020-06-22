@@ -675,7 +675,7 @@ exports[`rendering of Events 1`] = `
                 color="light"
                 font-size="3"
               />
-              Session Report
+              Session Data
             </div>
           </td>
           <td
@@ -709,7 +709,7 @@ exports[`rendering of Events 1`] = `
                 color="light"
                 font-size="3"
               />
-              Session Report
+              Session Data
             </div>
           </td>
           <td

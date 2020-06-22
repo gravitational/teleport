@@ -25,7 +25,7 @@ class FeatureAudit extends FeatureBase {
 
   getRoute() {
     return {
-      title: 'Audit',
+      title: 'Audit Log',
       path: cfg.routes.clusterAudit,
       component: this.Component,
     };

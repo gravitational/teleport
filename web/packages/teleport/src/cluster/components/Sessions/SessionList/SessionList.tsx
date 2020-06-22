@@ -31,8 +31,7 @@ export default function SessionList(props: Props) {
     pageSize,
   };
 
-  if (sessions.length === 0)
-    return <CardEmpty title="No Active Sessions Found" />;
+  if (sessions.length === 0) return <CardEmpty title="No Sessions Found" />;
 
   return (
     <Box {...rest}>
