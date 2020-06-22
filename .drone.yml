@@ -318,6 +318,8 @@ steps:
 
   - name: Copy artifacts
     image: docker:git
+    environment:
+      TEST_TAG: v4.2.10
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
@@ -358,6 +360,8 @@ steps:
 
   - name: Copy FIPS artifacts
     image: docker:git
+    environment:
+      TEST_TAG: v4.2.10
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
@@ -393,6 +397,8 @@ steps:
 
   - name: Copy CentOS 6 artifacts
     image: docker:git
+    environment:
+      TEST_TAG: v4.2.10
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
