@@ -183,11 +183,11 @@ steps:
   - name: Run docs tests
     image: golang:1.13.2
     commands:
-      - go get -u -v github.com/magicmatatjahu/milv
       - cd /go/src/github.com/gravitational/teleport
       - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq)
       - if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
       - echo "Changes to docs detected, versions $DOCS_VERSIONS_CHANGED"
+      - go get -u -v github.com/magicmatatjahu/milv
       - for VERSION in DOCS_VERSIONS_CHANGED; do
       - pushd $VERSION
       - echo "Running milv on docs/$VERSION:"
@@ -1042,6 +1042,6 @@ steps:
 
 ---
 kind: signature
-hmac: e9bc6e0031d94b5f4c9795283eb74058c22e9828732cff4f5e8c4fcb54de206d
+hmac: 9f57c07e413dae3797cb10e6bb65548e4ae7e7dc5474f76625e52360e8316c71
 
 ...
