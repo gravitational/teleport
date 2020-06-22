@@ -98,7 +98,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h testbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:RUNTIME
+        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /bin/bash -c "make FLAGS='-cover -count 1' test"
 
   - name: Run integration tests
@@ -1018,6 +1018,6 @@ steps:
 
 ---
 kind: signature
-hmac: a85a09ef72dab6d5ff1c60e26af7b0d774805f506aeda2f6ae6312b6485a3b9d
+hmac: 388885398b3e0e795b3620060f1b4c1f6b89e639a1bfa94962758e820d2235e1
 
 ...
