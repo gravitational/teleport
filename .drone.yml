@@ -771,7 +771,7 @@ steps:
     commands:
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_USERNAME" $REPO
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
 
   # - name: Build and push buildbox container
   #   image: plugins/docker
@@ -1139,6 +1139,6 @@ steps:
 
 ---
 kind: signature
-hmac: fe8e7bce59b6f93fa50e94518b26d3f23dbd38e43d5a8fa94bc811f1eb6da139
+hmac: ced8865a7b6f425f32cb8743517d3746f9beba941c3c48c631c8cfda7e791a49
 
 ...
