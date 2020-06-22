@@ -340,7 +340,7 @@ steps:
         -h buildbox
         -u $UID:$GID
         -t quay.io/gravitational/teleport-buildbox-fips:go1.13.2
-        /bin/bash -c "/usr/bin/make -C release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS"
+        /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS"
 
   - name: Build CentOS 6 release artifacts
     image: docker:git
@@ -413,7 +413,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h buildbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox-centos6-fips:go1.13.2
+        -t quay.io/gravitational/teleport-buildbox:go1.13.2
         /bin/bash -c "/usr/bin/make release OS=$OS"
 
   - name: Copy artifacts
@@ -690,6 +690,6 @@ steps:
 
 ---
 kind: signature
-hmac: a1df12f158246a1a70752b69aa1b69c43e159493654ced8896ac9c3d2ef0a499
+hmac: c0055bacb1aba3a3b1c60f9e21fd2df182bc19c3b61ca1ddde3fa10d1d334636
 
 ...
