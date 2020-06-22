@@ -805,7 +805,7 @@ steps:
       - chown -R $UID:$GID /go
       - >-
         docker build
-        --pull
+        --pull=true
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
@@ -846,7 +846,7 @@ steps:
       - chown -R $UID:$GID /go
       - >-
         docker build
-        --pull
+        --pull=true
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
@@ -887,7 +887,7 @@ steps:
       - chown -R $UID:$GID /go
       - >-
         docker build
-        --pull
+        --pull=true
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
@@ -928,7 +928,7 @@ steps:
       - chown -R $UID:$GID /go
       - >-
         docker build
-        --pull
+        --pull=true
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
@@ -1139,6 +1139,6 @@ steps:
 
 ---
 kind: signature
-hmac: ced8865a7b6f425f32cb8743517d3746f9beba941c3c48c631c8cfda7e791a49
+hmac: 677e91226f96fc006d5600857798305290f01a5e0a9f5ef7e529ec2401ab2a88
 
 ...
