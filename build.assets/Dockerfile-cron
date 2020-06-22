@@ -14,7 +14,7 @@ WORKDIR /tmp
 RUN apk --update --no-cache add curl tar ca-certificates && \
     mkdir -p build && \
     curl -Ls https://get.gravitational.com/${DOWNLOAD_TYPE}-${VERSION_TAG}-${OS}-${ARCH}${EXTRA_DOWNLOAD_ARGS}-bin.tar.gz | tar -xzf - && \
-    cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE//tctl $DOWNLOAD_TYPE/tsh build
+    cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE/tctl $DOWNLOAD_TYPE/tsh build
 
 # Install dumb-init to ensure signals and orphaned processes are are handled correctly. We will
 # copy the binary into the final image in the next step. We download the static binary from Github
