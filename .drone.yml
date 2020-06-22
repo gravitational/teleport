@@ -278,12 +278,14 @@ steps:
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-       # update submodules (old style)
+      # update submodules (old style)
       - git submodule update --init e
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create cache directory
       - mkdir -p /go/cache
+      # create artifact directory
+      - mkdir -p /go/artifacts
       # log into docker (to allow images to be pulled)
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
 
@@ -314,6 +316,17 @@ steps:
         -t quay.io/gravitational/teleport-buildbox:go1.13.2
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME"
 
+  - name: Copy artifacts
+    image: docker:git
+    commands:
+      # copy release archives to artifact directory
+      - mkdir -p /go/artifacts/oss /go/artifacts/ent
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/oss \;
+      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent \;
+      # generate checksums
+      - pushd /go/artifacts/oss && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - pushd /go/artifacts/ent && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+
   - name: Build FIPS release artifacts
     image: docker:git
     environment:
@@ -342,6 +355,15 @@ steps:
         -t quay.io/gravitational/teleport-buildbox-fips:go1.13.2
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS"
 
+  - name: Copy FIPS artifacts
+    image: docker:git
+    commands:
+      # copy release archives to artifact directory
+      - mkdir -p /go/artifacts/ent-fips
+      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-fips \;
+      # generate checksums
+      - pushd /go/artifacts/ent-fips && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+
   - name: Build CentOS 6 release artifacts
     image: docker:git
     environment:
@@ -366,6 +388,17 @@ steps:
         -u $UID:$GID
         -t quay.io/gravitational/teleport-buildbox-centos6:go1.13.2
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME"
+
+  - name: Copy CentOS 6 artifacts
+    image: docker:git
+    commands:
+      # copy release archives to artifact directory
+      - mkdir -p /go/artifacts/oss-centos6 /go/artifacts/ent-centos6
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/oss-centos6 \;
+      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-centos6 \;
+      # generate checksums
+      - pushd /go/artifacts/oss-centos6 && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - pushd /go/artifacts/ent-centos6 && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
 
   - name: Build CentOS 6 FIPS release artifacts
     image: docker:git
@@ -393,6 +426,15 @@ steps:
         -t quay.io/gravitational/teleport-buildbox-centos6-fips:go1.13.2
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS"
 
+  - name: Copy CentOS 6 FIPS artifacts
+    image: docker:git
+    commands:
+      # copy release archives to artifact directory
+      - mkdir -p /go/artifacts/ent-centos6-fips
+      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/ent-centos6-fips \;
+      # generate checksums
+      - pushd /go/artifacts/ent-centos6-fips && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+
   - name: Build Windows release artifacts
     image: docker:git
     environment:
@@ -416,15 +458,13 @@ steps:
         -t quay.io/gravitational/teleport-buildbox:go1.13.2
         /bin/bash -c "/usr/bin/make release OS=$OS"
 
-  - name: Copy artifacts
+  - name: Copy Windows artifacts
     image: docker:git
     commands:
       # copy release archives to build directory
-      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} build/ \;
-      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} build/e \;
+      - find . -maxdepth 1 -iname "teleport*.zip" -print -exec cp {} /go/artifacts/windows \;
       # generate checksums
-      - pushd build && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
-      - pushd build/e && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
+      - pushd /go/artifacts/windows && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256; done && ls -l && popd
 
   - name: Upload to S3
     image: plugins/s3
@@ -438,11 +478,11 @@ steps:
       secret_key:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
-      source: /go/src/github.com/gravitational/teleport/build/*.tar.gz
+      source: /go/artifacts/
       # target: teleport/tag/${DRONE_TAG}
       # TODO(gus): remove
       target: teleport/tag/${TEST_TAG}
-      strip_prefix: /go/src/github.com/gravitational/teleport/build
+      strip_prefix: /go/artifacts/
 
 services:
   - name: Start Docker
@@ -690,6 +730,6 @@ steps:
 
 ---
 kind: signature
-hmac: c0055bacb1aba3a3b1c60f9e21fd2df182bc19c3b61ca1ddde3fa10d1d334636
+hmac: 7d1000ba49855cfcb14a09ac8fcf827a58a61a674891f7940f0b2038228b3e61
 
 ...
