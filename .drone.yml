@@ -759,19 +759,12 @@ clone:
 steps:
   - name: Check out code
     image: docker:git
-    environment:
-      REPO: quay.io
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
 
   # - name: Build and push buildbox container
   #   image: plugins/docker
@@ -798,11 +791,18 @@ steps:
       UID: 1000
       GID: 1000
       RUNTIME: go1.13.2
+      REPO: quay.io
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - >-
         docker build
         --pull=true
@@ -839,11 +839,18 @@ steps:
       UID: 1000
       GID: 1000
       RUNTIME: go1.13.2
+      REPO: quay.io
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - >-
         docker build
         --pull=true
@@ -880,11 +887,18 @@ steps:
       UID: 1000
       GID: 1000
       RUNTIME: go1.13.2
+      REPO: quay.io
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
       - >-
         docker build
         --pull=true
@@ -921,14 +935,20 @@ steps:
       UID: 1000
       GID: 1000
       RUNTIME: go1.13.2
+      REPO: quay.io
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
       - >-
         docker build
-        --pull=true
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
@@ -1139,6 +1159,6 @@ steps:
 
 ---
 kind: signature
-hmac: 677e91226f96fc006d5600857798305290f01a5e0a9f5ef7e529ec2401ab2a88
+hmac: 30ab3e54b6a7c7e16b23c32ee052db8d5138baae821c3d98d7b426db2ea54f73
 
 ...
