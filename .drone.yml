@@ -198,27 +198,17 @@ steps:
 ---
 kind: pipeline
 type: kubernetes
-name: build-artifacts
+name: build-linux-amd64
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-# TODO(gus): remove
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
-# TODO(gus): remove
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -232,8 +222,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      # TODO(gus): remove
-      TEST_TAG: v4.2.10
       REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -243,9 +231,9 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $TEST_TAG
+      - git checkout $DRONE_TAG
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-      - echo $TEST_TAG > /go/.drone_tag
+      - echo $DRONE_TAG > /go/.drone_tag
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -287,23 +275,20 @@ steps:
 
   - name: Copy artifacts
     image: docker:git
-    environment:
-      TEST_TAG: v4.2.10
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
-      - mv /go/artifacts/teleport-$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-$TEST_TAG-linux-amd64-bin.tar.gz
-      - mv /go/artifacts/teleport-ent-$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$TEST_TAG-linux-amd64-bin.tar.gz
+      - mv /go/artifacts/teleport-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-$DRONE_TAG-linux-amd64-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     image: plugins/s3
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -312,9 +297,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
-      # TODO(gus): remove
-      target: teleport/tag/$PLUGIN_TEST_TAG
+      target: teleport/tag/${DRONE_TAG}
       strip_prefix: /go/artifacts/
 
 services:
@@ -332,27 +315,17 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-fips-artifacts
+name: build-linux-amd64-fips
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-# TODO(gus): remove
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
-# TODO(gus): remove
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -366,8 +339,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      # TODO(gus): remove
-      TEST_TAG: v4.2.10
       REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -377,9 +348,9 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $TEST_TAG
+      - git checkout $DRONE_TAG
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-      - echo $TEST_TAG > /go/.drone_tag
+      - echo $DRONE_TAG > /go/.drone_tag
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -422,21 +393,18 @@ steps:
 
   - name: Copy FIPS artifacts
     image: docker:git
-    environment:
-      TEST_TAG: v4.2.10
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
-      - mv /go/artifacts/teleport-ent-$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$TEST_TAG-linux-amd64-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     image: plugins/s3
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -445,9 +413,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
-      # TODO(gus): remove
-      target: teleport/tag/$PLUGIN_TEST_TAG
+      target: teleport/tag/${DRONE_TAG}
       strip_prefix: /go/artifacts/
 
 services:
@@ -465,27 +431,17 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-centos6-artifacts
+name: build-linux-amd64-centos6
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-# TODO(gus): remove
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
-# TODO(gus): remove
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -499,8 +455,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      # TODO(gus): remove
-      TEST_TAG: v4.2.10
       REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -510,9 +464,9 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $TEST_TAG
+      - git checkout $DRONE_TAG
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-      - echo $TEST_TAG > /go/.drone_tag
+      - echo $DRONE_TAG > /go/.drone_tag
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -552,23 +506,20 @@ steps:
 
   - name: Copy CentOS 6 artifacts
     image: docker:git
-    environment:
-      TEST_TAG: v4.2.10
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
-      - mv /go/artifacts/teleport-$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-$TEST_TAG-linux-amd64-centos6-bin.tar.gz
-      - mv /go/artifacts/teleport-ent-$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$TEST_TAG-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/teleport-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-$DRONE_TAG-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-centos6-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     image: plugins/s3
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -577,9 +528,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
-      # TODO(gus): remove
-      target: teleport/tag/$PLUGIN_TEST_TAG
+      target: teleport/tag/${DRONE_TAG}
       strip_prefix: /go/artifacts/
 
 services:
@@ -597,27 +546,17 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-centos6-fips-artifacts
+name: build-linux-amd64-centos6-fips
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-# TODO(gus): remove
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
-# TODO(gus): remove
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -631,8 +570,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      # TODO(gus): remove
-      TEST_TAG: v4.2.10
       REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -642,9 +579,9 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $TEST_TAG
+      - git checkout $DRONE_TAG
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-      - echo $TEST_TAG > /go/.drone_tag
+      - echo $DRONE_TAG > /go/.drone_tag
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -685,21 +622,18 @@ steps:
 
   - name: Copy CentOS 6 FIPS artifacts
     image: docker:git
-    environment:
-      TEST_TAG: v4.2.10
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifact
-      - mv /go/artifacts/teleport-ent-$TEST_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$TEST_TAG-linux-amd64-centos6-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     image: plugins/s3
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -708,9 +642,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
-      # TODO(gus): remove
-      target: teleport/tag/$PLUGIN_TEST_TAG
+      target: teleport/tag/${DRONE_TAG}
       strip_prefix: /go/artifacts/
 
 services:
@@ -728,27 +660,17 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-artifacts-windows
+name: build-windows
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-# TODO(gus): remove
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
-# TODO(gus): remove
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -762,8 +684,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      # TODO(gus): remove
-      TEST_TAG: v4.2.10
       REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -773,9 +693,9 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $TEST_TAG
+      - git checkout $DRONE_TAG
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-      - echo $TEST_TAG > /go/.drone_tag
+      - echo $DRONE_TAG > /go/.drone_tag
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -824,7 +744,6 @@ steps:
   - name: Upload to S3
     image: plugins/s3
     settings:
-      test_tag: v4.2.10
       bucket:
         from_secret: AWS_S3_BUCKET
       access_key:
@@ -833,9 +752,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # target: teleport/tag/${DRONE_TAG}
-      # TODO(gus): remove
-      target: teleport/tag/$PLUGIN_TEST_TAG
+      target: teleport/tag/${DRONE_TAG}
       strip_prefix: /go/artifacts/
 
 services:
@@ -853,7 +770,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-buildbox
+name: build-buildboxes
 
 trigger:
   branch:
@@ -869,7 +786,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golangci/golangci-lint:v1.27.0
+    image: docker:git
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -888,6 +805,60 @@ steps:
       tags:
         - go1.13.2
       dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
+      context: /go/src/github.com/gravitational/teleport/build.assets
+      build_args:
+        - UID=1000
+        - GID=1000
+        - RUNTIME=go1.13.2
+
+  - name: Build and push buildbox-fips container
+    image: plugins/docker
+    settings:
+      registry: quay.io
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      repo: quay.io/gravitational/teleport-buildbox-fips
+      tags:
+        - go1.13.2
+      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-fips
+      context: /go/src/github.com/gravitational/teleport/build.assets
+      build_args:
+        - UID=1000
+        - GID=1000
+        - RUNTIME=go1.13.2
+
+  - name: Build and push buildbox-centos6 container
+    image: plugins/docker
+    settings:
+      registry: quay.io
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      repo: quay.io/gravitational/teleport-buildbox-centos6
+      tags:
+        - go1.13.2
+      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6
+      context: /go/src/github.com/gravitational/teleport/build.assets
+      build_args:
+        - UID=1000
+        - GID=1000
+        - RUNTIME=go1.13.2
+
+  - name: Build and push buildbox-centos6-fips container
+    image: plugins/docker
+    settings:
+      registry: quay.io
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      repo: quay.io/gravitational/teleport-buildbox-centos6-fips
+      tags:
+        - go1.13.2
+      dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6-fips
       context: /go/src/github.com/gravitational/teleport/build.assets
       build_args:
         - UID=1000
@@ -1084,6 +1055,6 @@ steps:
 
 ---
 kind: signature
-hmac: eeca6f634640abdd380fd3c5975ad35cb35245b5d7db8688f7cc35d8455e888b
+hmac: c834a5ca2fef77e75c843934d0b11df48100e6669202e697d5738dd644742b30
 
 ...
