@@ -265,9 +265,9 @@ steps:
       TEST_TAG: v4.2.10
       REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAY_IO_DOCKER_USERNAME
+        from_secret: QUAYIO_DOCKER_USERNAME
       QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAY_IO_DOCKER_PASSWORD
+        from_secret: QUAYIO_DOCKER_PASSWORD
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -285,7 +285,7 @@ steps:
       # create cache directory
       - mkdir -p /go/cache
       # log into docker (to allow images to be pulled)
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAY_IO_DOCKER_PASSWORD" $REPO
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
 
   - name: Build release artifacts
     image: docker:git
@@ -690,6 +690,6 @@ steps:
 
 ---
 kind: signature
-hmac: 96e8f6ccc79cc8ae4ec80a0678b25add46c28a3ae71e1396d05e49f54cad4795
+hmac: a1df12f158246a1a70752b69aa1b69c43e159493654ced8896ac9c3d2ef0a499
 
 ...
