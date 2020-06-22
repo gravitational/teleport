@@ -809,6 +809,7 @@ steps:
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
+        --cache-from quay.io/gravitational/teleport-buildbox:$RUNTIME
         -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
         -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /go/src/github.com/gravitational/teleport/build.assets
@@ -857,6 +858,7 @@ steps:
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
+        --cache-from quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
         -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-fips
         -t quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
         /go/src/github.com/gravitational/teleport/build.assets
@@ -905,6 +907,7 @@ steps:
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
+        --cache-from quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
         -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6
         -t quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
         /go/src/github.com/gravitational/teleport/build.assets
@@ -952,6 +955,7 @@ steps:
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
+        --cache-from quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
         -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6-fips
         -t quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
         /go/src/github.com/gravitational/teleport/build.assets
@@ -1159,6 +1163,6 @@ steps:
 
 ---
 kind: signature
-hmac: 30ab3e54b6a7c7e16b23c32ee052db8d5138baae821c3d98d7b426db2ea54f73
+hmac: dd2675e1cf622e692bfebc385ecc963e5c3bba8f2d9deaf9de8e7c7cf7aea979
 
 ...
