@@ -61,6 +61,7 @@ steps:
       UID: 1000
       GID: 1000
       GOPATH: /gopath
+      RUNTIME: go1.13.2
     volumes:
       - name: dockersock
         path: /var/run
@@ -74,7 +75,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h testbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:go1.13.2
+        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /bin/bash -c "make lint"
 
   - name: Run unit tests
@@ -83,6 +84,7 @@ steps:
       UID: 1000
       GID: 1000
       GOPATH: /gopath
+      RUNTIME: go1.13.2
     volumes:
       - name: dockersock
         path: /var/run
@@ -96,7 +98,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h testbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:go1.13.2
+        -t quay.io/gravitational/teleport-buildbox:RUNTIME
         /bin/bash -c "make FLAGS='-cover -count 1' test"
 
   - name: Run integration tests
@@ -105,6 +107,7 @@ steps:
       UID: 1000
       GID: 1000
       GOPATH: /gopath
+      RUNTIME: go1.13.2
     volumes:
       - name: dockersock
         path: /var/run
@@ -118,7 +121,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h testbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:go1.13.2
+        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /bin/bash -c "make FLAGS='-cover -count 1' integration"
 
   - name: Save cache
@@ -224,11 +227,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      REPO: quay.io
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -269,7 +267,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h buildbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:go1.13.2
+        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME"
 
   - name: Copy artifacts
@@ -338,11 +336,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      REPO: quay.io
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -374,8 +367,6 @@ steps:
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
-      - export GITTAG=$(cat /go/.drone_tag)
-      - export VERSION=${TAG##v}
       - >-
         docker run --rm=true
         -e GOCACHE=$GOPATH/cache
@@ -384,7 +375,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h buildbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox-fips:go1.13.2
+        -t quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS"
 
   - name: Copy FIPS artifacts
@@ -451,11 +442,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      REPO: quay.io
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -494,7 +480,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h buildbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox-centos6:go1.13.2
+        -t quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME"
 
   - name: Copy CentOS 6 artifacts
@@ -563,11 +549,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      REPO: quay.io
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -607,7 +588,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h buildbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox-centos6-fips:go1.13.2
+        -t quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
         /bin/bash -c "/usr/bin/make release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS"
 
   - name: Copy CentOS 6 FIPS artifacts
@@ -674,11 +655,6 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      REPO: quay.io
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -715,7 +691,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h buildbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:go1.13.2
+        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /bin/bash -c "/usr/bin/make release OS=$OS"
 
   - name: Copy Windows artifacts
@@ -1042,6 +1018,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9f57c07e413dae3797cb10e6bb65548e4ae7e7dc5474f76625e52360e8316c71
+hmac: a85a09ef72dab6d5ff1c60e26af7b0d774805f506aeda2f6ae6312b6485a3b9d
 
 ...
