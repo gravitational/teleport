@@ -101,6 +101,13 @@ func (k *Key) ClientTLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
 	tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
+	// Use Issuer CN from the certificate to populate the correct SNI in
+	// requests.
+	leaf, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse TLS cert")
+	}
+	tlsConfig.ServerName = auth.EncodeClusterName(leaf.Issuer.CommonName)
 	return tlsConfig, nil
 }
 
