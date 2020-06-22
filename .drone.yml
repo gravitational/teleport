@@ -766,25 +766,6 @@ steps:
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
 
-  # - name: Build and push buildbox container
-  #   image: plugins/docker
-  #   settings:
-  #     registry: quay.io
-  #     username:
-  #       from_secret: QUAYIO_DOCKER_USERNAME
-  #     password:
-  #       from_secret: QUAYIO_DOCKER_PASSWORD
-  #     repo: quay.io/gravitational/teleport-buildbox
-  #     tags:
-  #       - go1.13.2
-  #     pull_image: true
-  #     dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
-  #     context: /go/src/github.com/gravitational/teleport/build.assets
-  #     build_args:
-  #       - UID=1000
-  #       - GID=1000
-  #       - RUNTIME=go1.13.2
-
   - name: Build and push buildbox container
     image: docker:git
     environment:
@@ -805,7 +786,6 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - >-
         docker build
-        --pull=true
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
@@ -814,25 +794,6 @@ steps:
         -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /go/src/github.com/gravitational/teleport/build.assets
       - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
-
-  # - name: Build and push buildbox-fips container
-  #   image: plugins/docker
-  #   settings:
-  #     registry: quay.io
-  #     username:
-  #       from_secret: QUAYIO_DOCKER_USERNAME
-  #     password:
-  #       from_secret: QUAYIO_DOCKER_PASSWORD
-  #     repo: quay.io/gravitational/teleport-buildbox-fips
-  #     tags:
-  #       - go1.13.2
-  #     pull_image: true
-  #     dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-fips
-  #     context: /go/src/github.com/gravitational/teleport/build.assets
-  #     build_args:
-  #       - UID=1000
-  #       - GID=1000
-  #       - RUNTIME=go1.13.2
 
   - name: Build and push buildbox-fips container
     image: docker:git
@@ -854,7 +815,6 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - >-
         docker build
-        --pull=true
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
@@ -863,25 +823,6 @@ steps:
         -t quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
         /go/src/github.com/gravitational/teleport/build.assets
       - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
-
-  # - name: Build and push buildbox-centos6 container
-  #   image: plugins/docker
-  #   settings:
-  #     registry: quay.io
-  #     username:
-  #       from_secret: QUAYIO_DOCKER_USERNAME
-  #     password:
-  #       from_secret: QUAYIO_DOCKER_PASSWORD
-  #     repo: quay.io/gravitational/teleport-buildbox-centos6
-  #     tags:
-  #       - go1.13.2
-  #     pull_image: true
-  #     dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6
-  #     context: /go/src/github.com/gravitational/teleport/build.assets
-  #     build_args:
-  #       - UID=1000
-  #       - GID=1000
-  #       - RUNTIME=go1.13.2
 
   - name: Build and push buildbox-centos6 container
     image: docker:git
@@ -903,7 +844,6 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
       - >-
         docker build
-        --pull=true
         --build-arg UID=$UID
         --build-arg GID=$GID
         --build-arg RUNTIME=$RUNTIME
@@ -912,25 +852,6 @@ steps:
         -t quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
         /go/src/github.com/gravitational/teleport/build.assets
       - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
-
-  # - name: Build and push buildbox-centos6-fips container
-  #   image: plugins/docker
-  #   settings:
-  #     registry: quay.io
-  #     username:
-  #       from_secret: QUAYIO_DOCKER_USERNAME
-  #     password:
-  #       from_secret: QUAYIO_DOCKER_PASSWORD
-  #     repo: quay.io/gravitational/teleport-buildbox-centos6-fips
-  #     tags:
-  #       - go1.13.2
-  #     pull_image: true
-  #     dockerfile: /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6-fips
-  #     context: /go/src/github.com/gravitational/teleport/build.assets
-  #     build_args:
-  #       - UID=1000
-  #       - GID=1000
-  #       - RUNTIME=go1.13.2
 
   - name: Build and push buildbox-centos6-fips container
     image: docker:git
@@ -1163,6 +1084,6 @@ steps:
 
 ---
 kind: signature
-hmac: dd2675e1cf622e692bfebc385ecc963e5c3bba8f2d9deaf9de8e7c7cf7aea979
+hmac: 77110234fef08f10f7c4e7f09ac6194bb1a501493c286b36e67fa51cc6b85552
 
 ...
