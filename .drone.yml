@@ -484,7 +484,7 @@ steps:
       secret_key:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
-      source: /go/artifacts/*
+      source: /go/artifacts/**
       # target: teleport/tag/${DRONE_TAG}
       # TODO(gus): remove
       target: teleport/tag/${TEST_TAG}
@@ -736,6 +736,6 @@ steps:
 
 ---
 kind: signature
-hmac: abce8fdfa586f639d3d6f97ef996fbc058fb56bb1eba47c222bfd3a62c51f3d6
+hmac: 7d4e8351e18855c0d5cc2ce9ac37fa1f303f7ea79ad3697548047332c931d5f2
 
 ...
