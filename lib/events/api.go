@@ -92,6 +92,15 @@ const (
 	// SessionServerHostname is the hostname of the server the session occurred on.
 	SessionServerHostname = "server_hostname"
 
+	// SessionServerAddr is the address of the server the session occurred on.
+	SessionServerAddr = "server_addr"
+
+	// SessionStartTime is the timestamp at which the session began.
+	SessionStartTime = "session_start"
+
+	// SessionEndTime is the timestamp at which the session ended.
+	SessionEndTime = "session_stop"
+
 	// SessionEnhancedRecording is used to indicate if the recording was an
 	// enhanced recording or not.
 	SessionEnhancedRecording = "enhanced_recording"
