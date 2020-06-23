@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/sshutils"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
@@ -163,10 +162,6 @@ func (c *certificateCache) generateHostCert(principals []string) (ssh.Signer, er
 	if !ok {
 		return nil, trace.BadParameter("not a certificate")
 	}
-	// Inherit the cert signature algorithm from CA signature.
-	// Whatever auth server decided to use for SSH cert signing should be used
-	// by the resulting certs for signing.
-	privateKey = sshutils.AlgSigner(privateKey, cert.Signature.Format)
 
 	// return a ssh.Signer
 	s, err := ssh.NewCertSigner(cert, privateKey)

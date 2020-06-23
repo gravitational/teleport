@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -246,10 +245,6 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 	if signer, err = ssh.NewCertSigner(keys[0].Certificate, signer); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Inherit the cert signature algorithm from CA signature.
-	// Whatever auth server decided to use for SSH cert signing should be used
-	// by the resulting certs for signing.
-	signer = sshutils.AlgSigner(signer, keys[0].Certificate.Signature.Format)
 	return NewAuthMethodForCert(signer), nil
 }
 
