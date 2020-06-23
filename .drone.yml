@@ -142,6 +142,26 @@ steps:
         - /go/cache
         - /go/pkg/mod
 
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: SLACK_WEBHOOK
+      channel: teleport-builds
+      template: |
+        {{#if build.pull }}
+          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}*: <https://github.com/{{ repo.owner }}/{{ repo.name }}/pull/{{ build.pull }}|Pull Request #{{ build.pull }}>
+        {{else}}
+          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        {{/if}}
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Author: {{ build.author }}
+        <{{ build.link }}|Visit build page ↗>
+    when:
+      event: [push]
+      status: [failure]
+
 services:
   - name: Start Docker
     image: docker:dind
@@ -1075,6 +1095,6 @@ steps:
 
 ---
 kind: signature
-hmac: aba9bdde632b99ac38fd2657f34a0aabfe60e8af903f2af6003bcae012577e49
+hmac: 68fed899a34960fee3fb26c0afb46621e2a1f1d2220e96a35438b5e252750ba5
 
 ...
