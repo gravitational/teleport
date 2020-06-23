@@ -43,10 +43,6 @@ func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
 	if !ok {
 		return nil, trace.BadParameter("expected SSH certificate, got %T ", pubkey)
 	}
-	// Inherit the cert signature algorithm from CA signature.
-	// Whatever auth server decided to use for SSH cert signing should be used
-	// by the resulting certs for signing.
-	keySigner = AlgSigner(keySigner, cert.Signature.Format)
 
 	return ssh.NewCertSigner(cert, keySigner)
 }

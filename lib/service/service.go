@@ -625,9 +625,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			precomputeCount = 0
 		}
 		var err error
-		cfg.Keygen, err = native.New(process.ExitContext(),
-			native.PrecomputeKeys(precomputeCount),
-		)
+		cfg.Keygen, err = native.New(process.ExitContext(), native.PrecomputeKeys(precomputeCount))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

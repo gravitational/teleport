@@ -435,12 +435,11 @@ func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 	}
 	// for every certificate create a new "auth method" and return them
 	m = make([]ssh.AuthMethod, 0)
-	for _, s := range signers {
+	for i := range signers {
 		// filter out non-certificates (like regular public SSH keys stored in the SSH agent):
-		crt, ok := s.PublicKey().(*ssh.Certificate)
+		_, ok := signers[i].PublicKey().(*ssh.Certificate)
 		if ok {
-			s = sshutils.AlgSigner(s, crt.Signature.Format)
-			m = append(m, NewAuthMethodForCert(s))
+			m = append(m, NewAuthMethodForCert(signers[i]))
 		}
 	}
 	return m
