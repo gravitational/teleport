@@ -35,13 +35,16 @@ type NodeSession struct {
 	ExitMsg string
 }
 
-func newSession(client *NodeClient,
+func newSession(
+	client *NodeClient,
 	joinSession *session.Session,
 	env map[string]string,
 	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
-	legacyID bool) (*NodeSession, error) {
+	legacyID bool,
+	enableEscapeSequences bool,
+) (*NodeSession, error) {
 
 	return nil, trace.BadParameter("sessions not supported on Windows")
 }

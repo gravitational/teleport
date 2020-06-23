@@ -280,6 +280,12 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 		{
 			Kind: services.KindCertAuthority,
 		},
+		{
+			Kind: services.KindAccessRequest,
+			Filter: map[string]string{
+				"user": "alice",
+			},
+		},
 	}})
 	c.Assert(err, check.IsNil)
 	defer w.Close()
@@ -298,6 +304,50 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	case e := <-w.Events():
 		c.Assert(e.Type, check.Equals, backend.OpPut)
 		c.Assert(e.Resource.GetKind(), check.Equals, services.KindCertAuthority)
+	case <-time.After(time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	// create an access request that matches the supplied filter
+	req, err := services.NewAccessRequest("alice", "dictator")
+	c.Assert(err, check.IsNil)
+
+	c.Assert(p.dynamicAccessS.CreateAccessRequest(context.TODO(), req), check.IsNil)
+
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, backend.OpPut)
+		c.Assert(e.Resource.GetKind(), check.Equals, services.KindAccessRequest)
+	case <-time.After(time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	c.Assert(p.dynamicAccessS.DeleteAccessRequest(context.TODO(), req.GetName()), check.IsNil)
+
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, backend.OpDelete)
+		c.Assert(e.Resource.GetKind(), check.Equals, services.KindAccessRequest)
+	case <-time.After(time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	// create an access request that does not match the supplied filter
+	req2, err := services.NewAccessRequest("bob", "dictator")
+	c.Assert(err, check.IsNil)
+
+	// create and then delete the non-matching request.
+	c.Assert(p.dynamicAccessS.CreateAccessRequest(context.TODO(), req2), check.IsNil)
+	c.Assert(p.dynamicAccessS.DeleteAccessRequest(context.TODO(), req2.GetName()), check.IsNil)
+
+	// because our filter did not match the request, the create event should never
+	// have been created, meaning that the next event on the pipe is the delete
+	// event (which cannot be filtered out because username is not visible inside
+	// a delete event).
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, backend.OpDelete)
+		c.Assert(e.Resource.GetKind(), check.Equals, services.KindAccessRequest)
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -698,7 +748,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 	user.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, user, out)
 
-	err = p.usersS.DeleteUser(user.GetName())
+	err = p.usersS.DeleteUser(context.TODO(), user.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -713,6 +763,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 
 // TestRoles tests caching of roles
 func (s *CacheSuite) TestRoles(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForNode(c)
 	defer p.Close()
 
@@ -727,7 +778,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		Deny: services.RoleConditions{},
 	})
 	c.Assert(err, check.IsNil)
-	err = p.accessS.UpsertRole(role)
+	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
 	role, err = p.accessS.GetRole(role.GetName())
@@ -748,7 +799,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	// update role
 	role.SetLogins(services.Allow, []string{"admin"})
 	c.Assert(err, check.IsNil)
-	err = p.accessS.UpsertRole(role)
+	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
 	role, err = p.accessS.GetRole(role.GetName())
@@ -766,7 +817,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
 
-	err = p.accessS.DeleteRole(role.GetName())
+	err = p.accessS.DeleteRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {

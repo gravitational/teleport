@@ -1,0 +1,13 @@
+[Unit]
+Description=Teleport Mattermost Plugin
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/local/bin/teleport-mattermost start --config=/etc/teleport-mattermost.toml --pid-file=/run/teleport-mattermost.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/teleport-mattermost.pid
+
+[Install]
+WantedBy=multi-user.target

@@ -522,6 +522,13 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	kubeGroups, kubeUsers, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL)
+	// NotFound errors are acceptable - this user may have no k8s access
+	// granted and that shouldn't prevent us from issuing a TLS cert.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
 	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: clusterName,
@@ -535,12 +542,14 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	identity := tlsca.Identity{
-		Username:       req.user.GetName(),
-		Groups:         req.checker.RoleNames(),
-		Principals:     allowedLogins,
-		Usage:          req.usage,
-		RouteToCluster: req.routeToCluster,
-		Traits:         req.traits,
+		Username:         req.user.GetName(),
+		Groups:           req.checker.RoleNames(),
+		Principals:       allowedLogins,
+		Usage:            req.usage,
+		RouteToCluster:   req.routeToCluster,
+		KubernetesGroups: kubeGroups,
+		KubernetesUsers:  kubeUsers,
+		Traits:           req.traits,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -569,6 +578,12 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) error {
 	user, err := s.Identity.GetUser(username, false)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// If user is not found, still call authenticateFn. It should
+			// always return an error. This prevents username oracles and
+			// timing attacks.
+			return authenticateFn()
+		}
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
@@ -800,7 +815,7 @@ func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
 }
 
 // GenerateToken generates multi-purpose authentication token.
-func (a *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
+func (a *AuthServer) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -812,11 +827,14 @@ func (a *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
+	user := clientUsername(ctx)
 	for _, role := range req.Roles {
 		if role == teleport.RoleTrustedCluster {
-			a.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
-				events.EventUser: "unimplemented",
-			})
+			if err := a.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
+				events.EventUser: user,
+			}); err != nil {
+				log.Warnf("Failed to emit trusted cluster token create event: %v", err)
+			}
 		}
 	}
 
@@ -1334,7 +1352,7 @@ func (a *AuthServer) NewWatcher(ctx context.Context, watch services.Watch) (serv
 }
 
 // DeleteRole deletes a role by name of the role.
-func (a *AuthServer) DeleteRole(name string) error {
+func (a *AuthServer) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
 	users, err := a.Identity.GetUsers(false)
 	if err != nil {
@@ -1367,28 +1385,32 @@ func (a *AuthServer) DeleteRole(name string) error {
 		}
 	}
 
-	if err := a.Access.DeleteRole(name); err != nil {
+	if err := a.Access.DeleteRole(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
+	if err := a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
 		events.FieldName: name,
-		events.EventUser: "unimplemented",
-	})
+		events.EventUser: clientUsername(ctx),
+	}); err != nil {
+		log.Warnf("Failed to emit role deleted event: %v", err)
+	}
 
 	return nil
 }
 
 // UpsertRole creates or updates role.
-func (a *AuthServer) upsertRole(role services.Role) error {
-	if err := a.UpsertRole(role); err != nil {
+func (a *AuthServer) upsertRole(ctx context.Context, role services.Role) error {
+	if err := a.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.RoleCreated, events.EventFields{
+	if err := a.EmitAuditEvent(events.RoleCreated, events.EventFields{
 		events.FieldName: role.GetName(),
-		events.EventUser: "unimplemented",
-	})
+		events.EventUser: clientUsername(ctx),
+	}); err != nil {
+		log.Warnf("Failed to emit role created event: %v", err)
+	}
 
 	return nil
 }
@@ -1434,19 +1456,15 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
 		return trace.Wrap(err)
 	}
-	updateBy, err := getUpdateBy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	fields := events.EventFields{
 		events.AccessRequestID:    reqID,
 		events.AccessRequestState: state.String(),
-		events.UpdatedBy:          updateBy,
+		events.UpdatedBy:          clientUsername(ctx),
 	}
 	if delegator := getDelegator(ctx); delegator != "" {
 		fields[events.AccessRequestDelegator] = delegator
 	}
-	err = a.EmitAuditEvent(events.AccessRequestUpdated, fields)
+	err := a.EmitAuditEvent(events.AccessRequestUpdated, fields)
 	return trace.Wrap(err)
 }
 

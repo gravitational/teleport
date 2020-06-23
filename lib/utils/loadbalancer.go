@@ -170,6 +170,15 @@ func (l *LoadBalancer) Listen() error {
 	return nil
 }
 
+// Addr returns the frontend listener address. Call this after Listen,
+// otherwise Addr returns nil.
+func (l *LoadBalancer) Addr() net.Addr {
+	if l.listener == nil {
+		return nil
+	}
+	return l.listener.Addr()
+}
+
 // Serve starts accepting connections
 func (l *LoadBalancer) Serve() error {
 	defer l.waitCancel()

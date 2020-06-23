@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -111,7 +112,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 	}
 
 	// Generate token.
-	token, err := client.GenerateToken(auth.GenerateTokenRequest{
+	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{
 		Roles: roles,
 		TTL:   c.ttl,
 		Token: c.value,

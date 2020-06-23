@@ -58,6 +58,7 @@ func (s *PresenceSuite) TearDownTest(c *check.C) {
 }
 
 func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
+	ctx := context.Background()
 	presenceBackend := NewPresenceService(s.bk)
 
 	tc, err := services.NewTrustedCluster("foo", services.TrustedClusterSpecV2{
@@ -80,9 +81,9 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// create trusted clusters
-	_, err = presenceBackend.UpsertTrustedCluster(tc)
+	_, err = presenceBackend.UpsertTrustedCluster(ctx, tc)
 	c.Assert(err, check.IsNil)
-	_, err = presenceBackend.UpsertTrustedCluster(stc)
+	_, err = presenceBackend.UpsertTrustedCluster(ctx, stc)
 	c.Assert(err, check.IsNil)
 
 	// get trusted cluster make sure it's correct
@@ -101,7 +102,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(allTC, check.HasLen, 2)
 
 	// delete cluster
-	err = presenceBackend.DeleteTrustedCluster("foo")
+	err = presenceBackend.DeleteTrustedCluster(ctx, "foo")
 	c.Assert(err, check.IsNil)
 
 	// make sure it's really gone

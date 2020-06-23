@@ -119,14 +119,13 @@ func Remove(path, name string) error {
 	delete(config.Clusters, name)
 	delete(config.Contexts, name)
 
-	// Take an element from the list of contexts and make it the current context.
-	if len(config.Contexts) > 0 {
-		var currentContext *clientcmdapi.Context
-		for _, cc := range config.Contexts {
-			currentContext = cc
+	// Take an element from the list of contexts and make it the current
+	// context, unless current context points to something else.
+	if config.CurrentContext == name && len(config.Contexts) > 0 {
+		for name := range config.Contexts {
+			config.CurrentContext = name
 			break
 		}
-		config.CurrentContext = currentContext.Cluster
 	}
 
 	// Update kubeconfig on disk.

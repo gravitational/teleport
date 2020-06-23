@@ -287,7 +287,6 @@ func (fs *FSLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer fp.Sync()
 	defer fp.Close()
 	for _, ca := range cas {
 		for _, cert := range ca.TLSCertificates {
@@ -301,7 +300,7 @@ func (fs *FSLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) erro
 			}
 		}
 	}
-	return nil
+	return fp.Sync()
 }
 
 // GetCertsPEM returns trusted TLS certificates of certificate authorities PEM
@@ -364,7 +363,6 @@ func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.Publ
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer fp.Sync()
 	defer fp.Close()
 	// read all existing entries into a map (this removes any pre-existing dupes)
 	entries := make(map[string]int)
@@ -397,7 +395,7 @@ func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.Publ
 	for _, line := range output {
 		fmt.Fprintf(fp, "%s\n", line)
 	}
-	return nil
+	return fp.Sync()
 }
 
 // GetKnownHostKeys returns all known public keys from 'known_hosts'

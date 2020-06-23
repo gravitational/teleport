@@ -194,17 +194,19 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	ctx := context.Background()
+
 	// create the default role
-	err = srv.AuthServer.UpsertRole(services.NewAdminRole())
+	err = srv.AuthServer.UpsertRole(ctx, services.NewAdminRole())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// set up host private key and certificate
-	srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.HostCA, srv.ClusterName))
+	err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.HostCA, srv.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.UserCA, srv.ClusterName))
+	err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.UserCA, srv.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -637,13 +639,14 @@ func NewServerIdentity(clt *AuthServer, hostID string, role teleport.Role) (*Ide
 // clt limits required interface to the necessary methods
 // used to pass different clients in tests
 type clt interface {
-	UpsertRole(services.Role) error
+	UpsertRole(context.Context, services.Role) error
 	UpsertUser(services.User) error
 }
 
 // CreateUserRoleAndRequestable creates two roles for a user, one base role with allowed login
 // matching username, and another role with a login matching rolename that can be requested.
 func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (services.User, error) {
+	ctx := context.TODO()
 	user, err := services.NewUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -653,7 +656,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 	baseRole.SetAccessRequestConditions(services.Allow, services.AccessRequestConditions{
 		Roles: []string{rolename},
 	})
-	err = clt.UpsertRole(baseRole)
+	err = clt.UpsertRole(ctx, baseRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -665,7 +668,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 	requestableRole := services.RoleForUser(user)
 	requestableRole.SetName(rolename)
 	requestableRole.SetLogins(services.Allow, []string{rolename})
-	err = clt.UpsertRole(requestableRole)
+	err = clt.UpsertRole(ctx, requestableRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -674,13 +677,14 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 
 // CreateUserAndRole creates user and role and assignes role to a user, used in tests
 func CreateUserAndRole(clt clt, username string, allowedLogins []string) (services.User, services.Role, error) {
+	ctx := context.TODO()
 	user, err := services.NewUser(username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
 	role.SetLogins(services.Allow, []string{user.GetName()})
-	err = clt.UpsertRole(role)
+	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -694,6 +698,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string) (servic
 
 // CreateUserAndRoleWithoutRoles creates user and role, but does not assign user to a role, used in tests
 func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []string) (services.User, services.Role, error) {
+	ctx := context.TODO()
 	user, err := services.NewUser(username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -704,7 +709,7 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	delete(set, services.KindRole)
 	role.SetRules(services.Allow, set.Slice())
 	role.SetLogins(services.Allow, []string{user.GetName()})
-	err = clt.UpsertRole(role)
+	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -468,6 +468,22 @@ type contextUserKey string
 // ContextUser is a user set in the context of the request
 const ContextUser contextUserKey = "teleport-user"
 
+// clientUsername returns the username of a remote HTTP client making the call.
+// If ctx didn't pass through auth middleware or did not come from an HTTP
+// request, teleport.UserSystem is returned.
+func clientUsername(ctx context.Context) string {
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return teleport.UserSystem
+	}
+	identity := userWithIdentity.GetIdentity()
+	if identity.Username == "" {
+		return teleport.UserSystem
+	}
+	return identity.Username
+}
+
 // LocalUser is a local user
 type LocalUser struct {
 	// Username is local username

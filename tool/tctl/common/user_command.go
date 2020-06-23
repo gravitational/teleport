@@ -300,10 +300,10 @@ func (u *UserCommand) List(client auth.ClientI) error {
 // list in UserCommand.login
 func (u *UserCommand) Delete(client auth.ClientI) error {
 	for _, l := range strings.Split(u.login, ",") {
-		if err := client.DeleteUser(l); err != nil {
+		if err := client.DeleteUser(context.TODO(), l); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("User '%v' has been deleted\n", l)
+		fmt.Printf("User %q has been deleted\n", l)
 	}
 	return nil
 }

@@ -339,7 +339,9 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if r.GetState().IsNone() {
-		r.SetState(RequestState_PENDING)
+		if err := r.SetState(RequestState_PENDING); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if err := r.Check(); err != nil {
 		return trace.Wrap(err)

@@ -79,7 +79,10 @@ func GetClusterDetails(site reversetunnel.RemoteSite) (*Cluster, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	proxyHost, proxyVersion := services.GuessProxyHostAndVersion(proxies)
+	proxyHost, proxyVersion, err := services.GuessProxyHostAndVersion(proxies)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	authServers, err := clt.GetAuthServers()
 	if err != nil {

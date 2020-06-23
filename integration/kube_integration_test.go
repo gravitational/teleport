@@ -474,9 +474,12 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 // TestKubeTrustedClustersClientCert tests scenario with trusted clusters
 // using metadata encoded in the certificate
 func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
-
+	ctx := context.Background()
 	clusterMain := "cluster-main"
 	mainConf := s.teleKubeConfig(Host)
+	// Main cluster doesn't need a kubeconfig to forward requests to auxiliary
+	// cluster.
+	mainConf.Proxy.Kube.KubeconfigPath = ""
 	main := NewInstance(InstanceConfig{
 		ClusterName: clusterMain,
 		HostID:      HostID,
@@ -534,7 +537,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(auxRole)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -558,7 +561,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -718,7 +721,7 @@ loop:
 			return net.Dial("tcp", fmt.Sprintf("localhost:%v", localPort))
 		},
 	}
-	addr, err := resolver.LookupHost(context.TODO(), "kubernetes.default.svc.cluster.local")
+	addr, err := resolver.LookupHost(ctx, "kubernetes.default.svc.cluster.local")
 	c.Assert(err, check.IsNil)
 	c.Assert(len(addr), check.Not(check.Equals), 0)
 
@@ -742,6 +745,7 @@ loop:
 // using SNI-forwarding
 // DELETE IN(4.3.0)
 func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
+	ctx := context.Background()
 
 	clusterMain := "cluster-main"
 	mainConf := s.teleKubeConfig(Host)
@@ -806,7 +810,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(auxRole)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -830,7 +834,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -1215,6 +1219,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 		Groups:           user.GetRoles(),
 		KubernetesUsers:  cfg.kubeUsers,
 		KubernetesGroups: cfg.kubeGroups,
+		RouteToCluster:   cfg.routeToCluster,
 	}
 	subj, err := id.Subject()
 	if err != nil {
@@ -1313,9 +1318,8 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 			upgradeRoundTripper)
 	}
 
-	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}
 	stopC, readyC := make(chan struct{}), make(chan struct{})
-	fwd, err := portforward.New(dialer, args.ports, stopC, readyC, out, errOut)
+	fwd, err := portforward.New(dialer, args.ports, stopC, readyC, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

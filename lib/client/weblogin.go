@@ -54,6 +54,9 @@ type SSOLoginConsoleReq struct {
 	CertTTL       time.Duration `json:"cert_ttl"`
 	ConnectorID   string        `json:"connector_id"`
 	Compatibility string        `json:"compatibility,omitempty"`
+	// RouteToCluster is an optional cluster name to route the response
+	// credentials to.
+	RouteToCluster string
 }
 
 // Check makes sure that the request is valid
@@ -101,6 +104,9 @@ type CreateSSHCertReq struct {
 	TTL time.Duration `json:"ttl"`
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `json:"compatibility,omitempty"`
+	// RouteToCluster is an optional cluster name to route the response
+	// credentials to.
+	RouteToCluster string
 }
 
 // CreateSSHCertWithU2FReq are passed by web client
@@ -119,6 +125,9 @@ type CreateSSHCertWithU2FReq struct {
 	TTL time.Duration `json:"ttl"`
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `json:"compatibility,omitempty"`
+	// RouteToCluster is an optional cluster name to route the response
+	// credentials to.
+	RouteToCluster string
 }
 
 // PingResponse contains data about the Teleport server like supported
@@ -134,14 +143,10 @@ type PingResponse struct {
 	MinClientVersion string `json:"min_client_version"`
 }
 
-// SSHLogin contains SSH login parameters
+// SSHLogin contains common SSH login parameters.
 type SSHLogin struct {
-	// Context is an external context
-	Context context.Context
 	// ProxyAddr is the target proxy address
 	ProxyAddr string
-	// ConnectorID is the OIDC or SAML connector ID to use
-	ConnectorID string
 	// PubKey is SSH public key to sign
 	PubKey []byte
 	// TTL is requested TTL of the client certificates
@@ -150,13 +155,48 @@ type SSHLogin struct {
 	Insecure bool
 	// Pool is x509 cert pool to use for server certifcate verification
 	Pool *x509.CertPool
-	// Protocol is an optional protocol selection
-	Protocol string
 	// Compatibility sets compatibility mode for SSH certificates
 	Compatibility string
+	// RouteToCluster is an optional cluster name to route the response
+	// credentials to.
+	RouteToCluster string
+}
+
+// SSHLoginSSO contains SSH login parameters for SSO login.
+type SSHLoginSSO struct {
+	SSHLogin
+	// ConnectorID is the OIDC or SAML connector ID to use
+	ConnectorID string
+	// Protocol is an optional protocol selection
+	Protocol string
 	// BindAddr is an optional host:port address to bind
 	// to for SSO login flows
 	BindAddr string
+	// Browser can be used to pass the name of a browser to override the system
+	// default (not currently implemented), or set to 'none' to suppress
+	// browser opening entirely.
+	Browser string
+}
+
+// SSHLoginDirect contains SSH login parameters for direct (user/pass/OTP)
+// login.
+type SSHLoginDirect struct {
+	SSHLogin
+	// User is the login username.
+	User string
+	// User is the login password.
+	Password string
+	// User is the optional OTP token for the login.
+	OTPToken string
+}
+
+// SSHLoginU2F contains SSH login parameters for U2F login.
+type SSHLoginU2F struct {
+	SSHLogin
+	// User is the login username.
+	User string
+	// User is the login password.
+	Password string
 }
 
 // ProxySettings contains basic information about proxy settings
@@ -173,6 +213,9 @@ type KubeProxySettings struct {
 	Enabled bool `json:"enabled,omitempty"`
 	// PublicAddr is a kubernetes proxy public address if set
 	PublicAddr string `json:"public_addr,omitempty"`
+	// ListenAddr is the address that the kubernetes proxy is listening for
+	// connections on.
+	ListenAddr string `json:"listen_addr,omitempty"`
 }
 
 // SSHProxySettings is SSH specific proxy settings.
@@ -335,8 +378,8 @@ func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(login SSHLogin, browser string) (*auth.SSHLoginResponse, error) {
-	rd, err := NewRedirector(login)
+func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO) (*auth.SSHLoginResponse, error) {
+	rd, err := NewRedirector(ctx, login)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -350,7 +393,7 @@ func SSHAgentSSOLogin(login SSHLogin, browser string) (*auth.SSHLoginResponse, e
 
 	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
-	if browser != teleport.BrowserNone {
+	if login.Browser != teleport.BrowserNone {
 		switch runtime.GOOS {
 		// macOS.
 		case teleport.DarwinOS:
@@ -373,12 +416,14 @@ func SSHAgentSSOLogin(login SSHLogin, browser string) (*auth.SSHLoginResponse, e
 		}
 	}
 	if execCmd != nil {
-		execCmd.Start()
+		if err := execCmd.Start(); err != nil {
+			fmt.Printf("Failed to open a browser window for login: %v\n", err)
+		}
 	}
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
 	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
-	if browser == teleport.BrowserNone {
+	if login.Browser == teleport.BrowserNone {
 		fmt.Printf("Use the following URL to authenticate:\n %v\n", clickableURL)
 	} else {
 		fmt.Printf("If browser window does not open automatically, open it by ")
@@ -397,24 +442,25 @@ func SSHAgentSSOLogin(login SSHLogin, browser string) (*auth.SSHLoginResponse, e
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-rd.Done():
 		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(login.Context.Err(), "cancelled by user")
+		return nil, trace.Wrap(ctx.Err(), "cancelled by user")
 	}
 }
 
 // SSHAgentLogin is used by tsh to fetch local user credentials.
-func SSHAgentLogin(ctx context.Context, proxyAddr string, user string, password string, otpToken string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, compatibility string) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(proxyAddr, insecure, pool)
+func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginResponse, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:          user,
-		Password:      password,
-		OTPToken:      otpToken,
-		PubKey:        pubKey,
-		TTL:           ttl,
-		Compatibility: compatibility,
+		User:           login.User,
+		Password:       login.Password,
+		OTPToken:       login.OTPToken,
+		PubKey:         login.PubKey,
+		TTL:            login.TTL,
+		Compatibility:  login.Compatibility,
+		RouteToCluster: login.RouteToCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -434,22 +480,22 @@ func SSHAgentLogin(ctx context.Context, proxyAddr string, user string, password 
 // We then call the official u2f-host binary to perform the signing and pass
 // the signature to the proxy. If the authentication succeeds, we will get a
 // temporary certificate back.
-func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, compatibility string) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(proxyAddr, insecure, pool)
+func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginResponse, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	u2fSignRequest, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
-		User: user,
-		Pass: password,
+		User: login.User,
+		Pass: login.Password,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Pass the JSON-encoded data undecoded to the u2f-host binary
-	facet := "https://" + strings.ToLower(proxyAddr)
+	facet := "https://" + strings.ToLower(login.ProxyAddr)
 	cmd := exec.Command("u2f-host", "-aauthenticate", "-o", facet)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -464,14 +510,27 @@ func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pub
 		return nil, trace.Wrap(err)
 	}
 
-	cmd.Start()
-	stdin.Write(u2fSignRequest.Bytes())
+	if err := cmd.Start(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		// If we returned before cmd.Wait was called, clean up the spawned
+		// process. ProcessState will be empty until cmd.Wait or cmd.Run
+		// return.
+		if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
+			cmd.Process.Kill()
+		}
+	}()
+	_, err = stdin.Write(u2fSignRequest.Bytes())
 	stdin.Close()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	fmt.Println("Please press the button on your U2F key")
 
 	// The origin URL is passed back base64-encoded and the keyHandle is passed back as is.
 	// A very long proxy hostname or keyHandle can overflow a fixed-size buffer.
-	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(proxyAddr)*4/3
+	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(login.ProxyAddr)*4/3
 	signResponseBuf := make([]byte, signResponseLen)
 	signResponseLen, err = io.ReadFull(stdout, signResponseBuf)
 	// unexpected EOF means we have read the data completely.
@@ -500,11 +559,12 @@ func SSHAgentU2FLogin(ctx context.Context, proxyAddr, user, password string, pub
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
-		User:            user,
+		User:            login.User,
 		U2FSignResponse: *u2fSignResponse,
-		PubKey:          pubKey,
-		TTL:             ttl,
-		Compatibility:   compatibility,
+		PubKey:          login.PubKey,
+		TTL:             login.TTL,
+		Compatibility:   login.Compatibility,
+		RouteToCluster:  login.RouteToCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

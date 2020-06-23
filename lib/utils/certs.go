@@ -137,11 +137,11 @@ func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
 		}
 	}
 
-	switch generalKey.(type) {
+	switch k := generalKey.(type) {
 	case *rsa.PrivateKey:
-		return generalKey.(*rsa.PrivateKey), nil
+		return k, nil
 	case *ecdsa.PrivateKey:
-		return generalKey.(*ecdsa.PrivateKey), nil
+		return k, nil
 	}
 
 	return nil, trace.BadParameter("unsupported private key type")
@@ -164,7 +164,7 @@ func VerifyCertificateChain(certificateChain []*x509.Certificate) error {
 	// extract intermediate certificate chain.
 	intermediates := x509.NewCertPool()
 	if len(certificateChain) > 1 {
-		for _, v := range certificateChain[1:len(certificateChain)] {
+		for _, v := range certificateChain[1:] {
 			intermediates.AddCert(v)
 		}
 	}
@@ -201,11 +201,7 @@ func IsSelfSigned(certificateChain []*x509.Certificate) bool {
 		return false
 	}
 
-	if bytes.Compare(certificateChain[0].SubjectKeyId, certificateChain[0].AuthorityKeyId) != 0 {
-		return false
-	}
-
-	return true
+	return bytes.Equal(certificateChain[0].SubjectKeyId, certificateChain[0].AuthorityKeyId)
 }
 
 // ReadCertificateChain parses PEM encoded bytes that can contain one or

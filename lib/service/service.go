@@ -223,7 +223,7 @@ type TeleportProcess struct {
 
 	// registeredListeners keeps track of all listeners created by the process
 	// used to pass listeners to child processes during live reload
-	registeredListeners []RegisteredListener
+	registeredListeners []registeredListener
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
 	importedDescriptors []FileDescriptor
@@ -780,7 +780,9 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 	switch uri.Scheme {
 	case teleport.SchemeGCS:
 		config := gcssessions.Config{}
-		config.SetFromURL(uri)
+		if err := config.SetFromURL(uri); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		handler, err := gcssessions.DefaultNewHandler(config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -788,7 +790,9 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 		return handler, nil
 	case teleport.SchemeS3:
 		config := s3sessions.Config{}
-		config.SetFromURL(uri, auditConfig.Region)
+		if err := config.SetFromURL(uri, auditConfig.Region); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		handler, err := s3sessions.NewHandler(config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1067,7 +1071,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	// auth server listens on SSH and TLS, reusing the same socket
-	listener, err := process.importOrCreateListener(teleport.ComponentAuth, cfg.Auth.SSHAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerAuthSSH, cfg.Auth.SSHAddr.Addr)
 	if err != nil {
 		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.SSHAddr.Addr, err)
 		return trace.Wrap(err)
@@ -1521,7 +1525,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		if !conn.UseTunnel() {
-			listener, err := process.importOrCreateListener(teleport.ComponentNode, cfg.SSH.Addr.Addr)
+			listener, err := process.importOrCreateListener(listenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1540,7 +1544,9 @@ func (process *TeleportProcess) initSSH() error {
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
-			s.Start()
+			if err := s.Start(); err != nil {
+				return trace.Wrap(err)
+			}
 
 			// Create and start an agent pool.
 			agentPool, err = reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
@@ -1753,7 +1759,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		}
 	})
 
-	listener, err := process.importOrCreateListener(teleport.ComponentDiagnostic, process.Config.DiagnosticAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerDiagnostic, process.Config.DiagnosticAddr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1922,7 +1928,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 
 	if cfg.Proxy.Kube.Enabled {
 		process.Debugf("Setup Proxy: turning on Kubernetes proxy.")
-		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "kube"), cfg.Proxy.Kube.ListenAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyKube, cfg.Proxy.Kube.ListenAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1935,7 +1941,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		return &listeners, nil
 	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr) && !cfg.Proxy.DisableTLS:
 		process.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
-		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel", "web"), cfg.Proxy.WebAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1956,7 +1962,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
 		process.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
-		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "web"), cfg.Proxy.WebAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1972,7 +1978,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		listeners.reverseTunnel, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel"), cfg.Proxy.ReverseTunnelListenAddr.Addr)
+		listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		if err != nil {
 			listener.Close()
 			listeners.Close()
@@ -1983,14 +1989,14 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	default:
 		process.Debugf("Proxy and reverse tunnel are listening on separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel {
-			listeners.reverseTunnel, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel"), cfg.Proxy.ReverseTunnelListenAddr.Addr)
+			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
 				listeners.Close()
 				return nil, trace.Wrap(err)
 			}
 		}
 		if !cfg.Proxy.DisableWebService {
-			listeners.web, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "web"), cfg.Proxy.WebAddr.Addr)
+			listeners.web, err = process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 			if err != nil {
 				listeners.Close()
 				return nil, trace.Wrap(err)
@@ -2002,7 +2008,11 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// clean up unused descriptors passed for proxy, but not used by it
-	defer process.closeImportedDescriptors(teleport.ComponentProxy)
+	defer func() {
+		if err := process.closeImportedDescriptors(teleport.ComponentProxy); err != nil {
+			process.Warnf("Failed closing imported file descriptors: %v", err)
+		}
+	}()
 	var err error
 	cfg := process.Config
 
@@ -2106,6 +2116,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
 			proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
 		}
+		if cfg.Proxy.Kube.Enabled {
+			proxySettings.Kube.ListenAddr = cfg.Proxy.Kube.ListenAddr.String()
+		}
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
 		}
@@ -2154,7 +2167,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// Register SSH proxy server - SSH jumphost proxy server
-	listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "ssh"), cfg.Proxy.SSHAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerProxySSH, cfg.Proxy.SSHAddr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2374,7 +2387,9 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 	local, cancel := context.WithCancel(ctx)
 	go func() {
 		defer cancel()
-		process.Supervisor.Wait()
+		if err := process.Supervisor.Wait(); err != nil {
+			process.Warnf("Error waiting for all services to complete: %v", err)
+		}
 	}()
 
 	<-local.Done()
@@ -2387,7 +2402,9 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	localCtx, cancel := context.WithCancel(ctx)
 	go func() {
 		defer cancel()
-		process.Supervisor.Wait()
+		if err := process.Supervisor.Wait(); err != nil {
+			process.Warnf("Error waiting for all services to complete: %v", err)
+		}
 		process.Debugf("All supervisor functions are completed.")
 		localAuth := process.getLocalAuth()
 		if localAuth != nil {

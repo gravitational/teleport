@@ -1,16 +1,16 @@
 # Installation
 
-Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems. 
+Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems.
 
 The Teleport client [`tsh`](cli-docs.md#tsh) and Web UI are available for **Linux, Mac**
-and **Windows** operating systems. Our examples install Teleport v{{ teleport.version }} but you can 
+and **Windows** operating systems. Our examples install Teleport v{{ teleport.version }} but you can
 install any version listed in our [Release History](https://gravitational.com/teleport/download/).
 
 
 ## Checksums
 
-Gravitational Teleport provides a checksum from the Downloads page.  This should
-be used to verify the integrity of our binary.
+Gravitational Teleport provides a checksum from the [Downloads](https://gravitational.com/teleport/download/).
+This should be used to verify the integrity of our binary.
 
 ![Teleport Checksum](./img/teleport-sha.png)
 

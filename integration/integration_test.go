@@ -141,7 +141,7 @@ func (s *IntSuite) SetUpTest(c *check.C) {
 func (s *IntSuite) newUnstartedTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
 	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 	// use passed logins, but use suite's default login if nothing was passed
-	if logins == nil || len(logins) == 0 {
+	if len(logins) == 0 {
 		logins = []string{s.me.Username}
 	}
 	for _, login := range logins {
@@ -170,7 +170,7 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	// use passed logins, but use suite's default login if nothing was passed
-	if logins == nil || len(logins) == 0 {
+	if len(logins) == 0 {
 		logins = []string{s.me.Username}
 	}
 	for _, login := range logins {
@@ -293,7 +293,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		c.Assert(len(sessions), check.Equals, 0)
 
 		// create interactive session (this goroutine is this user's terminal time)
-		endC := make(chan error, 0)
+		endC := make(chan error)
 		myTerm := NewTerminal(250)
 		go func() {
 			cl, err := t.NewClient(ClientConfig{
@@ -567,14 +567,15 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 		cl.Stderr = outbuf
 
 		// run command and wait a maximum of 10 seconds for it to complete
-		sessionEndC := make(chan interface{}, 0)
+		sessionEndC := make(chan interface{})
 		go func() {
 			// don't check for err, because sometimes this process should fail
 			// with an error and that's what the test is checking for.
 			cl.SSH(context.TODO(), []string{tt.inCommand}, false)
 			sessionEndC <- true
 		}()
-		waitFor(sessionEndC, time.Second*10)
+		err = waitFor(sessionEndC, time.Second*10)
+		c.Assert(err, check.IsNil)
 
 		// if we are looking for the output in a file, look in the file
 		// otherwise check stdout and stderr for the expected output
@@ -682,7 +683,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	t := s.newTeleport(c, nil, true)
 	defer t.StopAll()
 
-	sessionEndC := make(chan interface{}, 0)
+	sessionEndC := make(chan interface{})
 
 	// get a reference to site obj:
 	site := t.GetSiteAPI(Site)
@@ -733,7 +734,8 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	go joinSession()
 
 	// wait for the session to end
-	waitFor(sessionEndC, time.Second*10)
+	err := waitFor(sessionEndC, time.Second*10)
+	c.Assert(err, check.IsNil)
 
 	// make sure the output of B is mirrored in A
 	outputOfA := personA.Output(100)
@@ -756,7 +758,7 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 	person := NewTerminal(250)
 
 	// commandsC receive commands
-	commandsC := make(chan string, 0)
+	commandsC := make(chan string)
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
@@ -1159,12 +1161,14 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 		c.Assert(outputA.String(), check.DeepEquals, outputB.String())
 
 		// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
-		a.StopAuth(false)
+		err = a.StopAuth(false)
+		c.Assert(err, check.IsNil)
 		err = tc.SSH(context.TODO(), cmd, false)
 		c.Assert(err, check.FitsTypeOf, trace.ConnectionProblem(nil, ""))
 
 		// Reset and start "Site-A" again
-		a.Reset()
+		err = a.Reset()
+		c.Assert(err, check.IsNil)
 		err = a.Start()
 		c.Assert(err, check.IsNil)
 
@@ -1346,6 +1350,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 
 // TestMapRoles tests local to remote role mapping and access patterns
 func (s *IntSuite) TestMapRoles(c *check.C) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1393,7 +1398,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -1545,9 +1550,10 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 // retries on connection problems and access denied errors to let caches
 // propagate and services to start
 func tryCreateTrustedCluster(c *check.C, authServer *auth.AuthServer, trustedCluster services.TrustedCluster) {
+	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(trustedCluster)
+		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
@@ -1604,6 +1610,7 @@ func (s *IntSuite) TestMultiplexingTrustedClusters(c *check.C) {
 }
 
 func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
+	ctx := context.Background()
 	username := s.me.Username
 
 	clusterMain := "cluster-main"
@@ -1657,7 +1664,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(auxRole)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -1728,7 +1735,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -1738,7 +1745,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// ListNodes expect labels as a value of host
 	tc.Host = ""
-	servers, err := tc.ListNodes(context.TODO())
+	servers, err := tc.ListNodes(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(servers, check.HasLen, 2)
 	tc.Host = Loopback
@@ -1754,7 +1761,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err != nil {
 			break
 		}
@@ -1763,9 +1770,9 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// remove trusted cluster from aux cluster side, and recrete right after
 	// this should re-establish connection
-	err = aux.Process.GetAuthServer().DeleteTrustedCluster(trustedCluster.GetName())
+	err = aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName())
 	c.Assert(err, check.IsNil)
-	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
 	c.Assert(err, check.IsNil)
 
 	// check that remote cluster has been re-provisioned
@@ -1788,7 +1795,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	tc.Stdout = output
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -1802,6 +1809,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 }
 
 func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
+	ctx := context.Background()
 	username := s.me.Username
 
 	clusterMain := "cluster-main"
@@ -1846,7 +1854,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -2961,10 +2969,9 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
-	runCtx, runCancel := context.WithCancel(context.TODO())
+	runErrCh := make(chan error, 1)
 	go func() {
-		defer runCancel()
-		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -3083,7 +3090,8 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	svc.Close()
 
 	select {
-	case <-runCtx.Done():
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}
@@ -3108,10 +3116,9 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
-	runCtx, runCancel := context.WithCancel(context.TODO())
+	runErrCh := make(chan error, 1)
 	go func() {
-		defer runCancel()
-		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -3208,7 +3215,8 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	svc.Close()
 
 	select {
-	case <-runCtx.Done():
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}
@@ -3237,10 +3245,9 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	serviceC := make(chan *service.TeleportProcess, 20)
-	runCtx, runCancel := context.WithCancel(context.TODO())
+	runErrCh := make(chan error, 1)
 	go func() {
-		defer runCancel()
-		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -3280,7 +3287,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = svc.GetAuthServer().UpsertToken(
@@ -3428,7 +3435,8 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	svc.Close()
 
 	select {
-	case <-runCtx.Done():
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}

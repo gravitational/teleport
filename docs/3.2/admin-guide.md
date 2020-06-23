@@ -246,7 +246,7 @@ teleport:
 
     # Configuration for the storage back-end used for the cluster state and the
     # audit log. Several back-end types are supported. See "High Availability"
-    # section of this Admin Manual below to learn how to configure DynamoDB, 
+    # section of this Admin Manual below to learn how to configure DynamoDB,
     # S3, etcd and other highly available back-ends.
     storage:
         # By default teleport uses the `data_dir` directory on a local filesystem
@@ -370,9 +370,9 @@ auth_service:
     # certificates expire in the middle of an active SSH session. (default is 'no')
     disconnect_expired_cert: no
 
-    # Determines the interval at which Teleport will send keep-alive messages. The 
-    # default value mirrors sshd at 15 minutes.  keep_alive_count_max is the number 
-    # of missed keep-alive messages before the server tears down the connection to the 
+    # Determines the interval at which Teleport will send keep-alive messages. The
+    # default value mirrors sshd at 15 minutes.  keep_alive_count_max is the number
+    # of missed keep-alive messages before the server tears down the connection to the
     # client.
     keep_alive_interval: 15
     keep_alive_count_max: 3
@@ -452,8 +452,8 @@ proxy_service:
     public_addr: proxy.example.com:3080
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
-    # Defaults to the proxy's hostname if not specified. If running multiple proxies 
-    # behind a load balancer, this name must point to the load balancer. 
+    # Defaults to the proxy's hostname if not specified. If running multiple proxies
+    # behind a load balancer, this name must point to the load balancer.
     # Use a TCP load balancer because this port uses SSH protocol.
     ssh_public_addr: proxy.example.com:3023
 
@@ -471,12 +471,12 @@ proxy_service:
         listen_addr: 0.0.0.0:3026
 
         # The DNS name of the Kubernetes proxy server that is accessible by cluster clients.
-        # If running multiple proxies behind  a load balancer, this name must point to the 
+        # If running multiple proxies behind  a load balancer, this name must point to the
         # load balancer.
         public_addr: ['kube.example.com:3026']
 
-        # This setting is not required if the Teleport proxy service is 
-        # deployed inside a Kubernetes cluster. Otherwise, Teleport proxy 
+        # This setting is not required if the Teleport proxy service is
+        # deployed inside a Kubernetes cluster. Otherwise, Teleport proxy
         # will use the credentials from this file:
         kubeconfig_file: /path/to/kube/config
 ```
@@ -605,7 +605,7 @@ a JSON file that mirrors `facets` in the auth config.
 	When adding a new proxy server, make sure to add it to the list of "facets"
 	in the configuration file, but also to the JSON file referenced by `app_id`
 
- 
+
 **Logging in with U2F**
 
 For logging in via the CLI, you must first install [u2f-host](https://developers.yubico.com/libu2f-host/).
@@ -813,7 +813,7 @@ dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro
 Teleport nodes use the HTTPS protocol to offer the join tokens to the auth
 server running on `10.0.10.5` in the example above. In a zero-trust
 environment, you must assume that an attacker can highjack the IP address of
-the auth server e.g. `10.0.10.5`. 
+the auth server e.g. `10.0.10.5`.
 
 To prevent this from happening, you need to supply every new node with an
 additional bit of information about the auth server. This technique is called
@@ -824,9 +824,9 @@ On the auth server:
 
 ```bash
 $ tctl status
-Cluster  staging.example.com           
-User CA  never updated 
-Host CA  never updated 
+Cluster  staging.example.com
+User CA  never updated
+Host CA  never updated
 CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
 ```
 
@@ -903,10 +903,10 @@ two kinds of labels:
 
 2. `dynamic labels` also known as "label commands" allow to generate labels at runtime.
    Teleport will execute an external command on a node at a configurable frequency and
-   the output of a command becomes the label value. Examples include reporting load 
+   the output of a command becomes the label value. Examples include reporting load
    averages, presence of a process, time after last reboot, etc.
 
-There are two ways to configure node labels. 
+There are two ways to configure node labels.
 
 1. Via command line, by using `--labels` flag to `teleport start` command.
 2. Using `/etc/teleport.yaml` configuration file on the nodes.
@@ -941,13 +941,13 @@ ssh_service:
     command: ['/path/to/executable', 'flag1', 'flag2']
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
-    period: 1h0m0s 
+    period: 1h0m0s
 ```
 
 `/path/to/executable` must be a valid executable command (i.e. executable bit must be set)
 which also includes shell scripts with a proper [shebang line](https://en.wikipedia.org/wiki/Shebang_(Unix)).
 
-**Important:** notice that `command` setting is an array where the first element is 
+**Important:** notice that `command` setting is an array where the first element is
 a valid executable and each subsequent element is an argument, i.e:
 
 ```yaml
@@ -1874,7 +1874,7 @@ If using Teleport Enterprise SSO with enterprise-grade identity providers (using
 section.
 
 You may also find it useful to read our [Kubernetes guide](kubernetes_ssh.md) which contains some more specific examples
-and instructions. 
+and instructions.
 
 ### Multiple Kubernetes Clusters
 
@@ -1953,7 +1953,7 @@ for your users, while the remaining ports should do TCP level forwarding, since
 Teleport will handle its own SSL on top of that with its own certificates.
 
 !!! tip "NOTE":
-    If you terminate TLS with your own certificate at a load balancer you'll need 
+    If you terminate TLS with your own certificate at a load balancer you'll need
     to Teleport with `--insecure`
 
 If your load balancer supports health checks, configure it to hit the
@@ -2022,14 +2022,14 @@ teleport:
     the `~/.aws` folder, just like the AWS CLI tool.
 
 S3 buckets can only be used as a storage for the recorded sessions. S3 cannot store
-the audit log or the cluster state. Below is an example of how to configure a Teleport 
-auth server to store the recorded sessions in an S3 bucket. 
+the audit log or the cluster state. Below is an example of how to configure a Teleport
+auth server to store the recorded sessions in an S3 bucket.
 
 
 ```yaml
 teleport:
   storage:
-      # The region setting sets the default AWS region for all AWS services 
+      # The region setting sets the default AWS region for all AWS services
       # Teleport may consume (DynamoDB, S3)
       region: us-west-1
 
@@ -2084,7 +2084,7 @@ teleport:
     access_key: BKZA3H2LOKJ1QJ3YF21A
     secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
 
-    # This setting configures Teleport to send the audit events to two places: 
+    # This setting configures Teleport to send the audit events to two places:
     # To the DynamoDB table and to keep a copy on a local filesystem.
     audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name']
 

@@ -19,6 +19,7 @@ limitations under the License.
 package firestoreevents
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -61,14 +62,26 @@ func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
 	s.EventsSuite.QueryDelay = time.Second
 }
 
-func (s *FirestoreeventsSuite) SetUpTest(c *check.C) {
-	s.log.deleteAllItems()
+func (s *FirestoreeventsSuite) TearDownSuite(c *check.C) {
+	s.log.Close()
+}
+
+func (s *FirestoreeventsSuite) TearDownTest(c *check.C) {
+	// Delete all documents.
+	ctx := context.Background()
+	docSnaps, err := s.log.svc.Collection(s.log.CollectionName).Documents(ctx).GetAll()
+	c.Assert(err, check.IsNil)
+	if len(docSnaps) == 0 {
+		return
+	}
+	batch := s.log.svc.Batch()
+	for _, docSnap := range docSnaps {
+		batch.Delete(docSnap.Ref)
+	}
+	_, err = batch.Commit(ctx)
+	c.Assert(err, check.IsNil)
 }
 
 func (s *FirestoreeventsSuite) TestSessionEventsCRUD(c *check.C) {
 	s.SessionEventsCRUD(c)
-}
-
-func (s *FirestoreeventsSuite) TearDownSuite(c *check.C) {
-	s.log.deleteAllItems()
 }

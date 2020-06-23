@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.2.10
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed an issue that caused Teleport environment variables not to be available in PAM modules. [#3725](https://github.com/gravitational/teleport/pull/3725)
+* Fixed an issue with `tsh login <clusterName>` not working correctly with Kubernetes clusters. [#3693](https://github.com/gravitational/teleport/issues/3693)
+
 ## 4.2.9
 
 This release of Teleport contains multiple bug fixes.

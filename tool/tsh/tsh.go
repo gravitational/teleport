@@ -163,6 +163,11 @@ type CLIConf struct {
 	// UseLocalSSHAgent set to false will prevent this client from attempting to
 	// connect to the local ssh-agent (or similar) socket at $SSH_AUTH_SOCK.
 	UseLocalSSHAgent bool
+
+	// EnableEscapeSequences will scan stdin for SSH escape sequences during
+	// command/shell execution. This also requires stdin to be an interactive
+	// terminal.
+	EnableEscapeSequences bool
 }
 
 func main() {
@@ -222,6 +227,9 @@ func Run(args []string) {
 		Envar(useLocalSSHAgentEnvVar).
 		Default("true").
 		BoolVar(&cf.UseLocalSSHAgent)
+	app.Flag("enable-escape-sequences", "Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences. Default is enabled.").
+		Default("true").
+		BoolVar(&cf.EnableEscapeSequences)
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
 	// ssh
@@ -1094,6 +1102,8 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	// certificates (https://dev.gnupg.org/T1756)
 	c.UseLocalSSHAgent = cf.UseLocalSSHAgent
 
+	c.EnableEscapeSequences = cf.EnableEscapeSequences
+
 	tc, err := client.NewClient(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1190,7 +1200,7 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	} else {
 		prefix = "  "
 	}
-	duration := p.ValidUntil.Sub(time.Now())
+	duration := time.Until(p.ValidUntil)
 	humanDuration := "EXPIRED"
 	if duration.Nanoseconds() > 0 {
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))

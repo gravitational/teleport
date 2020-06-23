@@ -378,6 +378,7 @@ func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds
 
 // SetupUser sets up user in the cluster
 func SetupUser(process *service.TeleportProcess, username string, roles []services.Role) error {
+	ctx := context.TODO()
 	auth := process.GetAuthServer()
 	teleUser, err := services.NewUser(username)
 	if err != nil {
@@ -392,14 +393,14 @@ func SetupUser(process *service.TeleportProcess, username string, roles []servic
 		roleOptions.ForwardAgent = services.NewBool(true)
 		role.SetOptions(roleOptions)
 
-		err = auth.UpsertRole(role)
+		err = auth.UpsertRole(ctx, role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		teleUser.AddRole(role.GetMetadata().Name)
 	} else {
 		for _, role := range roles {
-			err := auth.UpsertRole(role)
+			err := auth.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -552,6 +553,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 // Unlike Create() it allows for greater customization because it accepts
 // a full Teleport config structure
 func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
+	ctx := context.TODO()
 	tconf, err := i.GenerateConfig(trustedSecrets, tconf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -588,14 +590,14 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 			roleOptions.ForwardAgent = services.NewBool(true)
 			role.SetOptions(roleOptions)
 
-			err = auth.UpsertRole(role)
+			err = auth.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			teleUser.AddRole(role.GetMetadata().Name)
 		} else {
 			for _, role := range user.Roles {
-				err := auth.UpsertRole(role)
+				err := auth.UpsertRole(ctx, role)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -1262,7 +1264,7 @@ func (s *discardServer) Stop() {
 	s.sshServer.Close()
 }
 
-func (s *discardServer) HandleNewChan(ccx *sshutils.ConnectionContext, newChannel ssh.NewChannel) {
+func (s *discardServer) HandleNewChan(_ context.Context, ccx *sshutils.ConnectionContext, newChannel ssh.NewChannel) {
 	channel, reqs, err := newChannel.Accept()
 	if err != nil {
 		ccx.ServerConn.Close()
@@ -1276,23 +1278,17 @@ func (s *discardServer) HandleNewChan(ccx *sshutils.ConnectionContext, newChanne
 func (s *discardServer) handleChannel(channel ssh.Channel, reqs <-chan *ssh.Request) {
 	defer channel.Close()
 
-	for {
-		select {
-		case req := <-reqs:
-			if req == nil {
-				return
-			}
-			if req.Type == "exec" {
-				successPayload := ssh.Marshal(struct{ C uint32 }{C: uint32(0)})
-				channel.SendRequest("exit-status", false, successPayload)
-				if req.WantReply {
-					req.Reply(true, nil)
-				}
-				return
-			}
+	for req := range reqs {
+		if req.Type == "exec" {
+			successPayload := ssh.Marshal(struct{ C uint32 }{C: uint32(0)})
+			channel.SendRequest("exit-status", false, successPayload)
 			if req.WantReply {
 				req.Reply(true, nil)
 			}
+			return
+		}
+		if req.WantReply {
+			req.Reply(true, nil)
 		}
 	}
 }
@@ -1406,8 +1402,13 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	}
 
 	// create a (unstarted) agent and add the key to it
-	teleAgent := teleagent.NewServer()
-	teleAgent.Add(agentKey)
+	keyring := agent.NewKeyring()
+	if err := keyring.Add(agentKey); err != nil {
+		return nil, "", "", trace.Wrap(err)
+	}
+	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
+		return teleagent.NopCloser(keyring), nil
+	})
 
 	// start the SSH agent
 	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)

@@ -25,7 +25,7 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
-GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell"
+GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -179,7 +179,7 @@ release-windows: clean all
 # Builds docs using containerized mkdocs
 #
 .PHONY:docs
-docs:
+docs: docs-test
 	$(MAKE) -C build.assets docs
 
 #
@@ -189,6 +189,47 @@ docs:
 .PHONY:run-docs
 run-docs:
 	$(MAKE) -C build.assets run-docs
+
+#
+# Remove trailing whitespace in all markdown files under docs/.
+#
+# Note: this runs in a busybox container to avoid incompatibilities between
+# linux and macos CLI tools.
+#
+.PHONY:docs-fix-whitespace
+docs-fix-whitespace:
+	docker run --rm -v $(PWD):/teleport busybox \
+		find /teleport/docs/ -type f -name '*.md' -exec sed -E -i 's/\s+$$//g' '{}' \;
+
+#
+# Test docs for trailing whitespace and broken links
+#
+.PHONY:docs-test
+docs-test: docs-test-whitespace docs-test-links
+
+#
+# Check for trailing whitespace in all markdown files under docs/
+#
+.PHONY:docs-test-whitespace
+docs-test-whitespace:
+	if find docs/ -type f -name '*.md' | xargs grep -E '\s+$$'; then \
+		echo "trailing whitespace found in docs/ (see above)"; \
+		echo "run 'make docs-fix-whitespace' to fix it"; \
+		exit 1; \
+	fi
+
+#
+# Run milv in docs to detect broken links.
+# milv is installed if missing.
+#
+.PHONY:docs-test-links
+docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
+docs-test-links:
+	go get -v github.com/magicmatatjahu/milv
+	for docs_dir in $(DOCS_FOLDERS); do \
+		echo "running milv in $${docs_dir}"; \
+		cd $${docs_dir} && milv ; cd $(PWD); \
+	done
 
 #
 # tests everything: called by Jenkins

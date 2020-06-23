@@ -89,8 +89,8 @@ client `ssh` or using `tsh`:
    SSH connection. The client authenticates with the target Node using its
    client certificate.
 
-!!! tip "NOTE": 
-    
+!!! tip "NOTE":
+
     Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1.
 
 ## Recording Proxy Mode

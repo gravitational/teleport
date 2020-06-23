@@ -64,7 +64,7 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 		return nil
 	}
 	return a.checker.CheckAccessToRule(&services.Context{User: a.user},
-		defaults.Namespace, services.KindUser, services.VerbCreate, false)
+		defaults.Namespace, services.KindUser, services.VerbCreate, true)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -307,11 +307,11 @@ func (a *AuthWithRoles) DeactivateCertAuthority(id services.CertAuthID) error {
 }
 
 // GenerateToken generates multi-purpose authentication token.
-func (a *AuthWithRoles) GenerateToken(req GenerateTokenRequest) (string, error) {
+func (a *AuthWithRoles) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GenerateToken(req)
+	return a.authServer.GenerateToken(ctx, req)
 }
 
 func (a *AuthWithRoles) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
@@ -808,7 +808,6 @@ func (a *AuthWithRoles) SetAccessRequestState(ctx context.Context, reqID string,
 	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	ctx = withUpdateBy(ctx, a.user.GetName())
 	return a.authServer.SetAccessRequestState(ctx, reqID, state)
 }
 
@@ -858,21 +857,6 @@ func (a *AuthWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 
 type contextKey string
 
-// withUpdateBy creates a child context with the updated_by value set.
-// Helps capture the user who modified a resource.
-func withUpdateBy(ctx context.Context, user string) context.Context {
-	return context.WithValue(ctx, contextKey(events.UpdatedBy), user)
-}
-
-// getUpdateBy attempts to load the context value updated_by.
-func getUpdateBy(ctx context.Context) (string, error) {
-	updateBy, ok := ctx.Value(contextKey(events.UpdatedBy)).(string)
-	if !ok || updateBy == "" {
-		return "", trace.BadParameter("missing value %q", events.UpdatedBy)
-	}
-	return updateBy, nil
-}
-
 // WithDelegator creates a child context with the AccessRequestDelegator
 // value set.  Optionally used by AuthServer.SetAccessRequestState to log
 // a delegating identity.
@@ -904,12 +888,14 @@ func (a *AuthWithRoles) GetUsers(withSecrets bool) ([]services.User, error) {
 		if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", a.user.GetName())
 			log.Warning(err)
-			a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+			if err := a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
 				events.LoginMethod:        events.LoginMethodClientCert,
 				events.AuthAttemptSuccess: false,
 				// log the original internal error in audit log
 				events.AuthAttemptErr: trace.Unwrap(err).Error(),
-			})
+			}); err != nil {
+				log.Warnf("Failed to emit local login failure event: %v", err)
+			}
 			return nil, trace.AccessDenied("this request can be only executed by an admin")
 		}
 	} else {
@@ -930,12 +916,14 @@ func (a *AuthWithRoles) GetUser(name string, withSecrets bool) (services.User, e
 		if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.user.GetName(), name)
 			log.Warning(err)
-			a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+			if err := a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
 				events.LoginMethod:        events.LoginMethodClientCert,
 				events.AuthAttemptSuccess: false,
 				// log the original internal error in audit log
 				events.AuthAttemptErr: trace.Unwrap(err).Error(),
-			})
+			}); err != nil {
+				log.Warnf("Failed to emit local login failure event: %v", err)
+			}
 			return nil, trace.AccessDenied("this request can be only executed by an admin")
 		}
 	} else {
@@ -951,11 +939,13 @@ func (a *AuthWithRoles) GetUser(name string, withSecrets bool) (services.User, e
 	return a.authServer.Identity.GetUser(name, withSecrets)
 }
 
-func (a *AuthWithRoles) DeleteUser(user string) error {
+// DeleteUser deletes an existng user in a backend by username.
+func (a *AuthWithRoles) DeleteUser(ctx context.Context, user string) error {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteUser(user)
+
+	return a.authServer.DeleteUser(ctx, user)
 }
 
 func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
@@ -1017,12 +1007,14 @@ func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCer
 	default:
 		err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.user.GetName(), req.Username)
 		log.Warning(err)
-		a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
+		if err := a.authServer.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
 			events.LoginMethod:        events.LoginMethodClientCert,
 			events.AuthAttemptSuccess: false,
 			// log the original internal error in audit log
 			events.AuthAttemptErr: trace.Unwrap(err).Error(),
-		})
+		}); err != nil {
+			log.Warnf("Failed to emit local login failure event: %v", err)
+		}
 		// this error is vague on purpose, it should not happen unless someone is trying something out of loop
 		return nil, trace.AccessDenied("this request can be only executed by an admin")
 	}
@@ -1109,11 +1101,13 @@ func (a *AuthWithRoles) CreateResetPasswordToken(ctx context.Context, req Create
 		return nil, trace.Wrap(err)
 	}
 
-	a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
-		events.ActionOnBehalfOf:      req.Name,
+	if err := a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
+		events.FieldName:             req.Name,
 		events.ResetPasswordTokenTTL: req.TTL.String(),
 		events.EventUser:             a.user.GetName(),
-	})
+	}); err != nil {
+		log.Warnf("Failed to emit create reset password token event: %v", err)
+	}
 
 	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
@@ -1153,8 +1147,6 @@ func (a *AuthWithRoles) UpdateUser(ctx context.Context, user services.User) erro
 		return trace.Wrap(err)
 	}
 
-	ctx = withUpdateBy(ctx, a.user.GetName())
-
 	return a.authServer.UpdateUser(ctx, user)
 }
 
@@ -1176,14 +1168,14 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
-func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector) error {
+func (a *AuthWithRoles) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertOIDCConnector(connector)
+	return a.authServer.UpsertOIDCConnector(ctx, connector)
 }
 
 func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
@@ -1225,29 +1217,29 @@ func (a *AuthWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthRespons
 	return a.authServer.ValidateOIDCAuthCallback(q)
 }
 
-func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
+func (a *AuthWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteOIDCConnector(connectorID)
+	return a.authServer.DeleteOIDCConnector(ctx, connectorID)
 }
 
-func (a *AuthWithRoles) CreateSAMLConnector(connector services.SAMLConnector) error {
+func (a *AuthWithRoles) CreateSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertSAMLConnector(connector)
+	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (a *AuthWithRoles) UpsertSAMLConnector(connector services.SAMLConnector) error {
+func (a *AuthWithRoles) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertSAMLConnector(connector)
+	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
 
 func (a *AuthWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
@@ -1290,11 +1282,11 @@ func (a *AuthWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, erro
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
-func (a *AuthWithRoles) DeleteSAMLConnector(connectorID string) error {
+func (a *AuthWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteSAMLConnector(connectorID)
+	return a.authServer.DeleteSAMLConnector(ctx, connectorID)
 }
 
 func (a *AuthWithRoles) CreateGithubConnector(connector services.GithubConnector) error {
@@ -1305,14 +1297,14 @@ func (a *AuthWithRoles) CreateGithubConnector(connector services.GithubConnector
 }
 
 // UpsertGithubConnector creates or updates a Github connector.
-func (a *AuthWithRoles) UpsertGithubConnector(connector services.GithubConnector) error {
+func (a *AuthWithRoles) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.upsertGithubConnector(connector)
+	return a.authServer.upsertGithubConnector(ctx, connector)
 }
 
 func (a *AuthWithRoles) GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error) {
@@ -1343,11 +1335,11 @@ func (a *AuthWithRoles) GetGithubConnectors(withSecrets bool) ([]services.Github
 }
 
 // DeleteGithubConnector deletes a Github connector by name.
-func (a *AuthWithRoles) DeleteGithubConnector(connectorID string) error {
+func (a *AuthWithRoles) DeleteGithubConnector(ctx context.Context, connectorID string) error {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.deleteGithubConnector(connectorID)
+	return a.authServer.deleteGithubConnector(ctx, connectorID)
 }
 
 func (a *AuthWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
@@ -1481,7 +1473,7 @@ func (a *AuthWithRoles) CreateRole(role services.Role) error {
 }
 
 // UpsertRole creates or updates role.
-func (a *AuthWithRoles) UpsertRole(role services.Role) error {
+func (a *AuthWithRoles) UpsertRole(ctx context.Context, role services.Role) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1489,15 +1481,16 @@ func (a *AuthWithRoles) UpsertRole(role services.Role) error {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.upsertRole(role)
+	return a.authServer.upsertRole(ctx, role)
 }
 
 // GetRole returns role by name
 func (a *AuthWithRoles) GetRole(name string) (services.Role, error) {
-	if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
-		// allow user to read roles assigned to them
-		log.Infof("%v %v %v", a.user, a.user.GetRoles(), name)
-		if !utils.SliceContainsStr(a.user.GetRoles(), name) {
+	// Current-user exception: we always allow users to read roles
+	// that they hold.  This requirement is checked first to avoid
+	// misleading denial messages in the logs.
+	if !utils.SliceContainsStr(a.user.GetRoles(), name) {
+		if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -1505,11 +1498,11 @@ func (a *AuthWithRoles) GetRole(name string) (services.Role, error) {
 }
 
 // DeleteRole deletes role by name
-func (a *AuthWithRoles) DeleteRole(name string) error {
+func (a *AuthWithRoles) DeleteRole(ctx context.Context, name string) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteRole(name)
+	return a.authServer.DeleteRole(ctx, name)
 }
 
 // GetClusterConfig gets cluster level configuration.
@@ -1673,7 +1666,7 @@ func (a *AuthWithRoles) GetTrustedCluster(name string) (services.TrustedCluster,
 }
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
-func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) (services.TrustedCluster, error) {
+func (a *AuthWithRoles) UpsertTrustedCluster(ctx context.Context, tc services.TrustedCluster) (services.TrustedCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1681,7 +1674,7 @@ func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) (servic
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.UpsertTrustedCluster(tc)
+	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
 func (a *AuthWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
@@ -1690,12 +1683,12 @@ func (a *AuthWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedC
 }
 
 // DeleteTrustedCluster deletes a trusted cluster by name.
-func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
+func (a *AuthWithRoles) DeleteTrustedCluster(ctx context.Context, name string) error {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.DeleteTrustedCluster(name)
+	return a.authServer.DeleteTrustedCluster(ctx, name)
 }
 
 func (a *AuthWithRoles) UpsertTunnelConnection(conn services.TunnelConnection) error {

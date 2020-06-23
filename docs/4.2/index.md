@@ -102,20 +102,20 @@ We also have several guides that go through the most typical configurations and 
 ## Why Build Teleport?
 
 Mature tech companies with significant infrastructure footprints tend to implement most
-of these patterns internally. Teleport allows smaller companies without significant in-house 
-SSH expertise to easily adopt them, as well. Teleport comes with an accessible Web UI 
+of these patterns internally. Teleport allows smaller companies without significant in-house
+SSH expertise to easily adopt them, as well. Teleport comes with an accessible Web UI
 and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
 license to facilitate adoption and use.
 
-Being a complete standalone tool, Teleport can be used as a software library enabling 
-trust management in complex multi-cluster, multi-region scenarios across many teams 
+Being a complete standalone tool, Teleport can be used as a software library enabling
+trust management in complex multi-cluster, multi-region scenarios across many teams
 within multiple organizations.
 
 ## Who Built Teleport?
 
-Teleport was created by [Gravitational Inc](https://gravitational.com). We have built 
+Teleport was created by [Gravitational Inc](https://gravitational.com). We have built
 Teleport by borrowing from our previous experiences at Rackspace. It has been extracted
-from [Gravity](https://gravitational.com/gravity/), our system for helping our clients 
+from [Gravity](https://gravitational.com/gravity/), our system for helping our clients
 to deploy and remotely manage their SaaS applications on many cloud regions or even on-premise.
 
 

@@ -1,0 +1,13 @@
+[Unit]
+Description=Teleport Slack Plugin
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/local/bin/teleport-slack start --config=/etc/teleport-slack.toml --pid-file=/run/teleport-slack.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/teleport-slack.pid
+
+[Install]
+WantedBy=multi-user.target

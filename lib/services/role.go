@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -208,7 +209,7 @@ type Access interface {
 	CreateRole(role Role) error
 
 	// UpsertRole creates or updates role
-	UpsertRole(role Role) error
+	UpsertRole(ctx context.Context, role Role) error
 
 	// DeleteAllRoles deletes all roles
 	DeleteAllRoles() error
@@ -217,7 +218,7 @@ type Access interface {
 	GetRole(name string) (Role, error)
 
 	// DeleteRole deletes role by name
-	DeleteRole(name string) error
+	DeleteRole(ctx context.Context, name string) error
 }
 
 const (
@@ -1698,7 +1699,7 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration) ([]string, []strin
 		return nil, nil, trace.AccessDenied("this user cannot request kubernetes access for %v", ttl)
 	}
 	if len(groups) == 0 && len(users) == 0 {
-		return nil, nil, trace.AccessDenied("this user cannot request kubernetes access, has no assigned groups or users")
+		return nil, nil, trace.NotFound("this user cannot request kubernetes access, has no assigned groups or users")
 	}
 	return utils.StringsSliceFromSet(groups), utils.StringsSliceFromSet(users), nil
 }

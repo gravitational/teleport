@@ -14,6 +14,12 @@ rules:
   - serviceaccounts
   verbs:
   - impersonate
+- apiGroups:
+  - "authorization.k8s.io"
+  resources:
+  - selfsubjectaccessreviews
+  verbs:
+  - create
 {{ if .Values.usePSP -}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

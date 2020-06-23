@@ -249,7 +249,15 @@ var (
 	}
 )
 
-// OSS event codes start with "T".
+// There is no strict algorithm for picking an event code, however existing
+// event codes are currently loosely categorized as follows:
+//
+//  * Teleport event codes start with "T" and belong in this const block.
+//
+//  * Related events are grouped starting with the same number.
+//		eg: All user related events are grouped under 1xxx.
+//
+//  * Suffix code with one of these letters: I (info), W (warn), E (error).
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -259,14 +267,15 @@ const (
 	UserSSOLoginCode = "T1001I"
 	// UserSSOLoginFailureCode is the unsuccessful SSO user login event code.
 	UserSSOLoginFailureCode = "T1001W"
-	// UserUpdateCode is the user update event code.
-	UserUpdateCode = "T1002I"
-	// UserDeleteCode is the user delete event code.
-	UserDeleteCode = "T1003I"
 	// UserCreateCode is the user create event code.
-	UserCreateCode = "T1004I"
+	UserCreateCode = "T1002I"
+	// UserUpdateCode is the user update event code.
+	UserUpdateCode = "T1003I"
+	// UserDeleteCode is the user delete event code.
+	UserDeleteCode = "T1004I"
 	// UserPasswordChangeCode is an event code for when user changes their own password.
 	UserPasswordChangeCode = "T1005I"
+
 	// SessionStartCode is the session start event code.
 	SessionStartCode = "T2000I"
 	// SessionJoinCode is the session join event code.
@@ -281,6 +290,7 @@ const (
 	SessionUploadCode = "T2005I"
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
+
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
 	// SubsystemFailureCode is the subsystem failure event code.
@@ -305,18 +315,22 @@ const (
 	ClientDisconnectCode = "T3006I"
 	// AuthAttemptFailureCode is the auth attempt failure event code.
 	AuthAttemptFailureCode = "T3007W"
+
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
 	// SessionDiskCode is a session disk code.
 	SessionDiskCode = "T4001I"
 	// SessionNetworkCode is a session network code.
 	SessionNetworkCode = "T4002I"
+
 	// AccessRequestCreateCode is the the access request creation code.
 	AccessRequestCreateCode = "T5000I"
 	// AccessRequestUpdateCode is the access request state update code.
 	AccessRequestUpdateCode = "T5001I"
+
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
 	TrustedClusterCreateCode = "T7000I"
 	// TrustedClusterDeleteCode is the event code for removing a trusted cluster.
@@ -324,24 +338,24 @@ const (
 	// TrustedClusterTokenCreateCode is the event code for
 	// creating new join token for a trusted cluster.
 	TrustedClusterTokenCreateCode = "T7002I"
-	// GithubConnectorCreatedCode is the Github connector created event code.
-	GithubConnectorCreatedCode = "T8001I"
-	// GithubConnectorDeletedCode is the Github connector deleted event code.
-	GithubConnectorDeletedCode = "T8002I"
-)
 
-// Enterprise event codes starts with "TE".
-const (
-	// RoleCreatedCode is the role created event code.
-	RoleCreatedCode = "TE1000I"
-	// RoleDeletedCode is the role deleted event code.
-	RoleDeletedCode = "TE2000I"
+	// GithubConnectorCreatedCode is the Github connector created event code.
+	GithubConnectorCreatedCode = "T8000I"
+	// GithubConnectorDeletedCode is the Github connector deleted event code.
+	GithubConnectorDeletedCode = "T8001I"
+
 	// OIDCConnectorCreatedCode is the OIDC connector created event code.
-	OIDCConnectorCreatedCode = "TE1001I"
+	OIDCConnectorCreatedCode = "T8100I"
 	// OIDCConnectorDeletedCode is the OIDC connector deleted event code.
-	OIDCConnectorDeletedCode = "TE2001I"
+	OIDCConnectorDeletedCode = "T8101I"
+
 	// SAMLConnectorCreatedCode is the SAML connector created event code.
-	SAMLConnectorCreatedCode = "TE1002I"
+	SAMLConnectorCreatedCode = "T8200I"
 	// SAMLConnectorDeletedCode is the SAML connector deleted event code.
-	SAMLConnectorDeletedCode = "TE2002I"
+	SAMLConnectorDeletedCode = "T8201I"
+
+	// RoleCreatedCode is the role created event code.
+	RoleCreatedCode = "T9000I"
+	// RoleDeletedCode is the role deleted event code.
+	RoleDeletedCode = "T9001I"
 )

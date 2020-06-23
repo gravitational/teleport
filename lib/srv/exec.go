@@ -18,8 +18,6 @@ package srv
 
 import (
 	"bufio"
-	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -44,6 +42,8 @@ import (
 const (
 	defaultPath          = "/bin:/usr/bin:/usr/local/bin:/sbin"
 	defaultEnvPath       = "PATH=" + defaultPath
+	defaultRootPath      = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	defaultEnvRootPath   = "PATH=" + defaultRootPath
 	defaultTerm          = "xterm"
 	defaultLoginDefsPath = "/etc/login.defs"
 )
@@ -158,7 +158,9 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 	go func() {
-		io.Copy(inputWriter, channel)
+		if _, err := io.Copy(inputWriter, channel); err != nil {
+			e.Ctx.Warningf("Failed to forward data from SSH channel to local command %q stdin: %v", e.GetCommand(), err)
+		}
 		inputWriter.Close()
 	}()
 
@@ -246,8 +248,8 @@ func (e *localExec) transformSecureCopy() error {
 	}
 	e.Command = fmt.Sprintf("%s scp --remote-addr=%s --local-addr=%s %v",
 		teleportBin,
-		e.Ctx.Conn.RemoteAddr().String(),
-		e.Ctx.Conn.LocalAddr().String(),
+		e.Ctx.ServerConn.RemoteAddr().String(),
+		e.Ctx.ServerConn.LocalAddr().String(),
 		strings.Join(args[1:], " "))
 
 	return nil
@@ -256,16 +258,16 @@ func (e *localExec) transformSecureCopy() error {
 // waitForContinue will wait 10 seconds for the continue signal, if not
 // received, it will stop waiting and exit.
 func waitForContinue(contfd *os.File) error {
-	ctx, cancel := context.WithCancel(context.Background())
-
+	waitCh := make(chan error, 1)
 	go func() {
 		// Reading from the continue file descriptor will block until it's closed. It
 		// won't be closed until the parent has placed it in a cgroup.
-		var r bytes.Buffer
-		r.ReadFrom(contfd)
-
-		// Continue signal has been processed, signal to continue execution.
-		cancel()
+		buf := make([]byte, 1)
+		_, err := contfd.Read(buf)
+		if err == io.EOF {
+			err = nil
+		}
+		waitCh <- err
 	}()
 
 	// Wait for 10 seconds and then timeout if no continue signal has been sent.
@@ -275,9 +277,9 @@ func waitForContinue(contfd *os.File) error {
 	select {
 	case <-timeout.C:
 		return trace.BadParameter("timed out waiting for continue signal")
-	case <-ctx.Done():
+	case err := <-waitCh:
+		return err
 	}
-	return nil
 }
 
 // remoteExec is used to run an "exec" SSH request and return the result.
@@ -310,7 +312,9 @@ func (r *remoteExec) Start(ch ssh.Channel) (*ExecResult, error) {
 
 	go func() {
 		// copy from the channel (client) into stdin of the process
-		io.Copy(inputWriter, ch)
+		if _, err := io.Copy(inputWriter, ch); err != nil {
+			r.ctx.Warnf("Failed copying data from SSH channel to remote command stdin: %v", err)
+		}
 		inputWriter.Close()
 	}()
 
@@ -363,8 +367,8 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	fields := events.EventFields{
 		events.EventUser:      ctx.Identity.TeleportUser,
 		events.EventLogin:     ctx.Identity.Login,
-		events.LocalAddr:      ctx.Conn.LocalAddr().String(),
-		events.RemoteAddr:     ctx.Conn.RemoteAddr().String(),
+		events.LocalAddr:      ctx.ServerConn.LocalAddr().String(),
+		events.RemoteAddr:     ctx.ServerConn.RemoteAddr().String(),
 		events.EventNamespace: ctx.srv.GetNamespace(),
 		// Due to scp being inherently vulnerable to command injection, always
 		// make sure the full command and exit code is recorded for accountability.
@@ -413,25 +417,31 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	}
 
 	// Emit the event.
-	auditLog.EmitAuditEvent(event, fields)
+	if err := auditLog.EmitAuditEvent(event, fields); err != nil {
+		log.Warnf("Failed to emit exec audit event: %v", err)
+	}
 }
 
 // getDefaultEnvPath returns the default value of PATH environment variable for
-// new logins (prior to shell) based on login.defs. Returns a strings which
+// new logins (prior to shell) based on login.defs. Returns a string which
 // looks like "PATH=/usr/bin:/bin"
 func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	envPath := defaultEnvPath
-	envSuPath := defaultEnvPath
+	envRootPath := defaultEnvRootPath
 
 	// open file, if it doesn't exist return a default path and move on
 	f, err := os.Open(loginDefsPath)
 	if err != nil {
+		if uid == "0" {
+			log.Infof("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvRootPath)
+			return defaultEnvRootPath
+		}
 		log.Infof("Unable to open %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
 		return defaultEnvPath
 	}
 	defer f.Close()
 
-	// read path to login.defs file /etc/login.defs line by line:
+	// read path from login.defs file (/etc/login.defs) line by line:
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -441,14 +451,14 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 			continue
 		}
 
-		// look for a line that starts with ENV_SUPATH or ENV_PATH
+		// look for a line that starts with ENV_PATH or ENV_SUPATH
 		fields := strings.Fields(line)
 		if len(fields) > 1 {
 			if fields[0] == "ENV_PATH" {
 				envPath = fields[1]
 			}
 			if fields[0] == "ENV_SUPATH" {
-				envSuPath = fields[1]
+				envRootPath = fields[1]
 			}
 		}
 	}
@@ -456,6 +466,10 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	// if any error occurs while reading the file, return the default value
 	err = scanner.Err()
 	if err != nil {
+		if uid == "0" {
+			log.Warnf("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvRootPath)
+			return defaultEnvRootPath
+		}
 		log.Warnf("Unable to read %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
 		return defaultEnvPath
 	}
@@ -463,10 +477,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	// if requesting path for uid 0 and no ENV_SUPATH is given, fallback to
 	// ENV_PATH first, then the default path.
 	if uid == "0" {
-		if envSuPath == defaultEnvPath {
-			return envPath
-		}
-		return envSuPath
+		return envRootPath
 	}
 	return envPath
 }

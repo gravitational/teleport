@@ -864,7 +864,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		log.Warningf("[OIDC] Error while processing callback: %v", err)
 
-		message := "Unable to process callback from OIDC provider. Ask your system administrator to check audit logs for details."
+		message := "Unable to process callback from OIDC provider."
 		// redirect to an error page
 		pathToError := url.URL{
 			Path:     "/web/msg/error/login_failed",
@@ -1051,7 +1051,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.GetBearerToken(),
-		ExpiresIn: int(webSession.GetBearerTokenExpiryTime().Sub(time.Now()) / time.Second),
+		ExpiresIn: int(time.Until(webSession.GetBearerTokenExpiryTime()) / time.Second),
 	}, nil
 }
 
@@ -1090,6 +1090,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
 	if err != nil {
+		log.Warningf("access attempt denied for user %q: %v", req.User, err)
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
@@ -1099,6 +1100,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 
 	ctx, err := h.auth.ValidateSession(req.User, webSession.GetName())
 	if err != nil {
+		log.Warningf("access attempt denied for user %q: %v", req.User, err)
 		return nil, trace.AccessDenied("need auth")
 	}
 
@@ -1951,7 +1953,7 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *Handler) String() string {
-	return fmt.Sprintf("multi site")
+	return "multi site"
 }
 
 // currentSiteShortcut is a special shortcut that will return the first

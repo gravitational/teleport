@@ -66,7 +66,6 @@ type SrvSuite struct {
 	up          *upack
 	signer      ssh.Signer
 	user        string
-	freePorts   utils.PortList
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
 	nodeClient  *auth.Client
@@ -82,7 +81,6 @@ var wildcardAllow = services.Labels{
 	services.Wildcard: []string{services.Wildcard},
 }
 
-var _ = fmt.Printf
 var _ = Suite(&SrvSuite{})
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
@@ -99,12 +97,7 @@ func TestMain(m *testing.M) {
 }
 
 func (s *SrvSuite) SetUpSuite(c *C) {
-	var err error
-
 	utils.InitLoggerForTests(testing.Verbose())
-
-	s.freePorts, err = utils.GetFreeTCPPorts(100)
-	c.Assert(err, IsNil)
 }
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -147,16 +140,12 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.signer, err = sshutils.NewSigner(certs.Key, certs.Cert)
 	c.Assert(err, IsNil)
 
-	s.srvPort = s.freePorts.Pop()
-	s.srvAddress = "127.0.0.1:" + s.srvPort
-
 	s.nodeClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
 	c.Assert(err, IsNil)
 
-	s.srvHostPort = fmt.Sprintf("%v:%v", s.server.ClusterName(), s.srvPort)
 	nodeDir := c.MkDir()
 	srv, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
@@ -184,6 +173,11 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(auth.CreateUploaderDir(nodeDir), IsNil)
 	c.Assert(s.srv.Start(), IsNil)
 	c.Assert(s.srv.heartbeat.ForceSend(time.Second), IsNil)
+
+	s.srvAddress = s.srv.Addr()
+	_, s.srvPort, err = net.SplitHostPort(s.srvAddress)
+	c.Assert(err, IsNil)
+	s.srvHostPort = fmt.Sprintf("%v:%v", s.server.ClusterName(), s.srvPort)
 
 	// set up an agent server and a client that uses agent for forwarding
 	keyring := agent.NewKeyring()
@@ -283,6 +277,7 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 // TestAgentForwardPermission makes sure if RBAC rules don't allow agent
 // forwarding, we don't start an agent even if requested.
 func (s *SrvSuite) TestAgentForwardPermission(c *C) {
+	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.server.Auth().GetRole(roleName)
@@ -290,7 +285,7 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(false)
 	role.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(role)
+	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -310,13 +305,14 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 
 // TestAgentForward tests agent forwarding via unix sockets
 func (s *SrvSuite) TestAgentForward(c *C) {
+	ctx := context.Background()
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.server.Auth().GetRole(roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(role)
+	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -617,12 +613,11 @@ func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, ss
 	c.Assert(string(out), Equals, "hello\n")
 }
 
-func mustListen(a utils.NetAddr) net.Listener {
-	l, err := net.Listen("tcp", a.Addr)
-	if err != nil {
-		panic(err)
-	}
-	return l
+func (s *SrvSuite) mustListen(c *C) (net.Listener, utils.NetAddr) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, IsNil)
+	addr := utils.NetAddr{AddrNetwork: "tcp", Addr: l.Addr().String()}
+	return l, addr
 }
 
 func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
@@ -638,13 +633,13 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
 	c.Assert(err, IsNil)
 
-	reverseTunnelPort := s.freePorts.Pop()
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.server.ClusterName(), reverseTunnelPort)}
+	listener, reverseTunnelAddress := s.mustListen(c)
+	defer listener.Close()
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ID:                    hostID,
 		ClusterName:           s.server.ClusterName(),
-		Listener:              mustListen(reverseTunnelAddress),
+		Listener:              listener,
 		HostSigners:           []ssh.Signer{proxySigner},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
@@ -721,9 +716,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	s.testClient(c, proxy.Addr(), s.srvHostPort, s.srv.Addr(), sshConfig)
 
 	// adding new node
-	bobAddr := "127.0.0.1:" + s.freePorts.Pop()
 	srv2, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: bobAddr},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		"bob",
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
@@ -746,7 +740,6 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetUUID(bobAddr),
 		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
@@ -802,16 +795,12 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	log.Infof("[TEST START] TestProxyRoundRobin")
 
-	reverseTunnelPort := s.freePorts.Pop()
-	reverseTunnelAddress := utils.NetAddr{
-		AddrNetwork: "tcp",
-		Addr:        fmt.Sprintf("%v:%v", s.server.ClusterName(), reverseTunnelPort),
-	}
+	listener, reverseTunnelAddress := s.mustListen(c)
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:           s.server.ClusterName(),
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ID:                    hostID,
-		Listener:              mustListen(reverseTunnelAddress),
+		Listener:              listener,
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
@@ -907,15 +896,12 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 // TestProxyDirectAccess tests direct access via proxy bypassing
 // reverse tunnel
 func (s *SrvSuite) TestProxyDirectAccess(c *C) {
-	reverseTunnelAddress := utils.NetAddr{
-		AddrNetwork: "tcp",
-		Addr:        fmt.Sprintf("%v:0", s.server.ClusterName()),
-	}
+	listener, _ := s.mustListen(c)
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ID:                    hostID,
 		ClusterName:           s.server.ClusterName(),
-		Listener:              mustListen(reverseTunnelAddress),
+		Listener:              listener,
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
@@ -1033,10 +1019,9 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	srvAddress := "127.0.0.1:" + s.freePorts.Pop()
 	nodeStateDir := c.MkDir()
 	srv, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: srvAddress},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
@@ -1188,6 +1173,7 @@ type upack struct {
 }
 
 func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabels services.Labels) (*upack, error) {
+	ctx := context.Background()
 	auth := s.server.Auth()
 	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
@@ -1203,7 +1189,7 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	role.SetRules(services.Allow, rules)
 	role.SetLogins(services.Allow, allowedLogins)
 	role.SetNodeLabels(services.Allow, allowedLabels)
-	err = auth.UpsertRole(role)
+	err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -59,8 +59,7 @@ func (s *AuthInitSuite) SetUpTest(c *C) {
 }
 
 func (s *AuthInitSuite) TearDownTest(c *C) {
-	var err error
-	err = os.RemoveAll(s.tempDir)
+	err := os.RemoveAll(s.tempDir)
 	c.Assert(err, IsNil)
 }
 

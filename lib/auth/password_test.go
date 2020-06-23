@@ -111,7 +111,8 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	var elapsedExists time.Duration
 	for i := 0; i < 10; i++ {
 		start := time.Now()
-		s.a.CheckPasswordWOToken(username, []byte(password))
+		err = s.a.CheckPasswordWOToken(username, []byte(password))
+		c.Assert(err, IsNil)
 		elapsed := time.Since(start)
 		elapsedExists = elapsedExists + elapsed
 	}
@@ -119,7 +120,8 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	var elapsedNotExists time.Duration
 	for i := 0; i < 10; i++ {
 		start := time.Now()
-		s.a.CheckPasswordWOToken("blah", []byte(password))
+		err = s.a.CheckPasswordWOToken("blah", []byte(password))
+		c.Assert(err, NotNil)
 		elapsed := time.Since(start)
 		elapsedNotExists = elapsedNotExists + elapsed
 	}
@@ -128,6 +130,16 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	elapsedDifference := elapsedExists/10 - elapsedNotExists/10
 	comment := Commentf("elapsed difference (%v) greater than 40 ms", elapsedDifference)
 	c.Assert(elapsedDifference.Seconds() < 0.040, Equals, true, comment)
+}
+
+func (s *PasswordSuite) TestUserNotFound(c *C) {
+	username := "unknown-user"
+	password := "barbaz"
+
+	err := s.a.CheckPasswordWOToken(username, []byte(password))
+	c.Assert(err, NotNil)
+	// Make sure the error is not a NotFound. That would be a username oracle.
+	c.Assert(trace.IsBadParameter(err), Equals, true)
 }
 
 func (s *PasswordSuite) TestChangePassword(c *C) {

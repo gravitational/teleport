@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
@@ -111,27 +112,32 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 }
 
+// TestGuessProxyHostAndVersion checks that the GuessProxyHostAndVersion
+// correctly guesses the public address of the proxy (Teleport Cluster).
 func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
-	// nil proxies
-	host, version := GuessProxyHostAndVersion(nil)
+	// No proxies passed in.
+	host, version, err := GuessProxyHostAndVersion(nil)
 	c.Assert(host, check.Equals, "")
 	c.Assert(version, check.Equals, "")
+	fixtures.ExpectNotFound(c, err)
 
-	// no public addr set
+	// No proxies have public address set.
 	proxyA := ServerV2{}
 	proxyA.Spec.Hostname = "test-A"
 	proxyA.Spec.Version = "test-A"
 
-	host, version = GuessProxyHostAndVersion([]Server{&proxyA})
+	host, version, err = GuessProxyHostAndVersion([]Server{&proxyA})
 	c.Assert(host, check.Equals, fmt.Sprintf("%v:%v", proxyA.Spec.Hostname, defaults.HTTPListenPort))
 	c.Assert(version, check.Equals, proxyA.Spec.Version)
+	c.Assert(err, check.IsNil)
 
-	// with a proxy with public addr set
+	// At least one proxy has public address set.
 	proxyB := ServerV2{}
 	proxyB.Spec.PublicAddr = "test-B"
 	proxyB.Spec.Version = "test-B"
 
-	host, version = GuessProxyHostAndVersion([]Server{&proxyA, &proxyB})
+	host, version, err = GuessProxyHostAndVersion([]Server{&proxyA, &proxyB})
 	c.Assert(host, check.Equals, proxyB.Spec.PublicAddr)
 	c.Assert(version, check.Equals, proxyB.Spec.Version)
+	c.Assert(err, check.IsNil)
 }
