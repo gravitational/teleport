@@ -735,20 +735,11 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 
-# TODO(gus): remove
-# trigger:
-#   branch:
-#     - master
-#   event:
-#     - push
 trigger:
   branch:
     - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - push
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -1084,6 +1075,6 @@ steps:
 
 ---
 kind: signature
-hmac: 77110234fef08f10f7c4e7f09ac6194bb1a501493c286b36e67fa51cc6b85552
+hmac: aba9bdde632b99ac38fd2657f34a0aabfe60e8af903f2af6003bcae012577e49
 
 ...
