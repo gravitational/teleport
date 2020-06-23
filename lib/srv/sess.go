@@ -288,6 +288,8 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		// no more people left? Need to end the session!
 		s.removeSession(sess)
 
+		start, end := sess.startTime, time.Now().UTC()
+
 		// Emit a session.end event for this (interactive) session.
 		eventFields := events.EventFields{
 			events.SessionEventID:           string(sess.id),
@@ -298,6 +300,9 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 			events.SessionEnhancedRecording: sess.hasEnhancedRecording,
 			events.SessionParticipants:      sess.exportParticipants(),
 			events.SessionServerHostname:    s.srv.GetInfo().GetHostname(),
+			events.SessionServerAddr:        s.srv.GetInfo().GetAddr(),
+			events.SessionStartTime:         start,
+			events.SessionEndTime:           end,
 		}
 		sess.emitAuditEvent(events.SessionEnd, eventFields)
 
@@ -457,6 +462,9 @@ type session struct {
 	// client hits "page refresh").
 	lingerTTL time.Duration
 
+	// startTime is the time when this session was created.
+	startTime time.Time
+
 	// login stores the login of the initial session creator
 	login string
 
@@ -472,6 +480,7 @@ type session struct {
 // newSession creates a new session with a given ID within a given context.
 func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*session, error) {
 	serverSessions.Inc()
+	startTime := time.Now().UTC()
 	rsess := rsession.Session{
 		ID: id,
 		TerminalParams: rsession.TerminalParams{
@@ -479,8 +488,8 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 			H: teleport.DefaultTerminalHeight,
 		},
 		Login:          ctx.Identity.Login,
-		Created:        time.Now().UTC(),
-		LastActive:     time.Now().UTC(),
+		Created:        startTime,
+		LastActive:     startTime,
 		ServerID:       ctx.srv.ID(),
 		Namespace:      r.srv.GetNamespace(),
 		ServerHostname: ctx.srv.GetInfo().GetHostname(),
@@ -536,6 +545,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		login:        ctx.Identity.Login,
 		closeC:       make(chan bool),
 		lingerTTL:    defaults.SessionIdlePeriod,
+		startTime:    startTime,
 	}
 	return sess, nil
 }
@@ -856,6 +866,8 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		// Remove the session from the in-memory map.
 		s.registry.removeSession(s)
 
+		start, end := s.startTime, time.Now().UTC()
+
 		// Emit a session.end event for this (exec) session.
 		eventFields := events.EventFields{
 			events.SessionEventID:           string(s.id),
@@ -867,6 +879,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 				ctx.Identity.TeleportUser,
 			},
 			events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
+			events.SessionServerAddr:     ctx.srv.GetInfo().GetAddr(),
+			events.SessionStartTime:      start,
+			events.SessionEndTime:        end,
 		}
 		s.emitAuditEvent(events.SessionEnd, eventFields)
 
