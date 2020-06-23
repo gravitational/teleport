@@ -4,6 +4,14 @@ This guide will talk through how to setup Teleport with Pagerduty. Teleport to P
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
+
+<video  style="width:100%" controls>
+  <source src="/img/enterprise/plugins/jira/.mp4" type="video/mp4">
+  <source src="/img/enterprise/plugins/jira/jira-server.webm" type="video/webm">
+Your browser does not support the video tag.
+</video>
+
+
 ## Setup
 ### Prerequisites
 * An Enterprise or Pro Teleport Cluster
@@ -65,6 +73,8 @@ All new permission requests are going to show up in a project you choose. We rec
 
 You'll need the project Jira key to configure the plugin.
 
+( import a project TODO )
+
 #### Setting up the status board
 Create a new board for tasks in the permission management project. The board has to have at least these three columns:
 1. Pending
@@ -79,10 +89,10 @@ Go to your Jira Project settings -> Issue Types -> Select type `Task` -> add a n
 Teleport uses this field to reference it's internal request ID. If anyone changes this field on Jira, or tries to forge the permission request, Teleport will validate it and ignore it.
 
 #### Getting your Jira API token
-If you're using Jira Cloud, navigate to [Account Settings -> Security -> API Tokens](https://id.atlassian.com/manage/api-tokens) and create a new app specific API token in your Jira installation.
-You'll need this token later to configure the plugin.
+
 
 For Jira Server, the URL of the API tokens page will be different depending on your installation.
+TODO: Note needed, password is used.
 
 
 #### Settings up Jira Webhooks
@@ -111,11 +121,13 @@ $ wget https://get.gravitational.com/teleport-access-jira-v{{ teleport.plugin.ve
 $ tar -xzf teleport-access-jira-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
 $ cd teleport-access-jira/
 $ ./install
+# Teleport Jira Plugin binaries have been copied to /usr/local/bin
+# You can run teleport-jira configure > /etc/teleport-jira.toml to bootstrap your config file.
 $ which teleport-jira
 /usr/local/bin/teleport-jira
 ```
 
-Run `./install` in from 'teleport-pagerduty' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+Run `./install` in from 'teleport-jira' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuration file
 Teleport Jira Plugin uses a config file in TOML format. Generate a boilerplate config by
@@ -136,7 +148,7 @@ The `[teleport]` section describes where is the teleport service running, and wh
 
 The `[jira]` section requires a few things:
 1. Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like yourcompany.atlassian.net.
-2. Your username on Jira, i.e. ben@gravitational.com
+2. Your username on Jira, i.e. benarent
 3. Your Jira API token that you've created above.
 4. And the Jira Project key, available in Project settings.
 
