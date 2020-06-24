@@ -873,7 +873,6 @@ type: kubernetes
 name: docker-cron
 
 environment:
-  DOCKERFILE_BRANCH: gus/add-drone-pipeline
   REPO: quay.io
 
 trigger:
@@ -908,7 +907,7 @@ steps:
       - echo "$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       - for FILE in /tmp/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfile
-      - curl -Ls -o /tmp/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/$DOCKERFILE_BRANCH/build.assets/Dockerfile-cron
+      - curl -Ls -o /tmp/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/$DRONE_SOURCE_BRANCH/build.assets/Dockerfile-cron
 
   - name: Build and push Teleport containers (CURRENT_VERSION)
     image: docker:dind
@@ -1060,6 +1059,6 @@ steps:
 
 ---
 kind: signature
-hmac: 4d5b84be6c470a5c14cfb934396bc7e402b6eae99f81fde43a6788e72fc437dd
+hmac: 36039d9229fec027fa1a797f77f984a50f0174b97d2e94bb015722740453f777
 
 ...
