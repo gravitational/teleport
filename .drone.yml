@@ -3,6 +3,11 @@ kind: pipeline
 type: kubernetes
 name: test
 
+environment:
+  RUNTIME: go1.13.2
+  UID: 1000
+  GID: 1000
+
 trigger:
   branch:
     - master
@@ -20,7 +25,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.13.2
+    image: golang:${RUNTIME##go}
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -58,10 +63,7 @@ steps:
   - name: Run linter
     image: docker:dind
     environment:
-      UID: 1000
-      GID: 1000
       GOPATH: /gopath
-      RUNTIME: go1.13.2
     volumes:
       - name: dockersock
         path: /var/run
@@ -81,10 +83,7 @@ steps:
   - name: Run unit tests
     image: docker:dind
     environment:
-      UID: 1000
-      GID: 1000
       GOPATH: /gopath
-      RUNTIME: go1.13.2
     volumes:
       - name: dockersock
         path: /var/run
@@ -104,10 +103,7 @@ steps:
   - name: Run integration tests
     image: docker:dind
     environment:
-      UID: 1000
-      GID: 1000
       GOPATH: /gopath
-      RUNTIME: go1.13.2
     volumes:
       - name: dockersock
         path: /var/run
@@ -126,13 +122,12 @@ steps:
 
   - name: Save cache
     image: meltwater/drone-cache
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
     settings:
       rebuild: true
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
       bucket:
         from_secret: AWS_S3_BUCKET
       archive_format: gzip
@@ -196,7 +191,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.13.2
+    image: golang:${RUNTIME##go}
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -204,7 +199,7 @@ steps:
       - git checkout $DRONE_COMMIT
 
   - name: Run docs tests
-    image: golang:1.13.2
+    image: golang:${RUNTIME##go}
     commands:
       - cd /go/src/github.com/gravitational/teleport
       - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq)
@@ -225,12 +220,23 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 
+environment:
+  RUNTIME: go1.13.2
+
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - promote
+      - rollback
 
 depends_on:
   - test
@@ -273,7 +279,6 @@ steps:
       GOPATH: /gopath
       OS: linux
       ARCH: amd64
-      RUNTIME: go1.13.2
     volumes:
       - name: dockersock
         path: /var/run
@@ -334,12 +339,23 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 
+environment:
+  RUNTIME: go1.13.2
+
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - promote
+      - rollback
 
 depends_on:
   - test
@@ -380,7 +396,6 @@ steps:
       GOPATH: /gopath
       OS: linux
       ARCH: amd64
-      RUNTIME: go1.13.2
       FIPS: "yes"
     volumes:
       - name: dockersock
@@ -440,12 +455,23 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6
 
+environment:
+  RUNTIME: go1.13.2
+
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - promote
+      - rollback
 
 depends_on:
   - test
@@ -486,7 +512,6 @@ steps:
       GOPATH: /gopath
       OS: linux
       ARCH: amd64
-      RUNTIME: go1.13.2
     volumes:
       - name: dockersock
         path: /var/run
@@ -547,12 +572,23 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6-fips
 
+environment:
+  RUNTIME: go1.13.2
+
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - promote
+      - rollback
 
 depends_on:
   - test
@@ -593,7 +629,6 @@ steps:
       GOPATH: /gopath
       OS: linux
       ARCH: amd64
-      RUNTIME: go1.13.2
       FIPS: "yes"
     volumes:
       - name: dockersock
@@ -653,12 +688,23 @@ kind: pipeline
 type: kubernetes
 name: build-windows
 
+environment:
+  RUNTIME: go1.13.2
+
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - promote
+      - rollback
 
 depends_on:
   - test
@@ -755,11 +801,25 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 
+environment:
+  REPO: quay.io
+  RUNTIME: go1.13.2
+  UID: 1000
+  GID: 1000
+
+# trigger:
+#   branch:
+#     - master
+#   event:
+#     - push
 trigger:
   branch:
     - master
+    - branch/*
   event:
-    - push
+    exclude:
+      - promote
+      - rollback
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -780,10 +840,6 @@ steps:
   - name: Build and push buildbox container
     image: docker:git
     environment:
-      UID: 1000
-      GID: 1000
-      RUNTIME: go1.13.2
-      REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
       QUAYIO_DOCKER_PASSWORD:
@@ -809,10 +865,6 @@ steps:
   - name: Build and push buildbox-fips container
     image: docker:git
     environment:
-      UID: 1000
-      GID: 1000
-      RUNTIME: go1.13.2
-      REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
       QUAYIO_DOCKER_PASSWORD:
@@ -838,10 +890,6 @@ steps:
   - name: Build and push buildbox-centos6 container
     image: docker:git
     environment:
-      UID: 1000
-      GID: 1000
-      RUNTIME: go1.13.2
-      REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
       QUAYIO_DOCKER_PASSWORD:
@@ -867,10 +915,6 @@ steps:
   - name: Build and push buildbox-centos6-fips container
     image: docker:git
     environment:
-      UID: 1000
-      GID: 1000
-      RUNTIME: go1.13.2
-      REPO: quay.io
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
       QUAYIO_DOCKER_PASSWORD:
@@ -910,6 +954,10 @@ kind: pipeline
 type: kubernetes
 name: docker-cron
 
+environment:
+  DOCKERFILE_BRANCH: gus/add-drone-pipeline
+  REPO: quay.io
+
 trigger:
   cron:
     - docker-cron
@@ -928,7 +976,6 @@ steps:
       CURRENT_VERSION_ROOT: 4.2
       PREVIOUS_VERSION_ONE_ROOT: 4.1
       PREVIOUS_VERSION_TWO_ROOT: 4.0
-      DOCKERFILE_BRANCH: gus/add-drone-pipeline
     commands:
       - apk --update --no-cache add curl git
       - mkdir -p /tmp/build && cd /tmp/build
@@ -1095,6 +1142,6 @@ steps:
 
 ---
 kind: signature
-hmac: 68fed899a34960fee3fb26c0afb46621e2a1f1d2220e96a35438b5e252750ba5
+hmac: bebbbbd1db41b37a29c4ba62fc792decb283effea5425dc24ffefea3411e1af5
 
 ...
