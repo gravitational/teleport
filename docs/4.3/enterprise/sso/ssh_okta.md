@@ -33,7 +33,7 @@ First, create a SAML 2.0 Web App in Okta configuration section
 ![Switch to classic UI](../../img/sso/okta/switch-to-classic.gif)
 
 #### 2. Create a new SAML 2.0 App
-![Create APP](../../img/okta-saml-1.png)
+![Create APP](../../img/sso/okta/okta-saml-1.png)
 
 ### Configure the App
 
@@ -69,20 +69,20 @@ GROUP ATTRIBUTE STATEMENTS
 
 We are going to create two groups: "okta-dev" and "okta-admin":
 
-![Create Group Devs](../../img/okta-saml-2.1.png)
+![Create Group Devs](../../img/sso/okta/okta-saml-2.1.png)
 
 ...and the admin:
 
-![Create Group Devs](../../img/okta-saml-2.2.png)
+![Create Group Devs](../../img/sso/okta/okta-saml-2.2.png)
 
 Assign groups and people to your SAML app:
 
-![Configure APP](../../img/okta-saml-3.1.png)
+![Configure APP](../../img/sso/okta/okta-saml-3.1.png)
 
 Make sure to download the metadata in the form of an XML document. It will be used it to
 configure a Teleport connector:
 
-![Download metadata](../../img/okta-saml-4.png)
+![Download metadata](../../img/sso/okta/okta-saml-4.png)
 
 
 ## Create a SAML Connector
