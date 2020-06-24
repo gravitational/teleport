@@ -185,9 +185,24 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 			output:  DynamicForwardedPorts{},
 		},
 		{
-			spec:    []string{"8080"},
+			spec:    []string{"localhost"},
 			isError: true,
 			output:  DynamicForwardedPorts{},
+		},
+		{
+			spec:    []string{"localhost:123:456"},
+			isError: true,
+			output:  DynamicForwardedPorts{},
+		},
+		{
+			spec:    []string{"8080"},
+			isError: false,
+			output: DynamicForwardedPorts{
+				DynamicForwardedPort{
+					SrcIP:   "127.0.0.1",
+					SrcPort: 8080,
+				},
+			},
 		},
 		{
 			spec:    []string{":8080"},
@@ -195,6 +210,21 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 			output: DynamicForwardedPorts{
 				DynamicForwardedPort{
 					SrcIP:   "127.0.0.1",
+					SrcPort: 8080,
+				},
+			},
+		},
+		{
+			spec:    []string{":8080:8081"},
+			isError: true,
+			output:  DynamicForwardedPorts{},
+		},
+		{
+			spec:    []string{"[::1]:8080"},
+			isError: false,
+			output: DynamicForwardedPorts{
+				DynamicForwardedPort{
+					SrcIP:   "::1",
 					SrcPort: 8080,
 				},
 			},
