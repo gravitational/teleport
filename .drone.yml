@@ -4,7 +4,7 @@ type: kubernetes
 name: test
 
 environment:
-  GOLANG_VERSION: 1.13.2
+  RUNTIME: go1.13.2
   UID: 1000
   GID: 1000
 
@@ -25,7 +25,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:$GOLANG_VERSION
+    image: golang:1.13.2
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -44,13 +44,12 @@ steps:
 
   - name: Restore cache
     image: meltwater/drone-cache
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
     settings:
       restore: true
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
       bucket:
         from_secret: AWS_S3_BUCKET
       archive_format: gzip
@@ -77,7 +76,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h testbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:go$GOLANG_VERSION
+        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /bin/bash -c "make lint"
 
   - name: Run unit tests
@@ -97,7 +96,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h testbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:go$GOLANG_VERSION
+        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /bin/bash -c "make FLAGS='-cover -count 1' test"
 
   - name: Run integration tests
@@ -117,7 +116,7 @@ steps:
         -w $GOPATH/src/github.com/gravitational/teleport
         -h testbox
         -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:go$GOLANG_VERSION
+        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /bin/bash -c "make FLAGS='-cover -count 1' integration"
 
   - name: Save cache
@@ -174,9 +173,6 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
-environment:
-  GOLANG_VERSION: 1.13.2
-
 trigger:
   branch:
     - master
@@ -194,7 +190,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:$GOLANG_VERSION
+    image: golang:1.13.2
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -202,7 +198,7 @@ steps:
       - git checkout $DRONE_COMMIT
 
   - name: Run docs tests
-    image: golang:$GOLANG_VERSION
+    image: golang:1.13.2
     commands:
       - cd /go/src/github.com/gravitational/teleport
       - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq)
@@ -1145,6 +1141,6 @@ steps:
 
 ---
 kind: signature
-hmac: e1d50915fe691113bd813de6b7ff6bc946ef59cb657f568eadf4ea0864da6424
+hmac: dc189ce296648daf58acce537ed2e2193f7fae6d39d3a2b028ff520ce859fd8a
 
 ...
