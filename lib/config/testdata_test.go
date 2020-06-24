@@ -82,7 +82,7 @@ ssh_service:
   listen_addr: ssh:3025
   labels:
     name: mongoserver
-    role: slave
+    role: follower
   commands:
   - name: hostname
     command: [/bin/hostname]
