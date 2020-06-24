@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
 )
 
 // Default port numbers used by all teleport tools
@@ -345,6 +346,10 @@ var (
 
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
+
+	// CASignatureAlgorithm is the default signing algorithm to use when
+	// creating new SSH CAs.
+	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/test"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -47,7 +48,11 @@ func (s *NativeSuite) SetUpSuite(c *check.C) {
 
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
-	a, err := New(context.TODO(), PrecomputeKeys(1), SetClock(fakeClock))
+	a, err := New(
+		context.TODO(),
+		PrecomputeKeys(1),
+		SetClock(fakeClock),
+	)
 	c.Assert(err, check.IsNil)
 
 	s.suite = &test.AuthSuite{
@@ -167,6 +172,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 		hostCertificateBytes, err := s.suite.A.GenerateHostCert(
 			services.HostCertParams{
 				PrivateCASigningKey: caPrivateKey,
+				CASigningAlg:        defaults.CASignatureAlgorithm,
 				PublicHostKey:       hostPublicKey,
 				HostID:              tt.inHostID,
 				NodeName:            tt.inNodeName,
@@ -214,6 +220,7 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 
 		userCertificateBytes, err := s.suite.A.GenerateUserCert(services.UserCertParams{
 			PrivateCASigningKey:   priv,
+			CASigningAlg:          defaults.CASignatureAlgorithm,
 			PublicUserKey:         pub,
 			Username:              "user",
 			AllowedLogins:         []string{"centos", "root"},
@@ -230,7 +237,8 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 
 		userCertificate, ok := publicKey.(*ssh.Certificate)
 		c.Assert(ok, check.Equals, true, comment)
-
+		// Check that the signature algorithm is correct.
+		c.Assert(userCertificate.Signature.Format, check.Equals, defaults.CASignatureAlgorithm)
 		// check if we added the roles extension
 		_, ok = userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
 		c.Assert(ok, check.Equals, tt.outHasRoles, comment)

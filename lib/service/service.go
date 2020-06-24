@@ -1003,6 +1003,7 @@ func (process *TeleportProcess) initAuthService() error {
 		OIDCConnectors:       cfg.OIDCConnectors,
 		AuditLog:             process.auditLog,
 		CipherSuites:         cfg.CipherSuites,
+		CASigningAlg:         cfg.CASignatureAlgorithm,
 	})
 	if err != nil {
 		return trace.Wrap(err)
