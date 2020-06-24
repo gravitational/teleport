@@ -3438,6 +3438,153 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	}
 }
 
+// TestRotateChangeSigningAlg tests the change of CA signing algorithm on
+// manual rotation.
+func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
+	// Start with an instance using default signing alg.
+	tconf := rotationConfig(true)
+	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	logins := []string{s.me.Username}
+	for _, login := range logins {
+		t.AddUser(login, []string{login})
+	}
+	config, err := t.GenerateConfig(nil, tconf)
+	c.Assert(err, check.IsNil)
+
+	serviceC := make(chan *service.TeleportProcess, 20)
+	runErrCh := make(chan error, 1)
+
+	restart := func(svc *service.TeleportProcess, cancel func()) (*service.TeleportProcess, func()) {
+		if svc != nil && cancel != nil {
+			// shut down the service
+			cancel()
+			// close the service without waiting for the connections to drain
+			err := svc.Close()
+			c.Assert(err, check.IsNil)
+			err = svc.Wait()
+			c.Assert(err, check.IsNil)
+
+			select {
+			case err := <-runErrCh:
+				c.Assert(err, check.IsNil)
+			case <-time.After(20 * time.Second):
+				c.Fatalf("failed to shut down the server")
+			}
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+				svc, err := service.NewTeleport(cfg)
+				if err == nil {
+					serviceC <- svc
+				}
+				return svc, err
+			})
+		}()
+
+		svc, err = waitForProcessStart(serviceC)
+		c.Assert(err, check.IsNil)
+		return svc, cancel
+	}
+
+	assertSigningAlg := func(svc *service.TeleportProcess, alg string) {
+		hostCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+		c.Assert(err, check.IsNil)
+		c.Assert(hostCA.GetSigningAlg(), check.Equals, alg)
+
+		userCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: Site}, false)
+		c.Assert(err, check.IsNil)
+		c.Assert(userCA.GetSigningAlg(), check.Equals, alg)
+	}
+
+	rotate := func(svc *service.TeleportProcess, mode string) *service.TeleportProcess {
+		c.Logf("rotation phase: %q", services.RotationPhaseInit)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseInit,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service phase update to be broadcasted (init phase does not trigger reload)
+		err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
+		c.Assert(err, check.IsNil)
+
+		c.Logf("rotation phase: %q", services.RotationPhaseUpdateClients)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseUpdateClients,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service reload
+		svc, err = waitForReload(serviceC, svc)
+		c.Assert(err, check.IsNil)
+
+		c.Logf("rotation phase: %q", services.RotationPhaseUpdateServers)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseUpdateServers,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service reloaded
+		svc, err = waitForReload(serviceC, svc)
+		c.Assert(err, check.IsNil)
+
+		c.Logf("rotation phase: %q", services.RotationPhaseStandby)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseStandby,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service reloaded
+		svc, err = waitForReload(serviceC, svc)
+		c.Assert(err, check.IsNil)
+
+		return svc
+	}
+
+	// Start the instance.
+	svc, cancel := restart(nil, nil)
+
+	c.Log("default signature algorithm due to empty config value")
+	// Verify the default signing algorithm with config value empty.
+	assertSigningAlg(svc, defaults.CASignatureAlgorithm)
+
+	c.Log("change signature algorithm with custom config value and manual rotation")
+	// Change the signing algorithm in config file.
+	signingAlg := ssh.SigAlgoRSA
+	config.CASignatureAlgorithm = &signingAlg
+	svc, cancel = restart(svc, cancel)
+	// Do a manual rotation - this should change the signing algorithm.
+	svc = rotate(svc, services.RotationModeManual)
+	assertSigningAlg(svc, ssh.SigAlgoRSA)
+
+	c.Log("preserve signature algorithm with empty config value and manual rotation")
+	// Unset the config value.
+	config.CASignatureAlgorithm = nil
+	svc, cancel = restart(svc, cancel)
+
+	// Do a manual rotation - this should leave the signing algorithm
+	// unaffected because config value is not set.
+	svc = rotate(svc, services.RotationModeManual)
+	assertSigningAlg(svc, ssh.SigAlgoRSA)
+
+	// shut down the service
+	cancel()
+	// close the service without waiting for the connections to drain
+	svc.Close()
+
+	select {
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
+	case <-time.After(20 * time.Second):
+		c.Fatalf("failed to shut down the server")
+	}
+}
+
 // rotationConfig sets up default config used for CA rotation tests
 func rotationConfig(disableWebService bool) *service.Config {
 	tconf := service.MakeDefaultConfig()
