@@ -192,8 +192,7 @@ SAML and OIDC types:
 | Microsoft |`display: Microsoft`|![microsoft](../img/teleport-sso/microsoft.png)|
 | Google |`display: Google`|![google](../img/teleport-sso/google.png)|
 | BitBucket | `display: Bitbucket` | ![bitbucket](../img/teleport-sso/bitbucket.png)|
-| OpenID | `display: OpenID` | ![bitbucket](../img/teleport-sso/openId.png)|
-| Custom Provider | `display: Homegrown SSO` | ![bitbucket](../img/teleport-sso/custom-content.png)|
+| OpenID | `display: okta` | ![Okta](../img/teleport-sso/openId.png)|
 
 ## Troubleshooting
 
