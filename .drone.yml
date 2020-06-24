@@ -41,6 +41,7 @@ steps:
       - git submodule update --init e
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
+      - mkdir -p /go/cache
 
   # - name: Restore cache
   #   image: meltwater/drone-cache
