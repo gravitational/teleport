@@ -888,7 +888,12 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 			return nil, trace.Wrap(err)
 		}
 		for i := 0; i < len(nodes); i++ {
-			retval = append(retval, nodes[i].GetAddr())
+			addr := nodes[i].GetAddr()
+			if addr == "" {
+				// address is empty, try dialing by UUID instead.
+				addr = fmt.Sprintf("%s:0", nodes[i].GetName())
+			}
+			retval = append(retval, addr)
 		}
 	}
 	if len(nodes) == 0 {
@@ -1114,9 +1119,14 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	if node == nil {
 		return trace.NotFound(notFoundErrorMessage)
 	}
+	target := node.GetAddr()
+	if target == "" {
+		// address is empty, try dialing by UUID instead
+		target = fmt.Sprintf("%s:0", serverID)
+	}
 	// connect to server:
 	nc, err := proxyClient.ConnectToNode(ctx, NodeAddr{
-		Addr:      node.GetAddr(),
+		Addr:      target,
 		Namespace: tc.Namespace,
 		Cluster:   tc.SiteName,
 	}, tc.Config.HostLogin, false)
