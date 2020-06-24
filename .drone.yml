@@ -43,23 +43,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
 
-  # - name: Restore cache
-  #   image: meltwater/drone-cache
-  #   settings:
-  #     restore: true
-  #     access_key:
-  #       from_secret: AWS_ACCESS_KEY_ID
-  #     secret_key:
-  #       from_secret: AWS_SECRET_ACCESS_KEY
-  #     bucket:
-  #       from_secret: AWS_S3_BUCKET
-  #     archive_format: gzip
-  #     cache_key: '{{checksum ".drone_source_branch.txt"}}'
-  #     region: us-west-2
-  #     mount:
-  #       - /go/cache
-  #       - /go/pkg/mod
-
   - name: Run linter
     image: docker:dind
     environment:
@@ -119,23 +102,6 @@ steps:
         -u $UID:$GID
         -t quay.io/gravitational/teleport-buildbox:$RUNTIME
         /bin/bash -c "make FLAGS='-cover -count 1' integration"
-
-  # - name: Save cache
-  #   image: meltwater/drone-cache
-  #   settings:
-  #     rebuild: true
-  #     access_key:
-  #       from_secret: AWS_ACCESS_KEY_ID
-  #     secret_key:
-  #       from_secret: AWS_SECRET_ACCESS_KEY
-  #     bucket:
-  #       from_secret: AWS_S3_BUCKET
-  #     archive_format: gzip
-  #     cache_key: '{{checksum ".drone_source_branch.txt"}}'
-  #     region: us-west-2
-  #     mount:
-  #       - /go/cache
-  #       - /go/pkg/mod
 
   - name: Send Slack notification
     image: plugins/slack
@@ -223,20 +189,12 @@ name: build-linux-amd64
 environment:
   RUNTIME: go1.13.2
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - test
@@ -342,20 +300,12 @@ name: build-linux-amd64-fips
 environment:
   RUNTIME: go1.13.2
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - test
@@ -458,20 +408,12 @@ name: build-linux-amd64-centos6
 environment:
   RUNTIME: go1.13.2
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - test
@@ -575,20 +517,12 @@ name: build-linux-amd64-centos6-fips
 environment:
   RUNTIME: go1.13.2
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - test
@@ -691,20 +625,12 @@ name: build-windows
 environment:
   RUNTIME: go1.13.2
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - test
@@ -807,19 +733,11 @@ environment:
   UID: 1000
   GID: 1000
 
-# trigger:
-#   branch:
-#     - master
-#   event:
-#     - push
 trigger:
   branch:
     - master
-    - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    - push
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -1142,6 +1060,6 @@ steps:
 
 ---
 kind: signature
-hmac: 679737c07bff46d59a0e76703842541ad97cffa4ff5a235a9adddb936f47d6de
+hmac: 4d5b84be6c470a5c14cfb934396bc7e402b6eae99f81fde43a6788e72fc437dd
 
 ...
