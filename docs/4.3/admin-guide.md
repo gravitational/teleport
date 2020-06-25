@@ -1843,6 +1843,15 @@ To allow access for all users:
   + Copy `teleport-user-ca.pub` to `/etc/ssh/teleport-user-ca.pub`
   + Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
     this file: `TrustedUserCAKeys /etc/ssh/teleport-user-ca.pub`
+    
+To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
+
+Example ssh to `database.work.example.com` as `root` with a OpenSSH server on port 22 via `tsh`:
+   tsh ssh --port=22 root@database.work.example.com
+   
+!!! warning "Warning"
+  
+    The principal (username) being used to connect must be listed in the Teleport user/role configuration.    
 
 ## Certificate Rotation
 
