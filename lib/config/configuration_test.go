@@ -627,7 +627,7 @@ var (
 	}
 	Labels = map[string]string{
 		"name": "mongoserver",
-		"role": "slave",
+		"role": "follower",
 	}
 	CommandLabels = []CommandLabel{
 		{

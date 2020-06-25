@@ -285,8 +285,8 @@ $ tsh ls --cluster=east
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
-db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
-db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
+db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
+db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 ```
 
 ```bsh
