@@ -5,7 +5,7 @@ This guide will talk through how to setup Teleport with Jira Server. Teleport to
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 !!! note
-    Teleports tsh request workflow is synchronous and needs to be approved within 1 hour of the request.
+    Teleport's tsh request workflow is synchronous and needs to be approved within 1 hour of the request.
 
 <video  style="width:100%" controls>
   <source src="/img/enterprise/plugins/jira/jira-server.mp4" type="video/mp4">
