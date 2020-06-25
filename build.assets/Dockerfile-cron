@@ -1,0 +1,42 @@
+# First stage downloads pre-compiled Teleport archive from get.gravitational.com
+# and extracts binaries from the archive.
+FROM alpine AS download
+
+ARG DOWNLOAD_TYPE=teleport
+ARG VERSION_TAG
+ARG OS
+ARG ARCH
+ARG EXTRA_DOWNLOAD_ARGS=""
+
+WORKDIR /tmp
+# Download the appropriate binary tarball from get.gravitational.com and extract the binaries into
+# a temporary directory for us to use in the second stage.
+RUN apk --update --no-cache add curl tar ca-certificates && \
+    mkdir -p build && \
+    curl -Ls https://get.gravitational.com/${DOWNLOAD_TYPE}-${VERSION_TAG}-${OS}-${ARCH}${EXTRA_DOWNLOAD_ARGS}-bin.tar.gz | tar -xzf - && \
+    cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE/tctl $DOWNLOAD_TYPE/tsh build
+
+# Install dumb-init to ensure signals and orphaned processes are are handled correctly. We will
+# copy the binary into the final image in the next step. We download the static binary from Github
+# rather than installing via APK so that there are no missing library dependencies in the second stage.
+RUN curl -Ls -o /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.2/dumb-init_1.2.2_amd64 && \
+    chmod +x /usr/local/bin/dumb-init
+
+# Second stage builds final container with teleport binaries.
+# We can't use busybox:glibc as it doesn't provide all of Teleport's glibc library dependencies.
+FROM quay.io/gravitational/alpine-glibc AS teleport
+
+# Copy ca-certificates from the package that we installed in the previous stage.
+COPY --from=download /usr/share/ca-certificates /usr/share/ca-certificates
+COPY --from=download /etc/ssl/certs /etc/ssl/certs
+
+# Copy "teleport", "tctl", and "tsh" binaries from the previous stage.
+COPY --from=download /tmp/build/teleport /usr/local/bin/teleport
+COPY --from=download /tmp/build/tctl /usr/local/bin/tctl
+COPY --from=download /tmp/build/tsh /usr/local/bin/tsh
+
+# Copy "dumb-init" binary from the previous stage.
+COPY --from=download /usr/local/bin/dumb-init /usr/local/bin/dumb-init
+
+# Run Teleport inside the image with a default config file location.
+ENTRYPOINT ["/usr/local/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
