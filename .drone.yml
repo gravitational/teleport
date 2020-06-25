@@ -172,17 +172,17 @@ steps:
         git diff --raw ${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
-          go get -u github.com/magicmatatjahu/milv
           for VERSION in $(cat /tmp/docs-versions-changed.txt); do
-            cd docs/$VERSION
-            if [ -f milv.config.yaml ]; then
+            if [ -f docs/$VERSION/milv.config.yaml ]; then
+              cd docs/$VERSION
               echo "Running milv on docs/$VERSION:"
+              go get -u github.com/magicmatatjahu/milv
               milv
               echo "------------------------------"
+              cd -
             else
               echo "No milv config found, skipping docs/$VERSION"
             fi
-            cd -
           done
           else echo "No changes to docs detected, not running tests"
         fi
@@ -1065,6 +1065,6 @@ steps:
 
 ---
 kind: signature
-hmac: f77f23e3bc103e431513fe5347949de4d73d038cb4f1aa86577ee07976c09429
+hmac: 742defb75c5457a5ae15d7fadc2d1fd55c27ce00deafbcbf81c7342c0d1ed60a
 
 ...
