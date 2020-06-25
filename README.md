@@ -59,9 +59,9 @@ and run it under `$USER`, in this case you will not be able to login as someone 
 ### Deploy Teleport
 If you wish to deploy Teleport inside a Docker container:
 ```
-# This command will pull the Teleport container image for version 4.2.0
-# Replace 4.2.0 with the version you need:
-$ docker pull quay.io/gravitational/teleport:4.2.0
+# This command will pull the Teleport container image for version 4.3.0
+# Replace 4.3.0 with the version you need:
+$ docker pull quay.io/gravitational/teleport:4.3.0
 ```
 View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
 
@@ -95,7 +95,7 @@ NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need
 at least 1GB of virtual memory to compile Teleport. 512MB instance without swap
 will not work.
 
-NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v4.2.0`) before running `make full`.
+NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v4.3.0`) before running `make full`.
 
 ### Rebuilding Web UI
 

@@ -14,7 +14,7 @@ MARKETPLACE_AMI_NAME ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 4.2.3
+TELEPORT_VERSION ?= 4.3.0
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
