@@ -37,13 +37,11 @@ documented on the identity providers website. Here are a few links:
    * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
    * [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#_client_registration)
 
-!!! note
-
-    For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly.
-
-
 Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.
+
+!!! tip
+    For Google / G Suite please follow our dedicated [Guide](/enterprise/sso/ssh_gsuite.md)
 
 ## OIDC Redirect URL
 
@@ -68,7 +66,6 @@ the `user` role depending on the value returned for `group` within the claims.
 {!examples/resources/oidc-connector.yaml!}
 ```
 
-
 Create the connector:
 
 ```bsh
@@ -78,7 +75,7 @@ $ tctl create oidc-connector.yaml
 ## Create Teleport Roles
 
 The next step is to define Teleport roles. They are created using the same
-`tctl` [resource commands](../../cli-docs.md#tctl-create) as we used for the auth
+`tctl` [resource commands](../../admin-guide.md#resources) as we used for the auth
 connector.
 
 Below are two example roles that are mentioned above, the first is an admin
@@ -130,6 +127,56 @@ $ tctl create role-admin.yaml
 $ tctl create role-dev.yaml
 ```
 
+### Optional: ACR Values
+
+Teleport supports sending Authentication Context Class Reference (ACR) values
+when obtaining an authorization code from an OIDC provider. By default ACR
+values are not set. However, if the `acr_values` field is set, Teleport expects
+to receive the same value in the `acr` claim, otherwise it will consider the
+callback invalid.
+
+In addition, Teleport supports OIDC provider specific ACR value processing
+which can be enabled by setting the `provider` field in OIDC configuration. At
+the moment, the only build-in support is for NetIQ.
+
+A example of using ACR values and provider specific processing is below:
+
+```yaml
+# example connector which uses ACR values
+kind: oidc
+version: v2
+metadata:
+  name: "oidc-connector"
+spec:
+  issuer_url: "https://oidc.example.com"
+  client_id: "xxxxxxxxxxxxxxxxxxxxxxx.example.com"
+  client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
+  redirect_url: "https://<cluster-url>:3080/v1/webapi/oidc/callback"
+  display: "Login with Example"
+  acr_values: "foo/bar"
+  provider: netiq
+  scope: [ "group" ]
+  claims_to_roles:
+     - claim: "group"
+       value: "admin"
+       roles: [ "admin" ]
+     - claim: "group"
+       value: "user"
+       roles: [ "user" ]
+```
+
+### Optional: Redirect URL and Timeout
+
+The redirect URL must be accessible by all user, optional redirect timeout.
+
+```yaml
+# Extra parts of OIDC yaml have been removed.
+spec:
+  redirect_url: https://<cluster-url>.example.com:3080/v1/webapi/oidc/callback
+  # Optional Redirect Timeout.
+  # redirect_timeout: 90s
+```
+
 ### Optional: Prompt
 
 By default, Teleport will prompt end users to select an account each time they log in
@@ -161,47 +208,6 @@ spec:
 
 A list of available optional prompt parameters are available from the
 [OpenID website](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest).
-
-
-### Optional: ACR Values
-
-Teleport supports sending Authentication Context Class Reference (ACR) values
-when obtaining an authorization code from an OIDC provider. By default ACR
-values are not set. However, if the `acr_values` field is set, Teleport expects
-to receive the same value in the `acr` claim, otherwise it will consider the
-callback invalid.
-
-In addition, Teleport supports OIDC provider specific ACR value processing
-which can be enabled by setting the `provider` field in OIDC configuration. At
-the moment, the only build-in support is for NetIQ.
-
-A example of using ACR values and provider specific processing is below:
-
-```yaml
-# example connector which uses ACR values
-kind: oidc
-version: v2
-metadata:
-  name: "oidc-connector"
-spec:
-  issuer_url: "https://oidc.example.com"
-  client_id: "xxxxxxxxxxxxxxxxxxxxxxx.example.com"
-  client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
-  redirect_url: "https://localhost:3080/v1/webapi/oidc/callback"
-  display: "Login with Example"
-  acr_values: "foo/bar"
-  provider: netiq
-  scope: [ "group" ]
-  claims_to_roles:
-     - claim: "group"
-       value: "admin"
-       roles: [ "admin" ]
-     - claim: "group"
-       value: "user"
-       roles: [ "user" ]
-  # Glob matches of values instead of static matches:
-     - {claim: "roles", value: "gravitational/*", roles: ["clusteradmin"]}
-```
 
 ## Testing
 
