@@ -443,6 +443,10 @@ Or you can share the session ID and she can join you through her terminal by typ
 $ tsh join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
+!!! note
+
+Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
+
 ## Connecting to SSH Clusters behind Firewalls
 
 Teleport supports creating clusters of servers located behind firewalls **without
