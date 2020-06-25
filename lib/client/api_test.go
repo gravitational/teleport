@@ -185,9 +185,24 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 			output:  DynamicForwardedPorts{},
 		},
 		{
-			spec:    []string{"8080"},
+			spec:    []string{"localhost"},
 			isError: true,
 			output:  DynamicForwardedPorts{},
+		},
+		{
+			spec:    []string{"localhost:123:456"},
+			isError: true,
+			output:  DynamicForwardedPorts{},
+		},
+		{
+			spec:    []string{"8080"},
+			isError: false,
+			output: DynamicForwardedPorts{
+				DynamicForwardedPort{
+					SrcIP:   "127.0.0.1",
+					SrcPort: 8080,
+				},
+			},
 		},
 		{
 			spec:    []string{":8080"},
@@ -195,6 +210,21 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 			output: DynamicForwardedPorts{
 				DynamicForwardedPort{
 					SrcIP:   "127.0.0.1",
+					SrcPort: 8080,
+				},
+			},
+		},
+		{
+			spec:    []string{":8080:8081"},
+			isError: true,
+			output:  DynamicForwardedPorts{},
+		},
+		{
+			spec:    []string{"[::1]:8080"},
+			isError: false,
+			output: DynamicForwardedPorts{
+				DynamicForwardedPort{
+					SrcIP:   "::1",
 					SrcPort: 8080,
 				},
 			},
@@ -321,7 +351,7 @@ func (t *testCertGetter) GetTrustedCA(ctx context.Context, clusterName string) (
 
 	for _, clusterName := range t.clusterNames {
 		// Only the cluster name is checked in tests, pass in nil for the keys.
-		cas = append(cas, services.NewCertAuthority(services.HostCA, clusterName, nil, nil, nil))
+		cas = append(cas, services.NewCertAuthority(services.HostCA, clusterName, nil, nil, nil, services.CertAuthoritySpecV2_UNKNOWN))
 	}
 
 	return cas, nil

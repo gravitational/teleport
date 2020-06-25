@@ -2423,6 +2423,12 @@ func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
 	result := make(DynamicForwardedPorts, 0, len(spec))
 
 	for _, str := range spec {
+		// Check whether this is only the port number, like "1080".
+		// net.SplitHostPort would fail on that unless there's a colon in
+		// front.
+		if !strings.Contains(str, ":") {
+			str = ":" + str
+		}
 		host, port, err := net.SplitHostPort(str)
 		if err != nil {
 			return nil, trace.Wrap(err)

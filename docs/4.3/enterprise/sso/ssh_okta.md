@@ -29,19 +29,11 @@ auth_service:
 ## Configure Okta
 First, create a SAML 2.0 Web App in Okta configuration section
 
-![Switch to classic UI](../../img/okta-saml-0.png)
-![Create APP](../../img/okta-saml-1.png)
-![Create APP name](../../img/okta-saml-2.png)
+#### 1. Switch to Classic UI
+![Switch to classic UI](../../img/sso/okta/switch-to-classic.gif)
 
-**Create Groups**
-
-We are going to create two groups: "okta-dev" and "okta-admin":
-
-![Create Group Devs](../../img/okta-saml-2.1.png)
-
-...and the admin:
-
-![Create Group Devs](../../img/okta-saml-2.2.png)
+#### 2. Create a new SAML 2.0 App
+![Create APP](../../img/sso/okta/okta-saml-1.png)
 
 ### Configure the App
 
@@ -60,24 +52,37 @@ GROUP ATTRIBUTE STATEMENTS
 - Name: `groups` | Name format: `Unspecified`
 -  Filter: `Matches regex` |  `.*`
 
-![Configure APP](../../img/okta-saml-3.png)
+![Configure APP](../../img/sso/okta/setup-redirection.png)
 
-!!! tip "Important"
+#### Note: RegEx requires `.*`
+![Configure APP](../../img/sso/okta/regex.png)
+
+!!! tip "tip"
 
     Notice that we have set "NameID" to the email format and mapped the groups with
     a wildcard regex in the Group Attribute statements. We have also set the "Audience"
     and SSO URL to the same value.
 
-### Assign Groups
+### Create & Assign Groups
+
+**Create Groups**
+
+We are going to create two groups: "okta-dev" and "okta-admin":
+
+![Create Group Devs](../../img/sso/okta/okta-saml-2.1.png)
+
+...and the admin:
+
+![Create Group Devs](../../img/sso/okta/okta-saml-2.2.png)
 
 Assign groups and people to your SAML app:
 
-![Configure APP](../../img/okta-saml-3.1.png)
+![Configure APP](../../img/sso/okta/okta-saml-3.1.png)
 
 Make sure to download the metadata in the form of an XML document. It will be used it to
 configure a Teleport connector:
 
-![Download metadata](../../img/okta-saml-4.png)
+![Download metadata](../../img/sso/okta/okta-saml-4.png)
 
 
 ## Create a SAML Connector
@@ -85,24 +90,8 @@ configure a Teleport connector:
 Now, create a SAML connector [resource](../../admin-guide.md#resources):
 
 ```yaml
-# okta-connector.yaml
-kind: saml
-version: v2
-metadata:
-  name: OktaSAML
-spec:
-  # display allows to set the caption of the "login" button
-  # in the Web interface
-  display: "Okta"
-
-  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
-  attributes_to_roles:
-    - {name: "groups", value: "okta-admin", roles: ["admin"]}
-    - {name: "groups", value: "okta-dev", roles: ["dev"]}
-  entity_descriptor: |
-    <paste SAML XML contents here>
+{!examples/resources/saml-connector.yaml!}
 ```
-
 
 Create the connector using `tctl` tool:
 

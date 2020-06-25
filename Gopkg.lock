@@ -84,7 +84,7 @@
   revision = "1a2de0c21c94309923825da3df33a4381872c795"
 
 [[projects]]
-  digest = "1:93353de7c0f58d48f66f91c31a90cd95cdd79078b82c65ca652c23666bdd1426"
+  digest = "1:309c7e65f1fda0dfd3c59d7bc60f1bf6c82593650c658da9381819099ebc65a0"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -107,6 +107,7 @@
     "aws/request",
     "aws/session",
     "aws/signer/v4",
+    "internal/context",
     "internal/ini",
     "internal/s3err",
     "internal/sdkio",
@@ -115,6 +116,8 @@
     "internal/sdkuri",
     "internal/shareddefaults",
     "internal/strings",
+    "internal/sync/singleflight",
+    "private/checksum",
     "private/protocol",
     "private/protocol/eventstream",
     "private/protocol/eventstream/eventstreamapi",
@@ -136,8 +139,8 @@
     "service/sts/stsiface",
   ]
   pruneopts = "NUT"
-  revision = "2590bc875c54c9fda225d8e4e56a9d28d90c6a47"
-  version = "v1.28.11"
+  revision = "9e52c7bbf58d1f0910d05b24f4ce5728b2fd7c52"
+  version = "v1.32.7"
 
 [[projects]]
   digest = "1:7c3ada35fd3864b6992936bfcf76ba0ebc1d5b1f25b80992a5efba6f71d916cb"
@@ -1504,11 +1507,10 @@
     "google.golang.org/grpc/status",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",
-    "k8s.io/api/certificates/v1beta1",
+    "k8s.io/api/authorization/v1",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
-    "k8s.io/apimachinery/pkg/fields",
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apimachinery/pkg/runtime/serializer",
@@ -1517,9 +1519,9 @@
     "k8s.io/apimachinery/pkg/util/net",
     "k8s.io/apimachinery/pkg/util/remotecommand",
     "k8s.io/apimachinery/pkg/util/yaml",
-    "k8s.io/apimachinery/pkg/watch",
     "k8s.io/apimachinery/third_party/forked/golang/netutil",
     "k8s.io/client-go/kubernetes",
+    "k8s.io/client-go/kubernetes/typed/authorization/v1",
     "k8s.io/client-go/plugin/pkg/client/auth/azure",
     "k8s.io/client-go/plugin/pkg/client/auth/gcp",
     "k8s.io/client-go/rest",

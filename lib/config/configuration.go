@@ -287,6 +287,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.MACAlgorithms != nil {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
+	if fc.CASignatureAlgorithm != nil {
+		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
+	}
 
 	// Read in how nodes will validate the CA.
 	if fc.CAPin != "" {
@@ -662,7 +665,9 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 		clusterName,
 		nil,
 		[][]byte{ssh.MarshalAuthorizedKey(pubkey)},
-		nil)
+		nil,
+		services.CertAuthoritySpecV2_UNKNOWN,
+	)
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)

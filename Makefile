@@ -351,7 +351,10 @@ buildbox:
 # proto generates GRPC defs from service definitions
 .PHONY: grpc
 grpc: buildbox
-	docker run -v $(shell pwd):/go/src/github.com/gravitational/teleport $(BUILDBOX_TAG) make -C /go/src/github.com/gravitational/teleport buildbox-grpc
+	docker run \
+		--rm \
+		-v $(shell pwd):/go/src/github.com/gravitational/teleport $(BUILDBOX_TAG) \
+		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
 # proto generates GRPC stuff inside buildbox
 .PHONY: buildbox-grpc
