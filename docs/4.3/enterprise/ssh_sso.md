@@ -192,7 +192,7 @@ SAML and OIDC types:
 | Microsoft |`display: Microsoft`|![microsoft](../img/teleport-sso/microsoft.png)|
 | Google |`display: Google`|![google](../img/teleport-sso/google.png)|
 | BitBucket | `display: Bitbucket` | ![bitbucket](../img/teleport-sso/bitbucket.png)|
-| OpenID | `display: okta` | ![Okta](../img/teleport-sso/openId.png)|
+| OpenID | `display: Okta` | ![Okta](../img/teleport-sso/openId.png)|
 
 ## Troubleshooting
 

@@ -93,7 +93,7 @@ metadata:
 spec:
   # display allows to set the caption of the "login" button
   # in the Web interface
-  display: "Okta SSO"
+  display: "Okta"
 
   acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
   attributes_to_roles:

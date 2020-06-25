@@ -1,6 +1,6 @@
 #
 # Example resource for an OIDC connector
-# We recommend using oidc for G Suite, Auth 0 and Keyclock
+# We recommend using OIDC for G Suite, Auth0 and KeyClock
 #
 kind: oidc
 version: v2
