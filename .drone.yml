@@ -166,19 +166,20 @@ steps:
   - name: Run docs tests
     image: golang:1.13.2
     commands:
-      - cd /go/src/github.com/gravitational/teleport
-      - export DOCS_VERSIONS_CHANGED=$(git diff --raw $DRONE_TARGET_BRANCH | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq)
-      - if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
-      - echo "Changes to docs detected, versions $DOCS_VERSIONS_CHANGED"
-      - go get -u -v github.com/magicmatatjahu/milv
-      - for VERSION in DOCS_VERSIONS_CHANGED; do
-      - pushd $VERSION
-      - echo "Running milv on docs/$VERSION:"
-      - milv
-      - popd
-      - done
-      - else echo "No changes to docs detected, not running tests"
-      - fi
+      - |
+        cd /go/src/github.com/gravitational/teleport
+        git diff --raw $DRONE_TARGET_BRANCH | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
+          echo "Changes to docs detected, versions $DOCS_VERSIONS_CHANGED"
+          go get -u -v github.com/magicmatatjahu/milv
+          for VERSION in DOCS_VERSIONS_CHANGED; do
+            pushd $VERSION
+            echo "Running milv on docs/$VERSION:"
+            milv
+            popd
+          done
+          else echo "No changes to docs detected, not running tests"
+        fi
 
 ---
 kind: pipeline
@@ -1058,6 +1059,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9b9d31e946344763d0fa0b1d6f04e3cff90559cea1994b9aff99de78080530b5
+hmac: f4feef1aeb67fcd2d045d499b516d3a06f52c7e755d8fc41ec75b0762950a22c
 
 ...
