@@ -170,10 +170,9 @@ steps:
         cd /go/src/github.com/gravitational/teleport
         git diff --raw $DRONE_TARGET_BRANCH | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
-          export DOCS_VERSIONS_CHANGED=$(cat /tmp/docs-versions-changed.txt)
-          echo "Changes to docs detected, versions $DOCS_VERSIONS_CHANGED"
+          echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt)"
           go get -u -v github.com/magicmatatjahu/milv
-          for VERSION in DOCS_VERSIONS_CHANGED; do
+          for VERSION in $(cat /tmp/docs-versions-changed.txt); do
             cd $VERSION
             echo "Running milv on docs/$VERSION:"
             milv
@@ -1060,6 +1059,6 @@ steps:
 
 ---
 kind: signature
-hmac: bc9f1ecad2006cf1842858ba36d5294078c4ba168321824c8fcd197f0e912385
+hmac: df1d0087527a4ca65655a5cf4049f7f0586d0df66bb37f0a8d177ccd4956393a
 
 ...
