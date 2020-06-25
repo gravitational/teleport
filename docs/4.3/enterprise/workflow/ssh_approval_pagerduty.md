@@ -135,7 +135,7 @@ Save this as `teleport-pagerduty.service`.
 
 #### Example PagerDuty Request
 
-<video  style="width:100%" controls>
+<video style="width:100%" controls>
   <source src="/img/enterprise/plugins/pagerduty/pagerduty-demo.mp4" type="video/mp4">
   <source src="/img/enterprise/plugins/pagerduty/pagerduty-demo.webm" type="video/webm">
 Your browser does not support the video tag.
