@@ -146,6 +146,7 @@ trigger:
     - branch/*
   event:
     include:
+      - push
       - pull_request
 
 workspace:
@@ -168,7 +169,7 @@ steps:
     commands:
       - |
         cd /go/src/github.com/gravitational/teleport
-        git diff --raw $DRONE_TARGET_BRANCH | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        git diff --raw ${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           go get -u github.com/magicmatatjahu/milv
@@ -1064,6 +1065,6 @@ steps:
 
 ---
 kind: signature
-hmac: e328b1dca00ce4d40b2a4e3621e93e675ffec331c86305682d3f64f29884c10b
+hmac: f77f23e3bc103e431513fe5347949de4d73d038cb4f1aa86577ee07976c09429
 
 ...
