@@ -1,15 +1,14 @@
 # Teleport Jira Server Plugin Setup
-This guide will talk through how to setup Teleport with Jira Server. Teleport to Jira Server integration allows you to treat Teleport access and permission requests as Jira Task.
+This guide will talk through how to setup Teleport with Jira Server. Teleport to Jira Server integration allows you to treat Teleport access and permission requests as Jira Tasks.
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 !!! note
-    Teleports tsh request workflow is synchronous and needs to be approved within 1hr
-    of the request.
+    Teleports tsh request workflow is synchronous and needs to be approved within 1 hour of the request.
 
 <video  style="width:100%" controls>
-  <source src="/img/enterprise/plugins/jira/.mp4" type="video/mp4">
+  <source src="/img/enterprise/plugins/jira/jira-server.mp4" type="video/mp4">
   <source src="/img/enterprise/plugins/jira/jira-server.webm" type="video/webm">
 Your browser does not support the video tag.
 </video>
@@ -18,7 +17,7 @@ Your browser does not support the video tag.
 ### Prerequisites
 * An Enterprise or Pro Teleport Cluster
 * Admin Privileges with access and control of [`tctl`](https://gravitational.com/teleport/docs/cli-docs/#tctl)
-* Jira Server installation with an owner privileges, specifically to setup webhooks, issue types, and workflows. This plugin has been tested with Jira Software 8.8.0
+* Jira Server installation with owner privileges, specifically to setup webhooks, issue types, and workflows. This plugin has been tested with Jira Software 8.8.0
 
 ### Create an access-plugin role and user within Teleport
 First off, using an existing Teleport Cluster, we are going to create a new Teleport User and Role to access Teleport.
@@ -73,16 +72,16 @@ The above sequence should result in three PEM encoded files being generated: aut
 #### Creating a Project
 Teleport Jira Plugin relies on your Jira project having a board with at least three statuses (columns): Pending, Approved, and Denied. It's therefore the easiest scenario to create a new Jira project for Teleport to use.
 
-Specific type of the project you choose when you create it doesn't matter, as long as you can setup a Kanban Board for it, but we recommend that you go with Kanban Software Development — this will reduce the amount of setup work you'll have to do and provide the board out of the box.
+The specific type of project you choose when you create it doesn't matter, as long as you can setup a Kanban Board for it, but we recommend that you go with Kanban Software Development — this will reduce the amount of setup work you'll have to do and provide the board out of the box.
 
-You'll need the project key for the teleport plugin settings later on. It's usually a 3 character code for the project.
+You'll need the project key for the Teleport plugin settings later on. It's usually a 3 character code for the project.
 
 #### Setting up Request ID field on Jira
 Teleport stores the request metadata in a special Jira custom field that must be named teleportAccessRequestId. To create that field, go to Administration -> Issues -> Custom Fields -> Add Custom Field.
 
-Name the field teleportAccessRequestId, and choose Text Field (single line) as the field type. Assign the field to your project, or make it global. Teleport Access Request ID is an internal field and it's not supposed to be edited by users, so you can leave the Screens section blank. That means that the field won't show up in Jira UI.
+Name the field `teleportAccessRequestId`, and choose Text Field (single line) as the field type. Assign the field to your project, or make it global. Teleport Access Request ID is an internal field and it's not supposed to be edited by users, so you can leave the Screens section blank. That means that the field won't show up in Jira UI.
 
-Go to Project Settings -> Fields and make sure that the teleportAccessRequestId field shows up on the list of fields available in this project.
+Go to Project Settings -> Fields and make sure that the `teleportAccessRequestId` field shows up on the list of fields available in this project.
 
 #### Setting up the status board
 The default Jira Software workflow has a different board setup from what Teleport needs, so we'll setup another workflow and assign that workflow to the project board.
@@ -101,13 +100,13 @@ The rules of the workflow must meet these requirements:
 - It should be possible to move from Pending to Declined.
 - You can choose to make the workflow strict and restrict moving requests from Approved state to Declined state and vice versa, or leave that flexible. Teleport will only change the request status once, i.e. the first time the request is approved or denied on your Jira board.
 
-With Workflow editor you can setup who can approve or deny the request based on their Jira user permissions. We won't cover that in this guide as it mostly relates to Jira settings and Teleport will by default allow anyone who can use the workflow to approve or deny the request.
+With Workflow editor you can setup who can approve or deny the request based on their Jira user permissions. We won't cover that in this guide as it mostly relates to Jira settings. By default Teleport will allow anyone who can use the workflow to approve or deny the request.
 
 Go to your Project Settings -> Workflows, and make sure that your workflow that you just created or edited is applied to the project you'll use for Teleport integration.
 
 ### Setting up the webhook
 
-Teleport Jira Plugin will listen for a webhook that Jira Server sends when a r is approved or denied. Go to Settings -> System -> Webhooks to setup the webhook. The webhook needs to be sent when issues are updated or deleted.
+Teleport Jira Plugin will listen for a webhook that Jira Server sends when a request is approved or denied. Go to Settings -> System -> Webhooks to setup the webhook. The webhook needs to be sent when issues are updated or deleted.
 
 #### Configuring the Teleport Jira Plugin for Jira Server
 
@@ -121,14 +120,14 @@ compile these plugins from [source](https://github.com/gravitational/teleport-pl
 $ wget https://get.gravitational.com/teleport-access-jira-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
 $ tar -xzf teleport-access-jira-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
 $ cd teleport-access-jira/
-$ ./install
+$ sudo ./install
 # Teleport Jira Plugin binaries have been copied to /usr/local/bin
 # You can run teleport-jira configure > /etc/teleport-jira.toml to bootstrap your config file.
 $ which teleport-jira
 /usr/local/bin/teleport-jira
 ```
 
-Run `./install` in from 'teleport-jira' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+Run `sudo ./install` in from 'teleport-jira' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuration file
 Teleport Jira Plugin uses a config file in TOML format. Generate a boilerplate config by
@@ -170,7 +169,7 @@ INFO   Starting Teleport Access JIRAbot 0.1.0-alpha.3:teleport-jira-v0.1.0-alpha
 # DEBU   Found project "TEL1": "Tel-kb" jira/bot.go:150
 # DEBU   Checking out JIRA project permissions... jira/bot.go:152
 # DEBU   JIRA API health check finished ok jira/app.go:117
-# DEBU   Starting secure HTTPS server on 66.220.18.10:8081 utils/http.go:235
+# DEBU   Starting secure HTTPS server on 66.66.66.66:8081 utils/http.go:235
 # DEBU   Watcher connected access/service_job.go:62
 ```
 
@@ -194,7 +193,7 @@ Here's the recommended Teleport Plugin service unit file for systemd:
 Save this as `teleport-jira.service`.
 
 ## Audit Log
-The plugin will let anyone with access to the Jira board so it's important to review Teleport's audit log.
+The plugin will let anyone with access to the Jira board approve or deny requests, so it's important to review Teleport's audit log.
 
 ## Feedback
 If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).
