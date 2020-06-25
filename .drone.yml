@@ -174,9 +174,13 @@ steps:
           go get -u github.com/magicmatatjahu/milv
           for VERSION in $(cat /tmp/docs-versions-changed.txt); do
             cd docs/$VERSION
-            echo "Running milv on docs/$VERSION:"
-            milv
-            echo "------------------------------"
+            if [ -f milv.config.yaml ]; then
+              echo "Running milv on docs/$VERSION:"
+              milv
+              echo "------------------------------"
+            else
+              echo "No milv config found, skipping docs/$VERSION"
+            fi
             cd -
           done
           else echo "No changes to docs detected, not running tests"
@@ -1060,6 +1064,6 @@ steps:
 
 ---
 kind: signature
-hmac: c43da1ee801672bd72426176e92a213f70becbcfe41cb00a9d990a24828fd0d5
+hmac: e328b1dca00ce4d40b2a4e3621e93e675ffec331c86305682d3f64f29884c10b
 
 ...
