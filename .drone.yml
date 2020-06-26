@@ -14,6 +14,7 @@ trigger:
     - branch/*
   event:
     exclude:
+      - cron
       - promote
       - rollback
 
@@ -1065,6 +1066,6 @@ steps:
 
 ---
 kind: signature
-hmac: 742defb75c5457a5ae15d7fadc2d1fd55c27ce00deafbcbf81c7342c0d1ed60a
+hmac: 1f1284ed43d98cc0551ca761dc0b119739c16b016fce58cac60d264597c8348e
 
 ...
