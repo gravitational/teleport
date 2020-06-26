@@ -110,4 +110,4 @@ See our [Enterprise Guide for more information](ssh_fips.md)
 
 With Teleport 4.2 we've introduced the ability for users to request additional roles. The workflow API makes it easy to dynamically approve or deny these requests.
 
-See [Approval Workflows Guide for more information](/enterprise/workflow/index.md)
+See [Approval Workflows Guide for more information](workflow/index.md)

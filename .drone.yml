@@ -14,6 +14,7 @@ trigger:
     - branch/*
   event:
     exclude:
+      - cron
       - promote
       - rollback
 
@@ -145,9 +146,9 @@ trigger:
     - master
     - branch/*
   event:
-    exclude:
-      - promote
-      - rollback
+    include:
+      - push
+      - pull_request
 
 workspace:
   path: /go
@@ -167,19 +168,25 @@ steps:
   - name: Run docs tests
     image: golang:1.13.2
     commands:
-      - cd /go/src/github.com/gravitational/teleport
-      - DOCS_VERSIONS_CHANGED=$(git diff --raw HEAD^1 | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq)
-      - if [ ${#DOCS_VERSIONS_CHANGED} -gt 0 ]; then
-      - echo "Changes to docs detected, versions $DOCS_VERSIONS_CHANGED"
-      - go get -u -v github.com/magicmatatjahu/milv
-      - for VERSION in DOCS_VERSIONS_CHANGED; do
-      - pushd $VERSION
-      - echo "Running milv on docs/$VERSION:"
-      - milv
-      - popd
-      - done
-      - else echo "No changes to docs detected, not running tests"
-      - fi
+      - |
+        cd /go/src/github.com/gravitational/teleport
+        git diff --raw ${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
+          echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+          for VERSION in $(cat /tmp/docs-versions-changed.txt); do
+            if [ -f docs/$VERSION/milv.config.yaml ]; then
+              cd docs/$VERSION
+              echo "Running milv on docs/$VERSION:"
+              go get -u github.com/magicmatatjahu/milv
+              milv
+              echo "------------------------------"
+              cd -
+            else
+              echo "No milv config found, skipping docs/$VERSION"
+            fi
+          done
+          else echo "No changes to docs detected, not running tests"
+        fi
 
 ---
 kind: pipeline
@@ -1059,6 +1066,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9f08730d7f2bf29f9d97e1ac30a7315b965753e4b027846230c3e8cdecc30d30
+hmac: 1f1284ed43d98cc0551ca761dc0b119739c16b016fce58cac60d264597c8348e
 
 ...

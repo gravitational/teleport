@@ -56,7 +56,7 @@ $ tctl auth sign --format=tls --user=access-plugin-pagerduty --out=auth --ttl=87
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuration-file).
+The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#editing-the-config-file).
 
 !!! note "Certificate Lifetime"
      By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
@@ -65,10 +65,10 @@ The above sequence should result in three PEM encoded files being generated: aut
 In your Pagerduty dashboard, go to **Configuration → API Access → Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.
 
 **Create Pager Duty API Key**
-![Create a service account](/img/enterprise/plugins/pagerduty/pagerduty-api-key.png)
+![Create a service account](../../img/enterprise/plugins/pagerduty/pagerduty-api-key.png)
 
 **Create Service Account**
-![Create a service account](/img/enterprise/plugins/pagerduty/create-new-service-pd.png)
+![Create a service account](../../img/enterprise/plugins/pagerduty/create-new-service-pd.png)
 
 
 ## Downloading and installing the plugin
@@ -135,7 +135,7 @@ Save this as `teleport-pagerduty.service`.
 
 #### Example PagerDuty Request
 
-<video  style="width:100%" controls>
+<video style="width:100%" controls>
   <source src="/img/enterprise/plugins/pagerduty/pagerduty-demo.mp4" type="video/mp4">
   <source src="/img/enterprise/plugins/pagerduty/pagerduty-demo.webm" type="video/webm">
 Your browser does not support the video tag.

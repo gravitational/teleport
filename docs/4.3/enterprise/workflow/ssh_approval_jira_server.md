@@ -7,7 +7,7 @@ This guide will talk through how to setup Teleport with Jira Server. Teleport to
 !!! note
     Teleport's tsh request workflow is synchronous and needs to be approved within 1 hour of the request.
 
-<video  style="width:100%" controls>
+<video style="width:100%" controls>
   <source src="/img/enterprise/plugins/jira/jira-server.mp4" type="video/mp4">
   <source src="/img/enterprise/plugins/jira/jira-server.webm" type="video/webm">
 Your browser does not support the video tag.
@@ -55,7 +55,7 @@ $ tctl create -f rscs.yaml
 ```
 
 #### Export access-plugin Certificate
-Teleport Plugin uses the `access-plugin-jira`role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin uses the `access-plugin-jira` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 ```bash
 $ tctl auth sign --format=tls --user=access-plugin-jira --out=auth --ttl=8760h
@@ -144,7 +144,7 @@ By default, Jira Teleport Plugin will use a config in `/etc/teleport-jira.toml`,
 {!examples/resources/plugins/teleport-jira.toml!}
 ```
 
-The `[teleport]` section describes where is the teleport service running, and what keys should the plugin use to authenticate itself. Use the keys that you've generated [above in exporting your Certificate section](#Export access-plugin Certificate).
+The `[teleport]` section describes where is the teleport service running, and what keys should the plugin use to authenticate itself. Use the keys that you've generated [above in exporting your Certificate section](#export-access-plugin-certificate).
 
 The `[jira]` section requires a few things:
 1. Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like yourcompany.atlassian.net.
