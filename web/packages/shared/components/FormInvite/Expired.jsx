@@ -25,7 +25,7 @@ export default function Expired() {
         Invitation Code Expired
       </Text>
       <Text typography="paragraph" mb="2">
-        It appears that your invite code isn't valid anymore. Please contact
+        It appears that your invite code isn't valid any more. Please contact
         your account administrator and request another invite.
       </Text>
       <Text typography="paragraph">
