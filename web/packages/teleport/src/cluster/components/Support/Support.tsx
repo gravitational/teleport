@@ -39,7 +39,7 @@ const Support = () => {
   return (
     <FeatureBox>
       <FeatureHeader>
-        <FeatureHeaderTitle>Help & Support</FeatureHeaderTitle>
+        <FeatureHeaderTitle>{`Help & Support`}</FeatureHeaderTitle>
       </FeatureHeader>
       <Card px={5} pt={1} pb={6}>
         <Flex justifyContent="space-between" flexWrap="wrap">

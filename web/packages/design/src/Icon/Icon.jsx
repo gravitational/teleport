@@ -37,6 +37,7 @@ function makeFontIcon(name, iconClassName) {
   };
 }
 
+export const Add = makeFontIcon('Add', 'icon-add');
 export const AddUsers = makeFontIcon('AddUsers', 'icon-users-plus');
 export const Amex = makeFontIcon('Amex', 'icon-cc-amex');
 export const Apartment = makeFontIcon('Apartment', 'icon-apartment');
@@ -139,6 +140,7 @@ export const Github = makeFontIcon('Github', 'icon-github');
 export const Google = makeFontIcon('Google', 'icon-google-plus');
 export const Graph = makeFontIcon('Graph', 'icon-graph');
 export const Home = makeFontIcon('Home', 'icon-home3');
+export const Info = makeFontIcon('Info', 'icon-info_outline');
 export const Keypair = makeFontIcon('Keypair', 'icon-keypair');
 export const Kubernetes = makeFontIcon('Kubernetes', 'icon-kubernetes');
 export const Label = makeFontIcon('Label', 'icon-label');
@@ -187,6 +189,7 @@ export const PhonelinkSetup = makeFontIcon(
 export const Planet = makeFontIcon('Planet', 'icon-planet');
 export const Play = makeFontIcon('Play', 'icon-play');
 export const Profile = makeFontIcon('Profile', 'icon-profile');
+export const Question = makeFontIcon('Question', 'icon-question-circle');
 export const Restore = makeFontIcon('Restore', 'icon-restore');
 export const Server = makeFontIcon('Server', 'icon-server');
 export const SettingsInputComposite = makeFontIcon(
@@ -232,6 +235,5 @@ export const Warning = makeFontIcon('Warning', 'icon-warning');
 export const Wifi = makeFontIcon('Wifi', 'icon-wifi');
 export const Windows = makeFontIcon('Windows', 'icon-windows');
 export const Youtube = makeFontIcon('Youtube', 'icon-youtube');
-export const Add = makeFontIcon('Add', 'icon-add');
 
 export default Icon;

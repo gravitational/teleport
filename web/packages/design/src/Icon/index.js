@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import Icon, {
+  Add,
   AddUsers,
   Amex,
   Apartment,
@@ -84,6 +85,7 @@ import Icon, {
   Google,
   Graph,
   Home,
+  Info,
   Keypair,
   Kubernetes,
   Label,
@@ -120,6 +122,7 @@ import Icon, {
   Planet,
   Play,
   Profile,
+  Question,
   Restore,
   Server,
   SettingsInputComposite,
@@ -153,11 +156,11 @@ import Icon, {
   Wifi,
   Windows,
   Youtube,
-  Add,
 } from './Icon';
 
 export default Icon;
 export {
+  Add,
   AddUsers,
   Amex,
   Apartment,
@@ -227,6 +230,7 @@ export {
   Google,
   Graph,
   Home,
+  Info,
   Keypair,
   Kubernetes,
   Label,
@@ -263,6 +267,7 @@ export {
   Planet,
   Play,
   Profile,
+  Question,
   Restore,
   Server,
   SettingsInputComposite,
@@ -296,5 +301,4 @@ export {
   Wifi,
   Windows,
   Youtube,
-  Add,
 };

@@ -35,7 +35,7 @@ class FeatureSupport extends FeatureBase {
   onload(context: Ctx) {
     context.storeNav.addSideItem({
       title: 'Help & Support',
-      Icon: Icons.Stars,
+      Icon: Icons.Question,
       exact: true,
       to: cfg.getSupportRoute(),
     });
