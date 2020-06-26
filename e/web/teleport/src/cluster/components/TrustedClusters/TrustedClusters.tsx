@@ -8,11 +8,13 @@ import { Danger } from 'design/Alert';
 import { Indicator, Text, Box, Flex, ButtonPrimary } from 'design';
 import ResourceEditor from 'e-shared/components/ResourceEditor';
 import useResources from 'e-shared/components/Resources/useResources';
-import CardEmpty from 'teleport/components/CardEmpty';
 import TrustedList from './TrustedList';
 import DeleteTrustedClusterDialog from './DeleteTrustedClusterDialog';
 import templates from './templates';
 import useTrustedClusters from './useTrustedClusters';
+import Card from 'design/Card';
+import Image from 'design/Image';
+const idCardPNG = require('design/assets/images/trusted-cluster.png');
 
 export default function TrustedClusters() {
   const tclusters = useTrustedClusters();
@@ -45,8 +47,9 @@ export default function TrustedClusters() {
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Trusted Clusters</FeatureHeaderTitle>
-        {tclusters.canCreate && (
+        {!isEmpty && (
           <ButtonPrimary
+            disabled={!tclusters.canCreate}
             ml="auto"
             width="240px"
             onClick={() => resources.create('trusted_cluster')}
@@ -58,45 +61,28 @@ export default function TrustedClusters() {
       {tclusters.isFailed && <Danger>{tclusters.message} </Danger>}
       <Flex alignItems="start">
         {isEmpty && (
-          <CardEmpty title="Not sharing cluster access to a root cluster" />
-        )}
-        {!isEmpty && (
-          <TrustedList
-            mt="4"
-            flex="1"
-            items={tclusters.items}
-            onEdit={resources.edit}
-            onDelete={resources.remove}
+          <Empty
+            disabled={!tclusters.canCreate}
+            onCreate={() => resources.create('trusted_cluster')}
           />
         )}
-        <Box
-          ml="4"
-          width="240px"
-          color="text.primary"
-          style={{ flexShrink: 0 }}
-        >
-          <Text typography="h6" mb={3}>
-            TRUSTED CLUSTERS
-          </Text>
-          <Text typography="subtitle1" mb={3}>
-            Trusted Clusters allows Teleport administrators to connect multiple
-            clusters together and establish trust between them. Users of trusted
-            clusters can seamlessly access the nodes of the cluster from the
-            root cluster.
-          </Text>
-          <Text typography="subtitle1" mb={2}>
-            Please{' '}
-            <Text
-              as="a"
-              color="light"
-              href="https://gravitational.com/teleport/docs/trustedclusters/"
-              target="_blank"
-            >
-              view our documentation
-            </Text>{' '}
-            to learn more about trusted clusters.
-          </Text>
-        </Box>
+        {!isEmpty && (
+          <>
+            <TrustedList
+              mt="4"
+              flex="1"
+              items={tclusters.items}
+              onEdit={resources.edit}
+              onDelete={resources.remove}
+            />
+            <Info
+              ml="4"
+              width="240px"
+              color="text.primary"
+              style={{ flexShrink: 0 }}
+            />
+          </>
+        )}
       </Flex>
       {(resources.status === 'creating' || resources.status === 'editing') && (
         <ResourceEditor
@@ -118,3 +104,68 @@ export default function TrustedClusters() {
     </FeatureBox>
   );
 }
+
+const Info = props => (
+  <Box {...props}>
+    <Text typography="h6" mb={3}>
+      TRUSTED CLUSTERS
+    </Text>
+    <Text typography="subtitle1" mb={3}>
+      Trusted Clusters allows Teleport administrators to connect multiple
+      clusters together and establish trust between them. Users of trusted
+      clusters can seamlessly access the nodes of the cluster from the root
+      cluster.
+    </Text>
+    <Text typography="subtitle1" mb={2}>
+      Please{' '}
+      <Text
+        as="a"
+        color="light"
+        href="https://gravitational.com/teleport/docs/trustedclusters/"
+        target="_blank"
+      >
+        view our documentation
+      </Text>{' '}
+      to learn more about trusted clusters.
+    </Text>
+  </Box>
+);
+
+const Empty = (props: EmptyProps) => {
+  const imgProps = {
+    src: idCardPNG.default,
+    style: { width: '100%' },
+  };
+
+  return (
+    <Card
+      maxWidth="700px"
+      my={4}
+      mx="auto"
+      py={4}
+      as={Flex}
+      alignItems="center"
+    >
+      <Box width={4 / 10}>
+        <Image {...imgProps} />
+      </Box>
+      <Box width={6 / 10}>
+        <Info pr={4} mb={6} />
+        <ButtonPrimary
+          disabled={props.disabled}
+          onClick={props.onCreate}
+          mb="2"
+          mx="auto"
+          width="240px"
+        >
+          Connect to Root Cluster
+        </ButtonPrimary>
+      </Box>
+    </Card>
+  );
+};
+
+type EmptyProps = {
+  onCreate(): void;
+  disabled: boolean;
+};

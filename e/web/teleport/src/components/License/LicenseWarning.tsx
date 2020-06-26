@@ -1,15 +1,15 @@
 /* eslint react/no-danger: 0 */
 
 import React from 'react';
-import { Box, Flex, ButtonSecondary, Text } from 'design';
+import { Flex, ButtonSecondary, Text } from 'design';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 
-type LicenseWarningProps = {
+type Props = {
   html: string;
   onClose: () => void;
 };
 
-export default function LicenseWarning(props: LicenseWarningProps) {
+export default function LicenseWarning(props: Props) {
   return (
     <Dialog
       disableEscapeKeyDown={true}
