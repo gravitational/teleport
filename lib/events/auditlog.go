@@ -560,6 +560,11 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	if len(index.indexFiles) == 0 {
+		return nil, trace.NotFound("session %q not found", sid)
+	}
+
 	index.sort()
 	return &index, nil
 }
