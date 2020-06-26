@@ -1174,10 +1174,10 @@ HostCertificate /etc/ssh/teleport_host_key-cert.pub
 
 Now you can use [ `tsh ssh user@host.example.com` ](cli-docs.md#tsh) to login
 into any `sshd` node in the cluster and the session will be recorded. If you
-want to use OpenSSH `ssh` client for logging into `sshd` servers behind a proxy
-in "recording mode", you have to tell the `ssh` client to use the jump host and
-enable the agent forwarding, otherwise a recording proxy will not be able to
-terminate the SSH connection to record it:
+want to use [OpenSSH `ssh` client](#using-teleport-with-openssh) for logging
+into `sshd` servers behind a proxy in "recording mode", you have to tell the
+`ssh` client to use the jump host and enable the agent forwarding, otherwise a
+recording proxy will not be able to terminate the SSH connection to record it:
 
 ``` bsh
 # Note that agent forwarding is enabled twice: one from a client to a proxy
@@ -1739,15 +1739,15 @@ Teleport cluster. Teleport supports SSH subsystems and includes a `proxy`
 subsystem that can be used like `netcat` is with `ProxyCommand` to connect
 through a jump host.
 
-First, you need to export the public keys of cluster members. This has to be
+First, you need to export the cluster certificate authority. This has to be
 done on a node which runs Teleport auth server:
 
 ``` bash
-$ tctl auth export --type=host > cluster_node_keys
+$ tctl auth export --type=host > cluster_host_ca
 ```
 
 ``` bash
-$ cat cluster_node_keys
+$ cat cluster_host_ca
 @cert-authority *.graviton-auth ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDLNduBoHQaqi+kgkq3gLYjc6JIyBBnCFLgm63b5rtmWl/CJD7T9HWHxZphaS1jra6CWdboLeTp6sDUIKZ/Qw1MKFlfoqZZ8k6to43bxx7DvAHs0Te4WpuS/YRmWFhb6mMVOa8Rd4/9jE+c0f9O/t7X4m5iR7Fp7Tt+R/pjJfr03Loi6TYP/61AgXD/BkVDf+IcU4+9nknl+kaVPSGcPS9/Vbni1208Q+VN7B7Umy71gCh02gfv3rBGRgjT/cRAivuVoH/z3n5UwWg+9R3GD/l+XZKgv+pfe3OHoyDFxYKs9JaX0+GWc504y3Grhos12Lb8sNmMngxxxQ/KUDOV9z+R type=host
 ```
 
@@ -1762,8 +1762,21 @@ OpenSSH client to verify that host's certificates are signed by the trusted CA
 key:
 
 ``` yaml
-$ cat cluster_node_keys >> ~/.ssh/known_hosts
+$ cat cluster_host_ca >> ~/.ssh/known_hosts
 ```
+
+If you have multiple Teleport clusters, you have to export and set up these
+certificate authorities for each cluster individually.
+
+!!! tip "Proxy recording mode"
+
+    If you use [recording proxy mode](#recording-proxy-mode) and [trusted
+    clusters](#trusted-clusters), you need to set up certificate authority from
+    the _root_ cluster to match **all** nodes, even those that belong to _leaf_
+    clusters. For example, if your node naming scheme is `*.root.example.com`,
+    `*.leaf1.example.com`, `*.leaf2.example.com`, then the
+    `@certificate-authority` entry should match `*.example.com` and use the CA
+    from the root auth server only.
 
 Make sure you are running OpenSSH's `ssh-agent` , and have logged in to the
 Teleport proxy:
