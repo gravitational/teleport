@@ -31,7 +31,7 @@ exports[`support Enterprise 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -464,7 +464,7 @@ exports[`support OSS 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 

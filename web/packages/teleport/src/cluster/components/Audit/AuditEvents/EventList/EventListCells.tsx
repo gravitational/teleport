@@ -18,17 +18,42 @@ import React from 'react';
 import { Cell } from 'design/DataTable';
 import { ButtonBorder } from 'design';
 import { displayDateTime } from 'shared/services/loc';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { Event } from 'teleport/services/audit';
+import { CodeEnum } from 'teleport/services/audit/types';
+import cfg from 'teleport/config';
 
 export const ActionCell = props => {
   const { rowIndex, onViewDetails, data } = props;
-  const event = data[rowIndex];
+  const event: Event = data[rowIndex];
+
   function onClick() {
     onViewDetails(event);
   }
 
+  // use button for interactive ssh sessions
+  if (event.code === CodeEnum.SESSION_END && event.raw.interactive) {
+    return (
+      <Cell align="right">
+        <MenuButton>
+          <MenuItem
+            as="a"
+            target="_blank"
+            href={cfg.getPlayerRoute({ sid: event.raw.sid })}
+          >
+            Session Player
+          </MenuItem>
+          <MenuItem as="a" onClick={onClick}>
+            Details...
+          </MenuItem>
+        </MenuButton>
+      </Cell>
+    );
+  }
+
   return (
     <Cell align="right">
-      <ButtonBorder size="small" onClick={onClick}>
+      <ButtonBorder size="small" onClick={onClick} width="87px">
         Details
       </ButtonBorder>
     </Cell>

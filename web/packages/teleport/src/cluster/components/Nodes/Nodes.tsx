@@ -25,8 +25,6 @@ import {
 import { useTeleport } from 'teleport/teleportContextProvider';
 import NodeList from 'teleport/components/NodeList';
 import useClusterNodes from './useClusterNodes';
-import QuickLaunch from 'teleport/components/QuickLaunch';
-import styled from 'styled-components';
 
 export default function ClusterNodes() {
   const teleCtx = useTeleport();
@@ -53,7 +51,6 @@ export function Nodes({
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="5">Nodes</FeatureHeaderTitle>
-        <StyledQuickLaunch onPress={startSshSession} />
       </FeatureHeader>
       {attempt.isProcessing && (
         <Box textAlign="center" m={10}>
@@ -72,14 +69,3 @@ export function Nodes({
 }
 
 type NodesProp = ReturnType<typeof useClusterNodes>;
-
-const StyledQuickLaunch = styled(QuickLaunch)`
-  display: flex;
-  align-items: center;
-  margin-left: auto;
-  margin-right: 0;
-
-  label {
-    margin: 0 5px 0 0;
-  }
-`;

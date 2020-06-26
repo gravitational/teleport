@@ -108,6 +108,7 @@ const StyledSelect = styled(Box)(
   ({ theme }) => `
   .react-select__control,
   .react-select__control--is-focused {
+    border-color: #FFF;
     height: 34px;
     min-height: 34px;
   }
@@ -117,7 +118,7 @@ const StyledSelect = styled(Box)(
   }
   .react-select__option--is-focused,
   .react-select__option--is-focused:active {
-    background-color: ${theme.colors.grey[300]};
+    background-color: ${theme.colors.grey[50]};
   }
 
   .react-select__menu {
@@ -137,20 +138,12 @@ const StyledSelect = styled(Box)(
     padding: 0 8px;
   }
 
-  .react-select__control--is-focused {
-    background-color: white;
-    border-color: transparent;
-    border-radius: 4px;
-    border-style: solid;
-    border-width: 1px;
-    box-shadow: none;
-    border-color: ${theme.colors.text.primary};
-    .react-select__dropdown-indicator{
-      color: ${theme.colors.text.secondary};
-    }
+  .react-select__option--is-selected {
+    background-color: inherit;
+    color: inherit;
   }
 
-  .react-select__option--is-selected {
+  .react-select__option--is-focused {
     background-color: #cfd8dc;
     color: inherit;
   }
@@ -182,20 +175,35 @@ const StyledSelect = styled(Box)(
 
   .react-select__control {
     border-radius: 4px;
-    border-color: rgba(255, 255, 255, 0.56);
+    border-color: rgba(255, 255, 255, 0.24);
     background-color: ${theme.colors.primary.light};
     color: ${theme.colors.text.secondary};
+
+    &:focus, &:active {
+      background-color: ${theme.colors.primary.lighter};
+    }
+
     &:hover {
-      border-color: ${theme.colors.text.primary};
+      border-color: rgba(255, 255, 255, 0.24);
+      background-color: ${theme.colors.primary.lighter};
       .react-select__dropdown-indicator{
         color: ${theme.colors.text.primary};
       }
     }
   }
 
-  .react-select__option--is-selected {
-    background-color: #cfd8dc;
-    color: inherit;
+  .react-select__control--is-focused {
+    background-color: ${theme.colors.primary.lighter};
+    border-color: transparent;
+    border-radius: 4px;
+    border-style: solid;
+    border-width: 1px;
+    box-shadow: none;
+    border-color: rgba(255, 255, 255, 0.24);
+
+    .react-select__dropdown-indicator{
+      color: ${theme.colors.text.secondary};
+    }
   }
 
   .react-select__menu {

@@ -41,14 +41,13 @@ export default function FieldInputSsh({ onPress, ...boxProps }) {
     <Box {...boxProps}>
       <LabelInput hasError={hasError}>{labelText}</LabelInput>
       <StyledInput
-        hasError={hasError}
+        autoFocus
         height="34px"
         width="240px"
         bg="primary.light"
         color="text.primary"
         placeholder="login@host"
         onKeyPress={onKeyPress}
-        autoFocus
       />
     </Box>
   );
@@ -63,15 +62,21 @@ const check = value => {
 const StyledInput = styled(Input)(
   ({ theme }) => `
   background: ${theme.colors.primary.light};
-  border: 1px solid rgba(255, 255, 255, 0.56);
-  &:hover {
+  border: 1px solid ${theme.colors.primary.dark};
+  border-radius: 4px;
+  border-color: rgba(255, 255, 255, 0.24);
+
+  &:hover, &:focus, &:active {
+    color: ${theme.colors.text.primary};
     background: ${theme.colors.primary.lighter};
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .24);
   }
 
   font-size: ${theme.fontSizes[2]}px;
   font-family: ${theme.font};
 
   &::placeholder {
+    color: ${theme.colors.text.placeholder};
     font-size: ${theme.fontSizes[2]}px;
   }
 `

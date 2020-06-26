@@ -55,10 +55,10 @@ const Label = styled.div`
   align-items: center;
   justify-content: center;
   min-height: 16px;
+  line-height: 1.4;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
-  text-transform: uppercase;
 
   ${kind}
   ${space}

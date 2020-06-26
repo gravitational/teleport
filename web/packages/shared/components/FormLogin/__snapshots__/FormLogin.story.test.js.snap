@@ -67,7 +67,7 @@ exports[`auth2faType: otp rendering 1`] = `
   margin-bottom: 32px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -276,7 +276,7 @@ exports[`auth2faType: u2f rendering 1`] = `
   margin-bottom: 32px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -450,7 +450,7 @@ exports[`nonrendering of SSO providers w/ local auth disabled and no providers 1
   padding-right: 32px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -570,7 +570,7 @@ exports[`nonrendering of user/pass/otp/login elements w/ local auth disabled 1`]
   margin-bottom: 32px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -772,7 +772,7 @@ exports[`server error rendering 1`] = `
   margin-bottom: 32px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -1026,7 +1026,7 @@ exports[`sso providers rendering 1`] = `
   margin-bottom: 32px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 

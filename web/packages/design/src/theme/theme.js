@@ -16,7 +16,7 @@ limitations under the License.
 
 import { fonts } from './fonts';
 import { getContrastRatio } from './utils/colorManipulator';
-import { lightBlue, red, teal, orange, pink, blueGrey } from './palette';
+import { lightBlue, red, teal, orange, pink, blueGrey, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
@@ -84,6 +84,7 @@ const colors = {
   link: lightBlue[500],
   bgTerminal: '#010B1C',
   danger: pink.A400,
+  highlight: yellow[50],
   disabled: blueGrey[500],
   info: lightBlue[600],
   warning: orange.A400,

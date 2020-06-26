@@ -236,7 +236,7 @@ exports[`rendering of ClusterTopBar 1`] = `
 <nav
   class="sc-AxiKw c0"
   height="56px"
-  style="z-index: 1; box-shadow: 0 8px 24px rgba(0,0,0,.24); overflow-x: auto;"
+  style="z-index: 1; box-shadow: 0 4px 16px rgba(0,0,0,.24); overflow-x: auto;"
 >
   <a
     class="c1"

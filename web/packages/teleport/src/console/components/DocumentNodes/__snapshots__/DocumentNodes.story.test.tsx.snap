@@ -31,7 +31,7 @@ exports[`render DocumentNodes 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #01172C;
+  background: #092F52;
   border: 1px solid #010B1C;
   opacity: .87;
   color: rgba(255,255,255,0.87);
@@ -47,7 +47,8 @@ exports[`render DocumentNodes 1`] = `
 
 .c21:hover,
 .c21:focus {
-  background: #01172C;
+  background: #092F52;
+  border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
@@ -89,11 +90,11 @@ exports[`render DocumentNodes 1`] = `
   align-items: center;
   justify-content: center;
   min-height: 16px;
+  line-height: 1.4;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
-  text-transform: uppercase;
-  background-color: #010B1C;
+  background-color: #01172C;
   color: rgba(255,255,255,0.87);
   margin-bottom: 4px;
   margin-right: 4px;
@@ -163,8 +164,8 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c17 {
-  background: #01172C;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  background: #03203C;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   border-radius: 8px;
@@ -201,14 +202,15 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c17 > thead > tr > th {
-  background: #010B1C;
-  color: rgba(255,255,255,0.56);
+  background: #01172C;
+  color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
   font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
+  opacity: .75;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -241,11 +243,13 @@ exports[`render DocumentNodes 1`] = `
   text-align: center;
 }
 
-.c14 button:hover {
+.c14 button:hover,
+.c14 button:focus {
   background: #010B1C;
 }
 
-.c14 button:hover .c15 {
+.c14 button:hover .c15,
+.c14 button:focus .c15 {
   opacity: 1;
 }
 
@@ -262,7 +266,7 @@ exports[`render DocumentNodes 1`] = `
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  background: #01172C;
+  background: #03203C;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
 }
@@ -276,7 +280,7 @@ exports[`render DocumentNodes 1`] = `
   border-radius: 200px;
   height: 32px;
   transition: all .2s;
-  background: #01172C;
+  background: #03203C;
   margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
@@ -285,14 +289,14 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c11:hover {
-  background: #01172C;
+  background: #092F52;
 }
 
 .c11:focus,
 .c11:active {
-  background: #FFFFFF;
+  background: #092F52;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  color: #324148;
+  color: rgba(255,255,255,0.87);
 }
 
 .c11::placeholder {
@@ -317,11 +321,13 @@ exports[`render DocumentNodes 1`] = `
   outline: none;
   width: 100%;
   color: rgba(255,255,255,0.87);
-  background-color: #01172C;
+  background-color: #03203C;
   width: 240px;
   height: 34px;
-  background: #01172C;
-  border: 1px solid rgba(255,255,255,0.56);
+  background: #03203C;
+  border: 1px solid #01172C;
+  border-radius: 4px;
+  border-color: rgba(255,255,255,0.24);
   font-size: 14px;
   font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
 }
@@ -334,11 +340,16 @@ exports[`render DocumentNodes 1`] = `
   opacity: 0.4;
 }
 
-.c9:hover {
-  background: #01172C;
+.c9:hover,
+.c9:focus,
+.c9:active {
+  color: rgba(255,255,255,0.87);
+  background: #092F52;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
 }
 
 .c9::placeholder {
+  color: rgba(255,255,255,0.24);
   font-size: 14px;
 }
 
@@ -393,6 +404,7 @@ exports[`render DocumentNodes 1`] = `
 
 .c6 .react-select__control,
 .c6 .react-select__control--is-focused {
+  border-color: #FFF;
   height: 34px;
   min-height: 34px;
 }
@@ -403,7 +415,7 @@ exports[`render DocumentNodes 1`] = `
 
 .c6 .react-select__option--is-focused,
 .c6 .react-select__option--is-focused:active {
-  background-color: #90a4ae;
+  background-color: #eceff1;
 }
 
 .c6 .react-select__menu {
@@ -420,21 +432,12 @@ exports[`render DocumentNodes 1`] = `
   padding: 0 8px;
 }
 
-.c6 .react-select__control--is-focused {
-  background-color: white;
-  border-color: transparent;
-  border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
-  box-shadow: none;
-  border-color: rgba(255,255,255,0.87);
-}
-
-.c6 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.56);
-}
-
 .c6 .react-select__option--is-selected {
+  background-color: inherit;
+  color: inherit;
+}
+
+.c6 .react-select__option--is-focused {
   background-color: #cfd8dc;
   color: inherit;
 }
@@ -466,22 +469,37 @@ exports[`render DocumentNodes 1`] = `
 
 .c6 .react-select__control {
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.56);
-  background-color: #01172C;
+  border-color: rgba(255,255,255,0.24);
+  background-color: #03203C;
   color: rgba(255,255,255,0.56);
 }
 
+.c6 .react-select__control:focus,
+.c6 .react-select__control:active {
+  background-color: #092F52;
+}
+
 .c6 .react-select__control:hover {
-  border-color: rgba(255,255,255,0.87);
+  border-color: rgba(255,255,255,0.24);
+  background-color: #092F52;
 }
 
 .c6 .react-select__control:hover .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.87);
 }
 
-.c6 .react-select__option--is-selected {
-  background-color: #cfd8dc;
-  color: inherit;
+.c6 .react-select__control--is-focused {
+  background-color: #092F52;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c6 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.56);
 }
 
 .c6 .react-select__menu {

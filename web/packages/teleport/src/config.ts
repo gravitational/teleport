@@ -45,8 +45,6 @@ const cfg = {
     cluster: '/web/cluster/:clusterId',
     clusterAccount: '/web/cluster/:clusterId/account',
     clusterAudit: '/web/cluster/:clusterId/audit',
-    clusterAuditEvents: '/web/cluster/:clusterId/audit/events',
-    clusterAuditSessions: '/web/cluster/:clusterId/audit/sessions',
     clusterNodes: '/web/cluster/:clusterId/nodes',
     clusterSupport: '/web/cluster/:clusterId/support',
     clusterSessions: '/web/cluster/:clusterId/sessions',
@@ -167,16 +165,6 @@ const cfg = {
   getSshSessionRoute({ clusterId, sid }: UrlParams) {
     clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.consoleSession, { clusterId, sid });
-  },
-
-  getAuditEventsRoute(clusterId?: string) {
-    clusterId = clusterId || cfg.clusterName;
-    return generatePath(cfg.routes.clusterAuditEvents, { clusterId });
-  },
-
-  getAuditSessionsRoute(clusterId?: string) {
-    clusterId = clusterId || cfg.clusterName;
-    return generatePath(cfg.routes.clusterAuditSessions, { clusterId });
   },
 
   getPasswordTokenUrl(tokenId) {

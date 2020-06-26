@@ -70,6 +70,7 @@ export default function DataRange(props) {
         ml={ml}
         setRef={anchorEl}
         onClick={onOpenMenu}
+        style={{ minWidth: '100px' }}
       >
         {btnText}
         <CarrotDown ml={2} mr={-2} fontSize="2" color="text.primary" />

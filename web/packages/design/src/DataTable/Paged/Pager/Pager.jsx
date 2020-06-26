@@ -68,8 +68,9 @@ export const StyledButtons = styled(Flex)`
     transition: all 0.3s;
     text-align: center;
 
-    &:hover {
+    &:hover, &:focus {
       background: ${props => props.theme.colors.primary.main};
+      
       ${Icon} {
         opacity: 1;
       }

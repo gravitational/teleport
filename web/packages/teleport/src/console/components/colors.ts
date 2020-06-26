@@ -28,9 +28,9 @@ export const colors = {
   terminalDark: '#01172C',
   bgTerminal: '#010B1C',
   primary: {
-    light: '#01172C',
-    lighter: '#01172C',
-    dark: '#010B1C',
+    light: '#03203C',
+    lighter: '#092F52',
+    dark: '#01172C',
     main: '#010B1C',
   },
   text: '#263238',

@@ -41,6 +41,7 @@ exports[`loaded 1`] = `
 .c12:hover,
 .c12:focus {
   background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
@@ -131,7 +132,7 @@ exports[`loaded 1`] = `
 
 .c9 {
   background: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   border-radius: 8px;
@@ -169,13 +170,14 @@ exports[`loaded 1`] = `
 
 .c9 > thead > tr > th {
   background: #111B48;
-  color: rgba(255,255,255,0.56);
+  color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
   font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
+  opacity: .75;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -208,11 +210,13 @@ exports[`loaded 1`] = `
   text-align: center;
 }
 
-.c6 button:hover {
+.c6 button:hover,
+.c6 button:focus {
   background: #1C254D;
 }
 
-.c6 button:hover .c7 {
+.c6 button:hover .c7,
+.c6 button:focus .c7 {
   opacity: 1;
 }
 

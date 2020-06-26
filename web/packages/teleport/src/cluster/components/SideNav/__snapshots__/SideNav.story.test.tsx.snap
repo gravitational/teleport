@@ -18,6 +18,7 @@ exports[`rendering of SideNav 1`] = `
 
 .c1 {
   background: #222C59;
+  border-right: 1px solid #111B48;
   min-width: 240px;
   width: 240px;
   overflow: auto;
@@ -28,7 +29,7 @@ exports[`rendering of SideNav 1`] = `
 
 .c3 {
   box-sizing: border-box;
-  padding-left: 72px;
+  padding-left: 64px;
   padding-right: 32px;
   color: rgba(255,255,255,0.87);
   background-color: #1C254D;
@@ -54,8 +55,10 @@ exports[`rendering of SideNav 1`] = `
   color: #FFFFFF;
 }
 
-.c3:hover {
+.c3:hover,
+.c3:focus {
   background: #2C3A73;
+  color: #FFFFFF;
 }
 
 .c5 {
@@ -73,6 +76,11 @@ exports[`rendering of SideNav 1`] = `
   opacity: 1;
 }
 
+.c2:focus .c5,
+.c2:hover .c5 {
+  opacity: 1;
+}
+
 <div
   class="c0"
   height="100%"
@@ -86,7 +94,7 @@ exports[`rendering of SideNav 1`] = `
       class="sc-fzqBZW c2 c3"
       color="text.primary"
       href="/web/site/apartment"
-      pl="10"
+      pl="9"
       pr="5"
       theme="[object Object]"
     >
@@ -102,7 +110,7 @@ exports[`rendering of SideNav 1`] = `
       class="sc-fzqBZW c2 c3"
       color="text.primary"
       href="/web/site/apple"
-      pl="10"
+      pl="9"
       pr="5"
       theme="[object Object]"
     >
@@ -118,7 +126,7 @@ exports[`rendering of SideNav 1`] = `
       class="sc-fzqBZW c2 c3"
       color="text.primary"
       href="/web/site/camera"
-      pl="10"
+      pl="9"
       pr="5"
       theme="[object Object]"
     >

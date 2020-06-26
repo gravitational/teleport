@@ -130,9 +130,9 @@ type FileTransferProps = {
 
 const StyledFileTransfer = styled.div`
   background: ${colors.dark};
-  border-radius: 4px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
   box-sizing: border-box;
+  border: 1px dashed #263238;
   font-size: ${props => props.theme.fontSizes[0]}px;
   color: #28fe14;
 

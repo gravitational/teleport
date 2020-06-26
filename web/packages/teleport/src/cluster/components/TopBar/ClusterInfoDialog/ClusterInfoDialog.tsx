@@ -14,7 +14,7 @@ limitations under the License.
 import React from 'react';
 import copyToClipboard from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
-import { Text, Box, Flex, LabelInput, ButtonPrimary } from 'design';
+import { Text, Flex, LabelInput, ButtonPrimary } from 'design';
 import Dialog, {
   DialogFooter,
   DialogTitle,
@@ -22,7 +22,7 @@ import Dialog, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 
-type ClusterInfoDialogProps = {
+type Props = {
   onClose: () => void;
   clusterId: string;
   publicURL: string;
@@ -30,18 +30,18 @@ type ClusterInfoDialogProps = {
   proxyVersion: string;
 };
 
-const ClusterInfoDialog: React.FC<ClusterInfoDialogProps> = ({
+const ClusterInfoDialog = ({
   onClose,
   clusterId,
   publicURL,
   authVersion,
   proxyVersion,
-}) => {
+}: Props) => {
   return (
     <Dialog
+      open={true}
       disableEscapeKeyDown={false}
       onClose={onClose}
-      open={true}
       dialogCss={dialogCss}
     >
       <DialogHeader>

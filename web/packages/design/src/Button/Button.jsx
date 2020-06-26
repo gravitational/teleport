@@ -90,6 +90,7 @@ const kinds = props => {
         opacity: '.87',
         '&:hover, &:focus': {
           background: theme.colors.primary.lighter,
+          border: '1px solid ' + theme.colors.action.hover,
           opacity: 1,
         },
         '&:active': {
@@ -143,6 +144,7 @@ const StyledButton = styled.button`
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
+
   &:active {
     opacity: 0.56;
   }

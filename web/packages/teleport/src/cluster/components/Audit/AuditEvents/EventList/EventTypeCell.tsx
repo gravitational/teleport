@@ -19,6 +19,8 @@ import styled from 'styled-components';
 import { Cell } from 'design/DataTable';
 import Icon, * as Icons from 'design/Icon/Icon';
 import { CodeEnum } from 'teleport/services/audit/types';
+import { Event } from 'teleport/services/audit';
+import cfg from 'teleport/config';
 
 const EventIconMap = {
   [CodeEnum.AUTH_ATTEMPT_FAILURE]: Icons.VpnKey,
@@ -94,18 +96,73 @@ const EventIconMap = {
 
 export default function TypeCell(props) {
   const { rowIndex, data } = props;
-  const { codeDesc, code } = data[rowIndex];
-  const IconType = EventIconMap[code] || Icons.List;
+  const event: Event = data[rowIndex];
+  let IconType = EventIconMap[event.code] || Icons.List;
+
+  const iconProps = {
+    p: '1',
+    mr: '3',
+    fontSize: '3',
+  };
+
+  // use button for interactive ssh sessions
+
+  if (event.code === CodeEnum.SESSION_END && event.raw.interactive) {
+    return (
+      <Cell>
+        <StyledEventType>
+          <a
+            title="Open Session Player"
+            href={cfg.getPlayerRoute({ sid: event.raw.sid })}
+            target="_blank"
+            style={{ textDecoration: 'none' }}
+          >
+            <StyledCliIcon {...iconProps} />
+          </a>
+          {event.codeDesc}
+        </StyledEventType>
+      </Cell>
+    );
+  }
 
   return (
     <Cell>
       <StyledEventType>
-        <Icon p="1" mr="3" as={IconType} fontSize="3" />
-        {codeDesc}
+        <Icon {...iconProps} as={IconType} />
+        {event.codeDesc}
       </StyledEventType>
     </Cell>
   );
 }
+
+const StyledCliIcon = styled(Icons.Cli)(
+  props => `
+  background: ${props.theme.colors.dark};
+  border: 2px solid ${props.theme.colors.accent};
+  color: ${props.theme.colors.text.primary};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 100px;
+  transition: all 0.3s;
+
+  &:hover,
+  &:active,
+  &:focus {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+    color: ${props.theme.colors.light};
+  }
+
+  &:active {
+    box-shadow: none;
+    opacity: 0.56;
+  }
+`
+);
 
 const StyledEventType = styled.div`
   display: flex;

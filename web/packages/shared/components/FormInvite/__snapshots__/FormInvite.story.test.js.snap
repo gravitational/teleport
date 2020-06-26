@@ -136,7 +136,7 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   margin-bottom: 40px;
   width: 720px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -490,7 +490,7 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   margin-bottom: 40px;
   width: 720px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -775,7 +775,7 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   margin-bottom: 40px;
   width: 720px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -1050,7 +1050,7 @@ exports[`shared/components/Invite.story story.off 1`] = `
   margin-bottom: 40px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 

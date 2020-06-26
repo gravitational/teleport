@@ -214,7 +214,7 @@ describe('design/Table SortHeaderCell', () => {
 
 describe('design/Table Empty && EmptyIndicator', () => {
   test('empty table data is handled', () => {
-    const targetText = 'NO DATA AVAILABLE';
+    const targetText = 'No Data Available';
     const { getByText } = render(<Table data={[]} />);
     const target = getByText(targetText);
 

@@ -73,9 +73,9 @@ function fromTheme(props) {
       background: props.theme.colors.primary.lighter,
     },
     '&:focus, &:active': {
-      background: props.theme.colors.light,
+      background: props.theme.colors.primary.lighter,
       boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, .24)',
-      color: props.theme.colors.text.onLight,
+      color: props.theme.colors.text.primary,
     },
     '&::placeholder': {
       color: props.theme.colors.text.placeholder,

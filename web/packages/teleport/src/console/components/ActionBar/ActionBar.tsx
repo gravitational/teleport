@@ -21,19 +21,19 @@ import * as Icons from 'design/Icon';
 import { Flex, ButtonPrimary } from 'design';
 import cfg from 'teleport/config';
 
-export default function ActionBar({ clusterId = '', onLogout }) {
+export default function ActionBar(props: Props) {
   return (
     <Flex alignItems="center">
       <MenuIcon
         buttonIconProps={{ mr: 2, ml: 2, size: 0, style: { fontSize: '16px' } }}
         menuProps={menuProps}
       >
-        <MenuItem as={NavLink} to={cfg.getClusterRoute(clusterId)}>
+        <MenuItem as={NavLink} to={cfg.getDashboardRoute()}>
           <MenuItemIcon as={Icons.Home} mr="2" />
           Dashboard
         </MenuItem>
         <MenuItem>
-          <ButtonPrimary my={3} block onClick={onLogout}>
+          <ButtonPrimary my={3} block onClick={props.onLogout}>
             Sign Out
           </ButtonPrimary>
         </MenuItem>
@@ -41,6 +41,10 @@ export default function ActionBar({ clusterId = '', onLogout }) {
     </Flex>
   );
 }
+
+type Props = {
+  onLogout: VoidFunction;
+};
 
 const menuListCss = () => `
   width: 250px;

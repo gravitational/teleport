@@ -37,6 +37,7 @@ exports[`render cluster nodes 1`] = `
 .c14:hover,
 .c14:focus {
   background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
@@ -78,10 +79,10 @@ exports[`render cluster nodes 1`] = `
   align-items: center;
   justify-content: center;
   min-height: 16px;
+  line-height: 1.4;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
-  text-transform: uppercase;
   background-color: #512FC9;
 }
 
@@ -135,9 +136,9 @@ exports[`render cluster nodes 1`] = `
 
 .c4:focus,
 .c4:active {
-  background: #FFFFFF;
+  background: #2C3A73;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  color: #324148;
+  color: rgba(255,255,255,0.87);
 }
 
 .c4::placeholder {
@@ -171,7 +172,7 @@ exports[`render cluster nodes 1`] = `
 
 .c10 {
   background: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   border-radius: 8px;
@@ -209,13 +210,14 @@ exports[`render cluster nodes 1`] = `
 
 .c10 > thead > tr > th {
   background: #111B48;
-  color: rgba(255,255,255,0.56);
+  color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
   font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
+  opacity: .75;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -248,11 +250,13 @@ exports[`render cluster nodes 1`] = `
   text-align: center;
 }
 
-.c7 button:hover {
+.c7 button:hover,
+.c7 button:focus {
   background: #1C254D;
 }
 
-.c7 button:hover .c8 {
+.c7 button:hover .c8,
+.c7 button:focus .c8 {
   opacity: 1;
 }
 
@@ -410,7 +414,7 @@ exports[`render cluster nodes 1`] = `
             class="c13"
             kind="primary"
           >
-            Root
+            ROOT
           </div>
         </td>
         <td>

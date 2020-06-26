@@ -20,7 +20,7 @@ import { space, borderRadius } from 'design/system';
 
 export const StyledTable = styled.table`
   background: ${props => props.theme.colors.primary.light};
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   border-collapse: collapse;
   border-spacing: 0;
   border-radius: 8px;
@@ -46,13 +46,14 @@ export const StyledTable = styled.table`
 
   & > thead > tr > th {
     background: ${props => props.theme.colors.primary.dark};
-    color: rgba(255, 255, 255, 0.56);
+    color: ${props => props.theme.colors.primary.contrastText};
     cursor: pointer;
     font-size: 10px;
     font-weight: 400;
     padding-bottom: 0;
     padding-top: 0;
     text-align: left;
+    opacity: .75;
     text-transform: uppercase;
     white-space: nowrap;
 

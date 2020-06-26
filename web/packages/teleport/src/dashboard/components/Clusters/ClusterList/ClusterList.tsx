@@ -22,6 +22,9 @@ import history from 'teleport/services/history';
 import { Cluster } from 'teleport/services/clusters';
 import { sortBy } from 'lodash';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { Lan, Cli } from 'design/Icon';
+import { MenuItemIcon } from 'design/Menu';
+
 import {
   SortHeaderCell,
   TextCell,
@@ -197,7 +200,7 @@ function RootLabelCell(props) {
   const { rowIndex, data } = props;
   const { clusterId } = data[rowIndex];
   const isRoot = cfg.proxyCluster === clusterId;
-  return <Cell>{isRoot && <Labels.Primary>Root</Labels.Primary>}</Cell>;
+  return <Cell>{isRoot && <Labels.Primary>ROOT</Labels.Primary>}</Cell>;
 }
 
 function ActionCell(props) {
@@ -213,11 +216,13 @@ function ActionCell(props) {
   return (
     <Cell align="right">
       <MenuButton>
-        <MenuItem as="a" href={terminalURL} target="_blank">
-          New Session
-        </MenuItem>
         <MenuItem as={NavLink} to={nodeListURL}>
+          <MenuItemIcon fontSize="2" as={Lan} />
           View Cluster
+        </MenuItem>
+        <MenuItem as="a" href={terminalURL} target="_blank">
+          <MenuItemIcon fontSize="2" as={Cli} />
+          Open Terminal
         </MenuItem>
       </MenuButton>
     </Cell>

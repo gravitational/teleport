@@ -25,6 +25,11 @@ const SideNavItemIcon = styled(Icon)`
     opacity: 1;
   }
 
+  ${SideNavItem}:focus &,
+  ${SideNavItem}:hover & {
+    opacity: 1;
+  }
+
   opacity: 0.56;
 `;
 

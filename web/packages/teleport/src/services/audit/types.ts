@@ -395,6 +395,9 @@ export type RawEvents = {
     {
       sid: string;
       server_id: string;
+      server_addr: string;
+      session_start: string;
+      session_stop: string;
       participants?: string[];
       server_hostname: string;
       interactive: boolean;
@@ -437,7 +440,10 @@ export type RawEvents = {
       exitError: string;
     }
   >;
-  [CodeEnum.TERMINAL_RESIZE]: RawEvent<typeof CodeEnum.TERMINAL_RESIZE>;
+  [CodeEnum.TERMINAL_RESIZE]: RawEvent<
+    typeof CodeEnum.TERMINAL_RESIZE,
+    { sid: string }
+  >;
   [CodeEnum.G_TLSKEYPAIR_CREATED]: RawEvent<
     typeof CodeEnum.G_TLSKEYPAIR_CREATED
   >;

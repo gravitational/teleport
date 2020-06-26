@@ -19,7 +19,7 @@ import Box from './../Box';
 import theme from './../theme';
 
 const Card = styled(Box)`
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   border-radius: 8px;
 `;
 

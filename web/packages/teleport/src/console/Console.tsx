@@ -76,7 +76,7 @@ export default function Console() {
 
   return (
     <StyledConsole>
-      <Flex bg={colors.primary.light} height="32px">
+      <Flex bg={colors.terminalDark} height="32px">
         <Tabs
           flex="1"
           items={documents}
@@ -87,7 +87,7 @@ export default function Console() {
           disableNew={disableNewTab}
           onNew={onTabNew}
         />
-        <ActionBar onLogout={onLogout} clusterId={clusterId} />
+        <ActionBar onLogout={onLogout} />
       </Flex>
       {$docs}
       {hasSshSessions && (

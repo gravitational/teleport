@@ -30,8 +30,9 @@ const fromTheme = ({ theme = defaultTheme }) => {
       background: theme.colors.primary.lighter,
       color: theme.colors.primary.contrastText,
     },
-    '&:hover': {
+    '&:hover, &:focus': {
       background: theme.colors.primary.lighter,
+      color: theme.colors.primary.contrastText,
     },
   };
 };
@@ -52,7 +53,7 @@ const SideNavItem = styled(Flex)`
 SideNavItem.displayName = 'SideNavItem';
 
 SideNavItem.defaultProps = {
-  pl: 10,
+  pl: 9,
   pr: 5,
   bg: 'primary.main',
   color: 'text.primary',

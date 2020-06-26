@@ -95,9 +95,8 @@ export const LoginFailed = ({ message, loginUrl }) => (
     <Content
       message={message}
       desc={
-        <Text typography="paragraph">
-          <HyperLink href={loginUrl}>Please try again</HyperLink>, if the
-          problem persists, contact your system administrator.
+        <Text typography="paragraph" textAlign="center">
+          <HyperLink href={loginUrl}>Please attempt to log in again</HyperLink>
         </Text>
       }
     />

@@ -35,7 +35,7 @@ exports[`rendering of Events 1`] = `
 
 .c7 {
   background: #222C59;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   border-radius: 8px;
@@ -73,13 +73,14 @@ exports[`rendering of Events 1`] = `
 
 .c7 > thead > tr > th {
   background: #111B48;
-  color: rgba(255,255,255,0.56);
+  color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
   font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
+  opacity: .75;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -121,6 +122,7 @@ exports[`rendering of Events 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
+  width: 87px;
 }
 
 .c11:active {
@@ -130,6 +132,7 @@ exports[`rendering of Events 1`] = `
 .c11:hover,
 .c11:focus {
   background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
@@ -167,11 +170,13 @@ exports[`rendering of Events 1`] = `
   text-align: center;
 }
 
-.c4 button:hover {
+.c4 button:hover,
+.c4 button:focus {
   background: #1C254D;
 }
 
-.c4 button:hover .c5 {
+.c4 button:hover .c5,
+.c4 button:focus .c5 {
   opacity: 1;
 }
 
@@ -226,9 +231,9 @@ exports[`rendering of Events 1`] = `
 
 .c1:focus,
 .c1:active {
-  background: #FFFFFF;
+  background: #2C3A73;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  color: #324148;
+  color: rgba(255,255,255,0.87);
 }
 
 .c1::placeholder {
@@ -341,7 +346,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "unimplemented" created OIDC connector "new_oidc_connector"
+            User [unimplemented] created OIDC connector [new_oidc_connector]
           </td>
           <td
             style="min-width: 120px;"
@@ -354,6 +359,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -375,7 +381,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "unimplemented" deleted Github connector "new_github_connector"
+            User [unimplemented] deleted Github connector [new_github_connector]
           </td>
           <td
             style="min-width: 120px;"
@@ -388,6 +394,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -409,7 +416,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "unimplemented" created Github connector "new_github_connector" has been created
+            User [unimplemented] created Github connector [new_github_connector] has been created
           </td>
           <td
             style="min-width: 120px;"
@@ -422,6 +429,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -443,7 +451,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "Ivan_Jordan" has changed a password
+            User [Ivan_Jordan] has changed a password
           </td>
           <td
             style="min-width: 120px;"
@@ -456,6 +464,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -490,6 +499,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -524,6 +534,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -545,7 +556,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "b331fb6c-85f9-4cb0-b308-3452420bf81e.one" created a password reset token for user "hello" which expires in 8h0m0s
+            User [b331fb6c-85f9-4cb0-b308-3452420bf81e.one] created a password reset token for user [hello] which expires in 8h0m0s
           </td>
           <td
             style="min-width: 120px;"
@@ -558,6 +569,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -592,6 +604,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -626,6 +639,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -660,6 +674,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -681,7 +696,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Report has been created for session "5fc8bf85-a73e-11ea-afd1-0242ac0a0101"
+            Usage report has been updated for session [5fc8bf85-a73e-11ea-afd1-0242ac0a0101]
           </td>
           <td
             style="min-width: 120px;"
@@ -694,6 +709,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -715,7 +731,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Report has been created for session "5fc8bf85-a73e-11ea-afd1-0242ac0a0101"
+            Usage report has been updated for session [5fc8bf85-a73e-11ea-afd1-0242ac0a0101]
           </td>
           <td
             style="min-width: 120px;"
@@ -728,6 +744,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -762,6 +779,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -783,7 +801,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" deleted log forwarder "forwarder1"
+            User [admin@example.com] deleted log forwarder [forwarder1]
           </td>
           <td
             style="min-width: 120px;"
@@ -796,6 +814,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -817,7 +836,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" created log forwarder "forwarder1"
+            User [admin@example.com] created log forwarder [forwarder1]
           </td>
           <td
             style="min-width: 120px;"
@@ -830,6 +849,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -851,7 +871,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" invited user "fdsfsdf" with roles @teleadmin
+            User [admin@example.com] invited user [fdsfsdf] with roles @teleadmin
           </td>
           <td
             style="min-width: 120px;"
@@ -864,6 +884,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -885,7 +906,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" created role "admin323232323"
+            User [admin@example.com] created role [admin323232323]
           </td>
           <td
             style="min-width: 120px;"
@@ -898,6 +919,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -919,7 +941,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" deleted role "admin323232323f"
+            User [admin@example.com] deleted role [admin323232323f]
           </td>
           <td
             style="min-width: 120px;"
@@ -932,6 +954,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -953,7 +976,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" created role "admin323232323f"
+            User [admin@example.com] created role [admin323232323f]
           </td>
           <td
             style="min-width: 120px;"
@@ -966,6 +989,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -987,7 +1011,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" downloaded a file ~/fsdfsdfsdfsdfs from node 172.31.28.130:3022
+            User [admin@example.com] downloaded a file [~/fsdfsdfsdfsdfs] from node [172.31.28.130:3022]
           </td>
           <td
             style="min-width: 120px;"
@@ -1000,6 +1024,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1021,7 +1046,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" downloaded a file ~/fsdfsdfsdfsdfs from node 172.31.28.130:3022
+            User [admin@example.com] downloaded a file [~/fsdfsdfsdfsdfs] from node [172.31.28.130:3022]
           </td>
           <td
             style="min-width: 120px;"
@@ -1034,6 +1059,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1055,7 +1081,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" has joined the session "56408539-6536-11e9-80a1-427cfde50f5a"
+            User [admin@example.com] has joined the session [56408539-6536-11e9-80a1-427cfde50f5a]
           </td>
           <td
             style="min-width: 120px;"
@@ -1068,6 +1094,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1089,7 +1116,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" has joined the session "56408539-6536-11e9-80a1-427cfde50f5a"
+            User [admin@example.com] has joined the session [56408539-6536-11e9-80a1-427cfde50f5a]
           </td>
           <td
             style="min-width: 120px;"
@@ -1102,6 +1129,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1123,7 +1151,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" resized the terminal
+            User [admin@example.com] resized the session [56408539-6536-11e9-80a1-427cfde50f5a] terminal
           </td>
           <td
             style="min-width: 120px;"
@@ -1136,6 +1164,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1157,7 +1186,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" resized the terminal
+            User [admin@example.com] resized the session [56408539-6536-11e9-80a1-427cfde50f5a] terminal
           </td>
           <td
             style="min-width: 120px;"
@@ -1170,6 +1199,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1191,7 +1221,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" has started a session "56408539-6536-11e9-80a1-427cfde50f5a"
+            User [admin@example.com] has started a session [56408539-6536-11e9-80a1-427cfde50f5a]
           </td>
           <td
             style="min-width: 120px;"
@@ -1204,6 +1234,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1225,7 +1256,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" has started a session "56408539-6536-11e9-80a1-427cfde50f5a"
+            User [admin@example.com] has started a session [56408539-6536-11e9-80a1-427cfde50f5a]
           </td>
           <td
             style="min-width: 120px;"
@@ -1238,6 +1269,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1259,7 +1291,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            /etc/profile.d/
+            [/etc/profile.d/]
           </td>
           <td
             style="min-width: 120px;"
@@ -1272,6 +1304,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1293,7 +1326,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Session "44c6cea8-362f-11ea-83aa-125400432324" opened a connection bash: 10.217.136.161 &lt;-&gt; 190.58.129.4:3000
+            Session [44c6cea8-362f-11ea-83aa-125400432324] opened a connection bash: 10.217.136.161 &lt;-&gt; 190.58.129.4:3000
           </td>
           <td
             style="min-width: 120px;"
@@ -1306,6 +1339,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1327,7 +1361,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Local user "fsdfsdf" login failed: user(name="fsdfsdf") not found
+            Local user [fsdfsdf] login failed: user(name="fsdfsdf") not found
           </td>
           <td
             style="min-width: 120px;"
@@ -1340,6 +1374,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1361,7 +1396,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Local user "fsdfsdf" login failed: user(name="fsdfsdf") not found
+            Local user [fsdfsdf] login failed: user(name="fsdfsdf") not found
           </td>
           <td
             style="min-width: 120px;"
@@ -1374,6 +1409,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1395,7 +1431,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
+            User [admin@example.com] failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
           </td>
           <td
             style="min-width: 120px;"
@@ -1408,6 +1444,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1429,7 +1466,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
+            User [admin@example.com] failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
           </td>
           <td
             style="min-width: 120px;"
@@ -1442,6 +1479,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1463,7 +1501,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Local user "admin@example.com" successfully logged in
+            Local user [admin@example.com] successfully logged in
           </td>
           <td
             style="min-width: 120px;"
@@ -1476,6 +1514,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1497,7 +1536,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Local user "admin@example.com" successfully logged in
+            Local user [admin@example.com] successfully logged in
           </td>
           <td
             style="min-width: 120px;"
@@ -1510,6 +1549,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1531,7 +1571,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" has ended the session "9febab45-6491-11e9-80a1-427cfde50f5a"
+            User [admin@example.com] has ended non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [undefined] 
           </td>
           <td
             style="min-width: 120px;"
@@ -1544,6 +1584,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
@@ -1565,7 +1606,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User "admin@example.com" has ended the session "9febab45-6491-11e9-80a1-427cfde50f5a"
+            User [admin@example.com] has ended non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [undefined] 
           </td>
           <td
             style="min-width: 120px;"
@@ -1578,6 +1619,7 @@ exports[`rendering of Events 1`] = `
             <button
               class="c11"
               kind="border"
+              width="87px"
             >
               Details
             </button>
