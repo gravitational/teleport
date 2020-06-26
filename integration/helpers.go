@@ -643,13 +643,28 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 
 // StartNode starts a SSH node and connects it to the cluster.
 func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProcess, error) {
+	return i.startNode(tconf, false)
+}
+
+// StartReverseTunnelNode starts a SSH node and connects it to the cluster via reverse tunnel.
+func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.TeleportProcess, error) {
+	return i.startNode(tconf, true)
+}
+
+// startNode starts a node and connects it to the cluster.
+func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*service.TeleportProcess, error) {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tconf.DataDir = dataDir
 
-	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
+	authPort := i.GetPortAuth()
+	if reverseTunnel {
+		authPort = i.GetPortWeb()
+	}
+
+	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
 	tconf.UploadEventsC = i.UploadEventsC
@@ -964,6 +979,8 @@ type ClientConfig struct {
 	ForwardAgent bool
 	// JumpHost turns on jump host mode
 	JumpHost bool
+	// Labels represents host labels
+	Labels map[string]string
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1013,6 +1030,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		KeysDir:            keyDir,
 		SiteName:           cfg.Cluster,
 		ForwardAgent:       cfg.ForwardAgent,
+		Labels:             cfg.Labels,
 		WebProxyAddr:       webProxyAddr,
 		SSHProxyAddr:       sshProxyAddr,
 	}
