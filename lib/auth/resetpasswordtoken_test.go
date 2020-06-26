@@ -193,6 +193,21 @@ func (s *ResetPasswordTokenTest) TestFormatAccountName(c *check.C) {
 			outError:       false,
 		},
 		{
+			description: "proxies with public address with port number",
+			inDebugAuth: &debugAuth{
+				proxies: []services.Server{
+					&services.ServerV2{
+						Spec: services.ServerSpecV2{
+							PublicAddr: "foo:8080",
+							Version:    "bar",
+						},
+					},
+				},
+			},
+			outAccountName: "foo@foo",
+			outError:       false,
+		},
+		{
 			description: "proxies with no public address",
 			inDebugAuth: &debugAuth{
 				proxies: []services.Server{
@@ -204,7 +219,7 @@ func (s *ResetPasswordTokenTest) TestFormatAccountName(c *check.C) {
 					},
 				},
 			},
-			outAccountName: "foo@baz:3080",
+			outAccountName: "foo@baz",
 			outError:       false,
 		},
 		{

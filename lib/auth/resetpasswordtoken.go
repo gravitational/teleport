@@ -21,7 +21,9 @@ import (
 	"context"
 	"fmt"
 	"image/png"
+	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -165,6 +167,13 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 		proxyHost, _, err = services.GuessProxyHostAndVersion(proxies)
 		if err != nil {
 			return "", trace.Wrap(err)
+		}
+		// Remove port number if present. OTP URL parsers won't handle it.
+		if strings.Contains(proxyHost, ":") {
+			proxyHost, _, err = net.SplitHostPort(proxyHost)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
 		}
 	}
 
