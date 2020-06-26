@@ -163,6 +163,54 @@ func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *Tel
 	return t
 }
 
+// newTeleportIoT helper returns a running Teleport instance with Host as a
+// reversetunnel node.
+func (s *IntSuite) newTeleportIoT(c *check.C, logins []string) *TeleInstance {
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+
+		tconf.Console = nil
+
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return tconf
+	}
+	main := s.newTeleportWithConfig(c, logins, nil, mainConfig())
+
+	// Create a Teleport instance with a Node.
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = Host
+		tconf.Console = nil
+		tconf.Token = "token"
+		tconf.AuthServers = []utils.NetAddr{
+			utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, main.GetPortWeb()),
+			},
+		}
+
+		tconf.Auth.Enabled = false
+
+		tconf.Proxy.Enabled = false
+
+		tconf.SSH.Enabled = true
+
+		return tconf
+	}
+	_, err := main.StartReverseTunnelNode(nodeConfig())
+	c.Assert(err, check.IsNil)
+
+	return main
+}
+
 // newTeleportWithConfig is a helper function that will create a running
 // Teleport instance with the passed in user, instance secrets, and Teleport
 // configuration.
@@ -676,12 +724,35 @@ func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
 }
 
 // TestInteractive covers SSH into shell and joining the same session from another client
-func (s *IntSuite) TestInteractive(c *check.C) {
+// against a standard teleport node.
+func (s *IntSuite) TestInteractiveRegular(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
 	t := s.newTeleport(c, nil, true)
 	defer t.StopAll()
+
+	s.verifySessionJoin(c, t)
+}
+
+// TestInteractive covers SSH into shell and joining the same session from another client
+// against a reversetunnel node.
+func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	t := s.newTeleportIoT(c, nil)
+	defer t.StopAll()
+
+	s.verifySessionJoin(c, t)
+}
+
+// TestInteractive covers SSH into shell and joining the same session from another client
+func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
 
 	sessionEndC := make(chan interface{})
 
@@ -694,7 +765,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
-		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host})
 		c.Assert(err, check.IsNil)
 		cl.Stdout = personA
 		cl.Stdin = personA
@@ -718,7 +789,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 			sessionID = string(sessions[0].ID)
 			break
 		}
-		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host})
 		c.Assert(err, check.IsNil)
 		cl.Stdout = personB
 		for i := 0; i < 10; i++ {
@@ -3946,6 +4017,93 @@ func (s *IntSuite) TestList(c *check.C) {
 	}
 }
 
+// TestCmdLabels verifies the behavior of running commands via labels
+// with a mixture of regular and reversetunnel nodes.
+func (s *IntSuite) TestCmdLabels(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	// Create and start a Teleport cluster with auth, proxy, and node.
+	makeConfig := func() *service.Config {
+		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+			SessionRecording: services.RecordOff,
+			LocalAuth:        services.NewBool(true),
+		})
+		c.Assert(err, check.IsNil)
+
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = "server-01"
+		tconf.Auth.Enabled = true
+		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = true
+		tconf.SSH.Labels = map[string]string{
+			"role": "worker",
+			"spam": "eggs",
+		}
+
+		return tconf
+	}
+	t := s.newTeleportWithConfig(c, nil, nil, makeConfig())
+	defer t.StopAll()
+
+	// Create and start a reversetunnel node.
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = "server-02"
+		tconf.SSH.Enabled = true
+		tconf.SSH.Labels = map[string]string{
+			"role": "database",
+			"spam": "eggs",
+		}
+
+		return tconf
+	}
+	_, err := t.StartReverseTunnelNode(nodeConfig())
+	c.Assert(err, check.IsNil)
+
+	// test label patterns that match both nodes, and each
+	// node individually.
+	tts := []struct {
+		command []string
+		labels  map[string]string
+		expect  string
+	}{
+		{
+			command: []string{"echo", "two"},
+			labels:  map[string]string{"spam": "eggs"},
+			expect:  "two\ntwo\n",
+		},
+		{
+			command: []string{"echo", "worker"},
+			labels:  map[string]string{"role": "worker"},
+			expect:  "worker\n",
+		},
+		{
+			command: []string{"echo", "database"},
+			labels:  map[string]string{"role": "database"},
+			expect:  "database\n",
+		},
+	}
+
+	for _, tt := range tts {
+		cfg := ClientConfig{
+			Login:  s.me.Username,
+			Labels: tt.labels,
+		}
+
+		output, err := runCommand(t, tt.command, cfg, 1)
+		c.Assert(err, check.IsNil)
+		c.Assert(output, check.Equals, tt.expect)
+	}
+}
+
 // TestDataTransfer makes sure that a "session.data" event is emitted at the
 // end of a session that matches the amount of data that was transferred.
 func (s *IntSuite) TestDataTransfer(c *check.C) {
@@ -4424,8 +4582,17 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	// since this helper is sometimes used for running commands on
+	// multiple nodes concurrently, we use io.Pipe to protect our
+	// output buffer from concurrent writes.
+	read, write := io.Pipe()
 	output := &bytes.Buffer{}
-	tc.Stdout = output
+	doneC := make(chan struct{})
+	go func() {
+		io.Copy(output, read)
+		close(doneC)
+	}()
+	tc.Stdout = write
 	for i := 0; i < attempts; i++ {
 		err = tc.SSH(context.TODO(), cmd, false)
 		if err == nil {
@@ -4433,7 +4600,12 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 		}
 		time.Sleep(1 * time.Second)
 	}
-	return output.String(), trace.Wrap(err)
+	write.Close()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	<-doneC
+	return output.String(), nil
 }
 
 // getPorts helper returns a range of unallocated ports available for litening on
