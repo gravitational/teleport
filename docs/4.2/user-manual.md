@@ -414,7 +414,7 @@ $ tsh join <session_ID>
 
 !!! note
 
-Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
+    Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
 
 ## Connecting to SSH Clusters behind Firewalls
 
