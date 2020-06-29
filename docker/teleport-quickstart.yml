@@ -1,0 +1,26 @@
+version: '2'
+services:
+  configure: &settings
+    image: quay.io/gravitational/teleport:4.3.0-alpha.2
+    container_name: teleport-configure
+    entrypoint: /bin/sh
+    hostname: localhost
+    command: -c "if [ ! /etc/teleport/teleport.yaml ]; then /usr/local/bin/teleport configure > /etc/teleport/teleport.yaml; fi"
+    volumes:
+      - ./teleport/config:/etc/teleport
+
+  teleport:
+    image: quay.io/gravitational/teleport:4.3.0-alpha.2
+    container_name: teleport
+    entrypoint: /bin/sh
+    hostname: localhost
+    command: -c "sleep 1 && /usr/local/bin/teleport start"
+    ports:
+      - "3023:3023"
+      - "3025:3025"
+      - "3080:3080"
+    volumes:
+      - ./teleport/config:/etc/teleport
+      - ./teleport/data:/var/lib/teleport
+    depends_on:
+      - configure
