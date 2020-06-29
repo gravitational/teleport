@@ -165,6 +165,7 @@ func (c *remoteConn) markInvalid(err error) {
 	atomic.StoreInt32(&c.invalid, 1)
 	c.lastError = err
 	c.log.Debugf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+	c.closeCancel()
 }
 
 func (c *remoteConn) isInvalid() bool {

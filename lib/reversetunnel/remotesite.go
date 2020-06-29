@@ -326,6 +326,8 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		case <-s.ctx.Done():
 			s.Infof("closing")
 			return
+		case <-conn.closeContext.Done():
+			return
 		case proxies := <-conn.newProxiesC:
 			req := discoveryRequest{
 				ClusterName: s.srv.ClusterName,
@@ -374,6 +376,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		// Note that time.After is re-created everytime a request is processed.
 		case <-time.After(s.offlineThreshold):
 			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
+			return
 		}
 	}
 }
