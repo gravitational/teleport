@@ -300,6 +300,8 @@ type GithubAuthRequest struct {
 	Compatibility string `json:"compatibility,omitempty"`
 	// Expires is a global expiry time header can be set on any resource in the system.
 	Expires *time.Time `json:"expires,omitempty"`
+	// RouteToCluster is the name of Teleport cluster to issue credentials for.
+	RouteToCluster string `json:"route_to_cluster,omitempty"`
 }
 
 // SetTTL sets Expires header using realtime clock
@@ -381,6 +383,9 @@ type OIDCAuthRequest struct {
 
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `json:"compatibility,omitempty"`
+
+	// RouteToCluster is the name of Teleport cluster to issue credentials for.
+	RouteToCluster string `json:"route_to_cluster,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -443,6 +448,9 @@ type SAMLAuthRequest struct {
 
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `json:"compatibility,omitempty"`
+
+	// RouteToCluster is the name of Teleport cluster to issue credentials for.
+	RouteToCluster string `json:"route_to_cluster,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise

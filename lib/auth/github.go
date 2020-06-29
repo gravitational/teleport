@@ -239,7 +239,7 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*githubAuthRespon
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := s.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility)
+		sshCert, tlsCert, err := s.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -290,7 +290,7 @@ func (s *AuthServer) createWebSession(user services.User, sessionTTL time.Durati
 	return session, nil
 }
 
-func (s *AuthServer) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility string) ([]byte, []byte, error) {
+func (s *AuthServer) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster string) ([]byte, []byte, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
@@ -300,12 +300,13 @@ func (s *AuthServer) createSessionCert(user services.User, sessionTTL time.Durat
 	}
 
 	certs, err := s.generateUserCert(certRequest{
-		user:          user,
-		ttl:           sessionTTL,
-		publicKey:     publicKey,
-		compatibility: compatibility,
-		checker:       checker,
-		traits:        user.GetTraits(),
+		user:           user,
+		ttl:            sessionTTL,
+		publicKey:      publicKey,
+		compatibility:  compatibility,
+		checker:        checker,
+		traits:         user.GetTraits(),
+		routeToCluster: routeToCluster,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
