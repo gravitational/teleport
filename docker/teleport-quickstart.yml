@@ -5,7 +5,7 @@ services:
     container_name: teleport-configure
     entrypoint: /bin/sh
     hostname: localhost
-    command: -c "if [ ! /etc/teleport/teleport.yaml ]; then /usr/local/bin/teleport configure > /etc/teleport/teleport.yaml; fi"
+    command: -c "if [ ! -f /etc/teleport/teleport.yaml ]; then /usr/local/bin/teleport configure > /etc/teleport/teleport.yaml; fi"
     volumes:
       - ./teleport/config:/etc/teleport
 
