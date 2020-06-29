@@ -216,6 +216,9 @@ func (s *Reporter) Clock() clockwork.Clock {
 	return s.Backend.Clock()
 }
 
+// Migrate runs the necessary data migrations for this backend.
+func (s *Reporter) Migrate(ctx context.Context) error { return s.Backend.Migrate(ctx) }
+
 // trackRequests tracks top requests, endKey is supplied for ranges
 func (s *Reporter) trackRequest(opType OpType, key []byte, endKey []byte) {
 	if !s.TrackTopRequests {
