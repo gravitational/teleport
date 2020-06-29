@@ -311,6 +311,13 @@ func (s *localSite) addConn(nodeID string, conn net.Conn, sconn ssh.Conn) (*remo
 		nodeID:           nodeID,
 		offlineThreshold: s.offlineThreshold,
 	})
+	prev, ok := s.remoteConns[nodeID]
+	if ok {
+		if !prev.isInvalid() {
+			s.log.Warnf("Replacing previous conn for %s", nodeID)
+			prev.markInvalid(trace.ConnectionProblem(nil, "connection replaced"))
+		}
+	}
 	s.remoteConns[nodeID] = rconn
 
 	return rconn, nil
