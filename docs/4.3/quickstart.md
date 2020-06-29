@@ -307,11 +307,11 @@ For testing, we always recommend that you use the latest release version of Tele
 
 ### Quickstart using docker-compose
 
-The easiest way to start Teleport quickly is to use `docker-compose` with our [`quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/quickstart.yml) file:
+The easiest way to start Teleport quickly is to use `docker-compose` with our [`teleport-quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/teleport-quickstart.yml) file:
 
 ```bash
 # download the quickstart file from our Github repo
-curl -Lso quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/master/docker/teleport-quickstart.yml
+curl -Lso teleport-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/master/docker/teleport-quickstart.yml
 
 # start teleport quickstart using docker-compose
 docker-compose -f teleport-quickstart.yml up
