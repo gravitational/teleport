@@ -37,7 +37,7 @@ in file configuration). As defined in [Adding a node located behind NAT - Telepo
 
 ### Can nodes use a single port for reverse tunnels?
 
-Yes, Teleport supports multiplexing on a single port.  Set the `tunnel_listen_addr` to use the same port as the `listen_addr` address setting in the `proxy_service` configuration. Teleport will automatically use multiplexing with that configuration. 
+Yes, Teleport supports multiplexing on a single port.  Set the `tunnel_listen_addr` to use the same port as the `listen_addr` address setting in the `proxy_service` configuration. Teleport will automatically use multiplexing with that configuration.
 
 ### What are Teleport's scalability and hardware recommendations?
 
