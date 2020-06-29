@@ -770,6 +770,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 			CertTTL:           req.CertTTL,
 			ClientRedirectURL: req.RedirectURL,
 			Compatibility:     req.Compatibility,
+			RouteToCluster:    req.RouteToCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -848,6 +849,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			CertTTL:           req.CertTTL,
 			CheckUser:         true,
 			Compatibility:     req.Compatibility,
+			RouteToCluster:    req.RouteToCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
