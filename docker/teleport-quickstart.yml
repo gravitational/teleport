@@ -1,6 +1,6 @@
 version: '2'
 services:
-  configure: &settings
+  configure:
     image: quay.io/gravitational/teleport:4.3.0-alpha.2
     container_name: teleport-configure
     entrypoint: /bin/sh
