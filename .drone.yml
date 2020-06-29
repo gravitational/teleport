@@ -170,7 +170,7 @@ steps:
     commands:
       - |
         cd /go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        git diff --raw ${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | grep -v .yaml | sort | uniq
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           for VERSION in $(cat /tmp/docs-versions-changed.txt); do
@@ -1066,6 +1066,6 @@ steps:
 
 ---
 kind: signature
-hmac: 1f1284ed43d98cc0551ca761dc0b119739c16b016fce58cac60d264597c8348e
+hmac: ff14b58d8b4be7ca2afcb209a8a3fc598b23415b995c18fa6e4fa79a6f6850b9
 
 ...
