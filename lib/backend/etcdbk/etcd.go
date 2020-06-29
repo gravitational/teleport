@@ -224,11 +224,6 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 	if err = b.reconnect(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// DELETE IN 4.4: legacy prefix support for migration of
-	// https://github.com/gravitational/teleport/issues/2883
-	if err := b.syncLegacyPrefix(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
 }
@@ -713,6 +708,15 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	}
 	event.Item.Value = value
 	return event, nil
+}
+
+func (b *EtcdBackend) Migrate(ctx context.Context) error {
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	if err := b.syncLegacyPrefix(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // DELETE IN 4.4: legacy prefix support for migration of
