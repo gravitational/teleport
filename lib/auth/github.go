@@ -357,7 +357,7 @@ func (s *AuthServer) calculateGithubUser(connector services.GithubConnector, cla
 			claims.Username, connector.GetName())
 	}
 	p.roles = modules.GetModules().RolesFromLogins(p.logins)
-	p.traits = modules.GetModules().TraitsFromLogins(p.logins, p.kubeGroups, p.kubeUsers)
+	p.traits = modules.GetModules().TraitsFromLogins(p.username, p.logins, p.kubeGroups, p.kubeUsers)
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.roles, s.Access, p.traits)
