@@ -946,6 +946,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	cmd, err := srv.ConfigureCommand(scx)
 	if err != nil {
 		writeStderr(channel, err.Error())
+		return
 	}
 	// Propagate stderr from the spawned Teleport process to log any errors.
 	cmd.Stderr = os.Stderr
@@ -954,11 +955,15 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	// parent and child.
 	pr, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("Failed to setup stdout pipe: %v", err)
+		writeStderr(channel, err.Error())
+		return
 	}
 	pw, err := cmd.StdinPipe()
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("Failed to setup stdin pipe: %v", err)
+		writeStderr(channel, err.Error())
+		return
 	}
 
 	// Start the child process that will be used to make the actual connection
