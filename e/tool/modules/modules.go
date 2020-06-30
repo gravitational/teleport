@@ -79,9 +79,14 @@ func (p *enterpriseModules) RolesFromLogins(logins []string) []string {
 // TraitsFromLogins returns traits for external user based on the logins
 // extracted from the connector
 //
-// For Enterprise edition "logins" are used as role names so traits are empty
-func (p *enterpriseModules) TraitsFromLogins(logins []string, kubeGroups []string, kubeUsers []string) map[string][]string {
-	return nil
+// For Enterprise edition "logins" are used as role names so the "logins" trait
+// maps to the username (passed at login) instead.
+func (p *enterpriseModules) TraitsFromLogins(user string, _, kubeGroups, kubeUsers []string) map[string][]string {
+	return map[string][]string{
+		teleport.TraitLogins:     []string{user},
+		teleport.TraitKubeGroups: kubeGroups,
+		teleport.TraitKubeUsers:  kubeUsers,
+	}
 }
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
