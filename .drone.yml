@@ -230,13 +230,13 @@ steps:
   - name: Upload to S3
     image: plugins/s3
     settings:
-      bucket:
-        from_secret: AWS_S3_BUCKET
+      bucket: charts.gravitational.io
       access_key:
         from_secret: AWS_ACCESS_KEY_ID
       secret_key:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
+      acl: public-read
       source: /tmp/chart/*
       target: teleport/chart/
       strip_prefix: /tmp/chart
@@ -1119,6 +1119,6 @@ steps:
 
 ---
 kind: signature
-hmac: 0530c11805081f6b4e79582b8f8a93a50791232b1d2f1dcddef91457b3a06416
+hmac: c60f83a1a7af20ae4dcad79badd3cdda47e4ce137ba75129f5c7ae7eb7762de1
 
 ...
