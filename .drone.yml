@@ -238,7 +238,7 @@ steps:
       region: us-east-2
       acl: public-read
       source: /tmp/chart/*
-      target: teleport/chart/
+      target: /
       strip_prefix: /tmp/chart
 
 ---
@@ -1119,6 +1119,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9938136a9097ddca379da6a5823aca8f9c53e805de1755edc3f31bbd1da81da9
+hmac: 009eda484e393258748c38d3bca97ffdb35f4d5bd044404a695ab62d1102b14b
 
 ...
