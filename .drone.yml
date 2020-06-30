@@ -191,6 +191,58 @@ steps:
 ---
 kind: pipeline
 type: kubernetes
+name: helm-package
+
+# TODO(gus): just for testing, this will be cronned when ready
+trigger:
+  branch:
+    - master
+    - branch/*
+  event:
+    include:
+      - push
+      - pull_request
+
+workspace:
+  path: /tmp
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: alpine/git
+    commands:
+      - mkdir -p /tmp/go/src/github.com/gravitational/teleport
+      - cd /tmp/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+
+  - name: Package helm chart
+    image: alpine/helm:2.16.9
+    commands:
+      - mkdir -p /tmp/chart
+      - helm package /tmp/go/src/github.com/gravitational/teleport
+      - cp /tmp/go/src/github.com/gravitational/teleport/teleport*.tgz /tmp/chart
+      - helm repo index /tmp/chart
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /tmp/chart/*
+      target: teleport/chart/
+      strip_prefix: /tmp/chart
+
+---
+kind: pipeline
+type: kubernetes
 name: build-linux-amd64
 
 environment:
@@ -1066,6 +1118,6 @@ steps:
 
 ---
 kind: signature
-hmac: 1f1284ed43d98cc0551ca761dc0b119739c16b016fce58cac60d264597c8348e
+hmac: 259e9f8ccc8e0a8c14ef58581e2aef273bb8840867e7d0eefada60cb74a7715b
 
 ...
