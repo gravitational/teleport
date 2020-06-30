@@ -47,7 +47,7 @@ func (s *ModulesSuite) TestDefaultModules(c *check.C) {
 	roles := GetModules().RolesFromLogins([]string{"root"})
 	c.Assert(roles, check.DeepEquals, []string{teleport.AdminRoleName})
 
-	traits := GetModules().TraitsFromLogins([]string{"root"}, []string{"system:masters"}, []string{"alice@example.com"})
+	traits := GetModules().TraitsFromLogins("alice", []string{"root"}, []string{"system:masters"}, []string{"alice@example.com"})
 	c.Assert(traits, check.DeepEquals, map[string][]string{
 		teleport.TraitLogins:     []string{"root"},
 		teleport.TraitKubeGroups: []string{"system:masters"},
@@ -70,7 +70,7 @@ func (s *ModulesSuite) TestTestModules(c *check.C) {
 	roles := GetModules().RolesFromLogins([]string{"root"})
 	c.Assert(roles, check.DeepEquals, []string{"root"})
 
-	traits := GetModules().TraitsFromLogins([]string{"root"}, []string{"system:masters"}, []string{"alice@example.com"})
+	traits := GetModules().TraitsFromLogins("alice", []string{"root"}, []string{"system:masters"}, []string{"alice@example.com"})
 	c.Assert(traits, check.IsNil)
 
 	isBoring := GetModules().IsBoringBinary()
@@ -105,7 +105,7 @@ func (p *testModules) RolesFromLogins(logins []string) []string {
 	return logins
 }
 
-func (p *testModules) TraitsFromLogins(logins []string, kubeGroups []string, kubeUsers []string) map[string][]string {
+func (p *testModules) TraitsFromLogins(user string, logins, kubeGroups, kubeUsers []string) map[string][]string {
 	return nil
 }
 
