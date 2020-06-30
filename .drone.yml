@@ -191,17 +191,11 @@ steps:
 ---
 kind: pipeline
 type: kubernetes
-name: helm-package
+name: helm-cron-teleport
 
-# TODO(gus): just for testing, this will be cronned when ready
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    include:
-      - push
-      - pull_request
+  cron:
+    - helm-cron-teleport
 
 workspace:
   path: /tmp
@@ -1119,6 +1113,6 @@ steps:
 
 ---
 kind: signature
-hmac: 009eda484e393258748c38d3bca97ffdb35f4d5bd044404a695ab62d1102b14b
+hmac: 10c217c8b4af3b3632704387142bf1005ae54be70e3aa7b9cd7e26b3ddfebb19
 
 ...
