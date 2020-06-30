@@ -222,8 +222,8 @@ steps:
     image: alpine/helm:2.16.9
     commands:
       - mkdir -p /tmp/chart
-      - helm package /tmp/go/src/github.com/gravitational/teleport
-      - cp /tmp/go/src/github.com/gravitational/teleport/teleport*.tgz /tmp/chart
+      - helm package /tmp/go/src/github.com/gravitational/teleport/examples/chart/teleport
+      - cp /tmp/go/src/github.com/gravitational/teleport/examples/chart/teleport/teleport*.tgz /tmp/chart
       - helm repo index /tmp/chart
 
   - name: Upload to S3
@@ -1118,6 +1118,6 @@ steps:
 
 ---
 kind: signature
-hmac: 259e9f8ccc8e0a8c14ef58581e2aef273bb8840867e7d0eefada60cb74a7715b
+hmac: fec5761332f240e3032576c06de9117f7576cd2b206470a8c82d0f5e5b7719a5
 
 ...
