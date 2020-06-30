@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.2.11
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed an issue that prevented upload of session archives to NFS volumes. [#3780](https://github.com/gravitational/teleport/pull/3780)
+* Fixed an issue with port forwarding that prevented TCP connections from being closed correctly. [#3801](https://github.com/gravitational/teleport/pull/3801)
+* Fixed an issue in `tsh` that would cause connections to the Auth Server to fail on large clusters. [#3872](https://github.com/gravitational/teleport/pull/3872)
+* Fixed an issue that prevented the use of Write-Only roles with S3 and GCS. [#3810](https://github.com/gravitational/teleport/pull/3810)
+
 ## 4.2.10
 
 This release of Teleport contains multiple bug fixes.
