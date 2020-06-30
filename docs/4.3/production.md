@@ -85,6 +85,7 @@ You can start Teleport via systemd unit by enabling the `.service` file
 with the `systemctl` tool.
 
 ```bash
+# sudo cp teleport/examples/systemd/teleport.service /etc/systemd/system
 $ cd /etc/systemd/system
 
 # Use your text editor of choice to create the .service file

@@ -397,6 +397,8 @@ with creating an EKS cluster, see [eksctl.io](https://eksctl.io). Make sure you 
 The first step is to create a cluster role and role binding that will allow the EC2 instance
 to impersonate other users, groups, and service accounts.
 
+The below command is ran on a machine with kubectl access to the cluster.
+
 ```bash
 cat << 'EOF' | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1
@@ -437,7 +439,7 @@ EOF
 This is the trust policy that allows the EC2 instance to assume a role.
 
 ```
-cat > c << 'EOF'
+cat > teleport_assume_role.json << 'EOF'
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -490,13 +492,15 @@ This maps the IAM role **teleport-role** to the Kubernetes group **teleport-grou
 !!! note
   If you used eksctl to create your cluster, you may need to add the mapUsers section to the aws-auth ConfigMap before executing these commands.
 
+  `eksctl create iamidentitymapping --cluster [cluster-name] --arn arn:aws:iam::[account-id]:role/teleport-role --group teleport-group --username teleport`
+
 ```bash
-ROLE="    - userarn: $ROLE_ARN\n      username: teleport\n      groups:\n        - teleport-group"
+ROLE="    - userarn: arn:aws:iam::480176057099:role/teleport-role\n      username: teleport\n      groups:\n        - teleport-group"
 kubectl get -n kube-system configmap/aws-auth -o yaml | awk "/mapRoles: \|/{print;print \"$ROLE\";next}1" > /tmp/aws-auth-patch.yml
 kubectl patch configmap/aws-auth -n kube-system --patch "$(cat /tmp/aws-auth-patch.yml)"
 ```
 
-` kubectl describe configmap -n kube-system aws-auth`
+`kubectl describe configmap -n kube-system aws-auth`
 
 https://github.com/weaveworks/eksctl/issues/876
 
@@ -527,8 +531,17 @@ Assign role to instance:
 aws iam create-instance-profile --instance-profile-name teleport-role
 aws iam add-role-to-instance-profile --instance-profile-name teleport-role --role-name teleport-role
 aws ec2 associate-iam-instance-profile --iam-instance-profile Name=teleport-role --instance-id [instance_id]
-instance_id should be replaced with the instance id of the instance where you intend to install Teleport.
+# instance_id should be replaced with the instance id of the instance where you intend to install Teleport.
 ```
+
+## Install Teleport.
+[1 deep link]
+ 2. setup systemd
+ 3. Setup teleport configure
+ ( run )
+ ( `sudo cp teleport.yaml /etc/teleport.yaml` )
+
+
 
 SSH to the instance once it’s in a RUNNING state.
 
@@ -554,7 +567,7 @@ kubectl version --short --client
 
 Create kubeconfig:
 ```bash
-[ec2-user@ip-192-168-74-206 ~]$ aws eks update-kubeconfig --name teleport-eks-cluster --region us-west-2
+aws eks update-kubeconfig --name [teleport-cluster] --region us-west-2
 # Added new context arn:aws:eks:us-west-2:480176057099:cluster/teleport-eks-cluster to /home/ec2-user/.kube/config
 ```
 
@@ -563,14 +576,12 @@ for HTTPS when you use Teleport Proxy in production. For simplicity, we are usin
 Encrypt to issue certificates and nip.io for simple DNS resolution. However, using
 an Elastic IP and a Route53 domain name would be appropriate for production use cases.
 
-Install certbot from EPEL:
-```bash
-sudo wget -r --no-parent -A 'epel-release-*.rpm' http://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/e/
-sudo rpm -Uvh dl.fedoraproject.org/pub/epel/7/x86_64/Packages/e/epel-release-*.rpm
-sudo yum-config-manager --enable epel*
-sudo yum repolist all
+Install certbot:
 
-sudo yum install -y certbot python2-certbot-apache
+```bash
+# Install the EPEL release package for RHEL 7 and enable the EPEL repository.
+sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+sudo yum install -y certbot python-certbot-nginx
 ```
 
 Run Certbot
@@ -586,6 +597,7 @@ sudo certbot certonly --standalone \
                       --agree-tos \
                       --email=$EMAIL
 ```
+
 
 ```bash
 export TELEPORT_PUBLIC_DNS_NAME="[teleport-proxy-url]"
@@ -619,6 +631,48 @@ spec:
     organization: $GH_ORG
     team: $GH_TEAM
 EOF
+```
+
+```
+sudo /usr/local/bin/tctl create -f ./github.yaml
+```
+
+```
+➜  ~ tsh login --proxy=teleport-eks-4-3.practice.io:3080
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:64467/54e5d06a-c509-4077-bf54-fb27fd1b8d50
+> Profile URL:  https://teleport-eks-4-3.practice.io:3080
+  Logged in as: benarent
+  Cluster:      teleport-eks
+  Roles:        admin*
+  Logins:       github, ec2-user
+  Valid until:  2020-06-30 02:12:54 -0700 PDT [valid for 12h0m0s]
+  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
+
+
+* RBAC is only available in Teleport Enterprise
+  https://gravitational.com/teleport/docs/enterprise
+
+```
+➜  ~ kubectl get pods --all-namespaces -o=jsonpath='{range .items[*]}{"\n"}{.metadata.name}{":\t"}{range .spec.containers[*]}{.image}{", "}{end}{end}' |\
+
+sort
+
+```
+➜  ~ kubectl get pods --all-namespaces
+NAMESPACE     NAME                       READY   STATUS    RESTARTS   AGE
+kube-system   aws-node-56p6g             1/1     Running   0          5h28m
+kube-system   aws-node-7dv5j             1/1     Running   0          5h28m
+kube-system   aws-node-f7vl8             1/1     Running   0          5h28m
+kube-system   aws-node-h5852             1/1     Running   0          5h28m
+kube-system   aws-node-z5rvf             1/1     Running   0          5h28m
+kube-system   coredns-5c97f79574-69m6k   1/1     Running   0          5h36m
+kube-system   coredns-5c97f79574-dq54w   1/1     Running   0          5h36m
+kube-system   kube-proxy-7w4z4           1/1     Running   0          5h28m
+kube-system   kube-proxy-c5nv2           1/1     Running   0          5h28m
+kube-system   kube-proxy-kl5vl           1/1     Running   0          5h28m
+kube-system   kube-proxy-st6td           1/1     Running   0          5h28m
+kube-system   kube-proxy-t99xl           1/1     Running   0          5h28m
 ```
 
 
