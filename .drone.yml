@@ -226,9 +226,9 @@ steps:
     settings:
       bucket: charts.gravitational.io
       access_key:
-        from_secret: AWS_ACCESS_KEY_ID
+        from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
       secret_key:
-        from_secret: AWS_SECRET_ACCESS_KEY
+        from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
       region: us-east-2
       acl: public-read
       source: /tmp/chart/*
@@ -1113,6 +1113,6 @@ steps:
 
 ---
 kind: signature
-hmac: 10c217c8b4af3b3632704387142bf1005ae54be70e3aa7b9cd7e26b3ddfebb19
+hmac: 9880accdbb7e5e5371e33dc6cd193eb764a765d97eaa310b650ab2c7840cfc2b
 
 ...
