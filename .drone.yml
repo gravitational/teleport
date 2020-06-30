@@ -235,7 +235,7 @@ steps:
         from_secret: AWS_ACCESS_KEY_ID
       secret_key:
         from_secret: AWS_SECRET_ACCESS_KEY
-      region: us-west-2
+      region: us-east-2
       acl: public-read
       source: /tmp/chart/*
       target: teleport/chart/
@@ -1119,6 +1119,6 @@ steps:
 
 ---
 kind: signature
-hmac: c60f83a1a7af20ae4dcad79badd3cdda47e4ce137ba75129f5c7ae7eb7762de1
+hmac: 9938136a9097ddca379da6a5823aca8f9c53e805de1755edc3f31bbd1da81da9
 
 ...
