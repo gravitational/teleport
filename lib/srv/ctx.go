@@ -705,8 +705,8 @@ func buildEnvironment(ctx *ServerContext) []string {
 
 	// If a session has been created try and set TERM, SSH_TTY, and SSH_SESSION_ID.
 	if ctx.session != nil {
-		env = append(env, fmt.Sprintf("TERM=%v", ctx.session.term.GetTermType()))
 		if ctx.session.term != nil {
+			env = append(env, fmt.Sprintf("TERM=%v", ctx.session.term.GetTermType()))
 			env = append(env, fmt.Sprintf("SSH_TTY=%s", ctx.session.term.TTY().Name()))
 		}
 		if ctx.session.id != "" {
