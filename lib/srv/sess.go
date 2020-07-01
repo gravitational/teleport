@@ -214,6 +214,7 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
+	ctx.session = sess
 	err = sess.startExec(channel, ctx)
 	defer sess.Close()
 	if err != nil {
@@ -875,13 +876,11 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			events.EventNamespace:           ctx.srv.GetNamespace(),
 			events.SessionInteractive:       false,
 			events.SessionEnhancedRecording: s.hasEnhancedRecording,
-			events.SessionParticipants: []string{
-				ctx.Identity.TeleportUser,
-			},
-			events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
-			events.SessionServerAddr:     ctx.srv.GetInfo().GetAddr(),
-			events.SessionStartTime:      start,
-			events.SessionEndTime:        end,
+			events.SessionServerHostname:    ctx.srv.GetInfo().GetHostname(),
+			events.SessionServerAddr:        ctx.srv.GetInfo().GetAddr(),
+			events.SessionStartTime:         start,
+			events.SessionEndTime:           end,
+			events.EventUser:                ctx.Identity.TeleportUser,
 		}
 		s.emitAuditEvent(events.SessionEnd, eventFields)
 

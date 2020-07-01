@@ -304,6 +304,20 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	c.Assert(strings.Contains(string(output), "SSH_AUTH_SOCK"), Equals, false)
 }
 
+// TestOpenExecSessionSetsSession tests that OpenExecSession()
+// sets ServerContext session.
+func (s *SrvSuite) TestOpenExecSessionSetsSession(c *C) {
+	se, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
+
+	// This will trigger an exec request, which will start a non-interactive session,
+	// which then triggers setting env for SSH_SESSION_ID.
+	output, err := se.Output("env")
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(output), teleport.SSHSessionID), Equals, true)
+}
+
 // TestAgentForward tests agent forwarding via unix sockets
 func (s *SrvSuite) TestAgentForward(c *C) {
 	ctx := context.Background()
