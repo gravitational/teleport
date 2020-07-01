@@ -244,6 +244,18 @@ func (s *WebSuite) SetUpTest(c *C) {
 	err = s.proxy.Start()
 	c.Assert(err, IsNil)
 
+	// Wait for proxy to fully register before starting the test.
+	for start := time.Now(); ; {
+		proxies, err := s.proxyClient.GetProxies()
+		c.Assert(err, IsNil)
+		if len(proxies) != 0 {
+			break
+		}
+		if time.Since(start) > 5*time.Second {
+			c.Fatal("proxy didn't register within 5s after startup")
+		}
+	}
+
 	proxyAddr := utils.MustParseAddr(s.proxy.Addr())
 
 	addr := utils.MustParseAddr(s.webServer.Listener.Addr().String())
