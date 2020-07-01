@@ -1,6 +1,8 @@
 
 # FAQ
 
+## Community FAQ
+
 ### Can I use Teleport in production today?
 
 Teleport has been deployed on server clusters with thousands of nodes at
@@ -37,7 +39,7 @@ in file configuration). As defined in [Adding a node located behind NAT - Telepo
 
 ### Can nodes use a single port for reverse tunnels?
 
-Yes, Teleport supports multiplexing on a single port.  Set the `tunnel_listen_addr` to use the same port as the `listen_addr` address setting in the `proxy_service` configuration. Teleport will automatically use multiplexing with that configuration. 
+Yes, Teleport supports multiplexing on a single port.  Set the `tunnel_listen_addr` to use the same port as the `listen_addr` address setting in the `proxy_service` configuration. Teleport will automatically use multiplexing with that configuration.
 
 ### What are Teleport's scalability and hardware recommendations?
 
@@ -49,10 +51,6 @@ Scenario | Max Recommended Count | Proxy | Auth server
 ------------ | -------------|---------|-------
 Teleport nodes connected to auth server | 10,000 |2x  2-4 vCPUs/8GB RAM | 2x 4-8 vCPUs/16GB RAM
 Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |2x 4-8 vCPUs/16+GB RAM
-
-
-* Teleport 4.1 release will focus on increasing Teleport IoT supported count to 10,000
-
 
 ### Does Web UI support copy and paste?
 

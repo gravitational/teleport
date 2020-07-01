@@ -13,12 +13,12 @@ or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 ### SSO Setup Guides
 
-- [Azure Active Directory (AD)](sso/ssh_azuread.md)
-- [Active Directory (ADFS)](sso/ssh_adfs.md)
-- [G Suite](sso/ssh_gsuite.md)
-- [OneLogin](sso/ssh_one_login.md)
-- [OIDC](sso/oidc.md)
-- [Okta](sso/ssh_okta.md)
+- [Azure Active Directory (AD)](ssh_azuread.md)
+- [Active Directory (ADFS)](ssh_adfs.md)
+- [G Suite](ssh_gsuite.md)
+- [OneLogin](ssh_one_login.md)
+- [OIDC](oidc.md)
+- [Okta](ssh_okta.md)
 
 ## How does SSO work with SSH?
 
