@@ -2,12 +2,12 @@
 * @klizhentas @russjones
 
 # Release Engineering.
-/assets/ @webvictim @russjones
-/build.assets/ @webvictim @russjones
-/docker/ @webvictim @russjones
-/examples/ @webvictim @russjones
-/vagrant/ @webvictim @russjones
-.drone.yml @webvictim @russjones
+/assets/ @webvictim @russjones @awly
+/build.assets/ @webvictim @russjones @awly
+/docker/ @webvictim @russjones @awly
+/examples/ @webvictim @russjones @awly
+/vagrant/ @webvictim @russjones @awly
+.drone.yml @webvictim @russjones @awly
 
 # Product.
 *.md @benarent @webvictim
@@ -24,5 +24,5 @@
 /vendor/ @klizhentas @russjones @fspmarshall @webvictim @awly
 
 # Frontend Engineering.
-/lib/web/ @alex-kovoy @russjones @fspmarshall @webvictim @awly
-/web/ @alex-kovoy
+/lib/web/ @alex-kovoy @russjones @fspmarshall @webvictim @awly @kimlisa
+/web/ @alex-kovoy @kimlisa
