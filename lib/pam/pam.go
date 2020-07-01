@@ -299,6 +299,8 @@ func Open(config *Config) (*PAM, error) {
 		}
 	}
 
+	// Trigger the "account" PAM hooks for this login.
+	//
 	// Check that the *nix account is valid. Checking an account varies based off
 	// the PAM modules used in the account stack. Typically this consists of
 	// checking if the account is expired or has access restrictions.
@@ -309,6 +311,17 @@ func Open(config *Config) (*PAM, error) {
 		return nil, p.codeToError(retval)
 	}
 
+	// Trigger the "auth" PAM hooks for this login.
+	//
+	// These would perform any extra authentication steps configured in the PAM
+	// stack, like per-session 2FA.
+	retval = C._pam_authenticate(pamHandle, p.pamh, 0)
+	if retval != C.PAM_SUCCESS {
+		return nil, p.codeToError(retval)
+	}
+
+	// Trigger the "session" PAM hooks for this login.
+	//
 	// Open a user session. Opening a session varies based off the PAM modules
 	// used in the "session" stack. Opening a session typically consists of
 	// printing the MOTD, mounting a home directory, updating auth.log.
