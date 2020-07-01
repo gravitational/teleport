@@ -7,6 +7,7 @@
 /docker/ @webvictim @russjones
 /examples/ @webvictim @russjones
 /vagrant/ @webvictim @russjones
+.drone.yml @webvictim @russjones
 
 # Product.
 *.md @benarent @webvictim
