@@ -53,7 +53,13 @@ class TopNavUserMenu extends React.Component {
       children,
       menuListCss,
     } = this.props;
-    const initial = user && user.length ? user.trim().charAt(0) : '';
+    const initial =
+      user && user.length
+        ? user
+            .trim()
+            .charAt(0)
+            .toUpperCase()
+        : '';
     const anchorEl = open ? this.btnRef : null;
     return (
       <>
@@ -63,7 +69,7 @@ class TopNavUserMenu extends React.Component {
           ref={this.setRef}
           onClick={onShow}
         >
-          <Text typography="subtitle2" bold>
+          <Text fontSize="12px" bold>
             {user}
           </Text>
           <StyledAvatar>{initial}</StyledAvatar>
@@ -93,7 +99,9 @@ const StyledAvatar = styled.div`
   justify-content: center;
   height: 32px;
   margin-left: 16px;
-  width: 32px;
+  width: 100%;
+  max-width: 32px;
+  min-width: 32px;
 `;
 
 export default TopNavUserMenu;

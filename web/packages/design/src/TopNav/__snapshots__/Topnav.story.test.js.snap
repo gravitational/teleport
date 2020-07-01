@@ -26,7 +26,6 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   padding: 0 16px;
   position: relative;
   text-decoration: none;
-  text-transform: uppercase;
 }
 
 .c1:hover,
@@ -64,7 +63,6 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   padding: 0 16px;
   position: relative;
   text-decoration: none;
-  text-transform: uppercase;
   margin-left: auto;
   max-width: 250px;
 }
@@ -93,8 +91,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
-  font-size: 10px;
-  line-height: 16px;
+  font-size: 12px;
   margin: 0px;
 }
 
@@ -108,7 +105,9 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   justify-content: center;
   height: 32px;
   margin-left: 16px;
-  width: 32px;
+  width: 100%;
+  max-width: 32px;
+  min-width: 32px;
 }
 
 <nav
@@ -130,13 +129,14 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   >
     <div
       class="c3"
+      font-size="12px"
     >
       example@example.com
     </div>
     <div
       class="c4"
     >
-      e
+      E
     </div>
   </button>
 </nav>

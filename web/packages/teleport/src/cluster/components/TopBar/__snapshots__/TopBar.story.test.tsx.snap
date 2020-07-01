@@ -94,8 +94,7 @@ exports[`rendering of ClusterTopBar 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
-  font-size: 10px;
-  line-height: 16px;
+  font-size: 12px;
   margin: 0px;
 }
 
@@ -137,7 +136,6 @@ exports[`rendering of ClusterTopBar 1`] = `
   padding: 0 16px;
   position: relative;
   text-decoration: none;
-  text-transform: uppercase;
   width: 208px;
 }
 
@@ -176,7 +174,6 @@ exports[`rendering of ClusterTopBar 1`] = `
   padding: 0 16px;
   position: relative;
   text-decoration: none;
-  text-transform: uppercase;
   margin-left: auto;
   max-width: 250px;
 }
@@ -211,7 +208,9 @@ exports[`rendering of ClusterTopBar 1`] = `
   justify-content: center;
   height: 32px;
   margin-left: 16px;
-  width: 32px;
+  width: 100%;
+  max-width: 32px;
+  min-width: 32px;
 }
 
 .c4 {
@@ -294,6 +293,7 @@ exports[`rendering of ClusterTopBar 1`] = `
     >
       <div
         class="c10"
+        font-size="12px"
       >
         Timothy Kim
       </div>

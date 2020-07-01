@@ -36,7 +36,6 @@ const TopNavItem = styled.button`
   padding: 0 16px;
   position: relative;
   text-decoration: none;
-  text-transform: uppercase;
 
   &:hover, &:focus {
     background:  ${props =>
