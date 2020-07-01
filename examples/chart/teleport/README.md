@@ -113,7 +113,7 @@ Running multiple instances of the Authentication Services requires using a high 
 ### Example High Availability Storage
 1. First add the credentials file as a secret
 ```bash
-kubectl create secret generic awscredentials --from-file=credentials
+kubectl create secret generic awscredentials --from-file=~/.aws/credentials
 ```
 
 2. Set the DynamoDB and Sessions storage within `values.yaml`
