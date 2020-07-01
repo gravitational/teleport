@@ -1,7 +1,7 @@
 name: teleport
 apiVersion: v1
 version: 0.0.5
-description: Teleport Enterprise or Community
+description: Setup a Teleport Cluster
 icon: https://gravitational.com/gravitational/images/logos/company-logos/teleport-symbol-400x400.png
 keywords:
   - Teleport 
