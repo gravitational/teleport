@@ -796,14 +796,14 @@ Delete a resource
 ### Arguments
 
 * `[<resource-type/resource-name>]` Resource to delete
-    - `<resource type>` Type of a resource [for example: `connector,user,cluster,token` ]
+    - `<resource type>` Type of a resource [for example: `saml,oidc,github,user,cluster,token` ]
     - `<resource name>` Resource name to delete
 
 ### Examples
 
 ``` bsh
-# delete a connector called "okta":
-$ tctl rm connectors/okta
+# delete a SAML connector called "okta":
+$ tctl rm saml/okta
 
 # delete a local user called "admin":
 $ tctl rm users/admin
