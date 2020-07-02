@@ -281,12 +281,12 @@ func MakeSampleFileConfig() (fc *FileConfig, err error) {
 	s.Commands = []CommandLabel{
 		{
 			Name:    "hostname",
-			Command: []string{"/bin/hostname"},
+			Command: []string{"hostname"},
 			Period:  time.Minute,
 		},
 		{
 			Name:    "arch",
-			Command: []string{"/bin/uname", "-p"},
+			Command: []string{"uname", "-p"},
 			Period:  time.Hour,
 		},
 	}
