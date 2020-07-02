@@ -2434,7 +2434,7 @@ As an extra precaution you might want to backup your application prior to upgrad
     teleport:
       ca_signature_algo: “rsa-sha2-512”
 
-    And updating, rotate the cluster CA [following these docs](#certificate-rotation).
+    After updating to 4.3+ rotate the cluster CA [following these docs](#certificate-rotation).
 
 ### Backup Before Upgrading
 
