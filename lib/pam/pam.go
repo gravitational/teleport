@@ -427,7 +427,9 @@ func (p *PAM) writeStream(stream int, s string) (int, error) {
 // TODO(russjones): At some point in the future if this becomes an issue, we
 // should consider supporting echo = false.
 func (p *PAM) readStream(echo bool) (string, error) {
-	reader := bufio.NewReader(p.stdin)
+	// Limit the reader in case stdin is from /dev/zero or other infinite
+	// source.
+	reader := bufio.NewReader(io.LimitReader(p.stdin, int64(C.PAM_MAX_RESP_SIZE)-1))
 	text, err := reader.ReadString('\n')
 	if err != nil {
 		return "", trace.Wrap(err)

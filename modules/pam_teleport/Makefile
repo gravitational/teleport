@@ -4,14 +4,7 @@ UNAME := $(shell uname -s)
 # defined.
 PAM_POLICY_PATH = /etc/pam.d/
 
-# PAM_MODULE_PATH is determined by the OS.
-ifeq ($(UNAME),Darwin)
-    PAM_MODULE_PATH = /usr/local/lib/pam/
-else ifneq (,$(wildcard /etc/redhat-release))
-    PAM_MODULE_PATH = /lib64/security/
-else
-    PAM_MODULE_PATH = /lib/x86_64-linux-gnu/security/
-endif
+PAM_MODULE_PATH_ESCAPED = $(shell pwd | sed 's/\//\\\//g')
 
 # LD and LD_FLAGS controls the linker and linker flags to use and are
 # determined by the OS.
@@ -24,14 +17,14 @@ endif
 
 all: pam_teleport.so
 
-install:
-	mkdir -p $(PAM_MODULE_PATH)
-	cp pam_teleport.so $(PAM_MODULE_PATH)
-	sudo cp policy/teleport-acct-echo $(PAM_POLICY_PATH)
-	sudo cp policy/teleport-acct-failure $(PAM_POLICY_PATH)
-	sudo cp policy/teleport-session-failure $(PAM_POLICY_PATH)
-	sudo cp policy/teleport-session-environment $(PAM_POLICY_PATH)
-	sudo cp policy/teleport-success $(PAM_POLICY_PATH)
+install: pam_teleport.so
+	# Copy all PAM policy files over to /etc/pam.d
+	for file in $(shell ls policy/); do \
+		# Replace the module path in these files with the absolute path to \
+		# pam_teleport.so in current directory. That way we don't depend on the \
+		# OS-specific PAM module locations. \
+		sudo sh -c "sed 's/pam_teleport.so/$(PAM_MODULE_PATH_ESCAPED)\/pam_teleport.so/' policy/$${file} >$(PAM_POLICY_PATH)$${file}"; \
+	done
 
 pam_teleport.so: pam_teleport.o
 	$(LD) $(LD_FLAGS) -o pam_teleport.so pam_teleport.o

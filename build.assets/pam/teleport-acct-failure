@@ -1,2 +1,0 @@
-account     required    pam_teleport.so 0
-session     required    pam_teleport.so 1

@@ -18,8 +18,6 @@ package pam
 
 import (
 	"bytes"
-	"fmt"
-	"os"
 	"os/user"
 	"strings"
 	"testing"
@@ -29,28 +27,17 @@ import (
 	"gopkg.in/check.v1"
 )
 
-type Suite struct{}
+type Suite struct {
+	username string
+}
 
-var _ = fmt.Printf
 var _ = check.Suite(&Suite{})
 
 func TestPAM(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
-}
-func (s *Suite) TearDownSuite(c *check.C) {}
-func (s *Suite) SetUpTest(c *check.C)     {}
-func (s *Suite) TearDownTest(c *check.C)  {}
 
-// TestEcho makes sure that the PAM_RUSER variable passed to a PAM module
-// is correctly set
-//
-// The PAM module used, pam_teleport.so is called from the policy file
-// teleport-session-echo-ruser. The policy file instructs pam_teleport.so to
-// echo the contents of PAM_RUSER to stdout where this test can read, parse,
-// and validate it's output.
-func (s *Suite) TestEcho(c *check.C) {
 	// Skip this test if the binary was not built with PAM support.
 	if !BuildHasPAM() || !SystemHasPAM() {
 		c.Skip("Skipping test: PAM support not enabled.")
@@ -58,28 +45,42 @@ func (s *Suite) TestEcho(c *check.C) {
 
 	local, err := user.Current()
 	c.Assert(err, check.IsNil)
+	s.username = local.Username
+}
 
-	os.Setenv("TELEPORT_USERNAME", local.Username+"@example.com")
-	os.Setenv("TELEPORT_LOGIN", local.Username)
-	os.Setenv("TELEPORT_ROLES", "bar baz qux")
-
+// TestEcho makes sure that the teleport env variables passed to a PAM module
+// are correctly set
+//
+// The PAM module used, pam_teleport.so is called from the policy file
+// teleport-acct-echo. The policy file instructs pam_teleport.so to echo the
+// contents of TELEPORT_* to stdout where this test can read, parse, and
+// validate it's output.
+func (s *Suite) TestEcho(c *check.C) {
 	var buf bytes.Buffer
 	pamContext, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-acct-echo",
-		Login:       local.Username,
-		Stdin:       &discardReader{},
-		Stdout:      &buf,
-		Stderr:      &buf,
+		Login:       s.username,
+		Env: map[string]string{
+			"TELEPORT_USERNAME": s.username + "@example.com",
+			"TELEPORT_LOGIN":    s.username,
+			"TELEPORT_ROLES":    "bar baz qux",
+		},
+		Stdin:  &discardReader{},
+		Stdout: &buf,
+		Stderr: &buf,
 	})
 	c.Assert(err, check.IsNil)
 	defer pamContext.Close()
 
-	parts := strings.FieldsFunc(buf.String(), func(c rune) bool { return c == '\n' })
-	c.Assert(parts, check.HasLen, 3)
-	c.Assert(strings.TrimSpace(parts[0]), check.Equals, local.Username+"@example.com")
-	c.Assert(strings.TrimSpace(parts[1]), check.Equals, local.Username)
-	c.Assert(strings.TrimSpace(parts[2]), check.Equals, "bar baz qux")
+	assertOutput(c, buf.String(), []string{
+		s.username + "@example.com",
+		s.username,
+		"bar baz qux",
+		"pam_sm_acct_mgmt OK",
+		"pam_sm_authenticate OK",
+		"pam_sm_open_session OK",
+	})
 }
 
 // TestEnvironment makes sure that PAM environment variables (environment
@@ -91,19 +92,11 @@ func (s *Suite) TestEcho(c *check.C) {
 // read in the first argument and set it as a PAM environment variable. This
 // test then validates it matches what was set in the policy file.
 func (s *Suite) TestEnvironment(c *check.C) {
-	// Skip this test if the binary was not built with PAM support.
-	if !BuildHasPAM() || !SystemHasPAM() {
-		c.Skip("Skipping test: PAM support not enabled.")
-	}
-
-	local, err := user.Current()
-	c.Assert(err, check.IsNil)
-
 	var buf bytes.Buffer
 	pamContext, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-session-environment",
-		Login:       local.Username,
+		Login:       s.username,
 		Stdin:       &discardReader{},
 		Stdout:      &buf,
 		Stderr:      &buf,
@@ -113,6 +106,74 @@ func (s *Suite) TestEnvironment(c *check.C) {
 
 	c.Assert(pamContext.Environment(), check.HasLen, 1)
 	c.Assert(pamContext.Environment()[0], check.Equals, "foo=bar")
+}
+
+func (s *Suite) TestSuccess(c *check.C) {
+	var buf bytes.Buffer
+	pamContext, err := Open(&Config{
+		Enabled:     true,
+		ServiceName: "teleport-success",
+		Login:       s.username,
+		Stdin:       &discardReader{},
+		Stdout:      &buf,
+		Stderr:      &buf,
+	})
+	c.Assert(err, check.IsNil)
+	defer pamContext.Close()
+
+	assertOutput(c, buf.String(), []string{
+		"pam_sm_acct_mgmt OK",
+		"pam_sm_authenticate OK",
+		"pam_sm_open_session OK",
+	})
+}
+
+func (s *Suite) TestAccountFailure(c *check.C) {
+	var buf bytes.Buffer
+	_, err := Open(&Config{
+		Enabled:     true,
+		ServiceName: "teleport-acct-failure",
+		Login:       s.username,
+		Stdin:       &discardReader{},
+		Stdout:      &buf,
+		Stderr:      &buf,
+	})
+	c.Assert(err, check.NotNil)
+}
+
+func (s *Suite) TestAuthFailure(c *check.C) {
+	var buf bytes.Buffer
+	_, err := Open(&Config{
+		Enabled:     true,
+		ServiceName: "teleport-auth-failure",
+		Login:       s.username,
+		Stdin:       &discardReader{},
+		Stdout:      &buf,
+		Stderr:      &buf,
+	})
+	c.Assert(err, check.NotNil)
+}
+
+func (s *Suite) TestSessionFailure(c *check.C) {
+	var buf bytes.Buffer
+	_, err := Open(&Config{
+		Enabled:     true,
+		ServiceName: "teleport-session-failure",
+		Login:       s.username,
+		Stdin:       &discardReader{},
+		Stdout:      &buf,
+		Stderr:      &buf,
+	})
+	c.Assert(err, check.NotNil)
+}
+
+func assertOutput(c *check.C, got string, want []string) {
+	got = strings.TrimSpace(got)
+	lines := strings.Split(got, "\n")
+	for i, l := range lines {
+		lines[i] = strings.TrimSpace(l)
+	}
+	c.Assert(lines, check.DeepEquals, want)
 }
 
 type discardReader struct {
