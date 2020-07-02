@@ -201,6 +201,11 @@ teleport:
         # chapter for more information.
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
+    # CA Signing algorithm used for OpenSSH Certificates
+    # Defaults to rsa-sha2-512 in 4.3 and above.
+    # valid values are: ssh-rsa, rsa-sha2-256, rsa-sha2-512; ssh-rsa is SHA1
+    ca_signature_algo: “rsa-sha2-512”
+
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
     ciphers:
@@ -2405,8 +2410,8 @@ clients, etc), the following rules apply:
   work with any 4.0.3 component.
 
 * Other versions are always compatible with their **previous** release. This
-  means you must not attempt to upgrade from 3.3 straight to 3.5. You must
-  upgrade to 3.4 first.
+  means you must not attempt to upgrade from 4.1 straight to 4.3. You must
+  upgrade to 4.2 first.
 
 * Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
   may not be compatible
@@ -2418,6 +2423,18 @@ As an extra precaution you might want to backup your application prior to upgrad
     Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
     two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
     [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
+
+    If upgrading you might want to consider rotating CA to SHA-256 or SHA-512 for RSA
+    SSH certificate signatures. The previous default was SHA-1, which is now considered
+    weak against brute-force attacks. SHA-1 certificate signatures are also no longer
+    accepted by OpenSSH versions 8.2 and above. All new Teleport clusters will default
+    to SHA-512 based signatures. To upgrade an existing cluster, set the following in
+    your teleport.yaml:
+
+    teleport:
+      ca_signature_algo: “rsa-sha2-512”
+
+    And updating, rotate the cluster CA [following these docs](#certificate-rotation).
 
 ### Backup Before Upgrading
 
