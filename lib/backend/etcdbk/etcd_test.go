@@ -41,7 +41,6 @@ type EtcdSuite struct {
 	bk     *EtcdBackend
 	suite  test.BackendSuite
 	config backend.Params
-	skip   bool
 }
 
 var _ = check.Suite(&EtcdSuite{})
@@ -63,13 +62,15 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 		return New(context.Background(), s.config)
 	}
 	s.suite.NewBackend = newBackend
+}
+
+func (s *EtcdSuite) SetUpTest(c *check.C) {
 	// Initiate a backend with a registry
-	b, err := newBackend()
+	b, err := s.suite.NewBackend()
 	if err != nil {
 		if strings.Contains(err.Error(), "connection refused") {
 			fmt.Printf("WARNING: etcd cluster is not available: %v.\n", err)
 			fmt.Printf("WARNING: Start examples/etcd/start-etcd.sh.\n")
-			s.skip = true
 			c.Skip(err.Error())
 		}
 		c.Assert(err, check.IsNil)
@@ -86,17 +87,9 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 	if err != nil && !trace.IsNotFound(err) {
 		if strings.Contains(err.Error(), "connection refused") || trace.IsConnectionProblem(err) {
 			fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
-			s.skip = true
 			c.Skip(err.Error())
 		}
 		c.Assert(err, check.IsNil)
-	}
-}
-
-func (s *EtcdSuite) SetUpTest(c *check.C) {
-	if s.skip {
-		fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
-		c.Skip("Etcd is not available")
 	}
 
 	s.bk.cfg.Key = legacyDefaultPrefix
@@ -108,12 +101,8 @@ func (s *EtcdSuite) TearDownTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	_, err = s.bk.client.Delete(ctx, customPrefix, clientv3.WithPrefix())
 	c.Assert(err, check.IsNil)
-}
-
-func (s *EtcdSuite) TearDownSuite(c *check.C) {
-	if s.bk != nil {
-		c.Assert(s.bk.Close(), check.IsNil)
-	}
+	err = s.bk.Close()
+	c.Assert(err, check.IsNil)
 }
 
 func (s *EtcdSuite) TestCRUD(c *check.C) {
