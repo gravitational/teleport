@@ -12,9 +12,11 @@ ENV LC_ALL=en_US.UTF-8
 ENV LC_CTYPE=en_US.UTF-8
 
 COPY pam/pam_teleport.so /lib/x86_64-linux-gnu/security
+COPY pam/teleport-acct-echo /etc/pam.d
 COPY pam/teleport-acct-failure /etc/pam.d
-COPY pam/teleport-session-failure /etc/pam.d
 COPY pam/teleport-success /etc/pam.d
+COPY pam/teleport-session-failure /etc/pam.d
+COPY pam/teleport-session-environment /etc/pam.d
 
 RUN yum makecache fast && yum -y install gcc pam-devel glibc-devel net-tools tree git zip && yum clean all
 
