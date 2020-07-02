@@ -1,6 +1,23 @@
 # This Dockerfile makes the "build box": the container used to build official
 # releases of Teleport and its documentation.
-FROM quay.io/gravitational/buildbox-base:1.0
+FROM debian:stretch
+
+ADD locale.gen /etc/locale.gen
+
+ENV LANGUAGE="en_US.UTF-8" \
+    DEBIAN_FRONTEND="noninteractive" \
+    LANG="en_US.UTF-8" \
+    LC_ALL="en_US.UTF-8" \
+    LC_CTYPE="en_US.UTF-8"
+
+RUN apt-get update -y --fix-missing && \
+    apt-get -q -y upgrade && \
+    apt-get install -q -y apt-utils curl gcc git gzip libc6-dev libpam-dev libsqlite3-0 locales make net-tools tar tree zip && \
+    locale-gen && \
+    locale-gen en_US.UTF-8 && \
+    dpkg-reconfigure locales && \
+    apt-get -y autoclean && apt-get -y clean
+ADD profile /etc/profile
 
 ARG UID
 ARG GID
@@ -11,8 +28,6 @@ COPY pam/teleport-acct-failure /etc/pam.d
 COPY pam/teleport-success /etc/pam.d
 COPY pam/teleport-session-failure /etc/pam.d
 COPY pam/teleport-session-environment /etc/pam.d
-
-RUN apt-get update; apt-get install -q -y libpam-dev libc6-dev-i386 net-tools tree
 
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
      mkdir -p -m0700 /var/lib/teleport && chown -R jenkins /var/lib/teleport)
