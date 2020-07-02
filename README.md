@@ -99,7 +99,7 @@ NOTE: This will build the latest version of Teleport, regardless of whether it i
 
 ### Rebuilding Web UI
 
-Teleport Web UI is located in the [Gravitational Webapps](https://github.com/gravitational/webapps.) monorepo.
+Teleport Web UI is located in the [Gravitational Webapps](https://github.com/gravitational/webapps) monorepo.
 You can clone that repository and rebuild teleport UI package with:
 
 ```bash
