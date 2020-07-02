@@ -100,7 +100,6 @@ func (s *EtcdSuite) SetUpTest(c *check.C) {
 	}
 
 	s.bk.cfg.Key = legacyDefaultPrefix
-	s.bk.replicateToLegacyPrefix = false
 }
 
 func (s *EtcdSuite) TearDownTest(c *check.C) {
@@ -170,71 +169,6 @@ func (s *EtcdSuite) TestPrefix(c *check.C) {
 	s.assertKV(ctx, c, wantKey, string(item.Value))
 }
 
-func (s *EtcdSuite) TestDoubleWrite(c *check.C) {
-	var (
-		ctx  = context.Background()
-		item = backend.Item{
-			Key:   []byte("/foo"),
-			Value: []byte("bar"),
-		}
-	)
-
-	s.bk.cfg.Key = customPrefix
-	s.bk.replicateToLegacyPrefix = true
-
-	c.Log("testing Put")
-	_, err := s.bk.Put(ctx, item)
-	c.Assert(err, check.IsNil)
-
-	wantKey := fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
-	s.assertKV(ctx, c, wantKey, string(item.Value))
-	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, item.Key)
-	s.assertKV(ctx, c, wantKey, string(item.Value))
-
-	c.Log("testing Delete")
-	err = s.bk.Delete(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-
-	wantKey = fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
-	resp, err := s.bk.client.Get(ctx, wantKey)
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.Count, check.Equals, int64(0))
-	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, item.Key)
-	resp, err = s.bk.client.Get(ctx, wantKey)
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.Count, check.Equals, int64(0))
-
-	c.Log("testing Create")
-	_, err = s.bk.Create(ctx, item)
-	c.Assert(err, check.IsNil)
-
-	wantKey = fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
-	s.assertKV(ctx, c, wantKey, string(item.Value))
-	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, item.Key)
-	s.assertKV(ctx, c, wantKey, string(item.Value))
-
-	c.Log("testing Update")
-	item.Value = []byte("baz")
-	_, err = s.bk.Update(ctx, item)
-	c.Assert(err, check.IsNil)
-
-	wantKey = fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
-	s.assertKV(ctx, c, wantKey, string(item.Value))
-	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, item.Key)
-	s.assertKV(ctx, c, wantKey, string(item.Value))
-
-	c.Log("testing CompareAndSwap")
-	replacement := item
-	replacement.Value = []byte("qux")
-	_, err = s.bk.CompareAndSwap(ctx, item, replacement)
-	c.Assert(err, check.IsNil)
-
-	wantKey = fmt.Sprintf("%s%s", s.bk.cfg.Key, replacement.Key)
-	s.assertKV(ctx, c, wantKey, string(replacement.Value))
-	wantKey = fmt.Sprintf("%s%s", legacyDefaultPrefix, replacement.Key)
-	s.assertKV(ctx, c, wantKey, string(replacement.Value))
-}
-
 func (s *EtcdSuite) assertKV(ctx context.Context, c *check.C, key, val string) {
 	c.Logf("assert that key %q contains value %q", key, val)
 	resp, err := s.bk.client.Get(ctx, key)
@@ -250,7 +184,6 @@ func (s *EtcdSuite) assertKV(ctx context.Context, c *check.C, key, val string) {
 func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 	ctx := context.Background()
 	s.bk.cfg.Key = customPrefix
-	s.bk.replicateToLegacyPrefix = false
 
 	reset := func() {
 		_, err := s.bk.client.Delete(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
