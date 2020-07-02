@@ -119,12 +119,6 @@ func init() {
 	prometheus.MustRegister(readRequests)
 }
 
-const (
-	// keyPrefix is a prefix that is added to every etcd key
-	// for backwards compatibility
-	keyPrefix = "/teleport"
-)
-
 type EtcdBackend struct {
 	nodes []string
 	*log.Entry
@@ -167,6 +161,14 @@ type Config struct {
 	// expects path to a file
 	PasswordFile string `json:"password_file,omitempty"`
 }
+
+// legacyDefaultPrefix was used instead of Config.Key prior to 4.3. It's used
+// below to allow a safe migration to the correct usage of Config.Key during
+// 4.3 and will be removed in 4.4
+//
+// DELETE IN 4.4: legacy prefix support for migration of
+// https://github.com/gravitational/teleport/issues/2883
+const legacyDefaultPrefix = "/teleport"
 
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
 // in Teleport YAML file. This function is a part of backend API
@@ -223,6 +225,10 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 func (cfg *Config) Validate() error {
 	if len(cfg.Key) == 0 {
 		return trace.BadParameter(`etcd: missing "prefix" parameter`)
+	}
+	// Make sure the prefix starts with a '/'.
+	if cfg.Key[0] != '/' {
+		cfg.Key = "/" + cfg.Key
 	}
 	if len(cfg.Nodes) == 0 {
 		return trace.BadParameter(`etcd: missing "peers" parameter`)
@@ -325,7 +331,7 @@ func (b *EtcdBackend) asyncWatch() {
 
 func (b *EtcdBackend) watchEvents() error {
 start:
-	eventsC := b.client.Watch(b.ctx, keyPrefix, clientv3.WithPrefix())
+	eventsC := b.client.Watch(b.ctx, b.cfg.Key, clientv3.WithPrefix())
 	b.signalWatchStart()
 	for {
 		select {
@@ -368,12 +374,12 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 	if len(endKey) == 0 {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	opts := []clientv3.OpOption{clientv3.WithSerializable(), clientv3.WithRange(prependPrefix(endKey))}
+	opts := []clientv3.OpOption{clientv3.WithSerializable(), clientv3.WithRange(b.prependPrefix(endKey))}
 	if limit > 0 {
 		opts = append(opts, clientv3.WithLimit(int64(limit)))
 	}
 	start := b.clock.Now()
-	re, err := b.client.Get(ctx, prependPrefix(startKey), opts...)
+	re, err := b.client.Get(ctx, b.prependPrefix(startKey), opts...)
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err := convertErr(err); err != nil {
@@ -386,7 +392,7 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 			return nil, trace.Wrap(err)
 		}
 		items = append(items, backend.Item{
-			Key:     trimPrefix(kv.Key),
+			Key:     b.trimPrefix(kv.Key),
 			Value:   value,
 			ID:      kv.ModRevision,
 			LeaseID: kv.Lease,
@@ -407,8 +413,8 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 	}
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.CreateRevision(prependPrefix(item.Key)), "=", 0)).
-		Then(clientv3.OpPut(prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "=", 0)).
+		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -432,8 +438,8 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 	}
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.CreateRevision(prependPrefix(item.Key)), "!=", 0)).
-		Then(clientv3.OpPut(prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "!=", 0)).
+		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -466,10 +472,11 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 		}
 	}
 	encodedPrev := base64.StdEncoding.EncodeToString(expected.Value)
+
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.Value(prependPrefix(expected.Key)), "=", encodedPrev)).
-		Then(clientv3.OpPut(prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
+		If(clientv3.Compare(clientv3.Value(b.prependPrefix(expected.Key)), "=", encodedPrev)).
+		Then(clientv3.OpPut(b.prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -498,7 +505,7 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 	start := b.clock.Now()
 	_, err := b.client.Put(
 		ctx,
-		prependPrefix(item.Key),
+		b.prependPrefix(item.Key),
 		base64.StdEncoding.EncodeToString(item.Value),
 		opts...)
 	writeLatencies.Observe(time.Since(start).Seconds())
@@ -506,6 +513,7 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 	if err != nil {
 		return nil, convertErr(err)
 	}
+
 	return &lease, nil
 }
 
@@ -514,7 +522,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 	if lease.ID == 0 {
 		return trace.BadParameter("lease is not specified")
 	}
-	re, err := b.client.Get(ctx, prependPrefix(lease.Key), clientv3.WithSerializable(), clientv3.WithKeysOnly())
+	re, err := b.client.Get(ctx, b.prependPrefix(lease.Key), clientv3.WithSerializable(), clientv3.WithKeysOnly())
 	if err != nil {
 		return convertErr(err)
 	}
@@ -537,7 +545,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 
 // Get returns a single item or not found error
 func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	re, err := b.client.Get(ctx, prependPrefix(key), clientv3.WithSerializable())
+	re, err := b.client.Get(ctx, b.prependPrefix(key), clientv3.WithSerializable())
 	if err != nil {
 		return nil, convertErr(err)
 	}
@@ -555,7 +563,7 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 // Delete deletes item by key
 func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 	start := b.clock.Now()
-	re, err := b.client.Delete(ctx, prependPrefix(key))
+	re, err := b.client.Delete(ctx, b.prependPrefix(key))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -564,6 +572,7 @@ func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 	if re.Deleted == 0 {
 		return trace.NotFound("%q is not found", key)
 	}
+
 	return nil
 }
 
@@ -576,12 +585,13 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 		return trace.BadParameter("missing parameter endKey")
 	}
 	start := b.clock.Now()
-	_, err := b.client.Delete(ctx, prependPrefix(startKey), clientv3.WithRange(prependPrefix(endKey)))
+	_, err := b.client.Delete(ctx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
 		return trace.Wrap(convertErr(err))
 	}
+
 	return nil
 }
 
@@ -605,7 +615,7 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	event := &backend.Event{
 		Type: fromType(e.Type),
 		Item: backend.Item{
-			Key: trimPrefix(e.Kv.Key),
+			Key: b.trimPrefix(e.Kv.Key),
 			ID:  e.Kv.ModRevision,
 		},
 	}
@@ -626,6 +636,101 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	}
 	event.Item.Value = value
 	return event, nil
+}
+
+func (b *EtcdBackend) Migrate(ctx context.Context) error {
+	// DELETE IN 4.4: legacy prefix support for migration of
+	// https://github.com/gravitational/teleport/issues/2883
+	if err := b.syncLegacyPrefix(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DELETE IN 4.4: legacy prefix support for migration of
+// https://github.com/gravitational/teleport/issues/2883
+//
+// syncLegacyPrefix is a temporary migration step for 4.3 release. It will
+// attempt to replicate the data from '/teleport' prefix (legacyDefaultPrefix)
+// into the correct prefix specified in teleport.yaml (b.cfg.Key).
+//
+// The goal is to prevent the need for admin intervention when upgrading
+// Teleport clusters and to avoid losing any data during the upgrade to a fixed
+// version of Teleport. See issue linked above for more context.
+//
+// The replication will happen when:
+// - there's data under legacy prefix
+// - the configured prefix is different from the legacy prefix
+// - the configured prefix is empty OR older than the legacy prefix
+func (b *EtcdBackend) syncLegacyPrefix(ctx context.Context) error {
+	// Using the same prefix, nothing to migrate.
+	if b.cfg.Key == legacyDefaultPrefix {
+		return nil
+	}
+	legacyData, err := b.client.Get(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// No data in the legacy prefix, assume this is a new Teleport cluster and
+	// skip sync early.
+	if legacyData.Count == 0 {
+		return nil
+	}
+	prefixData, err := b.client.Get(ctx, b.cfg.Key, clientv3.WithPrefix())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !shouldSync(legacyData.Kvs, prefixData.Kvs) {
+		return nil
+	}
+
+	b.Infof("Migrating Teleport etcd data from legacy prefix %q to configured prefix %q", legacyDefaultPrefix, b.cfg.Key)
+	defer b.Infof("Teleport etcd data migration complete")
+
+	// Now we know that legacy prefix has some data newer than the configured
+	// prefix. Migrate it over to configured prefix.
+	//
+	// Start with deleting existing prefix data.
+	b.Debugf("Deleting everything under %q", b.cfg.Key)
+	if _, err := b.client.Delete(ctx, b.cfg.Key, clientv3.WithPrefix()); err != nil {
+		return trace.Wrap(err)
+	}
+	// Now copy over all data from the legacy prefix to the new one.
+	var errs []error
+	for _, kv := range legacyData.Kvs {
+		// Replace the prefix.
+		key := b.cfg.Key + strings.TrimPrefix(string(kv.Key), legacyDefaultPrefix)
+		b.Debugf("Copying %q -> %q", kv.Key, key)
+		if _, err := b.client.Put(ctx, key, string(kv.Value)); err != nil {
+			errs = append(errs, trace.WrapWithMessage(err, "failed copying %q to %q: %v", kv.Key, key, err))
+		}
+	}
+	return trace.NewAggregate(errs...)
+}
+
+func shouldSync(legacyData, prefixData []*mvccpb.KeyValue) bool {
+	latestRev := func(kvs []*mvccpb.KeyValue) int64 {
+		var rev int64
+		for _, kv := range kvs {
+			if kv.CreateRevision > rev {
+				rev = kv.CreateRevision
+			}
+			if kv.ModRevision > rev {
+				rev = kv.ModRevision
+			}
+		}
+		return rev
+	}
+	if len(legacyData) == 0 {
+		return false
+	}
+	if len(prefixData) == 0 {
+		return true
+	}
+	// Data under the new prefix was updated more recently than data under the
+	// legacy prefix. Assume we already did a sync before and legacy prefix
+	// hasn't been touched since.
+	return latestRev(legacyData) > latestRev(prefixData)
 }
 
 // seconds converts duration to seconds, rounds up to 1 second
@@ -684,10 +789,10 @@ func fromType(eventType mvccpb.Event_EventType) backend.OpType {
 	}
 }
 
-func trimPrefix(in []byte) []byte {
-	return bytes.TrimPrefix(in, []byte(keyPrefix))
+func (b *EtcdBackend) trimPrefix(in []byte) []byte {
+	return bytes.TrimPrefix(in, []byte(b.cfg.Key))
 }
 
-func prependPrefix(in []byte) string {
-	return keyPrefix + string(in)
+func (b *EtcdBackend) prependPrefix(in []byte) string {
+	return b.cfg.Key + string(in)
 }

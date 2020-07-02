@@ -80,6 +80,10 @@ type Backend interface {
 	// CloseWatchers closes all the watchers
 	// without closing the backend
 	CloseWatchers()
+
+	// Migrate performs any data migration necessary between Teleport versions.
+	// Migrate must be called BEFORE using any other methods of the Backend.
+	Migrate(context.Context) error
 }
 
 // Batch implements some batch methods
@@ -331,3 +335,9 @@ const Separator = '/'
 func Key(parts ...string) []byte {
 	return []byte(strings.Join(append([]string{""}, parts...), string(Separator)))
 }
+
+// NoMigrations implements a nop Migrate method of Backend.
+// Backend implementations should embed this when no migrations are necessary.
+type NoMigrations struct{}
+
+func (NoMigrations) Migrate(context.Context) error { return nil }
