@@ -28,6 +28,8 @@ The `values.yaml` is configurable for multiple options including:
 
 See the comments in the default `values.yaml` and also the [Teleport documentation](https://gravitational.com/teleport/docs/) for more options.   
 
+See the [High Availability](./HIGHAVAILABILITY.md)(HA) instructions for configuring a HA deployment with this helm chart.
+
 ## Prerequisites
 
 - Kubernetes 1.10+
