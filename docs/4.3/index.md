@@ -86,11 +86,11 @@ integration with identity managers for single sign-on (SSO). Because the
 majority of documentation between the Community and Enterprise Editions overlap,
 we have separated out the documentation that is specific to Teleport Enterprise.
 
-- [Teleport Enterprise Introduction](enterprise) - Overview of the additional capabilities of Teleport Enterprise.
+- [Teleport Enterprise Introduction](enterprise/introduction.md) - Overview of the additional capabilities of Teleport Enterprise.
 - [Teleport Enterprise Quick Start](enterprise/quickstart-enterprise.md) - A quick tutorial to show off the basic capabilities of Teleport Enterprise.
 A good place to start if you want to jump right in.
 - [RBAC for SSH](enterprise/ssh_rbac.md) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
-- [SSO for SSH](enterprise/ssh_sso.md) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
+- [SSO for SSH](enterprise/sso/ssh_sso.md) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
 
 ## Guides
 

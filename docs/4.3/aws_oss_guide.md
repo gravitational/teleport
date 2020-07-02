@@ -10,6 +10,8 @@ We have split this guide into:
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips-tricks)
 
+-  [AWS HA with Terraform](aws_terraform_guide.md)
+
 ### Teleport on AWS FAQ
 
 **Why would you want to use Teleport with AWS?**

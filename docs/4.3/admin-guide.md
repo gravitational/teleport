@@ -596,7 +596,7 @@ tsh --proxy <proxy-addr> ssh <hostname>
 
 !!! tip "Version Warning"
 
-    External user identities are only supported in [Teleport Enterprise](enterprise/index.md).
+    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
 
     Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
 
@@ -1325,7 +1325,7 @@ Here's the list of resources currently exposed via [ `tctl` ](cli-docs.md#tctl) 
 | node          | A registered SSH node. The same record is displayed via `tctl nodes ls` |
 | cluster       | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.|
 | role          | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.|
-| connector     | Authentication connectors for [single sign-on](enterprise/ssh_sso.md) (SSO) for SAML, OIDC and Github.|
+| connector     | Authentication connectors for [single sign-on](enterprise/sso/ssh_sso.md) (SSO) for SAML, OIDC and Github.|
 
 **Examples:**
 
@@ -2575,4 +2575,4 @@ If you need help, please ask on our [community forum](https://community.gravitat
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
 
-For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
+For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).

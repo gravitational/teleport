@@ -1,8 +1,5 @@
 ## Teleport Nodes
 
-**Table of Contents**
-
-[TOC]
 
 ## The Node Service
 

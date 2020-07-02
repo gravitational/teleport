@@ -2,9 +2,6 @@
 
 <!--TODO: This doc is incomplete, pending addition of Enterprise topics-->
 
-**Table of Contents**
-
-[TOC]
 
 ## Types of Users
 
@@ -21,7 +18,7 @@ to "nginx". Teleport does not have knowledge of the OS Users so it expects both
 
 For enterprise edition users, these can be stored in an external identity
 sources such as OKTA, Active Directory, OneLogin, G Suite, or OIDC. Read the
-[Enterprise Guide](../enterprise/index.md) to learn more.
+[Enterprise Guide](../enterprise/introduction.md) to learn more.
 
 Teleport supports two types of user accounts: **Local Users** and
 **External Users**.
@@ -71,7 +68,7 @@ connector and it is enforced by default.
 !!! info "2FA Support"
     2FA is not supported with SSO providers such as Github or OKTA. To learn
     more about SSO configuration check out the [SSO section of the Enterprise
-    Guide](../enterprise/index.md#sso)
+    Guide](/enterprise/introduction.md#sso)
 
  There are two types of 2FA supported:
 
@@ -94,7 +91,7 @@ OpenID/OAuth2 or SAML endpoint.
 
     External user storage is only supported in Teleport
     Enterprise. Please take a look at the [Teleport
-    Enterprise](../enterprise/index.md) chapter for more information.
+    Enterprise](../enterprise/introduction.md) chapter for more information.
 
 #### Multiple Identity Sources
 
