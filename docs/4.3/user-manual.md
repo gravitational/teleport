@@ -606,4 +606,4 @@ If you need help, please ask on our [community forum](https://community.gravitat
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
 
-For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
+For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).

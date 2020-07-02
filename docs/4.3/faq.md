@@ -20,7 +20,7 @@ available unless the Teleport SSH daemon is present on all cluster nodes.
 ### Can I use OpenSSH with a Teleport cluster?
 
 Yes, this question comes up often and is related to the previous one. Take a
-look at [Using OpenSSH client](user-manual.md##using-teleport-with-openssh)
+look at [Using OpenSSH client](user-manual.md#using-openssh-client)
 section in the User Manual and [Using OpenSSH servers](admin-guide.md) in the
 Admin Manual.
 
@@ -67,7 +67,7 @@ Please refer to the [Ports](admin-guide.md#ports) section of the Admin Manual.
 
 ### Does Teleport support authentication via OAuth, SAML or Active Directory?
 
-Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/index.md).
+Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/introduction.md).
 
 ## Commercial Teleport Editions
 
@@ -75,15 +75,15 @@ Gravitational offers this feature for the [Enterprise versions of Teleport](ente
 
 The Teleport Enterprise offering gives users the following additional features:
 
-* Role-based access control, also known as [RBAC](enterprise/index.md#rbac).
+* Role-based access control, also known as [RBAC](enterprise/introduction.md#rbac).
 * Authentication via SAML and OpenID with providers like Okta, Active
-  Directory, Auth0, etc. (aka, [SSO](enterprise/ssh_sso.md)).
+  Directory, Auth0, etc. [SSO](enterprise/sso/ssh_sso.md).
 * Premium support.
 
 We also offer implementation services, to help you integrate
 Teleport with your existing systems and processes.
 
-You can read more in the [Teleport Enterprise section of the docs](enterprise/index.md)
+You can read more in the [Teleport Enterprise section of the docs](enterprise/introduction.md)
 
 ### Does Teleport send any data to Gravitational?
 

@@ -59,7 +59,7 @@ To configure [SSO](https://en.wikipedia.org/wiki/Single_sign-on), a Teleport adm
 
 * Update `/etc/teleport.yaml` on the auth server to set the default
   authentication connector.
-* Define the connector [resource](../admin-guide.md#resources) and save it into
+* Define the connector [resource](../../admin-guide.md#resources) and save it into
   a YAML file (like `connector.yaml`)
 * Create the connector using `tctl create connector.yaml`.
 
@@ -163,7 +163,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources section](../admin-guide.md#resources) in the Admin Manual.
+as described in the [Resources section](../../admin-guide.md#resources) in the Admin Manual.
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:
@@ -179,20 +179,20 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-* [SSH Authentication with Okta](sso/ssh_okta.md)
-* [SSH Authentication with OneLogin](sso/ssh_one_login.md)
-* [SSH Authentication with ADFS](sso/ssh_adfs.md)
-* [SSH Authentication with OAuth2 / OpenID Connect](sso/oidc.md)
+* [SSH Authentication with Okta](ssh_okta.md)
+* [SSH Authentication with OneLogin](ssh_one_login.md)
+* [SSH Authentication with ADFS](ssh_adfs.md)
+* [SSH Authentication with OAuth2 / OpenID Connect](oidc.md)
 
 ## SSO Customization
 
 | Provider | YAML | Example |
 |----------|------|---------|
-| Github |`display: Github`|![github](../img/teleport-sso/github.png)|
-| Microsoft |`display: Microsoft`|![microsoft](../img/teleport-sso/microsoft.png)|
-| Google |`display: Google`|![google](../img/teleport-sso/google.png)|
-| BitBucket | `display: Bitbucket` | ![bitbucket](../img/teleport-sso/bitbucket.png)|
-| OpenID | `display: Okta` | ![Okta](../img/teleport-sso/openId.png)|
+| Github |`display: Github`|![github](../../img/teleport-sso/github.png)|
+| Microsoft |`display: Microsoft`|![microsoft](../../img/teleport-sso/microsoft.png)|
+| Google |`display: Google`|![google](../../img/teleport-sso/google.png)|
+| BitBucket | `display: Bitbucket` | ![bitbucket](../../img/teleport-sso/bitbucket.png)|
+| OpenID | `display: Okta` | ![Okta](../../img/teleport-sso/openId.png)|
 
 ## Troubleshooting
 
@@ -210,4 +210,4 @@ If something is not working, we recommend to:
 
 * Double-check the host names, tokens and TCP ports in a connector definition.
 * Look into Teleport's audit log for claim mapping problems. It is usually stored on the
-  auth server in the `/var/lib/teleport/log` directory.
+  auth server in the `/var/lib/teleport/log` directory.ad
