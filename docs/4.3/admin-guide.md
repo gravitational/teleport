@@ -903,7 +903,7 @@ and 3024 on the proxy. Port 3080 is used to initially fetch the credentials (SSH
 and for discovery (where is the reverse tunnel running, in this case 3024). Port 3024 is used to
 establish a connection to the Auth Server through the proxy.
 
-To enable multiplexing so only one port is used, simply set the `tunnel_listen_addr` the same as the 
+To enable multiplexing so only one port is used, simply set the `tunnel_listen_addr` the same as the
 `web_listen_addr` respectively within the `proxy_service`.  Teleport will automatically recognize using the same port and enable multiplexing. If the log setting is set to DEBUG you will see multiplexing enabled in the server log.
 ```bash
 DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on. service/service.go:1944
@@ -955,16 +955,16 @@ ssh_service:
   # Dynamic labels AKA "commands":
   commands:
   - name: hostname
-    command: [/usr/bin/hostname]
+    command: [hostname]
     period: 1m0s
   - name: arch
-    command: [/usr/bin/uname, -p]
+    command: [uname, -p]
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s
 ```
 
-`/path/to/executable` must be a valid executable command (i.e.executable bit
+`/path/to/executable` must be a valid executable command (i.e. executable bit
 must be set) which also includes shell scripts with a proper [shebang
 line](https://en.wikipedia.org/wiki/Shebang_(Unix)).
 
@@ -1856,15 +1856,15 @@ To allow access for all users:
   + Copy `teleport-user-ca.pub` to `/etc/ssh/teleport-user-ca.pub`
   + Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
     this file: `TrustedUserCAKeys /etc/ssh/teleport-user-ca.pub`
-    
+
 To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
 
 Example ssh to `database.work.example.com` as `root` with a OpenSSH server on port 22 via `tsh`:
    tsh ssh --port=22 root@database.work.example.com
-   
+
 !!! warning "Warning"
-  
-    The principal (username) being used to connect must be listed in the Teleport user/role configuration.    
+
+    The principal (username) being used to connect must be listed in the Teleport user/role configuration.
 
 ## Certificate Rotation
 
