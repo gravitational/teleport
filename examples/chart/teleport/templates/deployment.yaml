@@ -8,18 +8,28 @@ metadata:
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
 spec:
+{{- if not .Values.config.highAvailability }}
   replicas: {{ .Values.replicaCount }}
+{{- else }}
+  replicas: {{ .Values.config.proxyCount }}
+{{- end }}
   strategy:
     type: {{ .Values.strategy }}
   selector:
     matchLabels:
       app: {{ template "teleport.name" . }}
+{{- if .Values.config.highAvailability }}
+      auth: noauth
+{{- end}}
   template:
     metadata:
       labels:
         app: {{ template "teleport.name" . }}
         release: {{ .Release.Name }}
         heritage: {{ .Release.Service }}
+{{- if .Values.config.highAvailability }}
+        auth: noauth
+{{- end}}
       annotations:
         checksum/config: {{ toYaml .Values.config | sha256sum }}
 {{- if .Values.annotations }}
@@ -29,7 +39,11 @@ spec:
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       containers:
       - name: {{ .Chart.Name }}
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+{{- if .Values.license.enabled }}
+        image: "{{ .Values.image.enterpriseRepository }}:{{ .Values.image.tag }}"
+{{- else }}
+        image: "{{ .Values.image.communityRepository }}:{{ .Values.image.tag }}"
+{{- end }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
 {{- if .Values.extraArgs }}
@@ -46,13 +60,15 @@ spec:
         # See https://gravitational.com/teleport/docs/admin-guide/#ports
         ports:
 {{- range $key, $port := .Values.ports }}
+{{ if or ( not $.Values.config.highAvailability) (and ($.Values.config.highAvailability) (not (eq $key "authssh") ) ) }}
         - name: {{ $key }}
 {{ toYaml $port | indent 10 }}
+{{ end }}
 {{- end }}
         resources:
 {{ toYaml .Values.resources | indent 10 }}
         volumeMounts:
-{{- if .Values.proxy.tls.enabled }}
+{{- if .Values.proxy.tls.usetlssecret }}
         - mountPath: /var/lib/certs
           name: {{ template "teleport.fullname" . }}-tls-web
           readOnly: true
@@ -71,7 +87,7 @@ spec:
 {{ toYaml .Values.extraVolumeMounts | indent 8 }}
 {{- end }}
       volumes:
-{{- if .Values.proxy.tls.enabled }}
+{{- if .Values.proxy.tls.usetlssecret }}
       - name: {{ template "teleport.fullname" . }}-tls-web
         secret:
           secretName: {{ .Values.proxy.tls.secretName }}
@@ -107,3 +123,107 @@ spec:
 {{ toYaml .Values.tolerations | indent 6 }}
 {{- end }}
       serviceAccountName: {{ template "teleport.serviceAccountName" . }}
+{{- if .Values.config.highAvailability }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "teleport.fullname" . }}auth
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 4 }}
+{{- end }}
+    
+spec:
+  replicas: {{ .Values.config.authCount }}
+  strategy:
+    type: {{ .Values.strategy }}
+  selector:
+    matchLabels:
+      app: {{ template "teleport.name" . }}
+      auth: hasauth
+  template:
+    metadata:
+      labels:
+        app: {{ template "teleport.name" . }}
+        release: {{ .Release.Name }}
+        heritage: {{ .Release.Service }}
+        auth: hasauth
+      annotations:
+        checksum/config: {{ toYaml .Values.config.auth_public_address | sha256sum }}
+{{- if .Values.annotations }}
+{{ toYaml .Values.annotations | indent 8 }}
+{{- end }}
+    spec:
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      containers:
+      - name: {{ .Chart.Name }}
+{{- if .Values.license.enabled }}
+        image: "{{ .Values.image.enterpriseRepository }}:{{ .Values.image.tag }}"
+{{- else }}
+        image: "{{ .Values.image.communityRepository }}:{{ .Values.image.tag }}"
+{{- end }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+{{- if .Values.config.authExtraArgs }}
+{{ toYaml .Values.config.authExtraArgs | indent 8 }}
+{{- end }}
+        env:
+{{- range $key, $value := .Values.extraVars }}
+        - name: {{ $key }}
+          value: {{ $value }}
+{{- end }}
+        # See https://gravitational.com/teleport/docs/admin-guide/#ports
+        ports:
+        - name: authssh
+          containerPort: {{ .Values.ports.authssh.containerPort }}
+        resources:
+{{ toYaml .Values.authresources | indent 10 }}
+        volumeMounts:
+        - mountPath: /etc/teleport
+          name: {{ template "teleport.fullname" . }}-config
+          readOnly: true
+{{- if .Values.license.enabled }}
+        - mountPath: {{ .Values.license.mountPath }}
+          name: {{ template "teleport.fullname" . }}-license
+          readOnly: true
+{{- end }}
+        - mountPath: /var/lib/teleport
+          name: {{ template "teleport.fullname" . }}-storage
+{{- if .Values.extraVolumeMounts }}
+{{ toYaml .Values.extraVolumeMounts | indent 8 }}
+{{- end }}
+{{- if .Values.extraAuthVolumeMounts }}
+{{ toYaml .Values.extraAuthVolumeMounts | indent 8 }}
+{{- end }}
+      volumes:
+{{- if .Values.license.enabled }}
+      - name: {{ template "teleport.fullname" . }}-license
+        secret:
+          secretName: {{ .Values.license.secretName }}
+{{- end }}
+      - name: {{ template "teleport.fullname" . }}-config
+        configMap:
+          name: {{ template "teleport.fullname" . }}auth
+      - name: {{ template "teleport.fullname" . }}-storage
+{{- if .Values.extraVolumes }}
+{{ toYaml .Values.extraVolumes | indent 6 }}
+{{- end }}
+{{- if .Values.extraAuthVolumes }}
+{{ toYaml .Values.extraAuthVolumes | indent 6 }}
+{{- end }}
+{{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.image.pullSecrets | indent 6 }}
+{{- end }}
+{{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 6 }}
+{{- end }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
+{{- end }}
