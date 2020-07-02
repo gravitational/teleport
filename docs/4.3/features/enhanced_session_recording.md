@@ -44,7 +44,7 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 ### CentOS
 |               | Kernel Version         |
 |---------------|------------------------|
-| 8.0-1905	    |            4.18.0.80 ✅  |
+| 8.0-1905	    |          4.18.0.80 ✅  |
 
 !!! Note
 
@@ -57,22 +57,22 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 |       |                   | Kernel Version        |
 |-------|-------------------|-----------------------|
 | 18.10 | Cosmic Cuttlefish | 4.18 [Patch Kernel](http://www.theubuntumaniac.com/2018/11/update-install-kernel-4191-stable-on.html)  |
-| 19.04 | Disco Dingo       | 5.0 ✅ 🚧 Feature in Alpha      |
-| 19.10 | Eoan Ermine       | 5.3 ✅ 🚧 Feature in Alpha      |
+| 19.04 | Disco Dingo       | 5.0 ✅        |
+| 19.10 | Eoan Ermine       | 5.3 ✅        |
 
 ### Debian
 
 |     |                     | Kernel Version            |
 |-----|---------------------|---------------------------|
 | 9   | Debian Stretch      | 4.9.0-6 [Patch Kernel](https://wiki.debian.org/HowToUpgradeKernel) |
-| 10  | Buster              | 4.19 ✅ 🚧 Feature in Alpha       |
+| 10  | Buster              | 4.19 ✅                   |
 
 
 
 ### Red Hat
 |                     | Kernel Version         |
 |---------------------|------------------------|
-| Enterprise Linux 8  |          4.18.0-147 ✅ 🚧 Feature in Alpha  |
+| Enterprise Linux 8  |          4.18.0-147 ✅ |
 
 ### Amazon Linux
 We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
@@ -81,7 +81,7 @@ We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
 ### archlinux
 |                     | Kernel Version         |
 |---------------------|------------------------|
-| 2019.12.01          |  5.3.13 ✅🚧 Feature in Alpha  |
+| 2019.12.01          |  5.3.13 ✅             |
 
 ## 2. Install BCC Tools
 
