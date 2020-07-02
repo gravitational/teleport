@@ -82,7 +82,7 @@ See the [SSO for SSH](ssh_sso.md) chapter for more details.
 
 
 !!! tip "Contact Information":
-    For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact for on our [website](http://gravitational.com/demo)
+    For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact for on our [website](https://gravitational.com/demo)
 
 
 ## FedRAMP/FIPS
