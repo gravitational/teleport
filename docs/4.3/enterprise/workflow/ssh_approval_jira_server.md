@@ -8,8 +8,8 @@ This guide will talk through how to setup Teleport with Jira Server. Teleport to
     Teleport's tsh request workflow is synchronous and needs to be approved within 1 hour of the request.
 
 <video style="width:100%" controls>
-  <source src="/img/enterprise/plugins/jira/jira-server.mp4" type="video/mp4">
-  <source src="/img/enterprise/plugins/jira/jira-server.webm" type="video/webm">
+  <source src="../../../img/enterprise/plugins/jira/jira-server.mp4" type="video/mp4">
+  <source src="../../../img/enterprise/plugins/jira/jira-server.webm" type="video/webm">
 Your browser does not support the video tag.
 </video>
 
