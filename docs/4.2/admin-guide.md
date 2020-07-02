@@ -1384,19 +1384,30 @@ Here's the list of resources currently exposed via [`tctl`](cli-docs.md#tctl) :
 
 **Examples:**
 
-``` bash
+```bash
 # list all connectors:
 $ tctl get connectors
 
-# dump a connector called "okta":
-$ tctl get connectors/okta
+# dump a SAML connector called "okta":
+$ tctl get saml/okta
 
-# delete a connector called "okta":
-$ tctl rm connectors/okta
+# delete a SAML connector called "okta":
+$ tctl rm saml/okta
+
+# delete an OIDC connector called "gsuite":
+$ tctl rm oidc/gsuite
+
+# delete a github connector called "myteam":
+$ tctl rm github/myteam
 
 # delete a local user called "admin":
 $ tctl rm users/admin
 ```
+
+!!! note
+    Although `tctl get connectors` will show you every connector, when working with an individual
+    connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
+    connector's `kind` at the top of its YAML output from `tctl get connectors`.
 
 ## Trusted Clusters
 
