@@ -31,11 +31,11 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 
 |Project Links| Description
 |---|----
-| [Teleport Website](http://gravitational.com/teleport)  | The official website of the project |
-| [Documentation](http://gravitational.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
+| [Teleport Website](https://gravitational.com/teleport)  | The official website of the project |
+| [Documentation](https://gravitational.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
 | [Demo Video](https://www.youtube.com/watch?v=zIuZHYO_cDI) | 3-minute video overview of the UI. |
-| [Teleconsole](http://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
-| [Blog](http://blog.gravitational.com) | Our blog where we publish Teleport news |
+| [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
+| [Blog](https://blog.gravitational.com) | Our blog where we publish Teleport news |
 | [Security Updates](https://groups.google.com/forum/#!forum/teleport-community-security) | Teleport Community Edition Security Updates|
 | [Community Forum](https://community.gravitational.com) | Teleport Community Forum|
 
@@ -153,11 +153,11 @@ magically _teleported_. And Teleport was born!
 
 ## More Information
 
-* [Quick Start Guide](http://gravitational.com/teleport/docs/quickstart)
-* [Teleport Architecture](http://gravitational.com/teleport/docs/architecture)
-* [Admin Manual](http://gravitational.com/teleport/docs/admin-guide)
-* [User Manual](http://gravitational.com/teleport/docs/user-manual)
-* [FAQ](http://gravitational.com/teleport/docs/faq)
+* [Quick Start Guide](https://gravitational.com/teleport/docs/quickstart)
+* [Teleport Architecture](https://gravitational.com/teleport/docs/architecture)
+* [Admin Manual](https://gravitational.com/teleport/docs/admin-guide)
+* [User Manual](https://gravitational.com/teleport/docs/user-manual)
+* [FAQ](https://gravitational.com/teleport/docs/faq)
 
 ## Support and Contributing
 
