@@ -55,7 +55,7 @@ A high availability deployment of Teleport will typically have at least 2 proxy 
   authServiceType: ClusterIP
   auth_public_address: auth.example.com
 ```
-2. Set the connection for the proxies to connect to the auth service in the config section. The auth service is available at the Kubernetes service name and the public address setting.  So if you deploy an app named myexample then the auth service will be available in the Cluster at `myexampleauth` in addition to the public address.
+2. Set the connection for the proxies to connect to the auth service in the config section. The auth service is available at the Kubernetes service name and the public address setting.  So if you deploy an app named `myexample` then the auth service will be available in the Cluster at `myexampleauth` in addition to the public address.
 
 ```yaml
   auth_service_connection:
