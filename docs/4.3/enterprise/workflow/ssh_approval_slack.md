@@ -7,8 +7,8 @@ This guide will talk through how to setup Teleport with Slack. Teleport to Slack
 #### Example Slack Request
 
 <video style="width:100%" controls>
-  <source src="/img/enterprise/plugins/slack/slack.mp4" type="video/mp4">
-  <source src="/img/enterprise/plugins/slack/slack.webm" type="video/webm">
+  <source src="../../../img/enterprise/plugins/slack/slack.mp4" type="video/mp4">
+  <source src="../../../img/enterprise/plugins/slack/slack.webm" type="video/webm">
 Your browser does not support the video tag.
 </video>
 
