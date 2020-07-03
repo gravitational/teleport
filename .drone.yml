@@ -56,10 +56,11 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - apk add --no-cache make
+      - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets buildbox
 
   - name: Run linter
@@ -70,8 +71,9 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - chown -R $UID:$GID /go
       - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
 
   - name: Run unit tests
@@ -82,8 +84,9 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - chown -R $UID:$GID /go
       - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets test
 
   - name: Run integration tests
@@ -94,8 +97,9 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - chown -R $UID:$GID /go
       - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
 
   - name: Send Slack notification
@@ -1078,6 +1082,6 @@ steps:
 
 ---
 kind: signature
-hmac: 70aa29aed8a17c08a6e4dd2ea5df1f2ce6dd11438078ef8b972ad03288fbf507
+hmac: 926a2604202471273002d12af47a1db2c31bd1f66a05cf435e78b1643e7c0bd1
 
 ...
