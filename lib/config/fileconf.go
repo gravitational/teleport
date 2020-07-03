@@ -291,8 +291,7 @@ func MakeSampleFileConfig() (fc *FileConfig, err error) {
 		},
 	}
 	s.Labels = map[string]string{
-		"db_type": "postgres",
-		"db_role": "master",
+		"env": "staging",
 	}
 
 	// sample Auth config:
