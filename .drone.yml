@@ -51,6 +51,7 @@ steps:
         from_secret: QUAYIO_DOCKER_USERNAME
       QUAYIO_DOCKER_PASSWORD:
         from_secret: QUAYIO_DOCKER_PASSWORD
+      REPO: quay.io
     volumes:
       - name: dockersock
         path: /var/run
