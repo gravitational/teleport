@@ -6,7 +6,7 @@ DOCSHOST=teleport-docs
 DOCSDIR=/teleport
 
 HOSTNAME=buildbox
-SRCDIR=/gopath/src/github.com/gravitational/teleport
+SRCDIR=/go/src/github.com/gravitational/teleport
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
 BCCFLAGS := -v "$$(pwd)/bcc:/usr/include/bcc"
 ADDFLAGS=-ldflags -w
@@ -18,13 +18,23 @@ OS ?= linux
 ARCH ?= amd64
 RUNTIME ?= go1.13.2
 
-BBOX=teleport-buildbox:$(RUNTIME)
-BBOXFIPS=teleport-buildbox-fips:$(RUNTIME)
-BBOXCENTOS6=teleport-buildbox-centos6:$(RUNTIME)
-BBOXCENTOS6FIPS=teleport-buildbox-centos6-fips:$(RUNTIME)
+UID ?= $$(id -u)
+GID ?= $$(id -g)
+
+BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
+BUILDBOXFIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
+BUILDBOXCENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
+BUILDBOXCENTOS6FIPS=quay.io/gravitational/teleport-buildbox-centos6-fips:$(RUNTIME)
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
+endif
+
+ifeq ("$(DRONE)","true")
+DOCKERFLAGS := $(DOCKERFLAGS) -e GOCACHE=/go/cache -v /go/cache:/go/cache
+UID := 1000
+GID := 1000
+NOROOT := -u 1000:1000
 endif
 export
 
@@ -33,62 +43,66 @@ export
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build
-build: bbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BBOX) \
+build: buildbox
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOX) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' release
 
 #
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build-binaries
-build-binaries: bbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BBOX) \
+build-binaries: buildbox
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOX) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all
 
 #
 # Builds a Docker container which is used for building official Teleport
 # binaries and docs
 #
-.PHONY:bbox
-bbox:
+.PHONY:buildbox
+buildbox:
 	docker build \
-		--build-arg UID=$$(id -u) \
-		--build-arg GID=$$(id -g) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
-		--tag $(BBOX) .
+		--cache-from $(BUILDBOX) \
+		--tag $(BUILDBOX) .
 
 #
 # Builds a Docker buildbox for FIPS
 #
-.PHONY:bbox-fips
-bbox-fips:
+.PHONY:buildbox-fips
+buildbox-fips:
 	docker build \
-		--build-arg UID=$$(id -u) \
-		--build-arg GID=$$(id -g) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
-		--tag $(BBOXFIPS) -f Dockerfile-fips .
+		--cache-from $(BUILDBOXFIPS) \
+		--tag $(BUILDBOXFIPS) -f Dockerfile-fips .
 
 #
 # Builds a Docker container for CentOS 6 builds
 #
-.PHONY:bbox-centos6
-bbox-centos6:
+.PHONY:buildbox-centos6
+buildbox-centos6:
 	docker build \
-		--build-arg UID=$$(id -u) \
-		--build-arg GID=$$(id -g) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
-		--tag $(BBOXCENTOS6) -f Dockerfile-centos6 .
+		--cache-from $(BUILDBOXCENTOS6) \
+		--tag $(BUILDBOXCENTOS6) -f Dockerfile-centos6 .
 
 #
 # Builds a Docker buildbox for CentOS 6 FIPS builds
 #
-.PHONY:bbox-centos6-fips
-bbox-centos6-fips:
+.PHONY:buildbox-centos6-fips
+buildbox-centos6-fips:
 	docker build \
-		--build-arg UID=$$(id -u) \
-		--build-arg GID=$$(id -g) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
-		--tag $(BBOXCENTOS6FIPS) -f Dockerfile-centos6-fips .
+		--cache-from $(BUILDBOXCENTOS6FIPS) \
+		--tag $(BUILDBOXCENTOS6FIPS) -f Dockerfile-centos6-fips .
 
 #
 # Builds a Docker container for building mkdocs documentation
@@ -106,31 +120,31 @@ docsbox:
 #
 .PHONY:clean
 clean:
-	docker image rm --force $(BBOX)
+	docker image rm --force $(BUILDBOX)
 	docker image rm --force $(DOCSBOX)
 
 #
 # Runs tests inside a build container
 #
 .PHONY:test
-test: bbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
+test: buildbox
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:integration
-integration: bbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
+integration: buildbox
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
 
 #
 # Runs linters on new changes inside a build container.
 #
 .PHONY:lint
-lint: bbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
+lint: buildbox
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) lint"
 
 #
@@ -174,16 +188,16 @@ run-docs: docsbox
 # Starts shell inside the build container
 #
 .PHONY:enter
-enter: bbox
+enter: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) -ti $(NOROOT) \
-		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BBOX) /bin/bash
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
 
 #
 # Create a Teleport package using the build container.
 #
 .PHONY:release
-release: bbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BBOX) \
+release: buildbox
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
 #
@@ -191,17 +205,17 @@ release: bbox
 # This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
 #
 .PHONY:release-fips
-release-fips: bbox-fips
+release-fips: buildbox-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BBOXFIPS) \
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOXFIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
 
 #
 # Create a Teleport package for CentOS 6 using the build container.
 #
 .PHONY:release-centos6
-release-centos6: bbox-centos6
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXCENTOS6) \
+release-centos6: buildbox-centos6
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOXCENTOS6) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
 #
@@ -209,14 +223,14 @@ release-centos6: bbox-centos6
 # This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
 #
 .PHONY:release-centos6-fips
-release-centos6-fips: bbox-centos6-fips
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOXCENTOS6FIPS) \
+release-centos6-fips: buildbox-centos6-fips
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOXCENTOS6FIPS) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes
 
 #
 # Create a Windows Teleport package using the build container.
 #
 .PHONY:release-windows
-release-windows: bbox
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
+release-windows: buildbox
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows

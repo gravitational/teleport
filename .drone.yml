@@ -44,6 +44,22 @@ steps:
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
 
+  - name: Build buildbox if necessary
+    image: docker:git
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - make -C build.assets buildbox
+
   - name: Run linter
     image: docker:dind
     environment:
@@ -53,16 +69,7 @@ steps:
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
-      - >-
-        docker run --rm=true
-        -e GOCACHE=$GOPATH/cache
-        -v /go/cache:$GOPATH/cache
-        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
-        -w $GOPATH/src/github.com/gravitational/teleport
-        -h testbox
-        -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
-        /bin/bash -c "make lint"
+      - make -C build.assets lint
 
   - name: Run unit tests
     image: docker:dind
@@ -73,16 +80,7 @@ steps:
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
-      - >-
-        docker run --rm=true
-        -e GOCACHE=$GOPATH/cache
-        -v /go/cache:$GOPATH/cache
-        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
-        -w $GOPATH/src/github.com/gravitational/teleport
-        -h testbox
-        -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
-        /bin/bash -c "make FLAGS='-cover -count 1' test"
+      - make -C build.assets test
 
   - name: Run integration tests
     image: docker:dind
@@ -93,16 +91,7 @@ steps:
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
-      - >-
-        docker run --rm=true
-        -e GOCACHE=$GOPATH/cache
-        -v /go/cache:$GOPATH/cache
-        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
-        -w $GOPATH/src/github.com/gravitational/teleport
-        -h testbox
-        -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
-        /bin/bash -c "make FLAGS='-cover -count 1' integration"
+      - make -C build.assets integration
 
   - name: Send Slack notification
     image: plugins/slack
@@ -826,15 +815,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - >-
-        docker build
-        --build-arg UID=$UID
-        --build-arg GID=$GID
-        --build-arg RUNTIME=$RUNTIME
-        --cache-from quay.io/gravitational/teleport-buildbox:$RUNTIME
-        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
-        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
-        /go/src/github.com/gravitational/teleport/build.assets
+      - make -C build.assets buildbox
       - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
 
   - name: Build and push buildbox-fips container
@@ -851,15 +832,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-      - >-
-        docker build
-        --build-arg UID=$UID
-        --build-arg GID=$GID
-        --build-arg RUNTIME=$RUNTIME
-        --cache-from quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
-        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-fips
-        -t quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
-        /go/src/github.com/gravitational/teleport/build.assets
+      - make -C build.assets buildbox-fips
       - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
 
   - name: Build and push buildbox-centos6 container
@@ -876,15 +849,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
-      - >-
-        docker build
-        --build-arg UID=$UID
-        --build-arg GID=$GID
-        --build-arg RUNTIME=$RUNTIME
-        --cache-from quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
-        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6
-        -t quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
-        /go/src/github.com/gravitational/teleport/build.assets
+      - make -C build.assets buildbox-centos6
       - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
 
   - name: Build and push buildbox-centos6-fips container
@@ -901,15 +866,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
-      - >-
-        docker build
-        --build-arg UID=$UID
-        --build-arg GID=$GID
-        --build-arg RUNTIME=$RUNTIME
-        --cache-from quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
-        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6-fips
-        -t quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
-        /go/src/github.com/gravitational/teleport/build.assets
+      - make -C build.assets buildbox-centos6-fips
       - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
 
 services:
