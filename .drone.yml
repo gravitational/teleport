@@ -26,7 +26,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.13.2
+    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -44,8 +44,8 @@ steps:
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
 
-  - name: Build buildbox if necessary
-    image: docker:git
+  - name: Build buildbox
+    image: docker
     environment:
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -59,39 +59,43 @@ steps:
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - apk add --no-cache make
       - make -C build.assets buildbox
 
   - name: Run linter
-    image: docker:dind
+    image: docker
     environment:
-      GOPATH: /gopath
+      GOPATH: /go
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
+      - apk add --no-cache make
       - make -C build.assets lint
 
   - name: Run unit tests
-    image: docker:dind
+    image: docker
     environment:
-      GOPATH: /gopath
+      GOPATH: /go
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
+      - apk add --no-cache make
       - make -C build.assets test
 
   - name: Run integration tests
-    image: docker:dind
+    image: docker
     environment:
-      GOPATH: /gopath
+      GOPATH: /go
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - chown -R $UID:$GID /go
+      - apk add --no-cache make
       - make -C build.assets integration
 
   - name: Send Slack notification
@@ -1074,6 +1078,6 @@ steps:
 
 ---
 kind: signature
-hmac: 918607ff7eddfdeaa8dba54c5277d704fbb47ae98c961ec2147f54cc714aa9ee
+hmac: 70aa29aed8a17c08a6e4dd2ea5df1f2ce6dd11438078ef8b972ad03288fbf507
 
 ...
