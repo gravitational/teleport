@@ -38,7 +38,7 @@ export function Sessions(props: SessionsProps) {
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
-        <FeatureHeaderTitle>Sessions</FeatureHeaderTitle>
+        <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
       </FeatureHeader>
       {attempt.isProcessing && (
         <Box textAlign="center" m={10}>

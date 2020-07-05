@@ -107,8 +107,8 @@ function saveOnDisk(fileName: string, blob: any) {
 }
 
 const StyledError = styled.div`
-  height: 16px;
-  line-height: 16px;
+  line-height: 1.4;
+  width: 360px;
   color: ${colors.error};
 `;
 
@@ -144,7 +144,8 @@ const ProgressIndicator = styled.div`
   color: ${props => (props.isCompleted ? colors.inverse : colors.terminal)};
 
   min-height: 24px;
-  line-height: 1.75;
+  line-height: 1.4;
+
   width: 360px;
 `;
 

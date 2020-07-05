@@ -267,12 +267,12 @@ exports[`rendering of Events 1`] = `
         </strong>
          - 
         <strong>
-          37
+          31
         </strong>
          
         of 
         <strong>
-          37
+          31
         </strong>
       </div>
       <div
@@ -336,7 +336,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-note_add c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -371,7 +371,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-note_add c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -406,7 +406,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-note_add c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -441,7 +441,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -476,7 +476,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -486,7 +486,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Access request "66b827b2-1b0b-512b-965d-6c789388d3c9" has been updated to APPROVED
+            Access request [66b827b2-1b0b-512b-965d-6c789388d3c9] has been updated to APPROVED
           </td>
           <td
             style="min-width: 120px;"
@@ -511,7 +511,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -521,7 +521,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Access request "66b827b2-1b0b-512b-965d-6c789388d3c9" has been created and is PENDING
+            Access request [66b827b2-1b0b-512b-965d-6c789388d3c9] has been created and is PENDING
           </td>
           <td
             style="min-width: 120px;"
@@ -546,7 +546,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -556,7 +556,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [b331fb6c-85f9-4cb0-b308-3452420bf81e.one] created a password reset token for user [hello] which expires in 8h0m0s
+            User [b331fb6c-85f9-4cb0-b308-3452420bf81e.one] created a password reset token for user [hello]
           </td>
           <td
             style="min-width: 120px;"
@@ -581,7 +581,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -591,7 +591,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User hello has been created
+            User [hello] has been created
           </td>
           <td
             style="min-width: 120px;"
@@ -616,7 +616,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-list c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -626,7 +626,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User bob has been updated
+            User [bob] has been updated
           </td>
           <td
             style="min-width: 120px;"
@@ -651,7 +651,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -661,7 +661,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User bob has been deleted
+            User [bob] has been deleted
           </td>
           <td
             style="min-width: 120px;"
@@ -756,7 +756,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-list c5 c10"
+                class="c5 c10 icon icon-terminal c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -766,222 +766,12 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            ping has been executed
+            Program [ping] has been executed within a session [44c6cea8-362f-11ea-83aa-125400432324]
           </td>
           <td
             style="min-width: 120px;"
           >
             2020-01-13 18:05:53
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c11"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c9"
-            >
-              <span
-                class="c5 c10 icon icon-add-fowarder c5 c10"
-                color="light"
-                font-size="3"
-              />
-              Log Forwarder Deleted
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] deleted log forwarder [forwarder1]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:55:55
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c11"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c9"
-            >
-              <span
-                class="c5 c10 icon icon-add-fowarder c5 c10"
-                color="light"
-                font-size="3"
-              />
-              Log Forwarder Created
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] created log forwarder [forwarder1]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:55:18
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c11"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c9"
-            >
-              <span
-                class="c5 c10 icon icon-person c5 c10"
-                color="light"
-                font-size="3"
-              />
-              Invite Created
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] invited user [fdsfsdf] with roles @teleadmin
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:50:48
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c11"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c9"
-            >
-              <span
-                class="c5 c10 icon icon-list c5 c10"
-                color="light"
-                font-size="3"
-              />
-              Role Created
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] created role [admin323232323]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:44:04
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c11"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c9"
-            >
-              <span
-                class="c5 c10 icon icon-list c5 c10"
-                color="light"
-                font-size="3"
-              />
-              Role Deleted
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] deleted role [admin323232323f]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:43:30
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c11"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c9"
-            >
-              <span
-                class="c5 c10 icon icon-list c5 c10"
-                color="light"
-                font-size="3"
-              />
-              Role Created
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] created role [admin323232323f]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:42:37
           </td>
           <td
             align="right"
@@ -1291,7 +1081,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            [/etc/profile.d/]
+            Program [bash] accessed a file [/etc/profile.d/] within a session [44c6cea8-362f-11ea-83aa-125400432324]
           </td>
           <td
             style="min-width: 120px;"
@@ -1326,7 +1116,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Session [44c6cea8-362f-11ea-83aa-125400432324] opened a connection bash: 10.217.136.161 &lt;-&gt; 190.58.129.4:3000
+            Program [bash] opened a connection [10.217.136.161 &lt;-&gt; 190.58.129.4:3000] within a session [44c6cea8-362f-11ea-83aa-125400432324]
           </td>
           <td
             style="min-width: 120px;"
@@ -1351,7 +1141,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -1361,7 +1151,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Local user [fsdfsdf] login failed: user(name="fsdfsdf") not found
+            Local user [fsdfsdf] login failed [user(name="fsdfsdf") not found]
           </td>
           <td
             style="min-width: 120px;"
@@ -1386,7 +1176,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -1396,7 +1186,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Local user [fsdfsdf] login failed: user(name="fsdfsdf") not found
+            Local user [fsdfsdf] login failed [user(name="fsdfsdf") not found]
           </td>
           <td
             style="min-width: 120px;"
@@ -1421,7 +1211,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-vpn_key c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -1456,7 +1246,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-vpn_key c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -1491,7 +1281,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />
@@ -1526,7 +1316,7 @@ exports[`rendering of Events 1`] = `
               class="c9"
             >
               <span
-                class="c5 c10 icon icon-person c5 c10"
+                class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
                 font-size="3"
               />

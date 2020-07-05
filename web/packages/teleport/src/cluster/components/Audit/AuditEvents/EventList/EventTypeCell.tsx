@@ -23,18 +23,19 @@ import { Event } from 'teleport/services/audit';
 import cfg from 'teleport/config';
 
 const EventIconMap = {
-  [CodeEnum.AUTH_ATTEMPT_FAILURE]: Icons.VpnKey,
-  [CodeEnum.EXEC_FAILURE]: Icons.Code,
-  [CodeEnum.EXEC]: Icons.Code,
-  [CodeEnum.GITHUB_CONNECTOR_CREATED]: Icons.NoteAdded,
-  [CodeEnum.GITHUB_CONNECTOR_DELETED]: Icons.NoteAdded,
-  [CodeEnum.OIDC_CONNECTOR_CREATED]: Icons.NoteAdded,
-  [CodeEnum.OIDC_CONNECTOR_DELETED]: Icons.NoteAdded,
-  [CodeEnum.SAML_CONNECTOR_CREATED]: Icons.NoteAdded,
-  [CodeEnum.SAML_CONNECTOR_CREATED]: Icons.NoteAdded,
-  [CodeEnum.SAML_CONNECTOR_DELETED]: Icons.NoteAdded,
-  [CodeEnum.ROLE_CREATED]: Icons.Person,
-  [CodeEnum.ROLE_DELETED]: Icons.Person,
+  [CodeEnum.AUTH_ATTEMPT_FAILURE]: Icons.Info,
+  [CodeEnum.EXEC_FAILURE]: Icons.Cli,
+  [CodeEnum.EXEC]: Icons.Cli,
+  [CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED]: Icons.Info,
+  [CodeEnum.GITHUB_CONNECTOR_CREATED]: Icons.Info,
+  [CodeEnum.GITHUB_CONNECTOR_DELETED]: Icons.Info,
+  [CodeEnum.OIDC_CONNECTOR_CREATED]: Icons.Info,
+  [CodeEnum.OIDC_CONNECTOR_DELETED]: Icons.Info,
+  [CodeEnum.SAML_CONNECTOR_CREATED]: Icons.Info,
+  [CodeEnum.SAML_CONNECTOR_CREATED]: Icons.Info,
+  [CodeEnum.SAML_CONNECTOR_DELETED]: Icons.Info,
+  [CodeEnum.ROLE_CREATED]: Icons.Info,
+  [CodeEnum.ROLE_DELETED]: Icons.Info,
   [CodeEnum.SCP_DOWNLOAD_FAILURE]: Icons.Download,
   [CodeEnum.SCP_DOWNLOAD_FAILURE]: Icons.Upload,
   [CodeEnum.SCP_DOWNLOAD]: Icons.Download,
@@ -48,16 +49,18 @@ const EventIconMap = {
   [CodeEnum.SESSION_DATA]: Icons.Cli,
   [CodeEnum.SESSION_NETWORK]: Icons.Cli,
   [CodeEnum.SESSION_DISK]: Icons.Cli,
-  [CodeEnum.USER_CREATED]: Icons.Person,
-  [CodeEnum.USER_DELETED]: Icons.Person,
-  [CodeEnum.RESET_PASSWORD_TOKEN_CREATED]: Icons.Person,
-  [CodeEnum.USER_PASSWORD_CHANGED]: Icons.Person,
-  [CodeEnum.ACCESS_REQUEST_CREATED]: Icons.Person,
-  [CodeEnum.ACCESS_REQUEST_UPDATED]: Icons.Person,
-  [CodeEnum.USER_LOCAL_LOGIN]: Icons.Person,
-  [CodeEnum.USER_LOCAL_LOGINFAILURE]: Icons.Person,
-  [CodeEnum.USER_SSO_LOGIN]: Icons.Person,
-  [CodeEnum.USER_SSO_LOGINFAILURE]: Icons.Person,
+  [CodeEnum.SESSION_COMMAND]: Icons.Cli,
+  [CodeEnum.USER_CREATED]: Icons.Info,
+  [CodeEnum.USER_UPDATED]: Icons.Info,
+  [CodeEnum.USER_DELETED]: Icons.Info,
+  [CodeEnum.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
+  [CodeEnum.USER_PASSWORD_CHANGED]: Icons.Info,
+  [CodeEnum.ACCESS_REQUEST_CREATED]: Icons.Info,
+  [CodeEnum.ACCESS_REQUEST_UPDATED]: Icons.Info,
+  [CodeEnum.USER_LOCAL_LOGIN]: Icons.Info,
+  [CodeEnum.USER_LOCAL_LOGINFAILURE]: Icons.Info,
+  [CodeEnum.USER_SSO_LOGIN]: Icons.Info,
+  [CodeEnum.USER_SSO_LOGINFAILURE]: Icons.Info,
   [CodeEnum.G_ALERT_CREATED]: Icons.NotificationsActive,
   [CodeEnum.G_ALERT_DELETED]: Icons.NotificationsActive,
   [CodeEnum.G_APPLICATION_INSTALL]: Icons.AppInstalled,
@@ -91,7 +94,7 @@ const EventIconMap = {
   [CodeEnum.G_UPDATES_DISABLED]: Icons.Restore,
   [CodeEnum.G_UPDATES_DOWNLOADED]: Icons.Restore,
   [CodeEnum.G_UPDATES_ENABLED]: Icons.Restore,
-  [CodeEnum.G_USER_INVITE_CREATED]: Icons.Person,
+  [CodeEnum.G_USER_INVITE_CREATED]: Icons.Info,
 };
 
 export default function TypeCell(props) {
@@ -106,7 +109,6 @@ export default function TypeCell(props) {
   };
 
   // use button for interactive ssh sessions
-
   if (event.code === CodeEnum.SESSION_END && event.raw.interactive) {
     return (
       <Cell>

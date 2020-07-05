@@ -21,13 +21,13 @@ export const formatters: Formatters = {
   [CodeEnum.ACCESS_REQUEST_CREATED]: {
     desc: 'Access Request Created',
     format: ({ id, state }) =>
-      `Access request "${id}" has been created and is ${state}`,
+      `Access request [${id}] has been created and is ${state}`,
   },
 
   [CodeEnum.ACCESS_REQUEST_UPDATED]: {
     desc: 'Access Request Updated',
     format: ({ id, state }) =>
-      `Access request "${id}" has been updated to ${state}`,
+      `Access request [${id}] has been updated to ${state}`,
   },
 
   [CodeEnum.G_SAML_CONNECTOR_CREATED]: {
@@ -44,18 +44,20 @@ export const formatters: Formatters = {
 
   [CodeEnum.SESSION_COMMAND]: {
     desc: 'Session Command',
-    format: ({ program }) => `${program} has been executed`,
+    format: ({ program, sid }) =>
+      `Program [${program}] has been executed within a session [${sid}]`,
   },
 
   [CodeEnum.SESSION_DISK]: {
     desc: 'Session File Access',
-    format: ({ path }) => `[${path}]`,
+    format: ({ path, sid, program }) =>
+      `Program [${program}] accessed a file [${path}] within a session [${sid}]`,
   },
 
   [CodeEnum.SESSION_NETWORK]: {
     desc: 'Session Network Connection',
     format: ({ sid, program, src_addr, dst_addr, dst_port }) =>
-      `Session [${sid}] opened a connection ${program}: ${src_addr} <-> ${dst_addr}:${dst_port}`,
+      `Program [${program}] opened a connection [${src_addr} <-> ${dst_addr}:${dst_port}] within a session [${sid}]`,
   },
 
   [CodeEnum.SESSION_DATA]: {
@@ -71,13 +73,13 @@ export const formatters: Formatters = {
 
   [CodeEnum.USER_UPDATED]: {
     desc: 'User Updated',
-    format: ({ name }) => `User ${name} has been updated`,
+    format: ({ name }) => `User [${name}] has been updated`,
   },
 
   [CodeEnum.RESET_PASSWORD_TOKEN_CREATED]: {
     desc: 'Reset Password Token Created',
-    format: ({ name, ttl, user }) =>
-      `User [${user}] created a password reset token for user [${name}] which expires in ${ttl}`,
+    format: ({ name, user }) =>
+      `User [${user}] created a password reset token for user [${name}]`,
   },
 
   [CodeEnum.G_ALERT_CREATED]: {
@@ -158,7 +160,7 @@ export const formatters: Formatters = {
   [CodeEnum.EXEC_FAILURE]: {
     desc: 'Command Execution Failed',
     format: ({ user, exitError, ...rest }) =>
-      `User [${user}] command execution on node ${rest['addr.local']} failed: ${exitError}`,
+      `User [${user}] command execution on node ${rest['addr.local']} failed [${exitError}]`,
   },
   [CodeEnum.GITHUB_CONNECTOR_CREATED]: {
     desc: 'GITHUB Auth Connector Created',
@@ -371,7 +373,7 @@ export const formatters: Formatters = {
   [CodeEnum.SCP_DOWNLOAD_FAILURE]: {
     desc: 'SCP Download Failed',
     format: ({ exitError, ...rest }) =>
-      `File download from node [${rest['addr.local']}] failed: ${exitError}`,
+      `File download from node [${rest['addr.local']}] failed [${exitError}]`,
   },
   [CodeEnum.SCP_UPLOAD]: {
     desc: 'SCP Upload',
@@ -381,7 +383,7 @@ export const formatters: Formatters = {
   [CodeEnum.SCP_UPLOAD_FAILURE]: {
     desc: 'SCP Upload Failed',
     format: ({ exitError, ...rest }) =>
-      `File upload to node [${rest['addr.local']}] failed: ${exitError}`,
+      `File upload to node [${rest['addr.local']}] failed [${exitError}]`,
   },
   [CodeEnum.SESSION_JOIN]: {
     desc: 'User Joined',
@@ -434,7 +436,7 @@ export const formatters: Formatters = {
   [CodeEnum.SUBSYSTEM_FAILURE]: {
     desc: 'Subsystem Request Failed',
     format: ({ user, name, exitError }) =>
-      `User [${user}] subsystem [${name}] request failed: ${exitError}`,
+      `User [${user}] subsystem [${name}] request failed [${exitError}]`,
   },
   [CodeEnum.TERMINAL_RESIZE]: {
     desc: 'Terminal Resize',
@@ -476,11 +478,11 @@ export const formatters: Formatters = {
   },
   [CodeEnum.USER_CREATED]: {
     desc: 'User Created',
-    format: ({ name }) => `User ${name} has been created`,
+    format: ({ name }) => `User [${name}] has been created`,
   },
   [CodeEnum.USER_DELETED]: {
     desc: 'User Deleted',
-    format: ({ name }) => `User ${name} has been deleted`,
+    format: ({ name }) => `User [${name}] has been deleted`,
   },
   [CodeEnum.G_USER_CREATED]: {
     desc: 'User Created',
@@ -501,7 +503,7 @@ export const formatters: Formatters = {
   },
   [CodeEnum.USER_LOCAL_LOGINFAILURE]: {
     desc: 'Local Login Failed',
-    format: ({ user, error }) => `Local user [${user}] login failed: ${error}`,
+    format: ({ user, error }) => `Local user [${user}] login failed [${error}]`,
   },
   [CodeEnum.USER_SSO_LOGIN]: {
     desc: 'SSO Login',
@@ -509,15 +511,15 @@ export const formatters: Formatters = {
   },
   [CodeEnum.USER_SSO_LOGINFAILURE]: {
     desc: 'SSO Login Failed',
-    format: ({ error }) => `SSO user login failed: ${error}`,
+    format: ({ error }) => `SSO user login failed [${error}]`,
   },
   [CodeEnum.ROLE_CREATED]: {
     desc: 'User Role Created',
-    format: ({ user, name }) => `User [${user}] created role [${name}]`,
+    format: ({ user, name }) => `User [${user}] created a role [${name}]`,
   },
   [CodeEnum.ROLE_DELETED]: {
     desc: 'User Role Deleted',
-    format: ({ user, name }) => `User [${user}] deleted role [${name}]`,
+    format: ({ user, name }) => `User [${user}] deleted a role [${name}]`,
   },
   [CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED]: {
     desc: 'Trusted Cluster Token Created',

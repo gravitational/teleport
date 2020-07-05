@@ -104,6 +104,7 @@ const HorizontalSplit = styled.div`
   width: 100%;
   height: 100%;
   position: absolute;
+  min-width: 900px;
 `;
 
 const StyledIndicator = styled(HorizontalSplit)`

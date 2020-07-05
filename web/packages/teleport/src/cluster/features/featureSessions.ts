@@ -34,7 +34,7 @@ class FeatureNodes extends FeatureBase {
 
   onload(context: Ctx) {
     context.storeNav.addSideItem({
-      title: 'Sessions',
+      title: 'Active Sessions',
       Icon: Icons.Cli,
       exact: true,
       to: cfg.getSessionsRoute(),

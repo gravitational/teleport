@@ -16,7 +16,6 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text } from 'design';
 import * as Icons from 'design/Icon';
 import { colors } from 'teleport/console/components/colors';
 import Slider from './Slider';
@@ -60,13 +59,16 @@ const SliderContainer = styled.div`
   flex-direction: column;
 `;
 
-const TimeText = styled(Text)`
-  font-family: ${props => props.theme.fonts.mono};
-  font-size: ${props => props.theme.fontSizes[1]}px;
+const TimeText = styled.div(
+  props => `
+  text-align: center;
+  font-family: ${props.theme.fonts.mono};
+  font-size: ${props.theme.fontSizes[1]}px;
   line-height: 24px;
-  margin-right: 16px;
+  width: 80px;
   opacity: 0.56;
-`;
+`
+);
 
 const ActionButton = styled.button`
   background: ${colors.dark};
@@ -75,7 +77,6 @@ const ActionButton = styled.button`
   cursor: pointer;
   font-size: 24px;
   height: 24px;
-  margin-right: 16px;
   outline: none;
   opacity: 0.87;
   padding: 0;
