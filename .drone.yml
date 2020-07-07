@@ -1013,6 +1013,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
@@ -1031,6 +1032,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
@@ -1049,6 +1051,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
@@ -1067,6 +1070,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
@@ -1272,6 +1276,6 @@ steps:
 
 ---
 kind: signature
-hmac: e8a32e13d4208ffce34cfc8b07812e097a20bf52a164701ddee7da5f2e7f9293
+hmac: 45b33eaefc6b6396754fdfe5ca8660e1f5a1b61bed9f8db624832128bf13e9ab
 
 ...
