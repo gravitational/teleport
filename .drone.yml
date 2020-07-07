@@ -31,6 +31,8 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
 
@@ -60,6 +62,18 @@ steps:
         path: /var/run
     commands:
       - docker save quay.io/gravitational/teleport-buildbox:$RUNTIME > /go/buildbox.tar
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -1303,6 +1317,6 @@ steps:
 
 ---
 kind: signature
-hmac: 8487a39e4775282408a7c38d3144325864702eddf31826afcb569d9a7d06b31f
+hmac: 7e03fe43f3e2f3adf536771d8cc2019eeb228135925655e809fb1a58488cc8c6
 
 ...
