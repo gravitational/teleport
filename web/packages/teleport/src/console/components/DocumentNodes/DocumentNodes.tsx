@@ -85,7 +85,7 @@ export default function DocumentNodes(props: Props) {
               mr="20px"
               onChange={onChangeCluster}
             />
-            <QuickLaunch onPress={onQuickLaunchEnter} mr="3" />
+            <QuickLaunch width="240px" onPress={onQuickLaunchEnter} />
           </Flex>
           {isProcessing && (
             <Box textAlign="center" m={10}>

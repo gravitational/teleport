@@ -18,10 +18,10 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 import isMatch from 'design/utils/match';
-import history from 'teleport/services/history';
 import { Cluster } from 'teleport/services/clusters';
 import { sortBy } from 'lodash';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { Text } from 'design';
 import { Lan, Cli } from 'design/Icon';
 import { MenuItemIcon } from 'design/Menu';
 
@@ -37,7 +37,7 @@ import { usePages, Pager, StyledPanel } from 'design/DataTable/Paged';
 import * as Labels from 'design/Label';
 import cfg from 'teleport/config';
 
-export default function ClustersList(props: ClusterListProps) {
+export default function ClustersList(props: Props) {
   const { clusters, search = '', pageSize = 50 } = props;
   const [sorting, setSorting] = React.useState<Sorting>({});
 
@@ -55,26 +55,6 @@ export default function ClustersList(props: ClusterListProps) {
   const sorted = sort(filtered);
   const paged = usePages({ pageSize, data: sorted });
 
-  function onTableRowClick(e: MouseEvent) {
-    if (e.ctrlKey || e.shiftKey || e.altKey) {
-      return;
-    }
-
-    const closest = (e.target as any).closest('a, button, tbody tr');
-
-    // ignore clicks on input elements (a, buttons)
-    if (!closest || closest.tagName !== 'TR') {
-      return;
-    }
-
-    const rows = closest.parentElement.childNodes;
-    for (var i = 0; i < rows.length; i++) {
-      if (rows[i] === closest) {
-        history.push(paged.data[i].url);
-      }
-    }
-  }
-
   // add empty rows for decorative purposes
   if (filtered.length === clusters.length) {
     for (let i = paged.data.length; i < 5; i++) {
@@ -91,7 +71,7 @@ export default function ClustersList(props: ClusterListProps) {
       >
         <Pager {...paged} />
       </StyledPanel>
-      <ClusterTable data={paged.data} onClick={onTableRowClick}>
+      <StyledTable data={paged.data}>
         <Column
           header={<Cell style={{ width: '40px' }} />}
           cell={<RootLabelCell />}
@@ -127,7 +107,7 @@ export default function ClustersList(props: ClusterListProps) {
               title="Nodes"
             />
           }
-          cell={<TextCell />}
+          cell={<NodeCountCell />}
         />
         <Column
           columnKey="publicURL"
@@ -141,7 +121,7 @@ export default function ClustersList(props: ClusterListProps) {
           cell={<TextCell />}
         />
         <Column header={<Cell />} cell={<ActionCell />} />
-      </ClusterTable>
+      </StyledTable>
     </>
   );
 }
@@ -186,14 +166,25 @@ function rootFirst(clusters: Cluster[]) {
   return clusters;
 }
 
-export function NameCell(props) {
+export function NodeCountCell(props) {
   const { rowIndex, data } = props;
-  const { clusterId } = data[rowIndex];
+  const { nodeCount, clusterId } = data[rowIndex];
+  const terminalURL = cfg.getConsoleNodesRoute(clusterId);
   return (
     <Cell>
-      <strong>{clusterId}</strong>
+      {nodeCount && (
+        <StyledLink target="_blank" as="a" href={terminalURL}>
+          {nodeCount}
+        </StyledLink>
+      )}
     </Cell>
   );
+}
+
+export function NameCell(props) {
+  const { rowIndex, data } = props;
+  const { clusterId, url } = data[rowIndex];
+  return <Cell>{url && <StyledLink to={url}>{clusterId}</StyledLink>}</Cell>;
 }
 
 function RootLabelCell(props) {
@@ -234,13 +225,13 @@ type Sorting = {
   [P in keyof Cluster]?: string;
 };
 
-type ClusterListProps = {
+type Props = {
   clusters: Cluster[];
   search: string;
   pageSize?: 500;
 };
 
-const ClusterTable = styled(Table)`
+const StyledTable = styled(Table)`
   td {
     height: 22px;
   }
@@ -250,8 +241,24 @@ const ClusterTable = styled(Table)`
   }
 
   tbody tr:hover {
-    cursor: pointer;
-    background-color: ${props => props.theme.colors.primary.lighter};
-    border-bottom: 1px solid ${props => props.theme.colors.primary.lighter};
+    background-color: #2c3a7357;
   }
 `;
+
+const StyledLink = styled(Text)(
+  props => `
+  text-decoration: underline;
+  font-weight: ${props.theme.fontWeights.bold};
+  &:focus {
+    background: #2c3a73;
+    padding: 2px 4px;
+    margin: 0 -4px;
+  }
+`
+);
+
+StyledLink.defaultProps = {
+  color: 'text.primary',
+  typography: 'body2',
+  as: NavLink,
+};

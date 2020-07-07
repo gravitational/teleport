@@ -16,12 +16,13 @@ limitations under the License.
 
 import React from 'react';
 import * as Cards from 'design/CardError';
-import { Indicator, Box } from 'design';
+import { Indicator, Box, Flex } from 'design';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import QuickLaunch from 'teleport/components/QuickLaunch';
 import { useTeleport } from 'teleport/teleportContextProvider';
 import NodeList from 'teleport/components/NodeList';
 import useClusterNodes from './useClusterNodes';
@@ -47,10 +48,25 @@ export function Nodes({
     startSshSession(login, serverId);
   }
 
+  function onQuickLaunchEnter(login: string, serverId: string) {
+    startSshSession(login, serverId);
+  }
+
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center">
+      <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle mr="5">Nodes</FeatureHeaderTitle>
+        <QuickLaunch
+          as={Flex}
+          autoFocus={false}
+          alignItems="center"
+          labelProps={{
+            mr: 3,
+            mb: 0,
+            style: { whiteSpace: 'nowrap', width: 'auto' },
+          }}
+          onPress={onQuickLaunchEnter}
+        />
       </FeatureHeader>
       {attempt.isProcessing && (
         <Box textAlign="center" m={10}>

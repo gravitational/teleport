@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render cluster nodes 1`] = `
-.c14 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -30,22 +30,22 @@ exports[`render cluster nodes 1`] = `
   height: 24px;
 }
 
-.c14:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c14:hover,
-.c14:focus {
+.c15:hover,
+.c15:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c14:active {
+.c15:active {
   opacity: 0.24;
 }
 
-.c14:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -63,7 +63,7 @@ exports[`render cluster nodes 1`] = `
   color: #FFFFFF;
 }
 
-.c15 {
+.c16 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -287,9 +287,25 @@ exports[`render cluster nodes 1`] = `
 }
 
 .c11 tbody tr:hover {
-  cursor: pointer;
-  background-color: #2C3A73;
-  border-bottom: 1px solid #2C3A73;
+  background-color: #2c3a7357;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.c14:focus {
+  background: #2c3a73;
+  padding: 2px 4px;
+  margin: 0 -4px;
 }
 
 <div
@@ -418,15 +434,29 @@ exports[`render cluster nodes 1`] = `
           </div>
         </td>
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lawnabza"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             localhost
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          30
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/localhost/console/nodes"
+            target="_blank"
+          >
+            30
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -435,13 +465,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -451,15 +481,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/nidvojik"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             nidvojik
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          21
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/nidvojik/console/nodes"
+            target="_blank"
+          >
+            21
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -468,13 +512,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -484,15 +528,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             lidtabih
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          35
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/lidtabih/console/nodes"
+            target="_blank"
+          >
+            35
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -501,13 +559,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -517,15 +575,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             farovluv
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          12
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/farovluv/console/nodes"
+            target="_blank"
+          >
+            12
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -534,13 +606,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -550,15 +622,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             rozpaari
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          32
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/rozpaari/console/nodes"
+            target="_blank"
+          >
+            32
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -567,13 +653,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -583,15 +669,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             wetjolune
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          8
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/wetjolune/console/nodes"
+            target="_blank"
+          >
+            8
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -600,13 +700,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -616,15 +716,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             dashawic
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          11
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/dashawic/console/nodes"
+            target="_blank"
+          >
+            11
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -633,13 +747,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -649,15 +763,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             jesushenry58
-          </strong>
+          </a>
         </td>
         <td>
           1.2.239
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/jesushenry58/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -666,13 +794,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -682,15 +810,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             jordansimpson35
-          </strong>
+          </a>
         </td>
         <td>
           1.2.20
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/jordansimpson35/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -699,13 +841,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -715,15 +857,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             leonamann249
-          </strong>
+          </a>
         </td>
         <td>
           1.2.245
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/leonamann249/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -732,13 +888,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -748,15 +904,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             bessiecohen207
-          </strong>
+          </a>
         </td>
         <td>
           1.2.239
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/bessiecohen207/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -765,13 +935,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -781,15 +951,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             philipjohnson10
-          </strong>
+          </a>
         </td>
         <td>
           1.2.20
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/philipjohnson10/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -798,13 +982,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -814,15 +998,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             teresastone14
-          </strong>
+          </a>
         </td>
         <td>
           1.2.236
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/teresastone14/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -831,13 +1029,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -847,15 +1045,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             connorsharp137
-          </strong>
+          </a>
         </td>
         <td>
           1.2.224
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/connorsharp137/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -864,13 +1076,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -880,15 +1092,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             ricardosingleton242
-          </strong>
+          </a>
         </td>
         <td>
           1.2.105
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/ricardosingleton242/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -897,13 +1123,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -913,15 +1139,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             rozpaari
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          32
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/rozpaari/console/nodes"
+            target="_blank"
+          >
+            32
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -930,13 +1170,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -946,15 +1186,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             wetjolune
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          8
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/wetjolune/console/nodes"
+            target="_blank"
+          >
+            8
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -963,13 +1217,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -979,15 +1233,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             dashawic
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          11
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/dashawic/console/nodes"
+            target="_blank"
+          >
+            11
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -996,13 +1264,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1012,15 +1280,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             williepayne223
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/williepayne223/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1029,13 +1311,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1045,15 +1327,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             samlewis176
-          </strong>
+          </a>
         </td>
         <td>
           1.2.84
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/samlewis176/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1062,13 +1358,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1078,15 +1374,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             nellwheeler72
-          </strong>
+          </a>
         </td>
         <td>
           1.2.55
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/nellwheeler72/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1095,13 +1405,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1111,15 +1421,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             albertowens200
-          </strong>
+          </a>
         </td>
         <td>
           1.2.144
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/albertowens200/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1128,13 +1452,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1144,15 +1468,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             beatricecarson171
-          </strong>
+          </a>
         </td>
         <td>
           1.2.251
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/beatricecarson171/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1161,13 +1499,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1177,15 +1515,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             besscarroll152
-          </strong>
+          </a>
         </td>
         <td>
           1.2.104
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/besscarroll152/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1194,13 +1546,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1210,15 +1562,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             hannahsutton232
-          </strong>
+          </a>
         </td>
         <td>
           1.2.110
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/hannahsutton232/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1227,13 +1593,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1243,15 +1609,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             barrynelson110
-          </strong>
+          </a>
         </td>
         <td>
           1.2.199
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/barrynelson110/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1260,13 +1640,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1276,15 +1656,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             rozpaari
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          32
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/rozpaari/console/nodes"
+            target="_blank"
+          >
+            32
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1293,13 +1687,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1309,15 +1703,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             wetjolune
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          8
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/wetjolune/console/nodes"
+            target="_blank"
+          >
+            8
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1326,13 +1734,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1342,15 +1750,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             dashawic
-          </strong>
+          </a>
         </td>
         <td>
           1.2.3
         </td>
         <td>
-          11
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/dashawic/console/nodes"
+            target="_blank"
+          >
+            11
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1359,13 +1781,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1375,15 +1797,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             henriettarios78
-          </strong>
+          </a>
         </td>
         <td>
           1.2.153
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/henriettarios78/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1392,13 +1828,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1408,15 +1844,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             josephinewolfe55
-          </strong>
+          </a>
         </td>
         <td>
           1.2.154
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/josephinewolfe55/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1425,13 +1875,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1441,15 +1891,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             jaysandoval137
-          </strong>
+          </a>
         </td>
         <td>
           1.2.66
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/jaysandoval137/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1458,13 +1922,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1474,15 +1938,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             isabellekim81
-          </strong>
+          </a>
         </td>
         <td>
           1.2.150
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/isabellekim81/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1491,13 +1969,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1507,15 +1985,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             francismoran134
-          </strong>
+          </a>
         </td>
         <td>
           1.2.82
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/francismoran134/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1524,13 +2016,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1540,15 +2032,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             theodorefrazier78
-          </strong>
+          </a>
         </td>
         <td>
           1.2.61
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/theodorefrazier78/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1557,13 +2063,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1573,15 +2079,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             hattiestanley34
-          </strong>
+          </a>
         </td>
         <td>
           1.2.93
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/hattiestanley34/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1590,13 +2110,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1606,15 +2126,29 @@ exports[`render cluster nodes 1`] = `
       <tr>
         <td />
         <td>
-          <strong>
+          <a
+            class="c14"
+            color="text.primary"
+            href="/localhost/1/lidtabih"
+            m="0"
+            theme="[object Object]"
+            typography="body2"
+          >
             tommybrooks146
-          </strong>
+          </a>
         </td>
         <td>
           1.2.112
         </td>
         <td>
-          23
+          <a
+            class="c14"
+            color="text.primary"
+            href="/web/cluster/tommybrooks146/console/nodes"
+            target="_blank"
+          >
+            23
+          </a>
         </td>
         <td>
           https://abc.example.com:333/web
@@ -1623,13 +2157,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c15 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />

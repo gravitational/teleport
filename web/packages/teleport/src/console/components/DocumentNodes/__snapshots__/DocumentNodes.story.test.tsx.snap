@@ -9,7 +9,6 @@ exports[`render DocumentNodes 1`] = `
 
 .c8 {
   box-sizing: border-box;
-  margin-right: 16px;
 }
 
 .c21 {
