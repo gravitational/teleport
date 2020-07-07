@@ -9,7 +9,7 @@ Look at `build.sh` script to see how it works.
 
 * Update [build.sh](build.sh).
 * Update theme/scripts.html to add a new version to the docVersions array of versions
-* Create a new YAML file, like `5.5.1.yaml` if you are releasing version 5.5.1
+* Create a new YAML file, like `4.3` if you are releasing version 4.3.
 
 ## Deploying
 
@@ -38,7 +38,7 @@ $ ./run.sh
 To run a specific version of the docs:
 
 ```bash
-$ mkdocs serve --config-file 1.3.yaml
+$ mkdocs serve --config-file 4.3.yaml
 ```
 
 ## Checking for bad links
