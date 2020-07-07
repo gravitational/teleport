@@ -1,7 +1,7 @@
 ---
 kind: pipeline
 type: kubernetes
-name: test
+name: build-test-buildbox
 
 environment:
   RUNTIME: go1.13.2
@@ -17,6 +17,72 @@ trigger:
       - cron
       - promote
       - rollback
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+
+  - name: Build buildbox
+    image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      REPO: quay.io
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets buildbox
+
+  - name: Export buildbox
+    image: docker
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - docker save quay.io/gravitational/teleport-buildbox:$RUNTIME > /go/buildbox.tar
+
+---
+kind: pipeline
+type: kubernetes
+name: lint
+
+environment:
+  RUNTIME: go1.13.2
+  UID: 1000
+  GID: 1000
+
+trigger:
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
+
+depends_on:
+  - build-test-buildbox
 
 workspace:
   path: /go
@@ -44,24 +110,13 @@ steps:
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
 
-  - name: Build buildbox
+  - name: Load buildbox
     image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      REPO: quay.io
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets buildbox
+      - docker load < /go/buildbox.tar
 
   - name: Run linter
     image: docker
@@ -76,6 +131,75 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
 
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: test
+
+environment:
+  RUNTIME: go1.13.2
+  UID: 1000
+  GID: 1000
+
+trigger:
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
+
+depends_on:
+  - build-test-buildbox
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      - mkdir -p /go/cache
+
+  - name: Load buildbox
+    image: docker
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - docker load < /go/buildbox.tar
+
   - name: Run unit tests
     image: docker
     environment:
@@ -88,6 +212,75 @@ steps:
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets test
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: integration
+
+environment:
+  RUNTIME: go1.13.2
+  UID: 1000
+  GID: 1000
+
+trigger:
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
+
+depends_on:
+  - build-test-buildbox
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      - mkdir -p /go/cache
+
+  - name: Load buildbox
+    image: docker
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - docker load < /go/buildbox.tar
 
   - name: Run integration tests
     image: docker
@@ -102,6 +295,46 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
 
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: slack-notification
+
+environment:
+  RUNTIME: go1.13.2
+  UID: 1000
+  GID: 1000
+
+trigger:
+  event:
+    - push
+  status:
+    - failure
+
+depends_on:
+  - lint
+  - test
+  - integration
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
   - name: Send Slack notification
     image: plugins/slack
     settings:
@@ -121,18 +354,6 @@ steps:
     when:
       event: [push]
       status: [failure]
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    privileged: true
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
-  - name: dockersock
-    temp: {}
 
 ---
 kind: pipeline
@@ -1082,6 +1303,6 @@ steps:
 
 ---
 kind: signature
-hmac: 926a2604202471273002d12af47a1db2c31bd1f66a05cf435e78b1643e7c0bd1
+hmac: 8487a39e4775282408a7c38d3144325864702eddf31826afcb569d9a7d06b31f
 
 ...
