@@ -786,7 +786,6 @@ environment:
   UID: 1000
   GID: 1000
 
-TODO(gus): testing
 trigger:
   branch:
     - master
@@ -1079,6 +1078,6 @@ steps:
 
 ---
 kind: signature
-hmac: e6669f349e6ba4742d161abb4040e313c2b4b3467ef83677f212c10a5696061e
+hmac: 1204e2a3ae02b21472f2639023e26ff73addffcb690dc0b5d8e1833417776e39
 
 ...
