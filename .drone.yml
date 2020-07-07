@@ -1,7 +1,7 @@
 ---
 kind: pipeline
 type: kubernetes
-name: run-lint
+name: lint
 
 environment:
   RUNTIME: go1.13.2
@@ -91,7 +91,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: run-unit-tests
+name: test
 
 environment:
   RUNTIME: go1.13.2
@@ -181,7 +181,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: run-integration-tests
+name: integration
 
 environment:
   RUNTIME: go1.13.2
@@ -289,9 +289,9 @@ trigger:
       - rollback
 
 depends_on:
-  - run-lint
-  - run-unit-tests
-  - run-integration-tests
+  - lint
+  - test
+  - integration
 
 workspace:
   path: /go
@@ -1268,6 +1268,6 @@ steps:
 
 ---
 kind: signature
-hmac: 45795657ff928eb87ae74f7ba9b617cc01c95b52711aa64ea2d187b197922ab8
+hmac: 237e4a09f4fc7a687a0196ac674d897706f9fd753104da7dc491261fe0e6c5f0
 
 ...
