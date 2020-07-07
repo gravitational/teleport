@@ -74,7 +74,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/buildbox.tar
-      target: teleport/$DRONE_COMMIT/
+      target: teleport/buildbox/${DRONE_COMMIT}/
       strip_prefix: /go
 
 services:
@@ -149,7 +149,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/buildbox/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
 
   - name: Load buildbox
     image: docker
@@ -244,7 +244,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/buildbox/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
 
   - name: Load buildbox
     image: docker
@@ -339,7 +339,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/buildbox/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
 
   - name: Load buildbox
     image: docker
@@ -1370,6 +1370,6 @@ steps:
 
 ---
 kind: signature
-hmac: b1eb559d3bf6e1a6ab9151d4bbea9d4df86728e031657f14c4989daa8f8fbe05
+hmac: 920c56bb722660f1d3701428206e947b9e53e6b7b391109006f08526627acc95
 
 ...
