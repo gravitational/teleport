@@ -32,6 +32,7 @@ endif
 
 # conditionally force the use of UID/GID 1000:1000 if we're running in Drone
 ifeq ("$(DRONE)","true")
+DOCKERFLAGS := $(DOCKERFLAGS) -v /go/cache:/go/cache -e GOCACHE=/go/cache
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
@@ -132,7 +133,7 @@ test: buildbox
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
-		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
+		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' test"
 
 .PHONY:integration
 integration: buildbox
