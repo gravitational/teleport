@@ -36,7 +36,7 @@ extra:
         golang: 1.13
         sha: 1c14362c9ba10f28088c7228b357dc6a70072d3d4afaa5510c70a8734068684c
         plugin:
-            version: 0.1.0.alpha
+            version: 0.1.0
 nav:
     - Documentation:
         - Introduction: index.md
