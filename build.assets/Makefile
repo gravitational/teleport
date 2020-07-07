@@ -30,10 +30,8 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-# conditionally modify the flags if we're running in Drone (to use shared cache and explicitly
-# provide UID/GID 1000)
+# conditionally force the use of UID/GID 1000:1000 if we're running in Drone
 ifeq ("$(DRONE)","true")
-DOCKERFLAGS := $(DOCKERFLAGS) -e GOCACHE=/go/cache -v /go/cache:/go/cache
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
