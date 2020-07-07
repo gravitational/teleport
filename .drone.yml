@@ -970,21 +970,12 @@ environment:
   UID: 1000
   GID: 1000
 
-# TODO(gus): testing
-# trigger:
-#   branch:
-#     - master
-#   event:
-#     - push
+TODO(gus): testing
 trigger:
   branch:
     - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - push
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -1018,8 +1009,7 @@ steps:
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - make -C build.assets buildbox
-      # TODO(gus): uncomment
-      #- docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+      - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
 
   - name: Build and push buildbox-fips container
     image: docker:git
@@ -1037,8 +1027,7 @@ steps:
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - make -C build.assets buildbox-fips
-      # TODO(gus): uncomment
-      #- docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+      - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
 
   - name: Build and push buildbox-centos6 container
     image: docker:git
@@ -1056,8 +1045,7 @@ steps:
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
       - make -C build.assets buildbox-centos6
-      # TODO(gus): uncomment
-      #- docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+      - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
 
   - name: Build and push buildbox-centos6-fips container
     image: docker:git
@@ -1075,8 +1063,7 @@ steps:
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
       - make -C build.assets buildbox-centos6-fips
-      # TODO(gus): uncomment
-      #- docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
+      - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
 
 services:
   - name: Start Docker
@@ -1276,6 +1263,6 @@ steps:
 
 ---
 kind: signature
-hmac: 45b33eaefc6b6396754fdfe5ca8660e1f5a1b61bed9f8db624832128bf13e9ab
+hmac: 7f7510568aeeec9eed8234c37e03b531b4aae427f6de5af50579032e41979408
 
 ...
