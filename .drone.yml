@@ -1,7 +1,7 @@
 ---
 kind: pipeline
 type: kubernetes
-name: build-test-buildbox
+name: run-lint
 
 environment:
   RUNTIME: go1.13.2
@@ -17,100 +17,6 @@ trigger:
       - cron
       - promote
       - rollback
-
-workspace:
-  path: /go
-
-clone:
-  disable: true
-
-steps:
-  - name: Check out code
-    image: docker:git
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_COMMIT
-
-  - name: Build buildbox
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      REPO: quay.io
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets buildbox
-
-  - name: Export buildbox
-    image: docker
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - docker save quay.io/gravitational/teleport-buildbox:$RUNTIME > /go/buildbox.tar
-
-  - name: Upload buildbox image to S3
-    image: plugins/s3
-    settings:
-      bucket:
-        from_secret: AWS_S3_BUCKET
-      access_key:
-        from_secret: AWS_ACCESS_KEY_ID
-      secret_key:
-        from_secret: AWS_SECRET_ACCESS_KEY
-      region: us-west-2
-      source: /go/buildbox.tar
-      target: teleport/buildbox/${DRONE_COMMIT}/
-      strip_prefix: /go
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    privileged: true
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
-  - name: dockersock
-    temp: {}
-
----
-kind: pipeline
-type: kubernetes
-name: lint
-
-environment:
-  RUNTIME: go1.13.2
-  UID: 1000
-  GID: 1000
-
-trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - cron
-      - promote
-      - rollback
-
-depends_on:
-  - build-test-buildbox
 
 workspace:
   path: /go
@@ -138,26 +44,24 @@ steps:
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
 
-  - name: Download buildbox image from S3
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_REGION: us-west-2
-    commands:
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/buildbox/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
-
-  - name: Load buildbox
+  - name: Build buildbox
     image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      REPO: quay.io
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - docker load < /go/buildbox.tar
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets buildbox
 
   - name: Run linter
     image: docker
@@ -187,7 +91,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: test
+name: run-unit-tests
 
 environment:
   RUNTIME: go1.13.2
@@ -203,9 +107,6 @@ trigger:
       - cron
       - promote
       - rollback
-
-depends_on:
-  - build-test-buildbox
 
 workspace:
   path: /go
@@ -233,26 +134,24 @@ steps:
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
 
-  - name: Download buildbox image from S3
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_REGION: us-west-2
-    commands:
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/buildbox/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
-
-  - name: Load buildbox
+  - name: Build buildbox
     image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      REPO: quay.io
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - docker load < /go/buildbox.tar
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets buildbox
 
   - name: Run unit tests
     image: docker
@@ -282,7 +181,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: integration
+name: run-integration-tests
 
 environment:
   RUNTIME: go1.13.2
@@ -298,9 +197,6 @@ trigger:
       - cron
       - promote
       - rollback
-
-depends_on:
-  - build-test-buildbox
 
 workspace:
   path: /go
@@ -328,26 +224,24 @@ steps:
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
 
-  - name: Download buildbox image from S3
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_REGION: us-west-2
-    commands:
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/buildbox/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
-
-  - name: Load buildbox
+  - name: Build buildbox
     image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      REPO: quay.io
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - docker load < /go/buildbox.tar
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets buildbox
 
   - name: Run integration tests
     image: docker
@@ -385,15 +279,19 @@ environment:
   GID: 1000
 
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - push
-  status:
-    - failure
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 depends_on:
-  - lint
-  - test
-  - integration
+  - run-lint
+  - run-unit-tests
+  - run-integration-tests
 
 workspace:
   path: /go
@@ -402,7 +300,7 @@ clone:
   disable: true
 
 steps:
-  - name: Send Slack notification
+  - name: Send Slack notification for build failures
     image: plugins/slack
     settings:
       webhook:
@@ -1370,6 +1268,6 @@ steps:
 
 ---
 kind: signature
-hmac: 920c56bb722660f1d3701428206e947b9e53e6b7b391109006f08526627acc95
+hmac: 45795657ff928eb87ae74f7ba9b617cc01c95b52711aa64ea2d187b197922ab8
 
 ...
