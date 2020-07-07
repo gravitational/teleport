@@ -63,6 +63,20 @@ steps:
     commands:
       - docker save quay.io/gravitational/teleport-buildbox:$RUNTIME > /go/buildbox.tar
 
+  - name: Upload buildbox image to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/buildbox.tar
+      target: teleport/$DRONE_COMMIT/
+      strip_prefix: /go
+
 services:
   - name: Start Docker
     image: docker:dind
@@ -123,6 +137,19 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
+
+  - name: Download buildbox image from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
 
   - name: Load buildbox
     image: docker
@@ -206,6 +233,19 @@ steps:
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
 
+  - name: Download buildbox image from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
+
   - name: Load buildbox
     image: docker
     volumes:
@@ -287,6 +327,19 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
+
+  - name: Download buildbox image from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$DRONE_COMMIT/buildbox.tar /go/buildbox.tar
 
   - name: Load buildbox
     image: docker
@@ -1317,6 +1370,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7e03fe43f3e2f3adf536771d8cc2019eeb228135925655e809fb1a58488cc8c6
+hmac: b1eb559d3bf6e1a6ab9151d4bbea9d4df86728e031657f14c4989daa8f8fbe05
 
 ...
