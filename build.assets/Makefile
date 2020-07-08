@@ -60,7 +60,7 @@ build-binaries: buildbox
 # binaries and docs
 #
 .PHONY:buildbox
-buildbox:
+buildbox: pam
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -72,7 +72,7 @@ buildbox:
 # Builds a Docker buildbox for FIPS
 #
 .PHONY:buildbox-fips
-buildbox-fips:
+buildbox-fips: pam
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -84,7 +84,7 @@ buildbox-fips:
 # Builds a Docker container for CentOS 6 builds
 #
 .PHONY:buildbox-centos6
-buildbox-centos6:
+buildbox-centos6: pam
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -96,7 +96,7 @@ buildbox-centos6:
 # Builds a Docker buildbox for CentOS 6 FIPS builds
 #
 .PHONY:buildbox-centos6-fips
-buildbox-centos6-fips:
+buildbox-centos6-fips: pam
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -122,6 +122,7 @@ docsbox:
 clean:
 	docker image rm --force $(BUILDBOX)
 	docker image rm --force $(DOCSBOX)
+	rm -r pam
 
 #
 # Runs tests inside a build container
@@ -234,3 +235,10 @@ release-centos6-fips: buildbox-centos6-fips
 release-windows: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
+
+# Builds the Teleport PAM module for copying into the buildbox.
+.PHONY:pam
+pam:
+	make -C ../modules/pam_teleport
+	rm pam/* || mkdir -p pam
+	cp ../modules/pam_teleport/pam_teleport.so ../modules/pam_teleport/policy/* pam/
