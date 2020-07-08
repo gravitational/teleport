@@ -786,21 +786,11 @@ environment:
   UID: 1000
   GID: 1000
 
-# TODO(gus): testing
-# trigger:
-#   branch:
-#     - master
-#   event:
-#     - push
 trigger:
   branch:
     - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - push
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -1088,6 +1078,6 @@ steps:
 
 ---
 kind: signature
-hmac: 3d1d1f7bf24284dc4ca2c5fef6fd70852d4f0ad56197e5075786f0dfe6a9ea40
+hmac: 5f09a1f3f5a026b4c8fa15133af33ddc862dba2204f31da0ab7632a8fd43a181
 
 ...
