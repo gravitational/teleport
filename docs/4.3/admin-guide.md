@@ -960,16 +960,16 @@ ssh_service:
   # Dynamic labels AKA "commands":
   commands:
   - name: hostname
-    command: [/usr/bin/hostname]
+    command: [hostname]
     period: 1m0s
   - name: arch
-    command: [/usr/bin/uname, -p]
+    command: [uname, -p]
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s
 ```
 
-`/path/to/executable` must be a valid executable command (i.e.executable bit
+`/path/to/executable` must be a valid executable command (i.e. executable bit
 must be set) which also includes shell scripts with a proper [shebang
 line](https://en.wikipedia.org/wiki/Shebang_(Unix)).
 

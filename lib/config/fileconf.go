@@ -281,18 +281,17 @@ func MakeSampleFileConfig() (fc *FileConfig, err error) {
 	s.Commands = []CommandLabel{
 		{
 			Name:    "hostname",
-			Command: []string{"/usr/bin/hostname"},
+			Command: []string{"hostname"},
 			Period:  time.Minute,
 		},
 		{
 			Name:    "arch",
-			Command: []string{"/usr/bin/uname", "-p"},
+			Command: []string{"uname", "-p"},
 			Period:  time.Hour,
 		},
 	}
 	s.Labels = map[string]string{
-		"db_type": "postgres",
-		"db_role": "master",
+		"env": "staging",
 	}
 
 	// sample Auth config:
