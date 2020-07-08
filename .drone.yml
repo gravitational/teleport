@@ -55,7 +55,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make gcc libc-dev linux-pam-dev
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
@@ -70,7 +70,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make gcc libc-dev linux-pam-dev
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
@@ -83,7 +83,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make gcc libc-dev linux-pam-dev
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets test
@@ -96,7 +96,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make gcc libc-dev linux-pam-dev
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
@@ -786,11 +786,21 @@ environment:
   UID: 1000
   GID: 1000
 
+# TODO(gus): testing
+# trigger:
+#   branch:
+#     - master
+#   event:
+#     - push
 trigger:
   branch:
     - master
+    - branch/*
   event:
-    - push
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -819,7 +829,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make gcc libc-dev linux-pam-dev
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
@@ -837,7 +847,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make gcc libc-dev linux-pam-dev
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
@@ -855,7 +865,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make gcc libc-dev linux-pam-dev
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
@@ -873,7 +883,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make gcc libc-dev linux-pam-dev
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
@@ -1078,6 +1088,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7faad1cb58a1c0b98ee2ce82f29e72513cb3f3cd43827cfd50da7628bb75e700
+hmac: 97ea7c1d1f88d703506831ce5e0ceb432ef7997a553f2122e52090f7d8edd2c8
 
 ...
