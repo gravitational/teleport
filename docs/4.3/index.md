@@ -129,7 +129,7 @@ If you still have questions after reviewing our docs, you can also:
 
 * Join the [Teleport Community](https://community.gravitational.com/c/teleport) to ask questions. Our engineers are available there to help you.
 * If you want to contribute to Teleport or file a bug report/issue, you can do so by creating an issue in [Github](https://github.com/gravitational/teleport/).
-* If you are interested in [Teleport Enterprise](enterprise/introduction.md) or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://gravitational.com/teleport/) or email us at [sales@gravitational.com](mailto:sales@gravitational.com) to arrange for a POC.
+* If you are interested in [Teleport Enterprise](https://gravitational.com/teleport/docs/enterprise/) or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://gravitational.com/teleport/) or email us at [sales@gravitational.com](mailto:sales@gravitational.com) to arrange for a POC.
 
 Teleport is made by [Gravitational](https://gravitational.com/), and we hope you
 enjoy using it. If you have comments or questions, feel free to reach out
