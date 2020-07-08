@@ -1,5 +1,96 @@
 # Changelog
 
+### 4.3.0
+
+This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items. We would love your feedback - please pick a [time slot for a remote UX feedback session](https://calendly.com/benarent-gravitational/teleport-4-3-feedback-session?month=2020-06) if you’re interested.
+
+#### New Features
+
+##### Web UI
+
+Teleport 4.3 includes a completely redesigned Web UI. The new Web UI expands the management functionality of a Teleport cluster and the user experience of using Teleport to make it easier and simpler to use. Teleport's new terminal provides a quick jumping-off point to access nodes and nodes on other clusters via the web.
+
+Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and administrators view Teleport access events, SSH events, recording session, and enhanced session recording all in one view.
+
+##### Teleport Plugins
+
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](https://gravitational.com/teleport/docs/enterprise/workflow/?utm_source=github&utm_medium=changelog&utm_campaign=4_3). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+
+*   [PagerDuty](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_pagerduty/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
+*   [Jira Server](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_jira_server/?utm_source=github&utm_medium=changelog&utm_campaign=4_3) and [Jira Cloud](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_jira_cloud/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
+*   [Slack](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_slack/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
+*   [Mattermost](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_mattermost/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
+
+#### Improvements
+
+*   Added the ability for local users to reset their own passwords. [#2387](https://github.com/gravitational/teleport/pull/3287)
+*   Added user impersonation (`kube_users)` support to Kubernetes Proxy. [#3369](https://github.com/gravitational/teleport/issues/3369)
+*   Added support for third party S3-compatible storage for sessions. [#3057](https://github.com/gravitational/teleport/pull/3057)
+*   Added support for GCP backend data stores. [#3766](https://github.com/gravitational/teleport/pull/3766)  [#3014](https://github.com/gravitational/teleport/pull/3014)
+*   Added support for X11 forwarding to OpenSSH servers. [#3401](https://github.com/gravitational/teleport/issues/3401)
+*   Added support for auth plugins in proxy `kubeconfig`. [#3655](https://github.com/gravitational/teleport/pull/3655)
+*   Added support for OpenSSH-like escape sequence. [#3752](https://github.com/gravitational/teleport/pull/3752)
+*   Added `--browser` flag to `tsh`. [#3737](https://github.com/gravitational/teleport/pull/3737)
+*   Updated `teleport configure` output to be more useful out of the box. [#3429](https://github.com/gravitational/teleport/pull/3429)
+*   Updated ability to only show SSO on the login page. [#2789](https://github.com/gravitational/teleport/issues/2789)
+*   Updated help and support section in Web UI. [#3531](https://github.com/gravitational/teleport/issues/3531)
+*   Updated default SSH signing algorithm to SHA-512 for new clusters. [#3777](https://github.com/gravitational/teleport/pull/3777)
+*   Standardized audit event fields.
+
+#### Fixes
+
+*   Fixed removing existing user definitions in kubeconfig. [#3209](https://github.com/gravitational/teleport/issues/3749)
+*   Fixed an issue where port forwarding could fail in certain circumstances. [#3749](https://github.com/gravitational/teleport/issues/3749)
+*   Fixed temporary role grants issue when forwarding Kubernetes requests. [#3624](https://github.com/gravitational/teleport/pull/3624)
+*   Fixed an issue that prevented copy/paste in the web termination. [#92](https://github.com/gravitational/webapps/issues/92)
+*   Fixed an issue where the proxy did not test Kubernetes permissions at startup. [#3812](https://github.com/gravitational/teleport/pull/3812)
+*   Fixed `tsh` and `gpg-agent` integration. [#3169](https://github.com/gravitational/teleport/issues/3169)
+*   Fixed Vulnerabilities in Teleport Docker Image [https://quay.io/repository/gravitational/teleport?tab=tags](https://quay.io/repository/gravitational/teleport?tab=tags)
+
+#### Documentation
+
+*   [Moved SSO under Enterprise Section](https://gravitational.com/teleport/docs/enterprise/sso/ssh_sso/)
+*   [Documented Teleport Plugins](https://gravitational.com/teleport/docs/enterprise/workflow/)
+*   [Documented Kubernetes Role Mapping](https://gravitational.com/teleport/docs/kubernetes_ssh/#kubernetes-groups-and-users)
+
+#### Upgrade Notes
+
+Always follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport?utm_source=github&utm_medium=changelog&utm_campaign=4_3) to upgrade to this version.
+
+##### New Signing Algorithm
+
+If you’re upgrading an existing version of Teleport, you may want to consider rotating CA to SHA-256 or SHA-512 for RSA SSH certificate signatures. The previous default was SHA-1, which is now considered to be weak against brute-force attacks. SHA-1 certificate signatures are also [no longer accepted](https://www.openssh.com/releasenotes.html) by OpenSSH versions 8.2 and above. All new Teleport clusters will default to SHA-512 based signatures. To upgrade an existing cluster, set the following in your `teleport.yaml`:
+
+```
+teleport:
+    ca_signature_algo: "rsa-sha2-512"
+```
+
+Rotate the cluster CA, following [these docs](https://gravitational.com/teleport/docs/admin-guide/#certificate-rotation?utm_source=github&utm_medium=changelog&utm_campaign=4_3).
+
+##### Web UI
+
+Due to the number of changes included in the redesigned Web UI, some URLs and functionality have shifted. Refer to the following ticket for more details. [#3580](https://github.com/gravitational/teleport/issues/3580)
+
+##### Kubernetes Permissions
+
+The minimum set of Kubernetes permissions that need to be granted to Teleport proxies has been updated. If you use the Kubernetes integration, please make sure that the ClusterRole used by the proxy has [sufficient permissions](https://gravitational.com/teleport/docs/kubernetes_ssh#impersonation).
+
+##### Path prefix for etcd
+
+The [etcd backend](https://gravitational.com/teleport/docs/admin-guide/#using-etcd) now correctly uses the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will migrate the data as needed at startup. Make sure you follow our Teleport [upgrade guidance](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
+
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](https://gravitational.com/teleport/docs/admin-guide/#backing-up-teleport) into the downgraded cluster.**
+
+## 4.2.11
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed an issue that prevented upload of session archives to NFS volumes. [#3780](https://github.com/gravitational/teleport/pull/3780)
+* Fixed an issue with port forwarding that prevented TCP connections from being closed correctly. [#3801](https://github.com/gravitational/teleport/pull/3801)
+* Fixed an issue in `tsh` that would cause connections to the Auth Server to fail on large clusters. [#3872](https://github.com/gravitational/teleport/pull/3872)
+* Fixed an issue that prevented the use of Write-Only roles with S3 and GCS. [#3810](https://github.com/gravitational/teleport/pull/3810)
+
 ## 4.2.10
 
 This release of Teleport contains multiple bug fixes.
