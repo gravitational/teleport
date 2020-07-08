@@ -49,9 +49,9 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 
 #### Documentation
 
-*   Moved SSO under Enterprise Section - [link](https://gravitational.com/teleport/docs/enterprise/sso/ssh_sso/)
-*   Documented Teleport Plugins - [link](https://gravitational.com/teleport/docs/enterprise/workflow/)
-*   Documented Kubernetes Role Mapping - [link](https://gravitational.com/teleport/docs/kubernetes_ssh/#kubernetes-groups-and-users)
+*   [Moved SSO under Enterprise Section](https://gravitational.com/teleport/docs/enterprise/sso/ssh_sso/)
+*   [Documented Teleport Plugins](https://gravitational.com/teleport/docs/enterprise/workflow/)
+*   [Documented Kubernetes Role Mapping](https://gravitational.com/teleport/docs/kubernetes_ssh/#kubernetes-groups-and-users)
 
 #### Upgrade Notes
 
@@ -78,7 +78,9 @@ The minimum set of Kubernetes permissions that need to be granted to Teleport pr
 
 ##### Path prefix for etcd
 
-The [etcd backend](https://gravitational.com/teleport/docs/admin-guide/#using-etcd) now correctly uses the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will migrate the data as needed at startup. Make sure you follow our Teleport [upgrade guidance](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport). **Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](https://gravitational.com/teleport/docs/admin-guide/#backing-up-teleport) into the downgraded cluster.**
+The [etcd backend](https://gravitational.com/teleport/docs/admin-guide/#using-etcd) now correctly uses the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will migrate the data as needed at startup. Make sure you follow our Teleport [upgrade guidance](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
+
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](https://gravitational.com/teleport/docs/admin-guide/#backing-up-teleport) into the downgraded cluster.**
 
 ## 4.2.11
 
