@@ -947,9 +947,9 @@ steps:
     image: alpine
     environment:
       # increment these variables when a new major/minor version is released to bump the automatic builds
-      CURRENT_VERSION_ROOT: 4.2
-      PREVIOUS_VERSION_ONE_ROOT: 4.1
-      PREVIOUS_VERSION_TWO_ROOT: 4.0
+      CURRENT_VERSION_ROOT: 4.3
+      PREVIOUS_VERSION_ONE_ROOT: 4.2
+      PREVIOUS_VERSION_TWO_ROOT: 4.1
     commands:
       - apk --update --no-cache add curl git
       - mkdir -p /tmp/build && cd /tmp/build
