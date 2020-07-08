@@ -12,7 +12,7 @@ traditional OpenSSH for organizations that need to:
 * Reduce the operational overhead of privileged access management across both
   traditional and cloud-native infrastructure.
 
-<iframe width="712" height="400" src="https://www.youtube.com/embed/GvAD5aNcdBA?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameborder="0" allow="accelerometer; autoplay; encrypted-media; modestbranding; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="712" height="400" src="https://www.youtube.com/embed/GvAD5aNcdBA?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 Teleport aims to be a cloud-native SSH solution, i.e. it makes it natural to think of
 environments, not servers. Below is a list of the most popular Teleport features:
