@@ -11464,7 +11464,7 @@ var handleVerSelector = function handleVerSelector() {
     //var reg = new RegExp("\/ver\/([0-9|\.]+(?=\/.))");
     var reg = new RegExp("/ver/(.*)/");
     var url = window.location.href.replace(reg, '');
-    var newPrefix = isLatest ? "" : "/ver/" + ver + "/";
+    var newPrefix = isLatest ? "" : "/teleport/docs/ver/" + ver + "/";
     return url.replace(window.mkdocs_page_url, newPrefix);
   }
 
@@ -12124,7 +12124,7 @@ var TopNav = /*#__PURE__*/function () {
 
 // extracted by mini-css-extract-plugin
     if(false) { var cssReload; }
-  
+
 
 /***/ }),
 
