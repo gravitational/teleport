@@ -25,7 +25,7 @@ import (
 
 var reProxyJump = regexp.MustCompile(
 	// optional username, note that outside group
-	`(?:(?P<username>[^@\:]+)@)?(?P<hostport>[^\@]+)`,
+	`(?:(?P<username>[^\:]+)@)?(?P<hostport>[^\@]+)`,
 )
 
 // JumpHost is a target jump host
