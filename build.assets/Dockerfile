@@ -2,27 +2,23 @@
 # releases of Teleport and its documentation.
 FROM ubuntu:20.04
 
-ADD locale.gen /etc/locale.gen
+COPY locale.gen /etc/locale.gen
+COPY profile /etc/profile
 
 ENV LANGUAGE="en_US.UTF-8" \
-    DEBIAN_FRONTEND="noninteractive" \
     LANG="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8" \
-    LC_CTYPE="en_US.UTF-8"
+    LC_CTYPE="en_US.UTF-8" \
+    DEBIAN_FRONTEND="noninteractive"
 
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y apt-utils curl gcc git gzip libbpfcc-dev libc6-dev libpam-dev libsqlite3-0 locales make net-tools tar tree zip && \
     dpkg-reconfigure locales && \
     apt-get -y autoclean && apt-get -y clean
-ADD profile /etc/profile
 
 ARG UID
 ARG GID
-
-COPY pam/pam_teleport.so /lib/x86_64-linux-gnu/security
-COPY pam/teleport-* /etc/pam.d/
-
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
      mkdir -p -m0700 /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
@@ -46,6 +42,9 @@ ENV GOPATH="/go" \
 RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.24.0/golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz ;\
      cp golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ ;\
      rm -r golangci-lint*)
+
+COPY pam/pam_teleport.so /lib/x86_64-linux-gnu/security
+COPY pam/teleport-* /etc/pam.d/
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

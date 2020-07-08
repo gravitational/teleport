@@ -2,10 +2,6 @@
 # releases of Teleport and its documentation.
 FROM centos:6
 
-ARG UID
-ARG GID
-ARG GO_BOOTSTRAP_RUNTIME=go1.9.7
-
 ENV LANGUAGE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
@@ -15,9 +11,8 @@ RUN yum makecache fast && \
     yum -y install gcc pam-devel glibc-devel net-tools tree git zip && \
     yum clean all
 
-COPY pam/pam_teleport.so /lib/x86_64-linux-gnu/security
-COPY pam/teleport-* /etc/pam.d/
-
+ARG UID
+ARG GID
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
      mkdir -p -m0700 /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
@@ -30,6 +25,7 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9
 # 3) Erase Go bootstrap runtime and create build directories
 # 4) Print compiled Go version
 ARG RUNTIME
+ARG GO_BOOTSTRAP_RUNTIME=go1.9.7
 RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/${GO_BOOTSTRAP_RUNTIME}.linux-amd64.tar.gz | tar xz && \
     mkdir -p /opt && cd /opt && curl https://dl.google.com/go/${RUNTIME}.src.tar.gz | tar xz && \
     cd /opt/go/src && GOROOT_BOOTSTRAP=/go-bootstrap/go ./make.bash && \
@@ -43,6 +39,9 @@ RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+COPY pam/pam_teleport.so /lib/x86_64-linux-gnu/security
+COPY pam/teleport-* /etc/pam.d/
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
