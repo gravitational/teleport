@@ -88,12 +88,12 @@ $ helm install --name teleport ./
 
 ## Downloading the chart from the Gravitational repo
 
-Gravitational hosts this Helm chart at http://charts.gravitational.io - it is updated from `master` every night.
+Gravitational hosts this Helm chart at https://charts.gravitational.io - it is updated from `master` every night.
 
 To add the chart and use it, you can run these commands:
 
 ```console
-$ helm repo add gravitational http://charts.gravitational.io
+$ helm repo add gravitational https://charts.gravitational.io
 $ helm install teleport gravitational/teleport
 ```
 
@@ -101,7 +101,7 @@ You will still need a correctly configured `values.yaml` file for this to work.
 
 ## Running locally on minikube
 
-Grab the test setup from the community project [teleport-on-minikube](http://github.com/mumoshu/teleport-on-minikube) and run:
+Grab the test setup from the community project [teleport-on-minikube](https://github.com/mumoshu/teleport-on-minikube) and run:
 
 ```
 path/to/teleport-on-minikube//scripts/install-on-minikube
