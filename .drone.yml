@@ -45,7 +45,7 @@ steps:
       - mkdir -p /go/cache
 
   - name: Build buildbox
-    image: quay.io/gravitational/alpine-glibc
+    image: docker
     environment:
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -55,7 +55,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache docker make gcc libc-dev linux-pam-dev
+      - apk add --no-cache make gcc libc-dev linux-pam-dev
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
@@ -70,7 +70,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make gcc libc-dev linux-pam-dev
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
@@ -83,7 +83,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make gcc libc-dev linux-pam-dev
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets test
@@ -96,7 +96,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make gcc libc-dev linux-pam-dev
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
@@ -1078,6 +1078,6 @@ steps:
 
 ---
 kind: signature
-hmac: 3c288bbdfe7a1ba8856c4643aa20cc7cf1d3a20326008448c311df1ffeae2188
+hmac: b8257a9cd2164fefb43b42a4b001f19ff8ae29778778a9054fad9d6e55919ea9
 
 ...
