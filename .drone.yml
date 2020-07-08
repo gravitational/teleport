@@ -55,7 +55,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make gcc
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
@@ -1078,6 +1078,6 @@ steps:
 
 ---
 kind: signature
-hmac: 1204e2a3ae02b21472f2639023e26ff73addffcb690dc0b5d8e1833417776e39
+hmac: 1b6eddafc76cb3c3c1bd32c23c5510ba39db9bb3bc0f95a27bdd5a21b52e9138
 
 ...
