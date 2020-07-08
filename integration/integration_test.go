@@ -2914,16 +2914,16 @@ func (s *IntSuite) TestPAM(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	// Check if TestPAM can run. For PAM tests to run, the binary must have been
-	// built with PAM support and the system running the tests must have libpam
-	// installed, and have the policy files installed. This test is always run
-	// in a container as part of the CI/CD pipeline. To run this test locally,
-	// install the pam_teleport.so module by running 'make && sudo make install'
-	// from the modules/pam_teleport directory. This will install the PAM module
-	// as well as the policy files.
+	// Check if TestPAM can run. For PAM tests to run, the binary must have
+	// been built with PAM support and the system running the tests must have
+	// libpam installed, and have the policy files installed. This test is
+	// always run in a container as part of the CI/CD pipeline. To run this
+	// test locally, install the pam_teleport.so module by running 'sudo make
+	// install' from the build.assets/pam/ directory. This will install the PAM
+	// module as well as the policy files.
 	if !pam.BuildHasPAM() || !pam.SystemHasPAM() || !hasPAMPolicy() {
 		skipMessage := "Skipping TestPAM: no policy found. To run PAM tests run " +
-			"'make && sudo make install' from the modules/pam_teleport directory."
+			"'sudo make install' from the build.assets/pam/ directory."
 		c.Skip(skipMessage)
 	}
 

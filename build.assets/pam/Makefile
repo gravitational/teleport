@@ -23,7 +23,7 @@ install: pam_teleport.so
 		# Replace the module path in these files with the absolute path to \
 		# pam_teleport.so in current directory. That way we don't depend on the \
 		# OS-specific PAM module locations. \
-		sudo sh -c "sed 's/pam_teleport.so/$(PAM_MODULE_PATH_ESCAPED)\/pam_teleport.so/' policy/$${file} >$(PAM_POLICY_PATH)$${file}"; \
+		sh -c "sed 's/pam_teleport.so/$(PAM_MODULE_PATH_ESCAPED)\/pam_teleport.so/' policy/$${file} >$(PAM_POLICY_PATH)$${file}"; \
 	done
 
 pam_teleport.so: pam_teleport.o
