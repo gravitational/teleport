@@ -45,7 +45,7 @@ steps:
       - mkdir -p /go/cache
 
   - name: Build buildbox
-    image: docker
+    image: quay.io/gravitational/alpine-glibc
     environment:
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -55,7 +55,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make gcc libc-dev
+      - apk add --no-cache docker make gcc libc-dev linux-pam-dev
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
@@ -1078,6 +1078,6 @@ steps:
 
 ---
 kind: signature
-hmac: 42e5d35d387a39f81ac701446d8e284e378269f8f45011addda46ecf81c27057
+hmac: 3c288bbdfe7a1ba8856c4643aa20cc7cf1d3a20326008448c311df1ffeae2188
 
 ...
