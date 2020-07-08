@@ -173,6 +173,9 @@ steps:
         git diff --raw ${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+          # Check trailing whitespace
+          make docs-test-whitespace
+          # Check links
           for VERSION in $(cat /tmp/docs-versions-changed.txt); do
             if [ -f docs/$VERSION/milv.config.yaml ]; then
               cd docs/$VERSION
@@ -1113,6 +1116,6 @@ steps:
 
 ---
 kind: signature
-hmac: 098b4e9dccb6bbb075bf39b404b3f5c64e982566fd58a6b4f390fd0b93a7a75d
+hmac: d8356b32c0c482315acec3c0dc6603a59cc2fd76a628960cea79197a2d6103f5
 
 ...

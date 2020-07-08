@@ -32,7 +32,7 @@ First, create a SAML 2.0 Web App in Okta configuration section
 #### 1. Switch to Classic UI
 ![Switch to classic UI](../../img/sso/okta/switch-to-classic.gif)
 
-#### 2. Select Create New App 
+#### 2. Select Create New App
 Select Web Platform and SAML 2.0 Sign On Method.
 ![Create APP](../../img/sso/okta/okta-saml-1.png)
 
