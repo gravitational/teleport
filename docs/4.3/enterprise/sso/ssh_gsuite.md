@@ -27,7 +27,7 @@ Before you get started you’ll need:
 - Ability to create GCP Project.
     - This might require signing up to GCP, but for this project it won’t require using any paid services. It’s just a side effect of G Suite and GCP being closely related.
 - Have a [verified Domain](https://support.google.com/a/answer/60216?hl=en ).
-- Setup G Suite Groups
+- Ability to Setup G Suite Groups
 
 
 ## Configure G Suite
@@ -69,16 +69,25 @@ the OIDC Connector, under `google_service_account_uri`.
     Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
     up in a HA config.
 
-## API Scopes:
+## Manage API Scopes:
 Before setting the Manage API client access capture the client ID of the service account.
+
 Within GSuite to access the Manage API client access go to Security -> Settings.  Navigate to Advanced Settings and open Manage API client access.  Put the client ID in the Client Name field and the below permissions in the API scopes as a single comma separated line.  Press Authorize.
 
-!!! note:  Do not use the email of the service account.  The configuration display will look the same but the service account will not have the domain-wide delegation required.  A indicator of that is if you see `Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested.` in your log.
+!!! Warning
 
-`https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://www.googleapis.com/auth/admin.directory.group.readonly, https://www.googleapis.com/auth/admin.directory.user.readonly`
+    Do not use the email of the service account.  The configuration display will look the same but the service account will not have the domain-wide delegation required.  A indicator of that is if you see `Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested.` in your log.
 
-![Manage API Client Access](../../img/gsuite/gsuite-6-manage-api-access.png)
-Google will display the client id and resolve the permission definitions.
+
+**Client Name:** For Client Name: Use the Unique ID for the service account.  [See Video for instructions](https://youtu.be/DG97l8WJ6oU?t=281).
+
+**API Scopes:** Copy these three API Scopes.
+
+```
+https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://www.googleapis.com/auth/admin.directory.group.readonly, https://www.googleapis.com/auth/admin.directory.user.readonly
+```
+
+
 ![Create OAuth Creds](../../img/gsuite/gsuite-6a-manage-access.png)
 
 
@@ -149,8 +158,6 @@ $ tctl create dev.yaml
 ```
 
 ## Testing
-![Login with Gsuite](../../img/gsuite/gsuite-7-loginwithgsuite.png)
-
 
 The Web UI will now contain a new button: "Login with GSuite". The CLI is
 the same as before:
@@ -165,7 +172,7 @@ automatically in a browser).
 !!! tip "Tip"
 
     Teleport can use multiple OIDC connectors. In this case a connector name
-    can be passed via `tsh login --auth=connector_name`
+    can be passed via `tsh login --auth=gsuite`
 
 
 ## Troubleshooting
