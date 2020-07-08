@@ -16,15 +16,14 @@ limitations under the License.
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { sortBy } from 'lodash';
 import styled from 'styled-components';
 import isMatch from 'design/utils/match';
-import { Cluster } from 'teleport/services/clusters';
-import { sortBy } from 'lodash';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { Text } from 'design';
 import { Lan, Cli } from 'design/Icon';
 import { MenuItemIcon } from 'design/Menu';
-
+import { Cluster } from 'teleport/services/clusters';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import {
   SortHeaderCell,
   TextCell,
@@ -173,9 +172,14 @@ export function NodeCountCell(props) {
   return (
     <Cell>
       {nodeCount && (
-        <StyledLink target="_blank" as="a" href={terminalURL}>
-          {nodeCount}
-        </StyledLink>
+        <StyledConsoleLink
+          title="Open Cluster Terminal"
+          target="_blank"
+          as="a"
+          href={terminalURL}
+        >
+          <Cli /> {nodeCount > 0 && nodeCount}
+        </StyledConsoleLink>
       )}
     </Cell>
   );
@@ -253,6 +257,33 @@ const StyledLink = styled(Text)(
     background: #2c3a73;
     padding: 2px 4px;
     margin: 0 -4px;
+  }
+`
+);
+
+const StyledConsoleLink = styled(Text)(
+  props => `
+  border: 1px solid ${props.theme.colors.dark};
+  display: inline-flex;
+  align-items: center;
+  border-radius: 2px;
+  padding: 0 8px 0 2px;
+  height: 16px;
+  font-size: 10px;
+  text-decoration: none;
+  background: ${props.theme.colors.bgTerminal};
+  color: ${props.theme.colors.light};
+  font-weight: ${props.theme.fontWeights.regular};
+  transition: all .3s;
+  min-width: 24px;
+
+  &:hover, &:focus {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .24);
+    border: 1px solid ${props.theme.colors.accent};
+  }
+  span {
+    margin-right: 4px;
+    opacity: .32;
   }
 `
 );

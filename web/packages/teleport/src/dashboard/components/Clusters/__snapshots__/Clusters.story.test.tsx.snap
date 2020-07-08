@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render cluster nodes 1`] = `
-.c15 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -30,22 +30,22 @@ exports[`render cluster nodes 1`] = `
   height: 24px;
 }
 
-.c15:active {
+.c16:active {
   opacity: 0.56;
 }
 
-.c15:hover,
-.c15:focus {
+.c16:hover,
+.c16:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c15:active {
+.c16:active {
   opacity: 0.24;
 }
 
-.c15:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -63,7 +63,7 @@ exports[`render cluster nodes 1`] = `
   color: #FFFFFF;
 }
 
-.c16 {
+.c17 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -308,6 +308,36 @@ exports[`render cluster nodes 1`] = `
   margin: 0 -4px;
 }
 
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  border: 1px solid #000;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 2px;
+  padding: 0 8px 0 2px;
+  height: 16px;
+  font-size: 10px;
+  text-decoration: none;
+  background: #010B1C;
+  color: #FFFFFF;
+  font-weight: 400;
+  transition: all .3s;
+  min-width: 24px;
+}
+
+.c15:hover,
+.c15:focus {
+  box-shadow: 0 4px 16px rgba(0,0,0,.24);
+  border: 1px solid #651FFF;
+}
+
+.c15 span {
+  margin-right: 4px;
+  opacity: .32;
+}
+
 <div
   class="sc-AxirZ c0"
 >
@@ -450,11 +480,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/localhost/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             30
           </a>
         </td>
@@ -465,13 +500,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -497,11 +532,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/nidvojik/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             21
           </a>
         </td>
@@ -512,13 +552,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -544,11 +584,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/lidtabih/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             35
           </a>
         </td>
@@ -559,13 +604,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -591,11 +636,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/farovluv/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             12
           </a>
         </td>
@@ -606,13 +656,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -638,11 +688,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/rozpaari/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             32
           </a>
         </td>
@@ -653,13 +708,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -685,11 +740,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/wetjolune/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             8
           </a>
         </td>
@@ -700,13 +760,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -732,11 +792,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/dashawic/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             11
           </a>
         </td>
@@ -747,13 +812,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -779,11 +844,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/jesushenry58/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -794,13 +864,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -826,11 +896,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/jordansimpson35/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -841,13 +916,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -873,11 +948,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/leonamann249/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -888,13 +968,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -920,11 +1000,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/bessiecohen207/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -935,13 +1020,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -967,11 +1052,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/philipjohnson10/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -982,13 +1072,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1014,11 +1104,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/teresastone14/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1029,13 +1124,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1061,11 +1156,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/connorsharp137/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1076,13 +1176,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1108,11 +1208,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/ricardosingleton242/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1123,13 +1228,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1155,11 +1260,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/rozpaari/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             32
           </a>
         </td>
@@ -1170,13 +1280,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1202,11 +1312,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/wetjolune/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             8
           </a>
         </td>
@@ -1217,13 +1332,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1249,11 +1364,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/dashawic/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             11
           </a>
         </td>
@@ -1264,13 +1384,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1296,11 +1416,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/williepayne223/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1311,13 +1436,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1343,11 +1468,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/samlewis176/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1358,13 +1488,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1390,11 +1520,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/nellwheeler72/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1405,13 +1540,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1437,11 +1572,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/albertowens200/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1452,13 +1592,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1484,11 +1624,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/beatricecarson171/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1499,13 +1644,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1531,11 +1676,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/besscarroll152/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1546,13 +1696,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1578,11 +1728,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/hannahsutton232/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1593,13 +1748,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1625,11 +1780,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/barrynelson110/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1640,13 +1800,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1672,11 +1832,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/rozpaari/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             32
           </a>
         </td>
@@ -1687,13 +1852,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1719,11 +1884,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/wetjolune/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             8
           </a>
         </td>
@@ -1734,13 +1904,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1766,11 +1936,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/dashawic/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             11
           </a>
         </td>
@@ -1781,13 +1956,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1813,11 +1988,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/henriettarios78/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1828,13 +2008,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1860,11 +2040,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/josephinewolfe55/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1875,13 +2060,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1907,11 +2092,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/jaysandoval137/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1922,13 +2112,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1954,11 +2144,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/isabellekim81/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -1969,13 +2164,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2001,11 +2196,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/francismoran134/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -2016,13 +2216,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2048,11 +2248,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/theodorefrazier78/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -2063,13 +2268,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2095,11 +2300,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/hattiestanley34/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -2110,13 +2320,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2142,11 +2352,16 @@ exports[`render cluster nodes 1`] = `
         </td>
         <td>
           <a
-            class="c14"
-            color="text.primary"
+            class="c15"
             href="/web/cluster/tommybrooks146/console/nodes"
             target="_blank"
+            title="Open Cluster Terminal"
           >
+            <span
+              class="c8 c12 icon icon-terminal "
+              color="light"
+            />
+             
             23
           </a>
         </td>
@@ -2157,13 +2372,13 @@ exports[`render cluster nodes 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c16"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c16 icon icon-caret-down "
+              class="c8 c17 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />

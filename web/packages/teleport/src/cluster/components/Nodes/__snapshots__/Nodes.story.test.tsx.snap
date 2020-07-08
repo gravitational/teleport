@@ -456,6 +456,7 @@ exports[`loaded 1`] = `
         color="text.primary"
         height="34px"
         placeholder="login@host"
+        style="height: 30px; font-size: 12px;"
         width="200px"
       />
     </div>

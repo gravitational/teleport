@@ -60,6 +60,12 @@ export function Nodes({
           as={Flex}
           autoFocus={false}
           alignItems="center"
+          inputProps={{
+            style: {
+              height: '30px',
+              fontSize: '12px',
+            },
+          }}
           labelProps={{
             mr: 3,
             mb: 0,

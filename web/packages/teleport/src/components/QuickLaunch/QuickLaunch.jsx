@@ -23,6 +23,7 @@ export default function FieldInputSsh({
   autoFocus = true,
   width = '200px',
   labelProps = {},
+  inputProps = {},
   ...boxProps
 }) {
   const [hasError, setHasError] = React.useState(false);
@@ -56,6 +57,7 @@ export default function FieldInputSsh({
         autoFocus={autoFocus}
         width={width}
         onKeyPress={onKeyPress}
+        {...inputProps}
       />
     </Box>
   );
