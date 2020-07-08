@@ -349,6 +349,10 @@ func (s *SCPSuite) TestSCPParsing(c *C) {
 			in:   "myusername@myremotehost.com:/home/hope/*",
 			dest: Destination{Login: "myusername", Host: utils.NetAddr{Addr: "myremotehost.com", AddrNetwork: "tcp"}, Path: "/home/hope/*"},
 		},
+		{
+			in:   "complex@example.com@remote.com:/anything.txt",
+			dest: Destination{Login: "complex@example.com", Host: utils.NetAddr{Addr: "remote.com", AddrNetwork: "tcp"}, Path: "/anything.txt"},
+		},
 	}
 	for i, tc := range testCases {
 		comment := Commentf("Test case %v: %q", i, tc.in)
