@@ -19,8 +19,8 @@ RUN apt-get update -y --fix-missing && \
 
 ARG UID
 ARG GID
-RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
-     mkdir -p -m0700 /var/lib/teleport && chown -R jenkins /var/lib/teleport)
+RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
+     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz ;\
