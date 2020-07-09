@@ -395,6 +395,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_TAG
+      - echo $DRONE_TAG > /go/.drone_tag.txt
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -418,10 +419,18 @@ steps:
         path: /var/run
     commands:
       - apk add --no-cache make
+      # TODO(gus): testing
+      - >-
+        export VERSION=$(cat /go/.drone_tag.txt)
+        if [[ "${VERSION}" == "" ]]; then
+          export VERSION=4.3.0
+        else
+          export VERSION=${VERSION##v}
+        fi
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release-fips OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
 
   - name: Copy FIPS artifacts
     image: docker
@@ -1853,6 +1862,6 @@ steps:
 
 ---
 kind: signature
-hmac: f1647c51c0725ac14e8661cc825b90bc846a0509f3aee08459277c24414d2d46
+hmac: 75f12e1df98ef47a9ab8c264ed4b947d9f4f9d0b870db7d790d25d7e71c65514
 
 ...
