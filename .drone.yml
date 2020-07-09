@@ -441,7 +441,7 @@ steps:
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
       # TODO(gus): testing
-      - mv /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -950,7 +950,8 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      # TODO(gus): testing
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -999,7 +1000,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG:-$DRONE_COMMIT}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1189,7 +1190,6 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
-
       - make rpm
 
   - name: Copy i386 RPM artifacts
@@ -1845,6 +1845,6 @@ steps:
 
 ---
 kind: signature
-hmac: 5f8cabe58d4d1927ec95ce8ea7a9773748fa3b996a46d4662607a75df28217d5
+hmac: bd8a3738f24340fafae4a023cc1fe56d05639598f24ba9fa16cb819f8ab4ebee
 
 ...
