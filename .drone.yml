@@ -8,15 +8,19 @@ environment:
   UID: 1000
   GID: 1000
 
+#TODO(gus): testing
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - cron
+#       - promote
+#       - rollback
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+  cron:
+  - never
 
 workspace:
   path: /go
@@ -138,14 +142,19 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
+#TODO(gus): testing
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - cron
+#       - promote
+#       - rollback
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    include:
-      - push
-      - pull_request
+  cron:
+  - never
 
 workspace:
   path: /go
@@ -1842,6 +1851,6 @@ steps:
 
 ---
 kind: signature
-hmac: 1de295f43e93170af75665052f6ed42d849daa9cb0a8fa92496a81b33b319ef3
+hmac: 8f9ca9834906e7c23d5cfa866fa90c285bde97de05b2c45cf61f4829b64a4536
 
 ...
