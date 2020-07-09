@@ -420,7 +420,7 @@ steps:
     commands:
       - apk add --no-cache make
       # TODO(gus): testing
-      - >-
+      - |
         export VERSION=$(cat /go/.drone_tag.txt)
         if [[ "${VERSION}" == "" ]]; then
           export VERSION=4.3.0
@@ -428,7 +428,7 @@ steps:
           export VERSION=${VERSION##v}
         fi
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
 
@@ -536,7 +536,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-centos6 OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
 
@@ -650,7 +650,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-centos6-fips OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
 
@@ -1868,6 +1868,6 @@ steps:
 
 ---
 kind: signature
-hmac: d694534b995346b1452a76ecd1c5e75117ba23cc91c45bab4524a07bd3292faf
+hmac: 065c5de8d0c9f525934a9811fa9fd54c033ea6f67ca3059918c80ea86ab28912
 
 ...
