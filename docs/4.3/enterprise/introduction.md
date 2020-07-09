@@ -10,7 +10,7 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
 ---------|--------------
 |[Role Based Access Control (RBAC)](#rbac)|Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions.
 |[Single Sign-On (SSO)](#sso)| Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them.
-|[Approval Plugins](workflow/index.md) | Plugins to approve of Deny escalated RBAC requests.
+|[Approval Plugins](workflow/index.md) | Plugins to approve or deny escalated RBAC requests.
 |[FedRAMP/FIPS](#fedrampfips) | With Teleport 4.0, we have built out the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments.
 |Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times.
 
