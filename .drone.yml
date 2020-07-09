@@ -980,6 +980,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
+      - mkdir -p build
       - make rpm
 
   - name: Copy RPM artifacts
@@ -1092,6 +1093,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
+      - mkdir -p build
       - make rpm
 
   - name: Copy FIPS RPM artifacts
@@ -1201,6 +1203,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
+      - mkdir -p build
       - make rpm
 
   - name: Copy i386 RPM artifacts
@@ -1309,6 +1312,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
+      - mkdir -p build
       - make deb
 
   - name: Copy DEB artifacts
@@ -1420,6 +1424,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
+      - mkdir -p build
       - make deb
 
   - name: Copy FIPS DEB artifacts
@@ -1528,6 +1533,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
+      - mkdir -p build
       - make deb
 
   - name: Copy i386 DEB artifacts
@@ -1868,6 +1874,6 @@ steps:
 
 ---
 kind: signature
-hmac: 6c633624ff39a8179bba5b69d738d9eef695ae22ccc2b693b105f109eb7b6ea8
+hmac: 9f0b546a500bc96120e2edb765e8f45b722f630a3e136ab72c6b3c63731f1328
 
 ...
