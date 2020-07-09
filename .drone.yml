@@ -783,7 +783,6 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      # TODO(gus): debugging
       - apk add --no-cache bash curl go make tar
       - cd /go/src/github.com/gravitational/teleport
       - make rpm
@@ -793,8 +792,8 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
-      - find . -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
-      - find e -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
+      - find build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
       # TODO(gus): debugging
       - ls -l /go/artifacts
 
@@ -896,8 +895,8 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
-      - find . -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
-      - find e -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
+      - find build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
       # TODO(gus): debugging
       - ls -l /go/artifacts
 
@@ -996,8 +995,8 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
-      - find . -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-      - find e -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+      - find build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
       # TODO(gus): debugging
       - ls -l /go/artifacts
 
@@ -1098,8 +1097,8 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
-      - find . -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-      - find e -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+      - find build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
       # TODO(gus): debugging
       - ls -l /go/artifacts
 
@@ -1308,8 +1307,8 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
-      - find . -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
-      - find e -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
+      - find build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
       # TODO(gus): debugging
       - ls -l /go/artifacts
 
@@ -1407,8 +1406,8 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
-      - find . -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-      - find e -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+      - find build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
       # TODO(gus): debugging
       - ls -l /go/artifacts
 
@@ -1846,6 +1845,6 @@ steps:
 
 ---
 kind: signature
-hmac: a73f1750fdeee5764ca3d7fe93511447f461eb8d70d32d572be2445e23b67ba9
+hmac: 7e054ddeca1acd1f9b06ebdf4661e9daf1b54ff527bce62f0f58d6fd2e74d690
 
 ...
