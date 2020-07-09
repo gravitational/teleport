@@ -167,7 +167,7 @@ steps:
     commands:
       - |
         cd /go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        git diff --raw ${DRONE_COMMIT}..${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           # Check trailing whitespace
@@ -1078,6 +1078,6 @@ steps:
 
 ---
 kind: signature
-hmac: cad9bd5f67e6668099f5577521c319c285d6bcbff519867d4665befd4f55ec2c
+hmac: f5e1815ffbc9cac09bad62e7db6420b65281e4e0a8b2d4187cc0b7e565c95c90
 
 ...
