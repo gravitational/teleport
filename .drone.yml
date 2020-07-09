@@ -772,6 +772,7 @@ steps:
     image: docker
     environment:
       ARCH: amd64
+      TMPDIR: /go
     volumes:
       - name: dockersock
         path: /var/run
@@ -779,7 +780,6 @@ steps:
       # TODO(gus): debugging
       - apk add --no-cache bash curl go make tar
       - cd /go/src/github.com/gravitational/teleport
-      - ls -ld /tmp
       - make rpm
 
   - name: Copy RPM artifacts
@@ -876,6 +876,7 @@ steps:
       FIPS: "yes"
       # weird quirk of FIPS package builds
       RUNTIME: fips
+      TMPDIR: /go
     volumes:
       - name: dockersock
         path: /var/run
@@ -975,6 +976,7 @@ steps:
     image: docker
     environment:
       ARCH: amd64
+      TMPDIR: /go
     volumes:
       - name: dockersock
         path: /var/run
@@ -1076,6 +1078,7 @@ steps:
       FIPS: "yes"
       # weird quirk with FIPS package builds
       RUNTIME: "fips"
+      TMPDIR: /go
     volumes:
       - name: dockersock
         path: /var/run
@@ -1285,6 +1288,7 @@ steps:
     image: docker
     environment:
       ARCH: "386"
+      TMPDIR: /go
     volumes:
       - name: dockersock
         path: /var/run
@@ -1383,6 +1387,7 @@ steps:
     image: docker
     environment:
       ARCH: "386"
+      TMPDIR: /go
     volumes:
       - name: dockersock
         path: /var/run
@@ -1835,6 +1840,6 @@ steps:
 
 ---
 kind: signature
-hmac: a0a120bdf7156e27642e87416aac7ecc45c814b7688a6fee5a9cbd8b8211f104
+hmac: a73f1750fdeee5764ca3d7fe93511447f461eb8d70d32d572be2445e23b67ba9
 
 ...
