@@ -259,8 +259,7 @@ fi
 pushd $(mktemp -d)
 PACKAGE_TEMPDIR=$(pwd)
 # automatically clean up on exit
-# TODO(gus): testing
-trap "ls -lR ${TMPDIR} && rm -rf ${PACKAGE_TEMPDIR}" EXIT
+trap "rm -rf ${PACKAGE_TEMPDIR}" EXIT
 mkdir -p ${PACKAGE_TEMPDIR}/buildroot
 
 # implement a rudimentary download cache for repeat builds on the same host
