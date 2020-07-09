@@ -80,6 +80,12 @@ if [ ! $(command -v curl) ]; then
     exit 2
 fi
 
+# check that tar is installed
+if [ ! $(command -v tar) ]; then
+    echo "tar must be installed"
+    exit 11
+fi
+
 # check that docker is installed when fpm is needed to build
 if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
     if [ ! $(command -v docker) ]; then
