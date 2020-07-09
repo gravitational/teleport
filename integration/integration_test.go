@@ -2943,8 +2943,10 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			inEnabled:     true,
 			inServiceName: "teleport-success",
 			outContains: []string{
-				"Account opened successfully.",
-				"Session open successfully.",
+				"pam_sm_acct_mgmt OK",
+				"pam_sm_authenticate OK",
+				"pam_sm_open_session OK",
+				"pam_sm_close_session OK",
 			},
 		},
 		// 2 - PAM enabled, module account functions fail.
@@ -3014,7 +3016,8 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		// If any output is expected, check to make sure it was output.
 		if len(tt.outContains) > 0 {
 			for _, expectedOutput := range tt.outContains {
-				output := termSession.Output(100)
+				output := termSession.Output(1024)
+				c.Logf("got output: %q; want output to contain: %q", output, expectedOutput)
 				c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
 			}
 		}
