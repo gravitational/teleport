@@ -281,7 +281,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -392,7 +392,6 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      # TODO(gus): testing
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       - echo $DRONE_TAG > /go/.drone_tag.txt
       # fetch enterprise submodules
@@ -454,8 +453,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      # TODO(gus): testing
-      target: teleport/tag/${DRONE_TAG:-$DRONE_COMMIT}
+      target: teleport/tag/${DRONE_TAG}
       strip_prefix: /go/artifacts/
 
 services:
@@ -513,7 +511,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -549,8 +547,8 @@ steps:
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
-      - mv /go/artifacts/teleport-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-$DRONE_TAG-linux-amd64-centos6-bin.tar.gz
-      - mv /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -623,7 +621,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -659,7 +657,7 @@ steps:
       # copy release archives to artifact directory
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifact
-      - mv /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-centos6-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -732,7 +730,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -838,7 +836,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -993,7 +991,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG:-$DRONE_COMMIT}
+      target: teleport/tag/${DRONE_TAG}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1099,7 +1097,7 @@ steps:
       region: us-west-2
       source: /go/artifacts/*
       # TODO(gus): testing
-      target: teleport/tag/${DRONE_TAG:-$DRONE_COMMIT}
+      target: teleport/tag/${DRONE_TAG}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1154,7 +1152,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -1255,7 +1253,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -1356,7 +1354,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -1460,7 +1458,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -1823,6 +1821,6 @@ steps:
 
 ---
 kind: signature
-hmac: 74fa52106543d06f6968063c5406a9160eefc5cc7bb48b1cef430d45316b69e9
+hmac: ec885def58ecbb81ddf2c01742cca02276cdcffec7a0a88bae5460b04b1afbbe
 
 ...
