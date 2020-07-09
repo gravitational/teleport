@@ -56,6 +56,15 @@ build-binaries: buildbox
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all
 
 #
+# Build 'teleport' FIPS release inside a docker container
+# This builds Enterprise binaries only.
+#
+.PHONY:build-binaries-fips
+build-binaries-fips: buildbox-fips
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOXFIPS) \
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' all
+
+#
 # Builds a Docker container which is used for building official Teleport
 # binaries and docs
 #
