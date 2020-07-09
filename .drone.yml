@@ -970,6 +970,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache rpm
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - mkdir -p build
@@ -1078,6 +1079,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache rpm
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - mkdir -p build
@@ -1183,6 +1185,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache rpm
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - mkdir -p build
@@ -1287,6 +1290,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache rpm
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - mkdir -p build
@@ -1394,6 +1398,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache rpm
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - mkdir -p build
@@ -1498,6 +1503,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache rpm
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - mkdir -p build
@@ -1841,6 +1847,6 @@ steps:
 
 ---
 kind: signature
-hmac: f2bb5a8ea6961997028373c9dcecd7055a1e6d8a1abbd69a955b9fe8dd2c2569
+hmac: 6b5494f44bd947e91954fe6932fff4077f29d0bf7ddcb26ce0a4e7b02d014a1c
 
 ...
