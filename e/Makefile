@@ -162,9 +162,13 @@ image:
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t quay.io/gravitational/teleport-ent:$(VERSION)
 
+.PHONY:docker-binaries-fips
+docker-binaries-fips: clean
+	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
+	make -C ../build.assets build-binaries-fips
+
 .PHONY: image-fips
-image-fips:
-	export BUILDDIR=build-fips
+image-fips: docker-binaries-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	cp ../build.assets/charts/Dockerfile-fips $(BUILDDIR)/Dockerfile
 	cd $(BUILDDIR) && docker build --no-cache . -t quay.io/gravitational/teleport-ent:$(VERSION)-fips
@@ -222,6 +226,7 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
@@ -231,6 +236,7 @@ pkg:
 # build .rpm
 .PHONY: rpm
 rpm:
+	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
@@ -238,6 +244,7 @@ rpm:
 # build .deb
 .PHONY: deb
 deb:
+	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
