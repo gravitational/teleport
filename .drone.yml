@@ -440,7 +440,8 @@ steps:
       # copy release archives to artifact directory
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
-      - mv /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-fips-bin.tar.gz
+      # TODO(gus): testing
+      - mv /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -978,7 +979,6 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
-      - mkdir -p build
       - make rpm
 
   - name: Copy RPM artifacts
@@ -1087,7 +1087,6 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
-      - mkdir -p build
       - make rpm
 
   - name: Copy FIPS RPM artifacts
@@ -1193,7 +1192,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
-      - mkdir -p build
+
       - make rpm
 
   - name: Copy i386 RPM artifacts
@@ -1298,7 +1297,6 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
-      - mkdir -p build
       - make deb
 
   - name: Copy DEB artifacts
@@ -1406,7 +1404,6 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
-      - mkdir -p build
       - make deb
 
   - name: Copy FIPS DEB artifacts
@@ -1511,7 +1508,6 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
-      - mkdir -p build
       - make deb
 
   - name: Copy i386 DEB artifacts
@@ -1852,6 +1848,6 @@ steps:
 
 ---
 kind: signature
-hmac: e1393433f08b4d55ac86cd66d70904eb767152c5fbee6e109cc080d3c688cab1
+hmac: 5f8cabe58d4d1927ec95ce8ea7a9773748fa3b996a46d4662607a75df28217d5
 
 ...
