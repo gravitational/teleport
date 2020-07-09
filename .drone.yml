@@ -961,7 +961,7 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build RPM artifacts
-    image: docker
+    image: golang:1.13.2
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -1071,7 +1071,7 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build FIPS RPM artifacts
-    image: docker
+    image: golang:1.13.2
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -1184,7 +1184,7 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build i386 RPM artifacts
-    image: docker
+    image: golang:1.13.2
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -1293,7 +1293,7 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build DEB artifacts
-    image: docker
+    image: golang:1.13.2
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -1402,7 +1402,7 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build FIPS DEB artifacts
-    image: docker
+    image: golang:1.13.2
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -1514,7 +1514,7 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build i386 DEB artifacts
-    image: docker
+    image: golang:1.13.2
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -1871,6 +1871,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9f0b546a500bc96120e2edb765e8f45b722f630a3e136ab72c6b3c63731f1328
+hmac: a9c4c886c768ac725fbb9e923f0f2680609374d38acae622af9b28fa84ad0e86
 
 ...
