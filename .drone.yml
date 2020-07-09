@@ -8,7 +8,7 @@ environment:
   UID: 1000
   GID: 1000
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   branch:
 #     - master
@@ -20,7 +20,7 @@ environment:
 #       - rollback
 trigger:
   cron:
-  - never
+    - never
 
 workspace:
   path: /go
@@ -50,18 +50,12 @@ steps:
 
   - name: Build buildbox
     image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets buildbox
@@ -142,7 +136,7 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   branch:
 #     - master
@@ -154,7 +148,7 @@ name: test-docs
 #       - rollback
 trigger:
   cron:
-  - never
+    - never
 
 workspace:
   path: /go
@@ -252,7 +246,7 @@ name: build-linux-amd64
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -313,17 +307,18 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
 
   - name: Copy artifacts
-    image: docker:git
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-      #TODO(gus): pretty sure this does nothing
+      # TODO(gus): pretty sure this does nothing
       # rename artifacts
       # - mv /go/artifacts/teleport-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-$DRONE_TAG-linux-amd64-bin.tar.gz
       # - mv /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$DRONE_TAG-linux-amd64-bin.tar.gz
@@ -364,7 +359,7 @@ name: build-linux-amd64-fips
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -424,11 +419,12 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-fips OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
 
   - name: Copy FIPS artifacts
-    image: docker:git
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
@@ -472,7 +468,7 @@ name: build-linux-amd64-centos6
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -531,11 +527,12 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-centos6 OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
 
   - name: Copy CentOS 6 artifacts
-    image: docker:git
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
@@ -578,7 +575,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6-fips
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -624,7 +621,7 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build CentOS 6 FIPS release artifacts
-    image: docker:git
+    image: docker
     environment:
       UID: 1000
       GID: 1000
@@ -638,11 +635,12 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-centos6-fips OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
 
   - name: Copy CentOS 6 FIPS artifacts
-    image: docker:git
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
@@ -686,7 +684,7 @@ name: build-windows
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -732,7 +730,7 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build Windows release artifacts
-    image: docker:git
+    image: docker
     environment:
       UID: 1000
       GID: 1000
@@ -744,11 +742,12 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-windows OS=$OS
 
   - name: Copy Windows artifacts
-    image: docker:git
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to build directory
@@ -791,7 +790,7 @@ name: build-linux-i386
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -836,7 +835,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
 
-  - name: Build release artifacts
+  - name: Build i386 release artifacts
     image: docker
     environment:
       GITHUB_PRIVATE_KEY:
@@ -852,11 +851,12 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
 
   - name: Copy artifacts
-    image: docker:git
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
@@ -903,7 +903,7 @@ name: build-linux-amd64-rpm
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -948,7 +948,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
 
-  - name: Build release artifacts
+  - name: Build RPM artifacts
     image: docker
     environment:
       GITHUB_PRIVATE_KEY:
@@ -967,14 +967,14 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make rpm
 
-  - name: Copy artifacts
-    image: docker:git
+  - name: Copy RPM artifacts
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
       - find . -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
-      #TODO(gus): debugging
+      # TODO(gus): debugging
       - ls -l /go/artifacts
 
   - name: Upload to S3
@@ -1011,7 +1011,7 @@ name: build-linux-amd64-fips-rpm
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -1046,7 +1046,7 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      #TODO(gus): testing
+      # TODO(gus): testing
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -1057,7 +1057,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
 
-  - name: Build release artifacts
+  - name: Build FIPS RPM artifacts
     image: docker
     environment:
       GITHUB_PRIVATE_KEY:
@@ -1068,7 +1068,8 @@ steps:
       OS: linux
       ARCH: amd64
       FIPS: "yes"
-      RUNTIME: fips # weird quirk of FIPS package builds
+      # weird quirk of FIPS package builds
+      RUNTIME: fips
     volumes:
       - name: dockersock
         path: /var/run
@@ -1078,14 +1079,14 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make rpm
 
-  - name: Copy artifacts
-    image: docker:git
+  - name: Copy FIPS RPM artifacts
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
       - find . -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
-      #TODO(gus): debugging
+      # TODO(gus): debugging
       - ls -l /go/artifacts
 
   - name: Upload to S3
@@ -1099,7 +1100,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      #TODO(gus): testing
+      # TODO(gus): testing
       target: teleport/tag/${DRONE_TAG:-$DRONE_COMMIT}
       strip_prefix: /go/artifacts/
 
@@ -1123,7 +1124,7 @@ name: build-linux-i386-rpm
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -1168,7 +1169,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
 
-  - name: Build release artifacts
+  - name: Build i386 RPM artifacts
     image: docker
     environment:
       GITHUB_PRIVATE_KEY:
@@ -1187,14 +1188,14 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make rpm
 
-  - name: Copy artifacts
-    image: docker:git
+  - name: Copy i386 RPM artifacts
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
       - find . -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
-      #TODO(gus): debugging
+      # TODO(gus): debugging
       - ls -l /go/artifacts
 
   - name: Upload to S3
@@ -1231,7 +1232,7 @@ name: build-linux-amd64-deb
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -1276,7 +1277,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
 
-  - name: Build release artifacts
+  - name: Build DEB artifacts
     image: docker
     environment:
       GITHUB_PRIVATE_KEY:
@@ -1295,14 +1296,14 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make deb
 
-  - name: Copy artifacts
-    image: docker:git
+  - name: Copy DEB artifacts
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
       - find . -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-      #TODO(gus): debugging
+      # TODO(gus): debugging
       - ls -l /go/artifacts
 
   - name: Upload to S3
@@ -1339,7 +1340,7 @@ name: build-linux-amd64-fips-deb
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -1384,7 +1385,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
 
-  - name: Build release artifacts
+  - name: Build FIPS DEB artifacts
     image: docker
     environment:
       GITHUB_PRIVATE_KEY:
@@ -1395,7 +1396,8 @@ steps:
       OS: linux
       ARCH: amd64
       FIPS: "yes"
-      RUNTIME: "fips" # weird quirk with FIPS package builds
+      # weird quirk with FIPS package builds
+      RUNTIME: "fips"
     volumes:
       - name: dockersock
         path: /var/run
@@ -1405,14 +1407,14 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make deb
 
-  - name: Copy artifacts
-    image: docker:git
+  - name: Copy FIPS DEB artifacts
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
       - find . -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-      #TODO(gus): debugging
+      # TODO(gus): debugging
       - ls -l /go/artifacts
 
   - name: Upload to S3
@@ -1449,7 +1451,7 @@ name: build-linux-i386-deb
 environment:
   RUNTIME: go1.13.2
 
-#TODO(gus): testing
+# TODO(gus): testing
 # trigger:
 #   event:
 #     - tag
@@ -1494,7 +1496,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
 
-  - name: Build release artifacts
+  - name: Build i386 DEB artifacts
     image: docker
     environment:
       GITHUB_PRIVATE_KEY:
@@ -1513,14 +1515,14 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make deb
 
-  - name: Copy artifacts
-    image: docker:git
+  - name: Copy i386 DEB artifacts
+    image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
       - find . -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-      #TODO(gus): debugging
+      # TODO(gus): debugging
       - ls -l /go/artifacts
 
   - name: Upload to S3
@@ -1582,7 +1584,7 @@ steps:
       - git checkout $DRONE_COMMIT
 
   - name: Build and push buildbox container
-    image: docker:git
+    image: docker
     environment:
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -1600,7 +1602,7 @@ steps:
       - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
 
   - name: Build and push buildbox-fips container
-    image: docker:git
+    image: docker
     environment:
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -1618,7 +1620,7 @@ steps:
       - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
 
   - name: Build and push buildbox-centos6 container
-    image: docker:git
+    image: docker
     environment:
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -1636,7 +1638,7 @@ steps:
       - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
 
   - name: Build and push buildbox-centos6-fips container
-    image: docker:git
+    image: docker
     environment:
       QUAYIO_DOCKER_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
@@ -1851,6 +1853,6 @@ steps:
 
 ---
 kind: signature
-hmac: 8f9ca9834906e7c23d5cfa866fa90c285bde97de05b2c45cf61f4829b64a4536
+hmac: f1647c51c0725ac14e8661cc825b90bc846a0509f3aee08459277c24414d2d46
 
 ...
