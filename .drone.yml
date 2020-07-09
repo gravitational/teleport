@@ -563,7 +563,7 @@ steps:
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
       # rename artifacts
       - mv /go/artifacts/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-bin.tar.gz
-      - mv /go/artifacts/e/teleport-ent-**-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/e/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
       - cd /go/artifacts/e && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -687,7 +687,7 @@ steps:
       # copy release archives to artifact directory
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifact
-      - mv /go/artifacts/teleport-ent-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -1839,6 +1839,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7e054ddeca1acd1f9b06ebdf4661e9daf1b54ff527bce62f0f58d6fd2e74d690
+hmac: 2af9a21d2fee730d25ec40440d20e55c6a20889c22b2d8b2b352b357a587fab5
 
 ...
