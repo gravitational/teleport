@@ -95,7 +95,7 @@ spec:
      # regular expressions with capture are also supported. the next line instructs Teleport
      # to assign users to roles `admin-1` if his SAML "group" attribute equals 'ssh_admin_1':
      - { name: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
-  
+
   entity_descriptor: |
     <paste SAML XML contents here>
 ```
