@@ -584,6 +584,9 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6-fips
 
+environment:
+  RUNTIME: go1.13.2
+
 # TODO(gus): testing
 # trigger:
 #   event:
@@ -1862,6 +1865,6 @@ steps:
 
 ---
 kind: signature
-hmac: 75f12e1df98ef47a9ab8c264ed4b947d9f4f9d0b870db7d790d25d7e71c65514
+hmac: 6c633624ff39a8179bba5b69d738d9eef695ae22ccc2b693b105f109eb7b6ea8
 
 ...
