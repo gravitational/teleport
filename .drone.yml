@@ -394,7 +394,8 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_TAG
+      # TODO(gus): testing
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       - echo $DRONE_TAG > /go/.drone_tag.txt
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -454,7 +455,8 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      # TODO(gus): testing
+      target: teleport/tag/${DRONE_TAG:-$DRONE_COMMIT}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1850,6 +1852,6 @@ steps:
 
 ---
 kind: signature
-hmac: 6b5494f44bd947e91954fe6932fff4077f29d0bf7ddcb26ce0a4e7b02d014a1c
+hmac: 2ba0baebebd30c3877d036bfe0509ffe1c71ba2fef1b3ceed3d64edc24d9452e
 
 ...
