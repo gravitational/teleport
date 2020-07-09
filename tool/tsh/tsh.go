@@ -562,6 +562,46 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 	tc.AuthMethods = []ssh.AuthMethod{identityAuth}
 	tc.Interactive = false
 	tc.SkipLocalAuth = true
+
+	// When user logs in for the first time without a CA in ~/.tsh/known_hosts,
+	// and specifies the -out flag, we need to avoid writing anything to
+	// ~/.tsh/ but still validate the proxy cert. Because the existing
+	// client.Client methods have a side-effect of persisting the CA on disk,
+	// we do all of this by hand.
+	//
+	// Wrap tc.HostKeyCallback with a another checker. This outer checker uses
+	// key.TrustedCA to validate the remote host cert first, before falling
+	// back to the original HostKeyCallback.
+	oldHostKeyCallback := tc.HostKeyCallback
+	tc.HostKeyCallback = func(hostname string, remote net.Addr, hostKey ssh.PublicKey) error {
+		checker := ssh.CertChecker{
+			// ssh.CertChecker will parse hostKey, extract public key of the
+			// signer (CA) and call IsHostAuthority. IsHostAuthority in turn
+			// has to match hostCAKey to any known trusted CA.
+			IsHostAuthority: func(hostCAKey ssh.PublicKey, address string) bool {
+				for _, ca := range key.TrustedCA {
+					caKeys, err := ca.SSHCertPublicKeys()
+					if err != nil {
+						return false
+					}
+					for _, caKey := range caKeys {
+						if sshutils.KeysEqual(caKey, hostCAKey) {
+							return true
+						}
+					}
+				}
+				return false
+			},
+		}
+		err := checker.CheckHostKey(hostname, remote, hostKey)
+		if err != nil && oldHostKeyCallback != nil {
+			errOld := oldHostKeyCallback(hostname, remote, hostKey)
+			if errOld != nil {
+				return trace.NewAggregate(err, errOld)
+			}
+		}
+		return nil
+	}
 	return nil
 }
 
