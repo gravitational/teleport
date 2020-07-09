@@ -915,9 +915,6 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-rpm
 
-environment:
-  RUNTIME: go1.13.2
-
 # TODO(gus): testing
 # trigger:
 #   event:
@@ -964,14 +961,13 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build RPM artifacts
-    image: golang:1.13.2
+    image: docker
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
       GOPATH: /go
-      OS: linux
       ARCH: amd64
     volumes:
       - name: dockersock
@@ -1023,9 +1019,6 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips-rpm
 
-environment:
-  RUNTIME: go1.13.2
-
 # TODO(gus): testing
 # trigger:
 #   event:
@@ -1073,14 +1066,13 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build FIPS RPM artifacts
-    image: golang:1.13.2
+    image: docker
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
       GOPATH: /go
-      OS: linux
       ARCH: amd64
       FIPS: "yes"
       # weird quirk of FIPS package builds
@@ -1136,9 +1128,6 @@ kind: pipeline
 type: kubernetes
 name: build-linux-i386-rpm
 
-environment:
-  RUNTIME: go1.13.2
-
 # TODO(gus): testing
 # trigger:
 #   event:
@@ -1185,14 +1174,13 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build i386 RPM artifacts
-    image: golang:1.13.2
+    image: docker
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
       GOPATH: /go
-      OS: linux
       ARCH: "386"
     volumes:
       - name: dockersock
@@ -1244,9 +1232,6 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-deb
 
-environment:
-  RUNTIME: go1.13.2
-
 # TODO(gus): testing
 # trigger:
 #   event:
@@ -1293,14 +1278,13 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build DEB artifacts
-    image: golang:1.13.2
+    image: docker
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
       GOPATH: /go
-      OS: linux
       ARCH: amd64
     volumes:
       - name: dockersock
@@ -1352,9 +1336,6 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips-deb
 
-environment:
-  RUNTIME: go1.13.2
-
 # TODO(gus): testing
 # trigger:
 #   event:
@@ -1401,14 +1382,13 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build FIPS DEB artifacts
-    image: golang:1.13.2
+    image: docker
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
       GOPATH: /go
-      OS: linux
       ARCH: amd64
       FIPS: "yes"
       # weird quirk with FIPS package builds
@@ -1463,9 +1443,6 @@ kind: pipeline
 type: kubernetes
 name: build-linux-i386-deb
 
-environment:
-  RUNTIME: go1.13.2
-
 # TODO(gus): testing
 # trigger:
 #   event:
@@ -1512,14 +1489,13 @@ steps:
       - mkdir -p /go/cache /go/artifacts
 
   - name: Build i386 DEB artifacts
-    image: golang:1.13.2
+    image: docker
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
       GOPATH: /go
-      OS: linux
       ARCH: "386"
     volumes:
       - name: dockersock
