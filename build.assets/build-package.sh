@@ -259,7 +259,8 @@ fi
 pushd $(mktemp -d)
 TMPDIR=$(pwd)
 # automatically clean up on exit
-trap "rm -rf ${TMPDIR}" EXIT
+# TODO(gus): testing
+trap "ls -lR /tmp && rm -rf ${TMPDIR}" EXIT
 mkdir -p ${TMPDIR}/buildroot
 
 # implement a rudimentary download cache for repeat builds on the same host
