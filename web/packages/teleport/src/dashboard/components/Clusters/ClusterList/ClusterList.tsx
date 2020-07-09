@@ -169,18 +169,24 @@ export function NodeCountCell(props) {
   const { rowIndex, data } = props;
   const { nodeCount, clusterId } = data[rowIndex];
   const terminalURL = cfg.getConsoleNodesRoute(clusterId);
+
+  if (!clusterId) {
+    return <Cell />;
+  }
+
+  // show empty button when 0 nodes
+  const btnText = nodeCount > 0 ? nodeCount : '';
+
   return (
     <Cell>
-      {nodeCount && (
-        <StyledConsoleLink
-          title="Open Cluster Terminal"
-          target="_blank"
-          as="a"
-          href={terminalURL}
-        >
-          <Cli /> {nodeCount > 0 && nodeCount}
-        </StyledConsoleLink>
-      )}
+      <StyledConsoleLink
+        title="Open Cluster Terminal"
+        target="_blank"
+        as="a"
+        href={terminalURL}
+      >
+        <Cli /> {btnText}
+      </StyledConsoleLink>
     </Cell>
   );
 }
@@ -225,6 +231,7 @@ function ActionCell(props) {
 }
 
 type SortCol = keyof Cluster;
+
 type Sorting = {
   [P in keyof Cluster]?: string;
 };
