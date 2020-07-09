@@ -59,7 +59,6 @@ build-binaries: buildbox
 # Builds a Docker container which is used for building official Teleport
 # binaries and docs
 #
-<<<<<<< HEAD
 .PHONY:buildbox
 buildbox:
 	docker build \
