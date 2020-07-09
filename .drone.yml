@@ -776,8 +776,10 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache bash curl make tar
+      # TODO(gus): debugging
+      - apk add --no-cache bash curl go make tar
       - cd /go/src/github.com/gravitational/teleport
+      - ls -ld /tmp
       - make rpm
 
   - name: Copy RPM artifacts
@@ -1833,6 +1835,6 @@ steps:
 
 ---
 kind: signature
-hmac: 391a0751f5c5002ab91a0c80c39f73036f83fd59813c0b38c3acc2d4a442b8ec
+hmac: a0a120bdf7156e27642e87416aac7ecc45c814b7688a6fee5a9cbd8b8211f104
 
 ...
