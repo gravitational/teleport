@@ -96,14 +96,14 @@ spec:
      # to assign users to roles `admin-1` if his SAML "group" attribute equals 'ssh_admin_1':
      - { name: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
   
-  # entity_descriptor XML can either be fetched from a URL or included below
-  # entity_descriptor_url: "https://example.com"
   entity_descriptor: |
     <paste SAML XML contents here>
 ```
 
 * See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources)
   directory in the Teleport Github repository for examples of possible connectors.
+* You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch the entity descriptor from
+your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
 
 ### User Logins
 
