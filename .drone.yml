@@ -783,7 +783,6 @@ steps:
         path: /var/run
     commands:
       - apk add --no-cache bash curl make tar
-      - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make rpm
 
@@ -886,7 +885,6 @@ steps:
         path: /var/run
     commands:
       - apk add --no-cache bash curl make tar
-      - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make rpm
 
@@ -986,7 +984,6 @@ steps:
         path: /var/run
     commands:
       - apk add --no-cache bash curl make tar
-      - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make deb
 
@@ -1088,7 +1085,6 @@ steps:
         path: /var/run
     commands:
       - apk add --no-cache bash curl make tar
-      - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make deb
 
@@ -1298,7 +1294,6 @@ steps:
         path: /var/run
     commands:
       - apk add --no-cache bash curl make tar
-      - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make rpm
 
@@ -1397,7 +1392,6 @@ steps:
         path: /var/run
     commands:
       - apk add --no-cache bash curl make tar
-      - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make deb
 
@@ -1845,6 +1839,6 @@ steps:
 
 ---
 kind: signature
-hmac: e2c1bd241b6eeadb35396a5379f555cb01f3147ca0145bb13800ce5635f99085
+hmac: 391a0751f5c5002ab91a0c80c39f73036f83fd59813c0b38c3acc2d4a442b8ec
 
 ...
