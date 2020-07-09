@@ -294,8 +294,6 @@ steps:
   - name: Build release artifacts
     image: docker
     environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
       GOPATH: /go
@@ -856,8 +854,6 @@ steps:
   - name: Build i386 release artifacts
     image: docker
     environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
       GOPATH: /go
@@ -967,11 +963,8 @@ steps:
   - name: Build RPM artifacts
     image: docker
     environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
-      GOPATH: /go
       ARCH: amd64
     volumes:
       - name: dockersock
@@ -1072,11 +1065,8 @@ steps:
   - name: Build FIPS RPM artifacts
     image: docker
     environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
-      GOPATH: /go
       ARCH: amd64
       FIPS: "yes"
       # weird quirk of FIPS package builds
@@ -1180,11 +1170,8 @@ steps:
   - name: Build i386 RPM artifacts
     image: docker
     environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
-      GOPATH: /go
       ARCH: "386"
     volumes:
       - name: dockersock
@@ -1284,11 +1271,8 @@ steps:
   - name: Build DEB artifacts
     image: docker
     environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
-      GOPATH: /go
       ARCH: amd64
     volumes:
       - name: dockersock
@@ -1388,11 +1372,8 @@ steps:
   - name: Build FIPS DEB artifacts
     image: docker
     environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
-      GOPATH: /go
       ARCH: amd64
       FIPS: "yes"
       # weird quirk with FIPS package builds
@@ -1495,11 +1476,8 @@ steps:
   - name: Build i386 DEB artifacts
     image: docker
     environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
       UID: 1000
       GID: 1000
-      GOPATH: /go
       ARCH: "386"
     volumes:
       - name: dockersock
@@ -1848,6 +1826,6 @@ steps:
 
 ---
 kind: signature
-hmac: bd8a3738f24340fafae4a023cc1fe56d05639598f24ba9fa16cb819f8ab4ebee
+hmac: eb8f5af4611c0949c46041f4d95cc77176c4bf6cb48e67a458d9897cb855a021
 
 ...
