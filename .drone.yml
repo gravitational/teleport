@@ -262,8 +262,9 @@ trigger:
       - push
       - pull_request
 
-depends_on:
-  - test
+# TODO(gus): testing
+# depends_on:
+#   - test
 
 workspace:
   path: /go
@@ -318,7 +319,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
       - cd /go/artifacts/e && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -387,8 +388,9 @@ trigger:
       - push
       - pull_request
 
-depends_on:
-  - test
+# TODO(gus): testing
+# depends_on:
+#   - test
 
 workspace:
   path: /go
@@ -446,9 +448,10 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - mv /go/artifacts/teleport-ent-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -503,8 +506,9 @@ trigger:
       - push
       - pull_request
 
-depends_on:
-  - test
+# TODO(gus): testing
+# depends_on:
+#   - test
 
 workspace:
   path: /go
@@ -559,9 +563,10 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
+      - find e/  -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
       # rename artifacts
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - mv /go/artifacts/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-${VERSION}-linux-amd64-centos6-bin.tar.gz
       - mv /go/artifacts/e/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-${VERSION}-linux-amd64-centos6-bin.tar.gz
       # generate checksums
@@ -635,8 +640,9 @@ trigger:
       - push
       - pull_request
 
-depends_on:
-  - test
+# TODO(gus): testing
+# depends_on:
+#   - test
 
 workspace:
   path: /go
@@ -691,9 +697,10 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifact
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - mv /go/artifacts/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -748,8 +755,8 @@ trigger:
       - push
       - pull_request
 
+# - test
 depends_on:
-  # - test
   - build-linux-amd64
 
 workspace:
@@ -793,6 +800,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
 
@@ -866,8 +874,8 @@ trigger:
       - push
       - pull_request
 
+# - test
 depends_on:
-  # - test
   - build-linux-amd64-fips
 
 workspace:
@@ -911,6 +919,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
   - name: Build FIPS RPM artifacts
@@ -985,8 +994,8 @@ trigger:
       - push
       - pull_request
 
+# - test
 depends_on:
-  # - test
   - build-linux-amd64
 
 workspace:
@@ -1030,6 +1039,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
 
@@ -1103,8 +1113,8 @@ trigger:
       - push
       - pull_request
 
+# - test
 depends_on:
-  # - test
   - build-linux-amd64-fips
 
 workspace:
@@ -1148,6 +1158,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
@@ -1228,8 +1239,9 @@ trigger:
       - push
       - pull_request
 
-depends_on:
-  - test
+# TODO(gus): testing
+# depends_on:
+#   - test
 
 workspace:
   path: /go
@@ -1284,7 +1296,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-      - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -1335,8 +1347,8 @@ trigger:
       - push
       - pull_request
 
+# - test
 depends_on:
-  # - test
   - build-linux-i386
 
 workspace:
@@ -1380,6 +1392,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-386-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-386-bin.tar.gz /go/artifacts/
 
@@ -1453,8 +1466,8 @@ trigger:
       - push
       - pull_request
 
+# - test
 depends_on:
-  # - test
   - build-linux-i386
 
 workspace:
@@ -1498,6 +1511,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-386-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-386-bin.tar.gz /go/artifacts/
 
@@ -1574,8 +1588,9 @@ trigger:
       - push
       - pull_request
 
-depends_on:
-  - test
+# TODO(gus): testing
+# depends_on:
+#   - test
 
 workspace:
   path: /go
@@ -1961,6 +1976,6 @@ steps:
 
 ---
 kind: signature
-hmac: d2a5ae9efc090d9f85a4729163d8a0c6ea93569d00cb386f9d8d14bc3c7c1261
+hmac: 0f11d60e5d25003b1d9dc0c125f76043a79a2f59093d7e6d741d899c7c0a35cb
 
 ...
