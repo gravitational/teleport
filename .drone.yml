@@ -798,8 +798,9 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
 
   - name: Build RPM artifacts
     image: docker
@@ -916,8 +917,9 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
   - name: Build FIPS RPM artifacts
     image: docker
@@ -1037,8 +1039,9 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
 
   - name: Build DEB artifacts
     image: docker
@@ -1156,8 +1159,8 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
   - name: Build FIPS DEB artifacts
     image: docker
@@ -1390,8 +1393,9 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
 
   - name: Build i386 RPM artifacts
     image: docker
@@ -1509,8 +1513,9 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
 
   - name: Build i386 DEB artifacts
     image: docker
@@ -1973,6 +1978,6 @@ steps:
 
 ---
 kind: signature
-hmac: bd9293f2d8d7614a8b0bcb70f7a5cfa18eabc3ae056b1f028fc556cf15aba659
+hmac: dbf0a931bd8171c6f4144d3c5fab546629e152f9d38d60c917dfbe57fd337fdb
 
 ...
