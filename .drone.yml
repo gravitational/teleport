@@ -1889,7 +1889,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: promote-artifact
+name: promote-artifacts
 
 trigger:
   event:
@@ -1904,7 +1904,7 @@ clone:
   disable: true
 
 steps:
-  - name: Download artifact from S3 artifact publishing bucket
+  - name: Download artifacts from S3 artifact publishing bucket
     image: amazon/aws-cli
     environment:
       AWS_S3_BUCKET:
@@ -1917,7 +1917,7 @@ steps:
     commands:
       - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/ .
 
-  - name: Upload artifact to production S3 bucket with public read access
+  - name: Upload artifacts to production S3 bucket with public read access
     image: plugins/s3
     settings:
       bucket:
@@ -1934,6 +1934,6 @@ steps:
 
 ---
 kind: signature
-hmac: 3b7809c76d86b8d1ecda09bf02784c7f0439f5e933bae39c7c2e5c871d35e7f4
+hmac: 49c840996743f0e30184cd55618e256fa63886a962ca47d453d38cc3c05d7ce9
 
 ...
