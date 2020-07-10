@@ -290,6 +290,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts/e
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build release artifacts
     image: docker
@@ -413,6 +416,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build FIPS release artifacts
     image: docker
@@ -428,17 +434,10 @@ steps:
         path: /var/run
     commands:
       - apk add --no-cache make
-      # TODO(gus): testing
-      - |
-        export VERSION=$(cat /go/.drone_tag.txt)
-        if [[ "${VERSION}" == "" ]]; then
-          export VERSION=4.3.0
-        else
-          export VERSION=${VERSION##v}
-        fi
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
       - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
 
   - name: Copy FIPS artifacts
@@ -448,7 +447,8 @@ steps:
       # copy release archives to artifact directory
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
-      - mv /go/artifacts/teleport-ent-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-fips-bin.tar.gz
+      - export VERSION=$(cat /go/.version.txt)
+      - mv /go/artifacts/teleport-ent-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -463,7 +463,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${VERSION}
       strip_prefix: /go/artifacts/
 
 services:
@@ -530,6 +530,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts/e
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build CentOS 6 release artifacts
     image: docker
@@ -557,8 +560,9 @@ steps:
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
       # rename artifacts
-      - mv /go/artifacts/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-bin.tar.gz
-      - mv /go/artifacts/e/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-bin.tar.gz
+      - export VERSION=$(cat /go/.version.txt)
+      - mv /go/artifacts/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-${VERSION}-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/e/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-${VERSION}-linux-amd64-centos6-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
       - cd /go/artifacts/e && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -655,6 +659,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build CentOS 6 FIPS release artifacts
     image: docker
@@ -682,7 +689,8 @@ steps:
       # copy release archives to artifact directory
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifact
-      - mv /go/artifacts/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${DRONE_TAG:-$DRONE_COMMIT}-linux-amd64-centos6-fips-bin.tar.gz
+      - export VERSION=$(cat /go/.version.txt)
+      - mv /go/artifacts/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -735,6 +743,7 @@ trigger:
 
 depends_on:
   - test
+  - build-linux-amd64
 
 workspace:
   path: /go
@@ -761,12 +770,31 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
 
   - name: Build RPM artifacts
     image: docker
     environment:
       ARCH: amd64
       TMPDIR: /go
+      OSS_TARBALL_PATH: /go/artifacts
     volumes:
       - name: dockersock
         path: /var/run
@@ -832,6 +860,7 @@ trigger:
 
 depends_on:
   - test
+  - build-linux-amd64-fips
 
 workspace:
   path: /go
@@ -858,6 +887,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build FIPS RPM artifacts
     image: docker
@@ -932,6 +964,7 @@ trigger:
 
 depends_on:
   - test
+  - build-linux-amd64
 
 workspace:
   path: /go
@@ -958,6 +991,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build DEB artifacts
     image: docker
@@ -1029,6 +1065,7 @@ trigger:
 
 depends_on:
   - test
+  - build-linux-amd64-fips
 
 workspace:
   path: /go
@@ -1055,6 +1092,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build FIPS DEB artifacts
     image: docker
@@ -1159,6 +1199,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build i386 release artifacts
     image: docker
@@ -1237,6 +1280,7 @@ trigger:
 
 depends_on:
   - test
+  - build-linux-i386
 
 workspace:
   path: /go
@@ -1263,6 +1307,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build i386 RPM artifacts
     image: docker
@@ -1334,6 +1381,7 @@ trigger:
 
 depends_on:
   - test
+  - build-linux-i386
 
 workspace:
   path: /go
@@ -1360,6 +1408,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build i386 DEB artifacts
     image: docker
@@ -1460,6 +1511,9 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
+      # TODO(gus): testing
+      # set version appropriately
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
 
   - name: Build Windows release artifacts
     image: docker
@@ -1816,6 +1870,6 @@ steps:
 
 ---
 kind: signature
-hmac: b254f93d67d07ad4bda90d0388b8ec7a4811608ac8d00144c4422f5fe723bddb
+hmac: 0d79cfe72872293e519ff4cfbb640fdb953ea4ee49ff97a31f683b05a9909fa4
 
 ...
