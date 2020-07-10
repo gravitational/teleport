@@ -102,6 +102,8 @@ spec:
 
 * See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources)
   directory in the Teleport Github repository for examples of possible connectors.
+* You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch the entity descriptor from
+your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
 
 ### User Logins
 
