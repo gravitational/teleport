@@ -319,6 +319,8 @@ steps:
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
+      # rename artifact
+      - export VERSION=$(cat /go/.version.txt)
       - mv /go/artifacts/e/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -432,7 +434,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-      # rename artifacts
+      # rename artifact
       - export VERSION=$(cat /go/.version.txt)
       - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
       # generate checksums
@@ -1257,6 +1259,8 @@ steps:
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
+      # rename artifacts
+      - export VERSION=$(cat /go/.version.txt)
       - mv /go/artifacts/e/teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-386-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -1936,6 +1940,6 @@ steps:
 
 ---
 kind: signature
-hmac: 51a0ee6d4cb1b2905a387b0a80d599ae236802c2c830b5ab48fa9aa2f7fc6e11
+hmac: 3b7809c76d86b8d1ecda09bf02784c7f0439f5e933bae39c7c2e5c871d35e7f4
 
 ...
