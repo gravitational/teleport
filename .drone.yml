@@ -291,7 +291,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts/e
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -418,7 +417,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -440,7 +438,6 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - env
       - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
 
   - name: Copy FIPS artifacts
@@ -451,8 +448,6 @@ steps:
       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
       - export VERSION=$(cat /go/.version.txt)
-      - env
-      - ls -lR /go/artifacts
       - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -536,7 +531,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts/e
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -567,8 +561,6 @@ steps:
       - find e/  -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
       # rename artifacts
       - export VERSION=$(cat /go/.version.txt)
-      - env
-      - ls -lR /go/artifacts
       - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
       - mv /go/artifacts/e/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
       # generate checksums
@@ -671,7 +663,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -702,8 +693,6 @@ steps:
       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifact
       - export VERSION=$(cat /go/.version.txt)
-      - env
-      - ls -lR /go/artifacts
       - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -787,7 +776,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -803,7 +791,6 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - env
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
@@ -908,7 +895,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -925,7 +911,6 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
-      - env
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
   - name: Build FIPS RPM artifacts
@@ -1030,7 +1015,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -1046,7 +1030,6 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - env
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
@@ -1151,7 +1134,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -1167,7 +1149,6 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - env
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
@@ -1195,7 +1176,6 @@ steps:
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
-      - find build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
       - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
       - ls -l /go/artifacts
 
@@ -1278,7 +1258,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -1386,7 +1365,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -1402,7 +1380,6 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - env
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
@@ -1507,7 +1484,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -1523,7 +1499,6 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - env
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
@@ -1631,7 +1606,6 @@ steps:
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
-      # TODO(gus): testing
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -1990,6 +1964,6 @@ steps:
 
 ---
 kind: signature
-hmac: 2c046d825796af88278283a8d701783c26baea6ed8e29df8aef4576d08a61805
+hmac: 0893c3e0e700bf5a12b9b3146b6298459cb0da2586536fd67b7f2b2192259e07
 
 ...
