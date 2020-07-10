@@ -453,7 +453,7 @@ steps:
       - export VERSION=$(cat /go/.version.txt)
       - env
       - ls -lR /go/artifacts
-      - mv /go/artifacts/teleport-ent-v$(cat /go/.version.txt)-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$(cat /go/.version.txt)-linux-amd64-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -569,8 +569,8 @@ steps:
       - export VERSION=$(cat /go/.version.txt)
       - env
       - ls -lR /go/artifacts
-      - mv /go/artifacts/teleport-v$(cat /go/.version.txt)-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$(cat /go/.version.txt)-linux-amd64-centos6-bin.tar.gz
-      - mv /go/artifacts/e/teleport-v$(cat /go/.version.txt)-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-v$(cat /go/.version.txt)-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/e/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
       - cd /go/artifacts/e && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -701,7 +701,7 @@ steps:
       - export VERSION=$(cat /go/.version.txt)
       - env
       - ls -lR /go/artifacts
-      - mv /go/artifacts/teleport-v$(cat /go/.version.txt)-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$(cat /go/.version.txt)-linux-amd64-centos6-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -798,8 +798,8 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
 
   - name: Build RPM artifacts
     image: docker
@@ -917,7 +917,7 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
   - name: Build FIPS RPM artifacts
     image: docker
@@ -1037,8 +1037,8 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
 
   - name: Build DEB artifacts
     image: docker
@@ -1156,8 +1156,8 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
   - name: Build FIPS DEB artifacts
     image: docker
@@ -1390,8 +1390,8 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v${VERSION}-linux-386-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
 
   - name: Build i386 RPM artifacts
     image: docker
@@ -1509,8 +1509,8 @@ steps:
     commands:
       - export VERSION=$(cat /go/.version.txt)
       - env
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v${VERSION}-linux-386-bin.tar.gz /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
 
   - name: Build i386 DEB artifacts
     image: docker
@@ -1973,6 +1973,6 @@ steps:
 
 ---
 kind: signature
-hmac: b9db465c5c972e22b417e9efeb1e6bd48616cc73072d9e7d1f2528bae20b36f7
+hmac: bd9293f2d8d7614a8b0bcb70f7a5cfa18eabc3ae056b1f028fc556cf15aba659
 
 ...
