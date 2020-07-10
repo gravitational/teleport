@@ -27,3 +27,5 @@ tmp
 # Empty target files for Makefile
 start-houston
 build-houston
+
+/tool/modules/fips.go

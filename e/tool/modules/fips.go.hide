@@ -1,0 +1,41 @@
+// +build fips
+
+/*
+Copyright 2018 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// This file is stored as "fips.go.hide" to hide it from "go mod" commands.
+// Why? This is a weird edge-case of Go modules + optional boringcrypto
+// compilation.
+//
+// "go mod" tries to ensure that all imported stdlib packages are present in
+// GOROOT locally. The below "crypto/tls/fipsonly" package only exists on the
+// dev.boringcrypto branch of Go:
+// https://github.com/golang/go/tree/dev.boringcrypto/src/crypto/tls/fipsonly
+//
+// If you, fellow developer, didn't install Go locally from that branch, "go
+// mod" will complain loudly (even though this file is not compiled due to the
+// build tag at the top).
+//
+// So we have to "hide" this file from the "go mod" tools. Makefile in this
+// repo will "unhide" the file (create fips.go->fips.go.hide symlink) when
+// compiling in FIPS mode.
+//
+// If you have a better workaround idea, please suggest it!
+
+package modules
+
+// This import puts the crypto/tls package into FIPS mode.
+import _ "crypto/tls/fipsonly"

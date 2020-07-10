@@ -13,6 +13,11 @@ ARCH ?= $(shell go env GOARCH)
 # FIPS support must be requested at build time.
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
+# See the comment in tool/modules/fips.go.hide for explanation.
+$(shell ln -s tool/modules/fips.go.hide tool/modules/fips.go)
+else
+# See the comment in tool/modules/fips.go.hide for explanation.
+$(shell rm tool/modules/fips.go)
 endif
 
 # PAM support will only be built into Teleport if headers exist at build time.
