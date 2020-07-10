@@ -73,7 +73,7 @@ Follow instructions at [docker/README](docker/README.md)
 Teleport source code consists of the actual Teleport daemon binary written in Golang, and also
 of a web UI (a git submodule located in /webassets directory) written in Javascript.
 
-Make sure you have Golang `v1.13` or newer, then run:
+Make sure you have Golang `v1.14` or newer, then run:
 
 ```bash
 # get the source & build:

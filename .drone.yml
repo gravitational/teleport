@@ -4,7 +4,7 @@ type: kubernetes
 name: test
 
 environment:
-  RUNTIME: go1.13.2
+  RUNTIME: go1.14.4
   UID: 1000
   GID: 1000
 
@@ -155,7 +155,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.13.2
+    image: golang:1.14.4
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -163,7 +163,7 @@ steps:
       - git checkout $DRONE_COMMIT
 
   - name: Run docs tests
-    image: golang:1.13.2
+    image: golang:1.14.4
     commands:
       - |
         cd /go/src/github.com/gravitational/teleport
@@ -241,7 +241,7 @@ type: kubernetes
 name: build-linux-amd64
 
 environment:
-  RUNTIME: go1.13.2
+  RUNTIME: go1.14.4
 
 trigger:
   event:
@@ -352,7 +352,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 
 environment:
-  RUNTIME: go1.13.2
+  RUNTIME: go1.14.4
 
 trigger:
   event:
@@ -460,7 +460,7 @@ type: kubernetes
 name: build-linux-amd64-centos6
 
 environment:
-  RUNTIME: go1.13.2
+  RUNTIME: go1.14.4
 
 trigger:
   event:
@@ -569,7 +569,7 @@ type: kubernetes
 name: build-linux-amd64-centos6-fips
 
 environment:
-  RUNTIME: go1.13.2
+  RUNTIME: go1.14.4
 
 trigger:
   event:
@@ -677,7 +677,7 @@ type: kubernetes
 name: build-windows
 
 environment:
-  RUNTIME: go1.13.2
+  RUNTIME: go1.14.4
 
 trigger:
   event:
@@ -782,7 +782,7 @@ type: kubernetes
 name: build-buildboxes
 
 environment:
-  RUNTIME: go1.13.2
+  RUNTIME: go1.14.4
   UID: 1000
   GID: 1000
 
