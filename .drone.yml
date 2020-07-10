@@ -749,7 +749,7 @@ trigger:
       - pull_request
 
 depends_on:
-  #- test
+  # - test
   - build-linux-amd64
 
 workspace:
@@ -802,6 +802,7 @@ steps:
       ARCH: amd64
       TMPDIR: /go
       OSS_TARBALL_PATH: /go/artifacts
+      ENT_TARBALL_PATH: /go/artifacts
     volumes:
       - name: dockersock
         path: /var/run
@@ -866,7 +867,7 @@ trigger:
       - pull_request
 
 depends_on:
-  #- test
+  # - test
   - build-linux-amd64-fips
 
 workspace:
@@ -898,6 +899,20 @@ steps:
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+
   - name: Build FIPS RPM artifacts
     image: docker
     environment:
@@ -906,20 +921,21 @@ steps:
       # weird quirk of FIPS package builds
       RUNTIME: fips
       TMPDIR: /go
+      ENT_TARBALL_PATH: /go/artifacts
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
-      - make rpm
+      # build enterprise only
+      - make -C e rpm
 
   - name: Copy FIPS RPM artifacts
     image: docker
     commands:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives (and checksums) to artifact directory
-      - find build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
       - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
 
   - name: Upload to S3
@@ -970,7 +986,7 @@ trigger:
       - pull_request
 
 depends_on:
-  #- test
+  # - test
   - build-linux-amd64
 
 workspace:
@@ -1002,11 +1018,28 @@ steps:
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+
   - name: Build DEB artifacts
     image: docker
     environment:
       ARCH: amd64
       TMPDIR: /go
+      OSS_TARBALL_PATH: /go/artifacts
+      ENT_TARBALL_PATH: /go/artifacts
     volumes:
       - name: dockersock
         path: /var/run
@@ -1071,7 +1104,7 @@ trigger:
       - pull_request
 
 depends_on:
-  #- test
+  # - test
   - build-linux-amd64-fips
 
 workspace:
@@ -1103,6 +1136,21 @@ steps:
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+
   - name: Build FIPS DEB artifacts
     image: docker
     environment:
@@ -1111,13 +1159,15 @@ steps:
       # weird quirk with FIPS package builds
       RUNTIME: "fips"
       TMPDIR: /go
+      ENT_TARBALL_PATH: /go/artifacts
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
-      - make deb
+      # build enterprise only
+      - make -C e deb
 
   - name: Copy FIPS DEB artifacts
     image: docker
@@ -1286,7 +1336,7 @@ trigger:
       - pull_request
 
 depends_on:
-  #- test
+  # - test
   - build-linux-i386
 
 workspace:
@@ -1318,11 +1368,28 @@ steps:
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+
   - name: Build i386 RPM artifacts
     image: docker
     environment:
       ARCH: "386"
       TMPDIR: /go
+      OSS_TARBALL_PATH: /go/artifacts
+      ENT_TARBALL_PATH: /go/artifacts
     volumes:
       - name: dockersock
         path: /var/run
@@ -1387,7 +1454,7 @@ trigger:
       - pull_request
 
 depends_on:
-  #- test
+  # - test
   - build-linux-i386
 
 workspace:
@@ -1419,11 +1486,28 @@ steps:
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/teleport-ent-${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+
   - name: Build i386 DEB artifacts
     image: docker
     environment:
       ARCH: "386"
       TMPDIR: /go
+      OSS_TARBALL_PATH: /go/artifacts
+      ENT_TARBALL_PATH: /go/artifacts
     volumes:
       - name: dockersock
         path: /var/run
@@ -1877,6 +1961,6 @@ steps:
 
 ---
 kind: signature
-hmac: 75433a856e6cf563dcd14d92bad5a730434a0960229adbd15abc180f689bfe69
+hmac: ca81ba02ff7dde4c3540436ef18bd62fcf0b2f04e63010ddc1eb5d3aa5087d89
 
 ...
