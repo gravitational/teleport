@@ -821,6 +821,7 @@ steps:
     commands:
       - apk add --no-cache bash curl go make tar
       - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
       - make rpm
 
   - name: Copy RPM artifacts
@@ -942,6 +943,7 @@ steps:
     commands:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
       # build enterprise only
       - make -C e rpm
 
@@ -1062,6 +1064,7 @@ steps:
     commands:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
       - make deb
 
   - name: Copy DEB artifacts
@@ -1183,6 +1186,7 @@ steps:
     commands:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
       # build enterprise only
       - make -C e deb
 
@@ -1416,6 +1420,7 @@ steps:
     commands:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
       - make rpm
 
   - name: Copy i386 RPM artifacts
@@ -1536,6 +1541,7 @@ steps:
     commands:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
       - make deb
 
   - name: Copy i386 DEB artifacts
@@ -1984,6 +1990,6 @@ steps:
 
 ---
 kind: signature
-hmac: dbf0a931bd8171c6f4144d3c5fab546629e152f9d38d60c917dfbe57fd337fdb
+hmac: 2c046d825796af88278283a8d701783c26baea6ed8e29df8aef4576d08a61805
 
 ...
