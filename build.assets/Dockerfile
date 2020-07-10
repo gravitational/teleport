@@ -43,8 +43,9 @@ RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.24.0
      cp golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ ;\
      rm -r golangci-lint*)
 
-COPY pam/pam_teleport.so /lib/x86_64-linux-gnu/security
-COPY pam/teleport-* /etc/pam.d/
+# Install PAM module and policies for testing.
+COPY pam/ /opt/pam_teleport/
+RUN make -C /opt/pam_teleport install
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
