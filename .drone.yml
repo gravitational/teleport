@@ -452,6 +452,7 @@ steps:
       # rename artifacts
       - export VERSION=$(cat /go/.version.txt)
       - env
+      - ls -lR /go/artifacts
       - mv /go/artifacts/teleport-ent-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -567,6 +568,7 @@ steps:
       # rename artifacts
       - export VERSION=$(cat /go/.version.txt)
       - env
+      - ls -lR /go/artifacts
       - mv /go/artifacts/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-${VERSION}-linux-amd64-centos6-bin.tar.gz
       - mv /go/artifacts/e/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-${VERSION}-linux-amd64-centos6-bin.tar.gz
       # generate checksums
@@ -698,6 +700,7 @@ steps:
       # rename artifact
       - export VERSION=$(cat /go/.version.txt)
       - env
+      - ls -lR /go/artifacts
       - mv /go/artifacts/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -1970,6 +1973,6 @@ steps:
 
 ---
 kind: signature
-hmac: 0f11d60e5d25003b1d9dc0c125f76043a79a2f59093d7e6d741d899c7c0a35cb
+hmac: 4b3ae1478735f8e3144d342fed9403e5bf2757f6df8f4b85073dd2dcf8fc573c
 
 ...
