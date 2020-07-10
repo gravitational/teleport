@@ -453,7 +453,7 @@ steps:
       - export VERSION=$(cat /go/.version.txt)
       - env
       - ls -lR /go/artifacts
-      - mv /go/artifacts/teleport-ent-$VERSION-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$VERSION-linux-amd64-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-$(cat /go/.version.txt)-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$(cat /go/.version.txt)-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -569,8 +569,8 @@ steps:
       - export VERSION=$(cat /go/.version.txt)
       - env
       - ls -lR /go/artifacts
-      - mv /go/artifacts/teleport-$VERSION-linux-amd64-bin.tar.gz /go/artifacts/teleport-$VERSION-linux-amd64-centos6-bin.tar.gz
-      - mv /go/artifacts/e/teleport-$VERSION-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-$VERSION-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/teleport-$(cat /go/.version.txt)-linux-amd64-bin.tar.gz /go/artifacts/teleport-$(cat /go/.version.txt)-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/e/teleport-$(cat /go/.version.txt)-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-$(cat /go/.version.txt)-linux-amd64-centos6-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
       - cd /go/artifacts/e && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -701,7 +701,7 @@ steps:
       - export VERSION=$(cat /go/.version.txt)
       - env
       - ls -lR /go/artifacts
-      - mv /go/artifacts/teleport-$VERSION-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$VERSION-linux-amd64-centos6-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-$(cat /go/.version.txt)-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-$(cat /go/.version.txt)-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -1973,6 +1973,6 @@ steps:
 
 ---
 kind: signature
-hmac: a610defaabd57cb6035f26564de4bf497170f269aa9e9628709b3684b5a2d6b2
+hmac: 7da7eb57529d5fc49d55e7e91de53c9367299d5ce83b15efe889366b001654f7
 
 ...
