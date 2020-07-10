@@ -291,8 +291,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts/e
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build release artifacts
     image: docker
@@ -417,8 +417,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build FIPS release artifacts
     image: docker
@@ -438,6 +438,7 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
+      - env
       - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
 
   - name: Copy FIPS artifacts
@@ -531,8 +532,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts/e
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build CentOS 6 release artifacts
     image: docker
@@ -660,8 +661,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build CentOS 6 FIPS release artifacts
     image: docker
@@ -742,7 +743,7 @@ trigger:
       - pull_request
 
 depends_on:
-  - test
+  #- test
   - build-linux-amd64
 
 workspace:
@@ -771,8 +772,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Download built tarball artifacts from S3
     image: amazon/aws-cli
@@ -859,7 +860,7 @@ trigger:
       - pull_request
 
 depends_on:
-  - test
+  #- test
   - build-linux-amd64-fips
 
 workspace:
@@ -888,8 +889,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build FIPS RPM artifacts
     image: docker
@@ -963,7 +964,7 @@ trigger:
       - pull_request
 
 depends_on:
-  - test
+  #- test
   - build-linux-amd64
 
 workspace:
@@ -992,8 +993,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build DEB artifacts
     image: docker
@@ -1064,7 +1065,7 @@ trigger:
       - pull_request
 
 depends_on:
-  - test
+  #- test
   - build-linux-amd64-fips
 
 workspace:
@@ -1093,8 +1094,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build FIPS DEB artifacts
     image: docker
@@ -1200,8 +1201,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build i386 release artifacts
     image: docker
@@ -1279,7 +1280,7 @@ trigger:
       - pull_request
 
 depends_on:
-  - test
+  #- test
   - build-linux-i386
 
 workspace:
@@ -1308,8 +1309,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build i386 RPM artifacts
     image: docker
@@ -1380,7 +1381,7 @@ trigger:
       - pull_request
 
 depends_on:
-  - test
+  #- test
   - build-linux-i386
 
 workspace:
@@ -1409,8 +1410,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build i386 DEB artifacts
     image: docker
@@ -1512,8 +1513,8 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # TODO(gus): testing
-      # set version appropriately
-      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt
+      # set version
+      - if [[ "${DRONE_TAG}" == "" ]]; then export VERSION=$(egrep ^VERSION Makefile | cut -d= -f2); else export VERSION=${DRONE_TAG##v}; fi; echo ${VERSION} > /go/.version.txt; cat /go/.version.txt
 
   - name: Build Windows release artifacts
     image: docker
@@ -1870,6 +1871,6 @@ steps:
 
 ---
 kind: signature
-hmac: 0d79cfe72872293e519ff4cfbb640fdb953ea4ee49ff97a31f683b05a9909fa4
+hmac: ccdf3404b4e55c69b919e77a89afeba22a7c111e77a0bb223c0729a14b037cdc
 
 ...
