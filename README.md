@@ -137,6 +137,59 @@ make run-docs
 
 For more details, take a look at [docs/README](docs/README.md)
 
+### Managing dependencies
+
+Dependencies are managed using [Go
+modules](https://blog.golang.org/using-go-modules). Here are instructions for
+some common tasks:
+
+#### add a new dependency
+
+Latest version:
+
+```
+go get github.com/new/dependency
+# Update the source to actually use this dependency, then run:
+make update-vendor
+```
+
+Specific version:
+
+```
+go get github.com/new/dependency@version
+# Update the source to actually use this dependency, then run:
+make update-vendor
+```
+
+#### set dependency to a specific version
+
+```
+go get github.com/new/dependency@version
+make update-vendor
+```
+
+#### update dependency to the latest version
+
+```
+go get -u github.com/new/dependency
+make update-vendor
+```
+
+#### update all dependencies
+
+```
+go get -u all
+make update-vendor
+```
+
+#### debugging dependencies
+
+Why is a specific package imported: `go mod why $pkgname`.
+
+Why is a specific module imported: `go mod why -m $modname`.
+
+Why is a specific version of a module imported: `go mod graph | grep $modname`.
+
 ## Why did We Build Teleport?
 
 The Teleport creators used to work together at Rackspace. We noticed that most
