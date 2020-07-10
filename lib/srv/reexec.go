@@ -239,12 +239,6 @@ func RunForward() (io.Writer, int, error) {
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
 	if c.PAM {
-		// Set Teleport specific environment variables that PAM modules like
-		// pam_script.so can pick up to potentially customize the account/session.
-		os.Setenv("TELEPORT_USERNAME", c.Username)
-		os.Setenv("TELEPORT_LOGIN", c.Login)
-		os.Setenv("TELEPORT_ROLES", strings.Join(c.Roles, " "))
-
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pam.Config{
 			ServiceName: c.ServiceName,
@@ -252,6 +246,14 @@ func RunForward() (io.Writer, int, error) {
 			Stdin:       os.Stdin,
 			Stdout:      ioutil.Discard,
 			Stderr:      ioutil.Discard,
+			// Set Teleport specific environment variables that PAM modules
+			// like pam_script.so can pick up to potentially customize the
+			// account/session.
+			Env: map[string]string{
+				"TELEPORT_USERNAME": c.Username,
+				"TELEPORT_LOGIN":    c.Login,
+				"TELEPORT_ROLES":    strings.Join(c.Roles, " "),
+			},
 		})
 		if err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)

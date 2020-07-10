@@ -1,1 +1,0 @@
-account     required    pam_teleport.so echo

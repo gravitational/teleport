@@ -2914,16 +2914,16 @@ func (s *IntSuite) TestPAM(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	// Check if TestPAM can run. For PAM tests to run, the binary must have been
-	// built with PAM support and the system running the tests must have libpam
-	// installed, and have the policy files installed. This test is always run
-	// in a container as part of the CI/CD pipeline. To run this test locally,
-	// install the pam_teleport.so module by running 'make && sudo make install'
-	// from the modules/pam_teleport directory. This will install the PAM module
-	// as well as the policy files.
+	// Check if TestPAM can run. For PAM tests to run, the binary must have
+	// been built with PAM support and the system running the tests must have
+	// libpam installed, and have the policy files installed. This test is
+	// always run in a container as part of the CI/CD pipeline. To run this
+	// test locally, install the pam_teleport.so module by running 'sudo make
+	// install' from the build.assets/pam/ directory. This will install the PAM
+	// module as well as the policy files.
 	if !pam.BuildHasPAM() || !pam.SystemHasPAM() || !hasPAMPolicy() {
 		skipMessage := "Skipping TestPAM: no policy found. To run PAM tests run " +
-			"'make && sudo make install' from the modules/pam_teleport directory."
+			"'sudo make install' from the build.assets/pam/ directory."
 		c.Skip(skipMessage)
 	}
 
@@ -2943,8 +2943,10 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			inEnabled:     true,
 			inServiceName: "teleport-success",
 			outContains: []string{
-				"Account opened successfully.",
-				"Session open successfully.",
+				"pam_sm_acct_mgmt OK",
+				"pam_sm_authenticate OK",
+				"pam_sm_open_session OK",
+				"pam_sm_close_session OK",
 			},
 		},
 		// 2 - PAM enabled, module account functions fail.
@@ -3014,7 +3016,8 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		// If any output is expected, check to make sure it was output.
 		if len(tt.outContains) > 0 {
 			for _, expectedOutput := range tt.outContains {
-				output := termSession.Output(100)
+				output := termSession.Output(1024)
+				c.Logf("got output: %q; want output to contain: %q", output, expectedOutput)
 				c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
 			}
 		}
