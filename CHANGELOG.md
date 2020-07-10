@@ -2,15 +2,15 @@
 
 ### 4.3.0
 
-This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items. We would love your feedback - please pick a [time slot for a remote UX feedback session](https://calendly.com/benarent-gravitational/teleport-4-3-feedback-session?month=2020-06) if you’re interested. 
+This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items. We would love your feedback - please pick a [time slot for a remote UX feedback session](https://calendly.com/benarent-gravitational/teleport-4-3-feedback-session?month=2020-06) if you’re interested.
 
 #### New Features
 
 ##### Web UI
 
-Teleport 4.3 includes a completely redesigned Web UI. The new Web UI expands the management functionality of a Teleport cluster and the user experience of using Teleport to make it easier and simpler to use. Teleport's new terminal provides a quick jumping-off point to access nodes and nodes on other clusters via the web. 
+Teleport 4.3 includes a completely redesigned Web UI. The new Web UI expands the management functionality of a Teleport cluster and the user experience of using Teleport to make it easier and simpler to use. Teleport's new terminal provides a quick jumping-off point to access nodes and nodes on other clusters via the web.
 
-Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and administrators view Teleport access events, SSH events, recording session, and enhanced session recording all in one view. 
+Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and administrators view Teleport access events, SSH events, recording session, and enhanced session recording all in one view.
 
 ##### Teleport Plugins
 
@@ -35,17 +35,17 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 *   Updated ability to only show SSO on the login page. [#2789](https://github.com/gravitational/teleport/issues/2789)
 *   Updated help and support section in Web UI. [#3531](https://github.com/gravitational/teleport/issues/3531)
 *   Updated default SSH signing algorithm to SHA-512 for new clusters. [#3777](https://github.com/gravitational/teleport/pull/3777)
-*   Standardized audit event fields. 
+*   Standardized audit event fields.
 
 #### Fixes
 
 *   Fixed removing existing user definitions in kubeconfig. [#3209](https://github.com/gravitational/teleport/issues/3749)
 *   Fixed an issue where port forwarding could fail in certain circumstances. [#3749](https://github.com/gravitational/teleport/issues/3749)
 *   Fixed temporary role grants issue when forwarding Kubernetes requests. [#3624](https://github.com/gravitational/teleport/pull/3624)
-*   Fixed an issue that prevented copy/paste in the web termination. [#92](https://github.com/gravitational/webapps/issues/92) 
+*   Fixed an issue that prevented copy/paste in the web termination. [#92](https://github.com/gravitational/webapps/issues/92)
 *   Fixed an issue where the proxy did not test Kubernetes permissions at startup. [#3812](https://github.com/gravitational/teleport/pull/3812)
 *   Fixed `tsh` and `gpg-agent` integration. [#3169](https://github.com/gravitational/teleport/issues/3169)
-*   Fixed Vulnerabilities in Teleport Docker Image [https://quay.io/repository/gravitational/teleport?tab=tags](https://quay.io/repository/gravitational/teleport?tab=tags) 
+*   Fixed Vulnerabilities in Teleport Docker Image [https://quay.io/repository/gravitational/teleport?tab=tags](https://quay.io/repository/gravitational/teleport?tab=tags)
 
 #### Documentation
 
@@ -71,6 +71,17 @@ Rotate the cluster CA, following [these docs](https://gravitational.com/teleport
 ##### Web UI
 
 Due to the number of changes included in the redesigned Web UI, some URLs and functionality have shifted. Refer to the following ticket for more details. [#3580](https://github.com/gravitational/teleport/issues/3580)
+
+##### RBAC for Audit Log and Recorded Sessions
+
+Teleport 4.3 has made the audit log accessible via the Web UI. Enterprise customers
+can limit access by changing the options on the new `event` resource.
+
+```yaml
+# list and read audit log, including audit events and recorded sessions
+- resources: [event]
+  verbs: [list, read]
+```
 
 ##### Kubernetes Permissions
 
@@ -1317,7 +1328,7 @@ This release focus was to increase Teleport user experience in the following are
 
 Teleport 2.0.5 contains a variety of security fixes. We strongly encourage anyone running Teleport 2.0.0 and above to upgrade to 2.0.5.
 
-The most pressing issues (a phishing attack which can potentially be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, however all nodes need to be upgraded to mitigate all vulnerabilities. 
+The most pressing issues (a phishing attack which can potentially be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, however all nodes need to be upgraded to mitigate all vulnerabilities.
 
 ### Bugfixes
 
@@ -1461,8 +1472,8 @@ certificates did not work correctly in this release due to #529
 ### Bugfixes
 
 * Wrong url to register new users. #497
-* Logged in users inherit Teleport supplemental groups bug security. #507 
-* Joining a session running on a trusted cluster does not work. #504 
+* Logged in users inherit Teleport supplemental groups bug security. #507
+* Joining a session running on a trusted cluster does not work. #504
 
 ## 1.0.4
 
